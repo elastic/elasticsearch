@@ -24,15 +24,22 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.ChunkedTextEmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.ErrorChunkedInferenceResults;
+import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.action.InferTrainedModelDeploymentAction;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.results.ChunkedTextEmbeddingResultsTests;
 import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TokenizationConfigUpdate;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.settings.InternalServiceSettings;
+import org.junit.After;
+import org.junit.Before;
+import org.mockito.Mockito;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -41,6 +48,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -58,6 +66,18 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
 
     TaskType taskType = TaskType.TEXT_EMBEDDING;
     String randomInferenceEntityId = randomAlphaOfLength(10);
+
+    private static ThreadPool threadPool;
+
+    @Before
+    public void setUpThreadPool() {
+        threadPool = new TestThreadPool("test");
+    }
+
+    @After
+    public void shutdownThreadPool() {
+        TestThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
+    }
 
     public void testParseRequestConfig() {
 
@@ -215,6 +235,95 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
                 model -> fail("Model parsing should have failed"),
                 e -> assertThat(e, instanceOf(ElasticsearchStatusException.class))
             );
+
+            service.parseRequestConfig(randomInferenceEntityId, taskType, settings, Set.of(), modelListener);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testParseRequestConfig_Rerank() {
+        // with task settings
+        {
+            var client = mock(Client.class);
+            doAnswer(invocation -> {
+                var listener = (ActionListener<GetTrainedModelsAction.Response>) invocation.getArguments()[2];
+                listener.onResponse(
+                    new GetTrainedModelsAction.Response(new QueryPage<>(List.of(mock(TrainedModelConfig.class)), 1, mock(ParseField.class)))
+                );
+                return null;
+            }).when(client).execute(Mockito.same(GetTrainedModelsAction.INSTANCE), any(), any());
+
+            when(client.threadPool()).thenReturn(threadPool);
+
+            var service = createService(client);
+            var settings = new HashMap<String, Object>();
+            settings.put(
+                ModelConfigurations.SERVICE_SETTINGS,
+                new HashMap<>(
+                    Map.of(
+                        ElasticsearchInternalServiceSettings.NUM_ALLOCATIONS,
+                        1,
+                        ElasticsearchInternalServiceSettings.NUM_THREADS,
+                        4,
+                        InternalServiceSettings.MODEL_ID,
+                        "foo"
+                    )
+                )
+            );
+            var returnDocs = randomBoolean();
+            settings.put(
+                ModelConfigurations.TASK_SETTINGS,
+                new HashMap<>(Map.of(CustomElandRerankTaskSettings.RETURN_DOCUMENTS, returnDocs))
+            );
+
+            ActionListener<Model> modelListener = ActionListener.<Model>wrap(model -> {
+                assertThat(model, instanceOf(CustomElandModel.class));
+                assertThat(model.getTaskSettings(), instanceOf(CustomElandRerankTaskSettings.class));
+                assertThat(model.getServiceSettings(), instanceOf(ElasticsearchInternalServiceSettings.class));
+                assertEquals(returnDocs, ((CustomElandRerankTaskSettings) model.getTaskSettings()).returnDocuments());
+            }, e -> { fail("Model parsing failed " + e.getMessage()); });
+
+            service.parseRequestConfig(randomInferenceEntityId, taskType, settings, Set.of(), modelListener);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testParseRequestConfig_Rerank_DefaultTaskSettings() {
+        // with task settings
+        {
+            var client = mock(Client.class);
+            doAnswer(invocation -> {
+                var listener = (ActionListener<GetTrainedModelsAction.Response>) invocation.getArguments()[2];
+                listener.onResponse(
+                    new GetTrainedModelsAction.Response(new QueryPage<>(List.of(mock(TrainedModelConfig.class)), 1, mock(ParseField.class)))
+                );
+                return null;
+            }).when(client).execute(Mockito.same(GetTrainedModelsAction.INSTANCE), any(), any());
+
+            when(client.threadPool()).thenReturn(threadPool);
+
+            var service = createService(client);
+            var settings = new HashMap<String, Object>();
+            settings.put(
+                ModelConfigurations.SERVICE_SETTINGS,
+                new HashMap<>(
+                    Map.of(
+                        ElasticsearchInternalServiceSettings.NUM_ALLOCATIONS,
+                        1,
+                        ElasticsearchInternalServiceSettings.NUM_THREADS,
+                        4,
+                        InternalServiceSettings.MODEL_ID,
+                        "foo"
+                    )
+                )
+            );
+
+            ActionListener<Model> modelListener = ActionListener.<Model>wrap(model -> {
+                assertThat(model, instanceOf(CustomElandModel.class));
+                assertThat(model.getTaskSettings(), instanceOf(CustomElandRerankTaskSettings.class));
+                assertThat(model.getServiceSettings(), instanceOf(ElasticsearchInternalServiceSettings.class));
+                assertEquals(Boolean.TRUE, ((CustomElandRerankTaskSettings) model.getTaskSettings()).returnDocuments());
+            }, e -> { fail("Model parsing failed " + e.getMessage()); });
 
             service.parseRequestConfig(randomInferenceEntityId, taskType, settings, Set.of(), modelListener);
         }
@@ -477,6 +586,61 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
             );
         } finally {
             terminate(threadpool);
+        }
+    }
+
+    public void testParsePersistedConfig_Rerank() {
+        // with task settings
+        {
+            var service = createService(mock(Client.class));
+            var settings = new HashMap<String, Object>();
+            settings.put(
+                ModelConfigurations.SERVICE_SETTINGS,
+                new HashMap<>(
+                    Map.of(
+                        ElasticsearchInternalServiceSettings.NUM_ALLOCATIONS,
+                        1,
+                        ElasticsearchInternalServiceSettings.NUM_THREADS,
+                        4,
+                        InternalServiceSettings.MODEL_ID,
+                        "foo"
+                    )
+                )
+            );
+            settings.put(InternalServiceSettings.MODEL_ID, "foo");
+            var returnDocs = randomBoolean();
+            settings.put(
+                ModelConfigurations.TASK_SETTINGS,
+                new HashMap<>(Map.of(CustomElandRerankTaskSettings.RETURN_DOCUMENTS, returnDocs))
+            );
+
+            var model = service.parsePersistedConfig(randomInferenceEntityId, TaskType.RERANK, settings);
+            assertThat(model.getTaskSettings(), instanceOf(CustomElandRerankTaskSettings.class));
+            assertEquals(returnDocs, ((CustomElandRerankTaskSettings) model.getTaskSettings()).returnDocuments());
+        }
+
+        // without task settings
+        {
+            var service = createService(mock(Client.class));
+            var settings = new HashMap<String, Object>();
+            settings.put(
+                ModelConfigurations.SERVICE_SETTINGS,
+                new HashMap<>(
+                    Map.of(
+                        ElasticsearchInternalServiceSettings.NUM_ALLOCATIONS,
+                        1,
+                        ElasticsearchInternalServiceSettings.NUM_THREADS,
+                        4,
+                        InternalServiceSettings.MODEL_ID,
+                        "foo"
+                    )
+                )
+            );
+            settings.put(InternalServiceSettings.MODEL_ID, "foo");
+
+            var model = service.parsePersistedConfig(randomInferenceEntityId, TaskType.RERANK, settings);
+            assertThat(model.getTaskSettings(), instanceOf(CustomElandRerankTaskSettings.class));
+            assertTrue(((CustomElandRerankTaskSettings) model.getTaskSettings()).returnDocuments());
         }
     }
 

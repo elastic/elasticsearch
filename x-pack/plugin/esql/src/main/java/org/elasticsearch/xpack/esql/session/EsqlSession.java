@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.session;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.core.Assertions;
@@ -22,6 +21,24 @@ import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
+import org.elasticsearch.xpack.esql.core.analyzer.TableInfo;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
+import org.elasticsearch.xpack.esql.core.expression.EmptyAttribute;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
+import org.elasticsearch.xpack.esql.core.expression.function.FunctionRegistry;
+import org.elasticsearch.xpack.esql.core.index.IndexResolution;
+import org.elasticsearch.xpack.esql.core.index.IndexResolver;
+import org.elasticsearch.xpack.esql.core.index.MappingException;
+import org.elasticsearch.xpack.esql.core.plan.TableIdentifier;
+import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
+import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
@@ -33,30 +50,12 @@ import org.elasticsearch.xpack.esql.parser.TypedParamValue;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
+import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.Mapper;
-import org.elasticsearch.xpack.ql.analyzer.TableInfo;
-import org.elasticsearch.xpack.ql.expression.Alias;
-import org.elasticsearch.xpack.ql.expression.Attribute;
-import org.elasticsearch.xpack.ql.expression.AttributeSet;
-import org.elasticsearch.xpack.ql.expression.EmptyAttribute;
-import org.elasticsearch.xpack.ql.expression.MetadataAttribute;
-import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
-import org.elasticsearch.xpack.ql.expression.UnresolvedStar;
-import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
-import org.elasticsearch.xpack.ql.index.IndexResolution;
-import org.elasticsearch.xpack.ql.index.IndexResolver;
-import org.elasticsearch.xpack.ql.index.MappingException;
-import org.elasticsearch.xpack.ql.plan.TableIdentifier;
-import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.ql.plan.logical.Project;
-import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.elasticsearch.xpack.ql.type.EsField;
-import org.elasticsearch.xpack.ql.type.InvalidMappedField;
-import org.elasticsearch.xpack.ql.util.Holder;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -69,9 +68,9 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
-import static org.elasticsearch.xpack.ql.index.IndexResolver.UNMAPPED;
-import static org.elasticsearch.xpack.ql.util.ActionListeners.map;
-import static org.elasticsearch.xpack.ql.util.StringUtils.WILDCARD;
+import static org.elasticsearch.xpack.esql.core.index.IndexResolver.UNMAPPED;
+import static org.elasticsearch.xpack.esql.core.util.ActionListeners.map;
+import static org.elasticsearch.xpack.esql.core.util.StringUtils.WILDCARD;
 
 public class EsqlSession {
 
@@ -208,13 +207,11 @@ public class EsqlSession {
             TableInfo tableInfo = preAnalysis.indices.get(0);
             TableIdentifier table = tableInfo.id();
             var fieldNames = fieldNames(parsed, enrichPolicyMatchFields);
-            assert preAnalysis.esSourceOptions.size() == 1 : "Unexpected source options count: " + preAnalysis.esSourceOptions.size();
-            var indicesOptions = preAnalysis.esSourceOptions.get(0).indicesOptions(IndexResolver.FIELD_CAPS_INDICES_OPTIONS);
 
             if (Assertions.ENABLED) {
-                resolveMergedMappingAgainstBothResolvers(table.index(), fieldNames, indicesOptions, listener);
+                resolveMergedMappingAgainstBothResolvers(table.index(), fieldNames, listener);
             } else {
-                esqlIndexResolver.resolveAsMergedMapping(table.index(), fieldNames, indicesOptions, listener);
+                esqlIndexResolver.resolveAsMergedMapping(table.index(), fieldNames, listener);
             }
         } else {
             try {
@@ -234,13 +231,12 @@ public class EsqlSession {
     private void resolveMergedMappingAgainstBothResolvers(
         String indexWildcard,
         Set<String> fieldNames,
-        IndicesOptions indicesOptions,
         ActionListener<IndexResolution> listener
     ) {
         indexResolver.resolveAsMergedMapping(indexWildcard, fieldNames, false, Map.of(), new ActionListener<>() {
             @Override
             public void onResponse(IndexResolution fromQl) {
-                esqlIndexResolver.resolveAsMergedMapping(indexWildcard, fieldNames, indicesOptions, new ActionListener<>() {
+                esqlIndexResolver.resolveAsMergedMapping(indexWildcard, fieldNames, new ActionListener<>() {
                     @Override
                     public void onResponse(IndexResolution fromEsql) {
                         if (fromQl.isValid() == false) {

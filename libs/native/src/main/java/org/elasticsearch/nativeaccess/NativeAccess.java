@@ -29,6 +29,21 @@ public interface NativeAccess {
      */
     boolean definitelyRunningAsRoot();
 
+    /**
+     * Return limits for the current process.
+     */
+    ProcessLimits getProcessLimits();
+
+    /**
+     * Attempt to lock this process's virtual memory address space into physical RAM.
+     */
+    void tryLockMemory();
+
+    /**
+     * Return whether locking memory was successful, or false otherwise.
+     */
+    boolean isMemoryLocked();
+
     Systemd systemd();
 
     /**
@@ -36,6 +51,13 @@ public interface NativeAccess {
      * @return an object used to compress and decompress bytes using zstd
      */
     Zstd getZstd();
+
+    /**
+     * Returns an accessor for native functions only available on Windows, or {@code null} if not on Windows.
+     */
+    default WindowsFunctions getWindowsFunctions() {
+        return null;
+    }
 
     /*
      * Returns the vector similarity functions, or an empty optional.

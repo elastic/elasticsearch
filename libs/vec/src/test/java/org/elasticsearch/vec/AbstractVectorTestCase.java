@@ -39,7 +39,9 @@ public abstract class AbstractVectorTestCase extends ESTestCase {
         var arch = System.getProperty("os.arch");
         var osName = System.getProperty("os.name");
 
-        if (jdkVersion >= 21 && arch.equals("aarch64") && (osName.startsWith("Mac") || osName.equals("Linux"))) {
+        if (jdkVersion >= 21
+            && (arch.equals("aarch64") && (osName.startsWith("Mac") || osName.equals("Linux"))
+                || arch.equals("amd64") && osName.equals("Linux"))) {
             assertThat(factory, isPresent());
             return true;
         } else {

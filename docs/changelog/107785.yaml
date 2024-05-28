@@ -1,5 +1,0 @@
-pr: 107785
-summary: Fix `minimized_round_trips` in lookup runtime fields
-area: Search
-type: bug
-issues: []

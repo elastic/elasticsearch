@@ -45,6 +45,7 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
+import org.hamcrest.Matcher;
 import org.junit.After;
 
 import java.io.IOException;
@@ -217,13 +218,13 @@ public class TimeSeriesSortedSourceOperatorTests extends AnyOperatorTestCase {
     }
 
     @Override
-    protected String expectedDescriptionOfSimple() {
-        return "TimeSeriesSortedSourceOperator[maxPageSize = 1, limit = 1]";
+    protected Matcher<String> expectedDescriptionOfSimple() {
+        return equalTo("TimeSeriesSortedSourceOperator[maxPageSize = 1, limit = 1]");
     }
 
     @Override
-    protected String expectedToStringOfSimple() {
-        return "Impl[maxPageSize=1, remainingDocs=1]";
+    protected Matcher<String> expectedToStringOfSimple() {
+        return equalTo("Impl[maxPageSize=1, remainingDocs=1]");
     }
 
     List<Page> runDriver(int limit, int maxPageSize, boolean forceMerge, int numTimeSeries, int numSamplesPerTS, long timestampStart) {

@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTests;
-import org.hamcrest.CoreMatchers;
 import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
@@ -230,7 +229,9 @@ public class CohereServiceSettingsTests extends AbstractWireSerializingTestCase<
 
         MatcherAssert.assertThat(
             thrownException.getMessage(),
-            is(Strings.format("Validation Failed: 1: [service_settings] Invalid url [%s] received for field [%s];", url, ServiceFields.URL))
+            containsString(
+                Strings.format("Validation Failed: 1: [service_settings] Invalid url [%s] received for field [%s]", url, ServiceFields.URL)
+            )
         );
     }
 
@@ -260,7 +261,7 @@ public class CohereServiceSettingsTests extends AbstractWireSerializingTestCase<
         entity.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
 
-        assertThat(xContentResult, CoreMatchers.is("""
+        assertThat(xContentResult, is("""
             {"model_id":"modelId","rate_limit":{"requests_per_minute":1}}"""));
     }
 
@@ -276,7 +277,7 @@ public class CohereServiceSettingsTests extends AbstractWireSerializingTestCase<
 
     @Override
     protected CohereServiceSettings mutateInstance(CohereServiceSettings instance) throws IOException {
-        return null;
+        return randomValueOtherThan(instance, CohereServiceSettingsTests::createRandom);
     }
 
     public static Map<String, Object> getServiceSettingsMap(@Nullable String url, @Nullable String model) {

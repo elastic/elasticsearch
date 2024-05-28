@@ -4,7 +4,7 @@
 <titleabbrev>Cancel connector sync job</titleabbrev>
 ++++
 
-preview::[]
+beta::[]
 
 Cancels a connector sync job.
 

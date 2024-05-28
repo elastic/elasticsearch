@@ -13,10 +13,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ESTestCase.WithoutSecurityManager;
 import org.hamcrest.Matcher;
 
-import java.net.URISyntaxException;
-import java.net.URL;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.Collections;
 import java.util.List;
 
@@ -89,14 +85,5 @@ public class MachineDependentHeapTests extends ESTestCase {
 
     private static SystemMemoryInfo systemMemoryInGigabytes(double gigabytes) {
         return () -> (long) (gigabytes * 1024 * 1024 * 1024);
-    }
-
-    private static Path configPath() {
-        URL resource = MachineDependentHeapTests.class.getResource("/config/elasticsearch.yml");
-        try {
-            return Paths.get(resource.toURI()).getParent();
-        } catch (URISyntaxException e) {
-            throw new RuntimeException(e);
-        }
     }
 }

@@ -4,7 +4,7 @@
 <titleabbrev>Update connector configuration</titleabbrev>
 ++++
 
-preview::[]
+beta::[]
 
 Updates a connector's `configuration`, allowing for config value updates within a registered configuration schema.
 

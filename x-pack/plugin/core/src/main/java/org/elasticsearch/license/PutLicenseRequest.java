@@ -27,7 +27,9 @@ public class PutLicenseRequest extends AcknowledgedRequest<PutLicenseRequest> {
         acknowledge = in.readBoolean();
     }
 
-    public PutLicenseRequest() {}
+    public PutLicenseRequest() {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
+    }
 
     @Override
     public ActionRequestValidationException validate() {

@@ -341,6 +341,7 @@ public class Constants {
         "cluster:monitor/update/health/info",
         "cluster:monitor/ingest/geoip/stats",
         "cluster:monitor/main",
+        "cluster:monitor/nodes/capabilities",
         "cluster:monitor/nodes/data_tier_usage",
         "cluster:monitor/nodes/hot_threads",
         "cluster:monitor/nodes/info",
@@ -606,6 +607,7 @@ public class Constants {
         "internal:cluster/coordination_diagnostics/info",
         "internal:cluster/formation/info",
         "internal:gateway/local/started_shards",
-        "internal:admin/indices/prevalidate_shard_path"
+        "internal:admin/indices/prevalidate_shard_path",
+        "internal:index/metadata/migration_version/update"
     ).filter(Objects::nonNull).collect(Collectors.toUnmodifiableSet());
 }

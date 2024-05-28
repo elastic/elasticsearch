@@ -3,6 +3,8 @@
  * or more contributor license agreements. Licensed under the Elastic License
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
+ *
+ * this file was contributed to by a generative AI
  */
 
 package org.elasticsearch.xpack.inference.external.response.huggingface;
@@ -13,6 +15,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.inference.results.FloatEmbedding;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.request.Request;
@@ -90,7 +93,7 @@ public class HuggingFaceEmbeddingsResponseEntity {
      * <a href="https://huggingface.co/sentence-transformers/all-MiniLM-L12-v2">sentence-transformers/all-MiniLM-L12-v2</a>
      */
     private static TextEmbeddingResults parseArrayFormat(XContentParser parser) throws IOException {
-        List<TextEmbeddingResults.Embedding> embeddingList = XContentParserUtils.parseList(
+        List<FloatEmbedding> embeddingList = XContentParserUtils.parseList(
             parser,
             HuggingFaceEmbeddingsResponseEntity::parseEmbeddingEntry
         );
@@ -137,7 +140,7 @@ public class HuggingFaceEmbeddingsResponseEntity {
     private static TextEmbeddingResults parseObjectFormat(XContentParser parser) throws IOException {
         positionParserAtTokenAfterField(parser, "embeddings", FAILED_TO_FIND_FIELD_TEMPLATE);
 
-        List<TextEmbeddingResults.Embedding> embeddingList = XContentParserUtils.parseList(
+        List<FloatEmbedding> embeddingList = XContentParserUtils.parseList(
             parser,
             HuggingFaceEmbeddingsResponseEntity::parseEmbeddingEntry
         );
@@ -145,11 +148,10 @@ public class HuggingFaceEmbeddingsResponseEntity {
         return new TextEmbeddingResults(embeddingList);
     }
 
-    private static TextEmbeddingResults.Embedding parseEmbeddingEntry(XContentParser parser) throws IOException {
+    private static FloatEmbedding parseEmbeddingEntry(XContentParser parser) throws IOException {
         XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.currentToken(), parser);
-
-        List<Float> embeddingValues = XContentParserUtils.parseList(parser, HuggingFaceEmbeddingsResponseEntity::parseEmbeddingList);
-        return new TextEmbeddingResults.Embedding(embeddingValues);
+        List<Float> embeddingValuesList = XContentParserUtils.parseList(parser, HuggingFaceEmbeddingsResponseEntity::parseEmbeddingList);
+        return FloatEmbedding.of(embeddingValuesList);
     }
 
     private static float parseEmbeddingList(XContentParser parser) throws IOException {

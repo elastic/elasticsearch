@@ -18,7 +18,9 @@ public class PostStartTrialRequest extends MasterNodeRequest<PostStartTrialReque
     private boolean acknowledge = false;
     private String type;
 
-    public PostStartTrialRequest() {}
+    public PostStartTrialRequest() {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
+    }
 
     public PostStartTrialRequest(StreamInput in) throws IOException {
         super(in);

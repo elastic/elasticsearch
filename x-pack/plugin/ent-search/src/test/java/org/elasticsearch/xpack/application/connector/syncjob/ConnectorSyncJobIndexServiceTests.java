@@ -77,6 +77,7 @@ public class ConnectorSyncJobIndexServiceTests extends ESSingleNodeTestCase {
     private String connectorOneId;
     private String connectorTwoId;
     private String connectorThreeId;
+    private String connectorFourId;
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
@@ -94,6 +95,7 @@ public class ConnectorSyncJobIndexServiceTests extends ESSingleNodeTestCase {
         connectorOneId = createConnector(ConnectorTestUtils.getRandomConnector());
         connectorTwoId = createConnector(ConnectorTestUtils.getRandomConnector());
         connectorThreeId = createConnector(ConnectorTestUtils.getRandomConnectorWithDetachedIndex());
+        connectorFourId = createConnector(ConnectorTestUtils.getRandomConnectorWithServiceTypeNotDefined());
 
         this.connectorSyncJobIndexService = new ConnectorSyncJobIndexService(client());
     }
@@ -170,6 +172,15 @@ public class ConnectorSyncJobIndexServiceTests extends ESSingleNodeTestCase {
     public void testDeleteConnectorSyncJob_WithDetachedConnectorIndex_ExpectException() {
         PostConnectorSyncJobAction.Request syncJobRequest = new PostConnectorSyncJobAction.Request(
             connectorThreeId,
+            ConnectorSyncJobType.FULL,
+            ConnectorSyncJobTriggerMethod.ON_DEMAND
+        );
+        expectThrows(ElasticsearchStatusException.class, () -> awaitPutConnectorSyncJob(syncJobRequest));
+    }
+
+    public void testDeleteConnectorSyncJob_WithServiceTypeNotDefined_ExpectException() {
+        PostConnectorSyncJobAction.Request syncJobRequest = new PostConnectorSyncJobAction.Request(
+            connectorFourId,
             ConnectorSyncJobType.FULL,
             ConnectorSyncJobTriggerMethod.ON_DEMAND
         );

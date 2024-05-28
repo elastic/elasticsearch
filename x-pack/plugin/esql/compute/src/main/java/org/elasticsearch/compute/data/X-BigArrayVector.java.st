@@ -10,8 +10,10 @@ package org.elasticsearch.compute.data;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.$Array$;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.ReleasableIterator;
 
 import java.io.IOException;
 
@@ -25,6 +27,18 @@ public final class $Type$BigArrayVector extends AbstractVector implements $Type$
     private static final long BASE_RAM_BYTES_USED = 0; // FIXME
 
     private final $Array$ values;
+
+$if(int)$
+    /**
+     * The minimum value in the block.
+     */
+    private Integer min;
+
+    /**
+     * The minimum value in the block.
+     */
+    private Integer max;
+$endif$
 
     public $Type$BigArrayVector($Array$ values, int positionCount, BlockFactory blockFactory) {
         super(positionCount, blockFactory);
@@ -67,6 +81,38 @@ $endif$
         return values.get(position);
     }
 
+$if(int)$
+    /**
+     * The minimum value in the block.
+     */
+    @Override
+    public int min() {
+        if (min == null) {
+            int v = values.get(0);
+            for (int i = 1; i < getPositionCount(); i++) {
+                v = Math.min(v, values.get(i));
+            }
+            min = v;
+        }
+        return min;
+    }
+
+    /**
+     * The maximum value in the block.
+     */
+    @Override
+    public int max() {
+        if (max == null) {
+            int v = values.get(0);
+            for (int i = 1; i < getPositionCount(); i++) {
+                v = Math.max(v, values.get(i));
+            }
+            max = v;
+        }
+        return max;
+    }
+$endif$
+
     @Override
     public ElementType elementType() {
         return ElementType.$TYPE$;
@@ -102,6 +148,11 @@ $endif$
         }
     $endif$
         return new $Type$BigArrayVector(filtered, positions.length, blockFactory);
+    }
+
+    @Override
+    public ReleasableIterator<$Type$Block> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
+        return new $Type$Lookup(asBlock(), positions, targetBlockSize);
     }
 
     @Override

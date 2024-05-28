@@ -42,7 +42,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class SnapshotBasedRecoveryIT extends ParameterizedRollingUpgradeTestCase {
+public class SnapshotBasedRecoveryIT extends AbstractRollingUpgradeTestCase {
 
     public SnapshotBasedRecoveryIT(@Name("upgradedNodes") int upgradedNodes) {
         super(upgradedNodes);

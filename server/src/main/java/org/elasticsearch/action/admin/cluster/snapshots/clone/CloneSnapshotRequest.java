@@ -53,6 +53,7 @@ public class CloneSnapshotRequest extends MasterNodeRequest<CloneSnapshotRequest
      * @param indices    indices to clone from source to target
      */
     public CloneSnapshotRequest(String repository, String source, String target, String[] indices) {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
         this.repository = repository;
         this.source = source;
         this.target = target;

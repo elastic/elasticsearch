@@ -90,7 +90,7 @@ public class NodesDataTiersUsageTransportAction extends TransportNodesAction<
 
     @Override
     protected NodeRequest newNodeRequest(NodesRequest request) {
-        return NodeRequest.INSTANCE;
+        return new NodeRequest();
     }
 
     @Override
@@ -175,8 +175,6 @@ public class NodesDataTiersUsageTransportAction extends TransportNodesAction<
     }
 
     public static class NodeRequest extends TransportRequest {
-
-        static final NodeRequest INSTANCE = new NodeRequest();
 
         public NodeRequest(StreamInput in) throws IOException {
             super(in);

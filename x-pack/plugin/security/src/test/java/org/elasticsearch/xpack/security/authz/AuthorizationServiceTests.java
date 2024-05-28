@@ -3557,8 +3557,9 @@ public class AuthorizationServiceTests extends ESTestCase {
         when(authorizationInfo.asMap()).thenReturn(
             Map.of(PRINCIPAL_ROLES_FIELD_NAME, randomArray(0, 3, String[]::new, () -> randomAlphaOfLengthBetween(5, 8)))
         );
+        String actionPrefix = randomFrom("indices", "cluster");
         threadContext.putTransient(AUTHORIZATION_INFO_KEY, authorizationInfo);
-        final String action = "indices:/some/action/" + randomAlphaOfLengthBetween(0, 8);
+        final String action = actionPrefix + ":/some/action/" + randomAlphaOfLengthBetween(0, 8);
         final String clusterAlias = randomAlphaOfLengthBetween(5, 12);
         final ElasticsearchSecurityException e = authorizationService.remoteActionDenied(authentication, action, clusterAlias);
         assertThat(e.getCause(), nullValue());
@@ -3567,10 +3568,11 @@ public class AuthorizationServiceTests extends ESTestCase {
             equalTo(
                 Strings.format(
                     "action [%s] towards remote cluster [%s] is unauthorized for %s"
-                        + " because no remote indices privileges apply for the target cluster",
+                        + " because no remote %s privileges apply for the target cluster",
                     action,
                     clusterAlias,
-                    new AuthorizationDenialMessages.Default().successfulAuthenticationDescription(authentication, authorizationInfo)
+                    new AuthorizationDenialMessages.Default().successfulAuthenticationDescription(authentication, authorizationInfo),
+                    actionPrefix
                 )
             )
         );
@@ -3583,7 +3585,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             Map.of(PRINCIPAL_ROLES_FIELD_NAME, randomArray(0, 3, String[]::new, () -> randomAlphaOfLengthBetween(5, 8)))
         );
         threadContext.putTransient(AUTHORIZATION_INFO_KEY, authorizationInfo);
-        final String action = "indices:/some/action/" + randomAlphaOfLengthBetween(0, 8);
+        String actionPrefix = randomFrom("indices", "cluster");
+        final String action = actionPrefix + ":/some/action/" + randomAlphaOfLengthBetween(0, 8);
         final ElasticsearchSecurityException e = authorizationService.actionDenied(authentication, authorizationInfo, action, mock());
         assertThat(e.getCause(), nullValue());
         assertThat(

@@ -32,9 +32,9 @@ import static org.elasticsearch.server.cli.JvmOption.isMinHeapSpecified;
  * Determines optimal default heap settings based on available system memory and assigned node roles.
  */
 public class MachineDependentHeap {
-    private static final long GB = 1024L * 1024L * 1024L; // 1GB
-    private static final long MAX_HEAP_SIZE = GB * 31; // 31GB
-    private static final long MIN_HEAP_SIZE = 1024 * 1024 * 128; // 128MB
+    protected static final long GB = 1024L * 1024L * 1024L; // 1GB
+    protected static final long MAX_HEAP_SIZE = GB * 31; // 31GB
+    protected static final long MIN_HEAP_SIZE = 1024 * 1024 * 128; // 128MB
 
     public MachineDependentHeap() {}
 

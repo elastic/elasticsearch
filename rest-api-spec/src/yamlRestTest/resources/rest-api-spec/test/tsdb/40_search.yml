@@ -1,8 +1,13 @@
 ---
 setup:
+  - requires:
+      cluster_features: "gte_v8.2.0"
+      reason: "_tsid hashing introduced in 8.13"
   - skip:
-      version: " - 8.1.99,8.7.00 - 8.12.99"
-      reason: _tsid hashing introduced in 8.13
+      known_issues:
+        - cluster_feature: "gte_v8.7.0"
+          fixed_by: "gte_v8.13.0"
+      reason: "_tsid hashing introduced in 8.13"
 
   - do:
       indices.create:

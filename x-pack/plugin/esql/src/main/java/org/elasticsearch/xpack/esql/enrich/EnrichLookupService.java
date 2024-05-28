@@ -29,6 +29,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockStreamInput;
+import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
@@ -73,6 +74,9 @@ import org.elasticsearch.xpack.core.security.support.Exceptions;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
@@ -80,9 +84,6 @@ import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.expression.Alias;
-import org.elasticsearch.xpack.ql.expression.NamedExpression;
-import org.elasticsearch.xpack.ql.type.DataType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -250,9 +251,10 @@ public class EnrichLookupService {
     ) {
         Block inputBlock = inputPage.getBlock(0);
         final IntBlock selectedPositions;
-        if (inputBlock instanceof OrdinalBytesRefBlock ordinalBytesRefBlock) {
-            inputBlock = ordinalBytesRefBlock.getDictionaryVector().asBlock();
-            selectedPositions = ordinalBytesRefBlock.getOrdinalsBlock();
+        final OrdinalBytesRefBlock ordinalsBytesRefBlock;
+        if (inputBlock instanceof BytesRefBlock bytesRefBlock && (ordinalsBytesRefBlock = bytesRefBlock.asOrdinals()) != null) {
+            inputBlock = ordinalsBytesRefBlock.getDictionaryVector().asBlock();
+            selectedPositions = ordinalsBytesRefBlock.getOrdinalsBlock();
             selectedPositions.mustIncRef();
         } else {
             selectedPositions = IntVector.range(0, inputBlock.getPositionCount(), blockFactory).asBlock();
@@ -472,7 +474,7 @@ public class EnrichLookupService {
             out.writeString(matchType);
             out.writeString(matchField);
             out.writeWriteable(inputPage);
-            PlanStreamOutput planOut = new PlanStreamOutput(out, PlanNameRegistry.INSTANCE);
+            PlanStreamOutput planOut = new PlanStreamOutput(out, PlanNameRegistry.INSTANCE, null);
             planOut.writeCollection(extractFields, writerFromPlanWriter(PlanStreamOutput::writeNamedExpression));
         }
 

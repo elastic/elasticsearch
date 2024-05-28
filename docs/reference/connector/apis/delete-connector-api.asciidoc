@@ -4,7 +4,7 @@
 <titleabbrev>Delete connector</titleabbrev>
 ++++
 
-preview::[]
+beta::[]
 
 Removes a connector and associated sync jobs.
 This is a destructive action that is not recoverable.

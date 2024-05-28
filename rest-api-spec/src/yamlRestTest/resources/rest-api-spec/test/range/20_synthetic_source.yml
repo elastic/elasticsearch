@@ -1,6 +1,6 @@
 setup:
-  - skip:
-      version: " - 8.14.99"
+  - requires:
+      cluster_features: "gte_v8.15.0"
       reason: synthetic source support added in 8.15
 
   - do:
@@ -117,7 +117,7 @@ setup:
         id: "6"
   - match:
       _source:
-        integer_range: { "gte": -2147483648, "lte": 10 }
+        integer_range: { "gte": null, "lte": 10 }
 
   - do:
       get:
@@ -125,7 +125,7 @@ setup:
         id: "7"
   - match:
       _source:
-        integer_range: { "gte": 1, "lte": 2147483647 }
+        integer_range: { "gte": 1, "lte": null }
 
 ---
 "Long range":
@@ -220,7 +220,7 @@ setup:
         id: "6"
   - match:
       _source:
-        long_range: { "gte": -9223372036854775808, "lte": 10 }
+        long_range: { "gte": null, "lte": 10 }
 
   - do:
       get:
@@ -228,7 +228,7 @@ setup:
         id: "7"
   - match:
       _source:
-        long_range: { "gte": 1, "lte": 9223372036854775807 }
+        long_range: { "gte": 1, "lte": null }
 
 ---
 "Float range":
@@ -309,7 +309,7 @@ setup:
         id: "5"
   - match:
       _source:
-        float_range: { "gte": "-Infinity", "lte": 10.0 }
+        float_range: { "gte": null, "lte": 10.0 }
 
   - do:
       get:
@@ -317,7 +317,7 @@ setup:
         id: "6"
   - match:
       _source:
-        float_range: { "gte": 1.0, "lte": "Infinity" }
+        float_range: { "gte": 1.0, "lte": null }
 
 ---
 "Double range":
@@ -398,7 +398,7 @@ setup:
         id: "5"
   - match:
       _source:
-        double_range: { "gte": "-Infinity", "lte": 10.0 }
+        double_range: { "gte": null, "lte": 10.0 }
 
   - do:
       get:
@@ -406,7 +406,7 @@ setup:
         id: "6"
   - match:
       _source:
-        double_range: { "gte": 1.0, "lte": "Infinity" }
+        double_range: { "gte": 1.0, "lte": null }
 
 ---
 "IP range":
@@ -515,7 +515,7 @@ setup:
         id: "7"
   - match:
       _source:
-        ip_range: { "gte": "::", "lte": "10.10.10.10" }
+        ip_range: { "gte": null, "lte": "10.10.10.10" }
 
   - do:
       get:
@@ -523,7 +523,7 @@ setup:
         id: "8"
   - match:
       _source:
-        ip_range: { "gte": "2001:db8::", "lte": "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff" }
+        ip_range: { "gte": "2001:db8::", "lte": null }
 
 ---
 "Date range":
@@ -646,7 +646,7 @@ setup:
         id: "8"
   - match:
       _source:
-        date_range: { "gte": "-292275055-05-16T16:47:04.192Z", "lte": "2017-09-05T00:00:00.000Z" }
+        date_range: { "gte": null, "lte": "2017-09-05T00:00:00.000Z" }
 
   - do:
       get:
@@ -654,4 +654,4 @@ setup:
         id: "9"
   - match:
       _source:
-        date_range: { "gte": "2017-09-05T00:00:00.000Z", "lte": "+292278994-08-17T07:12:55.807Z" }
+        date_range: { "gte": "2017-09-05T00:00:00.000Z", "lte": null }

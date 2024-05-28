@@ -1,0 +1,5 @@
+pr: 107865
+summary: Fix docs generation of signatures for variadic functions
+area: ES|QL
+type: bug
+issues: []

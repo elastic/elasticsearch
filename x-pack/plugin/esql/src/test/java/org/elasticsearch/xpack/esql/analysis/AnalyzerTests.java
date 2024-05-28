@@ -13,12 +13,31 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
+import org.elasticsearch.xpack.esql.core.index.EsIndex;
+import org.elasticsearch.xpack.esql.core.index.IndexResolution;
+import org.elasticsearch.xpack.esql.core.plan.TableIdentifier;
+import org.elasticsearch.xpack.esql.core.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.core.plan.logical.Limit;
+import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.core.plan.logical.OrderBy;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.type.TypesTests;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
@@ -35,30 +54,15 @@ import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.session.EsqlIndexResolver;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
-import org.elasticsearch.xpack.ql.expression.Alias;
-import org.elasticsearch.xpack.ql.expression.Attribute;
-import org.elasticsearch.xpack.ql.expression.Expressions;
-import org.elasticsearch.xpack.ql.expression.FieldAttribute;
-import org.elasticsearch.xpack.ql.expression.Literal;
-import org.elasticsearch.xpack.ql.expression.NamedExpression;
-import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
-import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
-import org.elasticsearch.xpack.ql.index.EsIndex;
-import org.elasticsearch.xpack.ql.index.IndexResolution;
-import org.elasticsearch.xpack.ql.plan.TableIdentifier;
-import org.elasticsearch.xpack.ql.plan.logical.Filter;
-import org.elasticsearch.xpack.ql.plan.logical.Limit;
-import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.elasticsearch.xpack.ql.type.TypesTests;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
@@ -69,7 +73,8 @@ import static org.elasticsearch.xpack.esql.analysis.Analyzer.NO_FIELDS;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyze;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.loadMapping;
-import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.tsdbIndexResolution;
+import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -82,7 +87,8 @@ public class AnalyzerTests extends ESTestCase {
     private static final EsqlUnresolvedRelation UNRESOLVED_RELATION = new EsqlUnresolvedRelation(
         EMPTY,
         new TableIdentifier(EMPTY, null, "idx"),
-        List.of()
+        List.of(),
+        IndexMode.STANDARD
     );
 
     private static final int MAX_LIMIT = EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE.getDefault(Settings.EMPTY);
@@ -94,7 +100,7 @@ public class AnalyzerTests extends ESTestCase {
         var plan = analyzer.analyze(UNRESOLVED_RELATION);
         var limit = as(plan, Limit.class);
 
-        assertEquals(new EsRelation(EMPTY, idx, NO_FIELDS), limit.child());
+        assertEquals(new EsRelation(EMPTY, idx, NO_FIELDS, IndexMode.STANDARD), limit.child());
     }
 
     public void testFailOnUnresolvedIndex() {
@@ -112,7 +118,7 @@ public class AnalyzerTests extends ESTestCase {
         var plan = analyzer.analyze(UNRESOLVED_RELATION);
         var limit = as(plan, Limit.class);
 
-        assertEquals(new EsRelation(EMPTY, idx, NO_FIELDS), limit.child());
+        assertEquals(new EsRelation(EMPTY, idx, NO_FIELDS, IndexMode.STANDARD), limit.child());
     }
 
     public void testAttributeResolution() {
@@ -1003,7 +1009,13 @@ public class AnalyzerTests extends ESTestCase {
                 from test
                 | where emp_no COMPARISON "foo"
                 """.replace("COMPARISON", comparison)));
-            assertThat(e.getMessage(), containsString("Cannot convert string [foo] to [INTEGER]".replace("COMPARISON", comparison)));
+            assertThat(
+                e.getMessage(),
+                containsString(
+                    "first argument of [emp_no COMPARISON \"foo\"] is [numeric] so second argument must also be [numeric] but was [keyword]"
+                        .replace("COMPARISON", comparison)
+                )
+            );
         }
     }
 
@@ -1013,7 +1025,13 @@ public class AnalyzerTests extends ESTestCase {
                 from test
                 | where "foo" COMPARISON emp_no
                 """.replace("COMPARISON", comparison)));
-            assertThat(e.getMessage(), containsString("Cannot convert string [foo] to [INTEGER]".replace("COMPARISON", comparison)));
+            assertThat(
+                e.getMessage(),
+                containsString(
+                    "first argument of [\"foo\" COMPARISON emp_no] is [keyword] so second argument must also be [keyword] but was [integer]"
+                        .replace("COMPARISON", comparison)
+                )
+            );
         }
     }
 
@@ -1624,6 +1642,22 @@ public class AnalyzerTests extends ESTestCase {
             query += ", x" + j + " = pow(x" + (j - 1) + ", " + i + ")";
         }
         assertProjection(query + " | keep x*", IntStream.range(0, additionalEvals + 3).mapToObj(v -> "x" + v).toArray(String[]::new));
+    }
+
+    public void testCounterTypes() {
+        var query = "FROM test | KEEP network.* | LIMIT 10";
+        Analyzer analyzer = analyzer(tsdbIndexResolution());
+        LogicalPlan plan = analyze(query, analyzer);
+        var limit = as(plan, Limit.class);
+        var attributes = limit.output().stream().collect(Collectors.toMap(NamedExpression::name, a -> a));
+        assertThat(
+            attributes.keySet(),
+            equalTo(Set.of("network.connections", "network.bytes_in", "network.bytes_out", "network.message_in"))
+        );
+        assertThat(attributes.get("network.connections").dataType(), equalTo(DataTypes.LONG));
+        assertThat(attributes.get("network.bytes_in").dataType(), equalTo(EsqlDataTypes.COUNTER_LONG));
+        assertThat(attributes.get("network.bytes_out").dataType(), equalTo(EsqlDataTypes.COUNTER_LONG));
+        assertThat(attributes.get("network.message_in").dataType(), equalTo(EsqlDataTypes.COUNTER_DOUBLE));
     }
 
     public void testMissingAttributeException_InChainedEval() {

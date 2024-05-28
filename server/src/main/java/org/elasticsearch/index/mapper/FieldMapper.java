@@ -181,6 +181,7 @@ public abstract class FieldMapper extends Mapper {
             if (hasScript) {
                 throwIndexingWithScriptParam();
             }
+
             parseCreateField(context);
         } catch (Exception e) {
             rethrowAsDocumentParsingException(context, e);
@@ -436,6 +437,57 @@ public abstract class FieldMapper extends Mapper {
 
     public Map<String, NamedAnalyzer> indexAnalyzers() {
         return Map.of();
+    }
+
+    /**
+     * Specifies the mode of synthetic source support by the mapper.
+     *
+     * <pre>
+     * {@link NATIVE} - mapper natively supports synthetic source, f.e. by constructing it from doc values.
+     *
+     * {@link FALLBACK} - mapper does not have native support but uses fallback implementation.
+     * This is a temporary variant that exists in order to roll out fallback implementation on a per field basis.
+     *
+     * {@link NOT_SUPPORTED} - synthetic source is not supported.
+     * </pre>
+     */
+    protected enum SyntheticSourceMode {
+        NATIVE,
+        FALLBACK,
+        NOT_SUPPORTED
+    }
+
+    /**
+     * Specifies the mode of synthetic source support by the mapper.
+     *
+     * @return {@link SyntheticSourceMode}
+     */
+    protected SyntheticSourceMode syntheticSourceMode() {
+        return SyntheticSourceMode.NOT_SUPPORTED;
+    }
+
+    /**
+     * Mappers override this method with native synthetic source support.
+     * If mapper does not support synthetic source, it is generated using generic implementation
+     * in {@link DocumentParser#parseObjectOrField} and {@link ObjectMapper#syntheticFieldLoader()}.
+     *
+     * @return implementation of {@link SourceLoader.SyntheticFieldLoader}
+     */
+    @Override
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
+        // If mapper supports synthetic source natively, it overrides this method,
+        // /so we won't see those here.
+        if (syntheticSourceMode() == SyntheticSourceMode.FALLBACK) {
+            if (copyTo.copyToFields().isEmpty() != true) {
+                throw new IllegalArgumentException(
+                    "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
+                );
+            }
+            // Nothing because it is handled at `ObjectMapper` level.
+            return SourceLoader.SyntheticFieldLoader.NOTHING;
+        }
+
+        return super.syntheticFieldLoader();
     }
 
     public static final class MultiFields implements Iterable<FieldMapper>, ToXContent {
@@ -1199,7 +1251,7 @@ public abstract class FieldMapper extends Mapper {
         private final String mapperName;
         private final List<String> conflicts = new ArrayList<>();
 
-        Conflicts(String mapperName) {
+        public Conflicts(String mapperName) {
             this.mapperName = mapperName;
         }
 
@@ -1211,7 +1263,7 @@ public abstract class FieldMapper extends Mapper {
             conflicts.add("Cannot update parameter [" + parameter + "] from [" + existing + "] to [" + toMerge + "]");
         }
 
-        void check() {
+        public void check() {
             if (conflicts.isEmpty()) {
                 return;
             }

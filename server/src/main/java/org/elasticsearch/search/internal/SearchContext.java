@@ -351,6 +351,7 @@ public abstract class SearchContext implements Releasable {
      * Adds a releasable that will be freed when this context is closed.
      */
     public void addReleasable(Releasable releasable) {   // TODO most Releasables are managed by their callers. We probably don't need this.
+        assert closed.get() == false;
         releasables.add(releasable);
     }
 

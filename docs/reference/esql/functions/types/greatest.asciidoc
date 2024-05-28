@@ -6,11 +6,16 @@
 |===
 first | rest | result
 boolean | boolean | boolean
+boolean | | boolean
 double | double | double
 integer | integer | integer
+integer | | integer
 ip | ip | ip
 keyword | keyword | keyword
+keyword | | keyword
 long | long | long
+long | | long
 text | text | text
+text | | text
 version | version | version
 |===

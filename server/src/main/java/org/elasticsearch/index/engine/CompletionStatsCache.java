@@ -15,10 +15,12 @@ import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.suggest.document.CompletionTerms;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.UnsafePlainActionFuture;
 import org.elasticsearch.common.FieldMemoryStats;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -42,7 +44,7 @@ public class CompletionStatsCache implements ReferenceManager.RefreshListener {
     }
 
     public CompletionStats get(String... fieldNamePatterns) {
-        final PlainActionFuture<CompletionStats> newFuture = new PlainActionFuture<>();
+        final PlainActionFuture<CompletionStats> newFuture = new UnsafePlainActionFuture<>(ThreadPool.Names.MANAGEMENT);
         final PlainActionFuture<CompletionStats> oldFuture = completionStatsFutureRef.compareAndExchange(null, newFuture);
 
         if (oldFuture != null) {

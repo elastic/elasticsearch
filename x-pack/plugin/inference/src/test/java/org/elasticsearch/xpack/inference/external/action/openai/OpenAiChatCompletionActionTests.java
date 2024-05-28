@@ -24,14 +24,12 @@ import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
-import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
-import org.hamcrest.CoreMatchers;
 import org.junit.After;
 import org.junit.Before;
 
@@ -46,8 +44,10 @@ import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.external.request.openai.OpenAiUtils.ORGANIZATION_HEADER;
+import static org.elasticsearch.xpack.inference.results.ChatCompletionResultsTests.buildExpectationCompletion;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionModelTests.createChatCompletionModel;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -118,7 +118,7 @@ public class OpenAiChatCompletionActionTests extends ESTestCase {
 
             var result = listener.actionGet(TIMEOUT);
 
-            assertThat(result.asMap(), is(buildExpectedChatCompletionResultMap(List.of("result content"))));
+            assertThat(result.asMap(), is(buildExpectationCompletion(List.of("result content"))));
             assertThat(webServer.requests(), hasSize(1));
 
             MockRequest request = webServer.requests().get(0);
@@ -143,7 +143,7 @@ public class OpenAiChatCompletionActionTests extends ESTestCase {
                 IllegalArgumentException.class,
                 () -> createAction("^^", "org", "secret", "model", "user", sender)
             );
-            assertThat(thrownException.getMessage(), is("unable to parse url [^^]"));
+            assertThat(thrownException.getMessage(), containsString("unable to parse url [^^]"));
         }
     }
 
@@ -272,16 +272,9 @@ public class OpenAiChatCompletionActionTests extends ESTestCase {
 
             var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
 
-            assertThat(thrownException.getMessage(), CoreMatchers.is("OpenAI completions only accepts 1 input"));
-            assertThat(thrownException.status(), CoreMatchers.is(RestStatus.BAD_REQUEST));
+            assertThat(thrownException.getMessage(), is("OpenAI completions only accepts 1 input"));
+            assertThat(thrownException.status(), is(RestStatus.BAD_REQUEST));
         }
-    }
-
-    public static Map<String, Object> buildExpectedChatCompletionResultMap(List<String> results) {
-        return Map.of(
-            ChatCompletionResults.COMPLETION,
-            results.stream().map(result -> Map.of(ChatCompletionResults.Result.RESULT, result)).toList()
-        );
     }
 
     private OpenAiChatCompletionAction createAction(

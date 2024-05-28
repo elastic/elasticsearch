@@ -96,6 +96,13 @@ final class $Type$ArrayBlock extends AbstractArrayBlock implements $Type$Block {
         return null;
     }
 
+$if(BytesRef)$
+    @Override
+    public OrdinalBytesRefBlock asOrdinals() {
+        return null;
+    }
+$endif$
+
     @Override
 $if(BytesRef)$
     public BytesRef getBytesRef(int valueIndex, BytesRef dest) {

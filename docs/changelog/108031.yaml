@@ -1,0 +1,6 @@
+pr: 108031
+summary: Fix lingering license warning header
+area: License
+type: bug
+issues:
+ - 107573

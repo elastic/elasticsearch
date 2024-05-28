@@ -36,6 +36,18 @@ import static org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeployment
 @ServerlessScope(Scope.PUBLIC)
 public class RestStartTrainedModelDeploymentAction extends BaseRestHandler {
 
+    public RestStartTrainedModelDeploymentAction(boolean disableInferenceProcessCache) {
+        super();
+        if (disableInferenceProcessCache) {
+            this.defaultCacheSize = ByteSizeValue.ZERO;
+        } else {
+            // Don't set the default cache size yet
+            defaultCacheSize = null;
+        }
+    }
+
+    private final ByteSizeValue defaultCacheSize;
+
     @Override
     public String getName() {
         return "xpack_ml_start_trained_models_deployment_action";
@@ -98,6 +110,8 @@ public class RestStartTrainedModelDeploymentAction extends BaseRestHandler {
                 request.setCacheSize(
                     ByteSizeValue.parseBytesSizeValue(restRequest.param(CACHE_SIZE.getPreferredName()), CACHE_SIZE.getPreferredName())
                 );
+            } else if (defaultCacheSize != null) {
+                request.setCacheSize(defaultCacheSize);
             }
             request.setQueueCapacity(restRequest.paramAsInt(QUEUE_CAPACITY.getPreferredName(), request.getQueueCapacity()));
             request.setPriority(

@@ -4,7 +4,7 @@
 <titleabbrev>Get connector</titleabbrev>
 ++++
 
-preview::[]
+beta::[]
 
 Retrieves the details about a connector.
 

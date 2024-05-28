@@ -34,9 +34,7 @@ public class RestEnrichStatsAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(final RestRequest restRequest, final NodeClient client) {
-        final var request = new EnrichStatsAction.Request(RestUtils.getMasterNodeTimeout(restRequest)
-        // NEW
-        );
+        final var request = new EnrichStatsAction.Request(RestUtils.getMasterNodeTimeout(restRequest));
         return channel -> client.execute(EnrichStatsAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 

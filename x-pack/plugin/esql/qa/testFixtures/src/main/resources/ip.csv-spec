@@ -544,6 +544,15 @@ ip4:ip  | ip6:ip                    | bits_per_byte:integer | ip4_length:integer
 1.2.3.4 | fe80::cae2:65ff:fece:feb9 | 8                     | 24                 | 1.2.3.0       | fe80::cae2:65ff:fece:fe00
 ;
 
+ipPrefixDefaultParameters
+required_capability: fn_ip_prefix
+row ip6 = to_ip("fe80::cae2:65ff:fece:feb9")
+| eval ip6_prefix = ip_prefix(ip6, 32);
+
+ip6:ip                    | ip6_prefix:ip
+fe80::cae2:65ff:fece:feb9 | fe80::cae2:65ff:fece:feb9
+;
+
 ipPrefixAsGroup
 required_capability: fn_ip_prefix
 from hosts

@@ -7,5 +7,5 @@ Returns the original IP with all but the first N bits set to zero.
 
 ```
 row ip4 = to_ip("1.2.3.4"), ip6 = to_ip("fe80::cae2:65ff:fece:feb9")
-| eval ip4_prefix = ip_prefix(ip4, 24), ip6_prefix = ip_prefix(ip6, 112);
+| eval ip4_prefix = ip_prefix(ip4, 24), ip6_prefix = ip_prefix(ip6, 0, 112);
 ```

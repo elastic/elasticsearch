@@ -80,6 +80,9 @@ public class VectorScorerBenchmark {
     RandomVectorScorer nativeDotScorer;
     RandomVectorScorer nativeSqrScorer;
 
+    RandomVectorScorer luceneDotScorerQuery;
+    RandomVectorScorer nativeDotScorerQuery;
+
     @Setup
     public void setup() throws IOException {
         var optionalVectorScorerFactory = VectorScorerFactory.instance();
@@ -119,6 +122,14 @@ public class VectorScorerBenchmark {
         nativeDotScorer = factory.getInt7SQVectorScorerSupplier(DOT_PRODUCT, in, values, scoreCorrectionConstant).get().scorer(0);
         nativeSqrScorer = factory.getInt7SQVectorScorerSupplier(EUCLIDEAN, in, values, scoreCorrectionConstant).get().scorer(0);
 
+        // setup for getInt7SQVectorScorer / query vector scoring
+        float[] queryVec = new float[dims];
+        for (int i = 0; i < dims; i++) {
+            queryVec[i] = ThreadLocalRandom.current().nextFloat();
+        }
+        luceneDotScorerQuery = luceneScorer(values, VectorSimilarityFunction.DOT_PRODUCT, queryVec);
+        nativeDotScorerQuery = factory.getInt7SQVectorScorer(VectorSimilarityFunction.DOT_PRODUCT, values, queryVec).get();
+
         // sanity
         var f1 = dotProductLucene();
         var f2 = dotProductNative();
@@ -138,6 +149,12 @@ public class VectorScorerBenchmark {
         }
         if (f1 != f3) {
             throw new AssertionError("lucene[" + f1 + "] != " + "scalar[" + f3 + "]");
+        }
+
+        var q1 = dotProductLuceneQuery();
+        var q2 = dotProductNativeQuery();
+        if (q1 != q2) {
+            throw new AssertionError("query: lucene[" + q1 + "] != " + "native[" + q2 + "]");
         }
     }
 
@@ -164,6 +181,16 @@ public class VectorScorerBenchmark {
         }
         float adjustedDistance = dotProduct * scoreCorrectionConstant + vec1Offset + vec2Offset;
         return (1 + adjustedDistance) / 2;
+    }
+
+    @Benchmark
+    public float dotProductLuceneQuery() throws IOException {
+        return luceneDotScorerQuery.score(1);
+    }
+
+    @Benchmark
+    public float dotProductNativeQuery() throws IOException {
+        return nativeDotScorerQuery.score(1);
     }
 
     // -- square distance
@@ -198,6 +225,11 @@ public class VectorScorerBenchmark {
     RandomVectorScorerSupplier luceneScoreSupplier(RandomAccessQuantizedByteVectorValues values, VectorSimilarityFunction sim)
         throws IOException {
         return new Lucene99ScalarQuantizedVectorScorer(null).getRandomVectorScorerSupplier(sim, values);
+    }
+
+    RandomVectorScorer luceneScorer(RandomAccessQuantizedByteVectorValues values, VectorSimilarityFunction sim, float[] queryVec)
+        throws IOException {
+        return new Lucene99ScalarQuantizedVectorScorer(null).getRandomVectorScorer(sim, values, queryVec);
     }
 
     // Unsigned int7 byte vectors have values in the range of 0 to 127 (inclusive).

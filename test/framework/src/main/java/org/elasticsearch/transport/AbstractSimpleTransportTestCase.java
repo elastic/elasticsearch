@@ -20,6 +20,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.UnsafePlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.VersionInformation;
@@ -960,7 +961,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 protected void doRun() throws Exception {
                     safeAwait(go);
                     for (int iter = 0; iter < 10; iter++) {
-                        PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();
+                        PlainActionFuture<TestResponse> listener = new UnsafePlainActionFuture<>(ThreadPool.Names.GENERIC);
                         final String info = sender + "_B_" + iter;
                         serviceB.sendRequest(
                             nodeA,
@@ -996,7 +997,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 protected void doRun() throws Exception {
                     go.await();
                     for (int iter = 0; iter < 10; iter++) {
-                        PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();
+                        PlainActionFuture<TestResponse> listener = new UnsafePlainActionFuture<>(ThreadPool.Names.GENERIC);
                         final String info = sender + "_" + iter;
                         final DiscoveryNode node = nodeB; // capture now
                         try {
@@ -3464,7 +3465,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
      * @param connectionProfile the connection profile to use when connecting to this node
      */
     public static void connectToNode(TransportService service, DiscoveryNode node, ConnectionProfile connectionProfile) {
-        PlainActionFuture.get(fut -> service.connectToNode(node, connectionProfile, fut.map(x -> null)));
+        UnsafePlainActionFuture.get(fut -> service.connectToNode(node, connectionProfile, fut.map(x -> null)), ThreadPool.Names.GENERIC);
     }
 
     /**

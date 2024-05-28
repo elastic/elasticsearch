@@ -18,6 +18,8 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.inference.results.ByteEmbedding;
+import org.elasticsearch.xpack.core.inference.results.FloatEmbedding;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingByteResults;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
@@ -188,11 +190,10 @@ public class CohereEmbeddingsResponseEntity {
         return new TextEmbeddingByteResults(embeddingList);
     }
 
-    private static TextEmbeddingByteResults.Embedding parseByteArrayEntry(XContentParser parser) throws IOException {
+    private static ByteEmbedding parseByteArrayEntry(XContentParser parser) throws IOException {
         XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.currentToken(), parser);
         List<Byte> embeddingValuesList = XContentParserUtils.parseList(parser, CohereEmbeddingsResponseEntity::parseEmbeddingInt8Entry);
-
-        return TextEmbeddingByteResults.Embedding.of(embeddingValuesList);
+        return ByteEmbedding.of(embeddingValuesList);
     }
 
     private static Byte parseEmbeddingInt8Entry(XContentParser parser) throws IOException {
@@ -216,10 +217,10 @@ public class CohereEmbeddingsResponseEntity {
         return new TextEmbeddingResults(embeddingList);
     }
 
-    private static TextEmbeddingResults.Embedding parseFloatArrayEntry(XContentParser parser) throws IOException {
+    private static FloatEmbedding parseFloatArrayEntry(XContentParser parser) throws IOException {
         XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.currentToken(), parser);
-        List<Float> embeddingValuesList = XContentParserUtils.parseList(parser, CohereEmbeddingsResponseEntity::parseEmbeddingFloatEntry);
-        return TextEmbeddingResults.Embedding.of(embeddingValuesList);
+        List<Float> embeddingValues = XContentParserUtils.parseList(parser, CohereEmbeddingsResponseEntity::parseEmbeddingFloatEntry);
+        return FloatEmbedding.of(embeddingValues);
     }
 
     private static Float parseEmbeddingFloatEntry(XContentParser parser) throws IOException {

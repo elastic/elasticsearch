@@ -17,6 +17,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.UnsafePlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.common.settings.Settings;
@@ -31,6 +32,7 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.dataframe.DestinationIndex;
 import org.elasticsearch.xpack.ml.dataframe.stats.DataCountsTracker;
 import org.elasticsearch.xpack.ml.dataframe.stats.ProgressTracker;
@@ -100,7 +102,9 @@ public class InferenceRunner {
 
         LOGGER.info("[{}] Started inference on test data against model [{}]", config.getId(), modelId);
         try {
-            PlainActionFuture<LocalModel> localModelPlainActionFuture = new PlainActionFuture<>();
+            PlainActionFuture<LocalModel> localModelPlainActionFuture = new UnsafePlainActionFuture<>(
+                MachineLearning.UTILITY_THREAD_POOL_NAME
+            );
             modelLoadingService.getModelForInternalInference(modelId, localModelPlainActionFuture);
             InferenceState inferenceState = restoreInferenceState();
             dataCountsTracker.setTestDocsCount(inferenceState.processedTestDocsCount);

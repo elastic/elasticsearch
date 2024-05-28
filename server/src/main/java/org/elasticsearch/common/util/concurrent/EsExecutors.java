@@ -276,6 +276,10 @@ public class EsExecutors {
         return threadName.substring(executorNameStart + 1, executorNameEnd);
     }
 
+    public static String executorName(Thread thread) {
+        return executorName(thread.getName());
+    }
+
     public static ThreadFactory daemonThreadFactory(Settings settings, String namePrefix) {
         return daemonThreadFactory(threadName(settings, namePrefix));
     }

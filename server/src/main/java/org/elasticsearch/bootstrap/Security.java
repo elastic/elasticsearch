@@ -222,7 +222,7 @@ final class Security {
 
         // always add some config files as exclusive files that no one can access
         // there's no reason for anyone to read these once the security manager is initialized
-        // so if something has tried to grant itself access, boot them out and log a warning
+        // so if something has tried to grant itself access, crash out with an error
         addSpeciallySecuredFile(securedFiles, environment.configFile().resolve("elasticsearch.yml").toString());
         addSpeciallySecuredFile(securedFiles, environment.configFile().resolve("jvm.options").toString());
         addSpeciallySecuredFile(securedFiles, environment.configFile().resolve("jvm.options.d/-").toString());

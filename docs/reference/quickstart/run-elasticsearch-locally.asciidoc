@@ -10,8 +10,6 @@
 
 The instructions on this page are for *local development only*. Do not use these instructions for production deployments, because they are not secure.
 While this approach is convenient for experimenting and learning, you should never run the service in this way in a production environment.
-
-Refer to https://www.elastic.co/guide/en/elasticsearch/reference/current/install-elasticsearch.html[Install {es}] to learn about the various options for installing {es} in a production environment, including using Docker.
 ====
 
 The following commands help you very quickly spin up a single-node {es} cluster, together with {kib} in Docker.

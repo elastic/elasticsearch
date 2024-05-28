@@ -34,7 +34,9 @@ public class SnapshotsStatusRequest extends MasterNodeRequest<SnapshotsStatusReq
 
     private boolean ignoreUnavailable;
 
-    public SnapshotsStatusRequest() {}
+    public SnapshotsStatusRequest() {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
+    }
 
     public SnapshotsStatusRequest(StreamInput in) throws IOException {
         super(in);
@@ -57,6 +59,7 @@ public class SnapshotsStatusRequest extends MasterNodeRequest<SnapshotsStatusReq
      * @param repository repository name
      */
     public SnapshotsStatusRequest(String repository) {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
         this.repository = repository;
     }
 

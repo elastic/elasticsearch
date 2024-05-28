@@ -631,10 +631,12 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
                     "properties": {
                         "labels": {
                             "type": "passthrough",
-                            "time_series_dimension": true
+                            "time_series_dimension": true,
+                            "priority": 2
                         },
                         "metrics": {
-                            "type": "passthrough"
+                            "type": "passthrough",
+                            "priority": 1
                         },
                         "another_field": {
                             "type": "keyword"

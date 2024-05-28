@@ -100,6 +100,6 @@ public class RateLimitSettingsTests extends AbstractWireSerializingTestCase<Rate
 
     @Override
     protected RateLimitSettings mutateInstance(RateLimitSettings instance) throws IOException {
-        return createRandom();
+        return randomValueOtherThan(instance, RateLimitSettingsTests::createRandom);
     }
 }

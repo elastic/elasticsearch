@@ -97,7 +97,8 @@ public final class InFlightShardSnapshotStates {
         @Nullable ShardGeneration activeGeneration
     ) {
         final ShardGeneration bestGeneration = generations.getOrDefault(indexName, Collections.emptyMap()).get(shardId);
-        assert bestGeneration == null || activeGeneration == null || activeGeneration.equals(bestGeneration);
+        assert bestGeneration == null || activeGeneration == null || activeGeneration.equals(bestGeneration)
+            : "[" + indexName + "][" + shardId + "]: " + bestGeneration + " vs " + activeGeneration;
         return true;
     }
 

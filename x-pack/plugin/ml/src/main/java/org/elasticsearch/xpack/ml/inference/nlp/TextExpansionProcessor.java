@@ -11,6 +11,7 @@ import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.ChunkedTextExpansionResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig;
+import org.elasticsearch.xpack.core.ml.search.WeightedToken;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.NlpTokenizer;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.TokenizationResult;
 import org.elasticsearch.xpack.ml.inference.pytorch.results.PyTorchInferenceResult;
@@ -100,18 +101,16 @@ public class TextExpansionProcessor extends NlpTask.Processor {
         }
     }
 
-    static List<TextExpansionResults.WeightedToken> sparseVectorToTokenWeights(
+    static List<WeightedToken> sparseVectorToTokenWeights(
         double[] vector,
         TokenizationResult tokenization,
         Map<Integer, String> replacementVocab
     ) {
         // Anything with a score > 0.0 is retained.
-        List<TextExpansionResults.WeightedToken> weightedTokens = new ArrayList<>();
+        List<WeightedToken> weightedTokens = new ArrayList<>();
         for (int i = 0; i < vector.length; i++) {
             if (vector[i] > 0.0) {
-                weightedTokens.add(
-                    new TextExpansionResults.WeightedToken(tokenForId(i, tokenization, replacementVocab), (float) vector[i])
-                );
+                weightedTokens.add(new WeightedToken(tokenForId(i, tokenization, replacementVocab), (float) vector[i]));
             }
         }
         return weightedTokens;

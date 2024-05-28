@@ -335,7 +335,9 @@ public class OpenAiEmbeddingsServiceSettingsTests extends AbstractWireSerializin
 
         assertThat(
             thrownException.getMessage(),
-            is(Strings.format("Validation Failed: 1: [service_settings] Invalid url [%s] received for field [%s];", url, ServiceFields.URL))
+            containsString(
+                Strings.format("Validation Failed: 1: [service_settings] Invalid url [%s] received for field [%s]", url, ServiceFields.URL)
+            )
         );
     }
 
@@ -441,7 +443,7 @@ public class OpenAiEmbeddingsServiceSettingsTests extends AbstractWireSerializin
 
     @Override
     protected OpenAiEmbeddingsServiceSettings mutateInstance(OpenAiEmbeddingsServiceSettings instance) throws IOException {
-        return createRandomWithNonNullUrl();
+        return randomValueOtherThan(instance, OpenAiEmbeddingsServiceSettingsTests::createRandomWithNonNullUrl);
     }
 
     public static Map<String, Object> getServiceSettingsMap(String modelId, @Nullable String url, @Nullable String org) {

@@ -9,15 +9,31 @@ package org.elasticsearch.xpack.inference.services.elasticsearch;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.Model;
+import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.core.ml.action.CreateTrainedModelAssignmentAction;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
+import java.util.Map;
+
 import static org.elasticsearch.xpack.core.ml.inference.assignment.AllocationStatus.State.STARTED;
 
 public class CustomElandModel extends ElasticsearchModel {
+
+    public static CustomElandModel build(
+        String inferenceEntityId,
+        TaskType taskType,
+        String service,
+        CustomElandInternalServiceSettings serviceSettings,
+        @Nullable TaskSettings taskSettings
+    ) {
+        return taskSettings == null
+            ? new CustomElandModel(inferenceEntityId, taskType, service, serviceSettings)
+            : new CustomElandModel(inferenceEntityId, taskType, service, serviceSettings, taskSettings);
+    }
 
     public CustomElandModel(
         String inferenceEntityId,
@@ -26,6 +42,16 @@ public class CustomElandModel extends ElasticsearchModel {
         CustomElandInternalServiceSettings serviceSettings
     ) {
         super(inferenceEntityId, taskType, service, serviceSettings);
+    }
+
+    private CustomElandModel(
+        String inferenceEntityId,
+        TaskType taskType,
+        String service,
+        CustomElandInternalServiceSettings serviceSettings,
+        TaskSettings taskSettings
+    ) {
+        super(inferenceEntityId, taskType, service, serviceSettings, taskSettings);
     }
 
     @Override
@@ -76,4 +102,11 @@ public class CustomElandModel extends ElasticsearchModel {
         };
     }
 
+    public static TaskSettings taskSettingsFromMap(TaskType taskType, Map<String, Object> taskSettingsMap) {
+        if (TaskType.RERANK.equals(taskType)) {
+            return CustomElandRerankTaskSettings.defaultsFromMap(taskSettingsMap);
+        }
+
+        return null;
+    }
 }

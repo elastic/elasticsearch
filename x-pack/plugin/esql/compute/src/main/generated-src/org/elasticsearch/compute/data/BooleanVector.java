@@ -10,6 +10,8 @@ package org.elasticsearch.compute.data;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.ReleasableIterator;
 
 import java.io.IOException;
 
@@ -26,6 +28,9 @@ public sealed interface BooleanVector extends Vector permits ConstantBooleanVect
 
     @Override
     BooleanVector filter(int... positions);
+
+    @Override
+    ReleasableIterator<? extends BooleanBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize);
 
     /**
      * Compares the given object with this vector for equality. Returns {@code true} if and only if the

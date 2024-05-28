@@ -236,11 +236,7 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
     }
 
     boolean versionSupportsDownsamplingTimezone(TransportVersion version) {
-        return version.onOrAfter(TransportVersions.DATE_HISTOGRAM_SUPPORT_DOWNSAMPLED_TZ)
-            || version.between(
-                TransportVersions.DATE_HISTOGRAM_SUPPORT_DOWNSAMPLED_TZ_8_12_PATCH,
-                TransportVersions.NODE_STATS_REQUEST_SIMPLIFIED
-            );
+        return version.onOrAfter(TransportVersions.V_8_13_0) || version.isPatchFrom(TransportVersions.V_8_12_1);
     }
 
     /**

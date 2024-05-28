@@ -7,13 +7,29 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.rest.action.admin.cluster.RestNodesCapabilitiesAction;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 
+import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 
+/**
+ * {@link NodeFeature}s declared by ESQL. These should be used for fast checks
+ * on the node. Before the introduction of the {@link RestNodesCapabilitiesAction}
+ * this was used for controlling which features are tested so many of the
+ * examples below are *just* used for that. Don't make more of those - add them
+ * to {@link EsqlCapabilities} instead.
+ * <p>
+ *     NOTE: You can't remove a feature now and probably never will be able to.
+ *     Only add more of these if you need a fast CPU level check.
+ * </p>
+ */
 public class EsqlFeatures implements FeatureSpecification {
     /**
      * Introduction of {@code MV_SORT}, {@code MV_SLICE}, and {@code MV_ZIP}.
@@ -98,6 +114,7 @@ public class EsqlFeatures implements FeatureSpecification {
     /**
      * Does ESQL support FROM OPTIONS?
      */
+    @Deprecated
     public static final NodeFeature FROM_OPTIONS = new NodeFeature("esql.from_options");
 
     /**
@@ -137,13 +154,34 @@ public class EsqlFeatures implements FeatureSpecification {
     public static final NodeFeature METADATA_FIELDS = new NodeFeature("esql.metadata_fields");
 
     /**
+     * Support for loading values over enrich. This is supported by all versions of ESQL but not
+     * the unit test CsvTests.
+     */
+    public static final NodeFeature ENRICH_LOAD = new NodeFeature("esql.enrich_load");
+
+    /**
      * Support for timespan units abbreviations
      */
     public static final NodeFeature TIMESPAN_ABBREVIATIONS = new NodeFeature("esql.timespan_abbreviations");
 
+    /**
+     * Support metrics counter types
+     */
+    public static final NodeFeature COUNTER_TYPES = new NodeFeature("esql.counter_types");
+
+    /**
+     * Support metrics syntax
+     */
+    public static final NodeFeature METRICS_SYNTAX = new NodeFeature("esql.metrics_syntax");
+
+    private Set<NodeFeature> snapshotBuildFeatures() {
+        assert Build.current().isSnapshot() : Build.current();
+        return Set.of(METRICS_SYNTAX);
+    }
+
     @Override
     public Set<NodeFeature> getFeatures() {
-        return Set.of(
+        Set<NodeFeature> features = Set.of(
             ASYNC_QUERY,
             AGG_VALUES,
             BASE64_DECODE_ENCODE,
@@ -163,8 +201,14 @@ public class EsqlFeatures implements FeatureSpecification {
             METRICS_COUNTER_FIELDS,
             STRING_LITERAL_AUTO_CASTING_EXTENDED,
             METADATA_FIELDS,
-            TIMESPAN_ABBREVIATIONS
+            TIMESPAN_ABBREVIATIONS,
+            COUNTER_TYPES
         );
+        if (Build.current().isSnapshot()) {
+            return Collections.unmodifiableSet(Sets.union(features, snapshotBuildFeatures()));
+        } else {
+            return features;
+        }
     }
 
     @Override
@@ -174,7 +218,8 @@ public class EsqlFeatures implements FeatureSpecification {
             Map.entry(MV_WARN, Version.V_8_12_0),
             Map.entry(SPATIAL_POINTS, Version.V_8_12_0),
             Map.entry(CONVERT_WARN, Version.V_8_12_0),
-            Map.entry(POW_DOUBLE, Version.V_8_12_0)
+            Map.entry(POW_DOUBLE, Version.V_8_12_0),
+            Map.entry(ENRICH_LOAD, Version.V_8_12_0)
         );
     }
 }

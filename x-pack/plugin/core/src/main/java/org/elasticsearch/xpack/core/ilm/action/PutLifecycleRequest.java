@@ -38,6 +38,7 @@ public class PutLifecycleRequest extends AcknowledgedRequest<PutLifecycleRequest
     private LifecyclePolicy policy;
 
     public PutLifecycleRequest(LifecyclePolicy policy) {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
         this.policy = policy;
     }
 
@@ -46,7 +47,9 @@ public class PutLifecycleRequest extends AcknowledgedRequest<PutLifecycleRequest
         policy = new LifecyclePolicy(in);
     }
 
-    public PutLifecycleRequest() {}
+    public PutLifecycleRequest() {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
+    }
 
     public LifecyclePolicy getPolicy() {
         return policy;

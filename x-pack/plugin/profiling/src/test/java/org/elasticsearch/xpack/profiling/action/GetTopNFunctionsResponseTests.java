@@ -16,7 +16,6 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Map;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 
@@ -56,7 +55,13 @@ public class GetTopNFunctionsResponseTests extends ESTestCase {
                             .field("line_number", sourceLine)
                             .field("executable_file_name", exeFilename)
                         .endObject()
-                        .field("sub_groups", Map.of("basket", 7L))
+                        .startObject("sub_groups")
+                            .startObject("transaction.name")
+                                .startObject("basket")
+                                    .field("count", 7L)
+                                .endObject()
+                            .endObject()
+                        .endObject()
                         .field("self_count", 1)
                         .field("total_count", 10)
                         .field("self_annual_co2_tons").rawValue("2.2000")
@@ -85,7 +90,7 @@ public class GetTopNFunctionsResponseTests extends ESTestCase {
             22.0d,
             12.0d,
             120.0d,
-            Map.of("basket", 7L)
+            SubGroup.root("transaction.name", false).addCount("basket", 7L)
         );
         GetTopNFunctionsResponse response = new GetTopNFunctionsResponse(1, 10, 2.2d, 12.0d, List.of(topNFunction));
         response.toXContent(actualResponse, ToXContent.EMPTY_PARAMS);

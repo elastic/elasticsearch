@@ -92,12 +92,7 @@ public class AzureOpenAiEmbeddingsServiceSettings extends FilteredXContentObject
         SimilarityMeasure similarity = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
         RateLimitSettings rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException);
 
-        Boolean dimensionsSetByUser = extractOptionalBoolean(
-            map,
-            DIMENSIONS_SET_BY_USER,
-            ModelConfigurations.SERVICE_SETTINGS,
-            validationException
-        );
+        Boolean dimensionsSetByUser = extractOptionalBoolean(map, DIMENSIONS_SET_BY_USER, validationException);
 
         switch (context) {
             case REQUEST -> {

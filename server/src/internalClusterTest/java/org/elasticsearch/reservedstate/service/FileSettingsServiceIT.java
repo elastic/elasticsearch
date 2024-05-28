@@ -243,7 +243,7 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
 
         FileSettingsService masterFileSettingsService = internalCluster().getInstance(FileSettingsService.class, masterNode);
 
-        assertTrue(masterFileSettingsService.watching());
+        assertBusy(() -> assertTrue(masterFileSettingsService.watching()));
 
         logger.info("--> write some settings");
         writeJSONFile(masterNode, testJSON);

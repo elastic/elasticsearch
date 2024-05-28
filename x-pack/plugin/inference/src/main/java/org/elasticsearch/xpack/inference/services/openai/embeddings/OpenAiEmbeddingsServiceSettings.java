@@ -177,14 +177,11 @@ public class OpenAiEmbeddingsServiceSettings extends FilteredXContentObject impl
             maxInputTokens = null;
         }
 
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ML_DIMENSIONS_SET_BY_USER_ADDED)) {
-            dimensionsSetByUser = in.readBoolean();
-        } else {
-            dimensionsSetByUser = false;
-        }
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
+            dimensionsSetByUser = in.readBoolean();
             modelId = in.readString();
         } else {
+            dimensionsSetByUser = false;
             modelId = "unset";
         }
 
@@ -310,10 +307,8 @@ public class OpenAiEmbeddingsServiceSettings extends FilteredXContentObject impl
             out.writeOptionalVInt(maxInputTokens);
         }
 
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ML_DIMENSIONS_SET_BY_USER_ADDED)) {
-            out.writeBoolean(dimensionsSetByUser);
-        }
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
+            out.writeBoolean(dimensionsSetByUser);
             out.writeString(modelId);
         }
 

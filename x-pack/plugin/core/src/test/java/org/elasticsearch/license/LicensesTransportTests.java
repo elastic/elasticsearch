@@ -7,6 +7,7 @@
 package org.elasticsearch.license;
 
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
@@ -181,8 +182,10 @@ public class LicensesTransportTests extends ESSingleNodeTestCase {
         GetLicenseResponse getLicenseResponse = new GetLicenseRequestBuilder(clusterAdmin(), GetLicenseAction.INSTANCE).get();
         assertThat(getLicenseResponse.license(), equalTo(goldLicense));
         // delete all licenses
-        DeleteLicenseRequestBuilder deleteLicenseRequestBuilder = new DeleteLicenseRequestBuilder(clusterAdmin());
-        AcknowledgedResponse deleteLicenseResponse = deleteLicenseRequestBuilder.get();
+        AcknowledgedResponse deleteLicenseResponse = clusterAdmin().execute(
+            TransportDeleteLicenseAction.TYPE,
+            new AcknowledgedRequest.Plain(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+        ).get();
         assertThat(deleteLicenseResponse.isAcknowledged(), equalTo(true));
         // get licenses (expected no licenses)
         getLicenseResponse = new GetLicenseRequestBuilder(clusterAdmin(), GetLicenseAction.INSTANCE).get();

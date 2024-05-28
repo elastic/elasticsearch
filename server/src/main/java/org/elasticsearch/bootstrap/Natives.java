@@ -51,81 +51,12 @@ final class Natives {
         JNA_AVAILABLE = v;
     }
 
-    static void tryMlockall() {
-        if (JNA_AVAILABLE == false) {
-            logger.warn("cannot mlockall because JNA is not available");
-            return;
-        }
-        JNANatives.tryMlockall();
-    }
-
-    static void tryVirtualLock() {
-        if (JNA_AVAILABLE == false) {
-            logger.warn("cannot virtual lock because JNA is not available");
-            return;
-        }
-        JNANatives.tryVirtualLock();
-    }
-
-    /**
-     * Retrieves the short path form of the specified path.
-     *
-     * @param path the path
-     * @return the short path name (or the original path if getting the short path name fails for any reason)
-     */
-    static String getShortPathName(final String path) {
-        if (JNA_AVAILABLE == false) {
-            logger.warn("cannot obtain short path for [{}] because JNA is not available", path);
-            return path;
-        }
-        return JNANatives.getShortPathName(path);
-    }
-
-    static void addConsoleCtrlHandler(ConsoleCtrlHandler handler) {
-        if (JNA_AVAILABLE == false) {
-            logger.warn("cannot register console handler because JNA is not available");
-            return;
-        }
-        JNANatives.addConsoleCtrlHandler(handler);
-    }
-
-    static boolean isMemoryLocked() {
-        if (JNA_AVAILABLE == false) {
-            return false;
-        }
-        return JNANatives.LOCAL_MLOCKALL;
-    }
-
     static void tryInstallSystemCallFilter(Path tmpFile) {
         if (JNA_AVAILABLE == false) {
             logger.warn("cannot install system call filter because JNA is not available");
             return;
         }
         JNANatives.tryInstallSystemCallFilter(tmpFile);
-    }
-
-    static void trySetMaxNumberOfThreads() {
-        if (JNA_AVAILABLE == false) {
-            logger.warn("cannot getrlimit RLIMIT_NPROC because JNA is not available");
-            return;
-        }
-        JNANatives.trySetMaxNumberOfThreads();
-    }
-
-    static void trySetMaxSizeVirtualMemory() {
-        if (JNA_AVAILABLE == false) {
-            logger.warn("cannot getrlimit RLIMIT_AS because JNA is not available");
-            return;
-        }
-        JNANatives.trySetMaxSizeVirtualMemory();
-    }
-
-    static void trySetMaxFileSize() {
-        if (JNA_AVAILABLE == false) {
-            logger.warn("cannot getrlimit RLIMIT_FSIZE because JNA is not available");
-            return;
-        }
-        JNANatives.trySetMaxFileSize();
     }
 
     static boolean isSystemCallFilterInstalled() {

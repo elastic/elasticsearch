@@ -15,8 +15,8 @@ import org.elasticsearch.test.ESIntegTestCase;
 
 import java.io.IOException;
 
+import static org.elasticsearch.test.hamcrest.OptionalMatchers.isPresentWith;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.is;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class SimpleNodesCapabilitiesIT extends ESIntegTestCase {
@@ -31,25 +31,25 @@ public class SimpleNodesCapabilitiesIT extends ESIntegTestCase {
         NodesCapabilitiesResponse response = clusterAdmin().nodesCapabilities(new NodesCapabilitiesRequest().path("_capabilities"))
             .actionGet();
         assertThat(response.getNodes(), hasSize(2));
-        assertThat(response.isSupported(), is(true));
+        assertThat(response.isSupported(), isPresentWith(true));
 
         // check we support some parameters of the capabilities API
         response = clusterAdmin().nodesCapabilities(new NodesCapabilitiesRequest().path("_capabilities").parameters("method", "path"))
             .actionGet();
         assertThat(response.getNodes(), hasSize(2));
-        assertThat(response.isSupported(), is(true));
+        assertThat(response.isSupported(), isPresentWith(true));
 
         // check we don't support some other parameters of the capabilities API
         response = clusterAdmin().nodesCapabilities(new NodesCapabilitiesRequest().path("_capabilities").parameters("method", "invalid"))
             .actionGet();
         assertThat(response.getNodes(), hasSize(2));
-        assertThat(response.isSupported(), is(false));
+        assertThat(response.isSupported(), isPresentWith(false));
 
         // check we don't support a random invalid api
         // TODO this is not working yet - see https://github.com/elastic/elasticsearch/issues/107425
         /*response = clusterAdmin().nodesCapabilities(new NodesCapabilitiesRequest().path("_invalid"))
             .actionGet();
         assertThat(response.getNodes(), hasSize(2));
-        assertThat(response.isSupported(), is(false));*/
+        assertThat(response.isSupported(), isPresentWith(false));*/
     }
 }

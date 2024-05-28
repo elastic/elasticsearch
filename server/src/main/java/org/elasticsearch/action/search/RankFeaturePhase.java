@@ -22,7 +22,6 @@ public final class RankFeaturePhase extends SearchPhase {
 
     private final SearchPhaseContext context;
     private final SearchPhaseResults<SearchPhaseResult> queryPhaseResults;
-    private final SearchPhaseResults<SearchPhaseResult> rankPhaseResults;
 
     private final AggregatedDfs aggregatedDfs;
 
@@ -39,8 +38,6 @@ public final class RankFeaturePhase extends SearchPhase {
         this.context = context;
         this.queryPhaseResults = queryPhaseResults;
         this.aggregatedDfs = aggregatedDfs;
-        this.rankPhaseResults = new ArraySearchPhaseResults<>(context.getNumShards());
-        context.addReleasable(rankPhaseResults);
     }
 
     @Override

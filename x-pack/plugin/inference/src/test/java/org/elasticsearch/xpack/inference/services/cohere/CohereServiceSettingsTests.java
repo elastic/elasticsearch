@@ -229,7 +229,9 @@ public class CohereServiceSettingsTests extends AbstractWireSerializingTestCase<
 
         MatcherAssert.assertThat(
             thrownException.getMessage(),
-            is(Strings.format("Validation Failed: 1: [service_settings] Invalid url [%s] received for field [%s];", url, ServiceFields.URL))
+            containsString(
+                Strings.format("Validation Failed: 1: [service_settings] Invalid url [%s] received for field [%s]", url, ServiceFields.URL)
+            )
         );
     }
 
@@ -275,7 +277,7 @@ public class CohereServiceSettingsTests extends AbstractWireSerializingTestCase<
 
     @Override
     protected CohereServiceSettings mutateInstance(CohereServiceSettings instance) throws IOException {
-        return null;
+        return randomValueOtherThan(instance, CohereServiceSettingsTests::createRandom);
     }
 
     public static Map<String, Object> getServiceSettingsMap(@Nullable String url, @Nullable String model) {

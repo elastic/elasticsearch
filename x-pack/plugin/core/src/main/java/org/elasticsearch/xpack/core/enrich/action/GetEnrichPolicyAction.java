@@ -39,10 +39,12 @@ public class GetEnrichPolicyAction extends ActionType<GetEnrichPolicyAction.Resp
         private final List<String> names;
 
         public Request() {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
             this.names = new ArrayList<>();
         }
 
         public Request(String[] names) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
             this.names = Arrays.asList(names);
         }
 

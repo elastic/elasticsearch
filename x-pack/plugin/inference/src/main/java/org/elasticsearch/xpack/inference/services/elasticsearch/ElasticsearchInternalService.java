@@ -30,6 +30,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.inference.results.ChunkedTextEmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.ErrorChunkedInferenceResults;
+import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.action.InferTrainedModelDeploymentAction;
@@ -40,18 +41,22 @@ import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
 import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfigUpdate;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextSimilarityConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TokenizationConfigUpdate;
 import org.elasticsearch.xpack.inference.services.settings.InternalServiceSettings;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 
 import static org.elasticsearch.xpack.core.ClientHelper.INFERENCE_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.core.inference.results.ResultUtils.createInvalidChunkedResultException;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMap;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
 import static org.elasticsearch.xpack.inference.services.settings.InternalServiceSettings.MODEL_ID;
@@ -85,6 +90,7 @@ public class ElasticsearchInternalService implements InferenceService {
     ) {
         try {
             Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
+            Map<String, Object> taskSettingsMap = removeFromMap(config, ModelConfigurations.TASK_SETTINGS);
             String modelId = (String) serviceSettingsMap.get(MODEL_ID);
             if (modelId == null) {
                 throw new IllegalArgumentException("Error parsing request config, model id is missing");
@@ -93,7 +99,7 @@ public class ElasticsearchInternalService implements InferenceService {
                 e5Case(inferenceEntityId, taskType, config, platformArchitectures, serviceSettingsMap, modelListener);
             } else {
                 throwIfNotEmptyMap(config, name());
-                customElandCase(inferenceEntityId, taskType, serviceSettingsMap, modelListener);
+                customElandCase(inferenceEntityId, taskType, serviceSettingsMap, taskSettingsMap, modelListener);
             }
         } catch (Exception e) {
             modelListener.onFailure(e);
@@ -104,6 +110,7 @@ public class ElasticsearchInternalService implements InferenceService {
         String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> serviceSettingsMap,
+        Map<String, Object> taskSettingsMap,
         ActionListener<Model> modelListener
     ) {
         String modelId = (String) serviceSettingsMap.get(MODEL_ID);
@@ -121,7 +128,18 @@ public class ElasticsearchInternalService implements InferenceService {
                     serviceSettingsMap
                 ).build();
                 throwIfNotEmptyMap(serviceSettingsMap, name());
-                delegate.onResponse(new CustomElandModel(inferenceEntityId, taskType, name(), customElandInternalServiceSettings));
+
+                var taskSettings = CustomElandModel.taskSettingsFromMap(TaskType.RERANK, taskSettingsMap);
+                throwIfNotEmptyMap(taskSettingsMap, name());
+
+                var model = CustomElandModel.build(
+                    inferenceEntityId,
+                    TaskType.RERANK,
+                    name(),
+                    customElandInternalServiceSettings,
+                    taskSettings
+                );
+                delegate.onResponse(model);
             }
         });
 
@@ -184,6 +202,7 @@ public class ElasticsearchInternalService implements InferenceService {
     @Override
     public ElasticsearchModel parsePersistedConfig(String inferenceEntityId, TaskType taskType, Map<String, Object> config) {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
+        Map<String, Object> taskSettingsMap = removeFromMap(config, ModelConfigurations.TASK_SETTINGS);
 
         String modelId = (String) serviceSettingsMap.get(MODEL_ID);
         if (modelId == null) {
@@ -198,14 +217,12 @@ public class ElasticsearchInternalService implements InferenceService {
                 (MultilingualE5SmallInternalServiceSettings) MultilingualE5SmallInternalServiceSettings.fromMap(serviceSettingsMap).build()
             );
         } else {
-            return new CustomElandModel(
-                inferenceEntityId,
-                taskType,
-                name(),
-                (CustomElandInternalServiceSettings) CustomElandInternalServiceSettings.fromMap(serviceSettingsMap).build()
-            );
-        }
+            var serviceSettings = (CustomElandInternalServiceSettings) CustomElandInternalServiceSettings.fromMap(serviceSettingsMap)
+                .build();
+            var taskSettings = CustomElandModel.taskSettingsFromMap(taskType, taskSettingsMap);
 
+            return CustomElandModel.build(inferenceEntityId, taskType, name(), serviceSettings, taskSettings);
+        }
     }
 
     @Override
@@ -218,13 +235,23 @@ public class ElasticsearchInternalService implements InferenceService {
         TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
-        try {
-            checkCompatibleTaskType(model.getConfigurations().getTaskType());
-        } catch (Exception e) {
-            listener.onFailure(e);
-            return;
+        var taskType = model.getConfigurations().getTaskType();
+        if (TaskType.TEXT_EMBEDDING.equals(taskType)) {
+            inferTextEmbedding(model, input, inputType, timeout, listener);
+        } else if (TaskType.RERANK.equals(taskType)) {
+            inferRerank(model, query, input, timeout, taskSettings, listener);
+        } else {
+            throw new ElasticsearchStatusException(TaskType.unsupportedTaskTypeErrorMsg(taskType, NAME), RestStatus.BAD_REQUEST);
         }
+    }
 
+    public void inferTextEmbedding(
+        Model model,
+        List<String> input,
+        InputType inputType,
+        TimeValue timeout,
+        ActionListener<InferenceServiceResults> listener
+    ) {
         var request = InferTrainedModelDeploymentAction.Request.forTextInput(
             model.getConfigurations().getInferenceEntityId(),
             TextEmbeddingConfigUpdate.EMPTY_INSTANCE,
@@ -236,6 +263,37 @@ public class ElasticsearchInternalService implements InferenceService {
             InferTrainedModelDeploymentAction.INSTANCE,
             request,
             listener.delegateFailureAndWrap((l, inferenceResult) -> l.onResponse(TextEmbeddingResults.of(inferenceResult.getResults())))
+        );
+    }
+
+    public void inferRerank(
+        Model model,
+        String query,
+        List<String> inputs,
+        TimeValue timeout,
+        Map<String, Object> requestTaskSettings,
+        ActionListener<InferenceServiceResults> listener
+    ) {
+        var config = new TextSimilarityConfigUpdate(query);
+        var request = InferTrainedModelDeploymentAction.Request.forTextInput(
+            model.getConfigurations().getInferenceEntityId(),
+            config,
+            inputs,
+            timeout
+        );
+
+        var modelSettings = (CustomElandRerankTaskSettings) model.getTaskSettings();
+        var requestSettings = CustomElandRerankTaskSettings.fromMap(requestTaskSettings);
+        Boolean returnDocs = CustomElandRerankTaskSettings.of(modelSettings, requestSettings).returnDocuments();
+
+        Function<Integer, String> inputSupplier = returnDocs == Boolean.TRUE ? inputs::get : i -> null;
+
+        client.execute(
+            InferTrainedModelDeploymentAction.INSTANCE,
+            request,
+            listener.delegateFailureAndWrap(
+                (l, inferenceResult) -> l.onResponse(textSimilarityResultsToRankedDocs(inferenceResult.getResults(), inputSupplier))
+            )
         );
     }
 
@@ -262,10 +320,10 @@ public class ElasticsearchInternalService implements InferenceService {
         TimeValue timeout,
         ActionListener<List<ChunkedInferenceServiceResults>> listener
     ) {
-        try {
-            checkCompatibleTaskType(model.getConfigurations().getTaskType());
-        } catch (Exception e) {
-            listener.onFailure(e);
+        if (TaskType.TEXT_EMBEDDING.isAnyOrSame(model.getTaskType()) == false) {
+            listener.onFailure(
+                new ElasticsearchStatusException(TaskType.unsupportedTaskTypeErrorMsg(model.getTaskType(), NAME), RestStatus.BAD_REQUEST)
+            );
             return;
         }
 
@@ -315,7 +373,7 @@ public class ElasticsearchInternalService implements InferenceService {
             return;
         }
 
-        if (model.getConfigurations().getTaskType() != TaskType.TEXT_EMBEDDING) {
+        if (model.getTaskType() != TaskType.TEXT_EMBEDDING && model.getTaskType() != TaskType.RERANK) {
             listener.onFailure(
                 new IllegalStateException(TaskType.unsupportedTaskTypeErrorMsg(model.getConfigurations().getTaskType(), NAME))
             );
@@ -364,7 +422,7 @@ public class ElasticsearchInternalService implements InferenceService {
                     }
                 })
             );
-        } else if (model instanceof CustomElandModel elandModel) {
+        } else if (model instanceof CustomElandModel) {
             logger.info("Custom eland model detected, model must have been already loaded into the cluster with eland.");
             listener.onResponse(Boolean.TRUE);
         } else {
@@ -412,12 +470,6 @@ public class ElasticsearchInternalService implements InferenceService {
         );
     }
 
-    private void checkCompatibleTaskType(TaskType taskType) {
-        if (TaskType.TEXT_EMBEDDING.isAnyOrSame(taskType) == false) {
-            throw new ElasticsearchStatusException(TaskType.unsupportedTaskTypeErrorMsg(taskType, NAME), RestStatus.BAD_REQUEST);
-        }
-    }
-
     @Override
     public boolean isInClusterService() {
         return true;
@@ -446,6 +498,38 @@ public class ElasticsearchInternalService implements InferenceService {
             // default to the platform-agnostic model
             return MULTILINGUAL_E5_SMALL_MODEL_ID;
         }
+    }
+
+    private RankedDocsResults textSimilarityResultsToRankedDocs(
+        List<? extends InferenceResults> results,
+        Function<Integer, String> inputSupplier
+    ) {
+        List<RankedDocsResults.RankedDoc> rankings = new ArrayList<>(results.size());
+        for (int i = 0; i < results.size(); i++) {
+            var result = results.get(i);
+            if (result instanceof org.elasticsearch.xpack.core.ml.inference.results.TextSimilarityInferenceResults similarity) {
+                rankings.add(new RankedDocsResults.RankedDoc(i, (float) similarity.score(), inputSupplier.apply(i)));
+            } else if (result instanceof org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults errorResult) {
+                if (errorResult.getException() instanceof ElasticsearchStatusException statusException) {
+                    throw statusException;
+                } else {
+                    throw new ElasticsearchStatusException(
+                        "Received error inference result.",
+                        RestStatus.INTERNAL_SERVER_ERROR,
+                        errorResult.getException()
+                    );
+                }
+            } else {
+                throw new IllegalArgumentException(
+                    "Received invalid inference result, of type "
+                        + result.getClass().getName()
+                        + " but expected TextSimilarityInferenceResults."
+                );
+            }
+        }
+
+        Collections.sort(rankings);
+        return new RankedDocsResults(rankings);
     }
 
 }

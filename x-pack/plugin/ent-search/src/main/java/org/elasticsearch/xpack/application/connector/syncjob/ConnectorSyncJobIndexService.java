@@ -98,7 +98,6 @@ public class ConnectorSyncJobIndexService {
         String connectorId = request.getId();
         try {
             getSyncJobConnectorInfo(connectorId, listener.delegateFailure((l, connector) -> {
-
                 if (Strings.isNullOrEmpty(connector.getIndexName())) {
                     l.onFailure(
                         new ElasticsearchStatusException(
@@ -106,6 +105,19 @@ public class ConnectorSyncJobIndexService {
                                 + connectorId
                                 + "] with no index attached. Set the [index_name] property for the connector "
                                 + "to enable syncing data.",
+                            RestStatus.BAD_REQUEST
+                        )
+                    );
+                    return;
+                }
+
+                if (Strings.isNullOrEmpty(connector.getServiceType())) {
+                    l.onFailure(
+                        new ElasticsearchStatusException(
+                            "Cannot start a sync for connector ["
+                                + connectorId
+                                + "] with [service_type] not defined. Set the service type of your connector "
+                                + "before starting the sync.",
                             RestStatus.BAD_REQUEST
                         )
                     );

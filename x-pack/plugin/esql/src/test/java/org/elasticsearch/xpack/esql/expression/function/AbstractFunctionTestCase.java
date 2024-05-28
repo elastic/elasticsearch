@@ -41,6 +41,18 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.TestBlockFactory;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
+import org.elasticsearch.xpack.esql.core.expression.function.FunctionDefinition;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.util.NumericUtils;
+import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Greatest;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.AbstractMultivalueFunctionTestCase;
@@ -50,18 +62,6 @@ import org.elasticsearch.xpack.esql.parser.ExpressionBuilder;
 import org.elasticsearch.xpack.esql.planner.Layout;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.expression.Attribute;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.FieldAttribute;
-import org.elasticsearch.xpack.ql.expression.Literal;
-import org.elasticsearch.xpack.ql.expression.TypeResolutions;
-import org.elasticsearch.xpack.ql.expression.function.FunctionDefinition;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.elasticsearch.xpack.ql.type.EsField;
-import org.elasticsearch.xpack.ql.util.NumericUtils;
-import org.elasticsearch.xpack.ql.util.StringUtils;
 import org.elasticsearch.xpack.versionfield.Version;
 import org.hamcrest.Matcher;
 import org.junit.After;
@@ -97,9 +97,9 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.elasticsearch.xpack.esql.SerializationTestUtils.assertSerialization;
+import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
+import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isSpatial;
-import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.CARTESIAN;
-import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.GEO;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -166,14 +166,17 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
      * Build an {@link Attribute} that loads a field.
      */
     public static FieldAttribute field(String name, DataType type) {
-        return new FieldAttribute(Source.EMPTY, name, new EsField(name, type, Map.of(), true));
+        return new FieldAttribute(Source.synthetic(name), name, new EsField(name, type, Map.of(), true));
     }
 
     /**
      * Build an {@link Attribute} that loads a field and then creates a deep copy of its data.
      */
     public static Expression deepCopyOfField(String name, DataType type) {
-        return new DeepCopy(Source.EMPTY, new FieldAttribute(Source.EMPTY, name, new EsField(name, type, Map.of(), true)));
+        return new DeepCopy(
+            Source.synthetic(name),
+            new FieldAttribute(Source.synthetic(name), name, new EsField(name, type, Map.of(), true))
+        );
     }
 
     /**
@@ -257,11 +260,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         boolean readFloating = randomBoolean();
         Expression expression = readFloating ? buildDeepCopyOfFieldExpression(testCase) : buildFieldExpression(testCase);
         if (testCase.getExpectedTypeError() != null) {
-            assertTrue("expected unresolved", expression.typeResolved().unresolved());
-            if (readFloating == false) {
-                // The hack that creates floating fields changes the error message so don't assert it
-                assertThat(expression.typeResolved().message(), equalTo(testCase.getExpectedTypeError()));
-            }
+            assertTypeResolutionFailure(expression);
             return;
         }
         Expression.TypeResolution resolution = expression.typeResolved();
@@ -368,10 +367,13 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     private void testEvaluateBlock(BlockFactory inputBlockFactory, DriverContext context, boolean insertNulls) {
+        Expression expression = randomBoolean() ? buildDeepCopyOfFieldExpression(testCase) : buildFieldExpression(testCase);
+        if (testCase.getExpectedTypeError() != null) {
+            assertTypeResolutionFailure(expression);
+            return;
+        }
         assumeTrue("Can't build evaluator", testCase.canBuildEvaluator());
         assumeTrue("Expected type must be representable to build an evaluator", EsqlDataTypes.isRepresentable(testCase.expectedType()));
-        assumeTrue("Must build evaluator to test sending it blocks", testCase.getExpectedTypeError() == null);
-        boolean readFloating = randomBoolean();
         int positions = between(1, 1024);
         List<TestCaseSupplier.TypedData> data = testCase.getData();
         Page onePositionPage = row(testCase.getDataValues());
@@ -401,7 +403,6 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                 }
                 b++;
             }
-            Expression expression = readFloating ? buildDeepCopyOfFieldExpression(testCase) : buildFieldExpression(testCase);
             try (
                 ExpressionEvaluator eval = evaluator(expression).get(context);
                 Block block = eval.eval(new Page(positions, manyPositionsBlocks))
@@ -427,13 +428,15 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         }
     }
 
-    // TODO cranky time
-
     public void testSimpleWithNulls() { // TODO replace this with nulls inserted into the test case like anyNullIsNull
+        Expression expression = buildFieldExpression(testCase);
+        if (testCase.getExpectedTypeError() != null) {
+            assertTypeResolutionFailure(expression);
+            return;
+        }
         assumeTrue("Can't build evaluator", testCase.canBuildEvaluator());
-        assumeTrue("Nothing to do if a type error", testCase.getExpectedTypeError() == null);
         List<Object> simpleData = testCase.getDataValues();
-        try (EvalOperator.ExpressionEvaluator eval = evaluator(buildFieldExpression(testCase)).get(driverContext())) {
+        try (EvalOperator.ExpressionEvaluator eval = evaluator(expression).get(driverContext())) {
             BlockFactory blockFactory = TestBlockFactory.getNonBreakingInstance();
             Block[] orig = BlockUtils.fromListRow(blockFactory, simpleData);
             for (int i = 0; i < orig.length; i++) {
@@ -472,12 +475,16 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     public final void testEvaluateInManyThreads() throws ExecutionException, InterruptedException {
+        Expression expression = buildFieldExpression(testCase);
+        if (testCase.getExpectedTypeError() != null) {
+            assertTypeResolutionFailure(expression);
+            return;
+        }
         assumeTrue("Can't build evaluator", testCase.canBuildEvaluator());
         assumeTrue("Expected type must be representable to build an evaluator", EsqlDataTypes.isRepresentable(testCase.expectedType()));
-        assumeTrue("Nothing to do if a type error", testCase.getExpectedTypeError() == null);
         int count = 10_000;
         int threads = 5;
-        var evalSupplier = evaluator(buildFieldExpression(testCase));
+        var evalSupplier = evaluator(expression);
         ExecutorService exec = Executors.newFixedThreadPool(threads);
         try {
             List<Future<?>> futures = new ArrayList<>();
@@ -504,17 +511,25 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     public final void testEvaluatorToString() {
+        Expression expression = buildFieldExpression(testCase);
+        if (testCase.getExpectedTypeError() != null) {
+            assertTypeResolutionFailure(expression);
+            return;
+        }
         assumeTrue("Can't build evaluator", testCase.canBuildEvaluator());
-        assumeTrue("Nothing to do if a type error", testCase.getExpectedTypeError() == null);
-        var factory = evaluator(buildFieldExpression(testCase));
+        var factory = evaluator(expression);
         try (ExpressionEvaluator ev = factory.get(driverContext())) {
             assertThat(ev.toString(), testCase.evaluatorToString());
         }
     }
 
     public final void testFactoryToString() {
+        Expression expression = buildFieldExpression(testCase);
+        if (testCase.getExpectedTypeError() != null) {
+            assertTypeResolutionFailure(expression);
+            return;
+        }
         assumeTrue("Can't build evaluator", testCase.canBuildEvaluator());
-        assumeTrue("Nothing to do if a type error", testCase.getExpectedTypeError() == null);
         var factory = evaluator(buildFieldExpression(testCase));
         assertThat(factory.toString(), testCase.evaluatorToString());
     }
@@ -522,8 +537,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     public final void testFold() {
         Expression expression = buildLiteralExpression(testCase);
         if (testCase.getExpectedTypeError() != null) {
-            assertTrue(expression.typeResolved().unresolved());
-            assertThat(expression.typeResolved().message(), equalTo(testCase.getExpectedTypeError()));
+            assertTypeResolutionFailure(expression);
             return;
         }
         assertFalse(expression.typeResolved().unresolved());
@@ -1113,6 +1127,11 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
 
     protected static DataType[] representableNonSpatialTypes() {
         return representableNonSpatial().toArray(DataType[]::new);
+    }
+
+    protected final void assertTypeResolutionFailure(Expression expression) {
+        assertTrue("expected unresolved", expression.typeResolved().unresolved());
+        assertThat(expression.typeResolved().message(), equalTo(testCase.getExpectedTypeError()));
     }
 
     @AfterClass

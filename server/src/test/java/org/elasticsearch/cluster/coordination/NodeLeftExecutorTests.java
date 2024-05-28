@@ -20,7 +20,7 @@ import org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -114,15 +114,14 @@ public class NodeLeftExecutorTests extends ESTestCase {
             )
             .build();
 
-        final MockLogAppender appender = new MockLogAppender();
         final ThreadPool threadPool = new TestThreadPool("test");
         try (
-            var ignored = appender.capturing(NodeLeftExecutor.class);
+            var mockLog = MockLog.capture(NodeLeftExecutor.class);
             var clusterService = ClusterServiceUtils.createClusterService(clusterState, threadPool)
         ) {
             final var nodeToRemove = clusterState.nodes().get("other");
-            appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "info message",
                     LOGGER_NAME,
                     Level.INFO,
@@ -136,7 +135,7 @@ public class NodeLeftExecutorTests extends ESTestCase {
                         .submitTask("test", new NodeLeftExecutor.Task(nodeToRemove, "test reason", () -> future.onResponse(null)), null)
                 )
             );
-            appender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         } finally {
             TestThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
         }

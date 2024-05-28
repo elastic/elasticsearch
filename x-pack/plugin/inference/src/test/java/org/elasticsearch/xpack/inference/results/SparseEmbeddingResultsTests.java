@@ -86,7 +86,7 @@ public class SparseEmbeddingResultsTests extends AbstractWireSerializingTestCase
 
     public void testToXContent_CreatesTheRightFormatForASingleEmbedding() throws IOException {
         var entity = createSparseResult(List.of(createEmbedding(List.of(new WeightedToken("token", 0.1F)), false)));
-        assertThat(entity.asMap(), is(buildExpectation(List.of(new EmbeddingExpectation(Map.of("token", 0.1F), false)))));
+        assertThat(entity.asMap(), is(buildExpectationSparseEmbeddings(List.of(new EmbeddingExpectation(Map.of("token", 0.1F), false)))));
         String xContentResult = Strings.toString(entity, true, true);
         assertThat(xContentResult, is("""
             {

@@ -77,6 +77,7 @@ import static org.elasticsearch.xpack.esql.core.parser.ParserUtils.visitList;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.asLongUnsigned;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAsNumber;
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.WILDCARD;
+import static org.elasticsearch.xpack.esql.core.util.StringUtils.isInteger;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.bigIntegerToUnsignedLong;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.parseTemporalAmout;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToIntegral;
@@ -694,7 +695,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         }
         Token token = node.getSymbol();
         String nameOrPosition = token.getText().substring(1);
-        if (nameOrPosition.chars().allMatch(Character::isDigit)) {
+        if (isInteger(nameOrPosition)) {
             int index = Integer.parseInt(nameOrPosition);
             if (params.get(index) == null) {
                 throw new ParsingException(source(node), "No parameter is defined for position ?" + index);

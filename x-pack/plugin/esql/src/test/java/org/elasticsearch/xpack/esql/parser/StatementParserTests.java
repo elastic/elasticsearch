@@ -767,21 +767,23 @@ public class StatementParserTests extends ESTestCase {
 
     public void testInputParams() {
         LogicalPlan stm = statement(
-            "row x = ?, y = ?, a = ?, b = ?, c = ?, d = ?",
+            "row x = ?, y = ?, a = ?, b = ?, c = ?, d = ?, e = ?-1, f = ?+1",
             new QueryParams(
                 List.of(
-                    new QueryParam(null, 1, DataTypes.INTEGER),
+                    new QueryParam(null, 1, INTEGER),
                     new QueryParam(null, "2", KEYWORD),
                     new QueryParam(null, "2 days", KEYWORD),
                     new QueryParam(null, "4 hours", KEYWORD),
                     new QueryParam(null, "1.2.3", KEYWORD),
-                    new QueryParam(null, "127.0.0.1", KEYWORD)
+                    new QueryParam(null, "127.0.0.1", KEYWORD),
+                    new QueryParam(null, 10, INTEGER),
+                    new QueryParam(null, 10, INTEGER)
                 )
             )
         );
         assertThat(stm, instanceOf(Row.class));
         Row row = (Row) stm;
-        assertThat(row.fields().size(), is(6));
+        assertThat(row.fields().size(), is(8));
 
         NamedExpression field = row.fields().get(0);
         assertThat(field.name(), is("x"));
@@ -820,41 +822,25 @@ public class StatementParserTests extends ESTestCase {
         alias = (Alias) field;
         assertThat(alias.child().fold().getClass(), is(String.class));
         assertThat(alias.child().fold().toString(), is("127.0.0.1"));
-    }
 
-    /*
-    public void testWrongIntervalParams() {
-        expectError("row x = ?", List.of(new QueryParam(null, "12", KEYWORD)), "Cannot parse [12] to DATE_PERIOD");
-        expectError("row x = ?", List.of(new QueryParam(null, "12", KEYWORD)), "Cannot parse [12] to TIME_DURATION");
-        expectError("row x = ?", List.of(new QueryParam(null, "12 months foo", KEYWORD)), "Cannot parse [12 months foo] to DATE_PERIOD");
-        expectError(
-            "row x = ?",
-            List.of(new QueryParam(null, "12 minutes bar", KEYWORD)),
-            "Cannot parse [12 minutes bar] to TIME_DURATION"
-        );
-        expectError("row x = ?", List.of(new QueryParam(null, "12 foo", KEYWORD)), "Unexpected time interval qualifier: 'foo'");
-        expectError("row x = ?", List.of(new QueryParam(null, "12 bar", KEYWORD)), "Unexpected time interval qualifier: 'bar'");
-        expectError("row x = ?", List.of(new QueryParam(null, "foo days", KEYWORD)), "Cannot parse [foo days] to DATE_PERIOD");
-        expectError("row x = ?", List.of(new QueryParam(null, "bar seconds", KEYWORD)), "Cannot parse [bar seconds] to TIME_DURATION");
+        field = row.fields().get(6);
+        assertThat(field.name(), is("e"));
+        assertThat(field, instanceOf(Alias.class));
+        alias = (Alias) field;
+        assertThat(alias.child().fold(), is(9));
 
-        expectError(
-            "row x = ?",
-            List.of(new QueryParam(null, "2 minutes", KEYWORD)),
-            "Cannot parse [2 minutes] to DATE_PERIOD, did you mean TIME_DURATION?"
-        );
-        expectError(
-            "row x = ?",
-            List.of(new QueryParam(null, "11 months", KEYWORD)),
-            "Cannot parse [11 months] to TIME_DURATION, did you mean DATE_PERIOD?"
-        );
+        field = row.fields().get(7);
+        assertThat(field.name(), is("f"));
+        assertThat(field, instanceOf(Alias.class));
+        alias = (Alias) field;
+        assertThat(alias.child().fold(), is(11));
     }
-     */
 
     public void testMissingInputParams() {
         expectError("row x = ?, y = ?", List.of(new QueryParam(null, 1, INTEGER)), "Not enough actual parameters 1");
     }
 
-    public void testNamedInputParams() {
+    public void testNamedParams() {
         LogicalPlan stm = statement("row x=?name1, y = ?name1", new QueryParams(List.of(new QueryParam("name1", 1, INTEGER))));
         assertThat(stm, instanceOf(Row.class));
         Row row = (Row) stm;
@@ -873,7 +859,23 @@ public class StatementParserTests extends ESTestCase {
         assertThat(alias.child().fold(), is(1));
     }
 
-    public void testPositionalInputParamsWithoutName() {
+    public void testInvalidNamedParams() {
+        expectError(
+            "from test | where x < ?n1 | eval y = ?n2",
+            List.of(new QueryParam("n1", 5, INTEGER)),
+            "No parameter is defined for name ?n2"
+        );
+
+        expectError("from test | where x < ?_1", List.of(new QueryParam("_1", 5, INTEGER)), "extraneous input '_1' expecting <EOF>");
+
+        expectError("from test | where x < ?#1", List.of(new QueryParam("#1", 5, INTEGER)), "token recognition error at: '#'");
+
+        expectError("from test | where x < ??", List.of(new QueryParam("?", 5, INTEGER)), "Not enough actual parameters 1");
+
+        expectError("from test | where x < ???", List.of(new QueryParam("?", 5, INTEGER)), "Not enough actual parameters 1");
+    }
+
+    public void testPositionalParams() {
         LogicalPlan stm = statement("row x=?1, y=?1", new QueryParams(List.of(new QueryParam(null, 1, INTEGER))));
         assertThat(stm, instanceOf(Row.class));
         Row row = (Row) stm;
@@ -890,6 +892,12 @@ public class StatementParserTests extends ESTestCase {
         assertThat(field, instanceOf(Alias.class));
         alias = (Alias) field;
         assertThat(alias.child().fold(), is(1));
+    }
+
+    public void testInvalidPositionalParams() {
+        expectError("from test | where x < ?0", List.of(new QueryParam(null, 5, INTEGER)), "No parameter is defined for position ?0");
+
+        expectError("from test | where x < ?2", List.of(new QueryParam(null, 5, INTEGER)), "No parameter is defined for position ?2");
     }
 
     public void testParamInWhere() {
@@ -1071,7 +1079,7 @@ public class StatementParserTests extends ESTestCase {
                 new QueryParam("n3", 100, INTEGER),
                 new QueryParam("n4", 10, INTEGER)
             ),
-            "[AnonymousParam=true, PositionalParam=false, NamedParam=true]"
+            "Inconsistent parameter declaration, use either named or anonymous params but not both."
         );
 
         expectError(
@@ -1082,7 +1090,7 @@ public class StatementParserTests extends ESTestCase {
                 new QueryParam("n3", 100, INTEGER),
                 new QueryParam("n4", 10, INTEGER)
             ),
-            "[AnonymousParam=false, PositionalParam=true, NamedParam=true]"
+            "Inconsistent parameter declaration, use either named or positional params but not both."
         );
 
         expectError(
@@ -1093,7 +1101,7 @@ public class StatementParserTests extends ESTestCase {
                 new QueryParam("n3", 100, INTEGER),
                 new QueryParam("n4", 10, INTEGER)
             ),
-            "[AnonymousParam=true, PositionalParam=true, NamedParam=false]"
+            "Inconsistent parameter declaration, use either positional or anonymous params but not both."
         );
     }
 
@@ -1343,7 +1351,7 @@ public class StatementParserTests extends ESTestCase {
     }
 
     private LogicalPlan statement(String e) {
-        return statement(e, new QueryParams());
+        return statement(e, QueryParams.EMPTY);
     }
 
     private LogicalPlan statement(String e, QueryParams params) {

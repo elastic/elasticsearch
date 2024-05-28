@@ -15,7 +15,6 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentLocation;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.parser.ContentLocation;
@@ -34,6 +33,7 @@ import java.util.Map;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xcontent.ObjectParser.ValueType.VALUE_OBJECT_ARRAY;
+import static org.elasticsearch.xpack.esql.core.util.StringUtils.isValidParamName;
 
 /** Static methods for parsing xcontent requests to transport requests. */
 final class RequestXContent {
@@ -145,12 +145,15 @@ final class RequestXContent {
                     // we are at the start of a value/type pair... hopefully
                     param = PARAM_PARSER.apply(p, null);
                     if (param.fields.size() > 1) {
-                        throw new InvalidArgumentException("Multiple parameters in one curly bracket is not supported.");
+                        throw new XContentParseException("Multiple parameters in one curly bracket is not supported.");
                     }
                     for (Map.Entry<String, Object> entry : param.fields.entrySet()) {
-                        // don't allow integer as a key
-                        if (Character.isDigit(entry.getKey().charAt(0))) {
-                            throw new InvalidArgumentException(entry.getKey() + ", starts with a digit, is not a valid parameter name.");
+                        if (isValidParamName(entry.getKey()) == false) {
+                            throw new XContentParseException(
+                                entry.getKey()
+                                    + " is not a valid parameter name. "
+                                    + "A valid parameter name starts with a letter and contains letters, digits and underscores only"
+                            );
                         }
                         type = EsqlDataTypes.fromJava(entry.getValue());
                         if (type == null) {
@@ -159,7 +162,7 @@ final class RequestXContent {
                         currentParam = new QueryParam(entry.getKey(), entry.getValue(), type);
                         namedParameter = true;
                         if (unnamedParameter && namedParameter) {
-                            throw new InvalidArgumentException(
+                            throw new XContentParseException(
                                 "Params contain both named and unnamed parameters "
                                     + currentParam.toString()
                                     + ", "
@@ -204,7 +207,7 @@ final class RequestXContent {
                     }
                     unnamedParameter = true;
                     if (unnamedParameter && namedParameter) {
-                        throw new InvalidArgumentException(
+                        throw new XContentParseException(
                             "Params contain both named and unnamed parameters " + value + ", " + Arrays.toString(result.toArray())
                         );
                     }

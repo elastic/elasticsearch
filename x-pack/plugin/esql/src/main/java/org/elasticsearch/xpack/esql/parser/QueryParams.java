@@ -16,6 +16,8 @@ import java.util.Map;
 
 public class QueryParams {
 
+    public static final QueryParams EMPTY = new QueryParams();
+
     // This matches the named or unnamed parameters specified in an EsqlQueryRequest.params.
     private List<QueryParam> params = new ArrayList<>();
 
@@ -28,10 +30,11 @@ public class QueryParams {
     public QueryParams() {}
 
     public QueryParams(List<QueryParam> params) {
-        this.params.addAll(params);
-        for (QueryParam p : this.params) {
-            if (p.name() != null) {
-                nameToParam.put(p.name(), p);
+        for (QueryParam p : params) {
+            this.params.add(p);
+            String name = p.name();
+            if (name != null) {
+                nameToParam.put(name, p);
             }
         }
     }
@@ -41,7 +44,7 @@ public class QueryParams {
     }
 
     public QueryParam get(int index) {
-        return index > params.size() ? null : params.get(index - 1);
+        return (index <= 0 || index > params.size()) ? null : params.get(index - 1);
     }
 
     public boolean contains(String paramName) {

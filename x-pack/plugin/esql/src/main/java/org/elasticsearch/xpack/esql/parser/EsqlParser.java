@@ -22,19 +22,20 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.parser.CaseChangingCharStream;
 import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
 
-import java.util.Arrays;
+import java.util.BitSet;
 import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.core.parser.ParserUtils.source;
+import static org.elasticsearch.xpack.esql.core.util.StringUtils.isInteger;
 
 public class EsqlParser {
 
     private static final Logger log = LogManager.getLogger(EsqlParser.class);
 
     public LogicalPlan createStatement(String query) {
-        return createStatement(query, new QueryParams());
+        return createStatement(query, QueryParams.EMPTY);
     }
 
     public LogicalPlan createStatement(String query, QueryParams params) {
@@ -121,22 +122,20 @@ public class EsqlParser {
         private Map<Token, QueryParam> paramTokens;
         private int param;
         private QueryParams params;
-        private boolean[] paramType = new boolean[3];
+        private BitSet paramTypes = new BitSet(3);
 
         ParametrizedTokenSource(TokenSource delegate, Map<Token, QueryParam> paramTokens, QueryParams params) {
             this.delegate = delegate;
             this.paramTokens = paramTokens;
             this.params = params;
             param = 0;
-            Arrays.fill(paramType, Boolean.FALSE);
         }
 
         @Override
         public Token nextToken() {
             Token token = delegate.nextToken();
             if (token.getType() == EsqlBaseLexer.PARAM) {
-                paramType[0] = true;
-                checkParamType(paramType[1], paramType[2]);
+                hasOnlyAnonymousParam();
                 if (param >= params.positionalParams().size()) {
                     throw new ParsingException("Not enough actual parameters {}", params.positionalParams().size());
                 }
@@ -145,12 +144,10 @@ public class EsqlParser {
             }
 
             if (token.getType() == EsqlBaseLexer.NAMED_OR_POSITIONAL_PARAM) {
-                if (token.getText().substring(1).chars().allMatch(Character::isDigit)) {
-                    paramType[1] = true;
-                    checkParamType(paramType[0], paramType[2]);
+                if (isInteger(token.getText().substring(1))) {
+                    hasOnlyPositionalParam();
                 } else {
-                    paramType[2] = true;
-                    checkParamType(paramType[0], paramType[1]);
+                    hasOnlyNamedParam();
                 }
             }
             return token;
@@ -186,19 +183,32 @@ public class EsqlParser {
             return delegate.getTokenFactory();
         }
 
-        private void checkParamType(boolean param1, boolean param2) {
-            if (param1 || param2) {
+        private void hasOnlyAnonymousParam() {
+            paramTypes.set(0);
+            if (paramTypes.cardinality() > 1) {
+                String error = paramTypes.get(1) ? "named" : "positional";
                 throw new ParsingException(
-                    "Mixed parameter types is not supported in the query [AnonymousParam="
-                        + paramType[0]
-                        + ", PositionalParam="
-                        + paramType[1]
-                        + ", NamedParam="
-                        + paramType[2]
-                        + "]"
+                    "Inconsistent parameter declaration, use either anonymous or " + error + " params but not both."
                 );
             }
+        }
 
+        private void hasOnlyNamedParam() {
+            paramTypes.set(1);
+            if (paramTypes.cardinality() > 1) {
+                String error = paramTypes.get(0) ? "anonymous" : "positional";
+                throw new ParsingException("Inconsistent parameter declaration, use either named or " + error + " params but not both.");
+            }
+        }
+
+        private void hasOnlyPositionalParam() {
+            paramTypes.set(2);
+            if (paramTypes.cardinality() > 1) {
+                String error = paramTypes.get(0) ? "anonymous" : "named";
+                throw new ParsingException(
+                    "Inconsistent parameter declaration, use either positional or " + error + " params but not both."
+                );
+            }
         }
     }
 }

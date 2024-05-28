@@ -170,6 +170,32 @@ public class EsqlQueryRequestTests extends ESTestCase {
 
         e = expectThrows(XContentParseException.class, () -> parseEsqlQueryRequestSync(json2));
         assertThat(e.getMessage(), containsString("failed to parse field [params]"));
+
+        String paramsString3 = """
+            ,"params":[ {"_a" : "v1" }] }""";
+        String json3 = String.format(Locale.ROOT, """
+            {
+                "query": "%s",
+                "columnar": %s,
+                "locale": "%s",
+                "filter": %s
+                %s""", query, columnar, locale.toLanguageTag(), filter, paramsString3);
+
+        e = expectThrows(XContentParseException.class, () -> parseEsqlQueryRequestSync(json3));
+        assertThat(e.getMessage(), containsString("failed to parse field [params]"));
+
+        String paramsString4 = """
+            ,"params":[ {"@-#" : "v1" }] }""";
+        String json4 = String.format(Locale.ROOT, """
+            {
+                "query": "%s",
+                "columnar": %s,
+                "locale": "%s",
+                "filter": %s
+                %s""", query, columnar, locale.toLanguageTag(), filter, paramsString4);
+
+        e = expectThrows(XContentParseException.class, () -> parseEsqlQueryRequestSync(json4));
+        assertThat(e.getMessage(), containsString("failed to parse field [params]"));
     }
 
     public void testParseFieldsForAsync() throws IOException {

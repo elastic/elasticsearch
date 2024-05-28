@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.textstructure.transport;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
@@ -22,6 +23,7 @@ import org.elasticsearch.xpack.textstructure.structurefinder.TextStructureOverri
 
 import java.io.InputStream;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.RejectedExecutionException;
 
 import static org.elasticsearch.common.util.concurrent.EsExecutors.DIRECT_EXECUTOR_SERVICE;
 
@@ -39,15 +41,14 @@ public class TransportFindStructureAction extends HandledTransportAction<FindStr
 
     @Override
     protected void doExecute(Task task, FindStructureAction.Request request, ActionListener<FindStructureResponse> listener) {
+        // workaround for https://github.com/elastic/elasticsearch/issues/97916 - TODO remove this when we can
+        // when the workaround is removed, change the value that this class's constructor passes to the super constructor from
+        // DIRECT_EXECUTOR_SERVICE back to threadpool.generic() so that we continue to fork off of the transport thread.
+        var buildTextStructureResponse = ActionRunnable.supply(listener, () -> buildTextStructureResponse(request));
         try {
-            // workaround for https://github.com/elastic/elasticsearch/issues/97916 - TODO remove this when we can
-            // when the workaround is removed, change the value that this class's constructor passes to the super constructor from
-            // DIRECT_EXECUTOR_SERVICE back to threadpool.generic() so that we continue to fork off of the transport thread.
-            executorService.execute(threadPool.getThreadContext().preserveContext(() -> {
-                ActionListener.completeWith(listener, () -> buildTextStructureResponse(request));
-            }));
-        } catch (Exception e) {
-            listener.onFailure(e);
+            executorService.execute(buildTextStructureResponse);
+        } catch (RejectedExecutionException e) {
+            buildTextStructureResponse.onRejection(e);
         }
     }
 

@@ -370,7 +370,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
             NamedExpression matchField = ctx.ON() != null ? visitQualifiedNamePattern(ctx.matchField) : new EmptyAttribute(source);
             if (matchField instanceof UnresolvedNamePattern up) {
-                throw new ParsingException(source, "Using wildcards (*) in ENRICH WITH projections is not allowed [{}]", up.pattern());
+                throw new ParsingException(source, "Using wildcards [*] in ENRICH WITH projections is not allowed [{}]", up.pattern());
             }
 
             List<NamedExpression> keepClauses = visitList(this, ctx.enrichWithClause(), NamedExpression.class);

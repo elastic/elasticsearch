@@ -25,6 +25,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.UnsafePlainActionFuture;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -2130,7 +2131,7 @@ public class Security extends Plugin
             return;
         }
 
-        final PlainActionFuture<ActionResponse.Empty> future = new PlainActionFuture<>();
+        final PlainActionFuture<ActionResponse.Empty> future = new UnsafePlainActionFuture<>(ThreadPool.Names.GENERIC);
         getClient().execute(
             ActionTypes.RELOAD_REMOTE_CLUSTER_CREDENTIALS_ACTION,
             new TransportReloadRemoteClusterCredentialsAction.Request(settingsWithKeystore),

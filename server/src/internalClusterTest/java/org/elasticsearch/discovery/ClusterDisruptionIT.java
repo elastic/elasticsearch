@@ -16,6 +16,7 @@ import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.UnsafePlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
@@ -26,6 +27,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.Murmur3HashFunction;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -542,7 +544,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
         });
 
         final ClusterService dataClusterService = internalCluster().getInstance(ClusterService.class, dataNode);
-        final PlainActionFuture<Void> failedLeader = new PlainActionFuture<>() {
+        final PlainActionFuture<Void> failedLeader = new UnsafePlainActionFuture<>(ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME) {
             @Override
             protected boolean blockingAllowed() {
                 // we're deliberately blocking the cluster applier on the master until the data node starts to rejoin

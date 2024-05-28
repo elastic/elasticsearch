@@ -10,6 +10,7 @@ package org.elasticsearch.http.netty4;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ESNetty4IntegTestCase;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseListener;
@@ -36,7 +37,7 @@ import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.ChunkedRestResponseBody;
+import org.elasticsearch.rest.ChunkedRestResponseBodyPart;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
@@ -244,10 +245,20 @@ public class Netty4ChunkedEncodingIT extends ESNetty4IntegTestCase {
         private static void sendChunksResponse(RestChannel channel, Iterator<BytesReference> chunkIterator) {
             final var localRefs = refs; // single volatile read
             if (localRefs != null && localRefs.tryIncRef()) {
-                channel.sendResponse(RestResponse.chunked(RestStatus.OK, new ChunkedRestResponseBody() {
+                channel.sendResponse(RestResponse.chunked(RestStatus.OK, new ChunkedRestResponseBodyPart() {
                     @Override
-                    public boolean isDone() {
+                    public boolean isPartComplete() {
                         return chunkIterator.hasNext() == false;
+                    }
+
+                    @Override
+                    public boolean isLastPart() {
+                        return true;
+                    }
+
+                    @Override
+                    public void getNextPart(ActionListener<ChunkedRestResponseBodyPart> listener) {
+                        assert false : "no continuations";
                     }
 
                     @Override

@@ -13,7 +13,8 @@ public final class Paths {
     static final String TASK_TYPE_OR_INFERENCE_ID = "task_type_or_id";
     static final String INFERENCE_ID_PATH = "_inference/{" + TASK_TYPE_OR_INFERENCE_ID + "}";
     static final String TASK_TYPE_INFERENCE_ID_PATH = "_inference/{" + TASK_TYPE_OR_INFERENCE_ID + "}/{" + INFERENCE_ID + "}";
-    static final String INFERENCE_STATS_PATH = "_inference_stats";
+    static final String INFERENCE_DIAGS = ".diagnostics";
+    static final String INFERENCE_DIAGNOSTICS_PATH = "_inference/" + INFERENCE_DIAGS;
 
     private Paths() {
 

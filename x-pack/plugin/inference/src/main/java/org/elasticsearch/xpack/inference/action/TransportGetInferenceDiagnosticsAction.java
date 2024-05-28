@@ -17,23 +17,23 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.inference.action.GetInferenceStatsAction;
+import org.elasticsearch.xpack.core.inference.action.GetInferenceDiagnosticsAction;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-public class TransportGetInferenceStatsAction extends TransportNodesAction<
-    GetInferenceStatsAction.Request,
-    GetInferenceStatsAction.Response,
-    GetInferenceStatsAction.NodeRequest,
-    GetInferenceStatsAction.NodeResponse> {
+public class TransportGetInferenceDiagnosticsAction extends TransportNodesAction<
+    GetInferenceDiagnosticsAction.Request,
+    GetInferenceDiagnosticsAction.Response,
+    GetInferenceDiagnosticsAction.NodeRequest,
+    GetInferenceDiagnosticsAction.NodeResponse> {
 
     private final HttpClientManager httpClientManager;
 
     @Inject
-    public TransportGetInferenceStatsAction(
+    public TransportGetInferenceDiagnosticsAction(
         ThreadPool threadPool,
         ClusterService clusterService,
         TransportService transportService,
@@ -41,11 +41,11 @@ public class TransportGetInferenceStatsAction extends TransportNodesAction<
         HttpClientManager httpClientManager
     ) {
         super(
-            GetInferenceStatsAction.NAME,
+            GetInferenceDiagnosticsAction.NAME,
             clusterService,
             transportService,
             actionFilters,
-            GetInferenceStatsAction.NodeRequest::new,
+            GetInferenceDiagnosticsAction.NodeRequest::new,
             threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
 
@@ -53,26 +53,26 @@ public class TransportGetInferenceStatsAction extends TransportNodesAction<
     }
 
     @Override
-    protected GetInferenceStatsAction.Response newResponse(
-        GetInferenceStatsAction.Request request,
-        List<GetInferenceStatsAction.NodeResponse> nodeResponses,
+    protected GetInferenceDiagnosticsAction.Response newResponse(
+        GetInferenceDiagnosticsAction.Request request,
+        List<GetInferenceDiagnosticsAction.NodeResponse> nodeResponses,
         List<FailedNodeException> failures
     ) {
-        return new GetInferenceStatsAction.Response(clusterService.getClusterName(), nodeResponses, failures);
+        return new GetInferenceDiagnosticsAction.Response(clusterService.getClusterName(), nodeResponses, failures);
     }
 
     @Override
-    protected GetInferenceStatsAction.NodeRequest newNodeRequest(GetInferenceStatsAction.Request request) {
-        return new GetInferenceStatsAction.NodeRequest();
+    protected GetInferenceDiagnosticsAction.NodeRequest newNodeRequest(GetInferenceDiagnosticsAction.Request request) {
+        return new GetInferenceDiagnosticsAction.NodeRequest();
     }
 
     @Override
-    protected GetInferenceStatsAction.NodeResponse newNodeResponse(StreamInput in, DiscoveryNode node) throws IOException {
-        return new GetInferenceStatsAction.NodeResponse(in);
+    protected GetInferenceDiagnosticsAction.NodeResponse newNodeResponse(StreamInput in, DiscoveryNode node) throws IOException {
+        return new GetInferenceDiagnosticsAction.NodeResponse(in);
     }
 
     @Override
-    protected GetInferenceStatsAction.NodeResponse nodeOperation(GetInferenceStatsAction.NodeRequest request, Task task) {
-        return new GetInferenceStatsAction.NodeResponse(transportService.getLocalNode(), httpClientManager.getPoolStats());
+    protected GetInferenceDiagnosticsAction.NodeResponse nodeOperation(GetInferenceDiagnosticsAction.NodeRequest request, Task task) {
+        return new GetInferenceDiagnosticsAction.NodeResponse(transportService.getLocalNode(), httpClientManager.getPoolStats());
     }
 }

@@ -13,31 +13,31 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.xpack.core.inference.action.GetInferenceStatsAction;
+import org.elasticsearch.xpack.core.inference.action.GetInferenceDiagnosticsAction;
 
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
-import static org.elasticsearch.xpack.inference.rest.Paths.INFERENCE_STATS_PATH;
+import static org.elasticsearch.xpack.inference.rest.Paths.INFERENCE_DIAGNOSTICS_PATH;
 
 @ServerlessScope(Scope.INTERNAL)
-public class RestGetInferenceStatsAction extends BaseRestHandler {
+public class RestGetInferenceDiagnosticsAction extends BaseRestHandler {
 
     @Override
     public String getName() {
-        return "get_inference_stats_action";
+        return "get_inference_diagnostics_action";
     }
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(GET, INFERENCE_STATS_PATH));
+        return List.of(new Route(GET, INFERENCE_DIAGNOSTICS_PATH));
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) {
         return channel -> client.execute(
-            GetInferenceStatsAction.INSTANCE,
-            new GetInferenceStatsAction.Request(),
+            GetInferenceDiagnosticsAction.INSTANCE,
+            new GetInferenceDiagnosticsAction.Request(),
             new RestToXContentListener<>(channel)
         );
     }

@@ -17,31 +17,33 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 
-public class GetInferenceStatsActionNodeResponseTests extends AbstractWireSerializingTestCase<GetInferenceStatsAction.NodeResponse> {
-    public static GetInferenceStatsAction.NodeResponse createRandom() {
+public class GetInferenceDiagnosticsActionNodeResponseTests extends AbstractWireSerializingTestCase<
+    GetInferenceDiagnosticsAction.NodeResponse> {
+    public static GetInferenceDiagnosticsAction.NodeResponse createRandom() {
         DiscoveryNode node = DiscoveryNodeUtils.create("id");
         var randomPoolStats = new PoolStats(randomInt(), randomInt(), randomInt(), randomInt());
 
-        return new GetInferenceStatsAction.NodeResponse(node, randomPoolStats);
+        return new GetInferenceDiagnosticsAction.NodeResponse(node, randomPoolStats);
     }
 
     @Override
-    protected Writeable.Reader<GetInferenceStatsAction.NodeResponse> instanceReader() {
-        return GetInferenceStatsAction.NodeResponse::new;
+    protected Writeable.Reader<GetInferenceDiagnosticsAction.NodeResponse> instanceReader() {
+        return GetInferenceDiagnosticsAction.NodeResponse::new;
     }
 
     @Override
-    protected GetInferenceStatsAction.NodeResponse createTestInstance() {
+    protected GetInferenceDiagnosticsAction.NodeResponse createTestInstance() {
         return createRandom();
     }
 
     @Override
-    protected GetInferenceStatsAction.NodeResponse mutateInstance(GetInferenceStatsAction.NodeResponse instance) throws IOException {
+    protected GetInferenceDiagnosticsAction.NodeResponse mutateInstance(GetInferenceDiagnosticsAction.NodeResponse instance)
+        throws IOException {
         var select = randomIntBetween(0, 3);
         var connPoolStats = instance.getConnectionPoolStats();
 
         return switch (select) {
-            case 0 -> new GetInferenceStatsAction.NodeResponse(
+            case 0 -> new GetInferenceDiagnosticsAction.NodeResponse(
                 instance.getNode(),
                 new PoolStats(
                     randomInt(),
@@ -50,7 +52,7 @@ public class GetInferenceStatsActionNodeResponseTests extends AbstractWireSerial
                     connPoolStats.getMaxConnections()
                 )
             );
-            case 1 -> new GetInferenceStatsAction.NodeResponse(
+            case 1 -> new GetInferenceDiagnosticsAction.NodeResponse(
                 instance.getNode(),
                 new PoolStats(
                     connPoolStats.getLeasedConnections(),
@@ -59,7 +61,7 @@ public class GetInferenceStatsActionNodeResponseTests extends AbstractWireSerial
                     connPoolStats.getMaxConnections()
                 )
             );
-            case 2 -> new GetInferenceStatsAction.NodeResponse(
+            case 2 -> new GetInferenceDiagnosticsAction.NodeResponse(
                 instance.getNode(),
                 new PoolStats(
                     connPoolStats.getLeasedConnections(),
@@ -68,7 +70,7 @@ public class GetInferenceStatsActionNodeResponseTests extends AbstractWireSerial
                     connPoolStats.getMaxConnections()
                 )
             );
-            case 3 -> new GetInferenceStatsAction.NodeResponse(
+            case 3 -> new GetInferenceDiagnosticsAction.NodeResponse(
                 instance.getNode(),
                 new PoolStats(
                     connPoolStats.getLeasedConnections(),

@@ -28,12 +28,12 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-public class GetInferenceStatsAction extends ActionType<GetInferenceStatsAction.Response> {
+public class GetInferenceDiagnosticsAction extends ActionType<GetInferenceDiagnosticsAction.Response> {
 
-    public static final GetInferenceStatsAction INSTANCE = new GetInferenceStatsAction();
-    public static final String NAME = "cluster:monitor/xpack/inference/stats/get";
+    public static final GetInferenceDiagnosticsAction INSTANCE = new GetInferenceDiagnosticsAction();
+    public static final String NAME = "cluster:monitor/xpack/inference/diagnostics/get";
 
-    public GetInferenceStatsAction() {
+    public GetInferenceDiagnosticsAction() {
         super(NAME);
     }
 

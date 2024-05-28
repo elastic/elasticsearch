@@ -7,12 +7,6 @@
 
 package org.elasticsearch.xpack.core.inference.results;
 
-public interface TextEmbedding {
-
-    /**
-     * Returns the first text embedding entry in the result list's array size.
-     * @return the size of the text embedding
-     * @throws IllegalStateException if the list of embeddings is empty
-     */
-    int getFirstEmbeddingSize() throws IllegalStateException;
+public interface EmbeddingInt {
+    int getSize();
 }

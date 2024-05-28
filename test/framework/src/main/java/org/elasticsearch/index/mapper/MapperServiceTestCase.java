@@ -27,6 +27,7 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
@@ -34,6 +35,7 @@ import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.AnalyzerScope;
@@ -211,6 +213,13 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
         ).getMapperRegistry();
 
         SimilarityService similarityService = new SimilarityService(indexSettings, null, Map.of());
+        BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(indexSettings, new BitsetFilterCache.Listener() {
+            @Override
+            public void onCache(ShardId shardId, Accountable accountable) {}
+
+            @Override
+            public void onRemoval(ShardId shardId, Accountable accountable) {}
+        });
         return new MapperService(
             () -> TransportVersion.current(),
             indexSettings,
@@ -223,8 +232,8 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
             },
             indexSettings.getMode().buildIdFieldMapper(idFieldDataEnabled),
             this::compileScript,
+            query -> bitsetFilterCache.getBitSetProducer(query),
             MapperMetrics.NOOP
-
         );
     }
 
@@ -716,12 +725,14 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
     protected final String syntheticSource(DocumentMapper mapper, CheckedConsumer<XContentBuilder, IOException> build) throws IOException {
         try (Directory directory = newDirectory()) {
             RandomIndexWriter iw = indexWriterForSyntheticSource(directory);
-            LuceneDocument doc = mapper.parse(source(build)).rootDoc();
-            iw.addDocument(doc);
+            ParsedDocument doc = mapper.parse(source(build));
+            doc.updateSeqID(0, 0);
+            doc.version().setLongValue(0);
+            iw.addDocuments(doc.docs());
             iw.close();
-            try (DirectoryReader reader = DirectoryReader.open(directory)) {
-                String syntheticSource = syntheticSource(mapper, reader, 0);
-                roundTripSyntheticSource(mapper, syntheticSource, reader);
+            try (DirectoryReader indexReader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {
+                String syntheticSource = syntheticSource(mapper, indexReader, doc.docs().size() - 1);
+                roundTripSyntheticSource(mapper, syntheticSource, indexReader);
                 return syntheticSource;
             }
         }
@@ -740,10 +751,13 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
     private void roundTripSyntheticSource(DocumentMapper mapper, String syntheticSource, DirectoryReader reader) throws IOException {
         try (Directory roundTripDirectory = newDirectory()) {
             RandomIndexWriter roundTripIw = indexWriterForSyntheticSource(roundTripDirectory);
-            roundTripIw.addDocument(mapper.parse(new SourceToParse("1", new BytesArray(syntheticSource), XContentType.JSON)).rootDoc());
+            ParsedDocument doc = mapper.parse(new SourceToParse("1", new BytesArray(syntheticSource), XContentType.JSON));
+            doc.updateSeqID(0, 0);
+            doc.version().setLongValue(0);
+            roundTripIw.addDocuments(doc.docs());
             roundTripIw.close();
-            try (DirectoryReader roundTripReader = DirectoryReader.open(roundTripDirectory)) {
-                String roundTripSyntheticSource = syntheticSource(mapper, roundTripReader, 0);
+            try (DirectoryReader roundTripReader = wrapInMockESDirectoryReader(DirectoryReader.open(roundTripDirectory))) {
+                String roundTripSyntheticSource = syntheticSource(mapper, roundTripReader, doc.docs().size() - 1);
                 assertThat(roundTripSyntheticSource, equalTo(syntheticSource));
                 validateRoundTripReader(syntheticSource, reader, roundTripReader);
             }
@@ -795,5 +809,9 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
             buildField.accept(b);
             b.endObject();
         });
+    }
+
+    protected static DirectoryReader wrapInMockESDirectoryReader(DirectoryReader directoryReader) throws IOException {
+        return ElasticsearchDirectoryReader.wrap(directoryReader, new ShardId(new Index("index", "_na_"), 0));
     }
 }

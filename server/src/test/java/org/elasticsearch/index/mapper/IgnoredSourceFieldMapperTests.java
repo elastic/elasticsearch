@@ -87,8 +87,8 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
         String stringValue = randomAlphaOfLength(20);
         String syntheticSource = getSyntheticSourceWithFieldLimit(b -> {
             b.field("boolean_value", booleanValue);
-            b.field("string_value", stringValue);
             b.field("int_value", intValue);
+            b.field("string_value", stringValue);
         });
         assertEquals(String.format(Locale.ROOT, """
             {"boolean_value":%s,"int_value":%s,"string_value":"%s"}""", booleanValue, intValue, stringValue), syntheticSource);
@@ -640,7 +640,7 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
             b -> { b.startObject("path").field("foo", "A").field("bar", "B").endObject(); }
         );
         assertEquals("""
-            {"path":{"foo":"A","bar":"B"}}""", syntheticSource);
+            {"path":{"bar":"B","foo":"A"}}""", syntheticSource);
     }
 
     public void testNestedObjectWithArray() throws IOException {
@@ -665,7 +665,7 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
             b.endArray();
         });
         assertEquals("""
-            {"path":[{"foo":"A","bar":"B"},{"foo":"C","bar":"D"}]}""", syntheticSource);
+            {"path":[{"bar":"B","foo":"A"},{"bar":"D","foo":"C"}]}""", syntheticSource);
     }
 
     public void testNestedSubobjectWithField() throws IOException {
@@ -705,7 +705,7 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
             b.endObject();
         });
         assertEquals(String.format(Locale.ROOT, """
-            {"boolean_value":%s,"path":{"int_value":%s,"to":{"foo":"A","bar":"B"}}}""", booleanValue, intValue), syntheticSource);
+            {"boolean_value":%s,"path":{"int_value":%s,"to":{"bar":"B","foo":"A"}}}""", booleanValue, intValue), syntheticSource);
     }
 
     public void testNestedSubobjectWithArray() throws IOException {
@@ -751,7 +751,7 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
         });
         assertEquals(
             String.format(Locale.ROOT, """
-                {"boolean_value":%s,"path":{"int_value":%s,"to":[{"foo":"A","bar":"B"},{"foo":"C","bar":"D"}]}}""", booleanValue, intValue),
+                {"boolean_value":%s,"path":{"int_value":%s,"to":[{"bar":"B","foo":"A"},{"bar":"D","foo":"C"}]}}""", booleanValue, intValue),
             syntheticSource
         );
     }
@@ -774,7 +774,7 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
             b -> { b.startObject("path").field("foo", "A").field("bar", "B").endObject(); }
         );
         assertEquals("""
-            {"path":{"foo":"A","bar":"B"}}""", syntheticSource);
+            {"path":{"bar":"B","foo":"A"}}""", syntheticSource);
     }
 
     public void testNoDynamicObjectSingleField() throws IOException {

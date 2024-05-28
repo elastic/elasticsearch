@@ -132,7 +132,8 @@ public final class DocumentParser {
                         new IgnoredSourceFieldMapper.NameValue(
                             MapperService.SINGLE_MAPPING_NAME,
                             0,
-                            XContentDataHelper.encodeToken(context.parser())
+                            XContentDataHelper.encodeToken(context.parser()),
+                            context.doc()
                         )
                     );
                 } else {
@@ -268,7 +269,8 @@ public final class DocumentParser {
                     new IgnoredSourceFieldMapper.NameValue(
                         context.parent().fullPath(),
                         context.parent().fullPath().indexOf(currentFieldName),
-                        XContentDataHelper.encodeToken(parser)
+                        XContentDataHelper.encodeToken(parser),
+                        context.doc()
                     )
                 );
             } else {
@@ -287,20 +289,6 @@ public final class DocumentParser {
         }
 
         if (context.parent().isNested()) {
-            // Handle a nested object that doesn't contain an array. Arrays are handled in #parseNonDynamicArray.
-            if (context.mappingLookup().isSourceSynthetic() && context.getClonedSource() == false) {
-                Tuple<DocumentParserContext, XContentBuilder> tuple = XContentDataHelper.cloneSubContext(context);
-                context.addIgnoredField(
-                    new IgnoredSourceFieldMapper.NameValue(
-                        context.parent().name(),
-                        context.parent().fullPath().indexOf(context.parent().simpleName()),
-                        XContentDataHelper.encodeXContentBuilder(tuple.v2())
-                    )
-                );
-                context = tuple.v1();
-                token = context.parser().currentToken();
-                parser = context.parser();
-            }
             context = context.createNestedContext((NestedObjectMapper) context.parent());
         }
 
@@ -661,9 +649,8 @@ public final class DocumentParser {
                 && (objectMapper.storeArraySource() || objectMapper.dynamic == ObjectMapper.Dynamic.RUNTIME);
             boolean fieldWithFallbackSyntheticSource = mapper instanceof FieldMapper fieldMapper
                 && fieldMapper.syntheticSourceMode() == FieldMapper.SyntheticSourceMode.FALLBACK;
-            boolean nestedObject = mapper instanceof NestedObjectMapper;
             boolean dynamicRuntimeContext = context.dynamic() == ObjectMapper.Dynamic.RUNTIME;
-            if (objectRequiresStoringSource || fieldWithFallbackSyntheticSource || nestedObject || dynamicRuntimeContext) {
+            if (objectRequiresStoringSource || fieldWithFallbackSyntheticSource || dynamicRuntimeContext) {
                 Tuple<DocumentParserContext, XContentBuilder> tuple = XContentDataHelper.cloneSubContext(context);
                 context.addIgnoredField(
                     IgnoredSourceFieldMapper.NameValue.fromContext(

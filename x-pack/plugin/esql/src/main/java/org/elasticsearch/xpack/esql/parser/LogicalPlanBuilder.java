@@ -443,12 +443,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             }
         });
 
-        Literal tableName = new Literal(source, visitQualifiedNamePattern(ctx.tableName, ne -> {
-            if (ne instanceof UnresolvedNamePattern || ne instanceof UnresolvedStar) {
-                var src = ne.source();
-                throw new ParsingException(src, "Wildcards (*) not allowed in LOOKUP table [{}]", src.text());
-            }
-        }).name(), DataTypes.KEYWORD);
+        Literal tableName = new Literal(source, ctx.tableName.getText(), DataTypes.KEYWORD);
 
         throw new ParsingException(source, "LOOKUP not yet supported");
     }

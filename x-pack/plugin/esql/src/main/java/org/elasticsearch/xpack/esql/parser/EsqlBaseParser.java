@@ -4851,13 +4851,11 @@ public class EsqlBaseParser extends Parser {
 
   @SuppressWarnings("CheckReturnValue")
   public static class LookupCommandContext extends ParserRuleContext {
-    public QualifiedNamePatternContext tableName;
+    public Token tableName;
     public QualifiedNamePatternsContext matchFields;
     public TerminalNode LOOKUP() { return getToken(EsqlBaseParser.LOOKUP, 0); }
     public TerminalNode ON() { return getToken(EsqlBaseParser.ON, 0); }
-    public QualifiedNamePatternContext qualifiedNamePattern() {
-      return getRuleContext(QualifiedNamePatternContext.class,0);
-    }
+    public TerminalNode INDEX_UNQUOTED_IDENTIFIER() { return getToken(EsqlBaseParser.INDEX_UNQUOTED_IDENTIFIER, 0); }
     public QualifiedNamePatternsContext qualifiedNamePatterns() {
       return getRuleContext(QualifiedNamePatternsContext.class,0);
     }
@@ -4890,7 +4888,7 @@ public class EsqlBaseParser extends Parser {
       setState(542);
       match(LOOKUP);
       setState(543);
-      ((LookupCommandContext)_localctx).tableName = qualifiedNamePattern();
+      ((LookupCommandContext)_localctx).tableName = match(INDEX_UNQUOTED_IDENTIFIER);
       setState(544);
       match(ON);
       setState(545);
@@ -5297,13 +5295,13 @@ public class EsqlBaseParser extends Parser {
     "$\u0000\u0000\u0219\u021b\u0001\u0000\u0000\u0000\u021a\u0217\u0001\u0000"+
     "\u0000\u0000\u021a\u021b\u0001\u0000\u0000\u0000\u021b\u021c\u0001\u0000"+
     "\u0000\u0000\u021c\u021d\u00032\u0019\u0000\u021dk\u0001\u0000\u0000\u0000"+
-    "\u021e\u021f\u0005\u000b\u0000\u0000\u021f\u0220\u00032\u0019\u0000\u0220"+
-    "\u0221\u0005W\u0000\u0000\u0221\u0222\u00034\u001a\u0000\u0222m\u0001"+
-    "\u0000\u0000\u00004y\u0082\u0092\u009e\u00a7\u00af\u00b3\u00bb\u00bd\u00c2"+
-    "\u00c9\u00ce\u00d5\u00db\u00e3\u00e5\u00f0\u00f7\u0102\u0105\u0113\u011b"+
-    "\u0123\u0127\u012d\u0135\u0142\u0146\u014a\u0151\u0155\u015b\u0162\u016a"+
-    "\u0172\u0188\u0193\u019e\u01a3\u01ae\u01b3\u01b7\u01c5\u01d0\u01de\u01e9"+
-    "\u01ec\u01f1\u020a\u0212\u0215\u021a";
+    "\u021e\u021f\u0005\u000b\u0000\u0000\u021f\u0220\u0005\u0019\u0000\u0000"+
+    "\u0220\u0221\u0005W\u0000\u0000\u0221\u0222\u00034\u001a\u0000\u0222m"+
+    "\u0001\u0000\u0000\u00004y\u0082\u0092\u009e\u00a7\u00af\u00b3\u00bb\u00bd"+
+    "\u00c2\u00c9\u00ce\u00d5\u00db\u00e3\u00e5\u00f0\u00f7\u0102\u0105\u0113"+
+    "\u011b\u0123\u0127\u012d\u0135\u0142\u0146\u014a\u0151\u0155\u015b\u0162"+
+    "\u016a\u0172\u0188\u0193\u019e\u01a3\u01ae\u01b3\u01b7\u01c5\u01d0\u01de"+
+    "\u01e9\u01ec\u01f1\u020a\u0212\u0215\u021a";
   public static final ATN _ATN =
     new ATNDeserializer().deserialize(_serializedATN.toCharArray());
   static {

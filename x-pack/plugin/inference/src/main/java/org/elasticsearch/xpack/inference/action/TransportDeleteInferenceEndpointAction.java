@@ -86,10 +86,6 @@ public class TransportDeleteInferenceEndpointAction extends AcknowledgedTranspor
                 return;
             }
 
-            if (request.isForceDelete() == false && endpointIsReferencedInPipelines(state, request.getInferenceEndpointId(), listener)) {
-                return;
-            }
-
             if (request.isDryRun()) {
                 masterListener.onResponse(
                     new DeleteInferenceEndpointAction.Response(
@@ -98,7 +94,11 @@ public class TransportDeleteInferenceEndpointAction extends AcknowledgedTranspor
                     )
                 );
                 return;
-            }
+            } else if (request.isForceDelete() == false
+                && endpointIsReferencedInPipelines(state, request.getInferenceEndpointId(), listener)) {
+                    return;
+                }
+
             var service = serviceRegistry.getService(unparsedModel.service());
             if (service.isPresent()) {
                 service.get().stop(request.getInferenceEndpointId(), listener);

@@ -19,6 +19,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
+import org.elasticsearch.index.query.support.NestedScope;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -756,26 +757,38 @@ public class ObjectMapper extends Mapper {
 
     }
 
-    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader(Stream<Mapper> mappers) {
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader(NestedScope nestedScope, Stream<Mapper> mappers) {
+        return syntheticFieldLoader(nestedScope, mappers, false);
+    }
+
+    protected SourceLoader.SyntheticFieldLoader syntheticFieldLoader(NestedScope nestedScope, Stream<Mapper> mappers, boolean isFragment) {
         var fields = mappers.sorted(Comparator.comparing(Mapper::name))
-            .map(Mapper::syntheticFieldLoader)
+            .map(mapper -> mapper.syntheticFieldLoader(nestedScope))
             .filter(l -> l != SourceLoader.SyntheticFieldLoader.NOTHING)
             .toList();
-        return new SyntheticSourceFieldLoader(fields);
+        return new SyntheticSourceFieldLoader(fields, isFragment);
     }
 
     @Override
-    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        return syntheticFieldLoader(mappers.values().stream());
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader(NestedScope nestedScope) {
+        return syntheticFieldLoader(nestedScope, mappers.values().stream());
     }
 
     private class SyntheticSourceFieldLoader implements SourceLoader.SyntheticFieldLoader {
         private final List<SourceLoader.SyntheticFieldLoader> fields;
+        private final boolean isFragment;
         private boolean hasValue;
         private List<IgnoredSourceFieldMapper.NameValue> ignoredValues;
 
-        private SyntheticSourceFieldLoader(List<SourceLoader.SyntheticFieldLoader> fields) {
+        private SyntheticSourceFieldLoader(List<SourceLoader.SyntheticFieldLoader> fields, boolean isFragment) {
+            assert isFragment == false || isRoot() == false : "The root mapper cannot be used as a fragment";
             this.fields = fields;
+            this.isFragment = isFragment;
+        }
+
+        @Override
+        public boolean isFragment() {
+            return isFragment;
         }
 
         @Override
@@ -841,7 +854,9 @@ public class ObjectMapper extends Mapper {
                 }
                 b.startObject();
             } else {
-                b.startObject(simpleName());
+                if (isFragment == false) {
+                    b.startObject(simpleName());
+                }
             }
 
             if (ignoredValues != null && ignoredValues.isEmpty() == false) {
@@ -868,7 +883,9 @@ public class ObjectMapper extends Mapper {
                 }
             }
             hasValue = false;
-            b.endObject();
+            if (isFragment == false) {
+                b.endObject();
+            }
         }
 
         @Override

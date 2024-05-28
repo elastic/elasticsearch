@@ -67,7 +67,7 @@ import org.elasticsearch.snapshots.RestoreInfo;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -376,10 +376,9 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
         createSnapshot(repoName, "snap", Collections.singletonList(indexName));
 
         String targetNode;
-        final var mockLogAppender = new MockLogAppender();
-        try (var ignored = mockLogAppender.capturing(RecoverySourceHandler.class)) {
-            mockLogAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+        try (var mockLog = MockLog.capture(RecoverySourceHandler.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "expected warn log about restore failure",
                     RecoverySourceHandler.class.getName(),
                     Level.WARN,
@@ -392,7 +391,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
 
             ensureGreen();
 
-            mockLogAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
 
         RecoveryState recoveryState = getLatestPeerRecoveryStateForShard(indexName, 0);
@@ -611,28 +610,22 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
 
             recoverSnapshotFileRequestReceived.await();
 
-            final var mockLogAppender = new MockLogAppender();
-            try (var ignored = mockLogAppender.capturing(RecoverySourceHandler.class)) {
-                mockLogAppender.addExpectation(
-                    new MockLogAppender.SeenEventExpectation(
+            try (var mockLog = MockLog.capture(RecoverySourceHandler.class)) {
+                mockLog.addExpectation(
+                    new MockLog.SeenEventExpectation(
                         "expected debug log about restore cancellation",
                         RecoverySourceHandler.class.getName(),
                         Level.DEBUG,
                         "cancelled while recovering file [*] from snapshot"
                     )
                 );
-                mockLogAppender.addExpectation(
-                    new MockLogAppender.UnseenEventExpectation(
-                        "expected no WARN logs",
-                        RecoverySourceHandler.class.getName(),
-                        Level.WARN,
-                        "*"
-                    )
+                mockLog.addExpectation(
+                    new MockLog.UnseenEventExpectation("expected no WARN logs", RecoverySourceHandler.class.getName(), Level.WARN, "*")
                 );
 
                 assertAcked(indicesAdmin().prepareDelete(indexName).get());
 
-                assertBusy(mockLogAppender::assertAllExpectationsMatched);
+                assertBusy(mockLog::assertAllExpectationsMatched);
             }
 
             respondToRecoverSnapshotFile.countDown();

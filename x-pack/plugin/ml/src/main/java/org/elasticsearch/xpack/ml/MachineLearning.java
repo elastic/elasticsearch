@@ -377,8 +377,8 @@ import org.elasticsearch.xpack.ml.process.MlControllerHolder;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 import org.elasticsearch.xpack.ml.process.NativeController;
 import org.elasticsearch.xpack.ml.process.NativeStorageProvider;
+import org.elasticsearch.xpack.ml.queries.SparseVectorQueryBuilder;
 import org.elasticsearch.xpack.ml.queries.TextExpansionQueryBuilder;
-import org.elasticsearch.xpack.ml.queries.WeightedTokensQueryBuilder;
 import org.elasticsearch.xpack.ml.rest.RestDeleteExpiredDataAction;
 import org.elasticsearch.xpack.ml.rest.RestMlInfoAction;
 import org.elasticsearch.xpack.ml.rest.RestMlMemoryAction;
@@ -1475,7 +1475,7 @@ public class MachineLearning extends Plugin
                 restHandlers.add(new RestCatDataFrameAnalyticsAction());
             }
             if (machineLearningExtension.get().isNlpEnabled()) {
-                restHandlers.add(new RestStartTrainedModelDeploymentAction());
+                restHandlers.add(new RestStartTrainedModelDeploymentAction(machineLearningExtension.get().disableInferenceProcessCache()));
                 restHandlers.add(new RestStopTrainedModelDeploymentAction());
                 restHandlers.add(new RestInferTrainedModelDeploymentAction());
                 restHandlers.add(new RestUpdateTrainedModelDeploymentAction());
@@ -1772,9 +1772,9 @@ public class MachineLearning extends Plugin
                 TextExpansionQueryBuilder::fromXContent
             ),
             new QuerySpec<QueryBuilder>(
-                WeightedTokensQueryBuilder.NAME,
-                WeightedTokensQueryBuilder::new,
-                WeightedTokensQueryBuilder::fromXContent
+                SparseVectorQueryBuilder.NAME,
+                SparseVectorQueryBuilder::new,
+                SparseVectorQueryBuilder::fromXContent
             )
         );
     }

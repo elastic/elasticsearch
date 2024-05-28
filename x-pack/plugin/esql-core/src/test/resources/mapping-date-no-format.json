@@ -1,0 +1,8 @@
+{
+        "properties": {
+          "date": {
+            "type": "date"
+          }
+        }
+      }
+}

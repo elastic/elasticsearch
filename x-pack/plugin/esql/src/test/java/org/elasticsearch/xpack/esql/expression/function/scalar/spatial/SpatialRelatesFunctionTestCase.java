@@ -10,12 +10,12 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 import joptsimple.internal.Strings;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.ql.expression.TypeResolutions;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
@@ -112,7 +112,7 @@ public abstract class SpatialRelatesFunctionTestCase extends AbstractFunctionTes
         return Strings.join(compatibleTypeNames(spatialDataType), " or ");
     }
 
-    private static TestCaseSupplier.TypedDataSupplier testCaseSupplier(DataType dataType) {
+    public static TestCaseSupplier.TypedDataSupplier testCaseSupplier(DataType dataType) {
         return switch (dataType.esType()) {
             case "geo_point" -> TestCaseSupplier.geoPointCases(() -> false).get(0);
             case "geo_shape" -> TestCaseSupplier.geoShapeCases(() -> false).get(0);
@@ -190,7 +190,7 @@ public abstract class SpatialRelatesFunctionTestCase extends AbstractFunctionTes
         }
     }
 
-    private static Matcher<String> spatialEvaluatorString(DataType leftType, DataType rightType) {
+    public static Matcher<String> spatialEvaluatorString(DataType leftType, DataType rightType) {
         String crsType = isSpatialGeo(pickSpatialType(leftType, rightType)) ? "Geo" : "Cartesian";
         return equalTo(
             getFunctionClassName() + crsType + "SourceAndSourceEvaluator[leftValue=Attribute[channel=0], rightValue=Attribute[channel=1]]"

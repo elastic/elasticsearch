@@ -76,6 +76,8 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
 
     private static final Logger logger = LogManager.getLogger(IndexTemplateRegistry.class);
 
+    private static final TimeValue REGISTRY_ACTION_TIMEOUT = TimeValue.THIRTY_SECONDS; // TODO should this be longer?
+
     protected final Settings settings;
     protected final Client client;
     protected final ThreadPool threadPool;
@@ -614,7 +616,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
     private void putPolicy(final LifecyclePolicy policy, final AtomicBoolean creationCheck) {
         final Executor executor = threadPool.generic();
         executor.execute(() -> {
-            PutLifecycleRequest request = new PutLifecycleRequest(policy);
+            PutLifecycleRequest request = new PutLifecycleRequest(REGISTRY_ACTION_TIMEOUT, REGISTRY_ACTION_TIMEOUT, policy);
             request.masterNodeTimeout(TimeValue.MAX_VALUE);
             executeAsyncWithOrigin(
                 client.threadPool().getThreadContext(),

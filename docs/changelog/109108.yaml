@@ -1,0 +1,5 @@
+pr: 109108
+summary: Prevent reading or writing to a closed cache file channel
+area: Snapshot/Restore
+type: bug
+issues: []

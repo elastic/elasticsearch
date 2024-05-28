@@ -70,13 +70,13 @@ public class PutQueryRulesetAction {
             List<QueryRule> rules = queryRuleset.rules();
             if (rules == null || rules.isEmpty()) {
                 validationException.set(addValidationError("rules cannot be null or empty", validationException.get()));
+            } else {
+                rules.stream().filter(rule -> rule.id() == null).forEach(rule -> {
+                    validationException.set(
+                        addValidationError("rule_id cannot be null or empty. rule: [" + rule + "]", validationException.get())
+                    );
+                });
             }
-
-            rules.stream().filter(rule -> rule.id() == null).forEach(rule -> {
-                validationException.set(
-                    addValidationError("rule_id cannot be null or empty. rule: [" + rule + "]", validationException.get())
-                );
-            });
 
             return validationException.get();
         }

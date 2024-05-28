@@ -57,9 +57,9 @@ public class QueryRule implements Writeable, ToXContentObject {
     private final Map<String, Object> actions;
     private final int priority;
 
-    static final int MIN_PRIORITY = 0;
-    static final int MAX_PRIORITY = 1000000;
-    static final int DEFAULT_PRIORITY = MAX_PRIORITY + 1;
+    public static final int MIN_PRIORITY = 0;
+    public static final int MAX_PRIORITY = 1000000;
+    public static final int DEFAULT_PRIORITY = MAX_PRIORITY + 1;
 
     public enum QueryRuleType {
         PINNED;
@@ -151,8 +151,8 @@ public class QueryRule implements Writeable, ToXContentObject {
             throw new IllegalArgumentException("Unsupported QueryRuleType: " + type);
         }
 
-        if (priority < MIN_PRIORITY || priority > MAX_PRIORITY) {
-            throw new IllegalArgumentException("Priority must be between " + MIN_PRIORITY + " and " + MAX_PRIORITY);
+        if (priority < MIN_PRIORITY || priority > DEFAULT_PRIORITY) {
+            throw new IllegalArgumentException("Priority was " + priority + ", must be between " + MIN_PRIORITY + " and " + MAX_PRIORITY);
         }
     }
 

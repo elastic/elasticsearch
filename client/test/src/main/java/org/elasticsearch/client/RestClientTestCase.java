@@ -33,8 +33,10 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakZombies;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 
 import org.apache.http.Header;
+import org.apache.http.message.BasicHeader;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -116,5 +118,20 @@ public abstract class RestClientTestCase extends RandomizedTest {
 
     public static boolean inFipsJvm() {
         return Boolean.parseBoolean(System.getProperty("tests.fips.enabled"));
+    }
+
+    public void testAssertHeaders() {
+        Header[] defaultHeaders = { new BasicHeader("Content-Type", "application/json"), new BasicHeader("Authorization", "Bearer token") };
+        Header[] requestHeaders = {
+            new BasicHeader("Custom-Header", "custom-value"),
+            new BasicHeader("Authorization", "Bearer another-token") };
+        Header[] actualHeaders = {
+            new BasicHeader("Content-Type", "application/json"),
+            new BasicHeader("Authorization", "Bearer another-token"),
+            new BasicHeader("Custom-Header", "custom-value"),
+            new BasicHeader("Ignored-Header", "ignored-value") };
+        Set<String> ignoreHeaders = new HashSet<>(Collections.singletonList("Ignored-Header"));
+
+        assertHeaders(defaultHeaders, requestHeaders, actualHeaders, ignoreHeaders);
     }
 }

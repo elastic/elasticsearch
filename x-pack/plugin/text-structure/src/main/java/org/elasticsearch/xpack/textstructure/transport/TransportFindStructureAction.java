@@ -52,7 +52,7 @@ public class TransportFindStructureAction extends HandledTransportAction<FindStr
     }
 
     private FindStructureResponse buildTextStructureResponse(FindStructureAction.Request request) throws Exception {
-        assert Transports.assertNotTransportThread("TransportFindStructureAction work must always fork to an appropriate executor");
+        assert ThreadPool.assertCurrentThreadPool(Names.GENERIC);
         TextStructureFinderManager structureFinderManager = new TextStructureFinderManager(threadPool.scheduler());
         try (InputStream sampleStream = request.getSample().streamInput()) {
             TextStructureFinder textStructureFinder = structureFinderManager.findTextStructure(

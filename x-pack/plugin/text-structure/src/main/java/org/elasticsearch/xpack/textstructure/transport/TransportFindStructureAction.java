@@ -14,7 +14,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.transport.Transports;
 import org.elasticsearch.xpack.core.textstructure.action.FindStructureAction;
 import org.elasticsearch.xpack.core.textstructure.action.FindStructureResponse;
 import org.elasticsearch.xpack.textstructure.structurefinder.TextStructureFinder;
@@ -26,6 +25,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionException;
 
 import static org.elasticsearch.common.util.concurrent.EsExecutors.DIRECT_EXECUTOR_SERVICE;
+import static org.elasticsearch.threadpool.ThreadPool.Names.GENERIC;
 
 public class TransportFindStructureAction extends HandledTransportAction<FindStructureAction.Request, FindStructureResponse> {
 
@@ -53,7 +53,7 @@ public class TransportFindStructureAction extends HandledTransportAction<FindStr
     }
 
     private FindStructureResponse buildTextStructureResponse(FindStructureAction.Request request) throws Exception {
-        assert ThreadPool.assertCurrentThreadPool(Names.GENERIC);
+        assert ThreadPool.assertCurrentThreadPool(GENERIC);
         TextStructureFinderManager structureFinderManager = new TextStructureFinderManager(threadPool.scheduler());
         try (InputStream sampleStream = request.getSample().streamInput()) {
             TextStructureFinder textStructureFinder = structureFinderManager.findTextStructure(

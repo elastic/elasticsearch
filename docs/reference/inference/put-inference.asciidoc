@@ -45,6 +45,7 @@ The following services are available through the {infer} API:
 * Azure OpenAI
 * Azure AI Studio
 * Elasticsearch (for built-in models and models uploaded through Eland)
+* Google AI Studio
 
 
 [discrete]

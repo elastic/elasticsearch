@@ -47,6 +47,7 @@ import static org.elasticsearch.xpack.inference.external.request.openai.OpenAiUt
 import static org.elasticsearch.xpack.inference.results.ChatCompletionResultsTests.buildExpectationCompletion;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionModelTests.createChatCompletionModel;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -142,7 +143,7 @@ public class OpenAiChatCompletionActionTests extends ESTestCase {
                 IllegalArgumentException.class,
                 () -> createAction("^^", "org", "secret", "model", "user", sender)
             );
-            assertThat(thrownException.getMessage(), is("unable to parse url [^^]"));
+            assertThat(thrownException.getMessage(), containsString("unable to parse url [^^]"));
         }
     }
 

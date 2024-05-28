@@ -1,5 +1,5 @@
 pr: 109042
 summary: Add Create or update query rule API call
-area: Relevance
+area: Application
 type: enhancement
-issues: []
+issues: [ ]

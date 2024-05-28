@@ -43,7 +43,7 @@ import org.elasticsearch.xpack.core.inference.action.GetInferenceDiagnosticsActi
 import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.action.PutInferenceModelAction;
-import org.elasticsearch.xpack.inference.action.TransportDeleteInferenceModelAction;
+import org.elasticsearch.xpack.inference.action.TransportDeleteInferenceEndpointAction;
 import org.elasticsearch.xpack.inference.action.TransportGetInferenceDiagnosticsAction;
 import org.elasticsearch.xpack.inference.action.TransportGetInferenceModelAction;
 import org.elasticsearch.xpack.inference.action.TransportInferenceAction;
@@ -125,7 +125,7 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
             new ActionHandler<>(InferenceAction.INSTANCE, TransportInferenceAction.class),
             new ActionHandler<>(GetInferenceModelAction.INSTANCE, TransportGetInferenceModelAction.class),
             new ActionHandler<>(PutInferenceModelAction.INSTANCE, TransportPutInferenceModelAction.class),
-            new ActionHandler<>(DeleteInferenceEndpointAction.INSTANCE, TransportDeleteInferenceModelAction.class),
+            new ActionHandler<>(DeleteInferenceEndpointAction.INSTANCE, TransportDeleteInferenceEndpointAction.class),
             new ActionHandler<>(XPackUsageFeatureAction.INFERENCE, TransportInferenceUsageAction.class),
             new ActionHandler<>(GetInferenceDiagnosticsAction.INSTANCE, TransportGetInferenceDiagnosticsAction.class)
         );

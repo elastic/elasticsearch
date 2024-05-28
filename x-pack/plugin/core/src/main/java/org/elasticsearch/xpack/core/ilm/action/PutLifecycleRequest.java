@@ -28,7 +28,6 @@ public class PutLifecycleRequest extends AcknowledgedRequest<PutLifecycleRequest
 
     public interface Factory {
         PutLifecycleRequest create(LifecyclePolicy lifecyclePolicy);
-
         String getPolicyName();
     }
 

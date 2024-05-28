@@ -300,6 +300,8 @@ You can find the supported models at https://ai.google.dev/gemini-api/docs/model
 By default, the `googleaistudio` service sets the number of requests allowed per minute to `360`.
 This helps to minimize the number of rate limit errors returned from Google AI Studio.
 To modify this, set the `requests_per_minute` setting of this object in your service settings:
++
+--
 ```
 "rate_limit": {
     "requests_per_minute": <<number_of_requests>>

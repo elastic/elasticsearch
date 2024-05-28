@@ -22,26 +22,29 @@ import org.elasticsearch.xpack.textstructure.structurefinder.TextStructureOverri
 public class TransportFindMessageStructureAction extends HandledTransportAction<FindMessageStructureAction.Request, FindStructureResponse> {
 
     private final ThreadPool threadPool;
+    private final TextStructExecutor executor;
 
     @Inject
-    public TransportFindMessageStructureAction(TransportService transportService, ActionFilters actionFilters, ThreadPool threadPool) {
+    public TransportFindMessageStructureAction(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        ThreadPool threadPool,
+        TextStructExecutor executor
+    ) {
         super(
             FindMessageStructureAction.NAME,
             transportService,
             actionFilters,
             FindMessageStructureAction.Request::new,
-            threadPool.generic()
+            executor.handledTransportActionExecutorService()
         );
         this.threadPool = threadPool;
+        this.executor = executor;
     }
 
     @Override
     protected void doExecute(Task task, FindMessageStructureAction.Request request, ActionListener<FindStructureResponse> listener) {
-        try {
-            listener.onResponse(buildTextStructureResponse(request));
-        } catch (Exception e) {
-            listener.onFailure(e);
-        }
+        executor.execute(listener, () -> buildTextStructureResponse(request));
     }
 
     private FindStructureResponse buildTextStructureResponse(FindMessageStructureAction.Request request) throws Exception {

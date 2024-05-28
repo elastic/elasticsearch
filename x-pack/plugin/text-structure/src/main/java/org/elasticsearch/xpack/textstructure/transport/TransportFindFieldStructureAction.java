@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.textstructure.transport;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -29,7 +30,11 @@ import org.elasticsearch.xpack.textstructure.structurefinder.TextStructureOverri
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.common.util.concurrent.EsExecutors.DIRECT_EXECUTOR_SERVICE;
+import static org.elasticsearch.threadpool.ThreadPool.Names.GENERIC;
 
 public class TransportFindFieldStructureAction extends HandledTransportAction<FindFieldStructureAction.Request, FindStructureResponse> {
 
@@ -42,9 +47,18 @@ public class TransportFindFieldStructureAction extends HandledTransportAction<Fi
         TransportService transportService,
         ActionFilters actionFilters,
         Client client,
-        ThreadPool threadPool
+        ThreadPool threadPool,
+        TextStructExecutor executor
     ) {
-        super(FindFieldStructureAction.NAME, transportService, actionFilters, FindFieldStructureAction.Request::new, threadPool.generic());
+        super(
+            FindFieldStructureAction.NAME,
+            transportService,
+            actionFilters,
+            FindFieldStructureAction.Request::new,
+            // workaround for https://github.com/elastic/elasticsearch/issues/97916
+            // TODO when the above issue is fixed, change this back to threadPool.generic()
+            DIRECT_EXECUTOR_SERVICE
+        );
         this.client = client;
         this.transportService = transportService;
         this.threadPool = threadPool;
@@ -66,11 +80,16 @@ public class TransportFindFieldStructureAction extends HandledTransportAction<Fi
                     );
                     return;
                 }
-                List<String> messages = getMessages(searchResponse, request.getField());
+
+                // As matching a regular expression might take a while, we run in a different thread to avoid blocking the network thread.
+                var runnable = ActionRunnable.supply(listener, () -> {
+                    var messages = getMessages(searchResponse, request.getField());
+                    return buildTextStructureResponse(messages, request);
+                });
                 try {
-                    listener.onResponse(buildTextStructureResponse(messages, request));
-                } catch (Exception e) {
-                    listener.onFailure(e);
+                    threadPool.generic().execute(runnable);
+                } catch (RejectedExecutionException e) {
+                    runnable.onRejection(e);
                 }
             }, listener::onFailure));
     }
@@ -83,6 +102,7 @@ public class TransportFindFieldStructureAction extends HandledTransportAction<Fi
 
     private FindStructureResponse buildTextStructureResponse(List<String> messages, FindFieldStructureAction.Request request)
         throws Exception {
+        assert ThreadPool.assertCurrentThreadPool(GENERIC);
         TextStructureFinderManager structureFinderManager = new TextStructureFinderManager(threadPool.scheduler());
         TextStructureFinder textStructureFinder = structureFinderManager.findTextStructure(
             messages,

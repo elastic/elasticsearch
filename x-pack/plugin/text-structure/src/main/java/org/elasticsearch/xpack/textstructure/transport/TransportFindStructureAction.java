@@ -34,7 +34,10 @@ public class TransportFindStructureAction extends HandledTransportAction<FindStr
     @Override
     protected void doExecute(Task task, FindStructureAction.Request request, ActionListener<FindStructureResponse> listener) {
         try {
-            listener.onResponse(buildTextStructureResponse(request));
+            // for GH#109100, offload request to generic threadpool (and preserve thread context)
+            threadPool.generic().execute(threadPool.getThreadContext().preserveContext(() -> {
+                ActionListener.completeWith(listener, () -> buildTextStructureResponse(request));
+            }));
         } catch (Exception e) {
             listener.onFailure(e);
         }

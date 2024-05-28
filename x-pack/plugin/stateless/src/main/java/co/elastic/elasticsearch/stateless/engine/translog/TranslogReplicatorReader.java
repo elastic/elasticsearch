@@ -37,15 +37,13 @@ import org.elasticsearch.index.translog.TranslogCorruptedException;
 import org.elasticsearch.indices.recovery.RecoveryState;
 
 import java.io.IOException;
-import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.BooleanSupplier;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -67,11 +65,8 @@ public class TranslogReplicatorReader implements Translog.Snapshot {
     private final Iterator<? extends Translog.Operation> operations;
     private final int estimatedOperations;
     private final List<BlobMetadata> blobsToRead;
-    private final List<BlobMetadata> blobsMissed = new ArrayList<>();
     private final long startNanos;
     private long operationsReadNanos;
-    private boolean shortCircuitDueToHole = false;
-    private long previousTranslogShardGeneration = -1;
     private long filesWithShardOperations = 0;
     private long operationBytesRead = 0;
     private long operationsRead = 0;
@@ -112,19 +107,18 @@ public class TranslogReplicatorReader implements Translog.Snapshot {
         this.startNanos = System.nanoTime();
         assert fromSeqNo <= toSeqNo : fromSeqNo + " > " + toSeqNo;
         assert fromSeqNo >= 0 : "fromSeqNo must be non-negative " + fromSeqNo;
-        List<BlobMetadata> unFilteredBlobs = translogBlobContainer.listBlobs(OperationPurpose.TRANSLOG)
+        Map<Long, BlobMetadata> unFilteredBlobs = translogBlobContainer.listBlobs(OperationPurpose.TRANSLOG)
             .entrySet()
             .stream()
-            .filter(e -> Long.parseLong(e.getKey()) >= translogRecoveryStartFile)
-            .sorted(Map.Entry.comparingByKey())
-            .map(Map.Entry::getValue)
-            .toList();
-        final Set<Long> referencedTranslogFiles;
+            .map(e -> Map.entry(Long.parseLong(e.getKey()), e.getValue()))
+            .filter(e -> e.getKey() >= translogRecoveryStartFile)
+            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+        final List<Long> referencedTranslogFiles;
         if (unFilteredBlobs.isEmpty()) {
             estimatedOperations = 0;
-            referencedTranslogFiles = Collections.emptySet();
+            referencedTranslogFiles = Collections.emptyList();
         } else {
-            BlobMetadata blobMetadata = unFilteredBlobs.get(unFilteredBlobs.size() - 1);
+            BlobMetadata blobMetadata = unFilteredBlobs.get(unFilteredBlobs.keySet().stream().mapToLong(l -> l).max().getAsLong());
             long translogGeneration = Long.parseLong(blobMetadata.name());
             try (
                 StreamInput streamInput = new InputStreamStreamInput(
@@ -137,7 +131,7 @@ public class TranslogReplicatorReader implements Translog.Snapshot {
                     referencedTranslogFiles = null;
                     estimatedOperations = RecoveryState.Translog.UNKNOWN;
                 } else {
-                    HashSet<Long> referenced = new HashSet<>();
+                    ArrayList<Long> referenced = new ArrayList<>();
                     for (int offset : metadata.directory().referencedTranslogFileOffsets()) {
                         referenced.add(translogGeneration - offset);
                     }
@@ -149,9 +143,40 @@ public class TranslogReplicatorReader implements Translog.Snapshot {
                 }
             }
         }
-        this.blobsToRead = unFilteredBlobs.stream()
-            .filter(b -> referencedTranslogFiles == null || referencedTranslogFiles.contains(Long.parseLong(b.name())))
-            .toList();
+        if (referencedTranslogFiles == null) {
+            this.blobsToRead = unFilteredBlobs.entrySet().stream().sorted(Map.Entry.comparingByKey()).map(Map.Entry::getValue).toList();
+        } else {
+            var toRead = new ArrayList<BlobMetadata>();
+
+            // We only recover as long as we have a contiguous set of expected files. If we hit a hole, we stop recovering and log a
+            // warning. This is still valid, but rare. It is possible for a translog file to be flushed before an earlier file is flushed
+            // and then the node shuts down. We would not have ACKed the operations from the later files.
+            //
+            // Additionally, we filter out expected files before the translog recovery start file.
+            int j = 0;
+            for (Long referenced : referencedTranslogFiles.stream()
+                .dropWhile((referenced) -> referenced < translogRecoveryStartFile)
+                .toList()) {
+                BlobMetadata blobMetadata = unFilteredBlobs.get(referenced);
+                if (blobMetadata == null) {
+                    logger.info(
+                        format(
+                            "translog recovery for shard [%s] hit hole. blob store listed "
+                                + "files: %s. directory files: %s. will skip recovering files: %s",
+                            shardId,
+                            unFilteredBlobs.keySet().stream().mapToLong(l -> l).sorted().boxed().toList(),
+                            referencedTranslogFiles,
+                            referencedTranslogFiles.subList(j, referencedTranslogFiles.size())
+                        )
+                    );
+                    break;
+                } else {
+                    toRead.add(blobMetadata);
+                }
+                j++;
+            }
+            this.blobsToRead = toRead;
+        }
         logger.debug(
             () -> format("translog replicator reader opened for recovery %s", blobsToRead.stream().map(BlobMetadata::name).toList())
         );
@@ -190,11 +215,6 @@ public class TranslogReplicatorReader implements Translog.Snapshot {
             Iterator<Translog.Operation> operationIterator = getOperationIterator(blobMetadata.name(), streamInput, translogHeader);
             operationsReadNanos += System.nanoTime() - operationsReadStartNanos;
             return operationIterator;
-        } catch (NoSuchFileException e) {
-            // Skip this file in case it is not relevant for this shard. We will fail when reading the next translog file if there is a hole
-            // in the generations
-            blobsMissed.add(blobMetadata);
-            return Collections.emptyIterator();
         } catch (IOException e) {
             throw new TranslogCorruptedException(blobMetadata.name(), "error while reading translog file from object store", e);
         }
@@ -202,43 +222,11 @@ public class TranslogReplicatorReader implements Translog.Snapshot {
 
     private Iterator<Translog.Operation> getOperationIterator(String name, StreamInput streamInput, CompoundTranslogHeader translogHeader)
         throws IOException {
-        if (shortCircuitDueToHole) {
-            return Collections.emptyIterator();
-        }
-
         Map<ShardId, TranslogMetadata> metadata = translogHeader.metadata();
 
         // Check if the compound translog file contains eligible operations for this shard
         if (metadata.containsKey(shardId) && metadata.get(shardId).totalOps() != 0) {
             TranslogMetadata translogMetadata = metadata.get(shardId);
-            if (previousTranslogShardGeneration == -1) {
-                previousTranslogShardGeneration = translogMetadata.shardTranslogGeneration();
-            } else {
-                long currentShardGeneration = translogMetadata.shardTranslogGeneration();
-                long diff = currentShardGeneration - previousTranslogShardGeneration;
-                if (currentShardGeneration != -1L && diff == 1L) {
-                    previousTranslogShardGeneration = currentShardGeneration;
-                } else {
-                    shortCircuitDueToHole = true;
-
-                    logger.warn(
-                        format(
-                            "translog recovery for shard [%s] hit hole in files while reading file [%s][%s]. went from "
-                                + "[translog_shard_generation=%s] to [translog_shard_generation=%s]. at beginning of recovery listed "
-                                + "files: %s. files missing during recovery: %s",
-                            shardId,
-                            translogBlobContainer.path(),
-                            name,
-                            previousTranslogShardGeneration,
-                            currentShardGeneration,
-                            blobsToRead.stream().map(BlobMetadata::name).toList(),
-                            blobsMissed.stream().map(BlobMetadata::name).toList()
-                        )
-                    );
-
-                    return Collections.emptyIterator();
-                }
-            }
             // Check if at least one of the operations fall within the eligible range
             if (toSeqNo >= translogMetadata.minSeqNo() && fromSeqNo <= translogMetadata.maxSeqNo()) {
                 // Go to the translog file to read it

@@ -25,7 +25,7 @@ import static org.elasticsearch.xpack.inference.rest.Paths.TASK_TYPE_INFERENCE_I
 import static org.elasticsearch.xpack.inference.rest.Paths.TASK_TYPE_OR_INFERENCE_ID;
 
 @ServerlessScope(Scope.PUBLIC)
-public class RestDeleteInferenceModelAction extends BaseRestHandler {
+public class RestDeleteInferenceEndpointAction extends BaseRestHandler {
 
     private String FORCE_DELETE_NAME = "force";
     private String DRY_RUN_NAME = "dry_run";

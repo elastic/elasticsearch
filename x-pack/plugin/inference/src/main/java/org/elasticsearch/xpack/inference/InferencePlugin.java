@@ -58,7 +58,7 @@ import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 import org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
-import org.elasticsearch.xpack.inference.rest.RestDeleteInferenceModelAction;
+import org.elasticsearch.xpack.inference.rest.RestDeleteInferenceEndpointAction;
 import org.elasticsearch.xpack.inference.rest.RestGetInferenceModelAction;
 import org.elasticsearch.xpack.inference.rest.RestInferenceAction;
 import org.elasticsearch.xpack.inference.rest.RestPutInferenceModelAction;
@@ -143,7 +143,7 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
             new RestInferenceAction(),
             new RestGetInferenceModelAction(),
             new RestPutInferenceModelAction(),
-            new RestDeleteInferenceModelAction()
+            new RestDeleteInferenceEndpointAction()
         );
     }
 

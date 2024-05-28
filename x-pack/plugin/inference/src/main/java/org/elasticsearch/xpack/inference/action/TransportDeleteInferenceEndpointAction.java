@@ -83,10 +83,19 @@ public class TransportDeleteInferenceEndpointAction extends AcknowledgedTranspor
                 return;
             }
 
-            if (endpointIsReferencedInPipelines(state, request.getInferenceEndpointId(), listener)) {
+            if (request.isForceDelete() == false && endpointIsReferencedInPipelines(state, request.getInferenceEndpointId(), listener)) {
                 return;
             }
 
+            if (request.isDryRun()) {
+                masterListener.onResponse(
+                    new DeleteInferenceEndpointAction.Response(
+                        false,
+                        InferenceProcessorInfoExtractor.pipelineIdsByResource(state, Set.of(request.getInferenceEndpointId()))
+                    )
+                );
+                return;
+            }
             var service = serviceRegistry.getService(unparsedModel.service());
             if (service.isPresent()) {
                 service.get().stop(request.getInferenceEndpointId(), listener);

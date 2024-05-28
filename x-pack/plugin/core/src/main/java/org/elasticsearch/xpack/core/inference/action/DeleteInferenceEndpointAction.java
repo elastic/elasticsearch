@@ -16,7 +16,9 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.inference.TaskType;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 public class DeleteInferenceEndpointAction extends ActionType<AcknowledgedResponse> {
 
@@ -96,6 +98,24 @@ public class DeleteInferenceEndpointAction extends ActionType<AcknowledgedRespon
         @Override
         public int hashCode() {
             return Objects.hash(inferenceEndpointId, taskType, forceDelete, dryRun);
+        }
+    }
+
+    public static class Response extends AcknowledgedResponse {
+
+        Map<String, Set<String>> pipelineIdsByEndpoint;
+
+        public Response(boolean acknowledged, Map<String, Set<String>> pipelineIdsByEndpoint) {
+            super(acknowledged);
+            this.pipelineIdsByEndpoint = pipelineIdsByEndpoint;
+        }
+
+        public Response(StreamInput in) throws IOException {
+            super(in);
+            pipelineIdsByEndpoint = in.readMap(
+                StreamInput::readString,
+                innerStreamInput -> innerStreamInput.readCollectionAsSet(StreamInput::readString)
+            );
         }
     }
 }

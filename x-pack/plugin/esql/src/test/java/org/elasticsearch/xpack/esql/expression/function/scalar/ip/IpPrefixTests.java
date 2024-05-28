@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.ip;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataTypes;
@@ -29,16 +30,15 @@ public class IpPrefixTests extends AbstractFunctionTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-
         var suppliers = List.of(
             // V4
             new TestCaseSupplier(
-                List.of(DataTypes.IP, DataTypes.INTEGER),
+                List.of(DataTypes.IP, DataTypes.INTEGER, DataTypes.INTEGER),
                 () -> new TestCaseSupplier.TestCase(
                     List.of(
                         new TestCaseSupplier.TypedData(EsqlDataTypeConverter.stringToIP("1.2.3.4"), DataTypes.IP, "ip"),
                         new TestCaseSupplier.TypedData(24, DataTypes.INTEGER, "prefixLengthV4"),
-                        new TestCaseSupplier.TypedData(127, DataTypes.INTEGER, "prefixLengthV6")
+                        new TestCaseSupplier.TypedData(ESTestCase.randomIntBetween(0, 128), DataTypes.INTEGER, "prefixLengthV6")
                     ),
                     "IpPrefixEvaluator[ip=Attribute[channel=0], prefixLengthV4=Attribute[channel=1], prefixLengthV6=Attribute[channel=2]]",
                     DataTypes.IP,
@@ -60,11 +60,11 @@ public class IpPrefixTests extends AbstractFunctionTestCase {
 
             // V6
             new TestCaseSupplier(
-                List.of(DataTypes.IP, DataTypes.INTEGER),
+                List.of(DataTypes.IP, DataTypes.INTEGER, DataTypes.INTEGER),
                 () -> new TestCaseSupplier.TestCase(
                     List.of(
                         new TestCaseSupplier.TypedData(EsqlDataTypeConverter.stringToIP("::ff"), DataTypes.IP, "ip"),
-                        new TestCaseSupplier.TypedData(24, DataTypes.INTEGER, "prefixLengthV4"),
+                        new TestCaseSupplier.TypedData(ESTestCase.randomIntBetween(0, 32), DataTypes.INTEGER, "prefixLengthV4"),
                         new TestCaseSupplier.TypedData(127, DataTypes.INTEGER, "prefixLengthV6")
                     ),
                     "IpPrefixEvaluator[ip=Attribute[channel=0], prefixLengthV4=Attribute[channel=1], prefixLengthV6=Attribute[channel=2]]",
@@ -77,7 +77,7 @@ public class IpPrefixTests extends AbstractFunctionTestCase {
                 () -> new TestCaseSupplier.TestCase(
                     List.of(
                         new TestCaseSupplier.TypedData(EsqlDataTypeConverter.stringToIP("::ff"), DataTypes.IP, "ip"),
-                        new TestCaseSupplier.TypedData(24, DataTypes.INTEGER, "prefixLengthV4")
+                        new TestCaseSupplier.TypedData(ESTestCase.randomIntBetween(0, 32), DataTypes.INTEGER, "prefixLengthV4")
                     ),
                     "IpPrefixOnlyV4Evaluator[ip=Attribute[channel=0], prefixLengthV4=Attribute[channel=1]]",
                     DataTypes.IP,

@@ -10,6 +10,7 @@ package org.elasticsearch.bootstrap;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.SecuredFileAccessPermission;
+import org.elasticsearch.SecuredFileSettingAccessPermission;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
@@ -44,8 +45,10 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 import static java.lang.invoke.MethodType.methodType;
@@ -207,7 +210,7 @@ final class Security {
         for (URL url : mainCodebases) {
             PolicyUtil.getPolicyPermissions(url, template, environment.tmpFile())
                 .stream()
-                .flatMap(Security::extractSecuredFileName)
+                .flatMap(p -> extractSecuredFileNames(environment, p))
                 .map(environment.configFile()::resolve)
                 .forEach(f -> securedFiles.computeIfAbsent(f.toString(), k -> new HashSet<>()).add(url));
         }
@@ -215,7 +218,7 @@ final class Security {
         for (var pp : pluginPolicies.entrySet()) {
             PolicyUtil.getPolicyPermissions(pp.getKey(), pp.getValue(), environment.tmpFile())
                 .stream()
-                .flatMap(Security::extractSecuredFileName)
+                .flatMap(p -> extractSecuredFileNames(environment, p))
                 .map(environment.configFile()::resolve)
                 .forEach(f -> securedFiles.computeIfAbsent(f.toString(), k -> new HashSet<>()).add(pp.getKey()));
         }
@@ -230,21 +233,36 @@ final class Security {
         return Collections.unmodifiableMap(securedFiles);
     }
 
+    private static Stream<String> extractSecuredFileNames(Environment env, Permission p) {
+        if (p instanceof SecuredFileAccessPermission) {
+            return Stream.of(p.getName());
+        } else if (p instanceof UnresolvedPermission up
+            && up.getUnresolvedType().equals(SecuredFileAccessPermission.class.getCanonicalName())) {
+                return Stream.of(up.getUnresolvedName());
+            }
+
+        String settingKey = null;
+        if (p instanceof SecuredFileSettingAccessPermission) {
+            settingKey = p.getName();
+        } else if (p instanceof UnresolvedPermission up
+            && up.getUnresolvedType().equals(SecuredFileSettingAccessPermission.class.getCanonicalName())) {
+                settingKey = up.getUnresolvedName();
+            }
+
+        if (settingKey != null) {
+            // scan the settings for this key (could be a wildcard)
+            Settings filtered = env.settings().filter(Pattern.compile(settingKey).asMatchPredicate());
+            return filtered.keySet().stream().map(filtered::get).filter(Objects::nonNull);
+        }
+
+        return Stream.empty();
+    }
+
     private static void addSpeciallySecuredFile(Map<String, Set<URL>> securedFiles, String path) {
         Set<URL> attemptedToGrant = securedFiles.put(path, Set.of());
         if (attemptedToGrant != null) {
             throw new IllegalStateException(attemptedToGrant + " tried to grant access to special config file " + path);
         }
-    }
-
-    private static Stream<String> extractSecuredFileName(Permission p) {
-        if (p instanceof SecuredFileAccessPermission) {
-            return Stream.of(p.getName());
-        }
-        if (p instanceof UnresolvedPermission up && up.getUnresolvedType().equals(SecuredFileAccessPermission.class.getCanonicalName())) {
-            return Stream.of(up.getUnresolvedName());
-        }
-        return Stream.empty();
     }
 
     /** Adds access to classpath jars/classes for jar hell scan, etc */

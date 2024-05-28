@@ -30,7 +30,6 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanNamedReader;
@@ -48,13 +47,13 @@ import java.util.Map;
 import java.util.function.LongFunction;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.xpack.esql.core.util.SourceUtils.readSourceWithText;
-
 /**
  * A customized stream input used to deserialize ESQL physical plan fragments. Complements stream
  * input with methods that read plan nodes, Attributes, Expressions, etc.
  */
-public final class PlanStreamInput extends NamedWriteableAwareStreamInput {
+public final class PlanStreamInput extends NamedWriteableAwareStreamInput
+    implements
+        org.elasticsearch.xpack.esql.core.util.PlanStreamInput {
 
     /**
      * A Mapper of stream named id, represented as a primitive long value, to NameId instance.
@@ -121,11 +120,6 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput {
 
     public PhysicalPlan readOptionalPhysicalPlanNode() throws IOException {
         return readOptionalNamed(PhysicalPlan.class);
-    }
-
-    public Source readSource() throws IOException {
-        boolean hasSource = readBoolean();
-        return hasSource ? readSourceWithText(this, configuration.query()) : Source.EMPTY;
     }
 
     public Expression readExpression() throws IOException {
@@ -266,6 +260,11 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput {
                 Releasables.closeExpectNoException(blocks);
             }
         }
+    }
+
+    @Override
+    public String query() {
+        return configuration.query();
     }
 
     static void throwOnNullOptionalRead(Class<?> type) throws IOException {

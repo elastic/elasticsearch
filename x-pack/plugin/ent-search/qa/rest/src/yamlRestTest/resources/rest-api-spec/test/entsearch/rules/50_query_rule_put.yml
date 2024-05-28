@@ -98,7 +98,7 @@ teardown:
               - 'id1'
           priority: 2
 
-  - match: { result: 'created' }
+  - match: { result: 'updated' }
 
   - do:
       query_ruleset.get:

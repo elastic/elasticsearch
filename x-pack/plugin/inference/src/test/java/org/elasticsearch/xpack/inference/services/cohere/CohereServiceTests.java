@@ -33,6 +33,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.ChunkedTextEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.FloatEmbedding;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
@@ -51,7 +52,6 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -1226,14 +1226,14 @@ public class CohereServiceTests extends ESTestCase {
                 var floatResult = (ChunkedTextEmbeddingFloatResults) results.get(0);
                 assertThat(floatResult.chunks(), hasSize(1));
                 assertEquals("foo", floatResult.chunks().get(0).matchedText());
-                assertTrue(Arrays.equals(new float[] { 0.123f, -0.123f }, floatResult.chunks().get(0).embedding()));
+                assertEquals(FloatEmbedding.of(List.of(0.123f, -0.123f)), floatResult.chunks().get(0).embedding());
             }
             {
                 assertThat(results.get(1), CoreMatchers.instanceOf(ChunkedTextEmbeddingFloatResults.class));
                 var floatResult = (ChunkedTextEmbeddingFloatResults) results.get(1);
                 assertThat(floatResult.chunks(), hasSize(1));
                 assertEquals("bar", floatResult.chunks().get(0).matchedText());
-                assertTrue(Arrays.equals(new float[] { 0.223f, -0.223f }, floatResult.chunks().get(0).embedding()));
+                assertEquals(FloatEmbedding.of(List.of(0.223f, -0.223f)), floatResult.chunks().get(0).embedding());
             }
 
             MatcherAssert.assertThat(webServer.requests(), hasSize(1));
@@ -1282,25 +1282,25 @@ public class CohereServiceTests extends ESTestCase {
         return new CohereService(mock(HttpRequestSender.Factory.class), createWithEmptySettings(threadPool));
     }
 
-    private PeristedConfig getPersistedConfigMap(
+    private PersistedConfig getPersistedConfigMap(
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
         Map<String, Object> secretSettings
     ) {
 
-        return new PeristedConfig(
+        return new PersistedConfig(
             new HashMap<>(Map.of(ModelConfigurations.SERVICE_SETTINGS, serviceSettings, ModelConfigurations.TASK_SETTINGS, taskSettings)),
             new HashMap<>(Map.of(ModelSecrets.SECRET_SETTINGS, secretSettings))
         );
     }
 
-    private PeristedConfig getPersistedConfigMap(Map<String, Object> serviceSettings, Map<String, Object> taskSettings) {
+    private PersistedConfig getPersistedConfigMap(Map<String, Object> serviceSettings, Map<String, Object> taskSettings) {
 
-        return new PeristedConfig(
+        return new PersistedConfig(
             new HashMap<>(Map.of(ModelConfigurations.SERVICE_SETTINGS, serviceSettings, ModelConfigurations.TASK_SETTINGS, taskSettings)),
             null
         );
     }
 
-    private record PeristedConfig(Map<String, Object> config, Map<String, Object> secrets) {}
+    private record PersistedConfig(Map<String, Object> config, Map<String, Object> secrets) {}
 }

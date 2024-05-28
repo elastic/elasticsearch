@@ -584,7 +584,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         NamedExpression newName = visitQualifiedNamePattern(ctx.newName);
         NamedExpression oldName = visitQualifiedNamePattern(ctx.oldName);
         if (newName instanceof UnresolvedNamePattern || oldName instanceof UnresolvedNamePattern) {
-            throw new ParsingException(src, "Using wildcards (*) in RENAME is not allowed [{}]", src.text());
+            throw new ParsingException(src, "Using wildcards [*] in RENAME is not allowed [{}]", src.text());
         }
 
         return new Alias(src, newName.name(), oldName);
@@ -601,7 +601,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     private NamedExpression enrichFieldName(EsqlBaseParser.QualifiedNamePatternContext ctx) {
         var name = visitQualifiedNamePattern(ctx);
         if (name instanceof UnresolvedNamePattern up) {
-            throw new ParsingException(source(ctx), "Using wildcards (*) in ENRICH WITH projections is not allowed [{}]", up.pattern());
+            throw new ParsingException(source(ctx), "Using wildcards [*] in ENRICH WITH projections is not allowed [{}]", up.pattern());
         }
         return name;
     }

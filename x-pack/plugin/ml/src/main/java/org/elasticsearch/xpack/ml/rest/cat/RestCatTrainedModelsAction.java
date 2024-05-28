@@ -270,7 +270,8 @@ public class RestCatTrainedModelsAction extends AbstractCatAction {
         }
     }
 
-    private Table buildTable(
+    // Default for testing
+    Table buildTable(
         RestRequest request,
         List<GetTrainedModelsStatsAction.Response.TrainedModelStats> stats,
         List<TrainedModelConfig> configs,

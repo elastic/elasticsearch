@@ -504,7 +504,8 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
         );
     }
 
-    private static void addTrainedModelStats(
+    // Default for testing
+    static void addTrainedModelStats(
         GetTrainedModelsAction.Response modelsResponse,
         GetTrainedModelsStatsAction.Response statsResponse,
         Map<String, Object> inferenceUsage

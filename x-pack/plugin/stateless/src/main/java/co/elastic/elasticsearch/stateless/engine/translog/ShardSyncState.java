@@ -56,7 +56,6 @@ class ShardSyncState {
     private final Object bufferLock = new Object();
     // This resets to 0 after a recovery. However, this is fine because we will always force a flush prior to startig new indexing
     // operations meaning that the translog start file will be marked.
-    private long shardTranslogGeneration = 0;
     private BufferState bufferState = null;
     private volatile boolean isClosed = false;
 
@@ -221,7 +220,7 @@ class ShardSyncState {
             assert newProcessedLocation.compareTo(processedLocation) > 0;
             processedLocation = newProcessedLocation;
             if (bufferState == null) {
-                bufferState = new BufferState(new ReleasableBytesStreamOutput(bigArrays), shardTranslogGeneration++);
+                bufferState = new BufferState(new ReleasableBytesStreamOutput(bigArrays));
             } else {
                 assert location.compareTo(bufferState.location) >= 0;
             }
@@ -309,7 +308,6 @@ class ShardSyncState {
                     SequenceNumbers.NO_OPS_PERFORMED,
                     SequenceNumbers.NO_OPS_PERFORMED,
                     0,
-                    -1L,
                     new TranslogMetadata.Directory(estimatedOps, referencedTranslogFileOffsets)
                 );
             } else {
@@ -319,7 +317,6 @@ class ShardSyncState {
                     buffer.minSeqNo(),
                     buffer.maxSeqNo(),
                     buffer.totalOps(),
-                    buffer.getShardTranslogGeneration(),
                     new TranslogMetadata.Directory(estimatedOps, referencedTranslogFileOffsets)
                 );
             }
@@ -330,17 +327,15 @@ class ShardSyncState {
 
         private final ReleasableBytesStreamOutput data;
         private final ArrayList<Long> seqNos;
-        private final long shardTranslogGeneration;
         private long minSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
         private long maxSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
         private long totalOps = 0;
 
         private Translog.Location location;
 
-        private BufferState(ReleasableBytesStreamOutput data, long shardTranslogGeneration) {
+        private BufferState(ReleasableBytesStreamOutput data) {
             this.data = data;
             this.seqNos = new ArrayList<>();
-            this.shardTranslogGeneration = shardTranslogGeneration;
         }
 
         public final void append(BytesReference data, long seqNo, Translog.Location location) throws IOException {
@@ -366,10 +361,6 @@ class ShardSyncState {
 
         public long totalOps() {
             return totalOps;
-        }
-
-        public long getShardTranslogGeneration() {
-            return shardTranslogGeneration;
         }
 
         private Translog.Location syncLocation() {

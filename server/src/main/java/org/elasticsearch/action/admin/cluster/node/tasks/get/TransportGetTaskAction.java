@@ -151,7 +151,7 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
 
                     @Override
                     public String toString() {
-                        return "Completing running task " + runningTask;
+                        return "Waiting for task completion " + runningTask;
                     }
                 };
                 taskManager.registerRemovedTaskListener(removedTaskListener);

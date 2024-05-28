@@ -85,7 +85,8 @@ public class InferenceProcessor extends AbstractProcessor {
         Setting.Property.NodeScope
     );
 
-    public static final String TYPE = "inference";
+    public static final String TYPE = "inference"; // this value is hardcoded in
+                                                   // org.elasticsearch.xpack.inference.utils.InferenceProcessorInfoExtractor
     public static final String MODEL_ID = "model_id";
     public static final String INFERENCE_CONFIG = "inference_config";
     public static final String IGNORE_MISSING = "ignore_missing";

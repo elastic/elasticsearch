@@ -613,7 +613,7 @@ public class TasksIT extends ESIntegTestCase {
             @Override
             public void onRemovedTaskListenerRegistered(RemovedTaskListener removedTaskListener) {
                 // Unblock the request only after it started waiting for task completion
-                if (removedTaskListener.toString().startsWith("Completing running task Task{id=" + taskId.getId())) {
+                if (removedTaskListener.toString().startsWith("Waiting for task completion Task{id=" + taskId.getId())) {
                     client().execute(UNBLOCK_TASK_ACTION, new TestTaskPlugin.UnblockTestTasksRequest());
                 }
             }

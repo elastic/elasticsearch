@@ -23,14 +23,14 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 public class EntityRiskScoringRequest extends ActionRequest implements IndicesRequest.Replaceable, ToXContentObject {
 
+    private final IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, true, true, false);
     private String[] indices = Strings.EMPTY_ARRAY;
-    private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, true, true, false);
     private String category1Index;
+    private EntityType[] entityTypes;
 
-    public EntityRiskScoringRequest(
-        String category1Index
-    ) {
+    public EntityRiskScoringRequest(String category1Index, EntityType[] entityTypes) {
         this.category1Index = category1Index;
+        this.entityTypes = entityTypes;
     }
 
     public EntityRiskScoringRequest(StreamInput in) throws IOException {
@@ -43,6 +43,14 @@ public class EntityRiskScoringRequest extends ActionRequest implements IndicesRe
         if (category1Index == null) {
             validationException = addValidationError("missing category_1_index", validationException);
         }
+
+        // List<String> invalidEntityTypes = Arrays.stream(entityTypes).filter(s -> (s.equals("host") || s.equals("user") ==
+        // false)).toList();
+
+        // if (invalidEntityTypes.isEmpty() == false) {
+        // validationException = addValidationError("invalid entity_types " + invalidEntityTypes, validationException);
+        // }
+
         return validationException;
     }
 
@@ -67,7 +75,6 @@ public class EntityRiskScoringRequest extends ActionRequest implements IndicesRe
 
         return builder;
     }
-
 
     @Override
     public String[] indices() {
@@ -98,5 +105,8 @@ public class EntityRiskScoringRequest extends ActionRequest implements IndicesRe
     public String getCategory1Index() {
         return category1Index;
     }
-}
 
+    public EntityType[] getEntityTypes() {
+        return this.entityTypes;
+    }
+}

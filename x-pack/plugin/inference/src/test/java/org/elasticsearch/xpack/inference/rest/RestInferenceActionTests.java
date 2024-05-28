@@ -15,7 +15,6 @@ import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
-import org.elasticsearch.xpack.core.inference.results.ByteEmbedding;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingByteResults;
 import org.junit.Before;
 
@@ -76,6 +75,8 @@ public class RestInferenceActionTests extends RestActionTestCase {
     }
 
     private static InferenceAction.Response createResponse() {
-        return new InferenceAction.Response(new TextEmbeddingByteResults(List.of(ByteEmbedding.of(List.of((byte) -1)))));
+        return new InferenceAction.Response(
+            new TextEmbeddingByteResults(List.of(new TextEmbeddingByteResults.Embedding(new byte[] { (byte) -1 })))
+        );
     }
 }

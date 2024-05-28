@@ -11,9 +11,11 @@ package org.elasticsearch.index.fielddata;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.common.geo.SpatialPoint;
 
 import java.io.IOException;
@@ -254,6 +256,12 @@ public enum FieldData {
      * NOTE: this is very slow!
      */
     public static SortedBinaryDocValues toString(final SortedNumericDocValues values) {
+        {
+            final NumericDocValues singleton = DocValues.unwrapSingleton(values);
+            if (singleton != null) {
+                return FieldData.singleton(toString(singleton));
+            }
+        }
         return toString(new ToStringValues() {
             @Override
             public boolean advanceExact(int doc) throws IOException {
@@ -274,7 +282,32 @@ public enum FieldData {
      * typically used for scripts or for the `map` execution mode of terms aggs.
      * NOTE: this is very slow!
      */
+    public static BinaryDocValues toString(final NumericDocValues values) {
+        return toString(new ToStringValue() {
+            @Override
+            public boolean advanceExact(int doc) throws IOException {
+                return values.advanceExact(doc);
+            }
+
+            @Override
+            public CharSequence get() throws IOException {
+                return Long.toString(values.longValue());
+            }
+        });
+    }
+
+    /**
+     * Return a {@link String} representation of the provided values. That is
+     * typically used for scripts or for the `map` execution mode of terms aggs.
+     * NOTE: this is very slow!
+     */
     public static SortedBinaryDocValues toString(final SortedNumericDoubleValues values) {
+        {
+            final NumericDoubleValues singleton = FieldData.unwrapSingleton(values);
+            if (singleton != null) {
+                return FieldData.singleton(toString(singleton));
+            }
+        }
         return toString(new ToStringValues() {
             @Override
             public boolean advanceExact(int doc) throws IOException {
@@ -293,9 +326,34 @@ public enum FieldData {
     /**
      * Return a {@link String} representation of the provided values. That is
      * typically used for scripts or for the `map` execution mode of terms aggs.
+     * NOTE: this is very slow!
+     */
+    public static BinaryDocValues toString(final NumericDoubleValues values) {
+        return toString(new ToStringValue() {
+            @Override
+            public boolean advanceExact(int doc) throws IOException {
+                return values.advanceExact(doc);
+            }
+
+            @Override
+            public CharSequence get() throws IOException {
+                return Double.toString(values.doubleValue());
+            }
+        });
+    }
+
+    /**
+     * Return a {@link String} representation of the provided values. That is
+     * typically used for scripts or for the `map` execution mode of terms aggs.
      * NOTE: this is slow!
      */
     public static SortedBinaryDocValues toString(final SortedSetDocValues values) {
+        {
+            final SortedDocValues singleton = DocValues.unwrapSingleton(values);
+            if (singleton != null) {
+                return FieldData.singleton(toString(singleton));
+            }
+        }
         return new SortedBinaryDocValues() {
 
             @Override
@@ -312,7 +370,26 @@ public enum FieldData {
             public BytesRef nextValue() throws IOException {
                 return values.lookupOrd(values.nextOrd());
             }
+        };
+    }
 
+    /**
+     * Return a {@link String} representation of the provided values. That is
+     * typically used for scripts or for the `map` execution mode of terms aggs.
+     * NOTE: this is slow!
+     */
+    public static BinaryDocValues toString(final SortedDocValues values) {
+        return new AbstractBinaryDocValues() {
+
+            @Override
+            public BytesRef binaryValue() throws IOException {
+                return values.lookupOrd(values.ordValue());
+            }
+
+            @Override
+            public boolean advanceExact(int doc) throws IOException {
+                return values.advanceExact(doc);
+            }
         };
     }
 
@@ -322,6 +399,12 @@ public enum FieldData {
      * NOTE: this is very slow!
      */
     public static SortedBinaryDocValues toString(final MultiGeoPointValues values) {
+        {
+            final GeoPointValues singleton = FieldData.unwrapSingleton(values);
+            if (singleton != null) {
+                return FieldData.singleton(toString(singleton));
+            }
+        }
         return toString(new ToStringValues() {
             @Override
             public boolean advanceExact(int doc) throws IOException {
@@ -333,6 +416,25 @@ public enum FieldData {
                 for (int i = 0, count = values.docValueCount(); i < count; ++i) {
                     list.add(values.nextValue().toString());
                 }
+            }
+        });
+    }
+
+    /**
+     * Return a {@link String} representation of the provided values. That is
+     * typically used for scripts or for the `map` execution mode of terms aggs.
+     * NOTE: this is very slow!
+     */
+    public static BinaryDocValues toString(final GeoPointValues values) {
+        return toString(new ToStringValue() {
+            @Override
+            public boolean advanceExact(int doc) throws IOException {
+                return values.advanceExact(doc);
+            }
+
+            @Override
+            public CharSequence get() throws IOException {
+                return values.pointValue().toString();
             }
         });
     }
@@ -362,6 +464,27 @@ public enum FieldData {
         };
     }
 
+    private static BinaryDocValues toString(final ToStringValue toStringValue) {
+        return new AbstractBinaryDocValues() {
+            private final BytesRefBuilder builder = new BytesRefBuilder();
+
+            @Override
+            public BytesRef binaryValue() {
+                return builder.toBytesRef();
+            }
+
+            @Override
+            public boolean advanceExact(int docID) throws IOException {
+                if (toStringValue.advanceExact(docID)) {
+                    builder.clear();
+                    builder.copyChars(toStringValue.get());
+                    return true;
+                }
+                return false;
+            }
+        };
+    }
+
     private interface ToStringValues {
 
         /**
@@ -370,8 +493,21 @@ public enum FieldData {
          */
         boolean advanceExact(int doc) throws IOException;
 
-        /** Fill the list of charsquences with the list of values for the current document. */
+        /** Fill the list of {@link CharSequence} with the list of values for the current document. */
         void get(List<CharSequence> values) throws IOException;
+
+    }
+
+    private interface ToStringValue {
+
+        /**
+         * Advance this instance to the given document id
+         * @return true if there is a value for this document
+         */
+        boolean advanceExact(int doc) throws IOException;
+
+        /** return the {@link CharSequence} for the current document. */
+        CharSequence get() throws IOException;
 
     }
 

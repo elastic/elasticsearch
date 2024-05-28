@@ -67,9 +67,9 @@ public final class VersionCheckingStreamOutput extends StreamOutput {
                 "["
                     + namedWriteable.getWriteableName()
                     + "] was released first in version "
-                    + namedWriteable.getMinimalSupportedVersion()
+                    + namedWriteable.getMinimalSupportedVersion().toReleaseVersion()
                     + ", failed compatibility check trying to send it to node with version "
-                    + getTransportVersion()
+                    + getTransportVersion().toReleaseVersion()
             );
         }
     }

@@ -1,0 +1,5 @@
+pr: 108007
+summary: Allow `typed_keys` for search application Search API
+area: Application
+type: feature
+issues: []

@@ -14,6 +14,7 @@ import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -31,16 +32,19 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.TreeMap;
 import java.util.stream.Stream;
 
 public class ObjectMapper extends Mapper {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ObjectMapper.class);
 
     public static final String CONTENT_TYPE = "object";
+    static final String STORE_ARRAY_SOURCE_PARAM = "store_array_source";
 
     public static class Defaults {
         public static final boolean ENABLED = true;
         public static final Explicit<Boolean> SUBOBJECTS = Explicit.IMPLICIT_TRUE;
+        public static final Explicit<Boolean> STORE_ARRAY_SOURCE = Explicit.IMPLICIT_FALSE;
         public static final Dynamic DYNAMIC = Dynamic.TRUE;
     }
 
@@ -78,6 +82,7 @@ public class ObjectMapper extends Mapper {
     public static class Builder extends Mapper.Builder {
         protected final Explicit<Boolean> subobjects;
         protected Explicit<Boolean> enabled = Explicit.IMPLICIT_TRUE;
+        protected Explicit<Boolean> storeArraySource = Defaults.STORE_ARRAY_SOURCE;
         protected Dynamic dynamic;
         protected final List<Mapper.Builder> mappersBuilders = new ArrayList<>();
 
@@ -88,6 +93,11 @@ public class ObjectMapper extends Mapper {
 
         public Builder enabled(boolean enabled) {
             this.enabled = Explicit.explicitBoolean(enabled);
+            return this;
+        }
+
+        public Builder storeArraySource(boolean value) {
+            this.storeArraySource = Explicit.explicitBoolean(value);
             return this;
         }
 
@@ -182,6 +192,7 @@ public class ObjectMapper extends Mapper {
                 context.buildFullName(name()),
                 enabled,
                 subobjects,
+                storeArraySource,
                 dynamic,
                 buildMappers(context.createChildContext(name(), dynamic))
             );
@@ -241,6 +252,9 @@ public class ObjectMapper extends Mapper {
                 return true;
             } else if (fieldName.equals("enabled")) {
                 builder.enabled(XContentMapValues.nodeBooleanValue(fieldNode, fieldName + ".enabled"));
+                return true;
+            } else if (fieldName.equals(STORE_ARRAY_SOURCE_PARAM)) {
+                builder.storeArraySource(XContentMapValues.nodeBooleanValue(fieldNode, fieldName + ".store_array_source"));
                 return true;
             } else if (fieldName.equals("properties")) {
                 if (fieldNode instanceof Collection && ((Collection) fieldNode).isEmpty()) {
@@ -369,6 +383,7 @@ public class ObjectMapper extends Mapper {
 
     protected final Explicit<Boolean> enabled;
     protected final Explicit<Boolean> subobjects;
+    protected final Explicit<Boolean> storeArraySource;
     protected final Dynamic dynamic;
 
     protected final Map<String, Mapper> mappers;
@@ -378,6 +393,7 @@ public class ObjectMapper extends Mapper {
         String fullPath,
         Explicit<Boolean> enabled,
         Explicit<Boolean> subobjects,
+        Explicit<Boolean> storeArraySource,
         Dynamic dynamic,
         Map<String, Mapper> mappers
     ) {
@@ -387,6 +403,7 @@ public class ObjectMapper extends Mapper {
         this.fullPath = internFieldName(fullPath);
         this.enabled = enabled;
         this.subobjects = subobjects;
+        this.storeArraySource = storeArraySource;
         this.dynamic = dynamic;
         if (mappers == null) {
             this.mappers = Map.of();
@@ -412,7 +429,7 @@ public class ObjectMapper extends Mapper {
      * This is typically used in the context of a mapper merge when there's not enough budget to add the entire object.
      */
     ObjectMapper withoutMappers() {
-        return new ObjectMapper(simpleName(), fullPath, enabled, subobjects, dynamic, Map.of());
+        return new ObjectMapper(simpleName(), fullPath, enabled, subobjects, storeArraySource, dynamic, Map.of());
     }
 
     @Override
@@ -454,8 +471,15 @@ public class ObjectMapper extends Mapper {
         return subobjects.value();
     }
 
+    public final boolean storeArraySource() {
+        return storeArraySource.value();
+    }
+
     @Override
     public void validate(MappingLookup mappers) {
+        if (storeArraySource() && mappers.isSourceSynthetic() == false) {
+            throw new MapperParsingException("Parameter [" + STORE_ARRAY_SOURCE_PARAM + "] can only be set in synthetic source mode.");
+        }
         for (Mapper mapper : this.mappers.values()) {
             mapper.validate(mappers);
         }
@@ -480,6 +504,7 @@ public class ObjectMapper extends Mapper {
             fullPath,
             mergeResult.enabled,
             mergeResult.subObjects,
+            mergeResult.trackArraySource,
             mergeResult.dynamic,
             mergeResult.mappers
         );
@@ -488,6 +513,7 @@ public class ObjectMapper extends Mapper {
     protected record MergeResult(
         Explicit<Boolean> enabled,
         Explicit<Boolean> subObjects,
+        Explicit<Boolean> trackArraySource,
         ObjectMapper.Dynamic dynamic,
         Map<String, Mapper> mappers
     ) {
@@ -519,11 +545,26 @@ public class ObjectMapper extends Mapper {
             } else {
                 subObjects = existing.subobjects;
             }
+            final Explicit<Boolean> trackArraySource;
+            if (mergeWithObject.storeArraySource.explicit()) {
+                if (reason == MergeReason.INDEX_TEMPLATE) {
+                    trackArraySource = mergeWithObject.storeArraySource;
+                } else if (existing.storeArraySource != mergeWithObject.storeArraySource) {
+                    throw new MapperException(
+                        "the [store_array_source] parameter can't be updated for the object mapping [" + existing.name() + "]"
+                    );
+                } else {
+                    trackArraySource = existing.storeArraySource;
+                }
+            } else {
+                trackArraySource = existing.storeArraySource;
+            }
             MapperMergeContext objectMergeContext = existing.createChildContext(parentMergeContext, existing.simpleName());
             Map<String, Mapper> mergedMappers = buildMergedMappers(existing, mergeWithObject, objectMergeContext, subObjects.value());
             return new MergeResult(
                 enabled,
                 subObjects,
+                trackArraySource,
                 mergeWithObject.dynamic != null ? mergeWithObject.dynamic : existing.dynamic,
                 mergedMappers
             );
@@ -680,6 +721,9 @@ public class ObjectMapper extends Mapper {
         if (subobjects != Defaults.SUBOBJECTS) {
             builder.field("subobjects", subobjects.value());
         }
+        if (storeArraySource != Defaults.STORE_ARRAY_SOURCE) {
+            builder.field(STORE_ARRAY_SOURCE_PARAM, storeArraySource.value());
+        }
         if (custom != null) {
             custom.toXContent(builder, params);
         }
@@ -712,24 +756,23 @@ public class ObjectMapper extends Mapper {
 
     }
 
-    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader(Stream<Mapper> extra) {
-        return new SyntheticSourceFieldLoader(
-            Stream.concat(extra, mappers.values().stream())
-                .sorted(Comparator.comparing(Mapper::name))
-                .map(Mapper::syntheticFieldLoader)
-                .filter(l -> l != null)
-                .toList()
-        );
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader(Stream<Mapper> mappers) {
+        var fields = mappers.sorted(Comparator.comparing(Mapper::name))
+            .map(Mapper::syntheticFieldLoader)
+            .filter(l -> l != SourceLoader.SyntheticFieldLoader.NOTHING)
+            .toList();
+        return new SyntheticSourceFieldLoader(fields);
     }
 
     @Override
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        return syntheticFieldLoader(Stream.empty());
+        return syntheticFieldLoader(mappers.values().stream());
     }
 
     private class SyntheticSourceFieldLoader implements SourceLoader.SyntheticFieldLoader {
         private final List<SourceLoader.SyntheticFieldLoader> fields;
         private boolean hasValue;
+        private List<IgnoredSourceFieldMapper.NameValue> ignoredValues;
 
         private SyntheticSourceFieldLoader(List<SourceLoader.SyntheticFieldLoader> fields) {
             this.fields = fields;
@@ -787,18 +830,67 @@ public class ObjectMapper extends Mapper {
             if (hasValue == false) {
                 return;
             }
-            startSyntheticField(b);
-            for (SourceLoader.SyntheticFieldLoader field : fields) {
-                if (field.hasValue()) {
-                    field.write(b);
+            if (isRoot()) {
+                if (isEnabled() == false) {
+                    // If the root object mapper is disabled, it is expected to contain
+                    // the source encapsulated within a single ignored source value.
+                    assert ignoredValues.size() == 1 : ignoredValues.size();
+                    XContentDataHelper.decodeAndWrite(b, ignoredValues.get(0).value());
+                    ignoredValues = null;
+                    return;
+                }
+                b.startObject();
+            } else {
+                b.startObject(simpleName());
+            }
+
+            if (ignoredValues != null && ignoredValues.isEmpty() == false) {
+                // Use an ordered map between field names and writer functions, to order writing by field name.
+                Map<String, CheckedConsumer<XContentBuilder, IOException>> orderedFields = new TreeMap<>();
+                for (IgnoredSourceFieldMapper.NameValue value : ignoredValues) {
+                    orderedFields.put(value.name(), value::write);
+                }
+                for (SourceLoader.SyntheticFieldLoader field : fields) {
+                    if (field.hasValue()) {
+                        // Skip if the field source is stored separately, to avoid double-printing.
+                        orderedFields.putIfAbsent(field.fieldName(), field::write);
+                    }
+                }
+                for (var writer : orderedFields.values()) {
+                    writer.accept(b);
+                }
+                ignoredValues = null;
+            } else {
+                for (SourceLoader.SyntheticFieldLoader field : fields) {
+                    if (field.hasValue()) {
+                        field.write(b);
+                    }
                 }
             }
-            b.endObject();
             hasValue = false;
+            b.endObject();
+        }
+
+        @Override
+        public boolean setIgnoredValues(Map<String, List<IgnoredSourceFieldMapper.NameValue>> objectsWithIgnoredFields) {
+            if (objectsWithIgnoredFields == null || objectsWithIgnoredFields.isEmpty()) {
+                return false;
+            }
+            ignoredValues = objectsWithIgnoredFields.remove(name());
+            hasValue |= ignoredValues != null;
+            for (SourceLoader.SyntheticFieldLoader loader : fields) {
+                hasValue |= loader.setIgnoredValues(objectsWithIgnoredFields);
+            }
+            return this.ignoredValues != null;
+        }
+
+        @Override
+        public String fieldName() {
+            return name();
         }
     }
 
-    protected void startSyntheticField(XContentBuilder b) throws IOException {
-        b.startObject(simpleName());
+    protected boolean isRoot() {
+        return false;
     }
 }

@@ -94,6 +94,8 @@ import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -942,7 +944,7 @@ public class AuthorizationServiceTests extends ESTestCase {
     }
 
     public void testUserWithNoRolesCanClosePointInTime() {
-        final ClosePointInTimeRequest closePointInTimeRequest = new ClosePointInTimeRequest(randomAlphaOfLength(8));
+        final ClosePointInTimeRequest closePointInTimeRequest = new ClosePointInTimeRequest(new BytesArray(randomAlphaOfLength(8)));
         final Authentication authentication = createAuthentication(new User("test user"));
         mockEmptyMetadata();
         final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
@@ -3555,8 +3557,9 @@ public class AuthorizationServiceTests extends ESTestCase {
         when(authorizationInfo.asMap()).thenReturn(
             Map.of(PRINCIPAL_ROLES_FIELD_NAME, randomArray(0, 3, String[]::new, () -> randomAlphaOfLengthBetween(5, 8)))
         );
+        String actionPrefix = randomFrom("indices", "cluster");
         threadContext.putTransient(AUTHORIZATION_INFO_KEY, authorizationInfo);
-        final String action = "indices:/some/action/" + randomAlphaOfLengthBetween(0, 8);
+        final String action = actionPrefix + ":/some/action/" + randomAlphaOfLengthBetween(0, 8);
         final String clusterAlias = randomAlphaOfLengthBetween(5, 12);
         final ElasticsearchSecurityException e = authorizationService.remoteActionDenied(authentication, action, clusterAlias);
         assertThat(e.getCause(), nullValue());
@@ -3565,10 +3568,11 @@ public class AuthorizationServiceTests extends ESTestCase {
             equalTo(
                 Strings.format(
                     "action [%s] towards remote cluster [%s] is unauthorized for %s"
-                        + " because no remote indices privileges apply for the target cluster",
+                        + " because no remote %s privileges apply for the target cluster",
                     action,
                     clusterAlias,
-                    new AuthorizationDenialMessages.Default().successfulAuthenticationDescription(authentication, authorizationInfo)
+                    new AuthorizationDenialMessages.Default().successfulAuthenticationDescription(authentication, authorizationInfo),
+                    actionPrefix
                 )
             )
         );
@@ -3581,7 +3585,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             Map.of(PRINCIPAL_ROLES_FIELD_NAME, randomArray(0, 3, String[]::new, () -> randomAlphaOfLengthBetween(5, 8)))
         );
         threadContext.putTransient(AUTHORIZATION_INFO_KEY, authorizationInfo);
-        final String action = "indices:/some/action/" + randomAlphaOfLengthBetween(0, 8);
+        String actionPrefix = randomFrom("indices", "cluster");
+        final String action = actionPrefix + ":/some/action/" + randomAlphaOfLengthBetween(0, 8);
         final ElasticsearchSecurityException e = authorizationService.actionDenied(authentication, authorizationInfo, action, mock());
         assertThat(e.getCause(), nullValue());
         assertThat(
@@ -3641,7 +3646,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         }
     }
 
-    private static String createEncodedPIT(Index index) {
+    private static BytesReference createEncodedPIT(Index index) {
         DiscoveryNode node1 = DiscoveryNodeUtils.create("node_1");
         TestSearchPhaseResult testSearchPhaseResult1 = new TestSearchPhaseResult(new ShardSearchContextId("a", 1), node1);
         testSearchPhaseResult1.setSearchShardTarget(

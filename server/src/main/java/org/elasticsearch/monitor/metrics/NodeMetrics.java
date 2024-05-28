@@ -19,7 +19,6 @@ import org.elasticsearch.index.stats.IndexingPressureStats;
 import org.elasticsearch.monitor.jvm.GcNames;
 import org.elasticsearch.monitor.jvm.JvmStats;
 import org.elasticsearch.node.NodeService;
-import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
 import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
@@ -529,23 +528,16 @@ public class NodeMetrics extends AbstractLifecycleComponent {
         );
 
         metrics.add(
-            registry.registerDoubleGauge(
-                "es.indexing.coordinating_operations.rejections.ratio",
-                "Ratio of rejected coordinating operations",
-                "ratio",
-                () -> {
-                    var totalCoordinatingOperations = Optional.ofNullable(stats.getOrRefresh())
+            registry.registerLongAsyncCounter(
+                "es.indexing.coordinating_operations.requests.total",
+                "Total number of coordinating requests",
+                "operations",
+                () -> new LongWithAttributes(
+                    Optional.ofNullable(stats.getOrRefresh())
                         .map(NodeStats::getIndexingPressureStats)
-                        .map(IndexingPressureStats::getTotalCoordinatingOps)
-                        .orElse(0L);
-                    var totalCoordinatingRejections = Optional.ofNullable(stats.getOrRefresh())
-                        .map(NodeStats::getIndexingPressureStats)
-                        .map(IndexingPressureStats::getCoordinatingRejections)
-                        .orElse(0L);
-                    // rejections do not count towards `totalCoordinatingOperations`
-                    var totalOps = totalCoordinatingOperations + totalCoordinatingRejections;
-                    return new DoubleWithAttributes(totalOps != 0 ? (double) totalCoordinatingRejections / totalOps : 0.0);
-                }
+                        .map(IndexingPressureStats::getTotalCoordinatingRequests)
+                        .orElse(0L)
+                )
             )
         );
 
@@ -620,23 +612,16 @@ public class NodeMetrics extends AbstractLifecycleComponent {
         );
 
         metrics.add(
-            registry.registerDoubleGauge(
-                "es.indexing.primary_operations.document.rejections.ratio",
-                "Ratio of rejected primary operations",
-                "ratio",
-                () -> {
-                    var totalPrimaryOperations = Optional.ofNullable(stats.getOrRefresh())
-                        .map(NodeStats::getIndexingPressureStats)
-                        .map(IndexingPressureStats::getTotalPrimaryOps)
-                        .orElse(0L);
-                    var totalPrimaryDocumentRejections = Optional.ofNullable(stats.getOrRefresh())
+            registry.registerLongAsyncCounter(
+                "es.indexing.primary_operations.document.rejections.total",
+                "Total number of rejected indexing documents",
+                "operations",
+                () -> new LongWithAttributes(
+                    Optional.ofNullable(stats.getOrRefresh())
                         .map(NodeStats::getIndexingPressureStats)
                         .map(IndexingPressureStats::getPrimaryDocumentRejections)
-                        .orElse(0L);
-                    // primary document rejections do not count towards `totalPrimaryOperations`
-                    var totalOps = totalPrimaryOperations + totalPrimaryDocumentRejections;
-                    return new DoubleWithAttributes(totalOps != 0 ? (double) totalPrimaryDocumentRejections / totalOps : 0.0);
-                }
+                        .orElse(0L)
+                )
             )
         );
 

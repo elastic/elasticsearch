@@ -7,15 +7,14 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar;
 
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.TypeResolutions;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.util.Arrays;
-import java.util.Objects;
 
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumeric;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNumeric;
 
 public abstract class UnaryScalarFunction extends EsqlScalarFunction {
     protected final Expression field;
@@ -46,19 +45,5 @@ public abstract class UnaryScalarFunction extends EsqlScalarFunction {
     @Override
     public DataType dataType() {
         return field.dataType();
-    }
-
-    @Override
-    public final int hashCode() {
-        return Objects.hash(field);
-    }
-
-    @Override
-    public final boolean equals(Object obj) {
-        if (obj == null || obj.getClass() != getClass()) {
-            return false;
-        }
-        UnaryScalarFunction other = (UnaryScalarFunction) obj;
-        return Objects.equals(other.field, field);
     }
 }

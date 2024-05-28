@@ -10,28 +10,33 @@ package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.math.BigInteger;
 import java.time.Duration;
 import java.time.Period;
+import java.time.temporal.TemporalAmount;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import java.util.function.BiFunction;
+import java.util.function.BinaryOperator;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.esql.core.type.DateUtils.asDateTime;
+import static org.elasticsearch.xpack.esql.core.type.DateUtils.asMillis;
+import static org.elasticsearch.xpack.esql.core.util.NumericUtils.asLongUnsigned;
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.AbstractArithmeticTestCase.arithmeticExceptionOverflowCase;
-import static org.elasticsearch.xpack.ql.type.DateUtils.asDateTime;
-import static org.elasticsearch.xpack.ql.type.DateUtils.asMillis;
-import static org.elasticsearch.xpack.ql.util.NumericUtils.asLongUnsigned;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.startsWith;
 
 public class AddTests extends AbstractFunctionTestCase {
     public AddTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
@@ -91,80 +96,64 @@ public class AddTests extends AbstractFunctionTestCase {
 
         suppliers.addAll(
             TestCaseSupplier.forBinaryNotCasting(
-                "No evaluator, the tests only trigger the folding code since Period is not representable",
-                "lhs",
-                "rhs",
                 (lhs, rhs) -> ((Period) lhs).plus((Period) rhs),
                 EsqlDataTypes.DATE_PERIOD,
                 TestCaseSupplier.datePeriodCases(),
                 TestCaseSupplier.datePeriodCases(),
-                List.of(),
+                startsWith("LiteralsEvaluator[lit="),  // lhs and rhs have to be literals, so we fold into a literal
+                (lhs, rhs) -> List.of(),
                 true
             )
         );
         suppliers.addAll(
             TestCaseSupplier.forBinaryNotCasting(
-                "No evaluator, the tests only trigger the folding code since Duration is not representable",
-                "lhs",
-                "rhs",
                 (lhs, rhs) -> ((Duration) lhs).plus((Duration) rhs),
                 EsqlDataTypes.TIME_DURATION,
                 TestCaseSupplier.timeDurationCases(),
                 TestCaseSupplier.timeDurationCases(),
-                List.of(),
+                startsWith("LiteralsEvaluator[lit="), // lhs and rhs have to be literals, so we fold into a literal
+                (lhs, rhs) -> List.of(),
                 true
             )
         );
 
+        BinaryOperator<Object> result = (lhs, rhs) -> {
+            try {
+                return addDatesAndTemporalAmount(lhs, rhs);
+            } catch (ArithmeticException e) {
+                return null;
+            }
+        };
+        BiFunction<TestCaseSupplier.TypedData, TestCaseSupplier.TypedData, List<String>> warnings = (lhs, rhs) -> {
+            try {
+                addDatesAndTemporalAmount(lhs.data(), rhs.data());
+                return List.of();
+            } catch (ArithmeticException e) {
+                return List.of(
+                    "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
+                    "Line -1:-1: java.lang.ArithmeticException: long overflow"
+                );
+            }
+        };
         suppliers.addAll(
             TestCaseSupplier.forBinaryNotCasting(
-                // TODO: There is an evaluator for Datetime + Period, so it should be tested. Similarly below.
-                "No evaluator, the tests only trigger the folding code since Period is not representable",
-                "lhs",
-                "rhs",
-                (lhs, rhs) -> {
-                    // this weird casting dance makes the expected value lambda symmetric
-                    Long date;
-                    Period period;
-                    if (lhs instanceof Long) {
-                        date = (Long) lhs;
-                        period = (Period) rhs;
-                    } else {
-                        date = (Long) rhs;
-                        period = (Period) lhs;
-                    }
-                    return asMillis(asDateTime(date).plus(period));
-                },
+                result,
                 DataTypes.DATETIME,
                 TestCaseSupplier.dateCases(),
                 TestCaseSupplier.datePeriodCases(),
-                List.of(),
+                startsWith("AddDatetimesEvaluator[datetime=Attribute[channel=0], temporalAmount="),
+                warnings,
                 true
             )
         );
         suppliers.addAll(
             TestCaseSupplier.forBinaryNotCasting(
-                // TODO: There is an evaluator for Datetime + Duration, so it should be tested. Similarly above.
-                "No evaluator, the tests only trigger the folding code since Duration is not representable",
-                "lhs",
-                "rhs",
-                (lhs, rhs) -> {
-                    // this weird casting dance makes the expected value lambda symmetric
-                    Long date;
-                    Duration duration;
-                    if (lhs instanceof Long) {
-                        date = (Long) lhs;
-                        duration = (Duration) rhs;
-                    } else {
-                        date = (Long) rhs;
-                        duration = (Duration) lhs;
-                    }
-                    return asMillis(asDateTime(date).plus(duration));
-                },
+                result,
                 DataTypes.DATETIME,
                 TestCaseSupplier.dateCases(),
                 TestCaseSupplier.timeDurationCases(),
-                List.of(),
+                startsWith("AddDatetimesEvaluator[datetime=Attribute[channel=0], temporalAmount="),
+                warnings,
                 true
             )
         );
@@ -195,7 +184,12 @@ public class AddTests extends AbstractFunctionTestCase {
 
         // Datetime tests are split in two, depending on their permissiveness of null-injection, which cannot happen "automatically" for
         // Datetime + Period/Duration, since the expression will take the non-null arg's type.
-        suppliers = errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers), AddTests::addErrorMessageString);
+        suppliers = anyNullIsNull(
+            suppliers,
+            (nullPosition, nullType, original) -> original.expectedType(),
+            (nullPosition, nullData, original) -> nullData.isForceLiteral() ? equalTo("LiteralsEvaluator[lit=null]") : original
+        );
+        suppliers = errorsForCasesWithoutExamples(suppliers, AddTests::addErrorMessageString);
 
         // Cases that should generate warnings
         suppliers.addAll(List.of(new TestCaseSupplier("MV", () -> {
@@ -267,6 +261,20 @@ public class AddTests extends AbstractFunctionTestCase {
             return "[+] has arguments with incompatible types [" + types.get(0).typeName() + "] and [" + types.get(1).typeName() + "]";
 
         }
+    }
+
+    private static Object addDatesAndTemporalAmount(Object lhs, Object rhs) {
+        // this weird casting dance makes the expected value lambda symmetric
+        Long date;
+        TemporalAmount period;
+        if (lhs instanceof Long) {
+            date = (Long) lhs;
+            period = (TemporalAmount) rhs;
+        } else {
+            date = (Long) rhs;
+            period = (TemporalAmount) lhs;
+        }
+        return asMillis(asDateTime(date).plus(period));
     }
 
     @Override

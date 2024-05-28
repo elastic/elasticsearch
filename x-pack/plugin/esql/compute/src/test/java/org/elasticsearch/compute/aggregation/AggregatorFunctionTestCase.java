@@ -29,6 +29,7 @@ import org.elasticsearch.compute.operator.NullInsertingSourceOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.PositionMergingSourceOperator;
 import org.elasticsearch.compute.operator.TestResultPageSinkOperator;
+import org.hamcrest.Matcher;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -61,14 +62,14 @@ public abstract class AggregatorFunctionTestCase extends ForkingOperatorTestCase
     }
 
     @Override
-    protected final String expectedDescriptionOfSimple() {
-        return "AggregationOperator[mode = SINGLE, aggs = " + expectedDescriptionOfAggregator() + "]";
+    protected final Matcher<String> expectedDescriptionOfSimple() {
+        return equalTo("AggregationOperator[mode = SINGLE, aggs = " + expectedDescriptionOfAggregator() + "]");
     }
 
     @Override
-    protected final String expectedToStringOfSimple() {
+    protected final Matcher<String> expectedToStringOfSimple() {
         String type = getClass().getSimpleName().replace("Tests", "");
-        return "AggregationOperator[aggregators=[Aggregator[aggregatorFunction=" + type + "[channels=[0]], mode=SINGLE]]]";
+        return equalTo("AggregationOperator[aggregators=[Aggregator[aggregatorFunction=" + type + "[channels=[0]], mode=SINGLE]]]");
     }
 
     @Override

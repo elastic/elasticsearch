@@ -61,7 +61,7 @@ public class AbstractAddBlock implements Releasable {
     }
 
     @Override
-    public final void close() {
+    public void close() {
         ords.close();
     }
 }

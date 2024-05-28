@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStreamGlobalRetention;
+import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionResolver;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -72,6 +73,7 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
     private final Set<IndexSettingProvider> indexSettingProviders;
     private final ClusterSettings clusterSettings;
     private final boolean isDslOnlyMode;
+    private final DataStreamGlobalRetentionResolver globalRetentionResolver;
 
     @Inject
     public TransportSimulateIndexTemplateAction(
@@ -84,7 +86,8 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
         NamedXContentRegistry xContentRegistry,
         IndicesService indicesService,
         SystemIndices systemIndices,
-        IndexSettingProviders indexSettingProviders
+        IndexSettingProviders indexSettingProviders,
+        DataStreamGlobalRetentionResolver globalRetentionResolver
     ) {
         super(
             SimulateIndexTemplateAction.NAME,
@@ -104,6 +107,7 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
         this.indexSettingProviders = indexSettingProviders.getIndexSettingProviders();
         this.clusterSettings = clusterService.getClusterSettings();
         this.isDslOnlyMode = isDataStreamsLifecycleOnlyMode(clusterService.getSettings());
+        this.globalRetentionResolver = globalRetentionResolver;
     }
 
     @Override
@@ -113,7 +117,7 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
         ClusterState state,
         ActionListener<SimulateIndexTemplateResponse> listener
     ) throws Exception {
-        final DataStreamGlobalRetention globalRetention = DataStreamGlobalRetention.getFromClusterState(state);
+        final DataStreamGlobalRetention globalRetention = globalRetentionResolver.resolve(state);
         final ClusterState stateWithTemplate;
         if (request.getIndexTemplateRequest() != null) {
             // we'll "locally" add the template defined by the user in the cluster state (as if it existed in the system)

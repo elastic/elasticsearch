@@ -15,7 +15,6 @@ import org.elasticsearch.common.settings.Settings.Builder;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -31,7 +30,7 @@ public class UpdateSettingsRequestSerializationTests extends AbstractWireSeriali
     protected UpdateSettingsRequest mutateInstance(UpdateSettingsRequest request) {
         UpdateSettingsRequest mutation = copyRequest(request);
         List<Runnable> mutators = new ArrayList<>();
-        Supplier<TimeValue> timeValueSupplier = () -> TimeValue.parseTimeValue(ESTestCase.randomTimeValue(), "_setting");
+        Supplier<TimeValue> timeValueSupplier = () -> randomTimeValue();
         mutators.add(() -> mutation.masterNodeTimeout(randomValueOtherThan(request.masterNodeTimeout(), timeValueSupplier)));
         mutators.add(() -> mutation.ackTimeout(randomValueOtherThan(request.ackTimeout(), timeValueSupplier)));
         mutators.add(() -> mutation.settings(mutateSettings(request.settings())));

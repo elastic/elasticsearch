@@ -7,12 +7,12 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
-import org.elasticsearch.xpack.ql.expression.Attribute;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Expressions;
-import org.elasticsearch.xpack.ql.expression.NamedExpression;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 
 import java.util.List;
 import java.util.Objects;
@@ -66,6 +66,10 @@ public class AggregateExec extends UnaryExec implements EstimatesRowSize {
 
     public List<? extends NamedExpression> aggregates() {
         return aggregates;
+    }
+
+    public AggregateExec withMode(Mode newMode) {
+        return new AggregateExec(source(), child(), groupings, aggregates, newMode, estimatedRowSize);
     }
 
     /**

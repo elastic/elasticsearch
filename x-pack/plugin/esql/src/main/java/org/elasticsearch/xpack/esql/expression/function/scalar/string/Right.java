@@ -12,35 +12,31 @@ import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.TypeResolutions;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.Function;
 
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isString;
-import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.INTEGER;
 
 /**
  * {code right(foo, len)} is an alias to {code substring(foo, foo.length-len, len)}
  */
 public class Right extends EsqlScalarFunction {
-
-    private final Source source;
-
     private final Expression str;
-
     private final Expression length;
 
     @FunctionInfo(
@@ -54,7 +50,6 @@ public class Right extends EsqlScalarFunction {
         @Param(name = "length", type = { "integer" }, description = "The number of characters to return.") Expression length
     ) {
         super(source, Arrays.asList(str, length));
-        this.source = source;
         this.str = str;
         this.length = length;
     }
@@ -84,7 +79,7 @@ public class Right extends EsqlScalarFunction {
     @Override
     public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
         return new RightEvaluator.Factory(
-            source,
+            source(),
             context -> new BytesRef(),
             context -> new UnicodeUtil.UTF8CodePoint(),
             toEvaluator.apply(str),

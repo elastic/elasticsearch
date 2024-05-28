@@ -75,14 +75,14 @@ public class DocsTestPlugin implements Plugin<Project> {
         project.getTasks().register("listSnippets", DocSnippetTask.class, task -> {
             task.setGroup("Docs");
             task.setDescription("List each snippet");
-            task.setDefaultSubstitutions(commonDefaultSubstitutions);
-            task.setPerSnippet(snippet -> System.out.println(snippet));
+            task.getDefaultSubstitutions().putAll(commonDefaultSubstitutions);
+            task.setPerSnippet(System.out::println);
         });
 
         project.getTasks().register("listConsoleCandidates", DocSnippetTask.class, task -> {
             task.setGroup("Docs");
             task.setDescription("List snippets that probably should be marked // CONSOLE");
-            task.setDefaultSubstitutions(commonDefaultSubstitutions);
+            task.getDefaultSubstitutions().putAll(commonDefaultSubstitutions);
             task.setPerSnippet(snippet -> {
                 if (snippet.isConsoleCandidate()) {
                     System.out.println(snippet);
@@ -93,8 +93,9 @@ public class DocsTestPlugin implements Plugin<Project> {
         Provider<Directory> restRootDir = projectLayout.getBuildDirectory().dir("rest");
         TaskProvider<RestTestsFromDocSnippetTask> buildRestTests = project.getTasks()
             .register("buildRestTests", RestTestsFromDocSnippetTask.class, task -> {
-                task.setDefaultSubstitutions(commonDefaultSubstitutions);
+                task.getDefaultSubstitutions().putAll(commonDefaultSubstitutions);
                 task.getTestRoot().convention(restRootDir);
+                task.getMigrationMode().set(Boolean.getBoolean("gradle.docs.migration"));
                 task.doFirst(task1 -> fileOperations.delete(restRootDir.get()));
             });
 

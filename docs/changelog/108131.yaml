@@ -1,0 +1,5 @@
+pr: 108131
+summary: "Inference Processor: skip inference when all fields are missing"
+area: Machine Learning
+type: enhancement
+issues: []

@@ -8,9 +8,11 @@
 
 package org.elasticsearch.search.aggregations.bucket.composite;
 
+import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PostingsEnum;
+import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
@@ -218,27 +220,49 @@ class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
         final CompetitiveIterator competitiveIterator = fieldType == null ? null : new CompetitiveIterator(context, fieldType.name());
         currentCompetitiveIterator = competitiveIterator;
 
-        return new LeafBucketCollector() {
+        final SortedDocValues singleton = DocValues.unwrapSingleton(dvs);
+        if (singleton != null) {
+            return new LeafBucketCollector() {
 
-            @Override
-            public void collect(int doc, long bucket) throws IOException {
-                if (dvs.advanceExact(doc)) {
-                    long ord;
-                    while ((ord = dvs.nextOrd()) != NO_MORE_ORDS) {
-                        currentValue = ord;
+                @Override
+                public void collect(int doc, long bucket) throws IOException {
+                    if (singleton.advanceExact(doc)) {
+                        currentValue = singleton.ordValue();
+                        next.collect(doc, bucket);
+                    } else if (missingBucket) {
+                        currentValue = MISSING_VALUE_FLAG;
                         next.collect(doc, bucket);
                     }
-                } else if (missingBucket) {
-                    currentValue = MISSING_VALUE_FLAG;
-                    next.collect(doc, bucket);
                 }
-            }
 
-            @Override
-            public DocIdSetIterator competitiveIterator() {
-                return competitiveIterator;
-            }
-        };
+                @Override
+                public DocIdSetIterator competitiveIterator() {
+                    return competitiveIterator;
+                }
+            };
+        } else {
+            return new LeafBucketCollector() {
+
+                @Override
+                public void collect(int doc, long bucket) throws IOException {
+                    if (dvs.advanceExact(doc)) {
+                        long ord;
+                        while ((ord = dvs.nextOrd()) != NO_MORE_ORDS) {
+                            currentValue = ord;
+                            next.collect(doc, bucket);
+                        }
+                    } else if (missingBucket) {
+                        currentValue = MISSING_VALUE_FLAG;
+                        next.collect(doc, bucket);
+                    }
+                }
+
+                @Override
+                public DocIdSetIterator competitiveIterator() {
+                    return competitiveIterator;
+                }
+            };
+        }
     }
 
     @Override
@@ -253,27 +277,49 @@ class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
         if (lookup == null) {
             initLookup(dvs);
         }
-        return new LeafBucketCollector() {
-            boolean currentValueIsSet = false;
+        final SortedDocValues singleton = DocValues.unwrapSingleton(dvs);
+        if (singleton != null) {
+            return new LeafBucketCollector() {
+                boolean currentValueIsSet = false;
 
-            @Override
-            public void collect(int doc, long bucket) throws IOException {
-                if (currentValueIsSet == false) {
-                    if (dvs.advanceExact(doc)) {
-                        long ord;
-                        while ((ord = dvs.nextOrd()) != NO_MORE_ORDS) {
+                @Override
+                public void collect(int doc, long bucket) throws IOException {
+                    if (currentValueIsSet == false) {
+                        if (singleton.advanceExact(doc)) {
+                            long ord = singleton.ordValue();
                             if (term.equals(lookup.lookupOrd(ord))) {
                                 currentValueIsSet = true;
                                 currentValue = ord;
-                                break;
                             }
                         }
                     }
+                    assert currentValueIsSet;
+                    next.collect(doc, bucket);
                 }
-                assert currentValueIsSet;
-                next.collect(doc, bucket);
-            }
-        };
+            };
+        } else {
+            return new LeafBucketCollector() {
+                boolean currentValueIsSet = false;
+
+                @Override
+                public void collect(int doc, long bucket) throws IOException {
+                    if (currentValueIsSet == false) {
+                        if (dvs.advanceExact(doc)) {
+                            long ord;
+                            while ((ord = dvs.nextOrd()) != NO_MORE_ORDS) {
+                                if (term.equals(lookup.lookupOrd(ord))) {
+                                    currentValueIsSet = true;
+                                    currentValue = ord;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    assert currentValueIsSet;
+                    next.collect(doc, bucket);
+                }
+            };
+        }
     }
 
     @Override

@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.datastreams.autosharding.AutoShardingResult;
+import org.elasticsearch.action.datastreams.autosharding.AutoShardingType;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasAction;
@@ -46,6 +47,8 @@ import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.snapshots.SnapshotInProgressException;
 import org.elasticsearch.snapshots.SnapshotsService;
+import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.time.Instant;
@@ -70,8 +73,17 @@ public class MetadataRolloverService {
     private static final Logger logger = LogManager.getLogger(MetadataRolloverService.class);
     private static final Pattern INDEX_NAME_PATTERN = Pattern.compile("^.*-\\d+$");
     private static final List<IndexAbstraction.Type> VALID_ROLLOVER_TARGETS = List.of(ALIAS, DATA_STREAM);
-
     public static final Settings HIDDEN_INDEX_SETTINGS = Settings.builder().put(IndexMetadata.SETTING_INDEX_HIDDEN, true).build();
+    public static final Map<AutoShardingType, String> AUTO_SHARDING_METRIC_NAMES = Map.of(
+        AutoShardingType.INCREASE_SHARDS,
+        "es.auto_sharding.increase_shards.total",
+        AutoShardingType.DECREASE_SHARDS,
+        "es.auto_sharding.decrease_shards.total",
+        AutoShardingType.COOLDOWN_PREVENTED_INCREASE,
+        "es.auto_sharding.cooldown_prevented_increase.total",
+        AutoShardingType.COOLDOWN_PREVENTED_DECREASE,
+        "es.auto_sharding.cooldown_prevented_decrease.total"
+    );
 
     private final ThreadPool threadPool;
     private final MetadataCreateIndexService createIndexService;
@@ -79,6 +91,7 @@ public class MetadataRolloverService {
     private final SystemIndices systemIndices;
     private final WriteLoadForecaster writeLoadForecaster;
     private final ClusterService clusterService;
+    private final MeterRegistry meterRegistry;
 
     @Inject
     public MetadataRolloverService(
@@ -87,7 +100,8 @@ public class MetadataRolloverService {
         MetadataIndexAliasesService indexAliasesService,
         SystemIndices systemIndices,
         WriteLoadForecaster writeLoadForecaster,
-        ClusterService clusterService
+        ClusterService clusterService,
+        TelemetryProvider telemetryProvider
     ) {
         this.threadPool = threadPool;
         this.createIndexService = createIndexService;
@@ -95,6 +109,14 @@ public class MetadataRolloverService {
         this.systemIndices = systemIndices;
         this.writeLoadForecaster = writeLoadForecaster;
         this.clusterService = clusterService;
+        this.meterRegistry = telemetryProvider.getMeterRegistry();
+
+        for (var entry : AUTO_SHARDING_METRIC_NAMES.entrySet()) {
+            final AutoShardingType type = entry.getKey();
+            final String metricName = entry.getValue();
+            final String description = String.format(Locale.ROOT, "auto-sharding %s counter", type.name().toLowerCase(Locale.ROOT));
+            meterRegistry.registerLongCounter(metricName, description, "unit");
+        }
     }
 
     public record RolloverResult(String rolloverIndexName, String sourceIndexName, ClusterState clusterState) {
@@ -174,12 +196,11 @@ public class MetadataRolloverService {
         final IndexAbstraction indexAbstraction = currentState.metadata().getIndicesLookup().get(rolloverTarget);
         return switch (indexAbstraction.getType()) {
             case ALIAS -> resolveAliasRolloverNames(currentState.metadata(), indexAbstraction, newIndexName);
-            case DATA_STREAM -> {
-                if (isFailureStoreRollover) {
-                    yield resolveDataStreamFailureStoreRolloverNames(currentState.metadata(), (DataStream) indexAbstraction);
-                }
-                yield resolveDataStreamRolloverNames(currentState.getMetadata(), (DataStream) indexAbstraction);
-            }
+            case DATA_STREAM -> resolveDataStreamRolloverNames(
+                currentState.metadata(),
+                (DataStream) indexAbstraction,
+                isFailureStoreRollover
+            );
             default ->
                 // the validate method above prevents this case
                 throw new IllegalStateException("unable to roll over type [" + indexAbstraction.getType().getDisplayName() + "]");
@@ -198,19 +219,15 @@ public class MetadataRolloverService {
         return new NameResolution(sourceIndexName, unresolvedName, rolloverIndexName);
     }
 
-    private static NameResolution resolveDataStreamRolloverNames(Metadata metadata, DataStream dataStream) {
-        final IndexMetadata originalWriteIndex = metadata.index(dataStream.getWriteIndex());
-        return new NameResolution(originalWriteIndex.getIndex().getName(), null, dataStream.nextWriteIndexAndGeneration(metadata).v1());
-    }
+    private static NameResolution resolveDataStreamRolloverNames(Metadata metadata, DataStream dataStream, boolean isFailureStoreRollover) {
+        final DataStream.DataStreamIndices dataStreamIndices = dataStream.getDataStreamIndices(isFailureStoreRollover);
+        assert dataStreamIndices.getWriteIndex() != null : "Unable to roll over dataStreamIndices with no indices";
 
-    private static NameResolution resolveDataStreamFailureStoreRolloverNames(Metadata metadata, DataStream dataStream) {
-        assert dataStream.getFailureStoreWriteIndex() != null : "Unable to roll over failure store with no failure store indices";
-
-        final IndexMetadata originalWriteIndex = metadata.index(dataStream.getFailureStoreWriteIndex());
+        final IndexMetadata originalWriteIndex = metadata.index(dataStreamIndices.getWriteIndex());
         return new NameResolution(
             originalWriteIndex.getIndex().getName(),
             null,
-            dataStream.nextFailureStoreWriteIndexAndGeneration(metadata).v1()
+            dataStream.nextWriteIndexAndGeneration(metadata, dataStreamIndices).v1()
         );
     }
 
@@ -305,10 +322,9 @@ public class MetadataRolloverService {
             templateV2 = systemDataStreamDescriptor.getComposableIndexTemplate();
         }
 
-        final Index originalWriteIndex = isFailureStoreRollover ? dataStream.getFailureStoreWriteIndex() : dataStream.getWriteIndex();
-        final Tuple<String, Long> nextIndexAndGeneration = isFailureStoreRollover
-            ? dataStream.nextFailureStoreWriteIndexAndGeneration(currentState.metadata())
-            : dataStream.nextWriteIndexAndGeneration(currentState.metadata());
+        final DataStream.DataStreamIndices dataStreamIndices = dataStream.getDataStreamIndices(isFailureStoreRollover);
+        final Index originalWriteIndex = dataStreamIndices.getWriteIndex();
+        final Tuple<String, Long> nextIndexAndGeneration = dataStream.nextWriteIndexAndGeneration(metadata, dataStreamIndices);
         final String newWriteIndexName = nextIndexAndGeneration.v1();
         final long newGeneration = nextIndexAndGeneration.v2();
         MetadataCreateIndexService.validateIndexName(newWriteIndexName, currentState); // fails if the index already exists
@@ -330,6 +346,13 @@ public class MetadataRolloverService {
                 (builder, indexMetadata) -> builder.put(dataStream.rolloverFailureStore(indexMetadata.getIndex(), newGeneration))
             );
         } else {
+            if (autoShardingResult != null) {
+                final String metricName = AUTO_SHARDING_METRIC_NAMES.get(autoShardingResult.type());
+                if (metricName != null) {
+                    meterRegistry.getLongCounter(metricName).increment();
+                }
+            }
+
             DataStreamAutoShardingEvent dataStreamAutoShardingEvent = autoShardingResult == null
                 ? dataStream.getAutoShardingEvent()
                 : switch (autoShardingResult.type()) {
@@ -409,7 +432,7 @@ public class MetadataRolloverService {
         metadataBuilder = withShardSizeForecastForWriteIndex(dataStreamName, metadataBuilder);
 
         newState = ClusterState.builder(newState).metadata(metadataBuilder).build();
-        newState = MetadataDataStreamsService.setRolloverOnWrite(newState, dataStreamName, false);
+        newState = MetadataDataStreamsService.setRolloverOnWrite(newState, dataStreamName, false, isFailureStoreRollover);
 
         return new RolloverResult(newWriteIndexName, originalWriteIndex.getName(), newState);
     }

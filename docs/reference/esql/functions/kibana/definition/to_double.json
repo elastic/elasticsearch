@@ -20,6 +20,42 @@
       "params" : [
         {
           "name" : "field",
+          "type" : "counter_double",
+          "optional" : false,
+          "description" : "Input value. The input can be a single- or multi-valued column or an expression."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "counter_integer",
+          "optional" : false,
+          "description" : "Input value. The input can be a single- or multi-valued column or an expression."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "counter_long",
+          "optional" : false,
+          "description" : "Input value. The input can be a single- or multi-valued column or an expression."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
           "type" : "datetime",
           "optional" : false,
           "description" : "Input value. The input can be a single- or multi-valued column or an expression."

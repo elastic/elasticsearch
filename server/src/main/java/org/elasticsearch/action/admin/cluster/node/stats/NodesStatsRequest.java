@@ -29,7 +29,7 @@ import java.util.TreeSet;
  */
 public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
 
-    private NodesStatsRequestParameters nodesStatsRequestParameters;
+    private final NodesStatsRequestParameters nodesStatsRequestParameters;
 
     public NodesStatsRequest() {
         super((String[]) null);

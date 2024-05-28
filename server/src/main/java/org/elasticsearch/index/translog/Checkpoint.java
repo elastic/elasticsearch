@@ -194,12 +194,14 @@ final class Checkpoint {
         }
     }
 
-    public static void write(FileChannel fileChannel, Path checkpointFile, Checkpoint checkpoint) throws IOException {
+    public static void write(FileChannel fileChannel, Path checkpointFile, Checkpoint checkpoint, boolean fsync) throws IOException {
         byte[] bytes = createCheckpointBytes(checkpointFile, checkpoint);
         Channels.writeToChannel(bytes, fileChannel, 0);
         // no need to force metadata, file size stays the same and we did the full fsync
         // when we first created the file, so the directory entry doesn't change as well
-        fileChannel.force(false);
+        if (fsync) {
+            fileChannel.force(false);
+        }
     }
 
     private static byte[] createCheckpointBytes(Path checkpointFile, Checkpoint checkpoint) throws IOException {

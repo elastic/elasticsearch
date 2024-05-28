@@ -735,7 +735,7 @@ public class AutoFollowIT extends CcrIntegTestCase {
         // Need to set this, because following an index in the same cluster
         request.setFollowIndexNamePattern("copy-{{leader_index}}");
         if (randomBoolean()) {
-            request.masterNodeTimeout(randomFrom("10s", "20s", "30s"));
+            request.masterNodeTimeout(TimeValue.timeValueSeconds(randomFrom(10, 20, 30)));
         }
 
         assertTrue(followerClient().execute(PutAutoFollowPatternAction.INSTANCE, request).actionGet().isAcknowledged());
@@ -744,7 +744,7 @@ public class AutoFollowIT extends CcrIntegTestCase {
     private void deleteAutoFollowPattern(final String name) {
         DeleteAutoFollowPatternAction.Request request = new DeleteAutoFollowPatternAction.Request(name);
         if (randomBoolean()) {
-            request.masterNodeTimeout(randomFrom("10s", "20s", "30s"));
+            request.masterNodeTimeout(TimeValue.timeValueSeconds(randomFrom(10, 20, 30)));
         }
         assertTrue(followerClient().execute(DeleteAutoFollowPatternAction.INSTANCE, request).actionGet().isAcknowledged());
     }
@@ -752,7 +752,7 @@ public class AutoFollowIT extends CcrIntegTestCase {
     private AutoFollowStats getAutoFollowStats() {
         CcrStatsAction.Request request = new CcrStatsAction.Request();
         if (randomBoolean()) {
-            request.masterNodeTimeout(randomFrom("10s", "20s", "30s"));
+            request.masterNodeTimeout(TimeValue.timeValueSeconds(randomFrom(10, 20, 30)));
         }
         return followerClient().execute(CcrStatsAction.INSTANCE, request).actionGet().getAutoFollowStats();
     }
@@ -766,7 +766,7 @@ public class AutoFollowIT extends CcrIntegTestCase {
     private void pauseAutoFollowPattern(final String name) {
         ActivateAutoFollowPatternAction.Request request = new ActivateAutoFollowPatternAction.Request(name, false);
         if (randomBoolean()) {
-            request.masterNodeTimeout(randomFrom("10s", "20s", "30s"));
+            request.masterNodeTimeout(TimeValue.timeValueSeconds(randomFrom(10, 20, 30)));
         }
         assertAcked(followerClient().execute(ActivateAutoFollowPatternAction.INSTANCE, request).actionGet());
     }
@@ -774,7 +774,7 @@ public class AutoFollowIT extends CcrIntegTestCase {
     private void resumeAutoFollowPattern(final String name) {
         ActivateAutoFollowPatternAction.Request request = new ActivateAutoFollowPatternAction.Request(name, true);
         if (randomBoolean()) {
-            request.masterNodeTimeout(randomFrom("10s", "20s", "30s"));
+            request.masterNodeTimeout(TimeValue.timeValueSeconds(randomFrom(10, 20, 30)));
         }
         assertAcked(followerClient().execute(ActivateAutoFollowPatternAction.INSTANCE, request).actionGet());
     }
@@ -783,7 +783,7 @@ public class AutoFollowIT extends CcrIntegTestCase {
         GetAutoFollowPatternAction.Request request = new GetAutoFollowPatternAction.Request();
         request.setName(name);
         if (randomBoolean()) {
-            request.masterNodeTimeout(randomFrom("10s", "20s", "30s"));
+            request.masterNodeTimeout(TimeValue.timeValueSeconds(randomFrom(10, 20, 30)));
         }
         GetAutoFollowPatternAction.Response response = followerClient().execute(GetAutoFollowPatternAction.INSTANCE, request).actionGet();
         assertTrue(response.getAutoFollowPatterns().containsKey(name));

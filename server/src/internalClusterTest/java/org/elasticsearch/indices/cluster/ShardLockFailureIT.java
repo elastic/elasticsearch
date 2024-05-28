@@ -22,7 +22,7 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.util.concurrent.CountDownLatch;
@@ -68,14 +68,13 @@ public class ShardLockFailureIT extends ESIntegTestCase {
             }
         });
 
-        var mockLogAppender = new MockLogAppender();
         try (
             var ignored1 = internalCluster().getInstance(NodeEnvironment.class, node).shardLock(shardId, "blocked for test");
-            var ignored2 = mockLogAppender.capturing(IndicesClusterStateService.class);
+            var mockLog = MockLog.capture(IndicesClusterStateService.class);
         ) {
             final CountDownLatch countDownLatch = new CountDownLatch(1);
 
-            mockLogAppender.addExpectation(new MockLogAppender.LoggingExpectation() {
+            mockLog.addExpectation(new MockLog.LoggingExpectation() {
                 int debugMessagesSeen = 0;
                 int warnMessagesSeen = 0;
 
@@ -109,7 +108,7 @@ public class ShardLockFailureIT extends ESIntegTestCase {
             ensureYellow(indexName);
             assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
             assertEquals(ClusterHealthStatus.YELLOW, clusterAdmin().prepareHealth(indexName).get().getStatus());
-            mockLogAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
 
         ensureGreen(indexName);
@@ -138,13 +137,12 @@ public class ShardLockFailureIT extends ESIntegTestCase {
 
         final var shardId = new ShardId(resolveIndex(indexName), 0);
 
-        var mockLogAppender = new MockLogAppender();
         try (
             var ignored1 = internalCluster().getInstance(NodeEnvironment.class, node).shardLock(shardId, "blocked for test");
-            var ignored2 = mockLogAppender.capturing(IndicesClusterStateService.class);
+            var mockLog = MockLog.capture(IndicesClusterStateService.class);
         ) {
-            mockLogAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "timeout message",
                     "org.elasticsearch.indices.cluster.IndicesClusterStateService",
                     Level.WARN,
@@ -155,7 +153,7 @@ public class ShardLockFailureIT extends ESIntegTestCase {
             );
 
             updateIndexSettings(Settings.builder().putNull(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name"), indexName);
-            assertBusy(mockLogAppender::assertAllExpectationsMatched);
+            assertBusy(mockLog::assertAllExpectationsMatched);
             final var clusterHealthResponse = clusterAdmin().prepareHealth(indexName)
                 .setWaitForEvents(Priority.LANGUID)
                 .setTimeout(TimeValue.timeValueSeconds(10))

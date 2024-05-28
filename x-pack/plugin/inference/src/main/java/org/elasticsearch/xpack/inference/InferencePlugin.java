@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.support.MappedActionFilter;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -21,12 +22,15 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
+import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
@@ -43,6 +47,7 @@ import org.elasticsearch.xpack.inference.action.TransportGetInferenceModelAction
 import org.elasticsearch.xpack.inference.action.TransportInferenceAction;
 import org.elasticsearch.xpack.inference.action.TransportInferenceUsageAction;
 import org.elasticsearch.xpack.inference.action.TransportPutInferenceModelAction;
+import org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilter;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.HttpSettings;
@@ -50,16 +55,20 @@ import org.elasticsearch.xpack.inference.external.http.retry.RetrySettings;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.RequestExecutorServiceSettings;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
+import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
+import org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.rest.RestDeleteInferenceModelAction;
 import org.elasticsearch.xpack.inference.rest.RestGetInferenceModelAction;
 import org.elasticsearch.xpack.inference.rest.RestInferenceAction;
 import org.elasticsearch.xpack.inference.rest.RestPutInferenceModelAction;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
+import org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioService;
 import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiService;
 import org.elasticsearch.xpack.inference.services.cohere.CohereService;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService;
 import org.elasticsearch.xpack.inference.services.elser.ElserInternalService;
+import org.elasticsearch.xpack.inference.services.googleaistudio.GoogleAiStudioService;
 import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceService;
 import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserService;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiService;
@@ -67,12 +76,15 @@ import org.elasticsearch.xpack.inference.services.openai.OpenAiService;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-public class InferencePlugin extends Plugin implements ActionPlugin, ExtensiblePlugin, SystemIndexPlugin {
+import static java.util.Collections.singletonList;
+
+public class InferencePlugin extends Plugin implements ActionPlugin, ExtensiblePlugin, SystemIndexPlugin, MapperPlugin, SearchPlugin {
 
     /**
      * When this setting is true the verification check that
@@ -97,6 +109,7 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
     private final SetOnce<ServiceComponents> serviceComponents = new SetOnce<>();
 
     private final SetOnce<InferenceServiceRegistry> inferenceServiceRegistry = new SetOnce<>();
+    private final SetOnce<ShardBulkInferenceActionFilter> shardBulkInferenceActionFilter = new SetOnce<>();
     private List<InferenceServiceExtension> inferenceServiceExtensions;
 
     public InferencePlugin(Settings settings) {
@@ -162,6 +175,9 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
         registry.init(services.client());
         inferenceServiceRegistry.set(registry);
 
+        var actionFilter = new ShardBulkInferenceActionFilter(registry, modelRegistry);
+        shardBulkInferenceActionFilter.set(actionFilter);
+
         return List.of(modelRegistry, registry);
     }
 
@@ -178,6 +194,8 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
             context -> new OpenAiService(httpFactory.get(), serviceComponents.get()),
             context -> new CohereService(httpFactory.get(), serviceComponents.get()),
             context -> new AzureOpenAiService(httpFactory.get(), serviceComponents.get()),
+            context -> new AzureAiStudioService(httpFactory.get(), serviceComponents.get()),
+            context -> new GoogleAiStudioService(httpFactory.get(), serviceComponents.get()),
             ElasticsearchInternalService::new
         );
     }
@@ -259,5 +277,28 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
         var throttlerToClose = serviceComponentsRef != null ? serviceComponentsRef.throttlerManager() : null;
 
         IOUtils.closeWhileHandlingException(inferenceServiceRegistry.get(), throttlerToClose);
+    }
+
+    @Override
+    public Map<String, Mapper.TypeParser> getMappers() {
+        if (SemanticTextFeature.isEnabled()) {
+            return Map.of(SemanticTextFieldMapper.CONTENT_TYPE, SemanticTextFieldMapper.PARSER);
+        }
+        return Map.of();
+    }
+
+    @Override
+    public Collection<MappedActionFilter> getMappedActionFilters() {
+        if (SemanticTextFeature.isEnabled()) {
+            return singletonList(shardBulkInferenceActionFilter.get());
+        }
+        return List.of();
+    }
+
+    public List<QuerySpec<?>> getQueries() {
+        if (SemanticTextFeature.isEnabled()) {
+            return List.of(new QuerySpec<>(SemanticQueryBuilder.NAME, SemanticQueryBuilder::new, SemanticQueryBuilder::fromXContent));
+        }
+        return List.of();
     }
 }

@@ -13,13 +13,14 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
-import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.ql.InvalidArgumentException;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Literal;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractConfigurationFunctionTestCase;
+import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 
 import java.time.Instant;
 import java.time.ZonedDateTime;
@@ -31,7 +32,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
-public class DateExtractTests extends AbstractFunctionTestCase {
+public class DateExtractTests extends AbstractConfigurationFunctionTestCase {
     public DateExtractTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
@@ -128,7 +129,7 @@ public class DateExtractTests extends AbstractFunctionTestCase {
     }
 
     @Override
-    protected Expression build(Source source, List<Expression> args) {
-        return new DateExtract(source, args.get(0), args.get(1), EsqlTestUtils.TEST_CFG);
+    protected Expression buildWithConfiguration(Source source, List<Expression> args, EsqlConfiguration configuration) {
+        return new DateExtract(source, args.get(0), args.get(1), configuration);
     }
 }

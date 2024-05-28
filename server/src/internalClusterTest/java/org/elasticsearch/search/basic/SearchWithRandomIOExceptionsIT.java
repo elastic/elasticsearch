@@ -41,6 +41,7 @@ public class SearchWithRandomIOExceptionsIT extends ESIntegTestCase {
         return Arrays.asList(MockFSIndexStore.TestPlugin.class);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/106752")
     public void testRandomDirectoryIOExceptions() throws IOException, InterruptedException, ExecutionException {
         String mapping = Strings.toString(
             XContentFactory.jsonBuilder()
@@ -100,7 +101,11 @@ public class SearchWithRandomIOExceptionsIT extends ESIntegTestCase {
         }
         ClusterHealthResponse clusterHealthResponse = clusterAdmin()
             // it's OK to timeout here
-            .health(new ClusterHealthRequest(new String[] {}).waitForYellowStatus().timeout(TimeValue.timeValueSeconds(5)))
+            .health(
+                new ClusterHealthRequest(new String[] {}).waitForYellowStatus()
+                    .masterNodeTimeout(TimeValue.timeValueSeconds(5))
+                    .timeout(TimeValue.timeValueSeconds(5))
+            )
             .get();
         final int numDocs;
         final boolean expectAllShardsFailed;

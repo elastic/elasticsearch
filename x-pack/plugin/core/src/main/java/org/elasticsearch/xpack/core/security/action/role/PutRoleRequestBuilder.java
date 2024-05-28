@@ -21,7 +21,7 @@ import java.util.Map;
  */
 public class PutRoleRequestBuilder extends ActionRequestBuilder<PutRoleRequest, PutRoleResponse> {
 
-    private static final RoleDescriptor.Parser ROLE_DESCRIPTOR_PARSER = RoleDescriptor.parserBuilder().build();
+    private static final RoleDescriptor.Parser ROLE_DESCRIPTOR_PARSER = RoleDescriptor.parserBuilder().allowDescription(true).build();
 
     public PutRoleRequestBuilder(ElasticsearchClient client) {
         super(client, PutRoleAction.INSTANCE, new PutRoleRequest());
@@ -39,14 +39,21 @@ public class PutRoleRequestBuilder extends ActionRequestBuilder<PutRoleRequest, 
         request.conditionalCluster(descriptor.getConditionalClusterPrivileges());
         request.addIndex(descriptor.getIndicesPrivileges());
         request.addRemoteIndex(descriptor.getRemoteIndicesPrivileges());
+        request.putRemoteCluster(descriptor.getRemoteClusterPermissions());
         request.addApplicationPrivileges(descriptor.getApplicationPrivileges());
         request.runAs(descriptor.getRunAs());
         request.metadata(descriptor.getMetadata());
+        request.description(descriptor.getDescription());
         return this;
     }
 
     public PutRoleRequestBuilder name(String name) {
         request.name(name);
+        return this;
+    }
+
+    public PutRoleRequestBuilder description(String description) {
+        request.description(description);
         return this;
     }
 

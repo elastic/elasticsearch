@@ -13,24 +13,23 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geo.ShapeTestUtils;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.CARTESIAN;
-import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.GEO;
+import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
+import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
-public class MvSliceTests extends AbstractScalarFunctionTestCase {
+public class MvSliceTests extends AbstractFunctionTestCase {
     public MvSliceTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
@@ -43,17 +42,15 @@ public class MvSliceTests extends AbstractScalarFunctionTestCase {
         longs(suppliers);
         doubles(suppliers);
         bytesRefs(suppliers);
-        return parameterSuppliersFromTypedData(suppliers);
-    }
-
-    @Override
-    protected DataType expectedType(List<DataType> argTypes) {
-        return argTypes.get(0);
-    }
-
-    @Override
-    protected List<ArgumentSpec> argSpec() {
-        return List.of(required(representableTypes()), required(integers()), optional(integers()));
+        return parameterSuppliersFromTypedData(
+            anyNullIsNull(
+                suppliers,
+                (nullPosition, nullValueDataType, original) -> nullPosition == 0 && nullValueDataType == DataTypes.NULL
+                    ? DataTypes.NULL
+                    : original.expectedType(),
+                (nullPosition, nullData, original) -> original
+            )
+        );
     }
 
     @Override
@@ -276,7 +273,7 @@ public class MvSliceTests extends AbstractScalarFunctionTestCase {
         }));
 
         suppliers.add(new TestCaseSupplier(List.of(EsqlDataTypes.GEO_POINT, DataTypes.INTEGER, DataTypes.INTEGER), () -> {
-            List<Object> field = randomList(1, 10, () -> new BytesRef(GEO.asWkt(GeometryTestUtils.randomPoint())));
+            List<Object> field = randomList(1, 5, () -> new BytesRef(GEO.asWkt(GeometryTestUtils.randomPoint())));
             int length = field.size();
             int start = randomIntBetween(0, length - 1);
             int end = randomIntBetween(start, length - 1);
@@ -293,7 +290,7 @@ public class MvSliceTests extends AbstractScalarFunctionTestCase {
         }));
 
         suppliers.add(new TestCaseSupplier(List.of(EsqlDataTypes.CARTESIAN_POINT, DataTypes.INTEGER, DataTypes.INTEGER), () -> {
-            List<Object> field = randomList(1, 10, () -> new BytesRef(CARTESIAN.asWkt(ShapeTestUtils.randomPoint())));
+            List<Object> field = randomList(1, 5, () -> new BytesRef(CARTESIAN.asWkt(ShapeTestUtils.randomPoint())));
             int length = field.size();
             int start = randomIntBetween(0, length - 1);
             int end = randomIntBetween(start, length - 1);
@@ -310,7 +307,7 @@ public class MvSliceTests extends AbstractScalarFunctionTestCase {
         }));
 
         suppliers.add(new TestCaseSupplier(List.of(EsqlDataTypes.GEO_SHAPE, DataTypes.INTEGER, DataTypes.INTEGER), () -> {
-            List<Object> field = randomList(1, 10, () -> new BytesRef(GEO.asWkt(GeometryTestUtils.randomGeometry(randomBoolean()))));
+            List<Object> field = randomList(1, 5, () -> new BytesRef(GEO.asWkt(GeometryTestUtils.randomGeometry(randomBoolean()))));
             int length = field.size();
             int start = randomIntBetween(0, length - 1);
             int end = randomIntBetween(start, length - 1);
@@ -327,7 +324,7 @@ public class MvSliceTests extends AbstractScalarFunctionTestCase {
         }));
 
         suppliers.add(new TestCaseSupplier(List.of(EsqlDataTypes.CARTESIAN_SHAPE, DataTypes.INTEGER, DataTypes.INTEGER), () -> {
-            List<Object> field = randomList(1, 10, () -> new BytesRef(CARTESIAN.asWkt(ShapeTestUtils.randomGeometry(randomBoolean()))));
+            List<Object> field = randomList(1, 5, () -> new BytesRef(CARTESIAN.asWkt(ShapeTestUtils.randomGeometry(randomBoolean()))));
             int length = field.size();
             int start = randomIntBetween(0, length - 1);
             int end = randomIntBetween(start, length - 1);

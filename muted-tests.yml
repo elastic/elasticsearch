@@ -1,0 +1,60 @@
+tests:
+- class: "org.elasticsearch.xpack.transform.transforms.scheduling.MonotonicClockTests"
+  issue: "https://github.com/elastic/elasticsearch/issues/108529"
+- class: "org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterTests"
+  issue: "https://github.com/elastic/elasticsearch/issues/108649"
+  method: "testManyRandomDocs"
+- class: "org.elasticsearch.cluster.coordination.CoordinatorVotingConfigurationTests"
+  issue: "https://github.com/elastic/elasticsearch/issues/108729"
+  method: "testClusterUUIDLogging"
+- class: "org.elasticsearch.xpack.core.ssl.SSLConfigurationReloaderTests"
+  issue: "https://github.com/elastic/elasticsearch/issues/108774"
+  method: "testReloadingKeyStore"
+- class: "org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT"
+  issue: "https://github.com/elastic/elasticsearch/issues/108808"
+  method: "test {k8s-metrics.MetricsWithAggs}"
+- class: "org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT"
+  issue: "https://github.com/elastic/elasticsearch/issues/108809"
+  method: "test {k8s-metrics.MetricsWithoutAggs}"
+- class: "org.elasticsearch.xpack.textstructure.structurefinder.TimestampFormatFinderTests"
+  issue: "https://github.com/elastic/elasticsearch/issues/108855"
+  method: "testGuessIsDayFirstFromLocale"
+- class: "org.elasticsearch.test.rest.ClientYamlTestSuiteIT"
+  issue: "https://github.com/elastic/elasticsearch/issues/108857"
+  method: "test {yaml=search/180_locale_dependent_mapping/Test Index and Search locale\
+    \ dependent mappings / dates}"
+- class: "org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT"
+  issue: "https://github.com/elastic/elasticsearch/issues/108950"
+  method: "test {p0=health/10_basic/cluster health basic test}"
+- class: "org.elasticsearch.upgrades.SearchStatesIT"
+  issue: "https://github.com/elastic/elasticsearch/issues/108991"
+  method: "testCanMatch"
+- class: "org.elasticsearch.upgrades.AggregationsIT"
+  issue: "https://github.com/elastic/elasticsearch/issues/108992"
+  method: "testHistogram"
+- class: "org.elasticsearch.upgrades.MlTrainedModelsUpgradeIT"
+  issue: "https://github.com/elastic/elasticsearch/issues/108993"
+  method: "testTrainedModelInference"
+# Examples:
+#
+#  Mute a single test case in a YAML test suite:
+#  - class: org.elasticsearch.analysis.common.CommonAnalysisClientYamlTestSuiteIT
+#    method: test {yaml=analysis-common/30_tokenizers/letter}
+#    issue: https://github.com/elastic/elasticsearch/...
+#
+#  Mute several methods of a Java test:
+#  - class: org.elasticsearch.common.CharArraysTests
+#    methods:
+#      - testCharsBeginsWith
+#      - testCharsToBytes
+#      - testConstantTimeEquals
+#    issue: https://github.com/elastic/elasticsearch/...
+#
+#  Mute an entire test class:
+#  - class: org.elasticsearch.common.unit.TimeValueTests
+#    issue: https://github.com/elastic/elasticsearch/...
+#
+#  Mute a single method in a test class:
+#  - class: org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIPTests
+#    method: testCrankyEvaluateBlockWithoutNulls
+#    issue: https://github.com/elastic/elasticsearch/...

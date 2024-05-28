@@ -32,28 +32,15 @@ public class DeleteSnapshotRequest extends MasterNodeRequest<DeleteSnapshotReque
     private String[] snapshots;
 
     /**
-     * Constructs a new delete snapshots request
-     */
-    public DeleteSnapshotRequest() {}
-
-    /**
      * Constructs a new delete snapshots request with repository and snapshot names
      *
      * @param repository repository name
      * @param snapshots  snapshot names
      */
     public DeleteSnapshotRequest(String repository, String... snapshots) {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
         this.repository = repository;
         this.snapshots = snapshots;
-    }
-
-    /**
-     * Constructs a new delete snapshots request with repository name
-     *
-     * @param repository repository name
-     */
-    public DeleteSnapshotRequest(String repository) {
-        this.repository = repository;
     }
 
     public DeleteSnapshotRequest(StreamInput in) throws IOException {

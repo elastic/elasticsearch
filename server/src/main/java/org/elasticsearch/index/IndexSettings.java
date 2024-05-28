@@ -1114,16 +1114,21 @@ public final class IndexSettings {
         final Settings newSettings = indexMetadata.getSettings();
         IndexVersion newIndexVersion = SETTING_INDEX_VERSION_CREATED.get(newSettings);
         if (version.equals(newIndexVersion) == false) {
-            throw new IllegalArgumentException("version mismatch on settings update expected: " + version + " but was: " + newIndexVersion);
+            throw new IllegalArgumentException(
+                "version mismatch on settings update expected: "
+                    + version.toReleaseVersion()
+                    + " but was: "
+                    + newIndexVersion.toReleaseVersion()
+            );
         }
         IndexVersion newCompatibilityVersion = IndexMetadata.SETTING_INDEX_VERSION_COMPATIBILITY.get(newSettings);
         IndexVersion compatibilityVersion = IndexMetadata.SETTING_INDEX_VERSION_COMPATIBILITY.get(settings);
         if (compatibilityVersion.equals(newCompatibilityVersion) == false) {
             throw new IllegalArgumentException(
                 "compatibility version mismatch on settings update expected: "
-                    + compatibilityVersion
+                    + compatibilityVersion.toReleaseVersion()
                     + " but was: "
-                    + newCompatibilityVersion
+                    + newCompatibilityVersion.toReleaseVersion()
             );
         }
         final String newUUID = newSettings.get(IndexMetadata.SETTING_INDEX_UUID, IndexMetadata.INDEX_UUID_NA_VALUE);

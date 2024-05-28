@@ -1,0 +1,6 @@
+pr: 107577
+summary: "ESQL: Fix MV_DEDUPE when using data from an index"
+area: ES|QL
+type: bug
+issues:
+ - 104745

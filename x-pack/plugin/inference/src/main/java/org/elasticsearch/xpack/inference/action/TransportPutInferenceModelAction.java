@@ -107,7 +107,7 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
         if (serviceName == null) {
             listener.onFailure(
                 new ElasticsearchStatusException(
-                    "Model configuration is missing [" + ModelConfigurations.SERVICE + "]",
+                    "Inference endpoint configuration is missing the [" + ModelConfigurations.SERVICE + "] setting",
                     RestStatus.BAD_REQUEST
                 )
             );

@@ -152,6 +152,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     private final IndexVersion indexVersionCreated;
     private final MapperRegistry mapperRegistry;
     private final Supplier<MappingParserContext> mappingParserContextSupplier;
+    private final MapperMetrics mapperMetrics;
 
     private volatile DocumentMapper mapper;
     private volatile long mappingVersion;
@@ -165,7 +166,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         MapperRegistry mapperRegistry,
         Supplier<SearchExecutionContext> searchExecutionContextSupplier,
         IdFieldMapper idFieldMapper,
-        ScriptCompiler scriptCompiler
+        ScriptCompiler scriptCompiler,
+        MapperMetrics mapperMetrics
     ) {
         this(
             () -> clusterService.state().getMinTransportVersion(),
@@ -176,7 +178,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             mapperRegistry,
             searchExecutionContextSupplier,
             idFieldMapper,
-            scriptCompiler
+            scriptCompiler,
+            mapperMetrics
         );
     }
 
@@ -190,7 +193,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         MapperRegistry mapperRegistry,
         Supplier<SearchExecutionContext> searchExecutionContextSupplier,
         IdFieldMapper idFieldMapper,
-        ScriptCompiler scriptCompiler
+        ScriptCompiler scriptCompiler,
+        MapperMetrics mapperMetrics
     ) {
         super(indexSettings);
         this.indexVersionCreated = indexSettings.getIndexVersionCreated();
@@ -218,6 +222,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             this::getMetadataMappers,
             this::resolveDocumentType
         );
+        this.mapperMetrics = mapperMetrics;
     }
 
     public boolean hasNested() {
@@ -475,8 +480,11 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                         if (baseMap.containsKey("subobjects")) {
                             mergedMappings.put("subobjects", baseMap.get("subobjects"));
                         }
-                        // recursively merge these two field mappings
-                        XContentHelper.merge(key, mergedMappings, mapToMerge, INSTANCE);
+                        // Recursively merge these two field mappings.
+                        // Since "key" is an arbitrary field name, for which we only need plain mapping subtrees merge, no need to pass it
+                        // to the recursion as it shouldn't affect the merge logic. Specifically, passing a parent may cause merge
+                        // failures of fields named "properties". See https://github.com/elastic/elasticsearch/issues/108866
+                        XContentHelper.merge(mergedMappings, mapToMerge, INSTANCE);
                         return mergedMappings;
                     } else {
                         // non-mergeable types - replace the entire mapping subtree for this field
@@ -547,7 +555,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     private DocumentMapper newDocumentMapper(Mapping mapping, MergeReason reason, CompressedXContent mappingSource) {
-        DocumentMapper newMapper = new DocumentMapper(documentParser, mapping, mappingSource, indexVersionCreated);
+        DocumentMapper newMapper = new DocumentMapper(documentParser, mapping, mappingSource, indexVersionCreated, mapperMetrics);
         newMapper.validate(indexSettings, reason != MergeReason.MAPPING_RECOVERY);
         return newMapper;
     }
@@ -779,5 +787,9 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
     public MapperRegistry getMapperRegistry() {
         return mapperRegistry;
+    }
+
+    public MapperMetrics getMapperMetrics() {
+        return mapperMetrics;
     }
 }

@@ -477,9 +477,9 @@ public class InboundDecoderTests extends ESTestCase {
         } catch (IllegalStateException expected) {
             assertEquals(
                 "Received message from unsupported version: ["
-                    + invalid
+                    + invalid.toReleaseVersion()
                     + "] minimal compatible version is: ["
-                    + TransportVersions.MINIMUM_COMPATIBLE
+                    + TransportVersions.MINIMUM_COMPATIBLE.toReleaseVersion()
                     + "]",
                 expected.getMessage()
             );

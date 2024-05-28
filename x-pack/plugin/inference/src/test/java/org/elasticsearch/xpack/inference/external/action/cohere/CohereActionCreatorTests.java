@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.cohere.CohereTruncation;
+import org.elasticsearch.xpack.inference.services.cohere.completion.CohereCompletionModelTests;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingType;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsModelTests;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsTaskSettings;
@@ -41,7 +42,8 @@ import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
-import static org.elasticsearch.xpack.inference.results.TextEmbeddingResultsTests.buildExpectation;
+import static org.elasticsearch.xpack.inference.results.ChatCompletionResultsTests.buildExpectationCompletion;
+import static org.elasticsearch.xpack.inference.results.TextEmbeddingResultsTests.buildExpectationFloat;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -119,7 +121,7 @@ public class CohereActionCreatorTests extends ESTestCase {
 
             var result = listener.actionGet(TIMEOUT);
 
-            MatcherAssert.assertThat(result.asMap(), is(buildExpectation(List.of(List.of(0.123F, -0.123F)))));
+            MatcherAssert.assertThat(result.asMap(), is(buildExpectationFloat(List.of(new float[] { 0.123F, -0.123F }))));
             MatcherAssert.assertThat(webServer.requests(), hasSize(1));
             assertNull(webServer.requests().get(0).getUri().getQuery());
             MatcherAssert.assertThat(
@@ -146,6 +148,126 @@ public class CohereActionCreatorTests extends ESTestCase {
                     )
                 )
             );
+        }
+    }
+
+    public void testCreate_CohereCompletionModel_WithModelSpecified() throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (var sender = senderFactory.createSender("test_service")) {
+            sender.start();
+
+            String responseJson = """
+                {
+                     "response_id": "some id",
+                     "text": "result",
+                     "generation_id": "some id",
+                     "chat_history": [
+                         {
+                             "role": "USER",
+                             "message": "input"
+                         },
+                         {
+                             "role": "CHATBOT",
+                             "message": "result"
+                         }
+                     ],
+                     "finish_reason": "COMPLETE",
+                     "meta": {
+                         "api_version": {
+                             "version": "1"
+                         },
+                         "billed_units": {
+                             "input_tokens": 4,
+                             "output_tokens": 191
+                         },
+                         "tokens": {
+                             "input_tokens": 70,
+                             "output_tokens": 191
+                         }
+                     }
+                 }
+                """;
+
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+            var model = CohereCompletionModelTests.createModel(getUrl(webServer), "secret", "model");
+            var actionCreator = new CohereActionCreator(sender, createWithEmptySettings(threadPool));
+            var action = actionCreator.create(model, Map.of());
+
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            action.execute(new DocumentsOnlyInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+
+            var result = listener.actionGet(TIMEOUT);
+
+            assertThat(result.asMap(), is(buildExpectationCompletion(List.of("result"))));
+            assertThat(webServer.requests(), hasSize(1));
+            assertNull(webServer.requests().get(0).getUri().getQuery());
+            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), is(XContentType.JSON.mediaType()));
+            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), is("Bearer secret"));
+
+            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
+            assertThat(requestMap, is(Map.of("message", "abc", "model", "model")));
+        }
+    }
+
+    public void testCreate_CohereCompletionModel_WithoutModelSpecified() throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (var sender = senderFactory.createSender("test_service")) {
+            sender.start();
+
+            String responseJson = """
+                {
+                     "response_id": "some id",
+                     "text": "result",
+                     "generation_id": "some id",
+                     "chat_history": [
+                         {
+                             "role": "USER",
+                             "message": "input"
+                         },
+                         {
+                             "role": "CHATBOT",
+                             "message": "result"
+                         }
+                     ],
+                     "finish_reason": "COMPLETE",
+                     "meta": {
+                         "api_version": {
+                             "version": "1"
+                         },
+                         "billed_units": {
+                             "input_tokens": 4,
+                             "output_tokens": 191
+                         },
+                         "tokens": {
+                             "input_tokens": 70,
+                             "output_tokens": 191
+                         }
+                     }
+                 }
+                """;
+
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+            var model = CohereCompletionModelTests.createModel(getUrl(webServer), "secret", null);
+            var actionCreator = new CohereActionCreator(sender, createWithEmptySettings(threadPool));
+            var action = actionCreator.create(model, Map.of());
+
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            action.execute(new DocumentsOnlyInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+
+            var result = listener.actionGet(TIMEOUT);
+
+            assertThat(result.asMap(), is(buildExpectationCompletion(List.of("result"))));
+            assertThat(webServer.requests(), hasSize(1));
+            assertNull(webServer.requests().get(0).getUri().getQuery());
+            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), is(XContentType.JSON.mediaType()));
+            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), is("Bearer secret"));
+
+            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
+            assertThat(requestMap, is(Map.of("message", "abc")));
         }
     }
 }

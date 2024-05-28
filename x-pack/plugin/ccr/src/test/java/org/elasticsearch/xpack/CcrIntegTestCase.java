@@ -409,7 +409,8 @@ public abstract class CcrIntegTestCase extends ESTestCase {
         String color = clusterHealthStatus.name().toLowerCase(Locale.ROOT);
         String method = "ensure" + Strings.capitalize(color);
 
-        ClusterHealthRequest healthRequest = new ClusterHealthRequest(indices).timeout(timeout)
+        ClusterHealthRequest healthRequest = new ClusterHealthRequest(indices).masterNodeTimeout(timeout)
+            .timeout(timeout)
             .waitForStatus(clusterHealthStatus)
             .waitForEvents(Priority.LANGUID)
             .waitForNoRelocatingShards(true)
@@ -595,7 +596,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
         request.getParameters().setMaxReadRequestOperationCount(between(1, 10000));
         request.waitForActiveShards(waitForActiveShards);
         if (randomBoolean()) {
-            request.masterNodeTimeout(randomFrom("10s", "20s", "30s"));
+            request.masterNodeTimeout(TimeValue.timeValueSeconds(randomFrom(10, 20, 30)));
         }
         return request;
     }
@@ -606,7 +607,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
         request.getParameters().setMaxRetryDelay(TimeValue.timeValueMillis(10));
         request.getParameters().setReadPollTimeout(TimeValue.timeValueMillis(10));
         if (randomBoolean()) {
-            request.masterNodeTimeout(randomFrom("10s", "20s", "30s"));
+            request.masterNodeTimeout(TimeValue.timeValueSeconds(randomFrom(10, 20, 30)));
         }
         return request;
     }

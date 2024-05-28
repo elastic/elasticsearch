@@ -9,24 +9,27 @@ package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.TypedParamValue;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.type.DataType;
 
 import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.loadMapping;
-import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.UNSIGNED_LONG;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.matchesRegex;
 
 //@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
 public class VerifierTests extends ESTestCase {
 
     private static final EsqlParser parser = new EsqlParser();
     private final Analyzer defaultAnalyzer = AnalyzerTestUtils.expandedDefaultAnalyzer();
+    private final Analyzer tsdb = AnalyzerTestUtils.analyzer(AnalyzerTestUtils.tsdbIndexResolution());
 
     public void testIncompatibleTypesInMathOperation() {
         assertEquals(
@@ -72,7 +75,8 @@ public class VerifierTests extends ESTestCase {
             error("from test | stats max(max(salary)) by first_name")
         );
         assertEquals(
-            "1:25: argument of [avg(first_name)] must be [numeric except unsigned_long], found value [first_name] type [keyword]",
+            "1:25: argument of [avg(first_name)] must be [numeric except unsigned_long or counter types],"
+                + " found value [first_name] type [keyword]",
             error("from test | stats count(avg(first_name)) by first_name")
         );
         assertEquals(
@@ -378,14 +382,15 @@ public class VerifierTests extends ESTestCase {
 
     public void testSumOnDate() {
         assertEquals(
-            "1:19: argument of [sum(hire_date)] must be [numeric except unsigned_long], found value [hire_date] type [datetime]",
+            "1:19: argument of [sum(hire_date)] must be [numeric except unsigned_long or counter types],"
+                + " found value [hire_date] type [datetime]",
             error("from test | stats sum(hire_date)")
         );
     }
 
     public void testWrongInputParam() {
         assertEquals(
-            "1:29: Cannot convert string [foo] to [INTEGER], error [Cannot parse number [foo]]",
+            "1:19: first argument of [emp_no == ?] is [numeric] so second argument must also be [numeric] but was [keyword]",
             error("from test | where emp_no == ?", "foo")
         );
 
@@ -478,6 +483,66 @@ public class VerifierTests extends ESTestCase {
 
     public void testInlineImpossibleConvert() {
         assertEquals("1:5: argument of [false::ip] must be [ip or string], found value [false] type [boolean]", error("ROW false::ip"));
+    }
+
+    public void testAggregateOnCounter() {
+        assertThat(
+            error("FROM tests | STATS min(network.bytes_in)", tsdb),
+            equalTo(
+                "1:20: argument of [min(network.bytes_in)] must be [datetime or numeric except unsigned_long or counter types],"
+                    + " found value [min(network.bytes_in)] type [counter_long]"
+            )
+        );
+
+        assertThat(
+            error("FROM tests | STATS max(network.bytes_in)", tsdb),
+            equalTo(
+                "1:20: argument of [max(network.bytes_in)] must be [datetime or numeric except unsigned_long or counter types],"
+                    + " found value [max(network.bytes_in)] type [counter_long]"
+            )
+        );
+
+        assertThat(
+            error("FROM tests | STATS count(network.bytes_out)", tsdb),
+            equalTo(
+                "1:20: argument of [count(network.bytes_out)] must be [any type except counter types],"
+                    + " found value [network.bytes_out] type [counter_long]"
+            )
+        );
+    }
+
+    public void testGroupByCounter() {
+        assertThat(
+            error("FROM tests | STATS count(*) BY network.bytes_in", tsdb),
+            equalTo("1:32: cannot group by on [counter_long] type for grouping [network.bytes_in]")
+        );
+    }
+
+    public void testAggsResolutionWithUnresolvedGroupings() {
+        String agg_func = randomFrom(
+            new String[] { "avg", "count", "count_distinct", "min", "max", "median", "median_absolute_deviation", "sum", "values" }
+        );
+
+        assertThat(error("FROM tests | STATS " + agg_func + "(emp_no) by foobar"), matchesRegex("1:\\d+: Unknown column \\[foobar]"));
+        assertThat(
+            error("FROM tests | STATS " + agg_func + "(x) by foobar, x = emp_no"),
+            matchesRegex("1:\\d+: Unknown column \\[foobar]")
+        );
+        assertThat(error("FROM tests | STATS " + agg_func + "(foobar) by foobar"), matchesRegex("1:\\d+: Unknown column \\[foobar]"));
+        assertThat(
+            error("FROM tests | STATS " + agg_func + "(foobar) by BUCKET(languages, 10)"),
+            matchesRegex(
+                "1:\\d+: function expects exactly four arguments when the first one is of type \\[INTEGER]"
+                    + " and the second of type \\[INTEGER]\n"
+                    + "line 1:\\d+: Unknown column \\[foobar]"
+            )
+        );
+        assertThat(error("FROM tests | STATS " + agg_func + "(foobar) by emp_no"), matchesRegex("1:\\d+: Unknown column \\[foobar]"));
+        // TODO: Ideally, we'd detect that count_distinct(x) doesn't require an error message.
+        assertThat(
+            error("FROM tests | STATS " + agg_func + "(x) by x = foobar"),
+            matchesRegex("1:\\d+: Unknown column \\[foobar]\n" + "line 1:\\d+: Unknown column \\[x]")
+        );
     }
 
     private String error(String query) {

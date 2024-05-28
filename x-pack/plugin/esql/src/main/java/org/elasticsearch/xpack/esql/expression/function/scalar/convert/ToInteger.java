@@ -9,29 +9,30 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.ann.ConvertEvaluator;
+import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
-import org.elasticsearch.xpack.ql.InvalidArgumentException;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.core.type.DataTypeConverter.safeToInt;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.BOOLEAN;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.TEXT;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToInt;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.unsignedLongToInt;
-import static org.elasticsearch.xpack.ql.type.DataTypeConverter.safeToInt;
-import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
-import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
-import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
-import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
-import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
-import static org.elasticsearch.xpack.ql.type.DataTypes.LONG;
-import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
-import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 
 public class ToInteger extends AbstractConvertFunction {
 
@@ -43,7 +44,8 @@ public class ToInteger extends AbstractConvertFunction {
         Map.entry(TEXT, ToIntegerFromStringEvaluator.Factory::new),
         Map.entry(DOUBLE, ToIntegerFromDoubleEvaluator.Factory::new),
         Map.entry(UNSIGNED_LONG, ToIntegerFromUnsignedLongEvaluator.Factory::new),
-        Map.entry(LONG, ToIntegerFromLongEvaluator.Factory::new)
+        Map.entry(LONG, ToIntegerFromLongEvaluator.Factory::new),
+        Map.entry(EsqlDataTypes.COUNTER_INTEGER, (fieldEval, source) -> fieldEval)
     );
 
     @FunctionInfo(
@@ -62,13 +64,13 @@ public class ToInteger extends AbstractConvertFunction {
 
             A following header will contain the failure reason and the offending value:
 
-            `"org.elasticsearch.xpack.ql.InvalidArgumentException: [501379200000] out of [integer] range"`""")
+            `"org.elasticsearch.xpack.esql.core.InvalidArgumentException: [501379200000] out of [integer] range"`""")
     )
     public ToInteger(
         Source source,
         @Param(
             name = "field",
-            type = { "boolean", "date", "keyword", "text", "double", "long", "unsigned_long", "integer" },
+            type = { "boolean", "date", "keyword", "text", "double", "long", "unsigned_long", "integer", "counter_integer" },
             description = "Input value. The input can be a single- or multi-valued column or an expression."
         ) Expression field
     ) {

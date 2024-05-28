@@ -192,7 +192,7 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
                 InputType.UNSPECIFIED,
                 InferenceAction.Request.DEFAULT_TIMEOUT
             );
-        } else if (version.before(TransportVersions.ML_INFERENCE_REQUEST_INPUT_TYPE_ADDED)) {
+        } else if (version.before(TransportVersions.V_8_13_0)) {
             return new InferenceAction.Request(
                 instance.getTaskType(),
                 instance.getInferenceEntityId(),
@@ -202,7 +202,7 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
                 InputType.UNSPECIFIED,
                 InferenceAction.Request.DEFAULT_TIMEOUT
             );
-        } else if (version.before(TransportVersions.ML_INFERENCE_REQUEST_INPUT_TYPE_UNSPECIFIED_ADDED)
+        } else if (version.before(TransportVersions.V_8_13_0)
             && (instance.getInputType() == InputType.UNSPECIFIED
                 || instance.getInputType() == InputType.CLASSIFICATION
                 || instance.getInputType() == InputType.CLUSTERING)) {
@@ -215,7 +215,7 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
                         InputType.INGEST,
                         InferenceAction.Request.DEFAULT_TIMEOUT
                     );
-                } else if (version.before(TransportVersions.ML_INFERENCE_REQUEST_INPUT_TYPE_CLASS_CLUSTER_ADDED)
+                } else if (version.before(TransportVersions.V_8_13_0)
                     && (instance.getInputType() == InputType.CLUSTERING || instance.getInputType() == InputType.CLASSIFICATION)) {
                         return new InferenceAction.Request(
                             instance.getTaskType(),
@@ -262,136 +262,8 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
                 InputType.UNSPECIFIED,
                 InferenceAction.Request.DEFAULT_TIMEOUT
             ),
-            TransportVersions.ML_INFERENCE_REQUEST_INPUT_TYPE_UNSPECIFIED_ADDED
+            TransportVersions.V_8_13_0
         );
-    }
-
-    public void testWriteTo_WhenVersionIsBeforeUnspecifiedAdded_ButAfterInputTypeAdded_ShouldSetToIngest() throws IOException {
-        assertBwcSerialization(
-            new InferenceAction.Request(
-                TaskType.TEXT_EMBEDDING,
-                "model",
-                null,
-                List.of(),
-                Map.of(),
-                InputType.UNSPECIFIED,
-                InferenceAction.Request.DEFAULT_TIMEOUT
-            ),
-            TransportVersions.ML_INFERENCE_REQUEST_INPUT_TYPE_ADDED
-        );
-    }
-
-    public void testWriteTo_WhenVersionIsBeforeUnspecifiedAdded_ButAfterInputTypeAdded_ShouldSetToIngest_ManualCheck() throws IOException {
-        var instance = new InferenceAction.Request(
-            TaskType.TEXT_EMBEDDING,
-            "model",
-            null,
-            List.of(),
-            Map.of(),
-            InputType.UNSPECIFIED,
-            InferenceAction.Request.DEFAULT_TIMEOUT
-        );
-
-        InferenceAction.Request deserializedInstance = copyWriteable(
-            instance,
-            getNamedWriteableRegistry(),
-            instanceReader(),
-            TransportVersions.ML_INFERENCE_REQUEST_INPUT_TYPE_ADDED
-        );
-
-        assertThat(deserializedInstance.getInputType(), is(InputType.INGEST));
-    }
-
-    public void testWriteTo_WhenVersionIsBeforeUnspecifiedAdded_ButAfterInputTypeAdded_ShouldSetToIngest_WhenClustering_ManualCheck()
-        throws IOException {
-        var instance = new InferenceAction.Request(
-            TaskType.TEXT_EMBEDDING,
-            "model",
-            null,
-            List.of(),
-            Map.of(),
-            InputType.CLUSTERING,
-            InferenceAction.Request.DEFAULT_TIMEOUT
-        );
-
-        InferenceAction.Request deserializedInstance = copyWriteable(
-            instance,
-            getNamedWriteableRegistry(),
-            instanceReader(),
-            TransportVersions.ML_INFERENCE_REQUEST_INPUT_TYPE_ADDED
-        );
-
-        assertThat(deserializedInstance.getInputType(), is(InputType.INGEST));
-    }
-
-    public void testWriteTo_WhenVersionIsBeforeUnspecifiedAdded_ButAfterInputTypeAdded_ShouldSetToIngest_WhenClassification_ManualCheck()
-        throws IOException {
-        var instance = new InferenceAction.Request(
-            TaskType.TEXT_EMBEDDING,
-            "model",
-            null,
-            List.of(),
-            Map.of(),
-            InputType.CLASSIFICATION,
-            InferenceAction.Request.DEFAULT_TIMEOUT
-        );
-
-        InferenceAction.Request deserializedInstance = copyWriteable(
-            instance,
-            getNamedWriteableRegistry(),
-            instanceReader(),
-            TransportVersions.ML_INFERENCE_REQUEST_INPUT_TYPE_ADDED
-        );
-
-        assertThat(deserializedInstance.getInputType(), is(InputType.INGEST));
-    }
-
-    public
-        void
-        testWriteTo_WhenVersionIsBeforeClusterClassAdded_ButAfterUnspecifiedAdded_ShouldSetToUnspecified_WhenClassification_ManualCheck()
-            throws IOException {
-        var instance = new InferenceAction.Request(
-            TaskType.TEXT_EMBEDDING,
-            "model",
-            null,
-            List.of(),
-            Map.of(),
-            InputType.CLASSIFICATION,
-            InferenceAction.Request.DEFAULT_TIMEOUT
-        );
-
-        InferenceAction.Request deserializedInstance = copyWriteable(
-            instance,
-            getNamedWriteableRegistry(),
-            instanceReader(),
-            TransportVersions.ML_TEXT_EMBEDDING_INFERENCE_SERVICE_ADDED
-        );
-
-        assertThat(deserializedInstance.getInputType(), is(InputType.UNSPECIFIED));
-    }
-
-    public
-        void
-        testWriteTo_WhenVersionIsBeforeClusterClassAdded_ButAfterUnspecifiedAdded_ShouldSetToUnspecified_WhenClustering_ManualCheck()
-            throws IOException {
-        var instance = new InferenceAction.Request(
-            TaskType.TEXT_EMBEDDING,
-            "model",
-            null,
-            List.of(),
-            Map.of(),
-            InputType.CLUSTERING,
-            InferenceAction.Request.DEFAULT_TIMEOUT
-        );
-
-        InferenceAction.Request deserializedInstance = copyWriteable(
-            instance,
-            getNamedWriteableRegistry(),
-            instanceReader(),
-            TransportVersions.ML_TEXT_EMBEDDING_INFERENCE_SERVICE_ADDED
-        );
-
-        assertThat(deserializedInstance.getInputType(), is(InputType.UNSPECIFIED));
     }
 
     public void testWriteTo_WhenVersionIsBeforeInputTypeAdded_ShouldSetInputTypeToUnspecified() throws IOException {
@@ -409,44 +281,21 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
             instance,
             getNamedWriteableRegistry(),
             instanceReader(),
-            TransportVersions.HOT_THREADS_AS_BYTES
+            TransportVersions.V_8_12_1
         );
 
         assertThat(deserializedInstance.getInputType(), is(InputType.UNSPECIFIED));
     }
 
     public void testGetInputTypeToWrite_ReturnsIngest_WhenInputTypeIsUnspecified_VersionBeforeUnspecifiedIntroduced() {
-        assertThat(
-            getInputTypeToWrite(InputType.UNSPECIFIED, TransportVersions.ML_INFERENCE_REQUEST_INPUT_TYPE_ADDED),
-            is(InputType.INGEST)
-        );
+        assertThat(getInputTypeToWrite(InputType.UNSPECIFIED, TransportVersions.V_8_12_1), is(InputType.INGEST));
     }
 
     public void testGetInputTypeToWrite_ReturnsIngest_WhenInputTypeIsClassification_VersionBeforeUnspecifiedIntroduced() {
-        assertThat(
-            getInputTypeToWrite(InputType.CLASSIFICATION, TransportVersions.ML_INFERENCE_REQUEST_INPUT_TYPE_ADDED),
-            is(InputType.INGEST)
-        );
+        assertThat(getInputTypeToWrite(InputType.CLASSIFICATION, TransportVersions.V_8_12_1), is(InputType.INGEST));
     }
 
     public void testGetInputTypeToWrite_ReturnsIngest_WhenInputTypeIsClustering_VersionBeforeUnspecifiedIntroduced() {
-        assertThat(
-            getInputTypeToWrite(InputType.CLUSTERING, TransportVersions.ML_INFERENCE_REQUEST_INPUT_TYPE_ADDED),
-            is(InputType.INGEST)
-        );
-    }
-
-    public void testGetInputTypeToWrite_ReturnsUnspecified_WhenInputTypeIsClassification_VersionBeforeClusteringClassIntroduced() {
-        assertThat(
-            getInputTypeToWrite(InputType.CLUSTERING, TransportVersions.ML_TEXT_EMBEDDING_INFERENCE_SERVICE_ADDED),
-            is(InputType.UNSPECIFIED)
-        );
-    }
-
-    public void testGetInputTypeToWrite_ReturnsUnspecified_WhenInputTypeIsClustering_VersionBeforeClusteringClassIntroduced() {
-        assertThat(
-            getInputTypeToWrite(InputType.CLASSIFICATION, TransportVersions.ML_TEXT_EMBEDDING_INFERENCE_SERVICE_ADDED),
-            is(InputType.UNSPECIFIED)
-        );
+        assertThat(getInputTypeToWrite(InputType.CLUSTERING, TransportVersions.V_8_12_1), is(InputType.INGEST));
     }
 }

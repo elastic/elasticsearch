@@ -45,7 +45,7 @@ mapper-annotated-text.asciidoc[51:69](console)// TEST[setup:seats]
 """)
     }
 
-    def "can console candidates"() {
+    def "can list console candidates"() {
         when:
         def result = gradleRunner("listConsoleCandidates").build()
         then:

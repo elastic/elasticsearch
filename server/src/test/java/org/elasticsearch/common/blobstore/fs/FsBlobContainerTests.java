@@ -42,7 +42,9 @@ import java.nio.file.spi.FileSystemProvider;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -52,6 +54,7 @@ import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomP
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.oneOf;
 import static org.hamcrest.Matchers.startsWith;
 
 @LuceneTestCase.SuppressFileSystems("*") // we do our own mocking
@@ -236,6 +239,79 @@ public class FsBlobContainerTests extends ESTestCase {
             IllegalStateException.class,
             () -> getBytesAsync(l -> container.compareAndExchangeRegister(randomPurpose(), key, expectedValue.get(), BytesArray.EMPTY, l))
         );
+    }
+
+    public void testRegisterContention() throws Exception {
+        final Path path = PathUtils.get(createTempDir().toString());
+        final FsBlobContainer container = new FsBlobContainer(
+            new FsBlobStore(randomIntBetween(1, 8) * 1024, path, false),
+            BlobPath.EMPTY,
+            path
+        );
+
+        final String contendedKey = randomAlphaOfLength(10);
+        final String uncontendedKey = randomAlphaOfLength(10);
+
+        final var startValue = new BytesArray(randomByteArrayOfLength(8));
+        final var finalValue = randomValueOtherThan(startValue, () -> new BytesArray(randomByteArrayOfLength(8)));
+
+        final var p = randomPurpose();
+        assertTrue(PlainActionFuture.get(l -> container.compareAndSetRegister(p, contendedKey, BytesArray.EMPTY, startValue, l)));
+        assertTrue(PlainActionFuture.get(l -> container.compareAndSetRegister(p, uncontendedKey, BytesArray.EMPTY, startValue, l)));
+
+        final var threads = new Thread[between(2, 5)];
+        final var startBarrier = new CyclicBarrier(threads.length + 1);
+        final var casSucceeded = new AtomicBoolean();
+        for (int i = 0; i < threads.length; i++) {
+            threads[i] = new Thread(
+                i == 0
+                    // first thread does an uncontended write, which must succeed
+                    ? () -> {
+                        safeAwait(startBarrier);
+                        final OptionalBytesReference result = PlainActionFuture.get(
+                            l -> container.compareAndExchangeRegister(p, uncontendedKey, startValue, finalValue, l)
+                        );
+                        // NB calling .bytesReference() asserts that the result is present, there was no contention
+                        assertEquals(startValue, result.bytesReference());
+                    }
+                    // other threads try and do contended writes, which may fail and need retrying
+                    : () -> {
+                        safeAwait(startBarrier);
+                        while (casSucceeded.get() == false) {
+                            final OptionalBytesReference result = PlainActionFuture.get(
+                                l -> container.compareAndExchangeRegister(p, contendedKey, startValue, finalValue, l)
+                            );
+                            if (result.isPresent() && result.bytesReference().equals(startValue)) {
+                                casSucceeded.set(true);
+                            }
+                        }
+                    },
+                "write-thread-" + i
+            );
+            threads[i].start();
+        }
+
+        safeAwait(startBarrier);
+        while (casSucceeded.get() == false) {
+            for (var key : new String[] { contendedKey, uncontendedKey }) {
+                // NB calling .bytesReference() asserts that the read did not experience contention
+                assertThat(
+                    PlainActionFuture.<OptionalBytesReference, RuntimeException>get(l -> container.getRegister(p, key, l)).bytesReference(),
+                    oneOf(startValue, finalValue)
+                );
+            }
+        }
+
+        for (Thread thread : threads) {
+            thread.join();
+        }
+
+        for (var key : new String[] { contendedKey, uncontendedKey }) {
+            assertEquals(
+                finalValue,
+                PlainActionFuture.<OptionalBytesReference, RuntimeException>get(l -> container.getRegister(p, key, l)).bytesReference()
+            );
+        }
     }
 
     public void testAtomicWriteMetadataWithoutAtomicOverwrite() throws IOException {

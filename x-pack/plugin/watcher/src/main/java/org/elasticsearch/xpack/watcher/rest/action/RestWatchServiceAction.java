@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.core.watcher.transport.actions.service.WatcherSer
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 public class RestWatchServiceAction extends BaseRestHandler {
 
@@ -55,7 +56,7 @@ public class RestWatchServiceAction extends BaseRestHandler {
         @Override
         public RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) {
             final WatcherServiceRequest request = new WatcherServiceRequest().stop();
-            request.masterNodeTimeout(restRequest.paramAsTime("master_timeout", request.masterNodeTimeout()));
+            request.masterNodeTimeout(getMasterNodeTimeout(restRequest));
             return channel -> client.execute(WatcherServiceAction.INSTANCE, request, new RestToXContentListener<>(channel));
         }
     }

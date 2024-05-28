@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.aggregation.blockhash;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.LongLongHash;
@@ -23,6 +24,7 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.mvdedupe.IntLongBlockAdd;
+import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 
 /**
@@ -102,6 +104,11 @@ final class BytesRefLongBlockHash extends BlockHash {
             ords[i] = Math.toIntExact(hashOrdToGroup(finalHash.add(bytesHashes.getInt(i), longsVector.getLong(i))));
         }
         return blockFactory.newIntArrayVector(ords, positions);
+    }
+
+    @Override
+    public ReleasableIterator<IntBlock> lookup(Page page, ByteSizeValue targetBlockSize) {
+        throw new UnsupportedOperationException("TODO");
     }
 
     @Override

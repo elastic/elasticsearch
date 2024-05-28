@@ -7,7 +7,7 @@ dependencies {
   annotationProcessor project('gen')
 
   testImplementation project(':test:framework')
-  testImplementation(project(xpackModule('ql')))
+  testImplementation(project(xpackModule('esql-core')))
 }
 
 tasks.named("compileJava").configure {
@@ -349,6 +349,33 @@ tasks.named('stringTemplates').configure {
     it.properties = doubleProperties
     it.inputFile =  stateInputFile
     it.outputFile = "org/elasticsearch/compute/aggregation/DoubleState.java"
+  }
+  // block builders
+  File lookupInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/data/X-Lookup.java.st")
+  template {
+    it.properties = intProperties
+    it.inputFile =  lookupInputFile
+    it.outputFile = "org/elasticsearch/compute/data/IntLookup.java"
+  }
+  template {
+    it.properties = longProperties
+    it.inputFile =  lookupInputFile
+    it.outputFile = "org/elasticsearch/compute/data/LongLookup.java"
+  }
+  template {
+    it.properties = doubleProperties
+    it.inputFile =  lookupInputFile
+    it.outputFile = "org/elasticsearch/compute/data/DoubleLookup.java"
+  }
+  template {
+    it.properties = bytesRefProperties
+    it.inputFile =  lookupInputFile
+    it.outputFile = "org/elasticsearch/compute/data/BytesRefLookup.java"
+  }
+  template {
+    it.properties = booleanProperties
+    it.inputFile =  lookupInputFile
+    it.outputFile = "org/elasticsearch/compute/data/BooleanLookup.java"
   }
   File arrayStateInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/aggregation/X-ArrayState.java.st")
   template {

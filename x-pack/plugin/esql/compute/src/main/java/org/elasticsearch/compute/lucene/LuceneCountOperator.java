@@ -22,7 +22,6 @@ import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.core.Releasables;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.function.Function;
 
@@ -41,11 +40,7 @@ public class LuceneCountOperator extends LuceneOperator {
 
     private final LeafCollector leafCollector;
 
-    public static class Factory implements LuceneOperator.Factory {
-        private final DataPartitioning dataPartitioning;
-        private final int taskConcurrency;
-        private final int limit;
-        private final LuceneSliceQueue sliceQueue;
+    public static class Factory extends LuceneOperator.Factory {
 
         public Factory(
             List<? extends ShardContext> contexts,
@@ -54,25 +49,12 @@ public class LuceneCountOperator extends LuceneOperator {
             int taskConcurrency,
             int limit
         ) {
-            this.limit = limit;
-            this.dataPartitioning = dataPartitioning;
-            var weightFunction = weightFunction(queryFunction, ScoreMode.COMPLETE_NO_SCORES);
-            this.sliceQueue = LuceneSliceQueue.create(contexts, weightFunction, dataPartitioning, taskConcurrency);
-            this.taskConcurrency = Math.min(sliceQueue.totalSlices(), taskConcurrency);
+            super(contexts, queryFunction, dataPartitioning, taskConcurrency, limit, ScoreMode.COMPLETE_NO_SCORES);
         }
 
         @Override
         public SourceOperator get(DriverContext driverContext) {
             return new LuceneCountOperator(driverContext.blockFactory(), sliceQueue, limit);
-        }
-
-        @Override
-        public int taskConcurrency() {
-            return taskConcurrency;
-        }
-
-        public int limit() {
-            return limit;
         }
 
         @Override
@@ -118,7 +100,7 @@ public class LuceneCountOperator extends LuceneOperator {
     }
 
     @Override
-    public Page getOutput() {
+    protected Page getCheckedOutput() throws IOException {
         if (isFinished()) {
             assert remainingDocs <= 0 : remainingDocs;
             return null;
@@ -170,8 +152,6 @@ public class LuceneCountOperator extends LuceneOperator {
                 }
             }
             return page;
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
         } finally {
             processingNanos += System.nanoTime() - start;
         }

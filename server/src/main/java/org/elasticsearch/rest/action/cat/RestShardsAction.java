@@ -53,6 +53,7 @@ import java.util.Locale;
 import java.util.function.Function;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 @ServerlessScope(Scope.INTERNAL)
 public class RestShardsAction extends AbstractCatAction {
@@ -83,7 +84,7 @@ public class RestShardsAction extends AbstractCatAction {
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
 
         final var clusterStateRequest = new ClusterStateRequest();
-        clusterStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterStateRequest.masterNodeTimeout()));
+        clusterStateRequest.masterNodeTimeout(getMasterNodeTimeout(request));
         clusterStateRequest.clear().nodes(true).routingTable(true).indices(indices).indicesOptions(IndicesOptions.strictExpandHidden());
 
         return channel -> {

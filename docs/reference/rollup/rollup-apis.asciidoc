@@ -2,7 +2,7 @@
 [[rollup-apis]]
 == Rollup APIs
 
-deprecated::[8.11.0,"Rollups will be removed in a future version. Use <<downsampling,downsampling>> instead."]
+deprecated::[8.11.0,"Rollups will be removed in a future version. Please <<rollup-migrating-to-downsampling,migrate>> to <<downsampling,downsampling>> instead."]
 
 [discrete]
 [[rollup-jobs-endpoint]]

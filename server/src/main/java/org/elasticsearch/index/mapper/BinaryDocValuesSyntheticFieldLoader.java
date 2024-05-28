@@ -58,4 +58,9 @@ public abstract class BinaryDocValuesSyntheticFieldLoader implements SourceLoade
 
         writeValue(b, values.binaryValue());
     }
+
+    @Override
+    public String fieldName() {
+        return name;
+    }
 }

@@ -8,7 +8,7 @@ Creates an {infer} endpoint to perform an {infer} task.
 
 IMPORTANT: The {infer} APIs enable you to use certain services, such as built-in
 {ml} models (ELSER, E5), models uploaded through Eland, Cohere, OpenAI, Azure
-OpenAI or Hugging Face. For built-in models and models uploaded though
+OpenAI, Google AI Studio or Hugging Face. For built-in models and models uploaded though
 Eland, the {infer} APIs offer an alternative way to use and manage trained
 models. However, if you do not plan to use the {infer} APIs to use these models
 or if you want to use non-NLP models, use the <<ml-df-trained-models-apis>>.
@@ -43,7 +43,9 @@ The following services are available through the {infer} API:
 * Hugging Face
 * OpenAI
 * Azure OpenAI
+* Azure AI Studio
 * Elasticsearch (for built-in models and models uploaded through Eland)
+* Google AI Studio
 
 
 [discrete]
@@ -72,16 +74,18 @@ The type of the {infer} task that the model will perform. Available task types:
 (Required, string)
 The type of service supported for the specified task type.
 Available services:
-* `cohere`: specify the `text_embedding` or the `rerank` task type to use the
+* `cohere`: specify the `completion`, `text_embedding` or the `rerank` task type to use the
 Cohere service.
 * `elser`: specify the `sparse_embedding` task type to use the ELSER service.
 * `hugging_face`: specify the `text_embedding` task type to use the Hugging Face
 service.
 * `openai`: specify the `completion` or `text_embedding` task type to use the
 OpenAI service.
-* `azureopenai`: specify the `text_embedding` task type to use the Azure OpenAI service.
+* `azureopenai`: specify the `completion` or `text_embedding` task type to use the Azure OpenAI service.
+* `azureaistudio`: specify the `completion` or `text_embedding` task type to use the Azure AI Studio service.
 * `elasticsearch`: specify the `text_embedding` task type to use the E5
 built-in model or text embedding models uploaded by Eland.
+* `googleaistudio`: specify the `completion` task to use the Google AI Studio service.
 
 `service_settings`::
 (Required, object)
@@ -115,7 +119,7 @@ Valid values are:
 `model_id`::
 (Optional, string)
 The name of the model to use for the {infer} task.
-To review the availble `rerank` models, refer to the
+To review the available `rerank` models, refer to the
 https://docs.cohere.com/reference/rerank-1[Cohere docs].
 
 To review the available `text_embedding` models, refer to the
@@ -226,6 +230,87 @@ We recommend using the https://learn.microsoft.com/en-us/azure/ai-services/opena
 
 =====
 +
+.`service_settings` for the `azureaistudio` service
+[%collapsible%closed]
+=====
+
+`api_key`:::
+(Required, string)
+A valid API key of your Azure AI Studio model deployment.
+This key can be found on the overview page for your deployment in the management section of your https://ai.azure.com/[Azure AI Studio] account.
+
+IMPORTANT: You need to provide the API key only once, during the {infer} model
+creation. The <<get-inference-api>> does not retrieve your API key. After
+creating the {infer} model, you cannot change the associated API key. If you
+want to use a different API key, delete the {infer} model and recreate it with
+the same name and the updated API key.
+
+`target`:::
+(Required, string)
+The target URL of your Azure AI Studio model deployment.
+This can be found on the overview page for your deployment in the management section of your https://ai.azure.com/[Azure AI Studio] account.
+
+`provider`:::
+(Required, string)
+The model provider for your deployment.
+Note that some providers may support only certain task types.
+Supported providers include:
+
+* `openai` - available for `text_embedding` and `completion` task types
+* `mistral` - available for `completion` task type only
+* `meta` - available for `completion` task type only
+* `microsoft_phi` - available for `completion` task type only
+* `cohere` - available for `text_embedding` and `completion` task types
+* `databricks` - available for `completion` task type only
+
+`endpoint_type`:::
+(Required, string)
+One of `token` or `realtime`.
+Specifies the type of endpoint that is used in your model deployment.
+There are https://learn.microsoft.com/en-us/azure/ai-studio/concepts/deployments-overview#billing-for-deploying-and-inferencing-llms-in-azure-ai-studio[two endpoint types available] for deployment through Azure AI Studio.
+"Pay as you go" endpoints are billed per token.
+For these, you must specify `token` for your `endpoint_type`.
+For "real-time" endpoints which are billed per hour of usage, specify `realtime`.
+
+`rate_limit`:::
+(Optional, object)
+By default, the `azureaistudio` service sets the number of requests allowed per minute to `240`.
+This helps to minimize the number of rate limit errors returned from Azure AI Studio.
+To modify this, set the `requests_per_minute` setting of this object in your service settings:
+```
+"rate_limit": {
+    "requests_per_minute": <<number_of_requests>>
+}
+```
+=====
++
+.`service_settings` for the `googleiastudio` service
+[%collapsible%closed]
+=====
+`api_key`:::
+(Required, string)
+A valid API key for the Google Gemini API.
+
+`model_id`:::
+(Required, string)
+The name of the model to use for the {infer} task.
+You can find the supported models at https://ai.google.dev/gemini-api/docs/models/gemini[Gemini API models].
+
+`rate_limit`:::
+(Optional, object)
+By default, the `googleaistudio` service sets the number of requests allowed per minute to `360`.
+This helps to minimize the number of rate limit errors returned from Google AI Studio.
+To modify this, set the `requests_per_minute` setting of this object in your service settings:
++
+--
+```
+"rate_limit": {
+    "requests_per_minute": <<number_of_requests>>
+}
+```
+--
+=====
++
 .`service_settings` for the `elasticsearch` service
 [%collapsible%closed]
 =====
@@ -248,7 +333,6 @@ exceed the number of available processors per node divided by the number of
 allocations. Must be a power of 2. Max allowed value is 32.
 =====
 
-
 `task_settings`::
 (Optional, object)
 Settings to configure the {infer} task. These settings are specific to the
@@ -261,6 +345,31 @@ Settings to configure the {infer} task. These settings are specific to the
 (Optional, string)
 For `openai` service only. Specifies the user issuing the request, which can be
 used for abuse detection.
+
+`temperature`:::
+(Optional, float)
+For the `azureaistudio` service only.
+A number in the range of 0.0 to 2.0 that specifies the sampling temperature to use that controls the apparent creativity of generated completions.
+Should not be used if `top_p` is specified.
+
+`top_p`:::
+(Optional, float)
+For the `azureaistudio` service only.
+A number in the range of 0.0 to 2.0 that is an alternative value to temperature that causes the model to consider the results of the tokens with nucleus sampling probability.
+Should not be used if `temperature` is specified.
+
+`do_sample`:::
+(Optional, float)
+For the `azureaistudio` service only.
+Instructs the inference process to perform sampling or not.
+Has not affect unless `temperature` or `top_p` is specified.
+
+`max_new_tokens`:::
+(Optional, integer)
+For the `azureaistudio` service only.
+Provides a hint for the maximum number of output tokens to be generated.
+Defaults to 64.
+
 =====
 +
 .`task_settings` for the `rerank` task type
@@ -268,7 +377,7 @@ used for abuse detection.
 =====
 `return_documents`::
 (Optional, boolean)
-For `cohere` service only. Specify whether to return doc text within the 
+For `cohere` service only. Specify whether to return doc text within the
 results.
 
 `top_n`::
@@ -288,7 +397,7 @@ Valid values are:
   * `clusterning`: use it for the embeddings run through a clustering algorithm.
   * `ingest`: use it for storing document embeddings in a vector database.
   * `search`: use it for storing embeddings of search queries run against a
-  vector data base to find relevant documents.
+  vector database to find relevant documents.
 
 `truncate`:::
 (Optional, string)
@@ -303,20 +412,10 @@ maximum token length. Defaults to `END`. Valid values are:
 
 `user`:::
 (optional, string)
-For `openai` and `azureopenai` service only. Specifies the user issuing the
+For `openai`, `azureopenai` and `azureaistudio` services only. Specifies the user issuing the
 request, which can be used for abuse detection.
 
 =====
-+
-.`task_settings` for the `completion` task type
-[%collapsible%closed]
-=====
-`user`:::
-(optional, string)
-For `openai` service only. Specifies the user issuing the request, which can be used for abuse detection.
-=====
-
-
 [discrete]
 [[put-inference-api-example]]
 ==== {api-examples-title}
@@ -351,11 +450,11 @@ The following example shows how to create an {infer} endpoint called
 
 [source,console]
 ------------------------------------------------------------
-PUT _inference/rerank/cohere-rerank 
+PUT _inference/rerank/cohere-rerank
 {
     "service": "cohere",
     "service_settings": {
-        "api_key": "<API-KEY>", 
+        "api_key": "<API-KEY>",
         "model_id": "rerank-english-v3.0"
     },
     "task_settings": {
@@ -366,7 +465,7 @@ PUT _inference/rerank/cohere-rerank
 ------------------------------------------------------------
 // TEST[skip:TBD]
 
-For more examples, also review the 
+For more examples, also review the
 https://docs.cohere.com/docs/elasticsearch-and-cohere#rerank-search-results-with-cohere-and-elasticsearch[Cohere documentation].
 
 
@@ -558,6 +657,94 @@ PUT _inference/text_embedding/azure_openai_embeddings
         "resource_name": "<resource_name>",
         "deployment_id": "<deployment_id>",
         "api_version": "2024-02-01"
+    }
+}
+------------------------------------------------------------
+// TEST[skip:TBD]
+
+The next example shows how to create an {infer} endpoint called
+`azure_openai_completion` to perform a `completion` task type.
+
+[source,console]
+------------------------------------------------------------
+PUT _inference/completion/azure_openai_completion
+{
+    "service": "azureopenai",
+    "service_settings": {
+        "api_key": "<api_key>",
+        "resource_name": "<resource_name>",
+        "deployment_id": "<deployment_id>",
+        "api_version": "2024-02-01"
+    }
+}
+------------------------------------------------------------
+// TEST[skip:TBD]
+
+The list of chat completion models that you can choose from in your Azure OpenAI deployment can be found at the following places:
+
+* https://learn.microsoft.com/en-us/azure/ai-services/openai/concepts/models#gpt-4-and-gpt-4-turbo-models[GPT-4 and GPT-4 Turbo models]
+* https://learn.microsoft.com/en-us/azure/ai-services/openai/concepts/models#gpt-35[GPT-3.5]
+
+[discrete]
+[[inference-example-azureaistudio]]
+===== Azure AI Studio service
+
+The following example shows how to create an {infer} endpoint called
+`azure_ai_studio_embeddings` to perform a `text_embedding` task type.
+Note that we do not specify a model here, as it is defined already via our Azure AI Studio deployment.
+
+The list of embeddings models that you can choose from in your deployment can be found in the https://ai.azure.com/explore/models?selectedTask=embeddings[Azure AI Studio model explorer].
+
+[source,console]
+------------------------------------------------------------
+PUT _inference/text_embedding/azure_ai_studio_embeddings
+{
+    "service": "azureaistudio",
+    "service_settings": {
+        "api_key": "<api_key>",
+        "target": "<target_uri>",
+        "provider": "<model_provider>",
+        "endpoint_type": "<endpoint_type>"
+    }
+}
+------------------------------------------------------------
+// TEST[skip:TBD]
+
+The next example shows how to create an {infer} endpoint called
+`azure_ai_studio_completion` to perform a `completion` task type.
+
+[source,console]
+------------------------------------------------------------
+PUT _inference/completion/azure_ai_studio_completion
+{
+    "service": "azureaistudio",
+    "service_settings": {
+        "api_key": "<api_key>",
+        "target": "<target_uri>",
+        "provider": "<model_provider>",
+        "endpoint_type": "<endpoint_type>"
+    }
+}
+------------------------------------------------------------
+// TEST[skip:TBD]
+
+The list of chat completion models that you can choose from in your deployment can be found in the https://ai.azure.com/explore/models?selectedTask=chat-completion[Azure AI Studio model explorer].
+
+[discrete]
+[[inference-example-googleaistudio]]
+===== Google AI Studio service
+
+The following example shows how to create an {infer} endpoint called
+`google_ai_studio_completion` to perform a `completion` task type.
+
+[source,console]
+------------------------------------------------------------
+PUT _inference/completion/google_ai_studio_completion
+{
+    "service": "googleaistudio",
+    "service_settings": {
+        "api_key": "<api_key>>",
+        "model_id": "<model_id>"
     }
 }
 ------------------------------------------------------------

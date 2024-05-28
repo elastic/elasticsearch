@@ -136,7 +136,7 @@ class ProgressListenableActionFuture extends PlainActionFuture<Long> {
         super.done(success);
         final List<Tuple<Long, ActionListener<Long>>> listenersToExecute;
         synchronized (this) {
-            assert progress == end || success == false;
+            assert completed == false;
             completed = true;
             listenersToExecute = this.listeners;
             listeners = null;

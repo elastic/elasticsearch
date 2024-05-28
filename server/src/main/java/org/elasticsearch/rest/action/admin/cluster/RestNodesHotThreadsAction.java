@@ -14,7 +14,6 @@ import org.elasticsearch.action.admin.cluster.node.hotthreads.TransportNodesHotT
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.RestApiVersion;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.monitor.jvm.HotThreads;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -28,9 +27,10 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
 
-import static org.elasticsearch.rest.ChunkedRestResponseBody.fromTextChunks;
+import static org.elasticsearch.rest.ChunkedRestResponseBodyPart.fromTextChunks;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestResponse.TEXT_CONTENT_TYPE;
+import static org.elasticsearch.rest.RestUtils.getTimeout;
 
 @ServerlessScope(Scope.INTERNAL)
 public class RestNodesHotThreadsAction extends BaseRestHandler {
@@ -110,9 +110,9 @@ public class RestNodesHotThreadsAction extends BaseRestHandler {
         nodesHotThreadsRequest.sortOrder(
             HotThreads.SortOrder.of(request.param("sort", nodesHotThreadsRequest.sortOrder().getOrderValue()))
         );
-        nodesHotThreadsRequest.interval(TimeValue.parseTimeValue(request.param("interval"), nodesHotThreadsRequest.interval(), "interval"));
+        nodesHotThreadsRequest.interval(request.paramAsTime("interval", nodesHotThreadsRequest.interval()));
         nodesHotThreadsRequest.snapshots(request.paramAsInt("snapshots", nodesHotThreadsRequest.snapshots()));
-        nodesHotThreadsRequest.timeout(request.param("timeout"));
+        nodesHotThreadsRequest.timeout(getTimeout(request));
         return channel -> client.execute(TransportNodesHotThreadsAction.TYPE, nodesHotThreadsRequest, new RestResponseListener<>(channel) {
             @Override
             public RestResponse buildResponse(NodesHotThreadsResponse response) {

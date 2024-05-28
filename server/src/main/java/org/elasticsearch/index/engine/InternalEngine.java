@@ -44,6 +44,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.common.lucene.LoggerInfoStream;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
@@ -150,7 +151,7 @@ public class InternalEngine extends Engine {
     // Records the last known generation during which LiveVersionMap was in unsafe mode. This indicates that only after this
     // generation it is safe to rely on the LiveVersionMap for a real-time get.
     // TODO: move the following two to the stateless plugin
-    private final AtomicLong lastUnsafeSegmentGenerationForGets = new AtomicLong(-1);
+    private final AtomicLong lastUnsafeSegmentGenerationForGets;
     // Records the segment generation for the currently ongoing commit if any, or the last finished commit otherwise.
     private final AtomicLong preCommitSegmentGeneration = new AtomicLong(-1);
 
@@ -290,6 +291,7 @@ public class InternalEngine extends Engine {
             this.internalReaderManager = internalReaderManager;
             this.externalReaderManager = externalReaderManager;
             internalReaderManager.addListener(versionMap);
+            this.lastUnsafeSegmentGenerationForGets = new AtomicLong(lastCommittedSegmentInfos.getGeneration());
             assert pendingTranslogRecovery.get() == false : "translog recovery can't be pending before we set it";
             // don't allow commits until we are done with recovering
             pendingTranslogRecovery.set(true);
@@ -662,8 +664,8 @@ public class InternalEngine extends Engine {
     }
 
     // Package private for testing purposes only
-    boolean hasSnapshottedCommits() {
-        return combinedDeletionPolicy.hasSnapshottedCommits();
+    boolean hasAcquiredIndexCommits() {
+        return combinedDeletionPolicy.hasAcquiredIndexCommits();
     }
 
     @Override
@@ -2581,8 +2583,13 @@ public class InternalEngine extends Engine {
 
     @Override
     public List<Segment> segments() {
+        return segments(false);
+    }
+
+    @Override
+    public List<Segment> segments(boolean includeVectorFormatsInfo) {
         try (var ignored = acquireEnsureOpenRef()) {
-            Segment[] segmentsArr = getSegmentInfo(lastCommittedSegmentInfos);
+            Segment[] segmentsArr = getSegmentInfo(lastCommittedSegmentInfos, includeVectorFormatsInfo);
 
             // fill in the merges flag
             Set<OnGoingMerge> onGoingMerges = mergeScheduler.onGoingMerges();
@@ -2623,6 +2630,7 @@ public class InternalEngine extends Engine {
                 // no need to commit in this case!, we snapshot before we close the shard, so translog and all sync'ed
                 logger.trace("rollback indexWriter");
                 try {
+                    assert ClusterApplierService.assertNotApplyingClusterState();
                     indexWriter.rollback();
                 } catch (AlreadyClosedException ex) {
                     failOnTragicEvent(ex);

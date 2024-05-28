@@ -121,7 +121,6 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/107347")
     public void testFromStatsGroupingAvgWithSort() {
         testFromStatsGroupingAvgImpl("from test | stats avg(count) by data | sort data | limit 2", "data", "avg(count)");
     }

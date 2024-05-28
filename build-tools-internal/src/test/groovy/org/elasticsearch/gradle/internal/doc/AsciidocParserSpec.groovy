@@ -6,17 +6,11 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.gradle.internal.doc;
+package org.elasticsearch.gradle.internal.doc
 
-import spock.lang.Specification
-import spock.lang.Unroll
+import static org.elasticsearch.gradle.internal.doc.AsciidocSnippetParser.matchSource
 
-import org.gradle.api.InvalidUserDataException
-
-import static org.elasticsearch.gradle.internal.doc.AsciidocSnippetParser.finalizeSnippet;
-import static org.elasticsearch.gradle.internal.doc.AsciidocSnippetParser.matchSource;
-
-class AsciidocParserSpec extends Specification {
+class AsciidocParserSpec extends AbstractSnippetParserSpec {
 
     def testMatchSource() {
         expect:
@@ -78,107 +72,174 @@ class AsciidocParserSpec extends Specification {
         }
     }
 
-    @Unroll
-    def "checks for valid json for #languageParam"() {
-        given:
-        def snippet = snippet() {
-            language = languageParam
-            testResponse = true
+    @Override
+    SnippetParser parser() {
+        return new AsciidocSnippetParser([:]);
+    }
+
+    @Override
+    String docSnippetWithTest() {
+        return """[source,console]
+---------------------------------------------------------
+PUT /hockey/_doc/1?refresh
+{"first":"johnny","last":"gaudreau","goals":[9,27,1],"assists":[17,46,0],"gp":[26,82,1]}
+
+POST /hockey/_explain/1
+{
+  "query": {
+    "script": {
+      "script": "Debug.explain(doc.goals)"
+    }
+  }
+}
+---------------------------------------------------------
+// TEST[s/_explain\\/1/_explain\\/1?error_trace=false/ catch:/painless_explain_error/]
+// TEST[teardown:some_teardown]
+// TEST[setup:seats]
+// TEST[warning:some_warning]
+// TEST[skip_shard_failures]
+
+"""
+    }
+
+    @Override
+    String docSnippetWithRepetitiveSubstiutions() {
+        return """
+[source,console]
+--------------------------------------------------
+GET /_cat/snapshots/repo1?v=true&s=id
+--------------------------------------------------
+// TEST[s/^/PUT \\/_snapshot\\/repo1\\/snap1?wait_for_completion=true\\n/]
+// TEST[s/^/PUT \\/_snapshot\\/repo1\\/snap2?wait_for_completion=true\\n/]
+// TEST[s/^/PUT \\/_snapshot\\/repo1\\n{"type": "fs", "settings": {"location": "repo\\/1"}}\\n/]
+"""
+    }
+
+    @Override
+    String docSnippetWithConsole() {
+        return """
+[source,console]
+----
+// CONSOLE
+----
+"""
+    }
+
+    @Override
+    String docSnippetWithNotConsole() {
+        return """
+[source,console]
+----
+// NOTCONSOLE
+----
+"""
+    }
+
+    @Override
+    String docSnippetWithMixedConsoleNotConsole() {
+        return """
+[source,console]
+----
+// NOTCONSOLE
+// CONSOLE
+----
+"""
+    }
+
+    @Override
+    String docSnippetWithTestResponses() {
+        return """
+[source,console-result]
+----
+{
+  "docs" : [
+    {
+      "processor_results" : [
+        {
+          "processor_type" : "set",
+          "status" : "success",
+          "doc" : {
+            "_index" : "index",
+            "_id" : "id",
+            "_version": "-3",
+            "_source" : {
+              "field2" : "_value2",
+              "foo" : "bar"
+            },
+            "_ingest" : {
+              "pipeline" : "_simulate_pipeline",
+              "timestamp" : "2020-07-30T01:21:24.251836Z"
+            }
+          }
+        },
+        {
+          "processor_type" : "set",
+          "status" : "success",
+          "doc" : {
+            "_index" : "index",
+            "_id" : "id",
+            "_version": "-3",
+            "_source" : {
+              "field3" : "_value3",
+              "field2" : "_value2",
+              "foo" : "bar"
+            },
+            "_ingest" : {
+              "pipeline" : "_simulate_pipeline",
+              "timestamp" : "2020-07-30T01:21:24.251836Z"
+            }
+          }
         }
-        def json = """{
-    "name": "John Doe",
-    "age": 30,
-    "isMarried": true,
-    "address": {
-        "street": "123 Main Street",
-        "city": "Springfield",
-        "state": "IL",
-        "zip": "62701"
+      ]
     },
-    "hobbies": ["Reading", "Cooking", "Traveling"]
-}"""
-        when:
-        def result = finalizeSnippet(snippet, json, [:], [:].entrySet())
-        then:
-        result != null
-
-        when:
-        finalizeSnippet(snippet, "some no valid json", [:], [:].entrySet())
-        then:
-        def e = thrown(InvalidUserDataException)
-        e.message.contains("Invalid json in")
-
-        when:
-        snippet.skip = "true"
-        result = finalizeSnippet(snippet, "some no valid json", [:], [:].entrySet())
-        then:
-        result != null
-
-        where:
-        languageParam << ["js", "console-result"]
-    }
-
-    def "test finalized snippet handles substitutions"() {
-        given:
-        def snippet = snippet() {
-            language = "console"
+    {
+      "processor_results" : [
+        {
+          "processor_type" : "set",
+          "status" : "success",
+          "doc" : {
+            "_index" : "index",
+            "_id" : "id",
+            "_version": "-3",
+            "_source" : {
+              "field2" : "_value2",
+              "foo" : "rab"
+            },
+            "_ingest" : {
+              "pipeline" : "_simulate_pipeline",
+              "timestamp" : "2020-07-30T01:21:24.251863Z"
+            }
+          }
+        },
+        {
+          "processor_type" : "set",
+          "status" : "success",
+          "doc" : {
+            "_index" : "index",
+            "_id" : "id",
+            "_version": "-3",
+            "_source" : {
+              "field3" : "_value3",
+              "field2" : "_value2",
+              "foo" : "rab"
+            },
+            "_ingest" : {
+              "pipeline" : "_simulate_pipeline",
+              "timestamp" : "2020-07-30T01:21:24.251863Z"
+            }
+          }
         }
-        when:
-        finalizeSnippet(snippet, "snippet-content substDefault subst", [substDefault: "\$body"], [subst: 'substValue'].entrySet())
-        then:
-        snippet.contents == "snippet-content \$body substValue"
+      ]
+    }
+  ]
+}
+----
+// TESTRESPONSE[s/"2020-07-30T01:21:24.251836Z"/\$body.docs.0.processor_results.0.doc._ingest.timestamp/]
+// TESTRESPONSE[s/"2020-07-30T01:21:24.251836Z"/\$body.docs.0.processor_results.1.doc._ingest.timestamp/]
+// TESTRESPONSE[s/"2020-07-30T01:21:24.251863Z"/\$body.docs.1.processor_results.0.doc._ingest.timestamp/]
+// TESTRESPONSE[s/"2020-07-30T01:21:24.251863Z"/\$body.docs.1.processor_results.1.doc._ingest.timestamp/]
+// TESTRESPONSE[skip:some_skip_message]
+"""
     }
 
-    def snippetMustHaveLanguage() {
-        given:
-        def snippet = snippet()
-        when:
-        finalizeSnippet(snippet, "snippet-content", [:], [])
-        then:
-        def e = thrown(InvalidUserDataException)
-        e.message.contains("Snippet missing a language.")
-    }
-
-    def testEmit() {
-        given:
-        def snippet = snippet() {
-            language = "console"
-        }
-        when:
-        finalizeSnippet(snippet, "snippet-content", [:], [])
-        then:
-        snippet.contents == "snippet-content"
-    }
-
-    def testSnippetsWithCurl() {
-        given:
-        def snippet = snippet() {
-            language = "sh"
-            name = "snippet-name-1"
-        }
-        when:
-        finalizeSnippet(snippet, "curl substDefault subst", [:], [:].entrySet())
-        then:
-        snippet.curl == true
-    }
-
-    def "test snippets with no curl no console"() {
-        given:
-        def snippet = snippet() {
-            console = false
-            language = "shell"
-        }
-        when:
-        finalizeSnippet(snippet, "hello substDefault subst", [:], [:].entrySet())
-        then:
-        def e = thrown(InvalidUserDataException)
-        e.message.contains("No need for NOTCONSOLE if snippet doesn't contain `curl`")
-    }
-
-    Snippet snippet(Closure<DocSnippetTask> configClosure = {}) {
-        def snippet = new Snippet(new File("SomePath").toPath(), 0, "snippet-name-1")
-        configClosure.delegate = snippet
-        configClosure()
-        return snippet
-    }
 }

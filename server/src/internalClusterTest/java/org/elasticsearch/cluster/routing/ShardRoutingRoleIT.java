@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -525,7 +526,7 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
                         // do nothing
                     }
                 }
-                String pitId = client().execute(TransportOpenPointInTimeAction.TYPE, openRequest).actionGet().getPointInTimeId();
+                BytesReference pitId = client().execute(TransportOpenPointInTimeAction.TYPE, openRequest).actionGet().getPointInTimeId();
                 try {
                     assertResponse(prepareSearch().setPointInTime(new PointInTimeBuilder(pitId)).setProfile(true), response -> {
                         var profileResults = response.getProfileResults();

@@ -64,6 +64,7 @@ import org.elasticsearch.index.warmer.WarmerStats;
 import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -105,15 +106,16 @@ public class TransportRolloverActionTests extends ESTestCase {
     final MetadataDataStreamsService mockMetadataDataStreamService = mock(MetadataDataStreamsService.class);
     final Client mockClient = mock(Client.class);
     final AllocationService mockAllocationService = mock(AllocationService.class);
+    final TestTelemetryPlugin telemetryPlugin = new TestTelemetryPlugin();
     final MetadataRolloverService rolloverService = new MetadataRolloverService(
         mockThreadPool,
         mockCreateIndexService,
         mdIndexAliasesService,
         EmptySystemIndices.INSTANCE,
         WriteLoadForecaster.DEFAULT,
-        mockClusterService
+        mockClusterService,
+        telemetryPlugin.getTelemetryProvider(Settings.EMPTY)
     );
-
     final DataStreamAutoShardingService dataStreamAutoShardingService = new DataStreamAutoShardingService(
         Settings.EMPTY,
         mockClusterService,
@@ -437,12 +439,13 @@ public class TransportRolloverActionTests extends ESTestCase {
 
         doAnswer(invocation -> {
             Object[] args = invocation.getArguments();
-            assert args.length == 5;
+            assert args.length == 6;
             @SuppressWarnings("unchecked")
-            ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) args[4];
+            ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) args[5];
             listener.onResponse(AcknowledgedResponse.TRUE);
             return null;
-        }).when(mockMetadataDataStreamService).setRolloverOnWrite(eq(dataStream.getName()), eq(true), any(), any(), anyActionListener());
+        }).when(mockMetadataDataStreamService)
+            .setRolloverOnWrite(eq(dataStream.getName()), eq(true), eq(false), any(), any(), anyActionListener());
 
         final TransportRolloverAction transportRolloverAction = new TransportRolloverAction(
             mock(TransportService.class),

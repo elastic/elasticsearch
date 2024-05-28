@@ -1,0 +1,6 @@
+pr: 108101
+summary: "ESQL: Fix error message when failing to resolve aggregate groupings"
+area: ES|QL
+type: bug
+issues:
+ - 108053

@@ -304,6 +304,7 @@ $endif$
      * things like hashing many fields together.
      */
     public BatchEncoder batchEncoder(int batchSize) {
+        block.incRef();
         return new BatchEncoder.$Type$s(batchSize) {
             @Override
             protected void readNextBatch() {
@@ -374,6 +375,11 @@ $if(BytesRef)$
                 return size;
             }
 $endif$
+
+            @Override
+            public void close() {
+                block.decRef();
+            }
         };
     }
 

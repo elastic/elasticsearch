@@ -383,10 +383,6 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
             return storeFilesMetadata;
         }
 
-        public static NodeStoreFilesMetadata readListShardStoreNodeOperationResponse(StreamInput in) throws IOException {
-            return new NodeStoreFilesMetadata(in, null);
-        }
-
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);

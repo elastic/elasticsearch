@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.core.ilm.action.RemoveIndexLifecyclePolicyAction;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 public class RestRemoveIndexLifecyclePolicyAction extends BaseRestHandler {
 
@@ -35,7 +36,7 @@ public class RestRemoveIndexLifecyclePolicyAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) {
         String[] indexes = Strings.splitStringByCommaToArray(restRequest.param("index"));
         RemoveIndexLifecyclePolicyAction.Request changePolicyRequest = new RemoveIndexLifecyclePolicyAction.Request(indexes);
-        changePolicyRequest.masterNodeTimeout(restRequest.paramAsTime("master_timeout", changePolicyRequest.masterNodeTimeout()));
+        changePolicyRequest.masterNodeTimeout(getMasterNodeTimeout(restRequest));
         changePolicyRequest.indicesOptions(IndicesOptions.fromRequest(restRequest, changePolicyRequest.indicesOptions()));
 
         return channel -> client.execute(

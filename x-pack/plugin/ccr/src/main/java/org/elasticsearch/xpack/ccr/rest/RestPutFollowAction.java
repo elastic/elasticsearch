@@ -17,6 +17,7 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 import static org.elasticsearch.xpack.core.ccr.action.PutFollowAction.INSTANCE;
 import static org.elasticsearch.xpack.core.ccr.action.PutFollowAction.Request;
 
@@ -43,7 +44,7 @@ public class RestPutFollowAction extends BaseRestHandler {
             final Request request = Request.fromXContent(parser);
             request.waitForActiveShards(ActiveShardCount.parseString(restRequest.param("wait_for_active_shards")));
             request.setFollowerIndex(restRequest.param("index"));
-            request.masterNodeTimeout(restRequest.paramAsTime("master_timeout", request.masterNodeTimeout()));
+            request.masterNodeTimeout(getMasterNodeTimeout(restRequest));
             return request;
         }
     }

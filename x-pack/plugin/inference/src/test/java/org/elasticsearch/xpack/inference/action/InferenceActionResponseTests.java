@@ -53,7 +53,7 @@ public class InferenceActionResponseTests extends AbstractBWCWireSerializationTe
 
     @Override
     protected InferenceAction.Response mutateInstance(InferenceAction.Response instance) throws IOException {
-        return null;
+        return randomValueOtherThan(instance, this::createTestInstance);
     }
 
     @Override

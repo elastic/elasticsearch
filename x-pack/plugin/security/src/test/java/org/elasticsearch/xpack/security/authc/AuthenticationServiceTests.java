@@ -7,8 +7,6 @@
 package org.elasticsearch.xpack.security.authc;
 
 import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
@@ -33,7 +31,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -56,7 +53,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -420,13 +417,9 @@ public class AuthenticationServiceTests extends ESTestCase {
     }
 
     public void testTokenMissing() throws Exception {
-        final Logger unlicensedRealmsLogger = LogManager.getLogger(RealmsAuthenticator.class);
-        final MockLogAppender mockAppender = new MockLogAppender();
-        mockAppender.start();
-        try {
-            Loggers.addAppender(unlicensedRealmsLogger, mockAppender);
-            mockAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+        try (var mockLog = MockLog.capture(RealmsAuthenticator.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "unlicensed realms",
                     RealmsAuthenticator.class.getName(),
                     Level.WARN,
@@ -461,7 +454,7 @@ public class AuthenticationServiceTests extends ESTestCase {
                     verify(auditTrail).anonymousAccessDenied(reqId.get(), "_action", transportRequest);
                 }
                 verifyNoMoreInteractions(auditTrail);
-                mockAppender.assertAllExpectationsMatched();
+                mockLog.assertAllExpectationsMatched();
                 setCompletedToTrue(completed);
             });
 
@@ -471,9 +464,6 @@ public class AuthenticationServiceTests extends ESTestCase {
                 service.authenticate("_action", transportRequest, true, listener);
             }
             assertThat(completed.get(), is(true));
-        } finally {
-            Loggers.removeAppender(unlicensedRealmsLogger, mockAppender);
-            mockAppender.stop();
         }
     }
 
@@ -2522,11 +2512,13 @@ public class AuthenticationServiceTests extends ESTestCase {
             true,
             true,
             null,
+            null,
+            null,
             concreteSecurityIndexName,
             indexStatus,
             IndexMetadata.State.OPEN,
-            null,
-            "my_uuid"
+            "my_uuid",
+            Set.of()
         );
     }
 

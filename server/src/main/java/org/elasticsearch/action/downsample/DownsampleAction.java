@@ -50,13 +50,16 @@ public class DownsampleAction extends ActionType<AcknowledgedResponse> {
             final TimeValue waitTimeout,
             final DownsampleConfig downsampleConfig
         ) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
             this.sourceIndex = sourceIndex;
             this.targetIndex = targetIndex;
             this.waitTimeout = waitTimeout == null ? DEFAULT_WAIT_TIMEOUT : waitTimeout;
             this.downsampleConfig = downsampleConfig;
         }
 
-        public Request() {}
+        public Request() {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
+        }
 
         public Request(StreamInput in) throws IOException {
             super(in);

@@ -194,7 +194,7 @@ The API returns the following result:
             "load_source_count": 5
           },
           "debug": {
-            "stored_fields": ["_id", "_ignored", "_routing", "_source"]
+            "stored_fields": ["_id", "_routing", "_source"]
           },
           "children": [
             {
@@ -1051,7 +1051,7 @@ And here is the fetch profile:
             "load_source_count": 5
           },
           "debug": {
-            "stored_fields": ["_id", "_ignored", "_routing", "_source"]
+            "stored_fields": ["_id", "_routing", "_source"]
           },
           "children": [
             {

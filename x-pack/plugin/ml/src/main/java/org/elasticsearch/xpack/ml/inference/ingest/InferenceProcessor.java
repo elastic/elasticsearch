@@ -194,6 +194,10 @@ public class InferenceProcessor extends AbstractProcessor {
         CoordinatedInferenceAction.Request request;
         try {
             request = buildRequest(ingestDocument);
+            if (request == null) {
+                handler.accept(ingestDocument, null);
+                return;
+            }
         } catch (ElasticsearchStatusException e) {
             handler.accept(ingestDocument, e);
             return;
@@ -223,14 +227,24 @@ public class InferenceProcessor extends AbstractProcessor {
         }
     }
 
+    /**
+     * Create the inference request.
+     * If the processor is configured with input/output fields and none
+     * are present in the ingest document null is returned.
+     *
+     * @param ingestDocument Ingest doc
+     * @return null or a new request
+     */
     CoordinatedInferenceAction.Request buildRequest(IngestDocument ingestDocument) {
         if (configuredWithInputsFields) {
             // ignore missing only applies when using an input field list
             List<String> requestInputs = new ArrayList<>();
+            boolean anyFieldsPresent = false;
             for (var inputFields : inputs) {
                 try {
                     var inputText = ingestDocument.getFieldValue(inputFields.inputField, String.class, ignoreMissing);
                     // field is missing and ignoreMissing == true then a null value is returned.
+                    anyFieldsPresent = anyFieldsPresent || inputText != null;
                     if (inputText == null) {
                         inputText = "";  // need to send a non-null request to the same number of results back
                     }
@@ -244,6 +258,10 @@ public class InferenceProcessor extends AbstractProcessor {
                     } else {
                         throw e;
                     }
+                }
+
+                if (anyFieldsPresent == false) {
+                    return null;
                 }
             }
             var request = CoordinatedInferenceAction.Request.forTextInput(

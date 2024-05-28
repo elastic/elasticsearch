@@ -59,7 +59,7 @@ abstract class AbstractGradleFuncTest extends Specification {
                 id 'base'
             }
         """
-        def mutedTestsFile = Files.createFile(Path.of(testProjectDir.newFolder("build-tools-internal").path, "muted-tests.yml"))
+        def mutedTestsFile = testProjectDir.newFile("muted-tests.yml")
         mutedTestsFile << """
             tests: []
         """

@@ -23,7 +23,7 @@ public class FlushTrainedModelCacheActionRequestTests extends AbstractBWCWireSer
 
     @Override
     protected Request mutateInstance(Request instance) throws IOException {
-        return new Request(randomValueOtherThan(instance.timeout(), this::randomTimeout));
+        return new Request(randomValueOtherThan(instance.ackTimeout(), this::randomTimeout));
     }
 
     @Override
@@ -37,6 +37,6 @@ public class FlushTrainedModelCacheActionRequestTests extends AbstractBWCWireSer
     }
 
     private TimeValue randomTimeout() {
-        return TimeValue.parseTimeValue(randomTimeValue(), null, "timeout");
+        return randomTimeValue();
     }
 }

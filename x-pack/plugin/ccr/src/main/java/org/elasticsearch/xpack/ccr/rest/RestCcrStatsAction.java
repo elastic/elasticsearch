@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.core.ccr.action.CcrStatsAction;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 public class RestCcrStatsAction extends BaseRestHandler {
 
@@ -41,7 +42,7 @@ public class RestCcrStatsAction extends BaseRestHandler {
         if (restRequest.hasParam("timeout")) {
             request.setTimeout(restRequest.paramAsTime("timeout", null));
         }
-        request.masterNodeTimeout(restRequest.paramAsTime("master_timeout", request.masterNodeTimeout()));
+        request.masterNodeTimeout(getMasterNodeTimeout(restRequest));
         return channel -> client.execute(
             CcrStatsAction.INSTANCE,
             request,

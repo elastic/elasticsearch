@@ -12,19 +12,19 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.BytesRefs;
-import org.elasticsearch.xpack.esql.EsqlTestUtils;
-import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractConfigurationFunctionTestCase;
+import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 
 import java.util.List;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class DateFormatTests extends AbstractFunctionTestCase {
+public class DateFormatTests extends AbstractConfigurationFunctionTestCase {
     public DateFormatTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
@@ -67,7 +67,7 @@ public class DateFormatTests extends AbstractFunctionTestCase {
     }
 
     @Override
-    protected Expression build(Source source, List<Expression> args) {
-        return new DateFormat(source, args.get(0), args.get(1), EsqlTestUtils.TEST_CFG);
+    protected Expression buildWithConfiguration(Source source, List<Expression> args, EsqlConfiguration configuration) {
+        return new DateFormat(source, args.get(0), args.get(1), configuration);
     }
 }

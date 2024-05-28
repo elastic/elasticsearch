@@ -49,7 +49,6 @@ public class TransportGetRollupJobAction extends TransportTasksAction<
             actionFilters,
             GetRollupJobsAction.Request::new,
             GetRollupJobsAction.Response::new,
-            GetRollupJobsAction.Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
     }

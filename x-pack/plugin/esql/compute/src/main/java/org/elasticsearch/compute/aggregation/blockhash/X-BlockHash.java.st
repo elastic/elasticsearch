@@ -11,8 +11,8 @@ $if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.unit.ByteSizeValue;
 $endif$
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
 $if(BytesRef)$
@@ -27,6 +27,7 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 $elseif(double)$
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -50,6 +51,7 @@ $endif$
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupe;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupe$Type$;
+import org.elasticsearch.core.ReleasableIterator;
 
 $if(BytesRef)$
 import java.io.IOException;
@@ -124,9 +126,94 @@ $endif$
     }
 
     IntBlock add($Type$Block block) {
+$if(BytesRef)$
+        var ordinals = block.asOrdinals();
+        if (ordinals != null) {
+            return addOrdinalsBlock(ordinals);
+        }
+$endif$
         MultivalueDedupe.HashResult result = new MultivalueDedupe$Type$(block).hashAdd(blockFactory, hash);
         seenNull |= result.sawNull();
         return result.ords();
+    }
+
+    @Override
+    public ReleasableIterator<IntBlock> lookup(Page page, ByteSizeValue targetBlockSize) {
+        var block = page.getBlock(channel);
+        if (block.areAllValuesNull()) {
+            return ReleasableIterator.single(blockFactory.newConstantIntVector(0, block.getPositionCount()).asBlock());
+        }
+
+        $Type$Block castBlock = ($Type$Block) block;
+        $Type$Vector vector = castBlock.asVector();
+        // TODO honor targetBlockSize and chunk the pages if requested.
+        if (vector == null) {
+            return ReleasableIterator.single(lookup(castBlock));
+        }
+        return ReleasableIterator.single(lookup(vector));
+    }
+
+$if(BytesRef)$
+    private IntBlock addOrdinalsBlock(OrdinalBytesRefBlock inputBlock) {
+        var inputOrds = inputBlock.getOrdinalsBlock();
+        try (
+            var builder = blockFactory.newIntBlockBuilder(inputOrds.getPositionCount());
+            var hashOrds = add(inputBlock.getDictionaryVector())
+        ) {
+            for (int i = 0; i < inputOrds.getPositionCount(); i++) {
+                int valueCount = inputOrds.getValueCount(i);
+                int firstIndex = inputOrds.getFirstValueIndex(i);
+                switch (valueCount) {
+                    case 0 -> {
+                        builder.appendInt(0);
+                        seenNull = true;
+                    }
+                    case 1 -> {
+                        int ord = hashOrds.getInt(inputOrds.getInt(firstIndex));
+                        builder.appendInt(ord);
+                    }
+                    default -> {
+                        builder.beginPositionEntry();
+                        for (int v = 0; v < valueCount; v++) {
+                            int ord = hashOrds.getInt(inputOrds.getInt(firstIndex + i));
+                            builder.appendInt(ord);
+                        }
+                        builder.endPositionEntry();
+                    }
+                }
+            }
+            return builder.build();
+        }
+    }
+$endif$
+
+    private IntBlock lookup($Type$Vector vector) {
+$if(BytesRef)$
+        BytesRef scratch = new BytesRef();
+$endif$
+        int positions = vector.getPositionCount();
+        try (var builder = blockFactory.newIntBlockBuilder(positions)) {
+            for (int i = 0; i < positions; i++) {
+$if(double)$
+                long v = Double.doubleToLongBits(vector.getDouble(i));
+$elseif(BytesRef)$
+                BytesRef v = vector.getBytesRef(i, scratch);
+$else$
+                $type$ v = vector.get$Type$(i);
+$endif$
+                long found = hash.find(v);
+                if (found < 0) {
+                    builder.appendNull();
+                } else {
+                    builder.appendInt(Math.toIntExact(hashOrdToGroupNullReserved(found)));
+                }
+            }
+            return builder.build();
+        }
+    }
+
+    private IntBlock lookup($Type$Block block) {
+        return new MultivalueDedupe$Type$(block).hashLookup(blockFactory, hash);
     }
 
     @Override

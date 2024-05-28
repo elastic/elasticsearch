@@ -25,6 +25,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
+import static org.elasticsearch.index.shard.IndexShardTestCase.closeShardNoCheck;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -101,7 +102,7 @@ public class GlobalCheckpointListenersIT extends ESSingleNodeTestCase {
             }
 
         }, null);
-        shard.close("closed", randomBoolean());
+        closeShardNoCheck(shard, randomBoolean());
         assertBusy(() -> assertTrue(invoked.get()));
     }
 

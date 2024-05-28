@@ -173,22 +173,25 @@ public class InferenceBaseRestTest extends ESRestTestCase {
         return entityAsMap(response);
     }
 
+    @SuppressWarnings("unchecked")
     protected Map<String, Object> getModel(String modelId) throws IOException {
         var endpoint = Strings.format("_inference/%s", modelId);
-        return getAllModelInternal(endpoint);
+        return ((List<Map<String, Object>>) getInternal(endpoint).get("endpoints")).get(0);
     }
 
-    protected Map<String, Object> getModels(String modelId, TaskType taskType) throws IOException {
+    @SuppressWarnings("unchecked")
+    protected List<Map<String, Object>> getModels(String modelId, TaskType taskType) throws IOException {
         var endpoint = Strings.format("_inference/%s/%s", taskType, modelId);
-        return getAllModelInternal(endpoint);
+        return (List<Map<String, Object>>) getInternal(endpoint).get("endpoints");
     }
 
-    protected Map<String, Object> getAllModels() throws IOException {
+    @SuppressWarnings("unchecked")
+    protected List<Map<String, Object>> getAllModels() throws IOException {
         var endpoint = Strings.format("_inference/_all");
-        return getAllModelInternal("_inference/_all");
+        return (List<Map<String, Object>>) getInternal("_inference/_all").get("endpoints");
     }
 
-    private Map<String, Object> getAllModelInternal(String endpoint) throws IOException {
+    private Map<String, Object> getInternal(String endpoint) throws IOException {
         var request = new Request("GET", endpoint);
         var response = client().performRequest(request);
         assertOkOrCreated(response);

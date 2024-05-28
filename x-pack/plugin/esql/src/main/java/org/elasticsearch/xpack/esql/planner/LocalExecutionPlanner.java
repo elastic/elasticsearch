@@ -48,6 +48,15 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.NameId;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.Order;
+import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupOperator;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
@@ -75,15 +84,6 @@ import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
-import org.elasticsearch.xpack.ql.expression.Alias;
-import org.elasticsearch.xpack.ql.expression.Attribute;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Expressions;
-import org.elasticsearch.xpack.ql.expression.Literal;
-import org.elasticsearch.xpack.ql.expression.NameId;
-import org.elasticsearch.xpack.ql.expression.NamedExpression;
-import org.elasticsearch.xpack.ql.expression.Order;
-import org.elasticsearch.xpack.ql.util.Holder;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -343,8 +343,9 @@ public class LocalExecutionPlanner {
                 case "text", "keyword" -> TopNEncoder.UTF8;
                 case "version" -> TopNEncoder.VERSION;
                 case "boolean", "null", "byte", "short", "integer", "long", "double", "float", "half_float", "datetime", "date_period",
-                    "time_duration", "object", "nested", "scaled_float", "unsigned_long", "_doc" -> TopNEncoder.DEFAULT_SORTABLE;
-                case "geo_point", "cartesian_point", "geo_shape", "cartesian_shape" -> TopNEncoder.DEFAULT_UNSORTABLE;
+                    "time_duration", "object", "nested", "scaled_float", "unsigned_long", "_doc", "_tsid" -> TopNEncoder.DEFAULT_SORTABLE;
+                case "geo_point", "cartesian_point", "geo_shape", "cartesian_shape", "counter_long", "counter_integer", "counter_double" ->
+                    TopNEncoder.DEFAULT_UNSORTABLE;
                 // unsupported fields are encoded as BytesRef, we'll use the same encoder; all values should be null at this point
                 case "unsupported" -> TopNEncoder.UNSUPPORTED;
                 default -> throw new EsqlIllegalArgumentException("No TopN sorting encoder for type " + inverse.get(channel).type());

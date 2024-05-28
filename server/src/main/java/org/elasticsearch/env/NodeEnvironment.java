@@ -528,13 +528,13 @@ public final class NodeEnvironment implements Closeable {
             String bestDowngradeVersion = getBestDowngradeVersion(metadata.previousNodeVersion().toString());
             throw new IllegalStateException(
                 "Cannot start this node because it holds metadata for indices with version ["
-                    + metadata.oldestIndexVersion()
+                    + metadata.oldestIndexVersion().toReleaseVersion()
                     + "] with which this node of version ["
                     + Build.current().version()
                     + "] is incompatible. Revert this node to version ["
                     + bestDowngradeVersion
                     + "] and delete any indices with versions earlier than ["
-                    + IndexVersions.MINIMUM_COMPATIBLE
+                    + IndexVersions.MINIMUM_COMPATIBLE.toReleaseVersion()
                     + "] before upgrading to version ["
                     + Build.current().version()
                     + "]. If all such indices have already been deleted, revert this node to version ["

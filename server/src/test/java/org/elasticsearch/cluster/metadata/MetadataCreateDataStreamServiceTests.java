@@ -281,7 +281,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
         assertThat(newState.metadata().index(backingIndexName), notNullValue());
         assertThat(newState.metadata().index(failureStoreIndexName), notNullValue());
         assertThat(
-            newState.metadata().index(failureStoreIndexName).getSettings().get(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey()),
+            IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.get(newState.metadata().index(failureStoreIndexName).getSettings()),
             equalTo(timeValue)
         );
     }

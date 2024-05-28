@@ -8,8 +8,11 @@
 
 package org.elasticsearch.rest;
 
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
@@ -19,6 +22,7 @@ import java.util.Optional;
 import java.util.function.UnaryOperator;
 import java.util.regex.Pattern;
 
+import static org.elasticsearch.action.support.master.AcknowledgedRequest.DEFAULT_ACK_TIMEOUT;
 import static org.elasticsearch.rest.RestRequest.PATH_RESTRICTED;
 
 public class RestUtils {
@@ -256,4 +260,56 @@ public class RestUtils {
         return traceparent != null && traceparent.length() >= 55 ? Optional.of(traceparent.substring(3, 35)) : Optional.empty();
     }
 
+    /**
+     * The name of the common {@code ?master_timeout} query parameter.
+     */
+    public static final String REST_MASTER_TIMEOUT_PARAM = "master_timeout";
+
+    /**
+     * The default value for the common {@code ?master_timeout} query parameter.
+     */
+    public static final TimeValue REST_MASTER_TIMEOUT_DEFAULT = TimeValue.timeValueSeconds(30);
+
+    /**
+     * The name of the common {@code ?timeout} query parameter.
+     */
+    public static final String REST_TIMEOUT_PARAM = "timeout";
+
+    /**
+     * Extract the {@code ?master_timeout} parameter from the request, imposing the common default of {@code 30s} in case the parameter is
+     * missing.
+     *
+     * @param restRequest The request from which to extract the {@code ?master_timeout} parameter
+     * @return the timeout from the request, with a default of {@link #REST_MASTER_TIMEOUT_DEFAULT} ({@code 30s}) if the request does not
+     *         specify the parameter
+     */
+    public static TimeValue getMasterNodeTimeout(RestRequest restRequest) {
+        assert restRequest != null;
+        return restRequest.paramAsTime(REST_MASTER_TIMEOUT_PARAM, REST_MASTER_TIMEOUT_DEFAULT);
+    }
+
+    /**
+     * Extract the {@code ?timeout} parameter from the request, imposing the common default of {@code 30s} in case the parameter is
+     * missing.
+     *
+     * @param restRequest The request from which to extract the {@code ?timeout} parameter
+     * @return the timeout from the request, with a default of {@link AcknowledgedRequest#DEFAULT_ACK_TIMEOUT} ({@code 30s}) if the request
+     *         does not specify the parameter
+     */
+    public static TimeValue getAckTimeout(RestRequest restRequest) {
+        assert restRequest != null;
+        return restRequest.paramAsTime(REST_TIMEOUT_PARAM, DEFAULT_ACK_TIMEOUT);
+    }
+
+    /**
+     * Extract the {@code ?timeout} parameter from the request, returning null in case the parameter is missing.
+     *
+     * @param restRequest The request from which to extract the {@code ?timeout} parameter
+     * @return the timeout from the request, with a default of {@code null} if the request does not specify the parameter
+     */
+    @Nullable
+    public static TimeValue getTimeout(RestRequest restRequest) {
+        assert restRequest != null;
+        return restRequest.paramAsTime(REST_TIMEOUT_PARAM, null);
+    }
 }

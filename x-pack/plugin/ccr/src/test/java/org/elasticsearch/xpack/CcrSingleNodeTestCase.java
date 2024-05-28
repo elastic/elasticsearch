@@ -104,7 +104,7 @@ public abstract class CcrSingleNodeTestCase extends ESSingleNodeTestCase {
         request.getParameters().setMaxRetryDelay(TimeValue.timeValueMillis(1));
         request.getParameters().setReadPollTimeout(TimeValue.timeValueMillis(1));
         if (randomBoolean()) {
-            request.masterNodeTimeout(randomFrom("10s", "20s", "30s"));
+            request.masterNodeTimeout(TimeValue.timeValueSeconds(randomFrom(10, 20, 30)));
         }
         return request;
     }
@@ -118,7 +118,7 @@ public abstract class CcrSingleNodeTestCase extends ESSingleNodeTestCase {
         request.getParameters().setReadPollTimeout(TimeValue.timeValueMillis(1));
         request.waitForActiveShards(ActiveShardCount.ONE);
         if (randomBoolean()) {
-            request.masterNodeTimeout(randomFrom("10s", "20s", "30s"));
+            request.masterNodeTimeout(TimeValue.timeValueSeconds(randomFrom(10, 20, 30)));
         }
         return request;
     }

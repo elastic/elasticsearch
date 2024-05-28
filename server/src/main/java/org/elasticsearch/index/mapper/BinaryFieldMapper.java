@@ -46,21 +46,25 @@ public class BinaryFieldMapper extends FieldMapper {
     public static class Builder extends FieldMapper.Builder {
 
         private final Parameter<Boolean> stored = Parameter.storeParam(m -> toType(m).stored, false);
-        private final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, false);
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
-        public Builder(String name) {
-            this(name, false);
-        }
+        private final boolean isSyntheticSourceEnabledViaIndexMode;
+        private final Parameter<Boolean> hasDocValues;
 
-        public Builder(String name, boolean hasDocValues) {
+        public Builder(String name, boolean isSyntheticSourceEnabledViaIndexMode) {
             super(name);
-            this.hasDocValues.setValue(hasDocValues);
+            this.isSyntheticSourceEnabledViaIndexMode = isSyntheticSourceEnabledViaIndexMode;
+            this.hasDocValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, isSyntheticSourceEnabledViaIndexMode);
         }
 
         @Override
         public Parameter<?>[] getParameters() {
             return new Parameter<?>[] { meta, stored, hasDocValues };
+        }
+
+        public BinaryFieldMapper.Builder docValues(boolean hasDocValues) {
+            this.hasDocValues.setValue(hasDocValues);
+            return this;
         }
 
         @Override
@@ -75,10 +79,11 @@ public class BinaryFieldMapper extends FieldMapper {
         }
     }
 
-    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n));
+    public static final TypeParser PARSER = new TypeParser(
+        (n, c) -> new Builder(n, c.getIndexSettings().getMode().isSyntheticSourceEnabled())
+    );
 
     public static final class BinaryFieldType extends MappedFieldType {
-
         private BinaryFieldType(String name, boolean isStored, boolean hasDocValues, Map<String, String> meta) {
             super(name, false, isStored, hasDocValues, TextSearchInfo.NONE, meta);
         }
@@ -135,6 +140,7 @@ public class BinaryFieldMapper extends FieldMapper {
 
     private final boolean stored;
     private final boolean hasDocValues;
+    private final boolean isSyntheticSourceEnabledViaIndexMode;
 
     protected BinaryFieldMapper(
         String simpleName,
@@ -146,6 +152,7 @@ public class BinaryFieldMapper extends FieldMapper {
         super(simpleName, mappedFieldType, multiFields, copyTo);
         this.stored = builder.stored.getValue();
         this.hasDocValues = builder.hasDocValues.getValue();
+        this.isSyntheticSourceEnabledViaIndexMode = builder.isSyntheticSourceEnabledViaIndexMode;
     }
 
     @Override
@@ -185,7 +192,7 @@ public class BinaryFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new BinaryFieldMapper.Builder(simpleName()).init(this);
+        return new BinaryFieldMapper.Builder(simpleName(), isSyntheticSourceEnabledViaIndexMode).init(this);
     }
 
     @Override
@@ -194,7 +201,17 @@ public class BinaryFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected SyntheticSourceMode syntheticSourceMode() {
+        return SyntheticSourceMode.NATIVE;
+    }
+
+    @Override
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
+        if (copyTo.copyToFields().isEmpty() != true) {
+            throw new IllegalArgumentException(
+                "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
+            );
+        }
         if (hasDocValues == false) {
             throw new IllegalArgumentException(
                 "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it doesn't have doc values"

@@ -81,7 +81,6 @@ public class TransportGetJobsStatsAction extends TransportTasksAction<
             transportService,
             actionFilters,
             GetJobsStatsAction.Request::new,
-            GetJobsStatsAction.Response::new,
             in -> new QueryPage<>(in, JobStats::new),
             threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );

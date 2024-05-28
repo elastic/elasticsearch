@@ -39,7 +39,7 @@ public class XContentUtils {
     public static void positionParserAtTokenAfterField(XContentParser parser, String field, String errorMsgTemplate) throws IOException {
         XContentParser.Token token = parser.nextToken();
 
-        while (token != null && token != XContentParser.Token.END_OBJECT) {
+        while (token != null) {
             if (token == XContentParser.Token.FIELD_NAME && parser.currentName().equals(field)) {
                 parser.nextToken();
                 return;

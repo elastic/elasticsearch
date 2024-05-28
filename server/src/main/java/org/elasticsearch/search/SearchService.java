@@ -1426,7 +1426,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             for (SubSearchSourceBuilder subSearchSourceBuilder : source.subSearches()) {
                 queries.add(subSearchSourceBuilder.toSearchQuery(context.getSearchExecutionContext()));
             }
-            context.rankShardContext(source.rankBuilder().buildRankShardContext(queries, context.from()));
+            context.queryPhaseRankShardContext(source.rankBuilder().buildQueryPhaseShardContext(queries, context.from()));
         }
     }
 
@@ -1454,9 +1454,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         if (source.collapse() != null) {
             if (hasScroll) {
                 throw new IllegalArgumentException("cannot use `collapse` in a scroll context");
-            }
-            if (source.rescores() != null && source.rescores().isEmpty() == false) {
-                throw new IllegalArgumentException("cannot use `collapse` in conjunction with `rescore`");
             }
         }
         if (source.slice() != null) {

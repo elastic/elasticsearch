@@ -7,8 +7,8 @@
 package org.elasticsearch.xpack.esql.type;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -20,27 +20,27 @@ import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toMap;
 import static java.util.stream.Collectors.toUnmodifiableMap;
-import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
-import static org.elasticsearch.xpack.ql.type.DataTypes.BYTE;
-import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
-import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
-import static org.elasticsearch.xpack.ql.type.DataTypes.FLOAT;
-import static org.elasticsearch.xpack.ql.type.DataTypes.HALF_FLOAT;
-import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
-import static org.elasticsearch.xpack.ql.type.DataTypes.IP;
-import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
-import static org.elasticsearch.xpack.ql.type.DataTypes.LONG;
-import static org.elasticsearch.xpack.ql.type.DataTypes.NESTED;
-import static org.elasticsearch.xpack.ql.type.DataTypes.NULL;
-import static org.elasticsearch.xpack.ql.type.DataTypes.OBJECT;
-import static org.elasticsearch.xpack.ql.type.DataTypes.SCALED_FLOAT;
-import static org.elasticsearch.xpack.ql.type.DataTypes.SHORT;
-import static org.elasticsearch.xpack.ql.type.DataTypes.SOURCE;
-import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
-import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
-import static org.elasticsearch.xpack.ql.type.DataTypes.UNSUPPORTED;
-import static org.elasticsearch.xpack.ql.type.DataTypes.VERSION;
-import static org.elasticsearch.xpack.ql.type.DataTypes.isNull;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.BOOLEAN;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.BYTE;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.FLOAT;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.HALF_FLOAT;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.IP;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.NESTED;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.NULL;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.OBJECT;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.SCALED_FLOAT;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.SHORT;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.SOURCE;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.TEXT;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.UNSUPPORTED;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.VERSION;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.isNull;
 
 public final class EsqlDataTypes {
 
@@ -50,6 +50,17 @@ public final class EsqlDataTypes {
     public static final DataType CARTESIAN_POINT = new DataType("cartesian_point", Double.BYTES * 2, false, false, true);
     public static final DataType GEO_SHAPE = new DataType("geo_shape", Integer.MAX_VALUE, false, false, true);
     public static final DataType CARTESIAN_SHAPE = new DataType("cartesian_shape", Integer.MAX_VALUE, false, false, true);
+
+    /**
+     * These are numeric fields labeled as metric counters in time-series indices. Although stored
+     * internally as numeric fields, they represent cumulative metrics and must not be treated as regular
+     * numeric fields. Therefore, we define them differently and separately from their parent numeric field.
+     * These fields are strictly for use in retrieval from indices, rate aggregation, and casting to their
+     * parent numeric type.
+     */
+    public static final DataType COUNTER_LONG = new DataType("counter_long", LONG.size(), false, false, LONG.hasDocValues());
+    public static final DataType COUNTER_INTEGER = new DataType("counter_integer", INTEGER.size(), false, false, INTEGER.hasDocValues());
+    public static final DataType COUNTER_DOUBLE = new DataType("counter_double", DOUBLE.size(), false, false, DOUBLE.hasDocValues());
 
     private static final Collection<DataType> TYPES = Stream.of(
         BOOLEAN,
@@ -77,7 +88,10 @@ public final class EsqlDataTypes {
         GEO_POINT,
         CARTESIAN_POINT,
         CARTESIAN_SHAPE,
-        GEO_SHAPE
+        GEO_SHAPE,
+        COUNTER_LONG,
+        COUNTER_INTEGER,
+        COUNTER_DOUBLE
     ).sorted(Comparator.comparing(DataType::typeName)).toList();
 
     private static final Map<String, DataType> NAME_TO_TYPE = TYPES.stream().collect(toUnmodifiableMap(DataType::typeName, t -> t));
@@ -212,7 +226,8 @@ public final class EsqlDataTypes {
             && t != FLOAT
             && t != SCALED_FLOAT
             && t != SOURCE
-            && t != HALF_FLOAT;
+            && t != HALF_FLOAT
+            && isCounterType(t) == false;
     }
 
     public static boolean areCompatible(DataType left, DataType right) {
@@ -231,5 +246,18 @@ public final class EsqlDataTypes {
             return DOUBLE;
         }
         return type;
+    }
+
+    public static DataType getCounterType(String typeName) {
+        final DataType rootType = widenSmallNumericTypes(fromName(typeName));
+        if (rootType == UNSUPPORTED) {
+            return rootType;
+        }
+        assert rootType == LONG || rootType == INTEGER || rootType == DOUBLE : rootType;
+        return fromTypeName("counter_" + rootType.typeName());
+    }
+
+    public static boolean isCounterType(DataType dt) {
+        return dt == COUNTER_LONG || dt == COUNTER_INTEGER || dt == COUNTER_DOUBLE;
     }
 }

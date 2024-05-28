@@ -36,7 +36,7 @@ import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.bytes.ZeroBytesReference;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.http.HttpResponse;
-import org.elasticsearch.rest.ChunkedRestResponseBody;
+import org.elasticsearch.rest.ChunkedRestResponseBodyPart;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.netty4.Netty4Utils;
@@ -502,23 +502,23 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
         };
     }
 
-    private static ChunkedRestResponseBody getRepeatedChunkResponseBody(int chunkCount, BytesReference chunk) {
-        return new ChunkedRestResponseBody() {
+    private static ChunkedRestResponseBodyPart getRepeatedChunkResponseBody(int chunkCount, BytesReference chunk) {
+        return new ChunkedRestResponseBodyPart() {
 
             private int remaining = chunkCount;
 
             @Override
-            public boolean isDone() {
+            public boolean isPartComplete() {
                 return remaining == 0;
             }
 
             @Override
-            public boolean isEndOfResponse() {
+            public boolean isLastPart() {
                 return true;
             }
 
             @Override
-            public void getContinuation(ActionListener<ChunkedRestResponseBody> listener) {
+            public void getNextPart(ActionListener<ChunkedRestResponseBodyPart> listener) {
                 fail("no continuations here");
             }
 

@@ -8,7 +8,7 @@ Creates an {infer} endpoint to perform an {infer} task.
 
 IMPORTANT: The {infer} APIs enable you to use certain services, such as built-in
 {ml} models (ELSER, E5), models uploaded through Eland, Cohere, OpenAI, Azure
-OpenAI or Hugging Face. For built-in models and models uploaded though
+OpenAI, Google AI Studio or Hugging Face. For built-in models and models uploaded though
 Eland, the {infer} APIs offer an alternative way to use and manage trained
 models. However, if you do not plan to use the {infer} APIs to use these models
 or if you want to use non-NLP models, use the <<ml-df-trained-models-apis>>.
@@ -45,6 +45,7 @@ The following services are available through the {infer} API:
 * Azure OpenAI
 * Azure AI Studio
 * Elasticsearch (for built-in models and models uploaded through Eland)
+* Google AI Studio
 
 
 [discrete]
@@ -84,6 +85,7 @@ OpenAI service.
 * `azureaistudio`: specify the `completion` or `text_embedding` task type to use the Azure AI Studio service.
 * `elasticsearch`: specify the `text_embedding` task type to use the E5
 built-in model or text embedding models uploaded by Eland.
+* `googleaistudio`: specify the `completion` task to use the Google AI Studio service.
 
 `service_settings`::
 (Required, object)
@@ -282,6 +284,33 @@ To modify this, set the `requests_per_minute` setting of this object in your ser
 ```
 =====
 +
+.`service_settings` for the `googleiastudio` service
+[%collapsible%closed]
+=====
+`api_key`:::
+(Required, string)
+A valid API key for the Google Gemini API.
+
+`model_id`:::
+(Required, string)
+The name of the model to use for the {infer} task.
+You can find the supported models at https://ai.google.dev/gemini-api/docs/models/gemini[Gemini API models].
+
+`rate_limit`:::
+(Optional, object)
+By default, the `googleaistudio` service sets the number of requests allowed per minute to `360`.
+This helps to minimize the number of rate limit errors returned from Google AI Studio.
+To modify this, set the `requests_per_minute` setting of this object in your service settings:
++
+--
+```
+"rate_limit": {
+    "requests_per_minute": <<number_of_requests>>
+}
+```
+--
+=====
++
 .`service_settings` for the `elasticsearch` service
 [%collapsible%closed]
 =====
@@ -303,7 +332,6 @@ The number of threads to use by each model allocation. `num_threads` must not
 exceed the number of available processors per node divided by the number of
 allocations. Must be a power of 2. Max allowed value is 32.
 =====
-
 
 `task_settings`::
 (Optional, object)
@@ -701,3 +729,23 @@ PUT _inference/completion/azure_ai_studio_completion
 // TEST[skip:TBD]
 
 The list of chat completion models that you can choose from in your deployment can be found in the https://ai.azure.com/explore/models?selectedTask=chat-completion[Azure AI Studio model explorer].
+
+[discrete]
+[[inference-example-googleaistudio]]
+===== Google AI Studio service
+
+The following example shows how to create an {infer} endpoint called
+`google_ai_studio_completion` to perform a `completion` task type.
+
+[source,console]
+------------------------------------------------------------
+PUT _inference/completion/google_ai_studio_completion
+{
+    "service": "googleaistudio",
+    "service_settings": {
+        "api_key": "<api_key>>",
+        "model_id": "<model_id>"
+    }
+}
+------------------------------------------------------------
+// TEST[skip:TBD]

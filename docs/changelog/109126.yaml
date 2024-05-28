@@ -1,0 +1,5 @@
+pr: 109126
+summary: Ignoring duplicate keys for `_cat` trained models and usage
+area: Machine Learning
+type: bug
+issues: []

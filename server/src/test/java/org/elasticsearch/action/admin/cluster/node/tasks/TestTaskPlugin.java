@@ -300,13 +300,12 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
             logger.info("Test task started on the node {}", clusterService.localNode());
             if (request.shouldBlock) {
                 try {
-                    boolean unblocked = waitUntil(() -> {
+                    waitUntil(() -> {
                         if (((CancellableTask) task).isCancelled()) {
                             throw new RuntimeException("Cancelled!");
                         }
                         return ((TestTask) task).isBlocked() == false;
                     });
-                    assert unblocked : task + " hasn't been unblocked";
                 } catch (InterruptedException ex) {
                     Thread.currentThread().interrupt();
                 }

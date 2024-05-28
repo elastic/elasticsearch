@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.RefCountingListener;
+import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.action.support.UnsafePlainActionFuture;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.BlobCacheUtils;
@@ -710,6 +711,11 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         sharedBytes.decRef();
     }
 
+    // used by tests
+    SharedBytes getSharedBytes() {
+        return sharedBytes;
+    }
+
     private record RegionKey<KeyType>(KeyType file, int region) {
         @Override
         public String toString() {
@@ -801,7 +807,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             return ioRef == null ? -1L : (long) regionKey.region * regionSize;
         }
 
-        public boolean tryIncRefEnsureOpen() {
+        private boolean tryIncRefEnsureOpen() {
             if (tryIncRef()) {
                 ensureOpenOrDecRef();
                 return true;
@@ -810,7 +816,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             return false;
         }
 
-        public void incRefEnsureOpen() {
+        private void incRefEnsureOpen() {
             incRef();
             ensureOpenOrDecRef();
         }
@@ -878,13 +884,17 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
          */
         boolean tryRead(ByteBuffer buf, long offset) throws IOException {
             SharedBytes.IO ioRef = this.io;
-            if (ioRef != null) {
-                int readBytes = ioRef.read(buf, getRegionRelativePosition(offset));
-                if (isEvicted()) {
-                    buf.position(buf.position() - readBytes);
-                    return false;
+            if (ioRef != null && ioRef.tryIncRef()) {
+                try {
+                    int readBytes = ioRef.read(buf, getRegionRelativePosition(offset));
+                    if (isEvicted()) {
+                        buf.position(buf.position() - readBytes);
+                        return false;
+                    }
+                    return true;
+                } finally {
+                    ioRef.decRef();
                 }
-                return true;
             } else {
                 // taken by someone else
                 return false;
@@ -908,29 +918,35 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             final Executor executor,
             final ActionListener<Boolean> listener
         ) {
-            Releasable resource = null;
             try {
                 incRefEnsureOpen();
-                resource = Releasables.releaseOnce(this::decRef);
-                final List<SparseFileTracker.Gap> gaps = tracker.waitForRange(
-                    rangeToWrite,
-                    rangeToWrite,
-                    Assertions.ENABLED ? ActionListener.releaseAfter(ActionListener.running(() -> {
-                        assert regionOwners.get(io) == this;
-                    }), resource) : ActionListener.releasing(resource)
-                );
-                final var hasGapsToFill = gaps.size() > 0;
-                try (RefCountingListener refs = new RefCountingListener(listener.map(unused -> hasGapsToFill))) {
-                    if (hasGapsToFill) {
-                        final var cacheFileRegion = CacheFileRegion.this;
-                        for (SparseFileTracker.Gap gap : gaps) {
-                            var fillGapRunnable = fillGapRunnable(cacheFileRegion, writer, gap);
-                            executor.execute(ActionRunnable.run(refs.acquire(), fillGapRunnable::run));
+                try (var cacheRefs = new RefCountingRunnable(this::decRef)) {
+                    final var ioRef = io;
+                    ioRef.incRef();
+                    var releasable = Releasables.wrap(cacheRefs.acquire(), ioRef::decRef);
+                    try (var ioRefs = new RefCountingRunnable(releasable::close)) {
+                        final List<SparseFileTracker.Gap> gaps = tracker.waitForRange(
+                            rangeToWrite,
+                            rangeToWrite,
+                            Assertions.ENABLED ? ActionListener.releaseAfter(ActionListener.running(() -> {
+                                assert regionOwners.get(io) == this;
+                            }), ioRefs.acquire()) : ioRefs.acquireListener()
+                        );
+                        if (gaps.isEmpty()) {
+                            listener.onResponse(false);
+                            return;
+                        }
+                        try (var gapsListener = new RefCountingListener(listener.map(unused -> true))) {
+                            for (SparseFileTracker.Gap gap : gaps) {
+                                executor.execute(
+                                    fillGapRunnable(gap, writer, ActionListener.releaseAfter(gapsListener.acquire(), ioRefs.acquire()))
+                                );
+                            }
                         }
                     }
                 }
             } catch (Exception e) {
-                releaseAndFail(listener, resource, e);
+                listener.onFailure(e);
             }
         }
 
@@ -942,77 +958,66 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             final Executor executor,
             final ActionListener<Integer> listener
         ) {
-            Releasable resource = null;
             try {
                 incRefEnsureOpen();
-                resource = Releasables.releaseOnce(this::decRef);
-                final List<SparseFileTracker.Gap> gaps = tracker.waitForRange(
-                    rangeToWrite,
-                    rangeToRead,
-                    ActionListener.runAfter(listener, resource::close).delegateFailureAndWrap((l, success) -> {
-                        var ioRef = io;
-                        assert regionOwners.get(ioRef) == this;
-                        final int start = Math.toIntExact(rangeToRead.start());
-                        final int read = reader.onRangeAvailable(ioRef, start, start, Math.toIntExact(rangeToRead.length()));
-                        assert read == rangeToRead.length()
-                            : "partial read ["
-                                + read
-                                + "] does not match the range to read ["
-                                + rangeToRead.end()
-                                + '-'
-                                + rangeToRead.start()
-                                + ']';
-                        readCount.increment();
-                        l.onResponse(read);
-                    })
-                );
+                try (var cacheRefs = new RefCountingRunnable(this::decRef)) {
+                    final var ioRef = io;
+                    ioRef.incRef();
+                    var releasable = Releasables.wrap(cacheRefs.acquire(), ioRef::decRef);
+                    try (var ioRefs = new RefCountingRunnable(releasable::close)) {
+                        final List<SparseFileTracker.Gap> gaps = tracker.waitForRange(
+                            rangeToWrite,
+                            rangeToRead,
+                            ActionListener.releaseAfter(listener, ioRefs.acquire()).delegateFailureAndWrap((l, success) -> {
+                                assert regionOwners.get(ioRef) == this;
+                                final int start = Math.toIntExact(rangeToRead.start());
+                                final int read = reader.onRangeAvailable(ioRef, start, start, Math.toIntExact(rangeToRead.length()));
+                                assert read == rangeToRead.length()
+                                    : "partial read ["
+                                        + read
+                                        + "] does not match the range to read ["
+                                        + rangeToRead.end()
+                                        + '-'
+                                        + rangeToRead.start()
+                                        + ']';
+                                readCount.increment();
+                                l.onResponse(read);
+                            })
+                        );
 
-                if (gaps.isEmpty() == false) {
-                    final var cacheFileRegion = CacheFileRegion.this;
-                    for (SparseFileTracker.Gap gap : gaps) {
-                        executor.execute(fillGapRunnable(cacheFileRegion, writer, gap));
+                        if (gaps.isEmpty() == false) {
+                            for (SparseFileTracker.Gap gap : gaps) {
+                                executor.execute(fillGapRunnable(gap, writer, ioRefs.acquireListener()));
+                            }
+                        }
                     }
                 }
             } catch (Exception e) {
-                releaseAndFail(listener, resource, e);
+                listener.onFailure(e);
             }
         }
 
-        private AbstractRunnable fillGapRunnable(CacheFileRegion cacheFileRegion, RangeMissingHandler writer, SparseFileTracker.Gap gap) {
-            return new AbstractRunnable() {
-                @Override
-                protected void doRun() throws Exception {
-                    if (cacheFileRegion.tryIncRefEnsureOpen() == false) {
-                        throw new AlreadyClosedException("File chunk [" + cacheFileRegion.regionKey + "] has been released");
-                    }
-                    try {
-                        final int start = Math.toIntExact(gap.start());
-                        var ioRef = io;
-                        assert regionOwners.get(ioRef) == cacheFileRegion;
-                        writer.fillCacheRange(
-                            ioRef,
-                            start,
-                            start,
-                            Math.toIntExact(gap.end() - start),
-                            progress -> gap.onProgress(start + progress)
-                        );
-                        writeCount.increment();
-                    } finally {
-                        cacheFileRegion.decRef();
-                    }
-                    gap.onCompletion();
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    gap.onFailure(e);
-                }
-            };
+        private AbstractRunnable fillGapRunnable(SparseFileTracker.Gap gap, RangeMissingHandler writer, ActionListener<Void> listener) {
+            return ActionRunnable.run(listener.delegateResponse((l, e) -> failGapAndListener(gap, l, e)), () -> {
+                var ioRef = io;
+                assert regionOwners.get(ioRef) == CacheFileRegion.this;
+                assert CacheFileRegion.this.hasReferences() : CacheFileRegion.this;
+                int start = Math.toIntExact(gap.start());
+                writer.fillCacheRange(
+                    ioRef,
+                    start,
+                    start,
+                    Math.toIntExact(gap.end() - start),
+                    progress -> gap.onProgress(start + progress)
+                );
+                writeCount.increment();
+                gap.onCompletion();
+            });
         }
 
-        private static void releaseAndFail(ActionListener<?> listener, Releasable decrementRef, Exception e) {
+        private static void failGapAndListener(SparseFileTracker.Gap gap, ActionListener<?> listener, Exception e) {
             try {
-                Releasables.close(decrementRef);
+                gap.onFailure(e);
             } catch (Exception ex) {
                 e.addSuppressed(ex);
             }

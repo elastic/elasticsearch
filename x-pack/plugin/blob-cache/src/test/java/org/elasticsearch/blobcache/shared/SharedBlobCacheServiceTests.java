@@ -33,7 +33,9 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -41,6 +43,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.BrokenBarrierException;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -1308,6 +1311,70 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 var cacheFileRegion = cacheService.get(cacheKey, blobLength, region);
                 assertThat(cacheFileRegion.tracker.getLength(), equalTo(regionSize));
             }
+        }
+    }
+
+    public void testWriteAndReadCanCompleteAfterSharedBytesCloses() throws Exception {
+        final long regionSize = size(1L);
+        Settings settings = Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(10)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSize).getStringRep())
+            .put("path.home", createTempDir())
+            .build();
+
+        final TestThreadPool threadPool = new TestThreadPool(getTestName());
+        try (NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings))) {
+            var cacheService = new SharedBlobCacheService<>(
+                environment,
+                settings,
+                threadPool,
+                ThreadPool.Names.GENERIC,
+                BlobCacheMetrics.NOOP
+            );
+
+            final var cacheKey = generateCacheKey();
+            final var blobLength = size(12L);
+
+            var writeBlocked = new CountDownLatch(1);
+            var resumeWrites = new CountDownLatch(1);
+
+            var entry = cacheService.get(cacheKey, blobLength, 0);
+            final PlainActionFuture<Integer> future = new PlainActionFuture<>();
+
+            entry.populateAndRead(
+                ByteRange.of(0, regionSize),
+                ByteRange.of(0, regionSize),
+                (channel, channelPos, relativePos, length) -> Math.toIntExact(regionSize),
+                (channel, channelPos, relativePos, length, progressUpdater) -> {
+                    writeBlocked.countDown();
+                    safeAwait(resumeWrites);
+                    SharedBytes.copyToCacheFileAligned(
+                        channel,
+                        new ByteArrayInputStream(randomByteArrayOfLength(SharedBytes.PAGE_SIZE)),
+                        channelPos,
+                        progressUpdater,
+                        ByteBuffer.allocate(SharedBytes.PAGE_SIZE)
+                    );
+                },
+                threadPool.generic(),
+                future
+            );
+
+            safeAwait(writeBlocked);
+            assertThat(cacheService.getSharedBytes().hasReferences(), is(true));
+
+            cacheService.close();
+            assertThat(cacheService.getSharedBytes().hasReferences(), is(true));
+
+            resumeWrites.countDown();
+
+            var written = future.get(10L, TimeUnit.SECONDS);
+            assertThat(written, equalTo((int) regionSize));
+
+            assertBusy(() -> assertThat(cacheService.getSharedBytes().hasReferences(), is(false)));
+        } finally {
+            assertTrue(ThreadPool.terminate(threadPool, 10L, TimeUnit.SECONDS));
         }
     }
 }

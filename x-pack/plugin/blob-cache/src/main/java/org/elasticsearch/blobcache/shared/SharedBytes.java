@@ -9,11 +9,13 @@ package org.elasticsearch.blobcache.shared;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.common.ByteBufferReference;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Streams;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
@@ -285,7 +287,7 @@ public class SharedBytes extends AbstractRefCounted {
         return ios[sharedBytesPos];
     }
 
-    public final class IO {
+    public final class IO implements RefCounted {
 
         private final long pageStart;
 
@@ -298,8 +300,31 @@ public class SharedBytes extends AbstractRefCounted {
             this.mappedByteBuffer = mappedByteBuffer;
         }
 
+        @Override
+        public boolean tryIncRef() {
+            return SharedBytes.this.tryIncRef();
+        }
+
+        @Override
+        public void incRef() {
+            if (tryIncRef() == false) {
+                throw new AlreadyClosedException("File channel is closed");
+            }
+        }
+
+        @Override
+        public boolean decRef() {
+            return SharedBytes.this.decRef();
+        }
+
+        @Override
+        public boolean hasReferences() {
+            return SharedBytes.this.hasReferences();
+        }
+
         @SuppressForbidden(reason = "Use positional reads on purpose")
         public int read(ByteBuffer dst, int position) throws IOException {
+            assert hasReferences();
             int remaining = dst.remaining();
             checkOffsets(position, remaining);
             final int bytesRead;
@@ -316,6 +341,7 @@ public class SharedBytes extends AbstractRefCounted {
 
         @SuppressForbidden(reason = "Use positional writes on purpose")
         public int write(ByteBuffer src, int position) throws IOException {
+            assert hasReferences();
             // check if writes are page size aligned for optimal performance
             assert position % PAGE_SIZE == 0;
             assert src.remaining() % PAGE_SIZE == 0;

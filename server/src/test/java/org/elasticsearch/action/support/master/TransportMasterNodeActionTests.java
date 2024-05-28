@@ -154,7 +154,7 @@ public class TransportMasterNodeActionTests extends ESTestCase {
         private final RefCounted refCounted = AbstractRefCounted.of(() -> {});
 
         Request() {
-            super(TimeValue.THIRTY_SECONDS);
+            super(TEST_REQUEST_TIMEOUT);
         }
 
         Request(StreamInput in) throws IOException {

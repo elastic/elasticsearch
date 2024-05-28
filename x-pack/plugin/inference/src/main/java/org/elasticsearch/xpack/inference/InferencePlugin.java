@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.inference;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.support.ActionFilter;
+import org.elasticsearch.action.support.MappedActionFilter;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -68,6 +68,7 @@ import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiService
 import org.elasticsearch.xpack.inference.services.cohere.CohereService;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService;
 import org.elasticsearch.xpack.inference.services.elser.ElserInternalService;
+import org.elasticsearch.xpack.inference.services.googleaistudio.GoogleAiStudioService;
 import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceService;
 import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserService;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiService;
@@ -194,6 +195,7 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
             context -> new CohereService(httpFactory.get(), serviceComponents.get()),
             context -> new AzureOpenAiService(httpFactory.get(), serviceComponents.get()),
             context -> new AzureAiStudioService(httpFactory.get(), serviceComponents.get()),
+            context -> new GoogleAiStudioService(httpFactory.get(), serviceComponents.get()),
             ElasticsearchInternalService::new
         );
     }
@@ -286,7 +288,7 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
     }
 
     @Override
-    public Collection<ActionFilter> getActionFilters() {
+    public Collection<MappedActionFilter> getMappedActionFilters() {
         if (SemanticTextFeature.isEnabled()) {
             return singletonList(shardBulkInferenceActionFilter.get());
         }

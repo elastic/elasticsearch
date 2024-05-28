@@ -44,6 +44,7 @@ import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -198,7 +199,7 @@ public class CohereCompletionActionTests extends ESTestCase {
     public void testExecute_ThrowsURISyntaxException_ForInvalidUrl() throws IOException {
         try (var sender = mock(Sender.class)) {
             var thrownException = expectThrows(IllegalArgumentException.class, () -> createAction("a^b", "api key", "model", sender));
-            assertThat(thrownException.getMessage(), is("unable to parse url [a^b]"));
+            assertThat(thrownException.getMessage(), containsString("unable to parse url [a^b]"));
         }
     }
 

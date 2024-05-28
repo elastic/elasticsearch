@@ -2103,6 +2103,13 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /**
+     * Various timeouts in various REST APIs default to 30s, and many tests do not care about such timeouts, but must specify some value
+     * anyway when constructing the corresponding transport/action request instance since we would prefer to avoid having implicit defaults
+     * in these requests. This constant can be used as a slightly more meaningful way to refer to the 30s default value in tests.
+     */
+    public static final TimeValue TEST_REQUEST_TIMEOUT = TimeValue.THIRTY_SECONDS;
+
+    /**
      * The timeout used for the various "safe" wait methods such as {@link #safeAwait} and {@link #safeAcquire}. In tests we generally want
      * these things to complete almost immediately, but sometimes the CI runner executes things rather slowly so we use {@code 10s} as a
      * fairly relaxed definition of "immediately".

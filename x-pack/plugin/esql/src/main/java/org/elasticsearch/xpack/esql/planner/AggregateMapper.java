@@ -11,6 +11,17 @@ import org.elasticsearch.compute.aggregation.IntermediateStateDesc;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.expression.function.Function;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountDistinct;
@@ -23,17 +34,6 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialAggrega
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroid;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
-import org.elasticsearch.xpack.ql.expression.Alias;
-import org.elasticsearch.xpack.ql.expression.AttributeMap;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.FieldAttribute;
-import org.elasticsearch.xpack.ql.expression.MetadataAttribute;
-import org.elasticsearch.xpack.ql.expression.NamedExpression;
-import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
-import org.elasticsearch.xpack.ql.expression.function.Function;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
@@ -47,13 +47,13 @@ import java.util.stream.Stream;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.CARTESIAN_POINT;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_POINT;
 
-public class AggregateMapper {
+final class AggregateMapper {
 
-    static final List<String> NUMERIC = List.of("Int", "Long", "Double");
-    static final List<String> SPATIAL = List.of("GeoPoint", "CartesianPoint");
+    private static final List<String> NUMERIC = List.of("Int", "Long", "Double");
+    private static final List<String> SPATIAL = List.of("GeoPoint", "CartesianPoint");
 
     /** List of all mappable ESQL agg functions (excludes surrogates like AVG = SUM/COUNT). */
-    static final List<? extends Class<? extends Function>> AGG_FUNCTIONS = List.of(
+    private static final List<? extends Class<? extends Function>> AGG_FUNCTIONS = List.of(
         Count.class,
         CountDistinct.class,
         Max.class,
@@ -65,22 +65,20 @@ public class AggregateMapper {
         Values.class
     );
 
-    static AggregateMapper INSTANCE = new AggregateMapper();
-
     /** Record of agg Class, type, and grouping (or non-grouping). */
-    record AggDef(Class<?> aggClazz, String type, String extra, boolean grouping) {}
+    private record AggDef(Class<?> aggClazz, String type, String extra, boolean grouping) {}
 
     /** Map of AggDef types to intermediate named expressions. */
-    private final Map<AggDef, List<IntermediateStateDesc>> mapper;
+    private static final Map<AggDef, List<IntermediateStateDesc>> mapper = AGG_FUNCTIONS.stream()
+        .flatMap(AggregateMapper::typeAndNames)
+        .flatMap(AggregateMapper::groupingAndNonGrouping)
+        .collect(Collectors.toUnmodifiableMap(aggDef -> aggDef, AggregateMapper::lookupIntermediateState));
 
     /** Cache of aggregates to intermediate expressions. */
-    private final HashMap<Expression, List<? extends NamedExpression>> cache = new HashMap<>();
+    private final HashMap<Expression, List<? extends NamedExpression>> cache;
 
-    private AggregateMapper() {
-        mapper = AGG_FUNCTIONS.stream()
-            .flatMap(AggregateMapper::typeAndNames)
-            .flatMap(AggregateMapper::groupingAndNonGrouping)
-            .collect(Collectors.toUnmodifiableMap(aggDef -> aggDef, AggregateMapper::lookupIntermediateState));
+    AggregateMapper() {
+        cache = new HashMap<>();
     }
 
     public List<? extends NamedExpression> mapNonGrouping(List<? extends Expression> aggregates) {
@@ -106,11 +104,10 @@ public class AggregateMapper {
     }
 
     private Stream<? extends NamedExpression> map(Expression aggregate, boolean grouping) {
-        aggregate = Alias.unwrap(aggregate);
-        return cache.computeIfAbsent(aggregate, aggKey -> computeEntryForAgg(aggKey, grouping)).stream();
+        return cache.computeIfAbsent(Alias.unwrap(aggregate), aggKey -> computeEntryForAgg(aggKey, grouping)).stream();
     }
 
-    private List<? extends NamedExpression> computeEntryForAgg(Expression aggregate, boolean grouping) {
+    private static List<? extends NamedExpression> computeEntryForAgg(Expression aggregate, boolean grouping) {
         var aggDef = aggDefOrNull(aggregate, grouping);
         if (aggDef != null) {
             var is = getNonNull(aggDef);
@@ -126,7 +123,7 @@ public class AggregateMapper {
     }
 
     /** Gets the agg from the mapper - wrapper around map::get for more informative failure.*/
-    private List<IntermediateStateDesc> getNonNull(AggDef aggDef) {
+    private static List<IntermediateStateDesc> getNonNull(AggDef aggDef) {
         var l = mapper.get(aggDef);
         if (l == null) {
             throw new EsqlIllegalArgumentException("Cannot find intermediate state for: " + aggDef);
@@ -265,10 +262,5 @@ public class AggregateMapper {
             } else {
                 throw new EsqlIllegalArgumentException("illegal agg type: " + type.typeName());
             }
-    }
-
-    private static Expression unwrapAlias(Expression expression) {
-        if (expression instanceof Alias alias) return alias.child();
-        return expression;
     }
 }

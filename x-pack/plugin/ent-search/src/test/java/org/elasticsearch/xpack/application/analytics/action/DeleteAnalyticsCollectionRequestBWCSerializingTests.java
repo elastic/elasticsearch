@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.application.analytics.action;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
@@ -29,7 +28,7 @@ public class DeleteAnalyticsCollectionRequestBWCSerializingTests extends Abstrac
 
     @Override
     protected DeleteAnalyticsCollectionAction.Request createTestInstance() {
-        return new DeleteAnalyticsCollectionAction.Request(TimeValue.THIRTY_SECONDS, randomIdentifier());
+        return new DeleteAnalyticsCollectionAction.Request(TEST_REQUEST_TIMEOUT, randomIdentifier());
     }
 
     @Override
@@ -47,12 +46,12 @@ public class DeleteAnalyticsCollectionRequestBWCSerializingTests extends Abstrac
         DeleteAnalyticsCollectionAction.Request instance,
         TransportVersion version
     ) {
-        return new DeleteAnalyticsCollectionAction.Request(TimeValue.THIRTY_SECONDS, instance.getCollectionName());
+        return new DeleteAnalyticsCollectionAction.Request(TEST_REQUEST_TIMEOUT, instance.getCollectionName());
     }
 
     private static final ConstructingObjectParser<DeleteAnalyticsCollectionAction.Request, Void> PARSER = new ConstructingObjectParser<>(
         "delete_analytics_collection_request",
-        p -> new DeleteAnalyticsCollectionAction.Request(TimeValue.THIRTY_SECONDS, (String) p[0])
+        p -> new DeleteAnalyticsCollectionAction.Request(TEST_REQUEST_TIMEOUT, (String) p[0])
     );
 
     static {

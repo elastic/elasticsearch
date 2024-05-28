@@ -158,8 +158,16 @@ public class IpPrefix extends EsqlScalarFunction implements OptionalArgument {
         boolean isIpv4 = Arrays.compareUnsigned(ip.bytes, 0, IPV4_PREFIX.length, IPV4_PREFIX, 0, IPV4_PREFIX.length) == 0;
 
         if (isIpv4) {
+            if (prefixLengthV4 == 32) {
+                return ip;
+            }
+
             makePrefix(ip, scratch, 12 + prefixLengthV4 / 8, prefixLengthV4 % 8);
         } else {
+            if (prefixLengthV6 == 128) {
+                return ip;
+            }
+
             makePrefix(ip, scratch, prefixLengthV6 / 8, prefixLengthV6 % 8);
         }
 

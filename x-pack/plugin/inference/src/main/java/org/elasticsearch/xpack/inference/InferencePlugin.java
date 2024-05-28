@@ -68,6 +68,7 @@ import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiService
 import org.elasticsearch.xpack.inference.services.cohere.CohereService;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService;
 import org.elasticsearch.xpack.inference.services.elser.ElserInternalService;
+import org.elasticsearch.xpack.inference.services.googleaistudio.GoogleAiStudioService;
 import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceService;
 import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserService;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiService;
@@ -194,6 +195,7 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
             context -> new CohereService(httpFactory.get(), serviceComponents.get()),
             context -> new AzureOpenAiService(httpFactory.get(), serviceComponents.get()),
             context -> new AzureAiStudioService(httpFactory.get(), serviceComponents.get()),
+            context -> new GoogleAiStudioService(httpFactory.get(), serviceComponents.get()),
             ElasticsearchInternalService::new
         );
     }

@@ -360,6 +360,7 @@ public class StatelessTranslogIT extends AbstractStatelessIntegTestCase {
             + "co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicatorReader:debug",
         reason = "to ensure we translog events on DEBUG level"
     )
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-serverless/issues/2118")
     public void testTranslogMasterFailureOnlyStressRecoveryTest() throws Exception {
         Settings heartbeatSettings = Settings.builder()
             .put(StoreHeartbeatService.HEARTBEAT_FREQUENCY.getKey(), TimeValue.timeValueSeconds(1))

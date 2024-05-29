@@ -621,9 +621,7 @@ public class OptimizerRulesTests extends ESTestCase {
     public void testGenericNullableExpression() {
         FoldNull rule = new FoldNull();
         // arithmetic
-        assertNullLiteral(
-            rule.rule(new Add(EMPTY, getFieldAttribute(), NULL))
-        );
+        assertNullLiteral(rule.rule(new Add(EMPTY, getFieldAttribute(), NULL)));
         // comparison
         assertNullLiteral(rule.rule(greaterThanOf(getFieldAttribute(), NULL)));
         // regex
@@ -921,42 +919,14 @@ public class OptimizerRulesTests extends ESTestCase {
     }
 
     public void testBinaryComparisonSimplification() {
-        assertEquals(
-            TRUE,
-            new org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.BinaryComparisonSimplification().rule(equalsOf(FIVE, FIVE))
-        );
-        assertEquals(
-            TRUE,
-            new org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.BinaryComparisonSimplification().rule(nullEqualsOf(FIVE, FIVE))
-        );
-        assertEquals(
-            TRUE,
-            new org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.BinaryComparisonSimplification().rule(nullEqualsOf(NULL, NULL))
-        );
-        assertEquals(
-            FALSE,
-            new org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.BinaryComparisonSimplification().rule(notEqualsOf(FIVE, FIVE))
-        );
-        assertEquals(
-            TRUE,
-            new org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.BinaryComparisonSimplification().rule(
-                greaterThanOrEqualOf(FIVE, FIVE)
-            )
-        );
-        assertEquals(
-            TRUE,
-            new org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.BinaryComparisonSimplification().rule(
-                lessThanOrEqualOf(FIVE, FIVE)
-            )
-        );
+        assertEquals(TRUE, new OptimizerRules.BinaryComparisonSimplification().rule(equalsOf(FIVE, FIVE)));
+        assertEquals(TRUE, new OptimizerRules.BinaryComparisonSimplification().rule(nullEqualsOf(FIVE, FIVE)));
+        assertEquals(TRUE, new OptimizerRules.BinaryComparisonSimplification().rule(nullEqualsOf(NULL, NULL)));
+        assertEquals(FALSE, new OptimizerRules.BinaryComparisonSimplification().rule(notEqualsOf(FIVE, FIVE)));
+        assertEquals(TRUE, new OptimizerRules.BinaryComparisonSimplification().rule(greaterThanOrEqualOf(FIVE, FIVE)));
+        assertEquals(TRUE, new OptimizerRules.BinaryComparisonSimplification().rule(lessThanOrEqualOf(FIVE, FIVE)));
 
-        assertEquals(
-            FALSE,
-            new org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.BinaryComparisonSimplification().rule(greaterThanOf(FIVE, FIVE))
-        );
-        assertEquals(
-            FALSE,
-            new org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.BinaryComparisonSimplification().rule(lessThanOf(FIVE, FIVE))
-        );
+        assertEquals(FALSE, new OptimizerRules.BinaryComparisonSimplification().rule(greaterThanOf(FIVE, FIVE)));
+        assertEquals(FALSE, new OptimizerRules.BinaryComparisonSimplification().rule(lessThanOf(FIVE, FIVE)));
     }
 }

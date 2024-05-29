@@ -9,13 +9,12 @@ package org.elasticsearch.blobcache.shared;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.common.ByteBufferReference;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.IOUtils;
-import org.elasticsearch.core.RefCounted;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Streams;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
@@ -32,7 +31,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.function.IntConsumer;
 
-public class SharedBytes extends AbstractRefCounted {
+public class SharedBytes extends AbstractRefCounted implements Releasable {
 
     /**
      * Thread local direct byte buffer to aggregate multiple positional writes to the cache file.
@@ -116,6 +115,16 @@ public class SharedBytes extends AbstractRefCounted {
         }
         this.writeBytes = writeBytes;
         this.readBytes = readBytes;
+    }
+
+    @Override
+    public void close() {
+        if (ios != null) {
+            for (var io : ios) {
+                io.decRef();
+            }
+        }
+        decRef();
     }
 
     /**
@@ -287,10 +296,9 @@ public class SharedBytes extends AbstractRefCounted {
         return ios[sharedBytesPos];
     }
 
-    public final class IO implements RefCounted {
+    public final class IO extends AbstractRefCounted {
 
         private final long pageStart;
-
         private final MappedByteBuffer mappedByteBuffer;
 
         private IO(final int sharedBytesPos, MappedByteBuffer mappedByteBuffer) {
@@ -298,28 +306,12 @@ public class SharedBytes extends AbstractRefCounted {
             assert physicalOffset <= (long) numRegions * regionSize;
             this.pageStart = physicalOffset;
             this.mappedByteBuffer = mappedByteBuffer;
+            SharedBytes.this.incRef();
         }
 
         @Override
-        public boolean tryIncRef() {
-            return SharedBytes.this.tryIncRef();
-        }
-
-        @Override
-        public void incRef() {
-            if (tryIncRef() == false) {
-                throw new AlreadyClosedException("File channel is closed");
-            }
-        }
-
-        @Override
-        public boolean decRef() {
-            return SharedBytes.this.decRef();
-        }
-
-        @Override
-        public boolean hasReferences() {
-            return SharedBytes.this.hasReferences();
+        protected void closeInternal() {
+            SharedBytes.this.decRef();
         }
 
         @SuppressForbidden(reason = "Use positional reads on purpose")

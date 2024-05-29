@@ -47,6 +47,7 @@ import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 import java.lang.reflect.Array;
 import java.nio.ByteBuffer;
+import java.nio.channels.ClosedChannelException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Iterator;
@@ -708,7 +709,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
 
     @Override
     public void close() {
-        sharedBytes.decRef();
+        sharedBytes.close();
     }
 
     // used by tests
@@ -884,7 +885,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
          */
         boolean tryRead(ByteBuffer buf, long offset) throws IOException {
             SharedBytes.IO ioRef = this.io;
-            if (ioRef != null && ioRef.tryIncRef()) {
+            if (ioRef != null) {
                 try {
                     int readBytes = ioRef.read(buf, getRegionRelativePosition(offset));
                     if (isEvicted()) {
@@ -892,8 +893,9 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                         return false;
                     }
                     return true;
-                } finally {
-                    ioRef.decRef();
+                } catch (ClosedChannelException e) {
+                    // the cache file channel has been closed
+                    return false;
                 }
             } else {
                 // taken by someone else

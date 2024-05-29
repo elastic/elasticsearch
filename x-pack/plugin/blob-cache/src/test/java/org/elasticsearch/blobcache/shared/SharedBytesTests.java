@@ -37,7 +37,7 @@ public class SharedBytesTests extends ESTestCase {
             );
             final var sharedBytesPath = nodeEnv.nodeDataPaths()[0].resolve("shared_snapshot_cache");
             assertTrue(Files.exists(sharedBytesPath));
-            sharedBytes.decRef();
+            sharedBytes.close();
             assertFalse(Files.exists(sharedBytesPath));
         }
     }

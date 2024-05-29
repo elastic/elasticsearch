@@ -769,7 +769,7 @@ For each section, name and number of times it's been used is reported.
 [%collapsible%open]
 =====
 `value_count`::
-(integer) Total number of sparse vector indexed in selected nodes.
+(integer) Total number of sparse vectors indexed across all primary shards assigned to selected nodes.
 
 =====
 

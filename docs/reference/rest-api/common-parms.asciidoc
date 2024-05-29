@@ -556,6 +556,12 @@ Size of the index in <<byte-units, byte units>>.
 
 `translog`::
 <<index-modules-translog,Translog>> statistics.
+
+`sparse_vector`::
+Total number of sparse vectors indexed.
+
+<<indices-refresh,Index refreshes>> can affect this statistic.
+
 --
 end::index-metric[]
 
@@ -605,7 +611,6 @@ A configuration object indicating how to build a query_vector before executing
 the request. You must provide either a `query_vector_builder` or `query_vector`,
 but not both. Refer to <<knn-semantic-search>> to learn more.
 end::knn-query-vector-builder[]
-
 
 tag::knn-similarity[]
 The minimum similarity required for a document to be considered a match. The similarity
@@ -1224,11 +1229,9 @@ Can also be set to `-1` to indicate that the request should never timeout.
 end::master-timeout[]
 
 `timeout`::
-(Optional, <<time-units, time units>>)
-Period to wait for a response from all relevant nodes in the cluster after
-updating the cluster metadata. If no response is received before the timeout
-expires, the cluster metadata update still applies but the response will
-indicate that it was not completely acknowledged. Defaults to `30s`.
+(Optional, <<time-units, time units>>) Period to wait for a response from all relevant nodes in the cluster after updating the cluster metadata.
+If no response is received before the timeout expires, the cluster metadata update still applies but the response will indicate that it was not completely acknowledged.
+Defaults to `30s`.
 Can also be set to `-1` to indicate that the request should never timeout.
 end::timeoutparms[]
 

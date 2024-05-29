@@ -258,7 +258,7 @@ public class RestShardsAction extends AbstractCatAction {
         );
         table.addCell(
             "sparse_vector.value_count",
-            "alias:svc,sparseVectorCount;default:false;text-align:right;desc:total count of indexed sparse vectors"
+            "alias:svc,sparseVectorCount;default:false;text-align:right;desc:number of indexed sparse vectors in shard"
         );
 
         table.endHeaders();

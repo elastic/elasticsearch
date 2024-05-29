@@ -75,6 +75,7 @@ public class ClusterStatsIndices implements ToXContentFragment {
                 if (shardStats.getShardRouting().primary()) {
                     indexShardStats.primaries++;
                     docs.add(shardCommonStats.getDocs());
+                    sparseVectorStats.add(shardCommonStats.getSparseVectorStats());
                 }
                 store.add(shardCommonStats.getStore());
                 fieldData.add(shardCommonStats.getFieldData());
@@ -82,7 +83,6 @@ public class ClusterStatsIndices implements ToXContentFragment {
                 completion.add(shardCommonStats.getCompletion());
                 segments.add(shardCommonStats.getSegments());
                 denseVectorStats.add(shardCommonStats.getDenseVectorStats());
-                sparseVectorStats.add(shardCommonStats.getSparseVectorStats());
             }
 
             searchUsageStats.add(r.searchUsageStats());

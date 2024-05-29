@@ -31,7 +31,6 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.lucene.spatial.CartesianShapeDocValuesQuery;
-import org.elasticsearch.search.sort.NestedSortBuilder;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -55,21 +54,6 @@ public class SpatialRelatesQuery extends Query {
         this.queryRelation = queryRelation;
         this.shape = shape;
         this.dataType = dataType;
-    }
-
-    @Override
-    public boolean containsNestedField(String path, String field) {
-        return false;
-    }
-
-    @Override
-    public Query addNestedField(String path, String field, String format, boolean hasDocValues) {
-        return null;
-    }
-
-    @Override
-    public void enrichNestedSort(NestedSortBuilder sort) {
-
     }
 
     @Override

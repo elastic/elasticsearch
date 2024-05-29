@@ -67,7 +67,7 @@ public final class IpPrefixEvaluator implements EvalOperator.ExpressionEvaluator
           if (prefixLengthV6Vector == null) {
             return eval(page.getPositionCount(), ipBlock, prefixLengthV4Block, prefixLengthV6Block);
           }
-          return eval(page.getPositionCount(), ipVector, prefixLengthV4Vector, prefixLengthV6Vector).asBlock();
+          return eval(page.getPositionCount(), ipVector, prefixLengthV4Vector, prefixLengthV6Vector);
         }
       }
     }
@@ -111,18 +111,28 @@ public final class IpPrefixEvaluator implements EvalOperator.ExpressionEvaluator
           result.appendNull();
           continue position;
         }
-        result.appendBytesRef(IpPrefix.process(ipBlock.getBytesRef(ipBlock.getFirstValueIndex(p), ipScratch), prefixLengthV4Block.getInt(prefixLengthV4Block.getFirstValueIndex(p)), prefixLengthV6Block.getInt(prefixLengthV6Block.getFirstValueIndex(p)), scratch));
+        try {
+          result.appendBytesRef(IpPrefix.process(ipBlock.getBytesRef(ipBlock.getFirstValueIndex(p), ipScratch), prefixLengthV4Block.getInt(prefixLengthV4Block.getFirstValueIndex(p)), prefixLengthV6Block.getInt(prefixLengthV6Block.getFirstValueIndex(p)), scratch));
+        } catch (IllegalArgumentException e) {
+          warnings.registerException(e);
+          result.appendNull();
+        }
       }
       return result.build();
     }
   }
 
-  public BytesRefVector eval(int positionCount, BytesRefVector ipVector,
+  public BytesRefBlock eval(int positionCount, BytesRefVector ipVector,
       IntVector prefixLengthV4Vector, IntVector prefixLengthV6Vector) {
-    try(BytesRefVector.Builder result = driverContext.blockFactory().newBytesRefVectorBuilder(positionCount)) {
+    try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       BytesRef ipScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendBytesRef(IpPrefix.process(ipVector.getBytesRef(p, ipScratch), prefixLengthV4Vector.getInt(p), prefixLengthV6Vector.getInt(p), scratch));
+        try {
+          result.appendBytesRef(IpPrefix.process(ipVector.getBytesRef(p, ipScratch), prefixLengthV4Vector.getInt(p), prefixLengthV6Vector.getInt(p), scratch));
+        } catch (IllegalArgumentException e) {
+          warnings.registerException(e);
+          result.appendNull();
+        }
       }
       return result.build();
     }

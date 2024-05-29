@@ -122,7 +122,7 @@ public class IpPrefix extends EsqlScalarFunction implements OptionalArgument {
         );
     }
 
-    @Evaluator
+    @Evaluator(warnExceptions = IllegalArgumentException.class)
     static BytesRef process(
         BytesRef ip,
         int prefixLengthV4,

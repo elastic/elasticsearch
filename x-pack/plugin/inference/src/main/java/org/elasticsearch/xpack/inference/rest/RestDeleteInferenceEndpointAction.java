@@ -55,13 +55,9 @@ public class RestDeleteInferenceEndpointAction extends BaseRestHandler {
             taskType = TaskType.ANY;
         }
 
-        if (restRequest.hasParam(FORCE_DELETE_NAME)) {
-            forceDelete = restRequest.paramAsBoolean(FORCE_DELETE_NAME, false);
-        }
+        forceDelete = restRequest.paramAsBoolean(FORCE_DELETE_NAME, false);
 
-        if (restRequest.hasParam(DRY_RUN_NAME)) {
-            dryRun = restRequest.paramAsBoolean(DRY_RUN_NAME, false);
-        }
+        dryRun = restRequest.paramAsBoolean(DRY_RUN_NAME, false);
 
         var request = new DeleteInferenceEndpointAction.Request(inferenceEntityId, taskType, forceDelete, dryRun);
         return channel -> client.execute(DeleteInferenceEndpointAction.INSTANCE, request, new RestToXContentListener<>(channel));

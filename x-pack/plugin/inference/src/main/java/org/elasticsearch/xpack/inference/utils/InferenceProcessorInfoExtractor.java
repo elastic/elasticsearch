@@ -40,7 +40,7 @@ public final class InferenceProcessorInfoExtractor {
     private InferenceProcessorInfoExtractor() {}
 
     /**
-     * @param ingestMetadata The ingestMetadata of current ClusterState
+     * @param ingestMetadata The ingestMetadata of current {@link ClusterState}
      * @return The set of model IDs referenced by inference processors
      */
     @SuppressWarnings("unchecked")
@@ -69,7 +69,7 @@ public final class InferenceProcessorInfoExtractor {
     }
 
     /**
-     * @param state Current cluster state
+     * @param state Current {@link ClusterState}
      * @return a map from Model or Deployment IDs or Aliases to each pipeline referencing them.
      */
     @SuppressWarnings("unchecked")

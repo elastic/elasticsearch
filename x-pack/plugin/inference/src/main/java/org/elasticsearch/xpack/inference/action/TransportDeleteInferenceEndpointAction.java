@@ -104,7 +104,10 @@ public class TransportDeleteInferenceEndpointAction extends AcknowledgedTranspor
                 service.get().stop(request.getInferenceEndpointId(), listener);
             } else {
                 listener.onFailure(
-                    new ElasticsearchStatusException("No service found for model " + request.getInferenceEndpointId(), RestStatus.NOT_FOUND)
+                    new ElasticsearchStatusException(
+                        "No service found for this inference endpoint " + request.getInferenceEndpointId(),
+                        RestStatus.NOT_FOUND
+                    )
                 );
             }
         }).<Boolean>andThen((listener, didStop) -> {
@@ -113,7 +116,7 @@ public class TransportDeleteInferenceEndpointAction extends AcknowledgedTranspor
             } else {
                 listener.onFailure(
                     new ElasticsearchStatusException(
-                        "Failed to stop model " + request.getInferenceEndpointId(),
+                        "Failed to stop inference endpoint " + request.getInferenceEndpointId(),
                         RestStatus.INTERNAL_SERVER_ERROR
                     )
                 );
@@ -132,8 +135,13 @@ public class TransportDeleteInferenceEndpointAction extends AcknowledgedTranspor
         Metadata metadata = state.getMetadata();
         if (metadata == null) {
             listener.onFailure(
-                new ElasticsearchStatusException("Cluster State metadata was unexpectedly null", RestStatus.INTERNAL_SERVER_ERROR)
+                new ElasticsearchStatusException(
+                    " Could not determine if the endpoint is referenced in a pipeline as cluster state metadata was unexpectedly null. "
+                        + "Use `force` to delete it anyway",
+                    RestStatus.INTERNAL_SERVER_ERROR
+                )
             );
+            // Unsure why the ClusterState metadata would ever be null, but in this case it seems safer to assume the endpoint is referenced
             return true;
         }
         IngestMetadata ingestMetadata = metadata.custom(IngestMetadata.TYPE);
@@ -148,7 +156,7 @@ public class TransportDeleteInferenceEndpointAction extends AcknowledgedTranspor
                             + inferenceEndpointId
                             + " is referenced by pipelines and cannot be deleted. "
                             + "Use `force` to delete it anyway, or use `dry_run` to list the pipelines that reference it.",
-                        RestStatus.FORBIDDEN
+                        RestStatus.CONFLICT
                     )
                 );
                 return true;

@@ -76,6 +76,7 @@ import org.elasticsearch.client.internal.AdminClient;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.FilterClient;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
@@ -120,6 +121,8 @@ public abstract class AbstractClient implements Client {
         ActionType<Response> action,
         Request request
     ) {
+        assert EsExecutors.executorName(Thread.currentThread()) == null
+            : "can only call synchronous execute on a test thread " + Thread.currentThread();
         PlainActionFuture<Response> actionFuture = new RefCountedFuture<>();
         execute(action, request, actionFuture);
         return actionFuture;

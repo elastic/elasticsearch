@@ -1295,7 +1295,8 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         }
     }
 
-    public static class ReplaceRegexMatch extends org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.OptimizerExpressionRule<RegexMatch<?>> {
+    public static class ReplaceRegexMatch extends org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.OptimizerExpressionRule<
+        RegexMatch<?>> {
 
         ReplaceRegexMatch() {
             super(org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.TransformDirection.DOWN);

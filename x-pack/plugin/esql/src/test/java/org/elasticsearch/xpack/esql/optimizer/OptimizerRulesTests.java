@@ -33,7 +33,6 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPatt
 import org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.ConstantFolding;
 import org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.FoldNull;
 import org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.PropagateNullable;
-import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer.ReplaceRegexMatch;
 import org.elasticsearch.xpack.esql.core.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.core.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
@@ -53,6 +52,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
+import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer.ReplaceRegexMatch;
 
 import java.util.List;
 

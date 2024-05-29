@@ -39,6 +39,7 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.application.rules.action.PutQueryRuleAction;
+import org.elasticsearch.xpack.application.rules.action.DeleteQueryRuleAction;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -51,6 +52,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -227,6 +229,32 @@ public class QueryRulesIndexService {
         });
     }
 
+    /**
+     * Retrieves a {@link QueryRule} from a {@link QueryRuleset}.
+     *
+     * @param rulesetId
+     * @param ruleId
+     * @param listener
+     */
+    public void getQueryRule(String rulesetId, String ruleId, ActionListener<QueryRule> listener) {
+        getQueryRuleset(rulesetId, new ActionListener<>() {
+            @Override
+            public void onResponse(QueryRuleset queryRuleset) {
+                Optional<QueryRule> maybeQueryRule = queryRuleset.rules().stream().filter(r -> r.id().equals(ruleId)).findFirst();
+                if (maybeQueryRule.isPresent()) {
+                    listener.onResponse(maybeQueryRule.get());
+                } else {
+                    listener.onFailure(new ResourceNotFoundException("rule id " + ruleId + " not found in ruleset " + rulesetId));
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                listener.onFailure(e);
+            }
+        });
+    }
+
     @SuppressWarnings("unchecked")
     private static List<QueryRuleCriteria> parseCriteria(List<Map<String, Object>> rawCriteria) {
         List<QueryRuleCriteria> criteria = new ArrayList<>(rawCriteria.size());
@@ -336,6 +364,56 @@ public class QueryRulesIndexService {
                     listener.onFailure(new ResourceNotFoundException(resourceName));
                     return;
                 }
+                listener.onFailure(e);
+            }
+        });
+    }
+
+    /**
+     * Deletes a {@link QueryRule} from a {@link QueryRuleset}.
+     *
+     * @param rulesetId
+     * @param ruleId
+     * @param listener
+     */
+    public void deleteQueryRule(String rulesetId, String ruleId, ActionListener<DeleteQueryRuleAction.Response> listener) {
+        getQueryRuleset(rulesetId, new ActionListener<>() {
+            @Override
+            public void onResponse(QueryRuleset queryRuleset) {
+                final List<QueryRule> rules = queryRuleset.rules()
+                    .stream()
+                    .filter(rule -> rule.id().equals(ruleId) == false)
+                    .collect(Collectors.toList());
+                if (rules.isEmpty() == false) {
+                    putQueryRuleset(new QueryRuleset(rulesetId, rules), new ActionListener<>() {
+                        @Override
+                        public void onResponse(DocWriteResponse docWriteResponse) {
+                            listener.onResponse(new DeleteQueryRuleAction.Response(true));
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            listener.onFailure(e);
+                        }
+                    });
+                } else {
+                    // Delete entire ruleset when there are no more rules left in it
+                    deleteQueryRuleset(rulesetId, new ActionListener<>() {
+                        @Override
+                        public void onResponse(DeleteResponse deleteResponse) {
+                            listener.onResponse(new DeleteQueryRuleAction.Response(true));
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            listener.onFailure(e);
+                        }
+                    });
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
                 listener.onFailure(e);
             }
         });

@@ -205,11 +205,75 @@ public class QueryRulesIndexServiceTests extends ESSingleNodeTestCase {
         expectThrows(ResourceNotFoundException.class, () -> awaitGetQueryRuleset("my_ruleset"));
     }
 
+    public void testDeleteQueryRule() throws Exception {
+        for (int i = 0; i < 5; i++) {
+            final QueryRule myQueryRule1 = new QueryRule(
+                "my_rule1",
+                QueryRuleType.PINNED,
+                List.of(new QueryRuleCriteria(EXACT, "query_string", List.of("foo"))),
+                Map.of("ids", List.of("id1", "id2")),
+                randomBoolean() ? randomIntBetween(0, 100) : null
+            );
+            final QueryRule myQueryRule2 = new QueryRule(
+                "my_rule2",
+                QueryRuleType.PINNED,
+                List.of(new QueryRuleCriteria(EXACT, "query_string", List.of("bar"))),
+                Map.of("ids", List.of("id3", "id4")),
+                randomBoolean() ? randomIntBetween(0, 100) : null
+            );
+            final QueryRuleset myQueryRuleset = new QueryRuleset("my_ruleset", List.of(myQueryRule1, myQueryRule2));
+            DocWriteResponse resp = awaitPutQueryRuleset(myQueryRuleset);
+            assertThat(resp.status(), anyOf(equalTo(RestStatus.CREATED), equalTo(RestStatus.OK)));
+            assertThat(resp.getIndex(), equalTo(QUERY_RULES_CONCRETE_INDEX_NAME));
+
+            QueryRule getQueryRule = awaitGetQueryRule("my_ruleset", "my_rule1");
+            assertThat(getQueryRule, equalTo(myQueryRule1));
+
+            DeleteQueryRuleAction.Response deleteResp = awaitDeleteQueryRule("my_ruleset", "my_rule1");
+            assertThat(deleteResp.isAcknowledged(), equalTo(true));
+            expectThrows(ResourceNotFoundException.class, () -> awaitGetQueryRule("my_ruleset", "my_rule1"));
+
+            QueryRule getQueryRule2 = awaitGetQueryRule("my_ruleset", "my_rule2");
+            assertThat(getQueryRule2, equalTo(myQueryRule2));
+        }
+
+        // Deleting the last rule in the ruleset should delete the ruleset
+        DeleteQueryRuleAction.Response deleteResp = awaitDeleteQueryRule("my_ruleset", "my_rule2");
+        assertThat(deleteResp.isAcknowledged(), equalTo(true));
+        expectThrows(ResourceNotFoundException.class, () -> awaitGetQueryRule("my_ruleset", "my_rule2"));
+        expectThrows(ResourceNotFoundException.class, () -> awaitGetQueryRuleset("my_ruleset"));
+    }
+
     private DocWriteResponse awaitPutQueryRuleset(QueryRuleset queryRuleset) throws Exception {
         CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<DocWriteResponse> resp = new AtomicReference<>(null);
         final AtomicReference<Exception> exc = new AtomicReference<>(null);
         queryRulesIndexService.putQueryRuleset(queryRuleset, new ActionListener<>() {
+            @Override
+            public void onResponse(DocWriteResponse indexResponse) {
+                resp.set(indexResponse);
+                latch.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                exc.set(e);
+                latch.countDown();
+            }
+        });
+        assertTrue("Timeout waiting for put request", latch.await(REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+        if (exc.get() != null) {
+            throw exc.get();
+        }
+        assertNotNull("Received null response from put request", resp.get());
+        return resp.get();
+    }
+
+    private DocWriteResponse awaitPutQueryRule(String queryRulesetId, QueryRule queryRule) throws Exception {
+        CountDownLatch latch = new CountDownLatch(1);
+        final AtomicReference<DocWriteResponse> resp = new AtomicReference<>(null);
+        final AtomicReference<Exception> exc = new AtomicReference<>(null);
+        queryRulesIndexService.putQueryRule(queryRulesetId, queryRule, new ActionListener<>() {
             @Override
             public void onResponse(DocWriteResponse indexResponse) {
                 resp.set(indexResponse);
@@ -255,6 +319,31 @@ public class QueryRulesIndexServiceTests extends ESSingleNodeTestCase {
         return resp.get();
     }
 
+    private QueryRule awaitGetQueryRule(String rulesetId, String ruleId) throws Exception {
+        CountDownLatch latch = new CountDownLatch(1);
+        final AtomicReference<QueryRule> resp = new AtomicReference<>(null);
+        final AtomicReference<Exception> exc = new AtomicReference<>(null);
+        queryRulesIndexService.getQueryRule(rulesetId, ruleId, new ActionListener<>() {
+            @Override
+            public void onResponse(QueryRule rule) {
+                resp.set(rule);
+                latch.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                exc.set(e);
+                latch.countDown();
+            }
+        });
+        assertTrue("Timeout waiting for get request", latch.await(REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+        if (exc.get() != null) {
+            throw exc.get();
+        }
+        assertNotNull("Received null response from get request", resp.get());
+        return resp.get();
+    }
+
     private DeleteResponse awaitDeleteQueryRuleset(String name) throws Exception {
         CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<DeleteResponse> resp = new AtomicReference<>(null);
@@ -262,6 +351,31 @@ public class QueryRulesIndexServiceTests extends ESSingleNodeTestCase {
         queryRulesIndexService.deleteQueryRuleset(name, new ActionListener<>() {
             @Override
             public void onResponse(DeleteResponse deleteResponse) {
+                resp.set(deleteResponse);
+                latch.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                exc.set(e);
+                latch.countDown();
+            }
+        });
+        assertTrue("Timeout waiting for delete request", latch.await(REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+        if (exc.get() != null) {
+            throw exc.get();
+        }
+        assertNotNull("Received null response from delete request", resp.get());
+        return resp.get();
+    }
+
+    private DeleteQueryRuleAction.Response awaitDeleteQueryRule(String rulesetId, String ruleId) throws Exception {
+        CountDownLatch latch = new CountDownLatch(1);
+        final AtomicReference<DeleteQueryRuleAction.Response> resp = new AtomicReference<>(null);
+        final AtomicReference<Exception> exc = new AtomicReference<>(null);
+        queryRulesIndexService.deleteQueryRule(rulesetId, ruleId, new ActionListener<>() {
+            @Override
+            public void onResponse(DeleteQueryRuleAction.Response deleteResponse) {
                 resp.set(deleteResponse);
                 latch.countDown();
             }

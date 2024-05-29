@@ -148,7 +148,9 @@ import org.elasticsearch.xpack.application.connector.syncjob.action.UpdateConnec
 import org.elasticsearch.xpack.application.rules.QueryRulesConfig;
 import org.elasticsearch.xpack.application.rules.QueryRulesIndexService;
 import org.elasticsearch.xpack.application.rules.RuleQueryBuilder;
+import org.elasticsearch.xpack.application.rules.action.DeleteQueryRuleAction;
 import org.elasticsearch.xpack.application.rules.action.DeleteQueryRulesetAction;
+import org.elasticsearch.xpack.application.rules.action.GetQueryRuleAction;
 import org.elasticsearch.xpack.application.rules.action.GetQueryRulesetAction;
 import org.elasticsearch.xpack.application.rules.action.ListQueryRulesetsAction;
 import org.elasticsearch.xpack.application.rules.action.PutQueryRuleAction;
@@ -158,7 +160,9 @@ import org.elasticsearch.xpack.application.rules.action.RestGetQueryRulesetActio
 import org.elasticsearch.xpack.application.rules.action.RestListQueryRulesetsAction;
 import org.elasticsearch.xpack.application.rules.action.RestPutQueryRuleAction;
 import org.elasticsearch.xpack.application.rules.action.RestPutQueryRulesetAction;
+import org.elasticsearch.xpack.application.rules.action.TransportDeleteQueryRuleAction;
 import org.elasticsearch.xpack.application.rules.action.TransportDeleteQueryRulesetAction;
+import org.elasticsearch.xpack.application.rules.action.TransportGetQueryRuleAction;
 import org.elasticsearch.xpack.application.rules.action.TransportGetQueryRulesetAction;
 import org.elasticsearch.xpack.application.rules.action.TransportListQueryRulesetsAction;
 import org.elasticsearch.xpack.application.rules.action.TransportPutQueryRuleAction;
@@ -254,6 +258,8 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
                 new ActionHandler<>(GetQueryRulesetAction.INSTANCE, TransportGetQueryRulesetAction.class),
                 new ActionHandler<>(ListQueryRulesetsAction.INSTANCE, TransportListQueryRulesetsAction.class),
                 new ActionHandler<>(PutQueryRulesetAction.INSTANCE, TransportPutQueryRulesetAction.class),
+                new ActionHandler<>(DeleteQueryRuleAction.INSTANCE, TransportDeleteQueryRuleAction.class),
+                new ActionHandler<>(GetQueryRuleAction.INSTANCE, TransportGetQueryRuleAction.class),
                 new ActionHandler<>(PutQueryRuleAction.INSTANCE, TransportPutQueryRuleAction.class),
 
                 usageAction,

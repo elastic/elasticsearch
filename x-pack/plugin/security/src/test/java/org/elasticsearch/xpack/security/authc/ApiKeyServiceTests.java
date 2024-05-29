@@ -1126,7 +1126,21 @@ public class ApiKeyServiceTests extends ESTestCase {
         @Nullable List<RoleDescriptor> keyRoles,
         ApiKey.Type type
     ) throws IOException {
-        var apiKeyDoc = newApiKeyDocument(key, user, authUser, invalidated, expiry, keyRoles, type);
+        return mockKeyDocument(id, key, user, authUser, invalidated, expiry, keyRoles, type, List.of(SUPERUSER_ROLE_DESCRIPTOR));
+    }
+
+    private Map<String, Object> mockKeyDocument(
+        String id,
+        String key,
+        User user,
+        @Nullable User authUser,
+        boolean invalidated,
+        Duration expiry,
+        @Nullable List<RoleDescriptor> keyRoles,
+        ApiKey.Type type,
+        @Nullable List<RoleDescriptor> userRoles
+    ) throws IOException {
+        var apiKeyDoc = newApiKeyDocument(key, user, authUser, invalidated, expiry, keyRoles, type, userRoles);
         SecurityMocks.mockGetRequest(
             client,
             id,
@@ -1142,7 +1156,8 @@ public class ApiKeyServiceTests extends ESTestCase {
         boolean invalidated,
         Duration expiry,
         @Nullable List<RoleDescriptor> keyRoles,
-        ApiKey.Type type
+        ApiKey.Type type,
+        @Nullable List<RoleDescriptor> userRoles
     ) throws IOException {
         final Authentication authentication;
         if (authUser != null) {
@@ -1164,9 +1179,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             getFastStoredHashAlgoForTests().hash(new SecureString(key.toCharArray())),
             "test",
             authentication,
-            type == ApiKey.Type.CROSS_CLUSTER
-                ? Set.of()
-                : ApiKeyService.removeUserRoleDescriptorDescriptions(Set.of(SUPERUSER_ROLE_DESCRIPTOR)),
+            type == ApiKey.Type.CROSS_CLUSTER ? Set.of() : ApiKeyService.removeUserRoleDescriptorDescriptions(Set.copyOf(userRoles)),
             Instant.now(),
             Instant.now().plus(expiry),
             keyRoles,
@@ -1491,7 +1504,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertThat(service.getFromCache(creds.getId()).success, is(true));
     }
 
-    public void testApiKeyAuthCacheHitAndMissMetrics() throws IllegalAccessException {
+    public void testApiKeyAuthCacheHitAndMissMetrics() {
         final TestTelemetryPlugin telemetryPlugin = new TestTelemetryPlugin();
         final MeterRegistry meterRegistry = telemetryPlugin.getTelemetryProvider(Settings.EMPTY).getMeterRegistry();
 
@@ -1545,7 +1558,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         );
     }
 
-    public void testApiKeyAuthCacheEvictionMetrics() throws IllegalAccessException {
+    public void testApiKeyAuthCacheEvictionMetrics() {
         final TestTelemetryPlugin telemetryPlugin = new TestTelemetryPlugin();
         final MeterRegistry meterRegistry = telemetryPlugin.getTelemetryProvider(Settings.EMPTY).getMeterRegistry();
 
@@ -1608,6 +1621,121 @@ public class ApiKeyServiceTests extends ESTestCase {
             CacheType.API_KEY_AUTH_CACHE,
             Map.of("count", 0L, "hit", 0L, "miss", 0L, "eviction", 2L)
         );
+    }
+
+    public void testApiKeyDocAndRoleDescriptorsCacheMetrics() throws Exception {
+        final TestTelemetryPlugin telemetryPlugin = new TestTelemetryPlugin();
+        final MeterRegistry meterRegistry = telemetryPlugin.getTelemetryProvider(Settings.EMPTY).getMeterRegistry();
+
+        // setting cache size to 1 in order to test evictions as well
+        // doc cache size = 1
+        // role descriptors size = 2
+        ApiKeyService service = createApiKeyService(
+            Settings.builder().put("xpack.security.authc.api_key.cache.max_keys", 1L).build(),
+            meterRegistry
+        );
+        final ThreadContext threadContext = threadPool.getThreadContext();
+        final ApiKey.Type type = ApiKey.Type.REST;
+
+        // new API key document will be cached after its authentication
+        final String docId = randomAlphaOfLength(16);
+        final String apiKey = randomAlphaOfLength(16);
+
+        // both API key doc and role descriptor caches should be empty
+        collectAndAssertCacheMetrics(
+            telemetryPlugin,
+            CacheType.API_KEY_DOCS_CACHE,
+            Map.of("count", 0L, "hit", 0L, "miss", 0L, "eviction", 0L)
+        );
+        collectAndAssertCacheMetrics(
+            telemetryPlugin,
+            CacheType.API_KEY_ROLE_DESCRIPTORS_CACHE,
+            Map.of("count", 0L, "hit", 0L, "miss", 0L, "eviction", 0L)
+        );
+
+        final Map<String, Object> metadata = mockKeyDocument(
+            docId,
+            apiKey,
+            new User("hulk", "superuser"),
+            null,
+            false,
+            Duration.ofSeconds(3600),
+            List.of(randomRoleDescriptorWithWorkflowsRestriction()),
+            type
+        );
+        ApiKeyCredentials apiKeyCredentials = getApiKeyCredentials(docId, apiKey, type);
+        service.loadApiKeyAndValidateCredentials(threadContext, apiKeyCredentials, new PlainActionFuture<>());
+
+        // initial authentication fails to find API key doc and role descriptors in cache:
+        // - miss metrics should be increased because we first check the caches
+        // - counts should be increased because we cache entries after loading them
+        collectAndAssertCacheMetrics(
+            telemetryPlugin,
+            CacheType.API_KEY_DOCS_CACHE,
+            Map.of("count", 1L, "hit", 0L, "miss", 1L, "eviction", 0L)
+        );
+        collectAndAssertCacheMetrics(
+            telemetryPlugin,
+            CacheType.API_KEY_ROLE_DESCRIPTORS_CACHE,
+            Map.of("count", 2L, "hit", 0L, "miss", 2L, "eviction", 0L)
+        );
+
+        // fetching existing API key doc from cache to verify hit metrics
+        var cachedApiKeyDoc = service.getDocCache().get(docId);
+        collectAndAssertCacheMetrics(
+            telemetryPlugin,
+            CacheType.API_KEY_DOCS_CACHE,
+            Map.of("count", 1L, "hit", 1L, "miss", 1L, "eviction", 0L)
+        );
+
+        // fetching existing role descriptors to verify hit metrics get collected
+        var roleDescriptorsBytes = service.getRoleDescriptorsBytesCache().get(cachedApiKeyDoc.roleDescriptorsHash);
+        assertNotNull(roleDescriptorsBytes);
+        collectAndAssertCacheMetrics(
+            telemetryPlugin,
+            CacheType.API_KEY_ROLE_DESCRIPTORS_CACHE,
+            Map.of("count", 2L, "hit", 1L, "miss", 2L, "eviction", 0L)
+        );
+        var limitedByRoleDescriptorsBytes = service.getRoleDescriptorsBytesCache().get(cachedApiKeyDoc.limitedByRoleDescriptorsHash);
+        assertNotNull(limitedByRoleDescriptorsBytes);
+        collectAndAssertCacheMetrics(
+            telemetryPlugin,
+            CacheType.API_KEY_ROLE_DESCRIPTORS_CACHE,
+            Map.of("count", 2L, "hit", 2L, "miss", 2L, "eviction", 0L)
+        );
+
+        // a different API Key to test evictions
+        final String docId2 = randomValueOtherThan(docId, () -> randomAlphaOfLength(16));
+        final String apiKey2 = randomValueOtherThan(apiKey, () -> randomAlphaOfLength(16));
+        ApiKeyCredentials apiKeyCredentials2 = getApiKeyCredentials(docId2, apiKey2, type);
+        final Map<String, Object> metadata2 = mockKeyDocument(
+            docId2,
+            apiKey2,
+            new User("spider-man", "monitoring_user"),
+            null,
+            false,
+            Duration.ofSeconds(3600),
+            List.of(randomRoleDescriptorWithWorkflowsRestriction(), randomRoleDescriptorWithRemotePrivileges()),
+            type,
+            List.of(randomRoleDescriptorWithRemotePrivileges())
+        );
+        service.loadApiKeyAndValidateCredentials(threadContext, apiKeyCredentials2, new PlainActionFuture<>());
+
+        // authenticating with second key will
+        // - fail to find API key doc and role descriptors in cache
+        // - cache both new doc and new roles
+        // - this will evict entries from both doc and roles cache
+        collectAndAssertCacheMetrics(
+            telemetryPlugin,
+            CacheType.API_KEY_DOCS_CACHE,
+            Map.of("count", 1L, "hit", 1L, "miss", 2L, "eviction", 1L)
+        );
+        collectAndAssertCacheMetrics(
+            telemetryPlugin,
+            CacheType.API_KEY_ROLE_DESCRIPTORS_CACHE,
+            Map.of("count", 2L, "hit", 2L, "miss", 4L, "eviction", 2L)
+        );
+
     }
 
     private void assertCacheCount(TestTelemetryPlugin telemetryPlugin, CacheType type, long expectedCount) {

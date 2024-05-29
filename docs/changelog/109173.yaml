@@ -1,0 +1,5 @@
+pr: 109173
+summary: Wrap "Pattern too complex" exception into an `IllegalArgumentException`
+area: Mapping
+type: bug
+issues: []

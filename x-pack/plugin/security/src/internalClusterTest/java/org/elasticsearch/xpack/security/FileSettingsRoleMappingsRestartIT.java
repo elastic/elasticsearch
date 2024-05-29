@@ -8,13 +8,6 @@
 package org.elasticsearch.xpack.security;
 
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
-import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.metadata.ReservedStateHandlerMetadata;
-import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.core.Strings;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.reservedstate.service.FileSettingsService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.SecurityIntegTestCase;
@@ -22,16 +15,13 @@ import org.elasticsearch.xpack.core.security.action.rolemapping.GetRoleMappingsA
 import org.elasticsearch.xpack.core.security.action.rolemapping.GetRoleMappingsRequest;
 import org.elasticsearch.xpack.security.action.rolemapping.ReservedRoleMappingAction;
 
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.Arrays;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.integration.RoleMappingFileSettingsIT.setupClusterStateListener;
+import static org.elasticsearch.integration.RoleMappingFileSettingsIT.writeJSONFile;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.notNullValue;
@@ -71,45 +61,6 @@ public class FileSettingsRoleMappingsRestartIT extends SecurityIntegTestCase {
              }
         }""";
 
-    private void writeJSONFile(String node, String json) throws Exception {
-        long version = versionCounter.incrementAndGet();
-
-        FileSettingsService fileSettingsService = internalCluster().getInstance(FileSettingsService.class, node);
-
-        Files.deleteIfExists(fileSettingsService.watchedFile());
-
-        Files.createDirectories(fileSettingsService.watchedFileDir());
-        Path tempFilePath = createTempFile();
-
-        logger.info("--> writing JSON config to node {} with path {}", node, tempFilePath);
-        logger.info(Strings.format(json, version));
-        Files.write(tempFilePath, Strings.format(json, version).getBytes(StandardCharsets.UTF_8));
-        Files.move(tempFilePath, fileSettingsService.watchedFile(), StandardCopyOption.ATOMIC_MOVE);
-    }
-
-    private Tuple<CountDownLatch, AtomicLong> setupClusterStateListener(String node, String expectedKey) {
-        ClusterService clusterService = internalCluster().clusterService(node);
-        CountDownLatch savedClusterState = new CountDownLatch(1);
-        AtomicLong metadataVersion = new AtomicLong(-1);
-        clusterService.addListener(new ClusterStateListener() {
-            @Override
-            public void clusterChanged(ClusterChangedEvent event) {
-                ReservedStateMetadata reservedState = event.state().metadata().reservedStateMetadata().get(FileSettingsService.NAMESPACE);
-                if (reservedState != null) {
-                    ReservedStateHandlerMetadata handlerMetadata = reservedState.handlers().get(ReservedRoleMappingAction.NAME);
-                    if (handlerMetadata != null && handlerMetadata.keys().contains(expectedKey)) {
-                        clusterService.removeListener(this);
-                        metadataVersion.set(event.state().metadata().version());
-                        savedClusterState.countDown();
-                    }
-                }
-            }
-        });
-
-        return new Tuple<>(savedClusterState, metadataVersion);
-    }
-
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/93048")
     public void testReservedStatePersistsOnRestart() throws Exception {
         internalCluster().setBootstrapMasterNodeIndex(0);
 
@@ -118,16 +69,15 @@ public class FileSettingsRoleMappingsRestartIT extends SecurityIntegTestCase {
 
         FileSettingsService masterFileSettingsService = internalCluster().getInstance(FileSettingsService.class, masterNode);
 
-        assertTrue(masterFileSettingsService.watching());
+        assertBusy(() -> assertTrue(masterFileSettingsService.watching()));
 
         logger.info("--> write some role mappings, no other file settings");
-        writeJSONFile(masterNode, testJSONOnlyRoleMappings);
+        writeJSONFile(masterNode, testJSONOnlyRoleMappings, logger, versionCounter);
         boolean awaitSuccessful = savedClusterState.v1().await(20, TimeUnit.SECONDS);
         assertTrue(awaitSuccessful);
 
         logger.info("--> restart master");
         internalCluster().restartNode(masterNode);
-
         ensureGreen();
 
         var clusterStateResponse = clusterAdmin().state(new ClusterStateRequest()).actionGet();

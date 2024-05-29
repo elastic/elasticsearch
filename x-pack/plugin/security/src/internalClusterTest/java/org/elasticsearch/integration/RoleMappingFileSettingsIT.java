@@ -180,7 +180,7 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
         logger.info("--> after writing JSON config to node {} with path {}", node, tempFilePath);
     }
 
-    private Tuple<CountDownLatch, AtomicLong> setupClusterStateListener(String node, String expectedKey) {
+    public static Tuple<CountDownLatch, AtomicLong> setupClusterStateListener(String node, String expectedKey) {
         ClusterService clusterService = internalCluster().clusterService(node);
         CountDownLatch savedClusterState = new CountDownLatch(1);
         AtomicLong metadataVersion = new AtomicLong(-1);

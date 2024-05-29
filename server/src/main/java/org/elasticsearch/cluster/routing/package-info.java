@@ -42,7 +42,7 @@
  * org.elasticsearch.cluster.node.DiscoveryNode}, and contains information about
  * all shards and their state on this node. {@link
  * org.elasticsearch.cluster.routing.RoutingNodes} (plural) provide another view
- * on routing from nodes perspective - such as finding all shards by on specific
+ * on routing from nodes perspective - such as finding all shards by specific
  * node or finding all nodes for specific shard.</p>
  *
  * <b>Reroute</b>

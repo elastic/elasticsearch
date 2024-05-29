@@ -16,9 +16,9 @@
  * nodes. For more details about allocation see {@link
  * org.elasticsearch.cluster.routing.allocation}.</p>
  *
- * <b>Routing Tables</b>
+ * <b>Routing Table</b>
  *
- * <p>Routing tables provide a view on global cluster state from index
+ * <p>The routing table provide a view on global cluster state from index
  * perspective. It's a mapping from indices to shards and shards to nodes, where
  * relationship between shard and node might not exists if shard allocation is
  * not possible. Routing table represents desired shards layout and current
@@ -38,8 +38,8 @@
  * <b>Routing Nodes</b>
  *
  * <p>{@link org.elasticsearch.cluster.routing.RoutingNode} provides view to
- * shard routing from node perspective. Each RoutingNode is a {@link
- * org.elasticsearch.cluster.node.DiscoveryNode}, and contains information about
+ * shard routing from node perspective. There is a RoutingNode for every {@link
+ * org.elasticsearch.cluster.node.DiscoveryNode}, and it contains information about
  * all shards and their state on this node. {@link
  * org.elasticsearch.cluster.routing.RoutingNodes} (plural) provide another view
  * on routing from nodes perspective - such as finding all shards by specific

@@ -152,6 +152,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.Length;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Locate;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.RTrim;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.Repeat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Replace;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Right;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Split;
@@ -411,6 +412,7 @@ public final class PlanNamedTypes {
             of(ScalarFunction.class, Substring.class, PlanNamedTypes::writeSubstring, PlanNamedTypes::readSubstring),
             of(ScalarFunction.class, Locate.class, PlanNamedTypes::writeLocate, PlanNamedTypes::readLocate),
             of(ScalarFunction.class, Left.class, PlanNamedTypes::writeLeft, PlanNamedTypes::readLeft),
+            of(ScalarFunction.class, Repeat.class, PlanNamedTypes::writeRepeat, PlanNamedTypes::readRepeat),
             of(ScalarFunction.class, Right.class, PlanNamedTypes::writeRight, PlanNamedTypes::readRight),
             of(ScalarFunction.class, Split.class, PlanNamedTypes::writeSplit, PlanNamedTypes::readSplit),
             of(ScalarFunction.class, Tau.class, PlanNamedTypes::writeNoArgScalar, PlanNamedTypes::readNoArgScalar),
@@ -1728,6 +1730,18 @@ public final class PlanNamedTypes {
     static void writeLeft(PlanStreamOutput out, Left left) throws IOException {
         left.source().writeTo(out);
         List<Expression> fields = left.children();
+        assert fields.size() == 2;
+        out.writeExpression(fields.get(0));
+        out.writeExpression(fields.get(1));
+    }
+
+    static Repeat readRepeat(PlanStreamInput in) throws IOException {
+        return new Repeat(Source.readFrom(in), in.readExpression(), in.readExpression());
+    }
+
+    static void writeRepeat(PlanStreamOutput out, Repeat repeat) throws IOException {
+        repeat.source().writeTo(out);
+        List<Expression> fields = repeat.children();
         assert fields.size() == 2;
         out.writeExpression(fields.get(0));
         out.writeExpression(fields.get(1));

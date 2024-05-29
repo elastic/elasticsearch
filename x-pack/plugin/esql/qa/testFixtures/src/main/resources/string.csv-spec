@@ -1373,3 +1373,39 @@ emp_no:integer | first_name:keyword | e:keyword    | d:keyword
 10030          | null               | null         | null
 10031          | null               | null         | null
 ;
+
+repeat#[skip:-8.14.99,reason:new string function added in 8.15]
+from employees 
+| sort emp_no 
+| limit 3
+| eval repeated = repeat(first_name, 2) 
+| keep emp_no, first_name, repeated;
+
+emp_no:integer | first_name:keyword  | repeated:keyword
+10001 | Georgi    | GeorgiGeorgi        
+10002 | Bezalel   | BezalelBezalel      
+10003 | Parto     | PartoParto
+;
+
+repeatUtf16Emoji#[skip:-8.14.99,reason:new string function added in 8.15]
+row a = "🐱Meow!🐶Woof!" | eval repeated = repeat(a, 2);
+
+a:keyword | repeated:keyword
+🐱Meow!🐶Woof! | 🐱Meow!🐶Woof!🐱Meow!🐶Woof!
+;
+
+repeatLength#[skip:-8.14.99,reason:new string function added in 8.15]
+row a = "cheese" | eval repeated_len = length(repeat(a, 5));
+
+a:keyword | repeated_len:integer
+cheese | 30
+;
+
+repeatSubstring#[skip:-8.14.99,reason:new string function added in 8.15]
+row a = "catcat" | eval repeated = repeat(substring(a, 4), 2);
+
+a:keyword | repeated:keyword
+catcat | catcat
+;
+
+

@@ -33,7 +33,7 @@ public final class Source implements Writeable {
         this.text = text;
     }
 
-    public static Source readFrom(StreamInput in) throws IOException {
+    public static <S extends StreamInput & PlanStreamInput> Source readFrom(S in) throws IOException {
         if (in.readBoolean() == false) {
             return EMPTY;
         }
@@ -42,7 +42,7 @@ public final class Source implements Writeable {
         int charPositionInLine = column - 1;
 
         int length = in.readInt();
-        String text = sourceText(((PlanStreamInput) in).sourceText(), line, column, length);
+        String text = sourceText(in.sourceText(), line, column, length);
         return new Source(new Location(line, charPositionInLine), text);
     }
 

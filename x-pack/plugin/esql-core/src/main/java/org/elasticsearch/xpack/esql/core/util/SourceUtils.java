@@ -18,12 +18,24 @@ public final class SourceUtils {
 
     private SourceUtils() {}
 
+    /**
+     * Write a {@link Source} including the text in it.
+     * @deprecated replace with {@link Source#writeTo}.
+     *             That's not binary compatible so the replacement is complex.
+     */
+    @Deprecated
     public static void writeSource(StreamOutput out, Source source) throws IOException {
         out.writeInt(source.source().getLineNumber());
         out.writeInt(source.source().getColumnNumber());
         out.writeString(source.text());
     }
 
+    /**
+     * Read a {@link Source} including the text in it.
+     * @deprecated replace with {@link Source#readFrom(StreamInput)}.
+     *             That's not binary compatible so the replacement is complex.
+     */
+    @Deprecated
     public static Source readSource(StreamInput in) throws IOException {
         int line = in.readInt();
         int column = in.readInt();

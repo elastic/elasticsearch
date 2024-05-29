@@ -7,14 +7,17 @@
 
 package org.elasticsearch.xpack.core.inference.results;
 
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.InferenceResults;
+import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
@@ -89,5 +92,26 @@ public record ChunkedTextEmbeddingByteResults(List<EmbeddingChunk<ByteEmbedding.
 
     public List<EmbeddingChunk<ByteEmbedding.ByteArrayWrapper>> getChunks() {
         return chunks;
+    }
+
+    @Override
+    public Iterator<Chunk> chunksAsMatchedTextAndByteReference(XContent xcontent) {
+        return chunks.stream()
+            .map(chunk -> new Chunk(chunk.matchedText(), toBytesReference(xcontent, chunk.embedding().getEmbedding().bytes)))
+            .iterator();
+    }
+
+    private static BytesReference toBytesReference(XContent xContent, byte[] value) {
+        try {
+            XContentBuilder b = XContentBuilder.builder(xContent);
+            b.startArray();
+            for (byte v : value) {
+                b.value(v);
+            }
+            b.endArray();
+            return BytesReference.bytes(b);
+        } catch (IOException exc) {
+            throw new RuntimeException(exc);
+        }
     }
 }

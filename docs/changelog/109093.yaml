@@ -1,0 +1,5 @@
+pr: 109093
+summary: Add system index migration framework
+area: Infra/Core
+type: enhancement
+issues: []

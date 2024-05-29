@@ -1,8 +1,8 @@
 ---
 "cluster health basic test":
   - skip:
-      version: "- 8.12.99"
-      reason: "data stream lifecycle indicator was added in 8.13.0"
+      version: "- 8.10.99"
+      reason: "shards_availability indicator details got extended in 8.11.0"
 
   - do:
       health_report: { }
@@ -40,6 +40,3 @@
   - match: { indicators.shards_capacity.symptom: "The cluster has enough room to add new shards." }
   - is_true: indicators.shards_capacity.details.data.max_shards_in_cluster
   - is_true: indicators.shards_capacity.details.frozen.max_shards_in_cluster
-
-  - is_true: indicators.data_stream_lifecycle.status
-  - is_true: indicators.data_stream_lifecycle.symptom

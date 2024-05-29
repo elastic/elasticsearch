@@ -70,7 +70,7 @@ public abstract class RescorerBuilder<RB extends RescorerBuilder<RB>>
 
     /**
      * In some situations (e.g., LTR rescorer), it is impossible to combine scores issued by the rescoring phase those from
-     * the first-pass query (or previous rescorers) because they are not comparable each others.
+     * the first-pass query (or previous rescorers) because they are not comparable with each other.
      *
      * In this case:
      *

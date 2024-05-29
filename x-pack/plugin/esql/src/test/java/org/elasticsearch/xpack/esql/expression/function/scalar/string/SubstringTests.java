@@ -111,6 +111,10 @@ public class SubstringTests extends AbstractFunctionTestCase {
         assertThat(process("a tiger", 1, null), equalTo("a tiger"));
     }
 
+    public void testEmptyString() {
+        assertThat(process("", 1, 3), equalTo(""));
+    }
+
     public void testPositiveStartNoLength() {
         assertThat(process("a tiger", 3, null), equalTo("tiger"));
     }

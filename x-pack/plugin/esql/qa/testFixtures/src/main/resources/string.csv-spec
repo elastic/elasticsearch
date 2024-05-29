@@ -195,6 +195,13 @@ emp_no:integer | last_name:keyword | x:keyword | z:keyword
 10010 | Piveteau  | P | a
 ;
 
+substring empty string
+row sub = substring("", 1, 3);
+
+sub:keyword
+""
+;
+
 substring Emoji#[skip:-8.13.99,reason:bug fix in 8.14]
 row a = "🐱Meow!🐶Woof!" | eval sub1 = substring(a, 2) | eval sub2 = substring(a, 2, 100);
 

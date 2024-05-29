@@ -622,7 +622,7 @@ public class OptimizerRulesTests extends ESTestCase {
         FoldNull rule = new FoldNull();
         // arithmetic
         assertNullLiteral(
-            rule.rule(new org.elasticsearch.xpack.esql.core.expression.predicate.operator.arithmetic.Add(EMPTY, getFieldAttribute(), NULL))
+            rule.rule(new Add(EMPTY, getFieldAttribute(), NULL))
         );
         // comparison
         assertNullLiteral(rule.rule(greaterThanOf(getFieldAttribute(), NULL)));
@@ -871,9 +871,8 @@ public class OptimizerRulesTests extends ESTestCase {
     public void testLiteralsOnTheRight() {
         Alias a = new Alias(EMPTY, "a", new Literal(EMPTY, 10, INTEGER));
         Expression result = new org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.LiteralsOnTheRight().rule(equalsOf(FIVE, a));
-        assertTrue(result instanceof org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.Equals);
-        org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.Equals eq =
-            (org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.Equals) result;
+        assertTrue(result instanceof Equals);
+        Equals eq = (Equals) result;
         assertEquals(a, eq.left());
         assertEquals(FIVE, eq.right());
 

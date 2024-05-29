@@ -1070,7 +1070,7 @@ public final class PlanNamedTypes {
             Source.readFrom(in),
             in.readOptionalWithReader(PlanNamedTypes::readFieldAttribute),
             in.readString(),
-            in.dataTypeFromTypeName(in.readString()),
+            DataType.readFrom(in),
             in.readEsFieldNamed(),
             in.readOptionalString(),
             in.readEnum(Nullability.class),
@@ -1095,7 +1095,7 @@ public final class PlanNamedTypes {
         return new ReferenceAttribute(
             Source.readFrom(in),
             in.readString(),
-            in.dataTypeFromTypeName(in.readString()),
+            DataType.readFrom(in),
             in.readOptionalString(),
             in.readEnum(Nullability.class),
             in.nameIdFromLongValue(in.readLong()),
@@ -1117,7 +1117,7 @@ public final class PlanNamedTypes {
         return new MetadataAttribute(
             Source.readFrom(in),
             in.readString(),
-            in.dataTypeFromTypeName(in.readString()),
+            DataType.readFrom(in),
             in.readOptionalString(),
             in.readEnum(Nullability.class),
             in.nameIdFromLongValue(in.readLong()),
@@ -1160,7 +1160,7 @@ public final class PlanNamedTypes {
     static EsField readEsField(PlanStreamInput in) throws IOException {
         return new EsField(
             in.readString(),
-            in.dataTypeFromTypeName(in.readString()),
+            DataType.readFrom(in),
             in.readImmutableMap(StreamInput::readString, readerFromPlanReader(PlanStreamInput::readEsFieldNamed)),
             in.readBoolean(),
             in.readBoolean()
@@ -1875,7 +1875,7 @@ public final class PlanNamedTypes {
     static Literal readLiteral(PlanStreamInput in) throws IOException {
         Source source = Source.readFrom(in);
         Object value = in.readGenericValue();
-        DataType dataType = in.dataTypeFromTypeName(in.readString());
+        DataType dataType = DataType.readFrom(in);
         return new Literal(source, mapToLiteralValue(in, dataType, value), dataType);
     }
 

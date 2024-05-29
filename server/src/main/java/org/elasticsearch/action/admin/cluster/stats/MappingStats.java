@@ -64,7 +64,6 @@ public final class MappingStats implements ToXContentFragment, Writeable {
         }
         final AtomicLong totalFieldCount = new AtomicLong();
         final AtomicLong totalDeduplicatedFieldCount = new AtomicLong();
-        final AtomicLong totalSparseVectorFieldCount = new AtomicLong();
         for (Map.Entry<MappingMetadata, Integer> mappingAndCount : mappingCounts.entrySet()) {
             ensureNotCancelled.run();
             Set<String> indexFieldTypes = new HashSet<>();
@@ -101,9 +100,6 @@ public final class MappingStats implements ToXContentFragment, Writeable {
                                 }
                             }
                         }
-                    } else if (type.equals("sparse_vector")) {
-                        totalSparseVectorFieldCount.incrementAndGet();
-                        stats = fieldTypes.computeIfAbsent(type, FieldStats::new);
                     } else {
                         stats = fieldTypes.computeIfAbsent(type, FieldStats::new);
                     }
@@ -158,7 +154,6 @@ public final class MappingStats implements ToXContentFragment, Writeable {
         return new MappingStats(
             totalFieldCount.get(),
             totalDeduplicatedFieldCount.get(),
-            totalSparseVectorFieldCount.get(),
             totalMappingSizeBytes,
             fieldTypes.values(),
             runtimeFieldTypes.values()
@@ -192,9 +187,6 @@ public final class MappingStats implements ToXContentFragment, Writeable {
     private final Long totalDeduplicatedFieldCount;
 
     @Nullable // for BwC
-    private final Long totalSparseVectorFieldCount;
-
-    @Nullable // for BwC
     private final Long totalMappingSizeBytes;
 
     private final List<FieldStats> fieldTypeStats;
@@ -203,14 +195,12 @@ public final class MappingStats implements ToXContentFragment, Writeable {
     MappingStats(
         long totalFieldCount,
         long totalDeduplicatedFieldCount,
-        long totalSparseVectorFieldCount,
         long totalMappingSizeBytes,
         Collection<FieldStats> fieldTypeStats,
         Collection<RuntimeFieldStats> runtimeFieldStats
     ) {
         this.totalFieldCount = totalFieldCount;
         this.totalDeduplicatedFieldCount = totalDeduplicatedFieldCount;
-        this.totalSparseVectorFieldCount = totalSparseVectorFieldCount;
         this.totalMappingSizeBytes = totalMappingSizeBytes;
         List<FieldStats> stats = new ArrayList<>(fieldTypeStats);
         stats.sort(Comparator.comparing(IndexFeatureStats::getName));
@@ -230,11 +220,6 @@ public final class MappingStats implements ToXContentFragment, Writeable {
             totalDeduplicatedFieldCount = null;
             totalMappingSizeBytes = null;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.VERSION_SUPPORTING_SPARSE_VECTOR_STATS)) {
-            totalSparseVectorFieldCount = in.readOptionalVLong();
-        } else {
-            totalSparseVectorFieldCount = null;
-        }
         fieldTypeStats = in.readCollectionAsImmutableList(FieldStats::new);
         runtimeFieldStats = in.readCollectionAsImmutableList(RuntimeFieldStats::new);
     }
@@ -245,9 +230,6 @@ public final class MappingStats implements ToXContentFragment, Writeable {
             out.writeOptionalVLong(totalFieldCount);
             out.writeOptionalVLong(totalDeduplicatedFieldCount);
             out.writeOptionalVLong(totalMappingSizeBytes);
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.VERSION_SUPPORTING_SPARSE_VECTOR_STATS)) {
-            out.writeOptionalVLong(totalSparseVectorFieldCount);
         }
         out.writeCollection(fieldTypeStats);
         out.writeCollection(runtimeFieldStats);
@@ -270,14 +252,6 @@ public final class MappingStats implements ToXContentFragment, Writeable {
      */
     public OptionalLong getTotalDeduplicatedFieldCount() {
         return ofNullable(totalDeduplicatedFieldCount);
-    }
-
-    /**
-     * @return the total number of sparse vector fields, or {@link OptionalLong#empty()} if omitted
-     *      * (due to BwC)
-     */
-    public OptionalLong getTotalSparseVectorFieldCount() {
-        return ofNullable(totalSparseVectorFieldCount);
     }
 
     /**

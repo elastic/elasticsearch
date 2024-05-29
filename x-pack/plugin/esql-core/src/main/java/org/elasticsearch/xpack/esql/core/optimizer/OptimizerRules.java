@@ -1634,7 +1634,7 @@ public final class OptimizerRules {
         }
 
         @Override
-        protected Expression rule(Expression e) {
+        public Expression rule(Expression e) {
             Expression result = tryReplaceIsNullIsNotNull(e);
             if (result != e) {
                 return result;

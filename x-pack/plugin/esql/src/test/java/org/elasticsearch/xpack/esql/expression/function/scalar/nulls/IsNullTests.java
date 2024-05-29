@@ -36,7 +36,7 @@ public class IsNullTests extends AbstractFunctionTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
-        for (DataType type : EsqlDataTypes.types()) {
+        for (DataType type : DataTypes.types()) {
             if (false == EsqlDataTypes.isRepresentable(type)) {
                 continue;
             }

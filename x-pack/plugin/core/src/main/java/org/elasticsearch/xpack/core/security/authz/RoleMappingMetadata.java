@@ -17,20 +17,40 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
 
 import java.io.IOException;
 import java.util.EnumSet;
+import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.Metadata.ALL_CONTEXTS;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 public final class RoleMappingMetadata extends AbstractNamedDiffable<Metadata.Custom> implements Metadata.Custom {
 
     public static final String TYPE = "role_mappings";
+
+    @SuppressWarnings("unchecked")
+    private static final ConstructingObjectParser<RoleMappingMetadata, Void> PARSER = new ConstructingObjectParser<>(
+        TYPE,
+        args -> new RoleMappingMetadata(new HashSet<>((List<ExpressionRoleMapping>) args[0]))
+    );
+
+    static {
+        PARSER.declareObjectArrayOrNull(
+            constructorArg(),
+            (p, c) -> ExpressionRoleMapping.parse("unknown_role_mapping_name_during_parsing", p),
+            new ParseField(TYPE)
+        );
+    }
 
     private static final RoleMappingMetadata EMPTY = new RoleMappingMetadata(Set.of());
 
@@ -72,6 +92,10 @@ public final class RoleMappingMetadata extends AbstractNamedDiffable<Metadata.Cu
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
         return Iterators.concat(ChunkedToXContentHelper.startArray(TYPE), roleMappings.iterator(), ChunkedToXContentHelper.endArray());
+    }
+
+    public static RoleMappingMetadata fromXContent(XContentParser parser) throws IOException {
+        return PARSER.apply(parser, null);
     }
 
     @Override

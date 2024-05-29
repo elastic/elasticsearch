@@ -45,7 +45,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.function.LongFunction;
-import java.util.function.Supplier;
 
 /**
  * A customized stream input used to deserialize ESQL physical plan fragments. Complements stream
@@ -70,8 +69,6 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput
         }
     }
 
-    private static final Supplier<LongFunction<NameId>> DEFAULT_NAME_ID_FUNC = NameIdMapper::new;
-
     private final Map<Integer, Block> cachedBlocks = new HashMap<>();
 
     private final PlanNameRegistry registry;
@@ -90,11 +87,7 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput
         super(streamInput, namedWriteableRegistry);
         this.registry = registry;
         this.configuration = configuration;
-        this.nameIdFunction = DEFAULT_NAME_ID_FUNC.get();
-    }
-
-    NameId nameIdFromLongValue(long value) {
-        return nameIdFunction.apply(value);
+        this.nameIdFunction = new NameIdMapper();
     }
 
     DataType dataTypeFromTypeName(String typeName) throws IOException {
@@ -277,5 +270,10 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput
         final IOException e = new IOException("read optional named returned null which is not allowed, reader:" + reader);
         assert false : e;
         throw e;
+    }
+
+    @Override
+    public NameId mapNameId(long l) {
+        return nameIdFunction.apply(l);
     }
 }

@@ -41,10 +41,16 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.blobcache.BlobCachePlugin;
 import org.elasticsearch.blobcache.shared.SharedBytes;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
+import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.OperationPurpose;
@@ -88,6 +94,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
@@ -398,6 +405,116 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
 
     protected static BulkResponse indexDocs(String indexName, int numDocs) {
         return indexDocs(indexName, numDocs, UnaryOperator.identity());
+    }
+
+    /**
+     * Initiates and waits for the elected-master to gracefully abdicate to another master-eligible node before shutting it down.
+     * Graceful shutdown can only be successful if there is at least one other master-eligible node to which to abdicate.
+     *
+     * @return the name of the master node that is shut down.
+     */
+    public static String shutdownMasterNodeGracefully() throws Exception {
+        String masterNodeName = masterNodeAbdicatesForGracefulShutdown();
+        internalCluster().stopNode(masterNodeName);
+        return masterNodeName;
+    }
+
+    /**
+     * Initiates and waits for the elected-master to gracefully abdicate to another master-eligible node before restarting it.
+     * Graceful shutdown can only be successful if there is at least one other master-eligible node to which to abdicate.
+     *
+     * @return the name of the restarted master node.
+     */
+    public static String restartMasterNodeGracefully() throws Exception {
+        String masterNodeName = masterNodeAbdicatesForGracefulShutdown();
+        internalCluster().restartNode(masterNodeName);
+        return masterNodeName;
+    }
+
+    /**
+     * Initiates and waits for the elected-master to gracefully abdicate to another master-eligible node.
+     * Note: it is asserted that no other nodes in the cluster are preparing to shut down.
+     *
+     * @return the name of the master node that abdicated.
+     */
+    private static String masterNodeAbdicatesForGracefulShutdown() {
+        // Ensure that there is at least one other master role node to which the current master can abdicate.
+        assertThat(internalCluster().numMasterNodes(), greaterThan(1));
+
+        final String masterNodeName = internalCluster().getMasterName();
+
+        // Create a listener for new master elections.
+        final var nextMasterElectedLatch = new CountDownLatch(1);
+        final ClusterStateListener newMasterListener = clusterChangedEvent -> {
+            if (clusterChangedEvent.localNodeMaster()) {
+                nextMasterElectedLatch.countDown();
+            }
+        };
+        // Add the master election listener to all the not-current-master nodes.
+        for (var clusterService : internalCluster().getInstances(ClusterService.class)) {
+            if (clusterService.localNode().getName().equals(masterNodeName) == false) {
+                clusterService.addListener(newMasterListener);
+            }
+        }
+
+        // Update the cluster state as a PutShutdown action would, so the node will abdicate its role as master in preparation for shutdown.
+        internalCluster().getInstance(ClusterService.class, masterNodeName)
+            .submitUnbatchedStateUpdateTask("add shutdown for test", new ClusterStateUpdateTask() {
+                @Override
+                public ClusterState execute(ClusterState currentState) {
+                    assertThat(currentState.metadata().nodeShutdowns().getAll().size(), equalTo(0));
+
+                    // Create a new map for shutdown state and add the master node as preparing to restart.
+                    var shutdownMetadata = Map.of(
+                        currentState.nodes().getMasterNodeId(),
+                        SingleNodeShutdownMetadata.builder()
+                            .setNodeId(currentState.nodes().getMasterNodeId())
+                            .setType(SingleNodeShutdownMetadata.Type.RESTART)
+                            .setStartedAtMillis(randomNonNegativeLong())
+                            .setReason("master failover for test")
+                            .build()
+                    );
+                    return currentState.copyAndUpdateMetadata(
+                        metadata -> metadata.putCustom(NodesShutdownMetadata.TYPE, new NodesShutdownMetadata(shutdownMetadata))
+                    );
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    fail(e);
+                }
+            });
+
+        // Wait for one of the other master-eligible nodes to be elected as the new master.
+        safeAwait(nextMasterElectedLatch);
+
+        // Remove the cluster service listeners.
+        for (var clusterService : internalCluster().getInstances(ClusterService.class)) {
+            if (clusterService.localNode().getName().equals(masterNodeName) == false) {
+                clusterService.removeListener(newMasterListener);
+            }
+        }
+
+        // Remove the shutdown state for the old master.
+        internalCluster().getInstance(ClusterService.class, internalCluster().getMasterName())
+            .submitUnbatchedStateUpdateTask("remove shutdown for test", new ClusterStateUpdateTask() {
+                @Override
+                public ClusterState execute(ClusterState currentState) {
+                    assertThat(currentState.metadata().nodeShutdowns().getAll().size(), equalTo(1));
+
+                    // Install an empty map of nodes-to-shutdown-metadata, thus moving the old master node out of shut down mode.
+                    return currentState.copyAndUpdateMetadata(
+                        metadata -> metadata.putCustom(NodesShutdownMetadata.TYPE, new NodesShutdownMetadata(Map.of()))
+                    );
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    fail(e);
+                }
+            });
+
+        return masterNodeName;
     }
 
     protected static BulkResponse indexDocs(String indexName, int numDocs, UnaryOperator<BulkRequestBuilder> requestOperator) {

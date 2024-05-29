@@ -35,6 +35,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.After;
@@ -81,17 +82,18 @@ public class StatelessClusterStateCleanupServiceIT extends AbstractStatelessInte
     @Override
     protected Settings.Builder nodeSettings() {
         return super.nodeSettings()
-            // Minimize time to master failover.
-            .put(HEARTBEAT_FREQUENCY.getKey(), TimeValue.timeValueSeconds(1))
-            .put(StoreHeartbeatService.MAX_MISSED_HEARTBEATS.getKey(), 1)
             // Need to set the ObjectStoreType to MOCK for the StatelessMockRepository plugin.
             .put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK.toString().toLowerCase(Locale.ROOT));
     }
 
+    /**
+     * Causes the current elected-master to abdicate in preparation for (graceful) shutdown and then restarts that node.
+     *
+     * @param repositoryStrategy the strategy object is set on the node again after restart, which clears it.
+     */
     public void restartMasterNode(StatelessMockRepositoryStrategy repositoryStrategy) throws Exception {
-        String nodeName = internalCluster().getMasterName();
-        internalCluster().restartNode(nodeName);
-        setNodeRepositoryStrategy(nodeName, repositoryStrategy);
+        String masterNodeName = restartMasterNodeGracefully();
+        setNodeRepositoryStrategy(masterNodeName, repositoryStrategy);
         ensureGreen();
     }
 
@@ -117,10 +119,13 @@ public class StatelessClusterStateCleanupServiceIT extends AbstractStatelessInte
     }
 
     /**
-     * Tests that a delayed task, scheduled by the master node after election, will clean up cluster state for all older.
-     * terms present. Starts up a cluster of master-only nodes and restarts the master a few times to iterate through a
-     * few terms. Then checks that the term state is present before adjusting the delay period to run quickly, and does
-     * one final master fail-over to prompt a quick cleanup.
+     * Tests that unused persisted cluster state, leftover from previous election terms, is eventually deleted by the
+     * current master. A delayed task, scheduled by the master node after election, will clean up cluster state for all
+     * older terms present.
+     * <p>
+     * Starts up a cluster of master-only nodes and restarts the master a few times to iterate through a few terms. Then
+     * verifies that cluster state per term was generated, before adjusting the cleanup task delay period to run quickly
+     * with one final master fail-over to prompt a prompt unused cluster state deletion.
      */
     @TestLogging(
         value = "co.elastic.elasticsearch.stateless.cluster.coordination.StatelessClusterStateCleanupService:DEBUG",
@@ -137,7 +142,7 @@ public class StatelessClusterStateCleanupServiceIT extends AbstractStatelessInte
 
         logger.info("---> Failing over the master node multiple times to generate new cluster state term directories in the blob store.");
         for (int i = 0; i < NUM_NODES; ++i) {
-            logger.info("---> Iteration: " + (i + 1));
+            logger.info("---> Iteration: " + (i + 1) + ", current master: " + internalCluster().getMasterName());
             restartMasterNode(strategy);
         }
 
@@ -173,7 +178,17 @@ public class StatelessClusterStateCleanupServiceIT extends AbstractStatelessInte
         });
 
         logger.info("---> Starting a full cluster restart to ensure cluster state is still readable.");
-        internalCluster().fullRestart();
+        internalCluster().fullRestart(new InternalTestCluster.RestartCallback() {
+            @Override
+            public Settings onNodeStopped(String nodeName) {
+                return Settings.builder()
+                    // MAX_MISSED_HEARTBEATS x HEARTBEAT_FREQUENCY is how long it takes for the last master heartbeat to expire.
+                    // Speed up the time to master takeover/election after full cluster restart.
+                    .put(HEARTBEAT_FREQUENCY.getKey(), TimeValue.timeValueSeconds(1))
+                    .put(StoreHeartbeatService.MAX_MISSED_HEARTBEATS.getKey(), 2)
+                    .build();
+            }
+        });
         ensureGreen();
     }
 
@@ -194,7 +209,7 @@ public class StatelessClusterStateCleanupServiceIT extends AbstractStatelessInte
 
         logger.info("---> Failing over the master node multiple times to generate new cluster state term directories in the blob store.");
         for (int i = 0; i < NUM_NODES; ++i) {
-            logger.info("---> Iteration: " + (i + 1));
+            logger.info("---> Iteration: " + (i + 1) + ", current master: " + internalCluster().getMasterName());
             restartMasterNode(strategy);
         }
 
@@ -230,8 +245,7 @@ public class StatelessClusterStateCleanupServiceIT extends AbstractStatelessInte
         );
 
         logger.info("---> Stopping the master node, to trigger another master election.");
-        internalCluster().stopCurrentMasterNode();
-        ensureGreen();
+        shutdownMasterNodeGracefully();
 
         assertBusy(mockLog::assertAllExpectationsMatched);
 

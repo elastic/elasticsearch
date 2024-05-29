@@ -11,6 +11,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -51,9 +52,9 @@ public class IpPrefixTests extends AbstractFunctionTestCase {
                 var randomPrefix = randomIntBetween(0, 32);
                 var cidrString = InetAddresses.toCidrString(randomIp, randomPrefix);
 
-                var ipParameter = EsqlDataTypeConverter.stringToIP(randomIp.getHostAddress());
+                var ipParameter = EsqlDataTypeConverter.stringToIP(NetworkAddress.format(randomIp));
                 var expectedPrefix = EsqlDataTypeConverter.stringToIP(
-                    InetAddresses.parseIpRangeFromCidr(cidrString).lowerBound().getHostAddress()
+                    NetworkAddress.format(InetAddresses.parseIpRangeFromCidr(cidrString).lowerBound())
                 );
 
                 return new TestCaseSupplier.TestCase(
@@ -87,9 +88,9 @@ public class IpPrefixTests extends AbstractFunctionTestCase {
                 var randomPrefix = randomIntBetween(0, 128);
                 var cidrString = InetAddresses.toCidrString(randomIp, randomPrefix);
 
-                var ipParameter = EsqlDataTypeConverter.stringToIP(randomIp.getHostAddress());
+                var ipParameter = EsqlDataTypeConverter.stringToIP(NetworkAddress.format(randomIp));
                 var expectedPrefix = EsqlDataTypeConverter.stringToIP(
-                    InetAddresses.parseIpRangeFromCidr(cidrString).lowerBound().getHostAddress()
+                    NetworkAddress.format(InetAddresses.parseIpRangeFromCidr(cidrString).lowerBound())
                 );
 
                 return new TestCaseSupplier.TestCase(

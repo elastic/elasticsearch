@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.utils;
+package org.elasticsearch.xpack.core.ml.utils;
 
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -34,14 +34,34 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasEntry;
 
 public class InferenceProcessorInfoExtractorTests extends ESTestCase {
-    /*
-     * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
-     * or more contributor license agreements. Licensed under the Elastic License
-     * 2.0; you may not use this file except in compliance with the Elastic License
-     * 2.0.
-     */
+
+    public void testPipelineIdsByModelIds() throws IOException {
+        String modelId1 = "trained_model_1";
+        String modelId2 = "trained_model_2";
+        String modelId3 = "trained_model_3";
+        Set<String> modelIds = new HashSet<>(Arrays.asList(modelId1, modelId2, modelId3));
+
+        ClusterState clusterState = buildClusterStateWithModelReferences(2, modelId1, modelId2, modelId3);
+
+        Map<String, Set<String>> pipelineIdsByModelIds = InferenceProcessorInfoExtractor.pipelineIdsByResource(clusterState, modelIds);
+
+        assertThat(pipelineIdsByModelIds.keySet(), equalTo(modelIds));
+        assertThat(
+            pipelineIdsByModelIds,
+            hasEntry(modelId1, new HashSet<>(Arrays.asList("pipeline_with_model_" + modelId1 + 0, "pipeline_with_model_" + modelId1 + 1)))
+        );
+        assertThat(
+            pipelineIdsByModelIds,
+            hasEntry(modelId2, new HashSet<>(Arrays.asList("pipeline_with_model_" + modelId2 + 0, "pipeline_with_model_" + modelId2 + 1)))
+        );
+        assertThat(
+            pipelineIdsByModelIds,
+            hasEntry(modelId3, new HashSet<>(Arrays.asList("pipeline_with_model_" + modelId3 + 0, "pipeline_with_model_" + modelId3 + 1)))
+        );
+    }
 
     public void testGetModelIdsFromInferenceProcessors() throws IOException {
         String modelId1 = "trained_model_1";
@@ -65,6 +85,59 @@ public class InferenceProcessorInfoExtractorTests extends ESTestCase {
         Set<String> actualModelIds = InferenceProcessorInfoExtractor.getModelIdsFromInferenceProcessors(ingestMetadata);
 
         assertThat(actualModelIds, equalTo(expectedModelIds));
+    }
+
+    public void testNumInferenceProcessors() throws IOException {
+        assertThat(InferenceProcessorInfoExtractor.countInferenceProcessors(buildClusterState(null)), equalTo(0));
+        assertThat(InferenceProcessorInfoExtractor.countInferenceProcessors(buildClusterState(Metadata.EMPTY_METADATA)), equalTo(0));
+        assertThat(
+            InferenceProcessorInfoExtractor.countInferenceProcessors(buildClusterStateWithModelReferences(1, "model1", "model2", "model3")),
+            equalTo(3)
+        );
+    }
+
+    public void testNumInferenceProcessorsRecursivelyDefined() throws IOException {
+        Map<String, PipelineConfiguration> configurations = new HashMap<>();
+        configurations.put(
+            "pipeline_with_model_top_level",
+            randomBoolean()
+                ? newConfigurationWithInferenceProcessor("top_level")
+                : newConfigurationWithForeachProcessorProcessor("top_level")
+        );
+        try (
+            XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()
+                .map(Collections.singletonMap("processors", Collections.singletonList(Collections.singletonMap("set", new HashMap<>() {
+                    {
+                        put("field", "foo");
+                        put("value", "bar");
+                        put(
+                            "on_failure",
+                            Arrays.asList(inferenceProcessorForModel("second_level"), forEachProcessorWithInference("third_level"))
+                        );
+                    }
+                }))))
+        ) {
+            configurations.put(
+                "pipeline_with_model_nested",
+                new PipelineConfiguration("pipeline_with_model_nested", BytesReference.bytes(xContentBuilder), XContentType.JSON)
+            );
+        }
+
+        IngestMetadata ingestMetadata = new IngestMetadata(configurations);
+
+        ClusterState cs = ClusterState.builder(new ClusterName("_name"))
+            .metadata(Metadata.builder().putCustom(IngestMetadata.TYPE, ingestMetadata))
+            .nodes(
+                DiscoveryNodes.builder()
+                    .add(DiscoveryNodeUtils.create("min_node", new TransportAddress(InetAddress.getLoopbackAddress(), 9300)))
+                    .add(DiscoveryNodeUtils.create("current_node", new TransportAddress(InetAddress.getLoopbackAddress(), 9302)))
+                    .add(DiscoveryNodeUtils.create("_node_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9304)))
+                    .localNodeId("_node_id")
+                    .masterNodeId("_node_id")
+            )
+            .build();
+
+        assertThat(InferenceProcessorInfoExtractor.countInferenceProcessors(cs), equalTo(3));
     }
 
     private static PipelineConfiguration newConfigurationWithOutInferenceProcessor(int i) throws IOException {
@@ -142,18 +215,16 @@ public class InferenceProcessorInfoExtractorTests extends ESTestCase {
         });
     }
 
-    public static final String TYPE = "inference";
-    public static final String INFERENCE_CONFIG = "inference_config";
-    public static final String TARGET_FIELD = "target_field";
-    public static final String FIELD_MAP = "field_map";
-
     private static Map<String, Object> inferenceProcessorForModel(String modelId) {
-        return Collections.singletonMap(TYPE, new HashMap<>() {
+        return Collections.singletonMap(InferenceProcessorConstants.TYPE, new HashMap<>() {
             {
                 put(InferenceResults.MODEL_ID_RESULTS_FIELD, modelId);
-                put(INFERENCE_CONFIG, Collections.singletonMap(RegressionConfig.NAME.getPreferredName(), Collections.emptyMap()));
-                put(TARGET_FIELD, "new_field");
-                put(FIELD_MAP, Collections.singletonMap("source", "dest"));
+                put(
+                    InferenceProcessorConstants.INFERENCE_CONFIG,
+                    Collections.singletonMap(RegressionConfig.NAME.getPreferredName(), Collections.emptyMap())
+                );
+                put(InferenceProcessorConstants.TARGET_FIELD, "new_field");
+                put(InferenceProcessorConstants.FIELD_MAP, Collections.singletonMap("source", "dest"));
             }
         });
     }

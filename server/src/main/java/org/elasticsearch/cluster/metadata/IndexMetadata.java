@@ -1681,7 +1681,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 eventIngestedRange.writeTo(out);
             } else {
                 assert eventIngestedRange == IndexLongFieldRange.UNKNOWN
-                    : "eventIngestedRange should be UNKNOWN in older versions but is " + eventIngestedRange;
+                    : "eventIngestedRange should be UNKNOWN until all nodes are on the new version but is " + eventIngestedRange;
             }
         }
 
@@ -1843,7 +1843,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             eventIngestedRange.writeTo(out);
         } else {
             assert eventIngestedRange == IndexLongFieldRange.UNKNOWN
-                : "eventIngestedRange should be UNKNOWN in older versions but is " + eventIngestedRange;
+                : "eventIngestedRange should be UNKNOWN until all nodes are on the new version but is " + eventIngestedRange;
         }
     }
 

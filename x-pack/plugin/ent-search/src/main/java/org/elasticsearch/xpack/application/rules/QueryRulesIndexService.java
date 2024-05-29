@@ -38,8 +38,8 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.application.rules.action.PutQueryRuleAction;
 import org.elasticsearch.xpack.application.rules.action.DeleteQueryRuleAction;
+import org.elasticsearch.xpack.application.rules.action.PutQueryRuleAction;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -237,22 +237,14 @@ public class QueryRulesIndexService {
      * @param listener
      */
     public void getQueryRule(String rulesetId, String ruleId, ActionListener<QueryRule> listener) {
-        getQueryRuleset(rulesetId, new ActionListener<>() {
-            @Override
-            public void onResponse(QueryRuleset queryRuleset) {
-                Optional<QueryRule> maybeQueryRule = queryRuleset.rules().stream().filter(r -> r.id().equals(ruleId)).findFirst();
-                if (maybeQueryRule.isPresent()) {
-                    listener.onResponse(maybeQueryRule.get());
-                } else {
-                    listener.onFailure(new ResourceNotFoundException("rule id " + ruleId + " not found in ruleset " + rulesetId));
-                }
+        getQueryRuleset(rulesetId, listener.delegateFailure((delegate, queryRuleset) -> {
+            Optional<QueryRule> maybeQueryRule = queryRuleset.rules().stream().filter(r -> r.id().equals(ruleId)).findFirst();
+            if (maybeQueryRule.isPresent()) {
+                delegate.onResponse(maybeQueryRule.get());
+            } else {
+                delegate.onFailure(new ResourceNotFoundException("rule id " + ruleId + " not found in ruleset " + rulesetId));
             }
-
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
-            }
-        });
+        }));
     }
 
     @SuppressWarnings("unchecked")
@@ -377,46 +369,67 @@ public class QueryRulesIndexService {
      * @param listener
      */
     public void deleteQueryRule(String rulesetId, String ruleId, ActionListener<DeleteQueryRuleAction.Response> listener) {
-        getQueryRuleset(rulesetId, new ActionListener<>() {
-            @Override
-            public void onResponse(QueryRuleset queryRuleset) {
+        // getQueryRuleset(rulesetId, new ActionListener<>() {
+        // @Override
+        // public void onResponse(QueryRuleset queryRuleset) {
+        // final List<QueryRule> rules = queryRuleset.rules()
+        // .stream()
+        // .filter(rule -> rule.id().equals(ruleId) == false)
+        // .collect(Collectors.toList());
+        // if (rules.isEmpty() == false) {
+        // putQueryRuleset(new QueryRuleset(rulesetId, rules), new ActionListener<>() {
+        // @Override
+        // public void onResponse(DocWriteResponse docWriteResponse) {
+        // listener.onResponse(new DeleteQueryRuleAction.Response(true));
+        // }
+        //
+        // @Override
+        // public void onFailure(Exception e) {
+        // listener.onFailure(e);
+        // }
+        // });
+        // } else {
+        // // Delete entire ruleset when there are no more rules left in it
+        // deleteQueryRuleset(rulesetId, new ActionListener<>() {
+        // @Override
+        // public void onResponse(DeleteResponse deleteResponse) {
+        // listener.onResponse(new DeleteQueryRuleAction.Response(true));
+        // }
+        //
+        // @Override
+        // public void onFailure(Exception e) {
+        // listener.onFailure(e);
+        // }
+        // });
+        // }
+        // }
+        //
+        // @Override
+        // public void onFailure(Exception e) {
+        // listener.onFailure(e);
+        // }
+        // });
+        getQueryRuleset(rulesetId, listener.delegateFailure((delegate, queryRuleset) -> {
+            Optional<QueryRule> maybeQueryRule = queryRuleset.rules().stream().filter(r -> r.id().equals(ruleId)).findFirst();
+            if (maybeQueryRule.isPresent()) {
                 final List<QueryRule> rules = queryRuleset.rules()
                     .stream()
                     .filter(rule -> rule.id().equals(ruleId) == false)
                     .collect(Collectors.toList());
                 if (rules.isEmpty() == false) {
-                    putQueryRuleset(new QueryRuleset(rulesetId, rules), new ActionListener<>() {
-                        @Override
-                        public void onResponse(DocWriteResponse docWriteResponse) {
-                            listener.onResponse(new DeleteQueryRuleAction.Response(true));
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            listener.onFailure(e);
-                        }
-                    });
+                    putQueryRuleset(new QueryRuleset(rulesetId, rules), listener.delegateFailureAndWrap((delegate1, docWriteResponse) -> {
+                        delegate1.onResponse(new DeleteQueryRuleAction.Response(true));
+                    }));
                 } else {
                     // Delete entire ruleset when there are no more rules left in it
-                    deleteQueryRuleset(rulesetId, new ActionListener<>() {
-                        @Override
-                        public void onResponse(DeleteResponse deleteResponse) {
-                            listener.onResponse(new DeleteQueryRuleAction.Response(true));
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            listener.onFailure(e);
-                        }
-                    });
+                    deleteQueryRuleset(rulesetId, listener.delegateFailureAndWrap((delegate1, deleteResponse) -> {
+                        delegate1.onResponse(new DeleteQueryRuleAction.Response(true));
+                    }));
                 }
+            } else {
+                delegate.onFailure(new ResourceNotFoundException("rule id " + ruleId + " not found in ruleset " + rulesetId));
             }
-
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
-            }
-        });
+        }));
     }
 
     /**

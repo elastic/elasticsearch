@@ -155,7 +155,9 @@ import org.elasticsearch.xpack.application.rules.action.GetQueryRulesetAction;
 import org.elasticsearch.xpack.application.rules.action.ListQueryRulesetsAction;
 import org.elasticsearch.xpack.application.rules.action.PutQueryRuleAction;
 import org.elasticsearch.xpack.application.rules.action.PutQueryRulesetAction;
+import org.elasticsearch.xpack.application.rules.action.RestDeleteQueryRuleAction;
 import org.elasticsearch.xpack.application.rules.action.RestDeleteQueryRulesetAction;
+import org.elasticsearch.xpack.application.rules.action.RestGetQueryRuleAction;
 import org.elasticsearch.xpack.application.rules.action.RestGetQueryRulesetAction;
 import org.elasticsearch.xpack.application.rules.action.RestListQueryRulesetsAction;
 import org.elasticsearch.xpack.application.rules.action.RestPutQueryRuleAction;
@@ -365,6 +367,8 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
                 new RestGetQueryRulesetAction(getLicenseState()),
                 new RestListQueryRulesetsAction(getLicenseState()),
                 new RestPutQueryRulesetAction(getLicenseState()),
+                new RestDeleteQueryRuleAction(getLicenseState()),
+                new RestGetQueryRuleAction(getLicenseState()),
                 new RestPutQueryRuleAction(getLicenseState())
             )
         );

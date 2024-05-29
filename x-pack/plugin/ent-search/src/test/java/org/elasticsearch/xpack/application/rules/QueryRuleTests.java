@@ -28,8 +28,6 @@ import java.util.Map;
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
-import static org.elasticsearch.xpack.application.rules.QueryRule.MAX_PRIORITY;
-import static org.elasticsearch.xpack.application.rules.QueryRule.MIN_PRIORITY;
 import static org.elasticsearch.xpack.application.rules.QueryRuleCriteriaType.EXACT;
 import static org.elasticsearch.xpack.application.rules.QueryRuleCriteriaType.PREFIX;
 import static org.elasticsearch.xpack.application.rules.QueryRuleCriteriaType.SUFFIX;

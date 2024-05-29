@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.Range;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Or;
+import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.Like;
@@ -31,9 +32,12 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardLike
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.ConstantFolding;
 import org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.FoldNull;
+import org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.PropagateNullable;
+import org.elasticsearch.xpack.esql.core.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.core.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
@@ -59,6 +63,7 @@ import static org.elasticsearch.xpack.esql.core.expression.Literal.FALSE;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.NULL;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.TRUE;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.BOOLEAN;
 import static org.hamcrest.Matchers.contains;
 
 public class OptimizerRulesTests extends ESTestCase {
@@ -635,8 +640,149 @@ public class OptimizerRulesTests extends ESTestCase {
         assertEquals(and, rule.rule(and));
     }
 
+    //
+    // Propagate nullability (IS NULL / IS NOT NULL)
+    //
+
+    // a IS NULL AND a IS NOT NULL => false
+    public void testIsNullAndNotNull() {
+        FieldAttribute fa = getFieldAttribute();
+
+        And and = new And(EMPTY, new IsNull(EMPTY, fa), new IsNotNull(EMPTY, fa));
+        assertEquals(FALSE, new org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.PropagateNullable().rule(and));
+    }
+
+    // a IS NULL AND b IS NOT NULL AND c IS NULL AND d IS NOT NULL AND e IS NULL AND a IS NOT NULL => false
+    public void testIsNullAndNotNullMultiField() {
+        FieldAttribute fa = getFieldAttribute();
+
+        And andOne = new And(EMPTY, new IsNull(EMPTY, fa), new IsNotNull(EMPTY, getFieldAttribute()));
+        And andTwo = new And(EMPTY, new IsNull(EMPTY, getFieldAttribute()), new IsNotNull(EMPTY, getFieldAttribute()));
+        And andThree = new And(EMPTY, new IsNull(EMPTY, getFieldAttribute()), new IsNotNull(EMPTY, fa));
+
+        And and = new And(EMPTY, andOne, new And(EMPTY, andThree, andTwo));
+
+        assertEquals(FALSE, new org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.PropagateNullable().rule(and));
+    }
+
+    // a IS NULL AND a > 1 => a IS NULL AND false
+    public void testIsNullAndComparison() {
+        FieldAttribute fa = getFieldAttribute();
+        IsNull isNull = new IsNull(EMPTY, fa);
+
+        And and = new And(EMPTY, isNull, greaterThanOf(fa, ONE));
+        assertEquals(new And(EMPTY, isNull, nullOf(BOOLEAN)), new PropagateNullable().rule(and));
+    }
+
+    // a IS NULL AND b < 1 AND c < 1 AND a < 1 => a IS NULL AND b < 1 AND c < 1 => a IS NULL AND b < 1 AND c < 1
+    public void testIsNullAndMultipleComparison() {
+        FieldAttribute fa = getFieldAttribute();
+        IsNull isNull = new IsNull(EMPTY, fa);
+
+        And nestedAnd = new And(
+            EMPTY,
+            lessThanOf(TestUtils.getFieldAttribute("b"), ONE),
+            lessThanOf(TestUtils.getFieldAttribute("c"), ONE)
+        );
+        And and = new And(EMPTY, isNull, nestedAnd);
+        And top = new And(EMPTY, and, lessThanOf(fa, ONE));
+
+        Expression optimized = new PropagateNullable().rule(top);
+        Expression expected = new And(EMPTY, and, nullOf(BOOLEAN));
+        assertEquals(Predicates.splitAnd(expected), Predicates.splitAnd(optimized));
+    }
+
+    // ((a+1)/2) > 1 AND a + 2 AND a IS NULL AND b < 3 => NULL AND NULL AND a IS NULL AND b < 3
+    public void testIsNullAndDeeplyNestedExpression() {
+        FieldAttribute fa = getFieldAttribute();
+        IsNull isNull = new IsNull(EMPTY, fa);
+
+        Expression nullified = new And(
+            EMPTY,
+            greaterThanOf(new Div(EMPTY, new Add(EMPTY, fa, ONE), TWO), ONE),
+            greaterThanOf(new Add(EMPTY, fa, TWO), ONE)
+        );
+        Expression kept = new And(EMPTY, isNull, lessThanOf(TestUtils.getFieldAttribute("b"), THREE));
+        And and = new And(EMPTY, nullified, kept);
+
+        Expression optimized = new PropagateNullable().rule(and);
+        Expression expected = new And(EMPTY, new And(EMPTY, nullOf(BOOLEAN), nullOf(BOOLEAN)), kept);
+
+        assertEquals(Predicates.splitAnd(expected), Predicates.splitAnd(optimized));
+    }
+
+    // a IS NULL OR a IS NOT NULL => no change
+    // a IS NULL OR a > 1 => no change
+    public void testIsNullInDisjunction() {
+        FieldAttribute fa = getFieldAttribute();
+
+        Or or = new Or(EMPTY, new IsNull(EMPTY, fa), new IsNotNull(EMPTY, fa));
+        Filter dummy = new Filter(EMPTY, relation(), or);
+        LogicalPlan transformed = new PropagateNullable().apply(dummy);
+        assertSame(dummy, transformed);
+        assertEquals(or, ((Filter) transformed).condition());
+
+        or = new Or(EMPTY, new IsNull(EMPTY, fa), greaterThanOf(fa, ONE));
+        dummy = new Filter(EMPTY, relation(), or);
+        transformed = new PropagateNullable().apply(dummy);
+        assertSame(dummy, transformed);
+        assertEquals(or, ((Filter) transformed).condition());
+    }
+
+    // a + 1 AND (a IS NULL OR a > 3) => no change
+    public void testIsNullDisjunction() {
+        FieldAttribute fa = getFieldAttribute();
+        IsNull isNull = new IsNull(EMPTY, fa);
+
+        Or or = new Or(EMPTY, isNull, greaterThanOf(fa, THREE));
+        And and = new And(EMPTY, new Add(EMPTY, fa, ONE), or);
+
+        assertEquals(and, new PropagateNullable().rule(and));
+    }
+
+    public void testIsNotNullOnIsNullField() {
+        EsRelation relation = relation();
+        var fieldA = TestUtils.getFieldAttribute("a");
+        Expression inn = isNotNull(fieldA);
+        Filter f = new Filter(EMPTY, relation, inn);
+
+        assertEquals(f, new LocalLogicalPlanOptimizer.InferIsNotNull().apply(f));
+    }
+
+    public void testIsNotNullOnOperatorWithOneField() {
+        EsRelation relation = relation();
+        var fieldA = TestUtils.getFieldAttribute("a");
+        Expression inn = isNotNull(new Add(EMPTY, fieldA, ONE));
+        Filter f = new Filter(EMPTY, relation, inn);
+        Filter expected = new Filter(EMPTY, relation, new And(EMPTY, isNotNull(fieldA), inn));
+
+        assertEquals(expected, new LocalLogicalPlanOptimizer.InferIsNotNull().apply(f));
+    }
+
+    public void testIsNotNullOnOperatorWithTwoFields() {
+        EsRelation relation = relation();
+        var fieldA = TestUtils.getFieldAttribute("a");
+        var fieldB = TestUtils.getFieldAttribute("b");
+        Expression inn = isNotNull(new Add(EMPTY, fieldA, fieldB));
+        Filter f = new Filter(EMPTY, relation, inn);
+        Filter expected = new Filter(EMPTY, relation, new And(EMPTY, new And(EMPTY, isNotNull(fieldA), isNotNull(fieldB)), inn));
+
+        assertEquals(expected, new LocalLogicalPlanOptimizer.InferIsNotNull().apply(f));
+    }
+
     private void assertNullLiteral(Expression expression) {
         assertEquals(Literal.class, expression.getClass());
         assertNull(expression.fold());
+    }
+    private IsNotNull isNotNull(Expression field) {
+        return new IsNotNull(EMPTY, field);
+    }
+
+    private IsNull isNull(Expression field) {
+        return new IsNull(EMPTY, field);
+    }
+
+    private Literal nullOf(DataType dataType) {
+        return new Literal(Source.EMPTY, null, dataType);
     }
 }

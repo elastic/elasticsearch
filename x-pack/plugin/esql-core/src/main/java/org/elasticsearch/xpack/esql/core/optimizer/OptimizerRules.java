@@ -1674,7 +1674,7 @@ public final class OptimizerRules {
         }
 
         @Override
-        protected Expression rule(And and) {
+        public Expression rule(And and) {
             List<Expression> splits = Predicates.splitAnd(and);
 
             Set<Expression> nullExpressions = new LinkedHashSet<>();

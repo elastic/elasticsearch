@@ -312,6 +312,10 @@ public abstract class Engine implements Closeable {
     private long getSparseVectorValueCount(final LeafReader atomicReader, MappingLookup mappingLookup) throws IOException {
         long count = 0;
 
+        if (mappingLookup == null) {
+            return count;
+        }
+
         Map<String, FieldMapper> mappers = new HashMap<>();
         for (Mapper mapper : mappingLookup.fieldMappers()) {
             if (mapper instanceof FieldMapper fieldMapper) {

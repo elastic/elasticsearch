@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.esql.core.querydsl.query;
 
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.search.sort.NestedSortBuilder;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
@@ -44,27 +43,6 @@ public abstract class Query {
     public Source source() {
         return source;
     }
-
-    /**
-     * Does this query contain a particular nested field?
-     */
-    public abstract boolean containsNestedField(String path, String field);
-
-    /**
-     * Rewrite this query to one that contains the specified nested field.
-     * <p>
-     * Used to make sure that we fetch nested fields even if they aren't
-     * explicitly part of the query.
-     * @return a new query if we could add the nested field, the same query
-     *      instance otherwise
-     */
-    public abstract Query addNestedField(String path, String field, String format, boolean hasDocValues);
-
-    /**
-     * Attach the one and only one matching nested query's filter to this
-     * sort.
-     */
-    public abstract void enrichNestedSort(NestedSortBuilder sort);
 
     /**
      * Convert to an Elasticsearch {@link QueryBuilder} all set up to execute

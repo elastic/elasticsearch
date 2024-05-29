@@ -568,7 +568,7 @@ public class NodeStatsTests extends ESTestCase {
         int iota = 0;
 
         final CommonStats indicesCommonStats = new CommonStats(CommonStatsFlags.ALL);
-        indicesCommonStats.getDocs().add(new DocsStats(++iota, ++iota, ++iota));
+        indicesCommonStats.getDocs().add(new DocsStats(++iota, ++iota, ++iota, ++iota));
         Map<String, FieldDataStats.GlobalOrdinalsStats.GlobalOrdinalFieldStats> fieldOrdinalStats = new HashMap<>();
         fieldOrdinalStats.put(
             randomAlphaOfLength(4),

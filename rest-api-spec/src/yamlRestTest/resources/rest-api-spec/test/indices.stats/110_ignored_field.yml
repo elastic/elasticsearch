@@ -1,0 +1,123 @@
+---
+"indices stats including documents with ignored fields":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: GET
+          path: /{index}/_stats
+          capabilities: [ count_docs_with_ignored_fields ]
+      reason: "Counting docs with ignored fields required"
+
+  - do:
+      indices.create:
+        index: test1
+        body:
+          settings:
+            number_of_shards: 3
+            number_of_replicas: 0
+          mappings:
+            properties:
+              email:
+                type: keyword
+                ignore_above: 15
+              date_of_birth:
+                type: date
+                format: "dd-MM-yyyy"
+                ignore_malformed: true
+              ip_address:
+                type: ip
+                ignore_malformed: true
+
+  - do:
+      indices.create:
+        index: test2
+        body:
+          settings:
+            number_of_shards: 3
+            number_of_replicas: 0
+          mappings:
+            properties:
+              email:
+                type: keyword
+                ignore_above: 15
+              date_of_birth:
+                type: date
+                format: "dd-MM-yyyy"
+                ignore_malformed: true
+              ip_address:
+                type: ip
+                ignore_malformed: true
+
+  - do:
+      indices.create:
+        index: test3
+        body:
+          settings:
+            number_of_shards: 3
+            number_of_replicas: 0
+          mappings:
+            properties:
+              email:
+                type: keyword
+                ignore_above: 15
+              date_of_birth:
+                type: date
+                format: "dd-MM-yyyy"
+                ignore_malformed: true
+              ip_address:
+                type: ip
+                ignore_malformed: true
+
+  - do:
+      bulk:
+        index: test1
+        refresh: true
+        body:
+          - { "index": { "_id": "001" } }
+          - {"email": "sam.fox@abc.com", "date_of_birth": "10-11-1992", "ip_address": "117.12.45.79" }
+          - { "index": { "_id": "002" } }
+          - { "email": "kim.pitt@at.com", "date_of_birth": "12-04-1993", "ip_address": "178.22.231.24" }
+
+  - do:
+      bulk:
+        index: test2
+        refresh: true
+        body:
+          - { "index": { "_id": "003" } }
+          - { "email": "alex.jones@acme.com", "date_of_birth": "09-02-1990", "ip_address": "117.12.45.79" }
+          - { "index": { "_id": "004" } }
+          - { "email": "mike.lee@xy.co", "date_of_birth": "12-24-1991", "ip_address": "133.45.123.12" }
+
+  - do:
+      bulk:
+        index: test3
+        refresh: false # document not flushed to Lucene segment
+        body:
+          - { "index": { "_id": "005" } }
+          - { "email": "joe.tan@foobar.com", "date_of_birth": "04-05-1992", "ip_address": "123.77.18.488" }
+
+  - do:
+      indices.stats:
+        index: test*
+        metric: docs
+
+  - match: { _all.primaries.docs.count: 4 }
+  - match: { _all.primaries.docs.docs_with_ignored_fields: 2 }
+  - match: { _all.total.docs.count: 4 }
+  - match: { _all.total.docs.docs_with_ignored_fields: 2 }
+
+  - match: { indices.test1.primaries.docs.count: 2 }
+  - match: { indices.test1.primaries.docs.docs_with_ignored_fields: 0 }
+  - match: { indices.test1.total.docs.count: 2 }
+  - match: { indices.test1.total.docs.docs_with_ignored_fields: 0 }
+
+  - match: { indices.test2.primaries.docs.count: 2 }
+  - match: { indices.test2.primaries.docs.docs_with_ignored_fields: 2 }
+  - match: { indices.test2.total.docs.count: 2 }
+  - match: { indices.test2.total.docs.docs_with_ignored_fields: 2 }
+
+  # Not refreshed
+  - match: { indices.test3.primaries.docs.count: 0 }
+  - match: { indices.test3.primaries.docs.docs_with_ignored_fields: 0 }
+  - match: { indices.test3.total.docs.count: 0 }
+  - match: { indices.test3.total.docs.docs_with_ignored_fields: 0 }

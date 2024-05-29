@@ -8,6 +8,7 @@
 
 package org.elasticsearch.index.shard;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -23,6 +24,7 @@ public class DocsStats implements Writeable, ToXContentFragment {
     private long count = 0;
     private long deleted = 0;
     private long totalSizeInBytes = 0;
+    private long docsWithIgnoredFields = 0;
 
     public DocsStats() {
 
@@ -32,12 +34,18 @@ public class DocsStats implements Writeable, ToXContentFragment {
         count = in.readVLong();
         deleted = in.readVLong();
         totalSizeInBytes = in.readVLong();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.COUNT_DOCS_WITH_IGNORED_FIELDS)) {
+            docsWithIgnoredFields = in.readVLong();
+        } else {
+            docsWithIgnoredFields = 0;
+        }
     }
 
-    public DocsStats(long count, long deleted, long totalSizeInBytes) {
+    public DocsStats(long count, long deleted, long totalSizeInBytes, long docsWithIgnoredFields) {
         this.count = count;
         this.deleted = deleted;
         this.totalSizeInBytes = totalSizeInBytes;
+        this.docsWithIgnoredFields = docsWithIgnoredFields;
     }
 
     public void add(DocsStats other) {
@@ -51,6 +59,7 @@ public class DocsStats implements Writeable, ToXContentFragment {
         }
         this.count += other.count;
         this.deleted += other.deleted;
+        this.docsWithIgnoredFields += other.docsWithIgnoredFields;
     }
 
     public long getCount() {
@@ -69,11 +78,22 @@ public class DocsStats implements Writeable, ToXContentFragment {
         return totalSizeInBytes;
     }
 
+    /**
+     * Returns the total number of documents including at least one ignored field.
+     * This value only reflects documents already flushed to Lucene segments.
+     */
+    public long getDocsWithIgnoredFields() {
+        return docsWithIgnoredFields;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(count);
         out.writeVLong(deleted);
         out.writeVLong(totalSizeInBytes);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.COUNT_DOCS_WITH_IGNORED_FIELDS)) {
+            out.writeVLong(docsWithIgnoredFields);
+        }
     }
 
     @Override
@@ -82,6 +102,7 @@ public class DocsStats implements Writeable, ToXContentFragment {
         builder.field(Fields.COUNT, count);
         builder.field(Fields.DELETED, deleted);
         builder.field(Fields.TOTAL_SIZE_IN_BYTES, totalSizeInBytes);
+        builder.field(Fields.DOCS_WITH_IGNORED_FIELDS, docsWithIgnoredFields);
         builder.endObject();
         return builder;
     }
@@ -91,12 +112,15 @@ public class DocsStats implements Writeable, ToXContentFragment {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         DocsStats that = (DocsStats) o;
-        return count == that.count && deleted == that.deleted && totalSizeInBytes == that.totalSizeInBytes;
+        return count == that.count
+            && deleted == that.deleted
+            && totalSizeInBytes == that.totalSizeInBytes
+            && this.docsWithIgnoredFields == that.docsWithIgnoredFields;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(count, deleted, totalSizeInBytes);
+        return Objects.hash(count, deleted, totalSizeInBytes, docsWithIgnoredFields);
     }
 
     static final class Fields {
@@ -104,5 +128,6 @@ public class DocsStats implements Writeable, ToXContentFragment {
         static final String COUNT = "count";
         static final String DELETED = "deleted";
         static final String TOTAL_SIZE_IN_BYTES = "total_size_in_bytes";
+        static final String DOCS_WITH_IGNORED_FIELDS = "docs_with_ignored_fields";
     }
 }

@@ -180,6 +180,8 @@ public class TransportVersions {
     public static final TransportVersion ADD_METADATA_FLATTENED_TO_ROLES = def(8_671_00_0);
     public static final TransportVersion ML_INFERENCE_GOOGLE_AI_STUDIO_COMPLETION_ADDED = def(8_672_00_0);
 
+    public static final TransportVersion COUNT_DOCS_WITH_IGNORED_FIELDS = def(8_673_00_0);
+
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

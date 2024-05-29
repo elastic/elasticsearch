@@ -108,7 +108,7 @@ public class IndexMetadataStatsTests extends ESTestCase {
         shardRouting = ShardRoutingHelper.moveToStarted(shardRouting);
 
         final CommonStats commonStats = new CommonStats(CommonStatsFlags.ALL);
-        commonStats.getDocs().add(new DocsStats(1, 0, sizeInBytes));
+        commonStats.getDocs().add(new DocsStats(1, 0, sizeInBytes, 0));
         commonStats.getIndexing()
             .getTotal()
             .add(

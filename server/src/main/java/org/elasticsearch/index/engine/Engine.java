@@ -24,6 +24,7 @@ import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.index.Terms;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.QueryCachingPolicy;
@@ -60,6 +61,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.DocumentParser;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
@@ -215,6 +217,7 @@ public abstract class Engine implements Closeable {
         long numDocs = 0;
         long numDeletedDocs = 0;
         long sizeInBytes = 0;
+        long docsWithIgnoredFields = 0;
         // we don't wait for a pending refreshes here since it's a stats call instead we mark it as accessed only which will cause
         // the next scheduled refresh to go through and refresh the stats as well
         for (LeafReaderContext readerContext : indexReader.leaves()) {
@@ -228,8 +231,14 @@ public abstract class Engine implements Closeable {
             } catch (IOException e) {
                 logger.trace(() -> "failed to get size for [" + info.info.name + "]", e);
             }
+            try {
+                final Terms ignoredTerms = readerContext.reader().terms(IgnoredFieldMapper.NAME);
+                docsWithIgnoredFields = ignoredTerms != null ? ignoredTerms.getSumDocFreq() : 0;
+            } catch (IOException e) {
+                logger.trace(() -> "failed to get number of documents with ignored fields", e);
+            }
         }
-        return new DocsStats(numDocs, numDeletedDocs, sizeInBytes);
+        return new DocsStats(numDocs, numDeletedDocs, sizeInBytes, docsWithIgnoredFields);
     }
 
     /**

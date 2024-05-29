@@ -580,10 +580,10 @@ public class TransportRolloverActionTests extends ESTestCase {
 
     private IndicesStatsResponse createIndicesStatResponse(String indexName, long totalDocs, long primariesDocs) {
         final CommonStats primaryStats = mock(CommonStats.class);
-        when(primaryStats.getDocs()).thenReturn(new DocsStats(primariesDocs, 0, between(1, 10000)));
+        when(primaryStats.getDocs()).thenReturn(new DocsStats(primariesDocs, 0, between(1, 10000), randomLongBetween(0, primariesDocs)));
 
         final CommonStats totalStats = mock(CommonStats.class);
-        when(totalStats.getDocs()).thenReturn(new DocsStats(totalDocs, 0, between(1, 10000)));
+        when(totalStats.getDocs()).thenReturn(new DocsStats(totalDocs, 0, between(1, 10000), randomLongBetween(0, totalDocs)));
 
         final IndicesStatsResponse response = mock(IndicesStatsResponse.class);
         when(response.getPrimaries()).thenReturn(primaryStats);
@@ -612,10 +612,10 @@ public class TransportRolloverActionTests extends ESTestCase {
 
     private IndexStats createIndexStats(long primaries, long total) {
         final CommonStats primariesCommonStats = mock(CommonStats.class);
-        when(primariesCommonStats.getDocs()).thenReturn(new DocsStats(primaries, 0, between(1, 10000)));
+        when(primariesCommonStats.getDocs()).thenReturn(new DocsStats(primaries, 0, between(1, 10000), randomLongBetween(0, primaries)));
 
         final CommonStats totalCommonStats = mock(CommonStats.class);
-        when(totalCommonStats.getDocs()).thenReturn(new DocsStats(total, 0, between(1, 10000)));
+        when(totalCommonStats.getDocs()).thenReturn(new DocsStats(total, 0, between(1, 10000), randomLongBetween(0, total)));
 
         IndexStats indexStats = mock(IndexStats.class);
         when(indexStats.getPrimaries()).thenReturn(primariesCommonStats);

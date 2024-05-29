@@ -27,7 +27,7 @@ public class ResizeNumberOfShardsCalculatorTests extends ESTestCase {
         ResizeNumberOfShardsCalculator.ShrinkShardsCalculator shrinkShardsCalculator =
             new ResizeNumberOfShardsCalculator.ShrinkShardsCalculator(
                 new StoreStats(between(1, 100), between(0, 100), between(1, 100)),
-                (i) -> new DocsStats(between(1, 1000), between(1, 1000), between(0, 10000))
+                (i) -> new DocsStats(between(1, 1000), between(1, 1000), between(0, 10000), between(0, 10000))
             );
         assertEquals(4, shrinkShardsCalculator.calculate(4, null, indexMetadata));
         assertEquals(1, shrinkShardsCalculator.calculate(null, null, indexMetadata));
@@ -41,7 +41,7 @@ public class ResizeNumberOfShardsCalculatorTests extends ESTestCase {
                 IllegalStateException.class,
                 () -> new ResizeNumberOfShardsCalculator.ShrinkShardsCalculator(
                     new StoreStats(between(1, 100), between(0, 100), between(1, 100)),
-                    (i) -> new DocsStats(Integer.MAX_VALUE, between(1, 1000), between(1, 100))
+                    (i) -> new DocsStats(Integer.MAX_VALUE, between(1, 1000), between(1, 100), between(0, 10000))
                 ).validate(1, indexMetadata)
             ).getMessage().startsWith("Can't merge index with more than [2147483519] docs - too many documents in shards ")
         );

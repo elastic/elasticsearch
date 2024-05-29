@@ -184,7 +184,6 @@ query from the `semantic-embedding` index:
 
 [source,console-result]
 ------------------------------------------------------------
-(...)
 "hits": [
   {
     "_index": "semantic-embeddings",

@@ -71,10 +71,7 @@ public class IpPrefix extends EsqlScalarFunction implements OptionalArgument {
             description = "Prefix length for IPv6 addresses."
         ) Expression prefixLengthV6Field
     ) {
-        super(
-            source,
-            Arrays.asList(ipField, prefixLengthV4Field, prefixLengthV6Field)
-        );
+        super(source, Arrays.asList(ipField, prefixLengthV4Field, prefixLengthV6Field));
         this.ipField = ipField;
         this.prefixLengthV4Field = prefixLengthV4Field;
         this.prefixLengthV6Field = prefixLengthV6Field;

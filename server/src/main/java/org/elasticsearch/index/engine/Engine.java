@@ -230,13 +230,20 @@ public abstract class Engine implements Closeable {
             } catch (IOException e) {
                 logger.trace(() -> "failed to get size for [" + info.info.name + "]", e);
             }
-            try {
-                docsWithIgnoredFields = readerContext.reader().getSumDocFreq(IgnoredFieldMapper.NAME);
-            } catch (IOException e) {
-                logger.trace(() -> "failed to get number of documents with ignored fields", e);
-            }
+            docsWithIgnoredFields = tryGetNumberOfDocumentsWithIgnoredFields(readerContext);
         }
         return new DocsStats(numDocs, numDeletedDocs, sizeInBytes, docsWithIgnoredFields);
+    }
+
+    private long tryGetNumberOfDocumentsWithIgnoredFields(final LeafReaderContext readerContext) {
+        try {
+            return readerContext.reader().getSumDocFreq(IgnoredFieldMapper.NAME);
+        } catch (IOException e) {
+            logger.trace(() -> "IO error while getting the number of documents with ignored fields", e);
+        } catch (UnsupportedOperationException e) {
+            logger.trace(() -> "Getting number of documents with ignored fields is not supported", e);
+        }
+        return 0;
     }
 
     /**

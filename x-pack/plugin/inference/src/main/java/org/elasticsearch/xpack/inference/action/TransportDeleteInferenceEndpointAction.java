@@ -30,9 +30,9 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.inference.action.DeleteInferenceEndpointAction;
+import org.elasticsearch.xpack.core.ml.utils.InferenceProcessorInfoExtractor;
 import org.elasticsearch.xpack.inference.common.InferenceExceptions;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
-import org.elasticsearch.xpack.inference.utils.InferenceProcessorInfoExtractor;
 
 import java.util.Set;
 

@@ -22,6 +22,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.ExecutorNames;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.security.migrations.MigrateRolesMetadata;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -142,7 +143,8 @@ public class SecuritySystemIndices {
                 .setIndexFormat(INTERNAL_MAIN_INDEX_FORMAT)
                 .setVersionMetaKey(SECURITY_VERSION_STRING)
                 .setOrigin(SECURITY_ORIGIN)
-                .setThreadPools(ExecutorNames.CRITICAL_SYSTEM_INDEX_THREAD_POOLS);
+                .setThreadPools(ExecutorNames.CRITICAL_SYSTEM_INDEX_THREAD_POOLS)
+                .addSystemIndexMigration(new MigrateRolesMetadata(this));
 
         return securityIndexDescriptorBuilder.apply(SecurityMainIndexMappingVersion.latest())
             .setPriorSystemIndexDescriptors(List.of(securityIndexDescriptorBuilder.apply(SecurityMainIndexMappingVersion.INITIAL).build()))

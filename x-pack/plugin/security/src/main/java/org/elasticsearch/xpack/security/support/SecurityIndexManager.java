@@ -122,6 +122,10 @@ public class SecurityIndexManager implements ClusterStateListener {
         this.defensiveCopy = defensiveCopy;
     }
 
+    public Client getClient() {
+        return client;
+    }
+
     /**
      * Creates a defensive to protect against the underlying state changes. Should be called prior to making decisions and that same copy
      * should be reused for multiple checks in the same workflow.
@@ -366,6 +370,14 @@ public class SecurityIndexManager implements ClusterStateListener {
             && state.indexExists()
             && state.securityFeatures.contains(SECURITY_MIGRATION_FRAMEWORK)
             && isEligibleSecurityMigration(securityMigration);
+    }
+
+    public boolean isReadyForIndexMigration() {
+        return state.indexAvailableForWrite
+            && state.indexAvailableForSearch
+            && state.isIndexUpToDate
+            && state.indexExists()
+            && state.securityFeatures.contains(SECURITY_MIGRATION_FRAMEWORK);
     }
 
     /**

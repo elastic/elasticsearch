@@ -1,7 +1,7 @@
 Your driver must be compatible with your {es} version.
 
 IMPORTANT: The driver version cannot be newer than the {es} version.
-For example, {version} drivers is not compatible with {es} version 7.10.0.
+For example, {es} version 7.10.0 is not compatible with {version} drivers.
 
 [options="header",cols="1,3a,1"]
 |====

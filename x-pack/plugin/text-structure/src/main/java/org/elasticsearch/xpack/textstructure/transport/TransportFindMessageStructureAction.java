@@ -19,6 +19,8 @@ import org.elasticsearch.xpack.textstructure.structurefinder.TextStructureFinder
 import org.elasticsearch.xpack.textstructure.structurefinder.TextStructureFinderManager;
 import org.elasticsearch.xpack.textstructure.structurefinder.TextStructureOverrides;
 
+import static org.elasticsearch.threadpool.ThreadPool.Names.GENERIC;
+
 public class TransportFindMessageStructureAction extends HandledTransportAction<FindMessageStructureAction.Request, FindStructureResponse> {
 
     private final ThreadPool threadPool;
@@ -48,6 +50,7 @@ public class TransportFindMessageStructureAction extends HandledTransportAction<
     }
 
     private FindStructureResponse buildTextStructureResponse(FindMessageStructureAction.Request request) throws Exception {
+        assert ThreadPool.assertCurrentThreadPool(GENERIC);
         TextStructureFinderManager structureFinderManager = new TextStructureFinderManager(threadPool.scheduler());
         TextStructureFinder textStructureFinder = structureFinderManager.findTextStructure(
             request.getMessages(),

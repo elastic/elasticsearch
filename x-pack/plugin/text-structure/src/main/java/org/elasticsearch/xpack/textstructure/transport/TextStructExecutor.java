@@ -16,7 +16,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.concurrent.ExecutorService;
 
 import static org.elasticsearch.common.util.concurrent.EsExecutors.DIRECT_EXECUTOR_SERVICE;
-import static org.elasticsearch.threadpool.ThreadPool.Names.GENERIC;
 
 /**
  * workaround for https://github.com/elastic/elasticsearch/issues/97916
@@ -43,9 +42,6 @@ public class TextStructExecutor {
      * {@link ActionListener#completeWith(ActionListener, CheckedSupplier)}.
      */
     <T> void execute(ActionListener<T> listener, CheckedSupplier<T, Exception> supplier) {
-        threadPool.generic().execute(ActionRunnable.supply(listener, () -> {
-            assert ThreadPool.assertCurrentThreadPool(GENERIC);
-            return supplier.get();
-        }));
+        threadPool.generic().execute(ActionRunnable.supply(listener, supplier));
     }
 }

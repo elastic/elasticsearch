@@ -45,18 +45,6 @@ public class IpPrefixTests extends AbstractFunctionTestCase {
                     equalTo(EsqlDataTypeConverter.stringToIP("1.2.3.0"))
                 )
             ),
-            new TestCaseSupplier(
-                List.of(DataTypes.IP, DataTypes.INTEGER),
-                () -> new TestCaseSupplier.TestCase(
-                    List.of(
-                        new TestCaseSupplier.TypedData(EsqlDataTypeConverter.stringToIP("1.2.3.4"), DataTypes.IP, "ip"),
-                        new TestCaseSupplier.TypedData(24, DataTypes.INTEGER, "prefixLengthV4")
-                    ),
-                    "IpPrefixOnlyV4Evaluator[ip=Attribute[channel=0], prefixLengthV4=Attribute[channel=1]]",
-                    DataTypes.IP,
-                    equalTo(EsqlDataTypeConverter.stringToIP("1.2.3.0"))
-                )
-            ),
 
             // V6
             new TestCaseSupplier(
@@ -70,18 +58,6 @@ public class IpPrefixTests extends AbstractFunctionTestCase {
                     "IpPrefixEvaluator[ip=Attribute[channel=0], prefixLengthV4=Attribute[channel=1], prefixLengthV6=Attribute[channel=2]]",
                     DataTypes.IP,
                     equalTo(EsqlDataTypeConverter.stringToIP("::fe"))
-                )
-            ),
-            new TestCaseSupplier(
-                List.of(DataTypes.IP, DataTypes.INTEGER),
-                () -> new TestCaseSupplier.TestCase(
-                    List.of(
-                        new TestCaseSupplier.TypedData(EsqlDataTypeConverter.stringToIP("::ff"), DataTypes.IP, "ip"),
-                        new TestCaseSupplier.TypedData(ESTestCase.randomIntBetween(0, 32), DataTypes.INTEGER, "prefixLengthV4")
-                    ),
-                    "IpPrefixOnlyV4Evaluator[ip=Attribute[channel=0], prefixLengthV4=Attribute[channel=1]]",
-                    DataTypes.IP,
-                    equalTo(EsqlDataTypeConverter.stringToIP("::ff"))
                 )
             )
         );

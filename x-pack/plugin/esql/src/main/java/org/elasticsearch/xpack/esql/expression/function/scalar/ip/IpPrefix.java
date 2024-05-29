@@ -50,7 +50,7 @@ public class IpPrefix extends EsqlScalarFunction implements OptionalArgument {
 
     @FunctionInfo(
         returnType = "ip",
-        description = "Returns the original IP with all but the first N bits set to zero.",
+        description = "Truncates an IP to a given prefix length.",
         examples = @Example(file = "ip", tag = "ipPrefix")
     )
     public IpPrefix(
@@ -63,21 +63,17 @@ public class IpPrefix extends EsqlScalarFunction implements OptionalArgument {
         @Param(
             name = "prefixLengthV4",
             type = { "integer" },
-            description = "Prefix length, in the range [0, 32], to apply to IPv4 addresses."
+            description = "Prefix length for IPv4 addresses."
         ) Expression prefixLengthV4Field,
         @Param(
             name = "prefixLengthV6",
             type = { "integer" },
-            optional = true,
-            description = "Prefix length, in the range [0, 128], to apply to IPv6 addresses. "
-                + "If not provided, the original IPv6 addresses will be returned."
+            description = "Prefix length for IPv6 addresses."
         ) Expression prefixLengthV6Field
     ) {
         super(
             source,
-            prefixLengthV6Field == null
-                ? Arrays.asList(ipField, prefixLengthV4Field)
-                : Arrays.asList(ipField, prefixLengthV4Field, prefixLengthV6Field)
+            Arrays.asList(ipField, prefixLengthV4Field, prefixLengthV6Field)
         );
         this.ipField = ipField;
         this.prefixLengthV4Field = prefixLengthV4Field;
@@ -85,16 +81,16 @@ public class IpPrefix extends EsqlScalarFunction implements OptionalArgument {
     }
 
     public static IpPrefix readFrom(PlanStreamInput in) throws IOException {
-        return new IpPrefix(in.readSource(), in.readExpression(), in.readExpression(), in.readOptionalNamed(Expression.class));
+        return new IpPrefix(in.readSource(), in.readExpression(), in.readExpression(), in.readExpression());
     }
 
     public static void writeTo(PlanStreamOutput out, IpPrefix ipPrefix) throws IOException {
         out.writeSource(ipPrefix.source());
         List<Expression> fields = ipPrefix.children();
-        assert fields.size() == 2 || fields.size() == 3;
+        assert fields.size() == 3;
         out.writeExpression(fields.get(0));
         out.writeExpression(fields.get(1));
-        out.writeOptionalWriteable(fields.size() == 3 ? o -> out.writeExpression(fields.get(2)) : null);
+        out.writeExpression(fields.get(2));
     }
 
     public Expression ipField() {
@@ -118,30 +114,15 @@ public class IpPrefix extends EsqlScalarFunction implements OptionalArgument {
     public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
         var ipEvaluatorSupplier = toEvaluator.apply(ipField);
         var prefixLengthV4EvaluatorSupplier = toEvaluator.apply(prefixLengthV4Field);
+        var prefixLengthV6EvaluatorSupplier = toEvaluator.apply(prefixLengthV6Field);
 
-        if (prefixLengthV6Field != null) {
-            var prefixLengthV6EvaluatorSupplier = toEvaluator.apply(prefixLengthV6Field);
-
-            return new IpPrefixEvaluator.Factory(
-                source(),
-                ipEvaluatorSupplier,
-                prefixLengthV4EvaluatorSupplier,
-                prefixLengthV6EvaluatorSupplier,
-                context -> new BytesRef(new byte[16])
-            );
-        }
-
-        return new IpPrefixOnlyV4Evaluator.Factory(
+        return new IpPrefixEvaluator.Factory(
             source(),
             ipEvaluatorSupplier,
             prefixLengthV4EvaluatorSupplier,
+            prefixLengthV6EvaluatorSupplier,
             context -> new BytesRef(new byte[16])
         );
-    }
-
-    @Evaluator(extraName = "OnlyV4")
-    static BytesRef process(BytesRef ip, int prefixLengthV4, @Fixed(includeInToString = false, build = true) BytesRef scratch) {
-        return process(ip, prefixLengthV4, 128, scratch);
     }
 
     @Evaluator
@@ -193,20 +174,14 @@ public class IpPrefix extends EsqlScalarFunction implements OptionalArgument {
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution typeResolution = isIPAndExact(ipField, sourceText(), FIRST).and(
+        return isIPAndExact(ipField, sourceText(), FIRST).and(
             isType(prefixLengthV4Field, dt -> dt == INTEGER, sourceText(), SECOND, "integer")
-        );
-
-        if (prefixLengthV6Field != null) {
-            typeResolution = typeResolution.and(isType(prefixLengthV6Field, dt -> dt == INTEGER, sourceText(), THIRD, "integer"));
-        }
-
-        return typeResolution;
+        ).and(isType(prefixLengthV6Field, dt -> dt == INTEGER, sourceText(), THIRD, "integer"));
     }
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new IpPrefix(source(), newChildren.get(0), newChildren.get(1), newChildren.size() == 3 ? newChildren.get(2) : null);
+        return new IpPrefix(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
     }
 
     @Override

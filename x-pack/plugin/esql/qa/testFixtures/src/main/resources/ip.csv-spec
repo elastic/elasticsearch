@@ -490,7 +490,7 @@ ipPrefix
 required_capability: fn_ip_prefix
 //tag::ipPrefix[]
 row ip4 = to_ip("1.2.3.4"), ip6 = to_ip("fe80::cae2:65ff:fece:feb9")
-| eval ip4_prefix = ip_prefix(ip4, 24), ip6_prefix = ip_prefix(ip6, 0, 112);
+| eval ip4_prefix = ip_prefix(ip4, 24, 0), ip6_prefix = ip_prefix(ip6, 0, 112);
 //end::ipPrefix[]
 
 //tag::ipPrefix-result[]
@@ -502,7 +502,7 @@ ip4:ip  | ip6:ip                    | ip4_prefix:ip | ip6_prefix:ip
 ipPrefixCompleteIp
 required_capability: fn_ip_prefix
 row ip4 = to_ip("1.2.3.4"), ip6 = to_ip("fe80::cae2:65ff:fece:feb9")
-| eval ip4_prefix = ip_prefix(ip4, 32), ip6_prefix = ip_prefix(ip6, 0, 128);
+| eval ip4_prefix = ip_prefix(ip4, 32, 0), ip6_prefix = ip_prefix(ip6, 0, 128);
 
 ip4:ip  | ip6:ip                    | ip4_prefix:ip | ip6_prefix:ip
 1.2.3.4 | fe80::cae2:65ff:fece:feb9 | 1.2.3.4       | fe80::cae2:65ff:fece:feb9 
@@ -511,7 +511,7 @@ ip4:ip  | ip6:ip                    | ip4_prefix:ip | ip6_prefix:ip
 ipPrefixZeroBits
 required_capability: fn_ip_prefix
 row ip4 = to_ip("1.2.3.4"), ip6 = to_ip("fe80::cae2:65ff:fece:feb9")
-| eval ip4_prefix = ip_prefix(ip4, 0), ip6_prefix = ip_prefix(ip6, 0, 0);
+| eval ip4_prefix = ip_prefix(ip4, 0, 128), ip6_prefix = ip_prefix(ip6, 32, 0);
 
 ip4:ip  | ip6:ip                    | ip4_prefix:ip | ip6_prefix:ip
 1.2.3.4 | fe80::cae2:65ff:fece:feb9 | 0.0.0.0       | ::0
@@ -520,7 +520,7 @@ ip4:ip  | ip6:ip                    | ip4_prefix:ip | ip6_prefix:ip
 ipPrefixWithBits
 required_capability: fn_ip_prefix
 row ip4 = to_ip("1.2.3.255"), ip6 = to_ip("fe80::cae2:65ff:fece:feff")
-| eval ip4_prefix = ip_prefix(ip4, 25), ip6_prefix = ip_prefix(ip6, 0, 121);
+| eval ip4_prefix = ip_prefix(ip4, 25, 0), ip6_prefix = ip_prefix(ip6, 0, 121);
 
 ip4:ip    | ip6:ip                    | ip4_prefix:ip | ip6_prefix:ip
 1.2.3.255 | fe80::cae2:65ff:fece:feff | 1.2.3.128     | fe80::cae2:65ff:fece:fe80
@@ -529,7 +529,7 @@ ip4:ip    | ip6:ip                    | ip4_prefix:ip | ip6_prefix:ip
 ipPrefixLengthFromColumn
 required_capability: fn_ip_prefix
 row ip4 = to_ip("1.2.3.4"), ip6 = to_ip("fe80::cae2:65ff:fece:feb9"), ip4_length = 24, ip6_length = 120
-| eval ip4_prefix = ip_prefix(ip4, ip4_length), ip6_prefix = ip_prefix(ip6, 0, ip6_length);
+| eval ip4_prefix = ip_prefix(ip4, ip4_length, 0), ip6_prefix = ip_prefix(ip6, 0, ip6_length);
 
 ip4:ip  | ip6:ip                    | ip4_length:integer | ip6_length:integer | ip4_prefix:ip | ip6_prefix:ip
 1.2.3.4 | fe80::cae2:65ff:fece:feb9 | 24                 | 120                | 1.2.3.0       | fe80::cae2:65ff:fece:fe00
@@ -538,19 +538,10 @@ ip4:ip  | ip6:ip                    | ip4_length:integer | ip6_length:integer | 
 ipPrefixLengthFromExpression
 required_capability: fn_ip_prefix
 row ip4 = to_ip("1.2.3.4"), ip6 = to_ip("fe80::cae2:65ff:fece:feb9"), bits_per_byte = 8
-| eval ip4_length = 3 * bits_per_byte, ip4_prefix = ip_prefix(ip4, ip4_length), ip6_prefix = ip_prefix(ip6, 0, 12 * 10);
+| eval ip4_length = 3 * bits_per_byte, ip4_prefix = ip_prefix(ip4, ip4_length, 0), ip6_prefix = ip_prefix(ip6, 0, 12 * 10);
 
 ip4:ip  | ip6:ip                    | bits_per_byte:integer | ip4_length:integer | ip4_prefix:ip | ip6_prefix:ip
 1.2.3.4 | fe80::cae2:65ff:fece:feb9 | 8                     | 24                 | 1.2.3.0       | fe80::cae2:65ff:fece:fe00
-;
-
-ipPrefixDefaultParameters
-required_capability: fn_ip_prefix
-row ip6 = to_ip("fe80::cae2:65ff:fece:feb9")
-| eval ip6_prefix = ip_prefix(ip6, 32);
-
-ip6:ip                    | ip6_prefix:ip
-fe80::cae2:65ff:fece:feb9 | fe80::cae2:65ff:fece:feb9
 ;
 
 ipPrefixAsGroup
@@ -573,7 +564,7 @@ count(*):long | ip_prefix(ip1, 24, 120):ip
 ipPrefixWithWrongLengths#[skip:-,reason:null returns not supported yet in evaluators]
 required_capability: fn_ip_prefix
 row ip4 = to_ip("1.2.3.4")
-| eval a = ip_prefix(ip4, -1, 128), b = ip_prefix(ip4, 32, -1), c = ip_prefix(ip4, 33), d = ip_prefix(ip4, 32, 129);
+| eval a = ip_prefix(ip4, -1, 128), b = ip_prefix(ip4, 32, -1), c = ip_prefix(ip4, 33, 0), d = ip_prefix(ip4, 32, 129);
 
 ip4:ip  | a:ip | b:ip | c:ip | d:ip
 1.2.3.4 | null | null | null | null

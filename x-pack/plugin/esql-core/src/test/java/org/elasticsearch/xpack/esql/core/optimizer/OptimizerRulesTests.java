@@ -10,61 +10,39 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.TestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
-import org.elasticsearch.xpack.esql.core.expression.predicate.BinaryOperator;
 import org.elasticsearch.xpack.esql.core.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.core.expression.predicate.Range;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Or;
-import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNull;
-import org.elasticsearch.xpack.esql.core.expression.predicate.operator.arithmetic.Add;
-import org.elasticsearch.xpack.esql.core.expression.predicate.operator.arithmetic.Div;
-import org.elasticsearch.xpack.esql.core.expression.predicate.operator.arithmetic.Mod;
-import org.elasticsearch.xpack.esql.core.expression.predicate.operator.arithmetic.Mul;
-import org.elasticsearch.xpack.esql.core.expression.predicate.operator.arithmetic.Sub;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.GreaterThanOrEqual;
-import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.NullEquals;
-import org.elasticsearch.xpack.esql.core.expression.predicate.regex.Like;
-import org.elasticsearch.xpack.esql.core.expression.predicate.regex.LikePattern;
-import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLike;
-import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePattern;
-import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardLike;
-import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.BinaryComparisonSimplification;
 import org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.BooleanFunctionEqualsElimination;
 import org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.BooleanSimplification;
 import org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.CombineBinaryComparisons;
-import org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.ConstantFolding;
-import org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.FoldNull;
 import org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.LiteralsOnTheRight;
 import org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.PropagateEquals;
-import org.elasticsearch.xpack.esql.core.plan.logical.EsRelation;
-import org.elasticsearch.xpack.esql.core.plan.logical.Filter;
-import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DataTypes;
-import org.elasticsearch.xpack.esql.core.util.StringUtils;
 
 import java.time.ZoneId;
 import java.util.Collections;
 import java.util.List;
 
 import static java.util.Arrays.asList;
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.esql.core.TestUtils.equalsOf;
 import static org.elasticsearch.xpack.esql.core.TestUtils.fieldAttribute;
 import static org.elasticsearch.xpack.esql.core.TestUtils.greaterThanOf;
@@ -75,13 +53,9 @@ import static org.elasticsearch.xpack.esql.core.TestUtils.notEqualsOf;
 import static org.elasticsearch.xpack.esql.core.TestUtils.nullEqualsOf;
 import static org.elasticsearch.xpack.esql.core.TestUtils.of;
 import static org.elasticsearch.xpack.esql.core.TestUtils.rangeOf;
-import static org.elasticsearch.xpack.esql.core.TestUtils.relation;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.FALSE;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.NULL;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.TRUE;
-import static org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.CombineDisjunctionsToIn;
-import static org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.PropagateNullable;
-import static org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.ReplaceRegexMatch;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.core.type.DataTypes.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataTypes.DOUBLE;
@@ -1333,76 +1307,4 @@ public class OptimizerRulesTests extends ESTestCase {
         assertEquals(and, exp);
     }
 
-    //
-    // Like / Regex
-    //
-    public void testMatchAllLikeToExist() throws Exception {
-        for (String s : asList("%", "%%", "%%%")) {
-            LikePattern pattern = new LikePattern(s, (char) 0);
-            FieldAttribute fa = getFieldAttribute();
-            Like l = new Like(EMPTY, fa, pattern);
-            Expression e = new ReplaceRegexMatch().rule(l);
-            assertEquals(IsNotNull.class, e.getClass());
-            IsNotNull inn = (IsNotNull) e;
-            assertEquals(fa, inn.field());
-        }
-    }
-
-    public void testMatchAllWildcardLikeToExist() throws Exception {
-        for (String s : asList("*", "**", "***")) {
-            WildcardPattern pattern = new WildcardPattern(s);
-            FieldAttribute fa = getFieldAttribute();
-            WildcardLike l = new WildcardLike(EMPTY, fa, pattern);
-            Expression e = new ReplaceRegexMatch().rule(l);
-            assertEquals(IsNotNull.class, e.getClass());
-            IsNotNull inn = (IsNotNull) e;
-            assertEquals(fa, inn.field());
-        }
-    }
-
-    public void testMatchAllRLikeToExist() throws Exception {
-        RLikePattern pattern = new RLikePattern(".*");
-        FieldAttribute fa = getFieldAttribute();
-        RLike l = new RLike(EMPTY, fa, pattern);
-        Expression e = new ReplaceRegexMatch().rule(l);
-        assertEquals(IsNotNull.class, e.getClass());
-        IsNotNull inn = (IsNotNull) e;
-        assertEquals(fa, inn.field());
-    }
-
-    public void testExactMatchLike() throws Exception {
-        for (String s : asList("ab", "ab0%", "ab0_c")) {
-            LikePattern pattern = new LikePattern(s, '0');
-            FieldAttribute fa = getFieldAttribute();
-            Like l = new Like(EMPTY, fa, pattern);
-            Expression e = new ReplaceRegexMatch().rule(l);
-            assertEquals(Equals.class, e.getClass());
-            Equals eq = (Equals) e;
-            assertEquals(fa, eq.left());
-            assertEquals(s.replace("0", StringUtils.EMPTY), eq.right().fold());
-        }
-    }
-
-    public void testExactMatchWildcardLike() throws Exception {
-        String s = "ab";
-        WildcardPattern pattern = new WildcardPattern(s);
-        FieldAttribute fa = getFieldAttribute();
-        WildcardLike l = new WildcardLike(EMPTY, fa, pattern);
-        Expression e = new ReplaceRegexMatch().rule(l);
-        assertEquals(Equals.class, e.getClass());
-        Equals eq = (Equals) e;
-        assertEquals(fa, eq.left());
-        assertEquals(s, eq.right().fold());
-    }
-
-    public void testExactMatchRLike() throws Exception {
-        RLikePattern pattern = new RLikePattern("abc");
-        FieldAttribute fa = getFieldAttribute();
-        RLike l = new RLike(EMPTY, fa, pattern);
-        Expression e = new ReplaceRegexMatch().rule(l);
-        assertEquals(Equals.class, e.getClass());
-        Equals eq = (Equals) e;
-        assertEquals(fa, eq.left());
-        assertEquals("abc", eq.right().fold());
-    }
 }

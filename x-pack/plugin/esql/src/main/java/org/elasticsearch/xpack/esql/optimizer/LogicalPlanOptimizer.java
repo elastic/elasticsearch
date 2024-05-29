@@ -32,7 +32,9 @@ import org.elasticsearch.xpack.esql.core.expression.Order;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Or;
+import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RegexMatch;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.StringPattern;
 import org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules;
 import org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.ConstantFolding;
 import org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.LiteralsOnTheRight;
@@ -1293,7 +1295,27 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         }
     }
 
-    public static class ReplaceRegexMatch extends OptimizerRules.ReplaceRegexMatch {
+    public static class ReplaceRegexMatch extends org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.OptimizerExpressionRule<RegexMatch<?>> {
+
+        ReplaceRegexMatch() {
+            super(org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.TransformDirection.DOWN);
+        }
+
+        @Override
+        public Expression rule(RegexMatch<?> regexMatch) {
+            Expression e = regexMatch;
+            StringPattern pattern = regexMatch.pattern();
+            if (pattern.matchesAll()) {
+                e = new IsNotNull(e.source(), regexMatch.field());
+            } else {
+                String match = pattern.exactMatch();
+                if (match != null) {
+                    Literal literal = new Literal(regexMatch.source(), match, DataTypes.KEYWORD);
+                    e = regexToEquals(regexMatch, literal);
+                }
+            }
+            return e;
+        }
 
         protected Expression regexToEquals(RegexMatch<?> regexMatch, Literal literal) {
             return new Equals(regexMatch.source(), regexMatch.field(), literal);

@@ -8,8 +8,6 @@ package org.elasticsearch.xpack.esql.core.optimizer;
 
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
-import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -42,8 +40,6 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.operator.compariso
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.NullEquals;
-import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RegexMatch;
-import org.elasticsearch.xpack.esql.core.expression.predicate.regex.StringPattern;
 import org.elasticsearch.xpack.esql.core.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.core.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
@@ -68,7 +64,6 @@ import java.util.function.BiFunction;
 
 import static java.lang.Math.signum;
 import static java.util.Arrays.asList;
-import static java.util.Collections.emptySet;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.FALSE;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.TRUE;
 import static org.elasticsearch.xpack.esql.core.expression.predicate.Predicates.combineAnd;
@@ -1598,33 +1593,6 @@ public final class OptimizerRules {
         }
 
         protected abstract LogicalPlan skipPlan(Limit limit);
-    }
-
-    public static class ReplaceRegexMatch extends OptimizerExpressionRule<RegexMatch<?>> {
-
-        public ReplaceRegexMatch() {
-            super(TransformDirection.DOWN);
-        }
-
-        @Override
-        protected Expression rule(RegexMatch<?> regexMatch) {
-            Expression e = regexMatch;
-            StringPattern pattern = regexMatch.pattern();
-            if (pattern.matchesAll()) {
-                e = new IsNotNull(e.source(), regexMatch.field());
-            } else {
-                String match = pattern.exactMatch();
-                if (match != null) {
-                    Literal literal = new Literal(regexMatch.source(), match, DataTypes.KEYWORD);
-                    e = regexToEquals(regexMatch, literal);
-                }
-            }
-            return e;
-        }
-
-        protected Expression regexToEquals(RegexMatch<?> regexMatch, Literal literal) {
-            return new Equals(regexMatch.source(), regexMatch.field(), literal);
-        }
     }
 
     public static class FoldNull extends OptimizerExpressionRule<Expression> {

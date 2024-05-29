@@ -24,7 +24,6 @@ import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.index.Terms;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.QueryCachingPolicy;
@@ -232,8 +231,7 @@ public abstract class Engine implements Closeable {
                 logger.trace(() -> "failed to get size for [" + info.info.name + "]", e);
             }
             try {
-                final Terms ignoredTerms = readerContext.reader().terms(IgnoredFieldMapper.NAME);
-                docsWithIgnoredFields = ignoredTerms != null ? ignoredTerms.getSumDocFreq() : 0;
+                docsWithIgnoredFields = readerContext.reader().getSumDocFreq(IgnoredFieldMapper.NAME);
             } catch (IOException e) {
                 logger.trace(() -> "failed to get number of documents with ignored fields", e);
             }

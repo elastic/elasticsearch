@@ -263,7 +263,7 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput
     }
 
     @Override
-    public String query() {
+    public String sourceText() {
         return configuration.query();
     }
 

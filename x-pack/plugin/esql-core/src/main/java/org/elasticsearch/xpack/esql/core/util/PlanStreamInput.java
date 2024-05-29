@@ -21,6 +21,6 @@ public interface PlanStreamInput {
      * {@link Source} without sending the query over the wire over and over
      * and over again.
      */
-    String query();
+    String sourceText();
 
 }

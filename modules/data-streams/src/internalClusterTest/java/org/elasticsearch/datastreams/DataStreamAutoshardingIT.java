@@ -502,7 +502,7 @@ public class DataStreamAutoshardingIT extends ESIntegTestCase {
         shardRouting = shardRouting.initialize(assignedShardNodeId, null, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
         shardRouting = shardRouting.moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
         CommonStats stats = new CommonStats();
-        stats.docs = new DocsStats(100, 0, randomByteSizeValue().getBytes());
+        stats.docs = new DocsStats(100, 0, randomByteSizeValue().getBytes(), 0);
         stats.store = new StoreStats();
         stats.indexing = new IndexingStats(new IndexingStats.Stats(1, 1, 1, 1, 1, 1, 1, 1, false, 1, targetWriteLoad, 1));
         return new ShardStats(shardRouting, new ShardPath(false, path, path, shardId), stats, null, null, null, false, 0);

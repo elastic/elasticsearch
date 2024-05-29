@@ -185,7 +185,7 @@ public class EmptyStateIndexRemoverTests extends ESTestCase {
 
     private static IndexStats indexStats(String index, int docCount) {
         CommonStats indexTotalStats = mock(CommonStats.class);
-        when(indexTotalStats.getDocs()).thenReturn(new DocsStats(docCount, 0, 0));
+        when(indexTotalStats.getDocs()).thenReturn(new DocsStats(docCount, 0, 0, 0));
         IndexStats indexStats = mock(IndexStats.class);
         when(indexStats.getIndex()).thenReturn(index);
         when(indexStats.getTotal()).thenReturn(indexTotalStats);

@@ -27,9 +27,10 @@ public interface PlanStreamInput {
     String sourceText();
 
     /**
-     * Read a {@link NameId} from the stream. Name-id have to be consistently
-     * mapped during serialization but need to be globally unique. This handles
-     * that combination of constraints.
+     * Translate a {@code long} into a {@link NameId}, mapping the same {@code long}
+     * into the same {@link NameId} each time. Each new {@code long} gets assigned
+     * a unique id to the node, but when the same id is sent in the stream we get
+     * the same result.
      */
-    NameId readNameId() throws IOException;
+    NameId mapNameId(long id) throws IOException;
 }

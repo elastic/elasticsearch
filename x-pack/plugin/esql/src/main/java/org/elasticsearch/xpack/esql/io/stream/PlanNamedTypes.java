@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.Order;
@@ -1073,7 +1074,7 @@ public final class PlanNamedTypes {
             in.readEsFieldNamed(),
             in.readOptionalString(),
             in.readEnum(Nullability.class),
-            in.readNameId(),
+            NameId.readFrom(in),
             in.readBoolean()
         );
     }
@@ -1097,7 +1098,7 @@ public final class PlanNamedTypes {
             in.dataTypeFromTypeName(in.readString()),
             in.readOptionalString(),
             in.readEnum(Nullability.class),
-            in.readNameId(),
+            NameId.readFrom(in),
             in.readBoolean()
         );
     }
@@ -1119,7 +1120,7 @@ public final class PlanNamedTypes {
             in.dataTypeFromTypeName(in.readString()),
             in.readOptionalString(),
             in.readEnum(Nullability.class),
-            in.readNameId(),
+            NameId.readFrom(in),
             in.readBoolean(),
             in.readBoolean()
         );
@@ -1142,7 +1143,7 @@ public final class PlanNamedTypes {
             in.readString(),
             readUnsupportedEsField(in),
             in.readOptionalString(),
-            in.readNameId()
+            NameId.readFrom(in)
         );
     }
 
@@ -1855,7 +1856,7 @@ public final class PlanNamedTypes {
             in.readString(),
             in.readOptionalString(),
             in.readNamed(Expression.class),
-            in.readNameId(),
+            NameId.readFrom(in),
             in.readBoolean()
         );
     }

@@ -273,11 +273,7 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput
     }
 
     @Override
-    public NameId readNameId() throws IOException {
-        return nameIdFromLongValue(readLong());
-    }
-
-    NameId nameIdFromLongValue(long l) {
+    public NameId mapNameId(long l) {
         return nameIdFunction.apply(l);
     }
 }

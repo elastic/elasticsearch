@@ -14,7 +14,7 @@ You don't need to define certain settings and parameters or create {infer} inges
 The recommended way to use semantic search in the {stack} is following the semantic text workflow.
 When you need more control over the settings, you can still use the complete {infer} workflow (refer to  <<semantic-search-inference,this tutorial>> to review the process).
 
-This tutorial uses the `elser` service for demonstration but you can use any service and their supported models offered by the {infer-cap} API.
+This tutorial uses the <<inference-example-elser,`elser` service>> for demonstration but you can use any service and their supported models offered by the {infer-cap} API.
 
 
 [discrete]

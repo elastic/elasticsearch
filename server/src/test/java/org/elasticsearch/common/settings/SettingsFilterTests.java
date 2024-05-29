@@ -100,12 +100,12 @@ public class SettingsFilterTests extends ESTestCase {
         );
     }
 
-    public void testSilentIsLoggedAsDebug() throws Exception {
+    public void testIndexScopeSettingUpdateLoggedAsDebug() throws Exception {
         Settings oldSettings = Settings.builder().put("key", "old").build();
         Settings newSettings = Settings.builder().put("key", "new").build();
 
         // With INFO log level nothing gets logged.
-        Setting<String> filteredSetting = Setting.simpleString("key", Property.Silent);
+        Setting<String> filteredSetting = Setting.simpleString("key", Property.IndexScope);
         assertExpectedLogMessages((testLogger) -> Setting.logSettingUpdate(filteredSetting, newSettings, oldSettings, testLogger));
 
         try {

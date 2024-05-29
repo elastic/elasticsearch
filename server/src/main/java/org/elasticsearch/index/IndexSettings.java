@@ -622,8 +622,7 @@ public final class IndexSettings {
         },
         Property.IndexScope,
         Property.Dynamic,
-        Property.ServerlessPublic,
-        Property.Silent
+        Property.ServerlessPublic
     );
 
     public static final Setting<Boolean> TIME_SERIES_ES87TSDB_CODEC_ENABLED_SETTING = Setting.boolSetting(

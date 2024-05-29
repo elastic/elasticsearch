@@ -157,13 +157,7 @@ public class Setting<T> implements ToXContentObject {
          * All other settings will be rejected when used on a PUT request
          * and filtered out on a GET
          */
-        ServerlessPublic,
-
-        /**
-         * Controls how setting updates are logged. If this is set an update to the setting value gets logged at debug level.
-         * Otherwise a setting update is logged at info level.
-         */
-        Silent
+        ServerlessPublic
     }
 
     private final Key key;
@@ -422,13 +416,6 @@ public class Setting<T> implements ToXContentObject {
      */
     public boolean isFiltered() {
         return properties.contains(Property.Filtered);
-    }
-
-    /**
-     * @return whether this is a silent setting.
-     */
-    public boolean isSilent() {
-        return properties.contains(Property.Silent);
     }
 
     /**
@@ -1857,7 +1844,7 @@ public class Setting<T> implements ToXContentObject {
     }
 
     static void logSettingUpdate(Setting<?> setting, Settings current, Settings previous, Logger logger) {
-        Level level = setting.isSilent() ? Level.DEBUG : Level.INFO;
+        Level level = setting.hasIndexScope() ? Level.DEBUG : Level.INFO;
         if (logger.isEnabled(level)) {
             if (setting.isFiltered()) {
                 logger.log(level, "updating [{}]", setting.key);

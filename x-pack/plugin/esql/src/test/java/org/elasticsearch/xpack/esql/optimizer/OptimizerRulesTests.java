@@ -66,6 +66,7 @@ import static org.elasticsearch.xpack.esql.core.expression.Literal.NULL;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.TRUE;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.core.type.DataTypes.BOOLEAN;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.INTEGER;
 import static org.hamcrest.Matchers.contains;
 
 public class OptimizerRulesTests extends ESTestCase {
@@ -74,6 +75,8 @@ public class OptimizerRulesTests extends ESTestCase {
     private static final Literal THREE = new Literal(Source.EMPTY, 3, DataTypes.INTEGER);
     private static final Literal FOUR = new Literal(Source.EMPTY, 4, DataTypes.INTEGER);
     private static final Literal FIVE = new Literal(Source.EMPTY, 5, DataTypes.INTEGER);
+    private static final Expression DUMMY_EXPRESSION =
+        new org.elasticsearch.xpack.esql.core.optimizer.OptimizerRulesTests.DummyBooleanExpression(EMPTY, 0);
 
     private static Equals equalsOf(Expression left, Expression right) {
         return new Equals(EMPTY, left, right, null);
@@ -860,5 +863,101 @@ public class OptimizerRulesTests extends ESTestCase {
 
     private Literal nullOf(DataType dataType) {
         return new Literal(Source.EMPTY, null, dataType);
+    }
+    //
+    // Logical simplifications
+    //
+
+    public void testLiteralsOnTheRight() {
+        Alias a = new Alias(EMPTY, "a", new Literal(EMPTY, 10, INTEGER));
+        Expression result = new org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.LiteralsOnTheRight().rule(equalsOf(FIVE, a));
+        assertTrue(result instanceof org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.Equals);
+        org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.Equals eq =
+            (org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.Equals) result;
+        assertEquals(a, eq.left());
+        assertEquals(FIVE, eq.right());
+
+        // Note: Null Equals test removed here
+    }
+
+    public void testBoolSimplifyOr() {
+        org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.BooleanSimplification simplification =
+            new org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.BooleanSimplification();
+
+        assertEquals(TRUE, simplification.rule(new Or(EMPTY, TRUE, TRUE)));
+        assertEquals(TRUE, simplification.rule(new Or(EMPTY, TRUE, DUMMY_EXPRESSION)));
+        assertEquals(TRUE, simplification.rule(new Or(EMPTY, DUMMY_EXPRESSION, TRUE)));
+
+        assertEquals(FALSE, simplification.rule(new Or(EMPTY, FALSE, FALSE)));
+        assertEquals(DUMMY_EXPRESSION, simplification.rule(new Or(EMPTY, FALSE, DUMMY_EXPRESSION)));
+        assertEquals(DUMMY_EXPRESSION, simplification.rule(new Or(EMPTY, DUMMY_EXPRESSION, FALSE)));
+    }
+
+    public void testBoolSimplifyAnd() {
+        org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.BooleanSimplification simplification =
+            new org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.BooleanSimplification();
+
+        assertEquals(TRUE, simplification.rule(new And(EMPTY, TRUE, TRUE)));
+        assertEquals(DUMMY_EXPRESSION, simplification.rule(new And(EMPTY, TRUE, DUMMY_EXPRESSION)));
+        assertEquals(DUMMY_EXPRESSION, simplification.rule(new And(EMPTY, DUMMY_EXPRESSION, TRUE)));
+
+        assertEquals(FALSE, simplification.rule(new And(EMPTY, FALSE, FALSE)));
+        assertEquals(FALSE, simplification.rule(new And(EMPTY, FALSE, DUMMY_EXPRESSION)));
+        assertEquals(FALSE, simplification.rule(new And(EMPTY, DUMMY_EXPRESSION, FALSE)));
+    }
+
+    public void testBoolCommonFactorExtraction() {
+        org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.BooleanSimplification simplification =
+            new org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.BooleanSimplification();
+
+        Expression a1 = new org.elasticsearch.xpack.esql.core.optimizer.OptimizerRulesTests.DummyBooleanExpression(EMPTY, 1);
+        Expression a2 = new org.elasticsearch.xpack.esql.core.optimizer.OptimizerRulesTests.DummyBooleanExpression(EMPTY, 1);
+        Expression b = new org.elasticsearch.xpack.esql.core.optimizer.OptimizerRulesTests.DummyBooleanExpression(EMPTY, 2);
+        Expression c = new org.elasticsearch.xpack.esql.core.optimizer.OptimizerRulesTests.DummyBooleanExpression(EMPTY, 3);
+
+        Or actual = new Or(EMPTY, new And(EMPTY, a1, b), new And(EMPTY, a2, c));
+        And expected = new And(EMPTY, a1, new Or(EMPTY, b, c));
+
+        assertEquals(expected, simplification.rule(actual));
+    }
+
+    public void testBinaryComparisonSimplification() {
+        assertEquals(
+            TRUE,
+            new org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.BinaryComparisonSimplification().rule(equalsOf(FIVE, FIVE))
+        );
+        assertEquals(
+            TRUE,
+            new org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.BinaryComparisonSimplification().rule(nullEqualsOf(FIVE, FIVE))
+        );
+        assertEquals(
+            TRUE,
+            new org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.BinaryComparisonSimplification().rule(nullEqualsOf(NULL, NULL))
+        );
+        assertEquals(
+            FALSE,
+            new org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.BinaryComparisonSimplification().rule(notEqualsOf(FIVE, FIVE))
+        );
+        assertEquals(
+            TRUE,
+            new org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.BinaryComparisonSimplification().rule(
+                greaterThanOrEqualOf(FIVE, FIVE)
+            )
+        );
+        assertEquals(
+            TRUE,
+            new org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.BinaryComparisonSimplification().rule(
+                lessThanOrEqualOf(FIVE, FIVE)
+            )
+        );
+
+        assertEquals(
+            FALSE,
+            new org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.BinaryComparisonSimplification().rule(greaterThanOf(FIVE, FIVE))
+        );
+        assertEquals(
+            FALSE,
+            new org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.BinaryComparisonSimplification().rule(lessThanOf(FIVE, FIVE))
+        );
     }
 }

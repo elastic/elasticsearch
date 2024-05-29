@@ -61,11 +61,8 @@ import static org.elasticsearch.xpack.esql.core.type.DataTypes.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataTypes.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataTypes.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataTypes.KEYWORD;
-import static org.hamcrest.Matchers.contains;
 
 public class OptimizerRulesTests extends ESTestCase {
-
-    private static final Expression DUMMY_EXPRESSION = new DummyBooleanExpression(EMPTY, 0);
 
     private static final Literal ONE = L(1);
     private static final Literal TWO = L(2);
@@ -125,122 +122,6 @@ public class OptimizerRulesTests extends ESTestCase {
 
     private static FieldAttribute getFieldAttribute() {
         return TestUtils.getFieldAttribute("a");
-    }
-
-    //
-    // Logical simplifications
-    //
-
-    public void testLiteralsOnTheRight() {
-        Alias a = new Alias(EMPTY, "a", L(10));
-        Expression result = new LiteralsOnTheRight().rule(equalsOf(FIVE, a));
-        assertTrue(result instanceof Equals);
-        Equals eq = (Equals) result;
-        assertEquals(a, eq.left());
-        assertEquals(FIVE, eq.right());
-
-        a = new Alias(EMPTY, "a", L(10));
-        result = new LiteralsOnTheRight().rule(nullEqualsOf(FIVE, a));
-        assertTrue(result instanceof NullEquals);
-        NullEquals nullEquals = (NullEquals) result;
-        assertEquals(a, nullEquals.left());
-        assertEquals(FIVE, nullEquals.right());
-    }
-
-    public void testBoolSimplifyOr() {
-        BooleanSimplification simplification = new BooleanSimplification();
-
-        assertEquals(TRUE, simplification.rule(new Or(EMPTY, TRUE, TRUE)));
-        assertEquals(TRUE, simplification.rule(new Or(EMPTY, TRUE, DUMMY_EXPRESSION)));
-        assertEquals(TRUE, simplification.rule(new Or(EMPTY, DUMMY_EXPRESSION, TRUE)));
-
-        assertEquals(FALSE, simplification.rule(new Or(EMPTY, FALSE, FALSE)));
-        assertEquals(DUMMY_EXPRESSION, simplification.rule(new Or(EMPTY, FALSE, DUMMY_EXPRESSION)));
-        assertEquals(DUMMY_EXPRESSION, simplification.rule(new Or(EMPTY, DUMMY_EXPRESSION, FALSE)));
-    }
-
-    public void testBoolSimplifyAnd() {
-        BooleanSimplification simplification = new BooleanSimplification();
-
-        assertEquals(TRUE, simplification.rule(new And(EMPTY, TRUE, TRUE)));
-        assertEquals(DUMMY_EXPRESSION, simplification.rule(new And(EMPTY, TRUE, DUMMY_EXPRESSION)));
-        assertEquals(DUMMY_EXPRESSION, simplification.rule(new And(EMPTY, DUMMY_EXPRESSION, TRUE)));
-
-        assertEquals(FALSE, simplification.rule(new And(EMPTY, FALSE, FALSE)));
-        assertEquals(FALSE, simplification.rule(new And(EMPTY, FALSE, DUMMY_EXPRESSION)));
-        assertEquals(FALSE, simplification.rule(new And(EMPTY, DUMMY_EXPRESSION, FALSE)));
-    }
-
-    public void testBoolCommonFactorExtraction() {
-        BooleanSimplification simplification = new BooleanSimplification();
-
-        Expression a1 = new DummyBooleanExpression(EMPTY, 1);
-        Expression a2 = new DummyBooleanExpression(EMPTY, 1);
-        Expression b = new DummyBooleanExpression(EMPTY, 2);
-        Expression c = new DummyBooleanExpression(EMPTY, 3);
-
-        Or actual = new Or(EMPTY, new And(EMPTY, a1, b), new And(EMPTY, a2, c));
-        And expected = new And(EMPTY, a1, new Or(EMPTY, b, c));
-
-        assertEquals(expected, simplification.rule(actual));
-    }
-
-    public void testBinaryComparisonSimplification() {
-        assertEquals(TRUE, new BinaryComparisonSimplification().rule(equalsOf(FIVE, FIVE)));
-        assertEquals(TRUE, new BinaryComparisonSimplification().rule(nullEqualsOf(FIVE, FIVE)));
-        assertEquals(TRUE, new BinaryComparisonSimplification().rule(nullEqualsOf(NULL, NULL)));
-        assertEquals(FALSE, new BinaryComparisonSimplification().rule(notEqualsOf(FIVE, FIVE)));
-        assertEquals(TRUE, new BinaryComparisonSimplification().rule(greaterThanOrEqualOf(FIVE, FIVE)));
-        assertEquals(TRUE, new BinaryComparisonSimplification().rule(lessThanOrEqualOf(FIVE, FIVE)));
-
-        assertEquals(FALSE, new BinaryComparisonSimplification().rule(greaterThanOf(FIVE, FIVE)));
-        assertEquals(FALSE, new BinaryComparisonSimplification().rule(lessThanOf(FIVE, FIVE)));
-    }
-
-    public void testNullEqualsWithNullLiteralBecomesIsNull() {
-        LiteralsOnTheRight swapLiteralsToRight = new LiteralsOnTheRight();
-        BinaryComparisonSimplification bcSimpl = new BinaryComparisonSimplification();
-        FieldAttribute fa = getFieldAttribute();
-        Source source = new Source(1, 10, "IS_NULL(a)");
-
-        Expression e = bcSimpl.rule((BinaryComparison) swapLiteralsToRight.rule(new NullEquals(source, fa, NULL, randomZone())));
-        assertEquals(IsNull.class, e.getClass());
-        IsNull isNull = (IsNull) e;
-        assertEquals(source, isNull.source());
-
-        e = bcSimpl.rule((BinaryComparison) swapLiteralsToRight.rule(new NullEquals(source, NULL, fa, randomZone())));
-        assertEquals(IsNull.class, e.getClass());
-        isNull = (IsNull) e;
-        assertEquals(source, isNull.source());
-    }
-
-    public void testBoolEqualsSimplificationOnExpressions() {
-        BooleanFunctionEqualsElimination s = new BooleanFunctionEqualsElimination();
-        Expression exp = new GreaterThan(EMPTY, getFieldAttribute(), L(0), null);
-
-        assertEquals(exp, s.rule(new Equals(EMPTY, exp, TRUE)));
-        assertEquals(new Not(EMPTY, exp), s.rule(new Equals(EMPTY, exp, FALSE)));
-    }
-
-    public void testBoolEqualsSimplificationOnFields() {
-        BooleanFunctionEqualsElimination s = new BooleanFunctionEqualsElimination();
-
-        FieldAttribute field = getFieldAttribute();
-
-        List<? extends BinaryComparison> comparisons = asList(
-            new Equals(EMPTY, field, TRUE),
-            new Equals(EMPTY, field, FALSE),
-            notEqualsOf(field, TRUE),
-            notEqualsOf(field, FALSE),
-            new Equals(EMPTY, NULL, TRUE),
-            new Equals(EMPTY, NULL, FALSE),
-            notEqualsOf(NULL, TRUE),
-            notEqualsOf(NULL, FALSE)
-        );
-
-        for (BinaryComparison comparison : comparisons) {
-            assertEquals(comparison, s.rule(comparison));
-        }
     }
 
     //

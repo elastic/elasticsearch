@@ -264,7 +264,7 @@ public final class OptimizerRules {
         }
 
         @Override
-        protected Expression rule(BinaryComparison bc) {
+        public Expression rule(BinaryComparison bc) {
             Expression l = bc.left();
             Expression r = bc.right();
 

@@ -261,6 +261,7 @@ query from the `semantic-embedding` index:
     }
   },
   (...)
+]
 ------------------------------------------------------------
 // NOTCONSOLE
 

@@ -78,12 +78,12 @@ public class IpPrefix extends EsqlScalarFunction implements OptionalArgument {
     }
 
     public static IpPrefix readFrom(PlanStreamInput in) throws IOException {
-        return new IpPrefix(in.readSource(), in.readExpression(), in.readExpression(), in.readExpression());
+        return new IpPrefix(Source.readFrom(in), in.readExpression(), in.readExpression(), in.readExpression());
     }
 
-    public static void writeTo(PlanStreamOutput out, IpPrefix ipPrefix) throws IOException {
-        out.writeSource(ipPrefix.source());
-        List<Expression> fields = ipPrefix.children();
+    public void writeTo(PlanStreamOutput out) throws IOException {
+        source().writeTo(out);
+        List<Expression> fields = children();
         assert fields.size() == 3;
         out.writeExpression(fields.get(0));
         out.writeExpression(fields.get(1));

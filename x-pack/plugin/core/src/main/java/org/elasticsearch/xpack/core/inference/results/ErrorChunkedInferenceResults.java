@@ -8,13 +8,16 @@
 package org.elasticsearch.xpack.core.inference.results;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.InferenceResults;
+import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -93,5 +96,10 @@ public class ErrorChunkedInferenceResults implements ChunkedInferenceServiceResu
     @Override
     public String getWriteableName() {
         return NAME;
+    }
+
+    @Override
+    public Iterator<Chunk> chunksAsMatchedTextAndByteReference(XContent xcontent) {
+        return List.of(exception).stream().map(e -> new Chunk(e.getMessage(), (BytesReference) null)).iterator();
     }
 }

@@ -8,6 +8,20 @@
 
 package org.elasticsearch.inference;
 
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.xcontent.XContent;
+
+import java.util.AbstractMap;
+import java.util.Iterator;
+
 public interface ChunkedInferenceServiceResults extends InferenceServiceResults {
 
+    Iterator<Chunk> chunksAsMatchedTextAndByteReference(XContent xcontent);
+
+    /**
+     * A chunk of inference results containing matched text and the bytes reference.
+     * @param matchedText
+     * @param bytesReference
+     */
+    record Chunk(String matchedText, BytesReference bytesReference) {}
 }

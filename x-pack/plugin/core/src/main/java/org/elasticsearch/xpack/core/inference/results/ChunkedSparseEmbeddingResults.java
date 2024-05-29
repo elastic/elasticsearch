@@ -7,16 +7,20 @@
 
 package org.elasticsearch.xpack.core.inference.results;
 
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.InferenceResults;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.inference.results.ChunkedTextExpansionResults;
 import org.elasticsearch.xpack.core.ml.search.WeightedToken;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -121,5 +125,30 @@ public class ChunkedSparseEmbeddingResults implements ChunkedInferenceServiceRes
     @Override
     public int hashCode() {
         return Objects.hash(chunkedResults);
+    }
+
+    @Override
+    public Iterator<Chunk> chunksAsMatchedTextAndByteReference(XContent xcontent) {
+        return chunkedResults.stream()
+            .map(chunk -> new Chunk(chunk.matchedText(), toBytesReference(xcontent, chunk.weightedTokens())))
+            .iterator();
+    }
+
+    /**
+     * Serialises the {@link WeightedToken} list, according to the provided {@link XContent},
+     * into a {@link BytesReference}.
+     */
+    private static BytesReference toBytesReference(XContent xContent, List<WeightedToken> tokens) {
+        try {
+            XContentBuilder b = XContentBuilder.builder(xContent);
+            b.startObject();
+            for (var weightedToken : tokens) {
+                weightedToken.toXContent(b, ToXContent.EMPTY_PARAMS);
+            }
+            b.endObject();
+            return BytesReference.bytes(b);
+        } catch (IOException exc) {
+            throw new RuntimeException(exc);
+        }
     }
 }

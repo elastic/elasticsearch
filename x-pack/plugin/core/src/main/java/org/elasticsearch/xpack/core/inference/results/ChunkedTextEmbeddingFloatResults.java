@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.inference.results;
 
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -15,10 +16,13 @@ import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.inference.results.ChunkedNlpInferenceResults;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -134,4 +138,26 @@ public record ChunkedTextEmbeddingFloatResults(List<EmbeddingChunk> chunks) impl
         }
     }
 
+    public Iterator<Chunk> chunksAsMatchedTextAndByteReference(XContent xcontent) {
+        return chunks.stream()
+            .map(chunk -> new Chunk(chunk.matchedText(), toBytesReference(xcontent, chunk.embedding().getEmbedding().getFloats())))
+            .iterator();
+    }
+
+    /**
+     * Serialises the {@code value} array, according to the provided {@link XContent}, into a {@link BytesReference}.
+     */
+    private static BytesReference toBytesReference(XContent xContent, float[] value) {
+        try {
+            XContentBuilder b = XContentBuilder.builder(xContent);
+            b.startArray();
+            for (float v : value) {
+                b.value(v);
+            }
+            b.endArray();
+            return BytesReference.bytes(b);
+        } catch (IOException exc) {
+            throw new RuntimeException(exc);
+        }
+    }
 }

@@ -59,8 +59,12 @@ import static org.elasticsearch.xpack.esql.core.type.DataTypeConverter.safeToInt
 import static org.elasticsearch.xpack.esql.core.type.DataTypeConverter.safeToLong;
 import static org.elasticsearch.xpack.esql.core.type.DataTypeConverter.safeToUnsignedLong;
 import static org.elasticsearch.xpack.esql.core.type.DataTypes.BOOLEAN;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.CARTESIAN_POINT;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.CARTESIAN_SHAPE;
 import static org.elasticsearch.xpack.esql.core.type.DataTypes.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataTypes.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.GEO_POINT;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.GEO_SHAPE;
 import static org.elasticsearch.xpack.esql.core.type.DataTypes.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataTypes.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataTypes.KEYWORD;
@@ -77,10 +81,6 @@ import static org.elasticsearch.xpack.esql.core.util.NumericUtils.asLongUnsigned
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.asUnsignedLong;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAsNumber;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.UNSPECIFIED;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.CARTESIAN_POINT;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.CARTESIAN_SHAPE;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_POINT;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_SHAPE;
 
 public class EsqlDataTypeConverter {
 
@@ -146,10 +146,10 @@ public class EsqlDataTypeConverter {
             if (EsqlDataTypes.isSpatial(to)) {
                 return EsqlConverter.STRING_TO_SPATIAL;
             }
-            if (to == EsqlDataTypes.TIME_DURATION) {
+            if (to == DataTypes.TIME_DURATION) {
                 return EsqlConverter.STRING_TO_TIME_DURATION;
             }
-            if (to == EsqlDataTypes.DATE_PERIOD) {
+            if (to == DataTypes.DATE_PERIOD) {
                 return EsqlConverter.STRING_TO_DATE_PERIOD;
             }
         }
@@ -188,15 +188,15 @@ public class EsqlDataTypeConverter {
         if ((value.isEmpty() || qualifier.isEmpty()) == false) {
             try {
                 TemporalAmount result = parseTemporalAmout(Integer.parseInt(value.toString()), qualifier.toString(), Source.EMPTY);
-                if (EsqlDataTypes.DATE_PERIOD == expectedType && result instanceof Period
-                    || EsqlDataTypes.TIME_DURATION == expectedType && result instanceof Duration) {
+                if (DataTypes.DATE_PERIOD == expectedType && result instanceof Period
+                    || DataTypes.TIME_DURATION == expectedType && result instanceof Duration) {
                     return result;
                 }
-                if (result instanceof Period && expectedType == EsqlDataTypes.TIME_DURATION) {
-                    errorMessage += ", did you mean " + EsqlDataTypes.DATE_PERIOD + "?";
+                if (result instanceof Period && expectedType == DataTypes.TIME_DURATION) {
+                    errorMessage += ", did you mean " + DataTypes.DATE_PERIOD + "?";
                 }
-                if (result instanceof Duration && expectedType == EsqlDataTypes.DATE_PERIOD) {
-                    errorMessage += ", did you mean " + EsqlDataTypes.TIME_DURATION + "?";
+                if (result instanceof Duration && expectedType == DataTypes.DATE_PERIOD) {
+                    errorMessage += ", did you mean " + DataTypes.TIME_DURATION + "?";
                 }
             } catch (NumberFormatException ex) {
                 // wrong pattern
@@ -431,8 +431,8 @@ public class EsqlDataTypeConverter {
 
     public enum EsqlConverter implements Converter {
 
-        STRING_TO_DATE_PERIOD(x -> EsqlDataTypeConverter.parseTemporalAmount(x, EsqlDataTypes.DATE_PERIOD)),
-        STRING_TO_TIME_DURATION(x -> EsqlDataTypeConverter.parseTemporalAmount(x, EsqlDataTypes.TIME_DURATION)),
+        STRING_TO_DATE_PERIOD(x -> EsqlDataTypeConverter.parseTemporalAmount(x, DataTypes.DATE_PERIOD)),
+        STRING_TO_TIME_DURATION(x -> EsqlDataTypeConverter.parseTemporalAmount(x, DataTypes.TIME_DURATION)),
         STRING_TO_CHRONO_FIELD(EsqlDataTypeConverter::stringToChrono),
         STRING_TO_DATETIME(x -> EsqlDataTypeConverter.dateTimeToLong((String) x)),
         STRING_TO_IP(x -> EsqlDataTypeConverter.stringToIP((String) x)),

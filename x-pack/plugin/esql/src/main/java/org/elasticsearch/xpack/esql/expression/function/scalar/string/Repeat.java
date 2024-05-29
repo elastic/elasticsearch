@@ -83,7 +83,7 @@ public class Repeat extends EsqlScalarFunction implements OptionalArgument {
             return null;
         }
         if (number < 0) {
-            throw new IllegalArgumentException("Times parameter cannot be negative, found [" + number + "]");
+            throw new IllegalArgumentException("Number parameter cannot be negative, found [" + number + "]");
         }
 
         String utf8ToString = str.utf8ToString();

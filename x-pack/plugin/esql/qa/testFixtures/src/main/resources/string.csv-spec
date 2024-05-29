@@ -1408,4 +1408,12 @@ a:keyword | repeated:keyword
 catcat | catcat
 ;
 
+repeatZero#[skip:-8.14.99,reason:new string function added in 8.15]
+row a = "cheese" | eval repeated = repeat(a, 0);
+
+a:keyword | repeated:keyword
+cheese | ""
+;
+
+
 

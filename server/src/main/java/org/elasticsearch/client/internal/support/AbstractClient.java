@@ -121,8 +121,11 @@ public abstract class AbstractClient implements Client {
         ActionType<Response> action,
         Request request
     ) {
-        assert EsExecutors.executorName(Thread.currentThread()) == null
-            : "can only call synchronous execute on a test thread " + Thread.currentThread();
+        if (EsExecutors.executorName(Thread.currentThread()) != null) {
+            throw new IllegalStateException("can only call synchronous execute on a test thread " + Thread.currentThread());
+        }
+        // assert EsExecutors.executorName(Thread.currentThread()) == null
+        // : "can only call synchronous execute on a test thread " + Thread.currentThread();
         PlainActionFuture<Response> actionFuture = new RefCountedFuture<>();
         execute(action, request, actionFuture);
         return actionFuture;

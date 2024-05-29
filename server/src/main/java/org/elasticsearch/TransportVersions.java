@@ -178,6 +178,7 @@ public class TransportVersions {
     public static final TransportVersion GET_SHUTDOWN_STATUS_TIMEOUT = def(8_669_00_0);
     public static final TransportVersion FAILURE_STORE_TELEMETRY = def(8_670_00_0);
     public static final TransportVersion ADD_METADATA_FLATTENED_TO_ROLES = def(8_671_00_0);
+    public static final TransportVersion ADD_MISTRAL_EMBEDDINGS_INFERENCE = def(8_672_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

@@ -26,6 +26,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.LogDocMergePolicy;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.OrdinalMap;
+import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.TermsEnum;
@@ -1396,6 +1397,18 @@ public abstract class AggregatorTestCase extends ESTestCase {
                         SortedSetDocValues sortedDocValues = context.reader().getSortedSetDocValues(field);
                         subs[i] = sortedDocValues.termsEnum();
                         weights[i] = sortedDocValues.getValueCount();
+                    }
+                    case NUMERIC, SORTED_NUMERIC -> {
+                        final byte[] min = PointValues.getMinPackedValue(reader, field);
+                        final byte[] max = PointValues.getMaxPackedValue(reader, field);
+                        if (min != null && max != null) {
+                            if (min.length == 4) {
+                                return NumericUtils.sortableBytesToInt(max, 0) - NumericUtils.sortableBytesToInt(min, 0);
+                            } else if (min.length == 8) {
+                                return NumericUtils.sortableBytesToLong(max, 0) - NumericUtils.sortableBytesToLong(min, 0);
+                            }
+                        }
+                        return -1;
                     }
                     default -> {
                         return -1;

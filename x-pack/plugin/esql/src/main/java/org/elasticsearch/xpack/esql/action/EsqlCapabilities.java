@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesCapabilitiesAction;
 import org.elasticsearch.xpack.esql.plugin.EsqlFeatures;
@@ -27,14 +28,37 @@ public class EsqlCapabilities {
     private static final String FN_CBRT = "fn_cbrt";
 
     /**
+     * Support for function {@code IP_PREFIX}.
+     */
+    private static final String FN_IP_PREFIX = "fn_ip_prefix";
+
+    /**
      * Optimization for ST_CENTROID changed some results in cartesian data. #108713
      */
     private static final String ST_CENTROID_AGG_OPTIMIZED = "st_centroid_agg_optimized";
 
-    static final Set<String> CAPABILITIES = capabilities();
+    /**
+     * Support for requesting the "_ignored" metadata field.
+     */
+    private static final String METADATA_IGNORED_FIELD = "metadata_field_ignored";
+
+    /**
+     * Support for requesting the "LOOKUP" command.
+     */
+    private static final String LOOKUP = "lookup";
+
+    public static final Set<String> CAPABILITIES = capabilities();
 
     private static Set<String> capabilities() {
-        List<String> caps = new ArrayList<>(List.of(FN_CBRT, ST_CENTROID_AGG_OPTIMIZED));
+        List<String> caps = new ArrayList<>();
+        caps.add(FN_CBRT);
+        caps.add(FN_IP_PREFIX);
+        caps.add(ST_CENTROID_AGG_OPTIMIZED);
+        caps.add(METADATA_IGNORED_FIELD);
+
+        if (Build.current().isSnapshot()) {
+            caps.add(LOOKUP);
+        }
 
         /*
          * Add all of our cluster features without the leading "esql."

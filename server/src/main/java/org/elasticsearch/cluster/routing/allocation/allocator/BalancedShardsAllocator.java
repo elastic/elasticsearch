@@ -852,6 +852,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                         shardRouting,
                         targetNode.getNodeId(),
                         allocation.clusterInfo().getShardSize(shardRouting, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE),
+                        "move",
                         allocation.changes()
                     );
                     targetNode.addShard(relocatingShards.v2());
@@ -1237,7 +1238,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     minNode.addShard(
                         decision.type() == Type.YES
                             /* only allocate on the cluster if we are not throttled */
-                            ? routingNodes.relocateShard(shard, minNode.getNodeId(), shardSize, allocation.changes()).v1()
+                            ? routingNodes.relocateShard(shard, minNode.getNodeId(), shardSize, "rebalance", allocation.changes()).v1()
                             : shard.relocate(minNode.getNodeId(), shardSize)
                     );
                     return true;

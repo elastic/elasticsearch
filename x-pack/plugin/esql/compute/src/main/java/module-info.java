@@ -28,4 +28,5 @@ module org.elasticsearch.compute {
     exports org.elasticsearch.compute.aggregation.spatial;
     exports org.elasticsearch.compute.operator.topn;
     exports org.elasticsearch.compute.operator.mvdedupe;
+    exports org.elasticsearch.compute.aggregation.table;
 }

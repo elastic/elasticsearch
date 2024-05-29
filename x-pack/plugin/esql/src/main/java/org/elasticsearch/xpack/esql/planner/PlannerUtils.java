@@ -17,6 +17,20 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.predicate.Predicates;
+import org.elasticsearch.xpack.esql.core.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.core.plan.logical.Limit;
+import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.core.plan.logical.OrderBy;
+import org.elasticsearch.xpack.esql.core.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.core.util.Queries;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
@@ -39,20 +53,6 @@ import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.expression.AttributeSet;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.FieldAttribute;
-import org.elasticsearch.xpack.ql.expression.predicate.Predicates;
-import org.elasticsearch.xpack.ql.plan.logical.Filter;
-import org.elasticsearch.xpack.ql.plan.logical.Limit;
-import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
-import org.elasticsearch.xpack.ql.plan.logical.UnaryPlan;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.elasticsearch.xpack.ql.util.Holder;
-import org.elasticsearch.xpack.ql.util.Queries;
 
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -62,9 +62,9 @@ import java.util.function.Predicate;
 
 import static java.util.Arrays.asList;
 import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.DOC_VALUES;
+import static org.elasticsearch.xpack.esql.core.util.Queries.Clause.FILTER;
 import static org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizer.PushFiltersToSource.canPushToSource;
 import static org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizer.TRANSLATOR_HANDLER;
-import static org.elasticsearch.xpack.ql.util.Queries.Clause.FILTER;
 
 public class PlannerUtils {
 
@@ -162,7 +162,7 @@ public class PlannerUtils {
             if (filter != null) {
                 physicalFragment = physicalFragment.transformUp(
                     EsSourceExec.class,
-                    query -> new EsSourceExec(Source.EMPTY, query.index(), query.output(), filter)
+                    query -> new EsSourceExec(Source.EMPTY, query.index(), query.output(), filter, query.indexMode())
                 );
             }
             var localOptimized = physicalOptimizer.localOptimize(physicalFragment);
@@ -244,13 +244,13 @@ public class PlannerUtils {
         if (dataType == DataTypes.LONG
             || dataType == DataTypes.DATETIME
             || dataType == DataTypes.UNSIGNED_LONG
-            || dataType == EsqlDataTypes.COUNTER_LONG) {
+            || dataType == DataTypes.COUNTER_LONG) {
             return ElementType.LONG;
         }
-        if (dataType == DataTypes.INTEGER || dataType == EsqlDataTypes.COUNTER_INTEGER) {
+        if (dataType == DataTypes.INTEGER || dataType == DataTypes.COUNTER_INTEGER) {
             return ElementType.INT;
         }
-        if (dataType == DataTypes.DOUBLE || dataType == EsqlDataTypes.COUNTER_DOUBLE) {
+        if (dataType == DataTypes.DOUBLE || dataType == DataTypes.COUNTER_DOUBLE) {
             return ElementType.DOUBLE;
         }
         // unsupported fields are passed through as a BytesRef
@@ -270,6 +270,9 @@ public class PlannerUtils {
         }
         if (dataType == EsQueryExec.DOC_DATA_TYPE) {
             return ElementType.DOC;
+        }
+        if (dataType == EsQueryExec.TSID_DATA_TYPE) {
+            return ElementType.BYTES_REF;
         }
         if (EsqlDataTypes.isSpatialPoint(dataType)) {
             return fieldExtractPreference == DOC_VALUES ? ElementType.LONG : ElementType.BYTES_REF;

@@ -90,8 +90,8 @@ teardown:
   - gte: { ingest.pipelines.ingest_info_pipeline.time_in_millis: 0 }
   - match: { ingest.pipelines.ingest_info_pipeline.current: 0 }
   - match: { ingest.pipelines.ingest_info_pipeline.failed: 0 }
-  - gt: { ingest.pipelines.ingest_info_pipeline.ingested_in_bytes: 0 }
-  - gt: { ingest.pipelines.ingest_info_pipeline.produced_in_bytes: 0 }
+  - gt: { ingest.pipelines.ingest_info_pipeline.ingested_as_first_pipeline_in_bytes: 0 }
+  - gt: { ingest.pipelines.ingest_info_pipeline.produced_as_first_pipeline_in_bytes: 0 }
 
   # Processors section
   - is_true: ingest.pipelines.ingest_info_pipeline.processors.0.set
@@ -129,8 +129,8 @@ teardown:
       cluster.info:
         target: [ ingest ]
   - match: { ingest.pipelines.pipeline-1.failed: 1 }
-  - gt: { ingest.pipelines.pipeline-1.ingested_in_bytes: 0 }
-  - match: { ingest.pipelines.pipeline-1.produced_in_bytes: 0 }
+  - gt: { ingest.pipelines.pipeline-1.ingested_as_first_pipeline_in_bytes: 0 }
+  - match: { ingest.pipelines.pipeline-1.produced_as_first_pipeline_in_bytes: 0 }
 
 ---
 "Test drop processor":
@@ -156,8 +156,8 @@ teardown:
   - do:
       cluster.info:
         target: [ ingest ]
-  - gt: { ingest.pipelines.pipeline-1.ingested_in_bytes: 0 }
-  - match: { ingest.pipelines.pipeline-1.produced_in_bytes: 0 }
+  - gt: { ingest.pipelines.pipeline-1.ingested_as_first_pipeline_in_bytes: 0 }
+  - match: { ingest.pipelines.pipeline-1.produced_as_first_pipeline_in_bytes: 0 }
 
 ---
 "Test that pipeline processor has byte stats recorded in first pipeline":
@@ -198,7 +198,6 @@ teardown:
   - do:
       bulk:
         refresh: true
-        index: index-foo
         body:
           - '{"index": { "_index": "an-index", "_id": 1 }}'
           - '{"some-field": 1 }'
@@ -211,11 +210,11 @@ teardown:
   - do:
       cluster.info:
         target: [ ingest ]
-  - gt: { ingest.pipelines.pipeline-1.ingested_in_bytes: 0 }
-  - set: { ingest.pipelines.pipeline-1.ingested_in_bytes: ingest_bytes }
-  - gt: { ingest.pipelines.pipeline-1.produced_in_bytes: $ingest_bytes }
-  - match: { ingest.pipelines.pipeline-2.ingested_in_bytes: null }
-  - match: { ingest.pipelines.pipeline-2.produced_in_bytes: null }
+  - gt: { ingest.pipelines.pipeline-1.ingested_as_first_pipeline_in_bytes: 0 }
+  - set: { ingest.pipelines.pipeline-1.ingested_as_first_pipeline_in_bytes: ingest_bytes }
+  - gt: { ingest.pipelines.pipeline-1.produced_as_first_pipeline_in_bytes: $ingest_bytes }
+  - match: { ingest.pipelines.pipeline-2.ingested_as_first_pipeline_in_bytes: 0 }
+  - match: { ingest.pipelines.pipeline-2.produced_as_first_pipeline_in_bytes: 0 }
 
 ---
 "Test that final pipeline has byte stats recorded in first pipeline":
@@ -251,7 +250,6 @@ teardown:
   - do:
       bulk:
         refresh: true
-        index: index-foo
         body:
           - '{"index": { "_index": "an-index", "_id": 1 }}'
           - '{"some-field": 1 }'
@@ -264,12 +262,11 @@ teardown:
   - do:
       cluster.info:
         target: [ ingest ]
-  - gt: { ingest.pipelines.pipeline-1.ingested_in_bytes: 0 }
-  - set: { ingest.pipelines.pipeline-1.ingested_in_bytes: ingest_bytes }
-  - gt: { ingest.pipelines.pipeline-1.produced_in_bytes: $ingest_bytes }
-  - match: { ingest.pipelines.pipeline-2.ingested_in_bytes: null }
-  - match: { ingest.pipelines.pipeline-2.produced_in_bytes: null }
-
+  - gt: { ingest.pipelines.pipeline-1.ingested_as_first_pipeline_in_bytes: 0 }
+  - set: { ingest.pipelines.pipeline-1.ingested_as_first_pipeline_in_bytes: ingest_bytes }
+  - gt: { ingest.pipelines.pipeline-1.produced_as_first_pipeline_in_bytes: $ingest_bytes }
+  - match: { ingest.pipelines.pipeline-2.ingested_as_first_pipeline_in_bytes: 0 }
+  - match: { ingest.pipelines.pipeline-2.produced_as_first_pipeline_in_bytes: 0 }
 
 ---
 "Test that reroute processor has byte stats recorded in first pipeline":
@@ -330,8 +327,41 @@ teardown:
   - do:
       cluster.info:
         target: [ ingest ]
-  - gt: { ingest.pipelines.pipeline-1.ingested_in_bytes: 0 }
-  - set: { ingest.pipelines.pipeline-1.ingested_in_bytes: ingest_bytes }
-  - gt: { ingest.pipelines.pipeline-1.produced_in_bytes: $ingest_bytes }
-  - match: { ingest.pipelines.pipeline-2.ingested_in_bytes: null }
-  - match: { ingest.pipelines.pipeline-2.produced_in_bytes: null }
+  - gt: { ingest.pipelines.pipeline-1.ingested_as_first_pipeline_in_bytes: 0 }
+  - set: { ingest.pipelines.pipeline-1.ingested_as_first_pipeline_in_bytes: ingest_bytes }
+  - gt: { ingest.pipelines.pipeline-1.produced_as_first_pipeline_in_bytes: $ingest_bytes }
+  - match: { ingest.pipelines.pipeline-2.ingested_as_first_pipeline_in_bytes: 0 }
+  - match: { ingest.pipelines.pipeline-2.produced_as_first_pipeline_in_bytes: 0 }
+
+---
+"Test human readable byte stat fields":
+  - do:
+      ingest.put_pipeline:
+        id: "pipeline-1"
+        body:  >
+          {
+            "processors": [
+              {
+                "set": {
+                  "field": "added-field",
+                  "value": true
+                }
+              }
+            ]
+          }
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"index": { "_index": "an-index", "_id": 1, "pipeline": "pipeline-1"}}'
+          - '{"some-field": 1 }'
+  - do:
+      cluster.info:
+        target: [ ingest ]
+        human: true
+
+  - match: { ingest.pipelines.pipeline-1.count: 1 }
+  - gt: { ingest.pipelines.pipeline-1.ingested_as_first_pipeline_in_bytes: 0 }
+  - gt: { ingest.pipelines.pipeline-1.produced_as_first_pipeline_in_bytes: 0 }
+  - is_true: ingest.pipelines.pipeline-1.ingested_as_first_pipeline
+  - is_true: ingest.pipelines.pipeline-1.produced_as_first_pipeline

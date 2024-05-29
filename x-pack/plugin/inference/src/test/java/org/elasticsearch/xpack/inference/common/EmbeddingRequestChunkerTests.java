@@ -179,14 +179,14 @@ public class EmbeddingRequestChunkerTests extends ESTestCase {
         {
             var embeddings = new ArrayList<TextEmbeddingResults.Embedding>();
             for (int i = 0; i < batchSize; i++) {
-                embeddings.add(new TextEmbeddingResults.Embedding(List.of(randomFloat())));
+                embeddings.add(new TextEmbeddingResults.Embedding(new float[] { randomFloat() }));
             }
             batches.get(0).listener().onResponse(new TextEmbeddingResults(embeddings));
         }
         {
             var embeddings = new ArrayList<TextEmbeddingResults.Embedding>();
             for (int i = 0; i < 4; i++) { // 4 requests in the 2nd batch
-                embeddings.add(new TextEmbeddingResults.Embedding(List.of(randomFloat())));
+                embeddings.add(new TextEmbeddingResults.Embedding(new float[] { randomFloat() }));
             }
             batches.get(1).listener().onResponse(new TextEmbeddingResults(embeddings));
         }
@@ -252,8 +252,8 @@ public class EmbeddingRequestChunkerTests extends ESTestCase {
         assertThat(batches, hasSize(1));
 
         var embeddings = new ArrayList<TextEmbeddingResults.Embedding>();
-        embeddings.add(new TextEmbeddingResults.Embedding(List.of(randomFloat())));
-        embeddings.add(new TextEmbeddingResults.Embedding(List.of(randomFloat())));
+        embeddings.add(new TextEmbeddingResults.Embedding(new float[] { randomFloat() }));
+        embeddings.add(new TextEmbeddingResults.Embedding(new float[] { randomFloat() }));
         batches.get(0).listener().onResponse(new TextEmbeddingResults(embeddings));
         assertEquals("Error the number of embedding responses [2] does not equal the number of requests [3]", failureMessage.get());
     }

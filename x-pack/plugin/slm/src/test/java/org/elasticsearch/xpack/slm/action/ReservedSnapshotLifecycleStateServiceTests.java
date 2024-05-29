@@ -377,7 +377,7 @@ public class ReservedSnapshotLifecycleStateServiceTests extends ESTestCase {
         );
         assertEquals(ReservedSnapshotAction.NAME, deleteAction.reservedStateHandlerName().get());
 
-        var request = new DeleteSnapshotLifecycleAction.Request("daily-snapshots1");
+        var request = new DeleteSnapshotLifecycleAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "daily-snapshots1");
         assertThat(deleteAction.modifiedKeys(request), containsInAnyOrder("daily-snapshots1"));
     }
 
@@ -411,7 +411,12 @@ public class ReservedSnapshotLifecycleStateServiceTests extends ESTestCase {
             }""";
 
         try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, json)) {
-            var request = PutSnapshotLifecycleAction.Request.parseRequest("daily-snapshots", parser);
+            var request = PutSnapshotLifecycleAction.Request.parseRequest(
+                TEST_REQUEST_TIMEOUT,
+                TEST_REQUEST_TIMEOUT,
+                "daily-snapshots",
+                parser
+            );
 
             assertThat(putAction.modifiedKeys(request), containsInAnyOrder("daily-snapshots"));
         }

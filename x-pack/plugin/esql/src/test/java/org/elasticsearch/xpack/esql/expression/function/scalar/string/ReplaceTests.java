@@ -11,13 +11,12 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -34,15 +33,15 @@ public class ReplaceTests extends AbstractFunctionTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
-        for (DataType strType : EsqlDataTypes.types()) {
+        for (DataType strType : DataTypes.types()) {
             if (DataTypes.isString(strType) == false) {
                 continue;
             }
-            for (DataType oldStrType : EsqlDataTypes.types()) {
+            for (DataType oldStrType : DataTypes.types()) {
                 if (DataTypes.isString(oldStrType) == false) {
                     continue;
                 }
-                for (DataType newStrType : EsqlDataTypes.types()) {
+                for (DataType newStrType : DataTypes.types()) {
                     if (DataTypes.isString(newStrType) == false) {
                         continue;
                     }

@@ -176,7 +176,7 @@ public class EsqlFeatures implements FeatureSpecification {
 
     private Set<NodeFeature> snapshotBuildFeatures() {
         assert Build.current().isSnapshot() : Build.current();
-        return Set.of(COUNTER_TYPES);
+        return Set.of(METRICS_SYNTAX);
     }
 
     @Override

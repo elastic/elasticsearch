@@ -19,6 +19,7 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -29,6 +30,7 @@ import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
@@ -41,6 +43,7 @@ import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.mapper.TimeSeriesParams.MetricType;
 import org.elasticsearch.index.mapper.ValueFetcher;
+import org.elasticsearch.index.mapper.XContentDataHelper;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.ScriptCompiler;
@@ -587,6 +590,12 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
         XContentParser.Token token;
         XContentSubParser subParser = null;
         EnumMap<Metric, Number> metricsParsed = new EnumMap<>(Metric.class);
+        // Preserves the content of the field in order to be able to construct synthetic source
+        // if field value is malformed.
+        XContentBuilder malformedContentForSyntheticSource = context.mappingLookup().isSourceSynthetic() && ignoreMalformed
+            ? XContentBuilder.builder(context.parser().contentType().xContent())
+            : null;
+
         try {
             token = context.parser().currentToken();
             if (token == XContentParser.Token.VALUE_NULL) {
@@ -596,6 +605,9 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
             ensureExpectedToken(XContentParser.Token.START_OBJECT, token, context.parser());
             subParser = new XContentSubParser(context.parser());
             token = subParser.nextToken();
+            if (malformedContentForSyntheticSource != null) {
+                malformedContentForSyntheticSource.startObject();
+            }
             while (token != XContentParser.Token.END_OBJECT) {
                 // should be an object sub-field with name a metric name
                 ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, subParser);
@@ -609,13 +621,20 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                 }
 
                 token = subParser.nextToken();
+                if (malformedContentForSyntheticSource != null) {
+                    malformedContentForSyntheticSource.field(fieldName);
+                }
                 // Make sure that the value is a number. Probably this will change when
                 // new aggregate metric types are added (histogram, cardinality etc)
                 ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, subParser);
                 NumberFieldMapper delegateFieldMapper = metricFieldMappers.get(metric);
                 // Delegate parsing the field to a numeric field mapper
                 try {
-                    metricsParsed.put(metric, delegateFieldMapper.value(context.parser()));
+                    Number metricValue = delegateFieldMapper.value(context.parser());
+                    metricsParsed.put(metric, metricValue);
+                    if (malformedContentForSyntheticSource != null) {
+                        malformedContentForSyntheticSource.value(metricValue);
+                    }
                 } catch (IllegalArgumentException e) {
                     throw new IllegalArgumentException("failed to parse [" + metric.name() + "] sub field: " + e.getMessage(), e);
                 }
@@ -658,10 +677,26 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
             }
         } catch (Exception e) {
             if (ignoreMalformed) {
-                if (subParser != null) {
-                    // close the subParser so we advance to the end of the object
+                if (malformedContentForSyntheticSource != null) {
+                    if (subParser != null) {
+                        // Remaining data in parser needs to be stored as is in order to provide it in synthetic source.
+                        XContentHelper.drainAndClose(subParser, malformedContentForSyntheticSource);
+                    } else {
+                        // We don't use DrainingXContentParser since we don't want to go beyond current field
+                        malformedContentForSyntheticSource.copyCurrentStructure(context.parser());
+                    }
+                    ;
+                    var nameValue = IgnoredSourceFieldMapper.NameValue.fromContext(
+                        context,
+                        name(),
+                        XContentDataHelper.encodeXContentBuilder(malformedContentForSyntheticSource)
+                    );
+                    context.addIgnoredField(nameValue);
+                } else if (subParser != null) {
+                    // close the subParser, so we advance to the end of the object
                     subParser.close();
                 }
+
                 context.addIgnoredField(name());
                 context.path().remove();
                 return;
@@ -683,12 +718,13 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected SyntheticSourceMode syntheticSourceMode() {
+        return SyntheticSourceMode.NATIVE;
+    }
+
+    @Override
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        if (ignoreMalformed) {
-            throw new IllegalArgumentException(
-                "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it ignores malformed numbers"
-            );
-        }
+        // Note that malformed values are handled via `IgnoredSourceFieldMapper` infrastructure
         return new AggregateMetricSyntheticFieldLoader(name(), simpleName(), metrics);
     }
 

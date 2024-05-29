@@ -78,8 +78,13 @@ public class SearchableSnapshotsLicenseIntegTests extends BaseFrozenSearchableSn
         assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(0));
         ensureGreen(indexName);
 
-        assertAcked(client().execute(TransportDeleteLicenseAction.TYPE, new AcknowledgedRequest.Plain()).get());
-        assertAcked(client().execute(PostStartBasicAction.INSTANCE, new PostStartBasicRequest()).get());
+        assertAcked(
+            client().execute(TransportDeleteLicenseAction.TYPE, new AcknowledgedRequest.Plain(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT))
+                .get()
+        );
+        assertAcked(
+            client().execute(PostStartBasicAction.INSTANCE, new PostStartBasicRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)).get()
+        );
 
         ensureClusterSizeConsistency();
         ensureClusterStateConsistency();
@@ -160,7 +165,8 @@ public class SearchableSnapshotsLicenseIntegTests extends BaseFrozenSearchableSn
         waitNoPendingTasksOnAll();
         ensureClusterStateConsistency();
 
-        PostStartTrialRequest request = new PostStartTrialRequest().setType(License.LicenseType.TRIAL.getTypeName()).acknowledge(true);
+        PostStartTrialRequest request = new PostStartTrialRequest(TEST_REQUEST_TIMEOUT).setType(License.LicenseType.TRIAL.getTypeName())
+            .acknowledge(true);
         final PostStartTrialResponse response = client().execute(PostStartTrialAction.INSTANCE, request).get();
         assertThat(
             response.getStatus(),

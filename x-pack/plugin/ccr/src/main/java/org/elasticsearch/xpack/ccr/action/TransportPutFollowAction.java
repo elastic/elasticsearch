@@ -294,10 +294,9 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
     ) {
         assert request.waitForActiveShards() != ActiveShardCount.DEFAULT : "PutFollowAction does not support DEFAULT.";
         FollowParameters parameters = request.getParameters();
-        ResumeFollowAction.Request resumeFollowRequest = new ResumeFollowAction.Request();
+        ResumeFollowAction.Request resumeFollowRequest = new ResumeFollowAction.Request(request.masterNodeTimeout());
         resumeFollowRequest.setFollowerIndex(request.getFollowerIndex());
         resumeFollowRequest.setParameters(new FollowParameters(parameters));
-        resumeFollowRequest.masterNodeTimeout(request.masterNodeTimeout());
         clientWithHeaders.execute(
             ResumeFollowAction.INSTANCE,
             resumeFollowRequest,

@@ -14,6 +14,8 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -22,7 +24,10 @@ import java.util.List;
 import java.util.Locale;
 
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
+import static org.elasticsearch.rest.RestUtils.getAckTimeout;
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
+@ServerlessScope(Scope.PUBLIC)
 public class RestPutPipelineAction extends BaseRestHandler {
 
     @Override
@@ -51,8 +56,8 @@ public class RestPutPipelineAction extends BaseRestHandler {
 
         Tuple<XContentType, BytesReference> sourceTuple = restRequest.contentOrSourceParam();
         PutPipelineRequest request = new PutPipelineRequest(restRequest.param("id"), sourceTuple.v2(), sourceTuple.v1(), ifVersion);
-        request.masterNodeTimeout(restRequest.paramAsTime("master_timeout", request.masterNodeTimeout()));
-        request.timeout(restRequest.paramAsTime("timeout", request.timeout()));
+        request.masterNodeTimeout(getMasterNodeTimeout(restRequest));
+        request.ackTimeout(getAckTimeout(restRequest));
         return channel -> client.admin().cluster().putPipeline(request, new RestToXContentListener<>(channel));
     }
 }

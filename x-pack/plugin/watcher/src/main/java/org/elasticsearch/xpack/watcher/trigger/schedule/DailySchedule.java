@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.watcher.trigger.schedule.support.DayTimes;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -65,11 +66,7 @@ public class DailySchedule extends CronnableSchedule {
 
     static String[] crons(DayTimes[] times) {
         assert times.length > 0 : "at least one time must be defined";
-        List<String> crons = new ArrayList<>(times.length);
-        for (DayTimes time : times) {
-            crons.add(time.cron());
-        }
-        return crons.toArray(new String[crons.size()]);
+        return Arrays.stream(times).map(DayTimes::cron).toArray(String[]::new);
     }
 
     public static class Parser implements Schedule.Parser<DailySchedule> {
@@ -122,7 +119,7 @@ public class DailySchedule extends CronnableSchedule {
                 }
             }
 
-            return times.isEmpty() ? new DailySchedule() : new DailySchedule(times.toArray(new DayTimes[times.size()]));
+            return times.isEmpty() ? new DailySchedule() : new DailySchedule(times.toArray(DayTimes[]::new));
         }
     }
 
@@ -153,7 +150,7 @@ public class DailySchedule extends CronnableSchedule {
         }
 
         public DailySchedule build() {
-            return times.isEmpty() ? new DailySchedule() : new DailySchedule(times.toArray(new DayTimes[times.size()]));
+            return times.isEmpty() ? new DailySchedule() : new DailySchedule(times.toArray(DayTimes[]::new));
         }
     }
 

@@ -20,19 +20,17 @@ import java.util.Collection;
 import java.util.LinkedList;
 import java.util.Queue;
 
+import static org.elasticsearch.cluster.service.ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME;
+import static org.elasticsearch.cluster.service.MasterService.MASTER_UPDATE_THREAD_NAME;
+
 public class PendingListenersQueue {
 
     private static final Logger logger = LogManager.getLogger(PendingListenersQueue.class);
 
     private record PendingListener(long index, ActionListener<Void> listener) {}
 
-    private final ThreadPool threadPool;
     private final Queue<PendingListener> pendingListeners = new LinkedList<>();
     private volatile long completedIndex = -1;
-
-    public PendingListenersQueue(ThreadPool threadPool) {
-        this.threadPool = threadPool;
-    }
 
     public void add(long index, ActionListener<Void> listener) {
         synchronized (pendingListeners) {
@@ -51,7 +49,7 @@ public class PendingListenersQueue {
     }
 
     public void completeAllAsNotMaster() {
-        assert MasterService.assertMasterUpdateOrTestThread();
+        assert ThreadPool.assertCurrentThreadPool(MASTER_UPDATE_THREAD_NAME, CLUSTER_UPDATE_THREAD_NAME);
         completedIndex = -1;
         executeListeners(Long.MAX_VALUE, false);
     }
@@ -63,13 +61,11 @@ public class PendingListenersQueue {
     private void executeListeners(long convergedIndex, boolean isMaster) {
         var listeners = pollListeners(convergedIndex);
         if (listeners.isEmpty() == false) {
-            threadPool.generic().execute(() -> {
-                if (isMaster) {
-                    ActionListener.onResponse(listeners, null);
-                } else {
-                    ActionListener.onFailure(listeners, new NotMasterException("no longer master"));
-                }
-            });
+            if (isMaster) {
+                ActionListener.onResponse(listeners, null);
+            } else {
+                ActionListener.onFailure(listeners, new NotMasterException("no longer master"));
+            }
         }
     }
 

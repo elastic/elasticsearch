@@ -8,13 +8,18 @@
 
 package org.elasticsearch.indices;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
+import org.elasticsearch.action.NodeStatsLevel;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.bulk.stats.BulkStats;
@@ -29,6 +34,7 @@ import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
+import org.elasticsearch.index.shard.DenseVectorStats;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.shard.IndexingStats;
 import org.elasticsearch.index.shard.ShardCountStats;
@@ -36,12 +42,13 @@ import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.index.warmer.WarmerStats;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
-import org.elasticsearch.xcontent.ToXContentFragment;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -49,9 +56,10 @@ import java.util.Objects;
 /**
  * Global information on indices stats running on a specific node.
  */
-public class NodeIndicesStats implements Writeable, ToXContentFragment {
+public class NodeIndicesStats implements Writeable, ChunkedToXContent {
 
-    private static final Version VERSION_SUPPORTING_STATS_BY_INDEX = Version.V_8_5_0;
+    private static final TransportVersion VERSION_SUPPORTING_STATS_BY_INDEX = TransportVersions.V_8_5_0;
+    private static final Map<Index, List<IndexShardStats>> EMPTY_STATS_BY_SHARD = Map.of();
 
     private final CommonStats stats;
     private final Map<Index, List<IndexShardStats>> statsByShard;
@@ -72,15 +80,24 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
             statsByShard.put(index, indexShardStats);
         }
 
-        if (in.getVersion().onOrAfter(VERSION_SUPPORTING_STATS_BY_INDEX)) {
+        if (in.getTransportVersion().onOrAfter(VERSION_SUPPORTING_STATS_BY_INDEX)) {
             statsByIndex = in.readMap(Index::new, CommonStats::new);
         } else {
             statsByIndex = new HashMap<>();
         }
     }
 
-    public NodeIndicesStats(CommonStats oldStats, Map<Index, CommonStats> statsByIndex, Map<Index, List<IndexShardStats>> statsByShard) {
-        this.statsByShard = Objects.requireNonNull(statsByShard);
+    public NodeIndicesStats(
+        CommonStats oldStats,
+        Map<Index, CommonStats> statsByIndex,
+        Map<Index, List<IndexShardStats>> statsByShard,
+        boolean includeShardsStats
+    ) {
+        if (includeShardsStats) {
+            this.statsByShard = Objects.requireNonNull(statsByShard);
+        } else {
+            this.statsByShard = EMPTY_STATS_BY_SHARD;
+        }
         this.statsByIndex = Objects.requireNonNull(statsByIndex);
 
         // make a total common stats from old ones and current ones
@@ -192,12 +209,17 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
         return stats.getNodeMappings();
     }
 
+    @Nullable
+    public DenseVectorStats getDenseVectorStats() {
+        return stats.getDenseVectorStats();
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         stats.writeTo(out);
-        out.writeMap(statsByShard, (o, k) -> k.writeTo(o), StreamOutput::writeList);
-        if (out.getVersion().onOrAfter(VERSION_SUPPORTING_STATS_BY_INDEX)) {
-            out.writeMap(statsByIndex, (o, k) -> k.writeTo(o), (o, v) -> v.writeTo(o));
+        out.writeMap(statsByShard, StreamOutput::writeWriteable, StreamOutput::writeCollection);
+        if (out.getTransportVersion().onOrAfter(VERSION_SUPPORTING_STATS_BY_INDEX)) {
+            out.writeMap(statsByIndex);
         }
     }
 
@@ -215,46 +237,54 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        final String level = params.param("level", "node");
-        final boolean isLevelValid = "indices".equalsIgnoreCase(level)
-            || "node".equalsIgnoreCase(level)
-            || "shards".equalsIgnoreCase(level);
-        if (isLevelValid == false) {
-            throw new IllegalArgumentException("level parameter must be one of [indices] or [node] or [shards] but was [" + level + "]");
-        }
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params outerParams) {
 
-        // "node" level
-        builder.startObject(Fields.INDICES);
-        stats.toXContent(builder, params);
+        return Iterators.concat(
 
-        if ("indices".equals(level)) {
-            Map<Index, CommonStats> indexStats = createCommonStatsByIndex();
-            builder.startObject(Fields.INDICES);
-            for (Map.Entry<Index, CommonStats> entry : indexStats.entrySet()) {
-                builder.startObject(entry.getKey().getName());
-                entry.getValue().toXContent(builder, params);
-                builder.endObject();
-            }
-            builder.endObject();
-        } else if ("shards".equals(level)) {
-            builder.startObject("shards");
-            for (Map.Entry<Index, List<IndexShardStats>> entry : statsByShard.entrySet()) {
-                builder.startArray(entry.getKey().getName());
-                for (IndexShardStats indexShardStats : entry.getValue()) {
-                    builder.startObject().startObject(String.valueOf(indexShardStats.getShardId().getId()));
-                    for (ShardStats shardStats : indexShardStats.getShards()) {
-                        shardStats.toXContent(builder, params);
-                    }
-                    builder.endObject().endObject();
-                }
-                builder.endArray();
-            }
-            builder.endObject();
-        }
+            Iterators.single((builder, params) -> {
+                builder.startObject(Fields.INDICES);
+                return stats.toXContent(builder, params);
+            }),
 
-        builder.endObject();
-        return builder;
+            switch (NodeStatsLevel.of(outerParams, NodeStatsLevel.NODE)) {
+
+                case NODE -> Collections.<ToXContent>emptyIterator();
+
+                case INDICES -> Iterators.concat(
+                    ChunkedToXContentHelper.startObject(Fields.INDICES),
+                    Iterators.map(createCommonStatsByIndex().entrySet().iterator(), entry -> (builder, params) -> {
+                        builder.startObject(entry.getKey().getName());
+                        entry.getValue().toXContent(builder, params);
+                        return builder.endObject();
+                    }),
+                    ChunkedToXContentHelper.endObject()
+                );
+
+                case SHARDS -> Iterators.concat(
+                    ChunkedToXContentHelper.startObject(Fields.SHARDS),
+                    Iterators.flatMap(
+                        statsByShard.entrySet().iterator(),
+                        entry -> Iterators.concat(
+                            ChunkedToXContentHelper.startArray(entry.getKey().getName()),
+                            Iterators.flatMap(
+                                entry.getValue().iterator(),
+                                indexShardStats -> Iterators.concat(
+                                    Iterators.single(
+                                        (b, p) -> b.startObject().startObject(String.valueOf(indexShardStats.getShardId().getId()))
+                                    ),
+                                    Iterators.flatMap(Iterators.forArray(indexShardStats.getShards()), Iterators::<ToXContent>single),
+                                    Iterators.single((b, p) -> b.endObject().endObject())
+                                )
+                            ),
+                            ChunkedToXContentHelper.endArray()
+                        )
+                    ),
+                    ChunkedToXContentHelper.endObject()
+                );
+            },
+
+            ChunkedToXContentHelper.endObject()
+        );
     }
 
     private Map<Index, CommonStats> createCommonStatsByIndex() {
@@ -285,5 +315,6 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
 
     static final class Fields {
         static final String INDICES = "indices";
+        static final String SHARDS = "shards";
     }
 }

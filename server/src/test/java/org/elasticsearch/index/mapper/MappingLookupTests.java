@@ -42,8 +42,12 @@ public class MappingLookupTests extends ESTestCase {
         RootObjectMapper.Builder builder = new RootObjectMapper.Builder("_doc", ObjectMapper.Defaults.SUBOBJECTS);
         Map<String, RuntimeField> runtimeFieldTypes = runtimeFields.stream().collect(Collectors.toMap(RuntimeField::name, r -> r));
         builder.addRuntimeFields(runtimeFieldTypes);
-        Mapping mapping = new Mapping(builder.build(MapperBuilderContext.root(false)), new MetadataFieldMapper[0], Collections.emptyMap());
-        return MappingLookup.fromMappers(mapping, fieldMappers, objectMappers, emptyList());
+        Mapping mapping = new Mapping(
+            builder.build(MapperBuilderContext.root(false, false)),
+            new MetadataFieldMapper[0],
+            Collections.emptyMap()
+        );
+        return MappingLookup.fromMappers(mapping, fieldMappers, objectMappers);
     }
 
     public void testOnlyRuntimeField() {
@@ -78,6 +82,7 @@ public class MappingLookupTests extends ESTestCase {
             "object",
             Explicit.EXPLICIT_TRUE,
             Explicit.IMPLICIT_TRUE,
+            Explicit.IMPLICIT_FALSE,
             ObjectMapper.Dynamic.TRUE,
             Collections.singletonMap("object.subfield", fieldMapper)
         );

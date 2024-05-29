@@ -220,7 +220,7 @@ public class CoreTestsWithSearchRuntimeFieldsIT extends ESClientYamlSuiteTestCas
                         }
                         // Strings are funny, the regular dynamic mapping puts them in "name.keyword" so we follow along.
                         Map<String, Object> keyword = new HashMap<>(runtimeFieldLoadingFromSource("keyword"));
-                        keyword.put("script", "emit(params._source." + name + ");");
+                        keyword.put("script", "emit(params._source['" + name + "']);");
                         indexRuntimeMappings.put(name + ".keyword", keyword);
                     }
                     return true;

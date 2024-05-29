@@ -36,6 +36,7 @@ following types are supported:
 <<portuguese-analyzer,`portuguese`>>,
 <<romanian-analyzer,`romanian`>>,
 <<russian-analyzer,`russian`>>,
+<<serbian-analyzer,`serbian`>>,
 <<sorani-analyzer,`sorani`>>,
 <<spanish-analyzer,`spanish`>>,
 <<swedish-analyzer,`swedish`>>,
@@ -64,8 +65,8 @@ The following analyzers support setting custom `stem_exclusion` list:
 `arabic`, `armenian`, `basque`, `bengali`, `bulgarian`, `catalan`, `czech`,
 `dutch`, `english`, `finnish`, `french`, `galician`,
 `german`, `hindi`, `hungarian`, `indonesian`, `irish`, `italian`, `latvian`,
-`lithuanian`, `norwegian`, `portuguese`, `romanian`, `russian`, `sorani`,
-`spanish`, `swedish`, `turkish`.
+`lithuanian`, `norwegian`, `portuguese`, `romanian`, `russian`, `serbian`,
+`sorani`, `spanish`, `swedish`, `turkish`.
 
 ==== Reimplementing language analyzers
 
@@ -1587,6 +1588,55 @@ PUT /russian_example
     or `stopwords_path` parameters.
 <2> This filter should be removed unless there are words which should
     be excluded from stemming.
+
+[[serbian-analyzer]]
+===== `serbian` analyzer
+
+The `serbian` analyzer could be reimplemented as a `custom` analyzer as follows:
+
+[source,console]
+----------------------------------------------------
+PUT /serbian_example
+{
+  "settings": {
+    "analysis": {
+      "filter": {
+        "serbian_stop": {
+          "type":       "stop",
+          "stopwords":  "_serbian_" <1>
+        },
+        "serbian_keywords": {
+          "type":       "keyword_marker",
+          "keywords":   ["пример"] <2>
+        },
+        "serbian_stemmer": {
+          "type":       "stemmer",
+          "language":   "serbian"
+        }
+      },
+      "analyzer": {
+        "rebuilt_serbian": {
+          "tokenizer":  "standard",
+          "filter": [
+            "lowercase",
+            "serbian_stop",
+            "serbian_keywords",
+            "serbian_stemmer",
+            "serbian_normalization"
+          ]
+        }
+      }
+    }
+  }
+}
+----------------------------------------------------
+// TEST[s/"serbian_keywords",//]
+// TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: serbian_example, first: serbian, second: rebuilt_serbian}\nendyaml\n/]
+
+<1> The default stopwords can be overridden with the `stopwords`
+or `stopwords_path` parameters.
+<2> This filter should be removed unless there are words which should
+be excluded from stemming.
 
 [[sorani-analyzer]]
 ===== `sorani` analyzer

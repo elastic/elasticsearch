@@ -12,15 +12,13 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.transform.action.ValidateTransformAction.Request;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 
-import java.io.IOException;
-
 import static org.elasticsearch.xpack.core.transform.transforms.TransformConfigTests.randomTransformConfig;
 
 public class ValidateTransformActionRequestTests extends AbstractWireSerializingTransformTestCase<Request> {
 
     @Override
     protected Request createTestInstance() {
-        return new Request(randomTransformConfig(), randomBoolean(), TimeValue.parseTimeValue(randomTimeValue(), "timeout"));
+        return new Request(randomTransformConfig(), randomBoolean(), randomTimeValue());
     }
 
     @Override
@@ -29,10 +27,10 @@ public class ValidateTransformActionRequestTests extends AbstractWireSerializing
     }
 
     @Override
-    protected Request mutateInstance(Request instance) throws IOException {
+    protected Request mutateInstance(Request instance) {
         TransformConfig config = instance.getConfig();
         boolean deferValidation = instance.isDeferValidation();
-        TimeValue timeout = instance.timeout();
+        TimeValue timeout = instance.ackTimeout();
 
         switch (between(0, 2)) {
             case 0 -> config = new TransformConfig.Builder(config).setId(config.getId() + randomAlphaOfLengthBetween(1, 5)).build();

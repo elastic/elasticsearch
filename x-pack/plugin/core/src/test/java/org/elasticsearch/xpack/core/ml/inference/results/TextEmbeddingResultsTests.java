@@ -38,6 +38,11 @@ public class TextEmbeddingResultsTests extends InferenceResultsTestCase<TextEmbe
         return createRandomResults();
     }
 
+    @Override
+    protected TextEmbeddingResults mutateInstance(TextEmbeddingResults instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public void testAsMap() {
         TextEmbeddingResults testInstance = createTestInstance();
         Map<String, Object> asMap = testInstance.asMap();
@@ -50,11 +55,7 @@ public class TextEmbeddingResultsTests extends InferenceResultsTestCase<TextEmbe
     }
 
     @Override
-    void assertFieldValues(TextEmbeddingResults createdInstance, IngestDocument document, String resultsField) {
-        assertArrayEquals(
-            document.getFieldValue(resultsField + "." + createdInstance.getResultsField(), double[].class),
-            createdInstance.getInference(),
-            1e-10
-        );
+    void assertFieldValues(TextEmbeddingResults createdInstance, IngestDocument document, String parentField, String resultsField) {
+        assertArrayEquals(document.getFieldValue(parentField + resultsField, double[].class), createdInstance.getInference(), 1e-10);
     }
 }

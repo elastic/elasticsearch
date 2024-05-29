@@ -7,7 +7,8 @@
 
 package org.elasticsearch.xpack.core.slm;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiff;
@@ -69,7 +70,9 @@ public class SnapshotLifecycleMetadata implements Metadata.Custom {
         PARSER.declareNamedObjects(
             ConstructingObjectParser.constructorArg(),
             (p, c, n) -> SnapshotLifecyclePolicyMetadata.parse(p, n),
-            v -> { throw new IllegalArgumentException("ordered " + POLICIES_FIELD.getPreferredName() + " are not supported"); },
+            v -> {
+                throw new IllegalArgumentException("ordered " + POLICIES_FIELD.getPreferredName() + " are not supported");
+            },
             POLICIES_FIELD
         );
         PARSER.declareString(ConstructingObjectParser.constructorArg(), OPERATION_MODE_FIELD);
@@ -91,7 +94,7 @@ public class SnapshotLifecycleMetadata implements Metadata.Custom {
     }
 
     public SnapshotLifecycleMetadata(StreamInput in) throws IOException {
-        this.snapshotConfigurations = in.readMap(StreamInput::readString, SnapshotLifecyclePolicyMetadata::new);
+        this.snapshotConfigurations = in.readMap(SnapshotLifecyclePolicyMetadata::new);
         this.operationMode = in.readEnum(OperationMode.class);
         this.slmStats = new SnapshotLifecycleStats(in);
     }
@@ -128,13 +131,13 @@ public class SnapshotLifecycleMetadata implements Metadata.Custom {
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_7_4_0;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.V_7_4_0;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(this.snapshotConfigurations, StreamOutput::writeString, (out1, value) -> value.writeTo(out1));
+        out.writeMap(this.snapshotConfigurations, StreamOutput::writeWriteable);
         out.writeEnum(this.operationMode);
         this.slmStats.writeTo(out);
     }
@@ -227,8 +230,8 @@ public class SnapshotLifecycleMetadata implements Metadata.Custom {
         }
 
         @Override
-        public Version getMinimalSupportedVersion() {
-            return Version.V_7_4_0;
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersions.V_7_4_0;
         }
 
     }

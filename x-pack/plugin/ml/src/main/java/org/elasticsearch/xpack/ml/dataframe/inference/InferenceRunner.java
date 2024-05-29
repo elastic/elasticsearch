@@ -10,17 +10,20 @@ package org.elasticsearch.xpack.ml.dataframe.inference;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.UnsafePlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.metrics.Max;
@@ -28,8 +31,8 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
-import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.dataframe.DestinationIndex;
 import org.elasticsearch.xpack.ml.dataframe.stats.DataCountsTracker;
 import org.elasticsearch.xpack.ml.dataframe.stats.ProgressTracker;
@@ -99,7 +102,9 @@ public class InferenceRunner {
 
         LOGGER.info("[{}] Started inference on test data against model [{}]", config.getId(), modelId);
         try {
-            PlainActionFuture<LocalModel> localModelPlainActionFuture = new PlainActionFuture<>();
+            PlainActionFuture<LocalModel> localModelPlainActionFuture = new UnsafePlainActionFuture<>(
+                MachineLearning.UTILITY_THREAD_POOL_NAME
+            );
             modelLoadingService.getModelForInternalInference(modelId, localModelPlainActionFuture);
             InferenceState inferenceState = restoreInferenceState();
             dataCountsTracker.setTestDocsCount(inferenceState.processedTestDocsCount);
@@ -115,15 +120,14 @@ public class InferenceRunner {
             }
         } catch (Exception e) {
             LOGGER.error(() -> format("[%s] Error running inference on model [%s]", config.getId(), modelId), e);
-
-            if (e instanceof ElasticsearchException) {
-                Throwable rootCause = ((ElasticsearchException) e).getRootCause();
-                throw new ElasticsearchException(
+            if (e instanceof ElasticsearchException elasticsearchException) {
+                throw new ElasticsearchStatusException(
                     "[{}] failed running inference on model [{}]; cause was [{}]",
-                    rootCause,
+                    elasticsearchException.status(),
+                    elasticsearchException.getRootCause(),
                     config.getId(),
                     modelId,
-                    rootCause.getMessage()
+                    elasticsearchException.getRootCause().getMessage()
                 );
             }
             throw ExceptionsHelper.serverError(
@@ -153,23 +157,26 @@ public class InferenceRunner {
             config.getHeaders(),
             ClientHelper.ML_ORIGIN,
             client,
-            () -> client.search(searchRequest).actionGet()
+            client.search(searchRequest)::actionGet
         );
-
-        Max maxIncrementalIdAgg = searchResponse.getAggregations().get(DestinationIndex.INCREMENTAL_ID);
-        long processedTestDocCount = searchResponse.getHits().getTotalHits().value;
-        Long lastIncrementalId = processedTestDocCount == 0 ? null : (long) maxIncrementalIdAgg.value();
-        if (lastIncrementalId != null) {
-            LOGGER.debug(
-                () -> format(
-                    "[%s] Resuming inference; last incremental id [%s]; processed test doc count [%s]",
-                    config.getId(),
-                    lastIncrementalId,
-                    processedTestDocCount
-                )
-            );
+        try {
+            Max maxIncrementalIdAgg = searchResponse.getAggregations().get(DestinationIndex.INCREMENTAL_ID);
+            long processedTestDocCount = searchResponse.getHits().getTotalHits().value;
+            Long lastIncrementalId = processedTestDocCount == 0 ? null : (long) maxIncrementalIdAgg.value();
+            if (lastIncrementalId != null) {
+                LOGGER.debug(
+                    () -> format(
+                        "[%s] Resuming inference; last incremental id [%s]; processed test doc count [%s]",
+                        config.getId(),
+                        lastIncrementalId,
+                        processedTestDocCount
+                    )
+                );
+            }
+            return new InferenceState(lastIncrementalId, processedTestDocCount);
+        } finally {
+            searchResponse.decRef();
         }
-        return new InferenceState(lastIncrementalId, processedTestDocCount);
     }
 
     // Visible for testing

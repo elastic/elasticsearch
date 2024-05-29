@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
+import static org.hamcrest.Matchers.is;
+
 public class PhaseCompleteStepTests extends AbstractStepTestCase<PhaseCompleteStep> {
 
     @Override
@@ -34,5 +36,10 @@ public class PhaseCompleteStepTests extends AbstractStepTestCase<PhaseCompleteSt
     @Override
     public PhaseCompleteStep copyInstance(PhaseCompleteStep instance) {
         return new PhaseCompleteStep(instance.getKey(), instance.getNextStepKey());
+    }
+
+    public void testPhaseCompeteStepKey() {
+        String phaseName = randomAlphaOfLength(30);
+        assertThat(PhaseCompleteStep.stepKey(phaseName), is(new StepKey(phaseName, PhaseCompleteStep.NAME, PhaseCompleteStep.NAME)));
     }
 }

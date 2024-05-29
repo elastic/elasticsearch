@@ -70,9 +70,7 @@ public class SettingsFilteringIT extends ESIntegTestCase {
 
     public void testSettingsFiltering() {
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate("test-idx")
+            indicesAdmin().prepareCreate("test-idx")
                 .setSettings(
                     Settings.builder()
                         .put("filter_test.foo", "test")
@@ -82,9 +80,8 @@ public class SettingsFilteringIT extends ESIntegTestCase {
                         .put("filter_test.notfoo", "test")
                         .build()
                 )
-                .get()
         );
-        GetSettingsResponse response = client().admin().indices().prepareGetSettings("test-idx").get();
+        GetSettingsResponse response = indicesAdmin().prepareGetSettings("test-idx").get();
         Settings settings = response.getIndexToSettings().get("test-idx");
 
         assertThat(settings.get("index.filter_test.foo"), nullValue());
@@ -95,7 +92,7 @@ public class SettingsFilteringIT extends ESIntegTestCase {
     }
 
     public void testNodeInfoIsFiltered() {
-        NodesInfoResponse nodeInfos = client().admin().cluster().prepareNodesInfo().clear().setSettings(true).get();
+        NodesInfoResponse nodeInfos = clusterAdmin().prepareNodesInfo().clear().setSettings(true).get();
         for (NodeInfo info : nodeInfos.getNodes()) {
             Settings settings = info.getSettings();
             assertNotNull(settings);

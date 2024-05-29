@@ -1,0 +1,330 @@
+---
+setup:
+  - requires:
+      cluster_features: ["gte_v8.15.0"]
+      reason: "data stream failure stores REST structure changed in 8.15+"
+      test_runner_features: [allowed_warnings, contains, capabilities]
+
+  - do:
+      allowed_warnings:
+        - "index template [my-template] has index patterns [data-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template
+        body:
+          index_patterns: [data-*]
+          data_stream:
+            failure_store: true
+          template:
+            mappings:
+              properties:
+                '@timestamp':
+                  type: date
+                count:
+                  type: long
+
+  - do:
+      indices.create_data_stream:
+        name: data-stream-for-rollover
+
+---
+teardown:
+  - do:
+      indices.delete_data_stream:
+        name: data-stream-for-lazy-rollover
+        ignore: 404
+
+  - do:
+      ingest.delete_pipeline:
+        id: failing_pipeline
+        ignore: 404
+---
+"Roll over a data stream's failure store without conditions":
+  - do:
+      indices.rollover:
+        alias: "data-stream-for-rollover"
+        target_failure_store: true
+
+  - match: { acknowledged: true }
+  - match: { old_index: "/\\.fs-data-stream-for-rollover-(\\d{4}\\.\\d{2}\\.\\d{2}-)?000001/" }
+  - match: { new_index: "/\\.fs-data-stream-for-rollover-(\\d{4}\\.\\d{2}\\.\\d{2}-)?000002/" }
+  - match: { rolled_over: true }
+  - match: { dry_run: false }
+
+  - do:
+      indices.get_data_stream:
+        name: "*"
+  - match: { data_streams.0.name: data-stream-for-rollover }
+  - match: { data_streams.0.timestamp_field.name: '@timestamp' }
+  # Both backing and failure indices use the same generation field.
+  - match: { data_streams.0.generation: 2 }
+  - length: { data_streams.0.indices: 1 }
+  - match: { data_streams.0.indices.0.index_name: '/\.ds-data-stream-for-rollover-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
+  - length: { data_streams.0.failure_store.indices: 2 }
+  - match: { data_streams.0.failure_store.indices.0.index_name: '/\.fs-data-stream-for-rollover-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
+  - match: { data_streams.0.failure_store.indices.1.index_name: '/\.fs-data-stream-for-rollover-(\d{4}\.\d{2}\.\d{2}-)?000002/' }
+
+---
+"Roll over a data stream's failure store with conditions":
+  - do:
+      index:
+        index: data-stream-for-rollover
+        refresh: true
+        body:
+          '@timestamp': '2020-12-12'
+          count: 'invalid value'
+
+  - do:
+      indices.rollover:
+        alias: "data-stream-for-rollover"
+        target_failure_store: true
+        body:
+          conditions:
+            max_docs: 1
+
+  - match: { acknowledged: true }
+  - match: { old_index: "/\\.fs-data-stream-for-rollover-(\\d{4}\\.\\d{2}\\.\\d{2}-)?000001/" }
+  - match: { new_index: "/\\.fs-data-stream-for-rollover-(\\d{4}\\.\\d{2}\\.\\d{2}-)?000002/" }
+  - match: { rolled_over: true }
+  - match: { dry_run: false }
+
+  - do:
+      indices.get_data_stream:
+        name: "*"
+  - match: { data_streams.0.name: data-stream-for-rollover }
+  - match: { data_streams.0.timestamp_field.name: '@timestamp' }
+  # Both backing and failure indices use the same generation field.
+  - match: { data_streams.0.generation: 2 }
+  - length: { data_streams.0.indices: 1 }
+  - match: { data_streams.0.indices.0.index_name: '/\.ds-data-stream-for-rollover-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
+  - length: { data_streams.0.failure_store.indices: 2 }
+  - match: { data_streams.0.failure_store.indices.0.index_name: '/\.fs-data-stream-for-rollover-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
+  - match: { data_streams.0.failure_store.indices.1.index_name: '/\.fs-data-stream-for-rollover-(\d{4}\.\d{2}\.\d{2}-)?000002/' }
+
+---
+"Don't roll over a data stream's failure store when conditions aren't met":
+  - do:
+      indices.rollover:
+        alias: "data-stream-for-rollover"
+        target_failure_store: true
+        body:
+          conditions:
+            max_docs: 1
+
+  - match: { acknowledged: false }
+  - match: { rolled_over: false }
+  - match: { dry_run: false }
+
+  - do:
+      indices.get_data_stream:
+        name: "*"
+  - match: { data_streams.0.name: data-stream-for-rollover }
+  - match: { data_streams.0.timestamp_field.name: '@timestamp' }
+  - match: { data_streams.0.generation: 1 }
+  - length: { data_streams.0.indices: 1 }
+  - match: { data_streams.0.indices.0.index_name: '/\.ds-data-stream-for-rollover-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
+  - length: { data_streams.0.failure_store.indices: 1 }
+  - match: { data_streams.0.failure_store.indices.0.index_name: '/\.fs-data-stream-for-rollover-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
+
+---
+"Lazily roll over a data stream's failure store after a shard failure":
+  - requires:
+      reason: "data stream failure store lazy rollover only supported in 8.15+"
+      test_runner_features: [allowed_warnings, capabilities]
+      capabilities:
+        - method: POST
+          path: /{index}/_rollover
+          capabilities: [lazy-rollover-failure-store]
+
+  # Mark the failure store for lazy rollover
+  - do:
+      indices.rollover:
+        alias: "data-stream-for-rollover"
+        target_failure_store: true
+        lazy: true
+
+  - match: { acknowledged: true }
+  - match: { rolled_over: false }
+  - match: { dry_run: false }
+
+  - do:
+      indices.get_data_stream:
+        name: "*"
+  - match: { data_streams.0.name: data-stream-for-rollover }
+  - match: { data_streams.0.timestamp_field.name: '@timestamp' }
+  - match: { data_streams.0.generation: 1 }
+  - length: { data_streams.0.indices: 1 }
+  - match: { data_streams.0.indices.0.index_name: '/\.ds-data-stream-for-rollover-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
+  - length: { data_streams.0.failure_store.indices: 1 }
+  - match: { data_streams.0.failure_store.indices.0.index_name: '/\.fs-data-stream-for-rollover-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
+
+  - do:
+      index:
+        index: data-stream-for-rollover
+        refresh: true
+        body:
+          '@timestamp': '2020-12-12'
+          count: 'invalid value'
+
+  - do:
+      indices.get_data_stream:
+        name: "*"
+  - match: { data_streams.0.name: data-stream-for-rollover }
+  - match: { data_streams.0.timestamp_field.name: '@timestamp' }
+  # Both backing and failure indices use the same generation field.
+  - match: { data_streams.0.generation: 2 }
+  - length: { data_streams.0.indices: 1 }
+  - match: { data_streams.0.indices.0.index_name: '/\.ds-data-stream-for-rollover-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
+  - length: { data_streams.0.failure_store.indices: 2 }
+  - match: { data_streams.0.failure_store.indices.0.index_name: '/\.fs-data-stream-for-rollover-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
+  - match: { data_streams.0.failure_store.indices.1.index_name: '/\.fs-data-stream-for-rollover-(\d{4}\.\d{2}\.\d{2}-)?000002/' }
+
+  - do:
+      search:
+        index: .fs-data-stream-for-rollover-*
+  - length: { hits.hits: 1  }
+  - match: { hits.hits.0._index: "/\\.fs-data-stream-for-rollover-(\\d{4}\\.\\d{2}\\.\\d{2}-)?000002/" }
+  - exists: hits.hits.0._source.@timestamp
+  - not_exists: hits.hits.0._source.count
+  - match: { hits.hits.0._source.document.index: 'data-stream-for-rollover' }
+  - match: { hits.hits.0._source.document.source.@timestamp: '2020-12-12' }
+  - match: { hits.hits.0._source.document.source.count: 'invalid value' }
+  - match: { hits.hits.0._source.error.type: 'document_parsing_exception' }
+
+---
+"Lazily roll over a data stream's failure store after an ingest failure":
+  - requires:
+      reason: "data stream failure store lazy rollover only supported in 8.15+"
+      test_runner_features: [allowed_warnings, capabilities]
+      capabilities:
+        - method: POST
+          path: /{index}/_rollover
+          capabilities: [lazy-rollover-failure-store]
+
+  - do:
+      ingest.put_pipeline:
+        id: "failing_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "fail" : {
+                  "message" : "error_message"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      allowed_warnings:
+        - "index template [generic_logs_template] has index patterns [logs-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [generic_logs_template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template
+        body:
+          index_patterns: [data-*]
+          data_stream:
+            failure_store: true
+          template:
+            settings:
+              index:
+                default_pipeline: "failing_pipeline"
+
+  - do:
+      indices.create_data_stream:
+        name: data-stream-for-lazy-rollover
+
+  # Mark the failure store for lazy rollover
+  - do:
+      indices.rollover:
+        alias: data-stream-for-lazy-rollover
+        target_failure_store: true
+        lazy: true
+
+  - match: { acknowledged: true }
+  - match: { rolled_over: false }
+  - match: { dry_run: false }
+
+  - do:
+      indices.get_data_stream:
+        name: "*"
+  - match: { data_streams.0.name: data-stream-for-lazy-rollover }
+  - match: { data_streams.0.timestamp_field.name: '@timestamp' }
+  - match: { data_streams.0.generation: 1 }
+  - length: { data_streams.0.indices: 1 }
+  - match: { data_streams.0.indices.0.index_name: '/\.ds-data-stream-for-lazy-rollover-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
+  - length: { data_streams.0.failure_store.indices: 1 }
+  - match: { data_streams.0.failure_store.indices.0.index_name: '/\.fs-data-stream-for-lazy-rollover-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
+
+  - do:
+      index:
+        index: data-stream-for-lazy-rollover
+        refresh: true
+        body:
+          '@timestamp': '2020-12-12'
+          count: 1
+
+  - do:
+      indices.get_data_stream:
+        name: "*"
+  - match: { data_streams.0.name: data-stream-for-lazy-rollover }
+  - match: { data_streams.0.timestamp_field.name: '@timestamp' }
+  # Both backing and failure indices use the same generation field.
+  - match: { data_streams.0.generation: 2 }
+  - length: { data_streams.0.indices: 1 }
+  - match: { data_streams.0.indices.0.index_name: '/\.ds-data-stream-for-lazy-rollover-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
+  - length: { data_streams.0.failure_store.indices: 2 }
+  - match: { data_streams.0.failure_store.indices.0.index_name: '/\.fs-data-stream-for-lazy-rollover-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
+  - match: { data_streams.0.failure_store.indices.1.index_name: '/\.fs-data-stream-for-lazy-rollover-(\d{4}\.\d{2}\.\d{2}-)?000002/' }
+
+---
+"A failure store marked for lazy rollover should only be rolled over when there is a failure":
+  - requires:
+      reason: "data stream failure store lazy rollover only supported in 8.15+"
+      test_runner_features: [allowed_warnings, capabilities]
+      capabilities:
+        - method: POST
+          path: /{index}/_rollover
+          capabilities: [lazy-rollover-failure-store]
+
+  # Mark the failure store for lazy rollover
+  - do:
+      indices.rollover:
+        alias: "data-stream-for-rollover"
+        target_failure_store: true
+        lazy: true
+
+  - match: { acknowledged: true }
+  - match: { rolled_over: false }
+  - match: { dry_run: false }
+
+  - do:
+      indices.get_data_stream:
+        name: "*"
+  - match: { data_streams.0.name: data-stream-for-rollover }
+  - match: { data_streams.0.timestamp_field.name: '@timestamp' }
+  - match: { data_streams.0.generation: 1 }
+  - length: { data_streams.0.indices: 1 }
+  - match: { data_streams.0.indices.0.index_name: '/\.ds-data-stream-for-rollover-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
+  - length: { data_streams.0.failure_store.indices: 1 }
+  - match: { data_streams.0.failure_store.indices.0.index_name: '/\.fs-data-stream-for-rollover-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
+
+  - do:
+      index:
+        index: data-stream-for-rollover
+        refresh: true
+        body:
+          '@timestamp': '2020-12-12'
+          count: 3
+
+  - do:
+      indices.get_data_stream:
+        name: "*"
+  - match: { data_streams.0.name: data-stream-for-rollover }
+  - match: { data_streams.0.timestamp_field.name: '@timestamp' }
+  # Both backing and failure indices use the same generation field.
+  - match: { data_streams.0.generation: 1 }
+  - length: { data_streams.0.indices: 1 }
+  - match: { data_streams.0.indices.0.index_name: '/\.ds-data-stream-for-rollover-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
+  - length: { data_streams.0.failure_store.indices: 1 }
+  - match: { data_streams.0.failure_store.indices.0.index_name: '/\.fs-data-stream-for-rollover-(\d{4}\.\d{2}\.\d{2}-)?000001/' }

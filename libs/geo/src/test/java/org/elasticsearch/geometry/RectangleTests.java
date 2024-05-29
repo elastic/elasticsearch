@@ -55,4 +55,9 @@ public class RectangleTests extends BaseGeometryTestCase<Rectangle> {
 
         StandardValidator.instance(true).validate(new Rectangle(50, 10, 40, 30, 20, 60));
     }
+
+    @Override
+    protected Rectangle mutateInstance(Rectangle instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
 }

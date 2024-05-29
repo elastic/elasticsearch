@@ -11,7 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProvider;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderResolver;
@@ -21,19 +21,19 @@ import org.opensaml.saml.saml2.metadata.ContactPersonTypeEnumeration;
 import org.opensaml.security.x509.X509Credential;
 
 import java.net.URL;
-import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Stream;
 
 /**
  * SAML 2.0 configuration information about this IdP
  */
 public class SamlIdentityProvider {
 
-    private final Logger logger = LogManager.getLogger(SamlIdentityProvider.class);
+    private static final Logger logger = LogManager.getLogger(SamlIdentityProvider.class);
 
     private final String entityId;
     private final Map<String, URL> ssoEndpoints;
@@ -133,18 +133,18 @@ public class SamlIdentityProvider {
         boolean allowDisabled,
         ActionListener<SamlServiceProvider> listener
     ) {
-        serviceProviderResolver.resolve(spEntityId, ActionListener.wrap(sp -> {
+        serviceProviderResolver.resolve(spEntityId, listener.delegateFailureAndWrap((delegate, sp) -> {
             if (sp == null) {
                 logger.debug("No explicitly registered service provider exists for entityId [{}]", spEntityId);
-                resolveWildcardService(spEntityId, acs, listener);
+                resolveWildcardService(spEntityId, acs, delegate);
             } else if (allowDisabled == false && sp.isEnabled() == false) {
                 logger.info("Service provider [{}][{}] is not enabled", spEntityId, sp.getName());
-                listener.onResponse(null);
+                delegate.onResponse(null);
             } else {
                 logger.debug("Service provider for [{}] is [{}]", spEntityId, sp);
-                listener.onResponse(sp);
+                delegate.onResponse(sp);
             }
-        }, listener::onFailure));
+        }));
     }
 
     private void resolveWildcardService(String spEntityId, String acs, ActionListener<SamlServiceProvider> listener) {
@@ -183,15 +183,13 @@ public class SamlIdentityProvider {
     }
 
     public static class ContactInfo {
-        static final Map<String, ContactPersonTypeEnumeration> TYPES = Collections.unmodifiableMap(
-            MapBuilder.newMapBuilder(new LinkedHashMap<String, ContactPersonTypeEnumeration>())
-                .put(ContactPersonTypeEnumeration.ADMINISTRATIVE.toString(), ContactPersonTypeEnumeration.ADMINISTRATIVE)
-                .put(ContactPersonTypeEnumeration.BILLING.toString(), ContactPersonTypeEnumeration.BILLING)
-                .put(ContactPersonTypeEnumeration.SUPPORT.toString(), ContactPersonTypeEnumeration.SUPPORT)
-                .put(ContactPersonTypeEnumeration.TECHNICAL.toString(), ContactPersonTypeEnumeration.TECHNICAL)
-                .put(ContactPersonTypeEnumeration.OTHER.toString(), ContactPersonTypeEnumeration.OTHER)
-                .map()
-        );
+        static final Map<String, ContactPersonTypeEnumeration> TYPES = Stream.of(
+            ContactPersonTypeEnumeration.ADMINISTRATIVE,
+            ContactPersonTypeEnumeration.BILLING,
+            ContactPersonTypeEnumeration.SUPPORT,
+            ContactPersonTypeEnumeration.TECHNICAL,
+            ContactPersonTypeEnumeration.OTHER
+        ).collect(Maps.toUnmodifiableOrderedMap(ContactPersonTypeEnumeration::toString, Function.identity()));
 
         public final ContactPersonTypeEnumeration type;
         public final String givenName;

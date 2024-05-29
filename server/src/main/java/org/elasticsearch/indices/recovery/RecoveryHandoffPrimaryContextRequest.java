@@ -21,9 +21,9 @@ import java.io.IOException;
  */
 class RecoveryHandoffPrimaryContextRequest extends TransportRequest {
 
-    private long recoveryId;
-    private ShardId shardId;
-    private ReplicationTracker.PrimaryContext primaryContext;
+    private final long recoveryId;
+    private final ShardId shardId;
+    private final ReplicationTracker.PrimaryContext primaryContext;
 
     /**
      * Initialize an empty request (used to serialize into when reading from a stream).

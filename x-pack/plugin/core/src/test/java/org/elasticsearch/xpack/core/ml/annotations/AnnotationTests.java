@@ -26,6 +26,11 @@ public class AnnotationTests extends AbstractXContentSerializingTestCase<Annotat
         return randomAnnotation(randomBoolean() ? randomAlphaOfLengthBetween(10, 30) : null);
     }
 
+    @Override
+    protected Annotation mutateInstance(Annotation instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public static Annotation randomAnnotation(String jobId) {
         return new Annotation.Builder().setAnnotation(randomAlphaOfLengthBetween(100, 1000))
             .setCreateTime(new Date(randomNonNegativeLong()))

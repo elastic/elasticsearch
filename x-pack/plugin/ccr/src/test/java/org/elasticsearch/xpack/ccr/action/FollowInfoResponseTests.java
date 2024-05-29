@@ -88,6 +88,11 @@ public class FollowInfoResponseTests extends AbstractChunkedSerializingTestCase<
         return new FollowInfoAction.Response(infos);
     }
 
+    @Override
+    protected FollowInfoAction.Response mutateInstance(FollowInfoAction.Response instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public void testChunking() {
         AbstractChunkedSerializingTestCase.assertChunkCount(createTestInstance(), instance -> instance.getFollowInfos().size() + 2);
     }

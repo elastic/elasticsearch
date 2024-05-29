@@ -32,7 +32,7 @@ public class RemoveIndexLifecyclePolicyResponseTests extends AbstractXContentSer
     }
 
     @Override
-    protected Response mutateInstance(Response instance) throws IOException {
+    protected Response mutateInstance(Response instance) {
         List<String> failedIndices = randomValueOtherThan(
             instance.getFailedIndexes(),
             () -> Arrays.asList(generateRandomStringArray(20, 20, false))
@@ -43,11 +43,6 @@ public class RemoveIndexLifecyclePolicyResponseTests extends AbstractXContentSer
     @Override
     protected Response doParseInstance(XContentParser parser) throws IOException {
         return Response.PARSER.apply(parser, null);
-    }
-
-    @Override
-    protected boolean supportsUnknownFields() {
-        return false;
     }
 
     public void testNullFailedIndices() {

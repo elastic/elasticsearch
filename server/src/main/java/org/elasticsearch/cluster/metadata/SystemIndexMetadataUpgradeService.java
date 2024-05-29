@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.indices.SystemIndexMappingUpdateService;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -28,7 +29,7 @@ import java.util.Map;
 /**
  * A service responsible for updating the metadata used by system indices.
  *
- * Mapping updates are handled by {@link org.elasticsearch.indices.SystemIndexManager}.
+ * Mapping updates are handled by {@link SystemIndexMappingUpdateService}.
  */
 public class SystemIndexMetadataUpgradeService implements ClusterStateListener {
 
@@ -106,7 +107,7 @@ public class SystemIndexMetadataUpgradeService implements ClusterStateListener {
     }
 
     // package-private for testing
-    boolean isVisible(IndexMetadata indexMetadata) {
+    static boolean isVisible(IndexMetadata indexMetadata) {
         return indexMetadata.getSettings().getAsBoolean(IndexMetadata.SETTING_INDEX_HIDDEN, false) == false;
     }
 
@@ -117,7 +118,7 @@ public class SystemIndexMetadataUpgradeService implements ClusterStateListener {
     }
 
     // package-private for testing
-    boolean hasVisibleAlias(IndexMetadata indexMetadata) {
+    static boolean hasVisibleAlias(IndexMetadata indexMetadata) {
         return indexMetadata.getAliases().values().stream().anyMatch(a -> Boolean.FALSE.equals(a.isHidden()));
     }
 

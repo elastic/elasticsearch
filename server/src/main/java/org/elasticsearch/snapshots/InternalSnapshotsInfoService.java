@@ -41,7 +41,7 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.core.Strings.format;
 
-public class InternalSnapshotsInfoService implements ClusterStateListener, SnapshotsInfoService {
+public final class InternalSnapshotsInfoService implements ClusterStateListener, SnapshotsInfoService {
 
     public static final Setting<Integer> INTERNAL_SNAPSHOT_INFO_MAX_CONCURRENT_FETCHES_SETTING = Setting.intSetting(
         "cluster.snapshot.info.max_concurrent_fetches",
@@ -53,7 +53,7 @@ public class InternalSnapshotsInfoService implements ClusterStateListener, Snaps
 
     private static final Logger logger = LogManager.getLogger(InternalSnapshotsInfoService.class);
 
-    private static final ActionListener<ClusterState> REROUTE_LISTENER = ActionListener.wrap(
+    private static final ActionListener<Void> REROUTE_LISTENER = ActionListener.wrap(
         r -> logger.trace("reroute after snapshot shard size update completed"),
         e -> logger.debug("reroute after snapshot shard size update failed", e)
     );
@@ -219,7 +219,7 @@ public class InternalSnapshotsInfoService implements ClusterStateListener, Snaps
                 snapshotShard.snapshot().getSnapshotId(),
                 snapshotShard.index(),
                 snapshotShard.shardId()
-            ).asCopy().getTotalSize();
+            ).getTotalSize();
 
             logger.debug("snapshot shard size for {}: {} bytes", snapshotShard, snapshotShardSize);
 

@@ -38,7 +38,9 @@ public class ClusterStateRequest extends MasterNodeReadRequest<ClusterStateReque
     private String[] indices = Strings.EMPTY_ARRAY;
     private IndicesOptions indicesOptions = IndicesOptions.lenientExpandOpen();
 
-    public ClusterStateRequest() {}
+    public ClusterStateRequest() {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
+    }
 
     public ClusterStateRequest(StreamInput in) throws IOException {
         super(in);
@@ -188,12 +190,7 @@ public class ClusterStateRequest extends MasterNodeReadRequest<ClusterStateReque
 
     @Override
     public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-        return new CancellableTask(id, type, action, getDescription(), parentTaskId, headers) {
-            @Override
-            public boolean shouldCancelChildrenOnCancellation() {
-                return true;
-            }
-        };
+        return new CancellableTask(id, type, action, getDescription(), parentTaskId, headers);
     }
 
     @Override
@@ -227,7 +224,7 @@ public class ClusterStateRequest extends MasterNodeReadRequest<ClusterStateReque
         if (indices.length > 0) {
             stringBuilder.append("indices ").append(Arrays.toString(indices)).append(", ");
         }
-        stringBuilder.append("master timeout [").append(masterNodeTimeout).append("]]");
+        stringBuilder.append("master timeout [").append(masterNodeTimeout()).append("]]");
         return stringBuilder.toString();
     }
 

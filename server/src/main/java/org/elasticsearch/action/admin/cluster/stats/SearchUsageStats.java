@@ -21,6 +21,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.TransportVersions.V_8_12_0;
+
 /**
  * Holds a snapshot of the search usage statistics.
  * Used to hold the stats for a single node that's part of a {@link ClusterStatsNodeResponse}, as well as to
@@ -29,6 +31,7 @@ import java.util.Objects;
 public final class SearchUsageStats implements Writeable, ToXContentFragment {
     private long totalSearchCount;
     private final Map<String, Long> queries;
+    private final Map<String, Long> rescorers;
     private final Map<String, Long> sections;
 
     /**
@@ -38,29 +41,36 @@ public final class SearchUsageStats implements Writeable, ToXContentFragment {
         this.totalSearchCount = 0L;
         this.queries = new HashMap<>();
         this.sections = new HashMap<>();
+        this.rescorers = new HashMap<>();
     }
 
     /**
      * Creates a new stats instance with the provided info. The expectation is that when a new instance is created using
      * this constructor, the provided stats are final and won't be modified further.
      */
-    public SearchUsageStats(Map<String, Long> queries, Map<String, Long> sections, long totalSearchCount) {
+    public SearchUsageStats(Map<String, Long> queries, Map<String, Long> rescorers, Map<String, Long> sections, long totalSearchCount) {
         this.totalSearchCount = totalSearchCount;
         this.queries = queries;
         this.sections = sections;
+        this.rescorers = rescorers;
     }
 
     public SearchUsageStats(StreamInput in) throws IOException {
-        this.queries = in.readMap(StreamInput::readString, StreamInput::readLong);
-        this.sections = in.readMap(StreamInput::readString, StreamInput::readLong);
+        this.queries = in.readMap(StreamInput::readLong);
+        this.sections = in.readMap(StreamInput::readLong);
         this.totalSearchCount = in.readVLong();
+        this.rescorers = in.getTransportVersion().onOrAfter(V_8_12_0) ? in.readMap(StreamInput::readLong) : Map.of();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(queries, StreamOutput::writeString, StreamOutput::writeLong);
-        out.writeMap(sections, StreamOutput::writeString, StreamOutput::writeLong);
+        out.writeMap(queries, StreamOutput::writeLong);
+        out.writeMap(sections, StreamOutput::writeLong);
         out.writeVLong(totalSearchCount);
+
+        if (out.getTransportVersion().onOrAfter(V_8_12_0)) {
+            out.writeMap(rescorers, StreamOutput::writeLong);
+        }
     }
 
     /**
@@ -68,6 +78,7 @@ public final class SearchUsageStats implements Writeable, ToXContentFragment {
      */
     public void add(SearchUsageStats stats) {
         stats.queries.forEach((query, count) -> queries.merge(query, count, Long::sum));
+        stats.rescorers.forEach((rescorer, count) -> rescorers.merge(rescorer, count, Long::sum));
         stats.sections.forEach((query, count) -> sections.merge(query, count, Long::sum));
         this.totalSearchCount += stats.totalSearchCount;
     }
@@ -79,6 +90,8 @@ public final class SearchUsageStats implements Writeable, ToXContentFragment {
         {
             builder.field("queries");
             builder.map(queries);
+            builder.field("rescorers");
+            builder.map(rescorers);
             builder.field("sections");
             builder.map(sections);
         }
@@ -88,6 +101,10 @@ public final class SearchUsageStats implements Writeable, ToXContentFragment {
 
     public Map<String, Long> getQueryUsage() {
         return Collections.unmodifiableMap(queries);
+    }
+
+    public Map<String, Long> getRescorerUsage() {
+        return Collections.unmodifiableMap(rescorers);
     }
 
     public Map<String, Long> getSectionsUsage() {
@@ -107,12 +124,15 @@ public final class SearchUsageStats implements Writeable, ToXContentFragment {
             return false;
         }
         SearchUsageStats that = (SearchUsageStats) o;
-        return totalSearchCount == that.totalSearchCount && queries.equals(that.queries) && sections.equals(that.sections);
+        return totalSearchCount == that.totalSearchCount
+            && queries.equals(that.queries)
+            && rescorers.equals(that.rescorers)
+            && sections.equals(that.sections);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(totalSearchCount, queries, sections);
+        return Objects.hash(totalSearchCount, queries, rescorers, sections);
     }
 
     @Override

@@ -48,6 +48,11 @@ public class CollectorResultTests extends AbstractXContentSerializingTestCase<Co
     }
 
     @Override
+    protected CollectorResult mutateInstance(CollectorResult instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected CollectorResult doParseInstance(XContentParser parser) throws IOException {
         ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
         CollectorResult result = CollectorResult.fromXContent(parser);

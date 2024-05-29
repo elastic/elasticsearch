@@ -21,10 +21,6 @@ public class IteratorAndCurrent<B extends InternalMultiBucketAggregation.Interna
         this.current = iterator.next();
     }
 
-    public Iterator<B> getIterator() {
-        return iterator;
-    }
-
     public B current() {
         return current;
     }

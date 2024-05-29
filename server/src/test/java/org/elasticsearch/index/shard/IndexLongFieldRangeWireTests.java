@@ -11,7 +11,6 @@ package org.elasticsearch.index.shard;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
-import java.io.IOException;
 import java.util.Arrays;
 
 import static org.elasticsearch.index.shard.IndexLongFieldRangeTestUtils.checkForSameInstances;
@@ -29,7 +28,7 @@ public class IndexLongFieldRangeWireTests extends AbstractWireSerializingTestCas
     }
 
     @Override
-    protected IndexLongFieldRange mutateInstance(IndexLongFieldRange instance) throws IOException {
+    protected IndexLongFieldRange mutateInstance(IndexLongFieldRange instance) {
         if (instance == IndexLongFieldRange.UNKNOWN) {
             return IndexLongFieldRangeTestUtils.randomSpecificRange();
         }

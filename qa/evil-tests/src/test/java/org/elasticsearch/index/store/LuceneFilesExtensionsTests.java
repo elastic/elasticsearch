@@ -8,7 +8,7 @@
 
 package org.elasticsearch.index.store;
 
-import org.elasticsearch.Assertions;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
 

@@ -8,7 +8,6 @@
 
 package org.elasticsearch.search.vectors;
 
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -71,6 +70,7 @@ public class KnnSearchRequestParserTests extends ESTestCase {
         KnnSearch knnSearch = randomKnnSearch();
         List<QueryBuilder> filterQueries = randomFilterQueries();
         SearchSourceBuilder searchSource = randomSearchSourceBuilder(
+            () -> null,
             () -> null,
             () -> null,
             () -> null,
@@ -223,7 +223,7 @@ public class KnnSearchRequestParserTests extends ESTestCase {
                 .withContent(BytesReference.bytes(builder), builder.contentType())
                 .build()
         );
-        SearchRequestBuilder searchRequestBuilder = new SearchRequestBuilder(null, SearchAction.INSTANCE);
+        SearchRequestBuilder searchRequestBuilder = new SearchRequestBuilder(null);
         knnRequestBuilder.toSearchRequest(searchRequestBuilder);
         return searchRequestBuilder;
     }

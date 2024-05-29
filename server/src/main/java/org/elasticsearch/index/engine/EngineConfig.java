@@ -73,6 +73,7 @@ public final class EngineConfig {
     private final LongSupplier globalCheckpointSupplier;
     private final Supplier<RetentionLeases> retentionLeasesSupplier;
     private final Comparator<LeafReader> leafSorter;
+    private final boolean useCompoundFile;
 
     /**
      * A supplier of the outstanding retention leases. This is used during merged operations to determine which operations that have been
@@ -106,7 +107,10 @@ public final class EngineConfig {
                 }
                 return s;
         }
-    }, Property.IndexScope, Property.NodeScope);
+    }, Property.IndexScope, Property.NodeScope, Property.ServerlessPublic);
+
+    // don't convert to Setting<> and register... we only set this in tests and register via a test plugin
+    public static final String USE_COMPOUND_FILE = "index.use_compound_file";
 
     /**
      * Legacy index setting, kept for 7.x BWC compatibility. This setting has no effect in 8.x. Do not use.
@@ -128,7 +132,7 @@ public final class EngineConfig {
     @Nullable
     private final Engine.IndexCommitListener indexCommitListener;
 
-    private final boolean recoveringAsPrimary;
+    private final boolean promotableToPrimary;
 
     /**
      * Creates a new {@link org.elasticsearch.index.engine.EngineConfig}
@@ -159,7 +163,7 @@ public final class EngineConfig {
         Comparator<LeafReader> leafSorter,
         LongSupplier relativeTimeInNanosSupplier,
         Engine.IndexCommitListener indexCommitListener,
-        boolean recoveringAsPrimary
+        boolean promotableToPrimary
     ) {
         this.shardId = shardId;
         this.indexSettings = indexSettings;
@@ -201,7 +205,9 @@ public final class EngineConfig {
         this.leafSorter = leafSorter;
         this.relativeTimeInNanosSupplier = relativeTimeInNanosSupplier;
         this.indexCommitListener = indexCommitListener;
-        this.recoveringAsPrimary = recoveringAsPrimary;
+        this.promotableToPrimary = promotableToPrimary;
+        // always use compound on flush - reduces # of file-handles on refresh
+        this.useCompoundFile = indexSettings.getSettings().getAsBoolean(USE_COMPOUND_FILE, true);
     }
 
     /**
@@ -418,10 +424,16 @@ public final class EngineConfig {
     }
 
     /**
-     * Represents the primary state only in case when a recovery starts.
-     * IMPORTANT: The flag is a temporary solution and should NOT be used outside of Stateless.
+     * @return whether the engine should be configured so that it can be promoted to primary in future
      */
-    public boolean isRecoveringAsPrimary() {
-        return recoveringAsPrimary;
+    public boolean isPromotableToPrimary() {
+        return promotableToPrimary;
+    }
+
+    /**
+     * @return whether the Engine's index writer should pack newly written segments in a compound file. Default is true.
+     */
+    public boolean getUseCompoundFile() {
+        return useCompoundFile;
     }
 }

@@ -8,12 +8,12 @@
 
 package org.elasticsearch.example.analysis;
 
-import org.elasticsearch.plugin.api.settings.AnalysisSettings;
-import org.elasticsearch.plugin.api.settings.BooleanSetting;
-import org.elasticsearch.plugin.api.settings.IntSetting;
-import org.elasticsearch.plugin.api.settings.LongSetting;
-import org.elasticsearch.plugin.api.settings.StringSetting;
-import org.elasticsearch.plugin.api.settings.ListSetting;
+import org.elasticsearch.plugin.settings.AnalysisSettings;
+import org.elasticsearch.plugin.settings.BooleanSetting;
+import org.elasticsearch.plugin.settings.IntSetting;
+import org.elasticsearch.plugin.settings.LongSetting;
+import org.elasticsearch.plugin.settings.StringSetting;
+import org.elasticsearch.plugin.settings.ListSetting;
 
 import java.util.List;
 

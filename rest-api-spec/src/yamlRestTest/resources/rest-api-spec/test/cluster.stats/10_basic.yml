@@ -75,8 +75,8 @@
 ---
 "get cluster stats returns packaging types":
 
-  - skip:
-      version: " - 7.1.99"
+  - requires:
+      cluster_features: ["gte_v7.2.0"]
       reason:  "packaging types are added for v7.2.0"
 
   - do:
@@ -85,8 +85,8 @@
   - is_true: nodes.packaging_types
 ---
 "get cluster stats without runtime fields":
-  - skip:
-      version: " - 7.12.99"
+  - requires:
+      cluster_features: ["gte_v7.13.0"]
       reason:  "cluster stats includes runtime fields from 7.13 on"
   - do:
       indices.create:
@@ -98,8 +98,8 @@
 
 ---
 "Usage stats with script-less runtime fields":
-  - skip:
-      version: " - 7.12.99"
+  - requires:
+      cluster_features: ["gte_v7.13.0"]
       reason:  "cluster stats includes runtime fields from 7.13 on"
   - do:
       indices.create:
@@ -168,8 +168,8 @@
 
 ---
 "mappings sizes reported in get cluster stats":
-  - skip:
-      version: " - 8.3.99"
+  - requires:
+      cluster_features: ["gte_v8.4.0"]
       reason:  "mapping sizes reported from 8.4 onwards"
   - do:
       indices.create:
@@ -184,3 +184,132 @@
   - gt: { indices.mappings.total_field_count: 0 }
   - gt: { indices.mappings.total_deduplicated_field_count: 0 }
   - gt: { indices.mappings.total_deduplicated_mapping_size_in_bytes: 0 }
+
+
+---
+"snapshot stats reported in get cluster stats":
+  - requires:
+      cluster_features: ["gte_v8.8.0"]
+      reason:  "snapshot stats reported from 8.8 onwards"
+
+  - do:
+      snapshot.create_repository:
+        repository: test_repo_for_stats
+        body:
+          type: fs
+          settings:
+            location: "test_repo_for_stats_loc"
+
+  - do:
+      cluster.stats:
+        human: true
+
+  - gte: { snapshots.current_counts.snapshots: 0 }
+  - gte: { snapshots.current_counts.shard_snapshots: 0 }
+  - gte: { snapshots.current_counts.snapshot_deletions: 0 }
+  - gte: { snapshots.current_counts.concurrent_operations: 0 }
+  - gte: { snapshots.current_counts.cleanups: 0 }
+  - is_true: snapshots.repositories.test_repo_for_stats.type
+  - gte: { snapshots.repositories.test_repo_for_stats.current_counts.snapshots: 0 }
+  - gte: { snapshots.repositories.test_repo_for_stats.current_counts.clones: 0 }
+  - gte: { snapshots.repositories.test_repo_for_stats.current_counts.finalizations: 0 }
+  - gte: { snapshots.repositories.test_repo_for_stats.current_counts.deletions: 0 }
+  - gte: { snapshots.repositories.test_repo_for_stats.current_counts.snapshot_deletions: 0 }
+  - gte: { snapshots.repositories.test_repo_for_stats.current_counts.active_deletions: 0 }
+  - gte: { snapshots.repositories.test_repo_for_stats.current_counts.shards.total: 0 }
+  - gte: { snapshots.repositories.test_repo_for_stats.current_counts.shards.complete: 0 }
+  - gte: { snapshots.repositories.test_repo_for_stats.current_counts.shards.incomplete: 0 }
+  - gte: { snapshots.repositories.test_repo_for_stats.current_counts.shards.states.INIT: 0 }
+  - gte: { snapshots.repositories.test_repo_for_stats.current_counts.shards.states.SUCCESS: 0 }
+  - gte: { snapshots.repositories.test_repo_for_stats.current_counts.shards.states.FAILED: 0 }
+  - gte: { snapshots.repositories.test_repo_for_stats.current_counts.shards.states.ABORTED: 0 }
+  - gte: { snapshots.repositories.test_repo_for_stats.current_counts.shards.states.MISSING: 0 }
+  - gte: { snapshots.repositories.test_repo_for_stats.current_counts.shards.states.WAITING: 0 }
+  - gte: { snapshots.repositories.test_repo_for_stats.current_counts.shards.states.QUEUED: 0 }
+  - gte: { snapshots.repositories.test_repo_for_stats.oldest_start_time_millis: 0 }
+  - is_true: snapshots.repositories.test_repo_for_stats.oldest_start_time
+
+---
+"Dense vector stats":
+  - requires:
+      cluster_features: ["gte_v8.10.0"]
+      reason:  "dense vector stats added in 8.10"
+  - do:
+      indices.create:
+        index: test1
+        body:
+          settings:
+            number_of_replicas: 0
+          mappings:
+            properties:
+              vector:
+                type: dense_vector
+                index: true
+                dims: 3
+                similarity: cosine
+              another_vector:
+                type: dense_vector
+                index: true
+                dims: 3
+                similarity: cosine
+
+  - do:
+      indices.create:
+        index: test2
+        body:
+          settings:
+            number_of_replicas: 0
+          mappings:
+            properties:
+              vector:
+                type: dense_vector
+                index: true
+                dims: 3
+                similarity: cosine
+              another_vector:
+                type: dense_vector
+                index: true
+                dims: 3
+                similarity: cosine
+
+  - do:
+      index:
+        index: test1
+        id: "1"
+        body:
+          vector: [ 1, 2, 3 ]
+          another_vector: [ 4, 5, 6 ]
+
+  - do:
+      index:
+        index: test1
+        id: "2"
+        body:
+          vector: [ 7, 8, 9 ]
+          another_vector: [ 10, 11, 12 ]
+
+  - do:
+      index:
+        index: test2
+        id: "1"
+        body:
+          vector: [ 1, 2, 3 ]
+          another_vector: [ 4, 5, 6 ]
+
+  - do:
+      index:
+        index: test2
+        id: "2"
+        body:
+          vector: [ 7, 8, 9 ]
+          another_vector: [ 10, 11, 12 ]
+
+  - do:
+      indices.refresh: {}
+
+  - do: {cluster.stats: {}}
+
+  - match: { indices.docs.count: 4 }
+  - match: { indices.docs.deleted: 0 }
+  - match: { indices.dense_vector.value_count: 8 }
+

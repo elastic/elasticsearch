@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.ql;
 
 import org.apache.http.HttpHost;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -31,6 +32,10 @@ import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessT
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NullEquals;
+import org.elasticsearch.xpack.ql.expression.predicate.regex.RLike;
+import org.elasticsearch.xpack.ql.expression.predicate.regex.RLikePattern;
+import org.elasticsearch.xpack.ql.expression.predicate.regex.WildcardLike;
+import org.elasticsearch.xpack.ql.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.ql.session.Configuration;
@@ -69,6 +74,7 @@ import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
 
 import static java.util.Collections.emptyMap;
+import static org.elasticsearch.cluster.ClusterState.VERSION_INTRODUCING_TRANSPORT_VERSIONS;
 import static org.elasticsearch.test.ESTestCase.between;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
@@ -76,6 +82,7 @@ import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomZone;
 import static org.elasticsearch.xpack.ql.TestUtils.StringContainsRegex.containsRegex;
 import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
+import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
 import static org.hamcrest.Matchers.containsString;
 import static org.junit.Assert.assertEquals;
 
@@ -141,6 +148,14 @@ public final class TestUtils {
 
     public static Range rangeOf(Expression value, Expression lower, boolean includeLower, Expression upper, boolean includeUpper) {
         return new Range(EMPTY, value, lower, includeLower, upper, includeUpper, randomZone());
+    }
+
+    public static WildcardLike wildcardLike(Expression left, String exp) {
+        return new WildcardLike(EMPTY, left, new WildcardPattern(exp));
+    }
+
+    public static RLike rlike(Expression left, String exp) {
+        return new RLike(EMPTY, left, new RLikePattern(exp));
     }
 
     public static FieldAttribute fieldAttribute() {
@@ -272,7 +287,7 @@ public final class TestUtils {
     public static Tuple<String, String> pathAndName(String string) {
         String folder = StringUtils.EMPTY;
         String file = string;
-        int lastIndexOf = string.lastIndexOf("/");
+        int lastIndexOf = string.lastIndexOf('/');
         if (lastIndexOf > 0) {
             folder = string.substring(0, lastIndexOf - 1);
             if (lastIndexOf + 1 < string.length()) {
@@ -282,16 +297,34 @@ public final class TestUtils {
         return new Tuple<>(folder, file);
     }
 
-    public static TestNodes buildNodeAndVersions(RestClient client) throws IOException {
+    public static TestNodes buildNodeAndVersions(RestClient client, String bwcNodesVersion) throws IOException {
         Response response = client.performRequest(new Request("GET", "_nodes"));
         ObjectPath objectPath = ObjectPath.createFromResponse(response);
         Map<String, Object> nodesAsMap = objectPath.evaluate("nodes");
-        TestNodes nodes = new TestNodes();
+        TestNodes nodes = new TestNodes(bwcNodesVersion);
         for (String id : nodesAsMap.keySet()) {
+            String nodeVersion = objectPath.evaluate("nodes." + id + ".version");
+
+            Object tvField;
+            TransportVersion transportVersion = null;
+            if ((tvField = objectPath.evaluate("nodes." + id + ".transport_version")) != null) {
+                // this json might be from a node <8.8.0, but about a node >=8.8.0
+                // in which case the transport_version field won't exist. Just ignore it for now.
+                transportVersion = TransportVersion.fromString(tvField.toString());
+            } else { // no transport_version field
+                // this json might be from a node <8.8.0, but about a node >=8.8.0
+                // In that case the transport_version field won't exist. Just ignore it for now.
+                Version version = Version.fromString(nodeVersion);
+                if (version.before(VERSION_INTRODUCING_TRANSPORT_VERSIONS)) {
+                    transportVersion = TransportVersion.fromId(version.id);
+                }
+            }
+
             nodes.add(
                 new TestNode(
                     id,
-                    Version.fromString(objectPath.evaluate("nodes." + id + ".version")),
+                    nodeVersion,
+                    transportVersion,
                     HttpHost.create(objectPath.evaluate("nodes." + id + ".http.publish_address"))
                 )
             );
@@ -411,6 +444,14 @@ public final class TestUtils {
             }
         }
         return arr;
+    }
+
+    public static FieldAttribute getFieldAttribute(String name) {
+        return getFieldAttribute(name, INTEGER);
+    }
+
+    public static FieldAttribute getFieldAttribute(String name, DataType dataType) {
+        return new FieldAttribute(EMPTY, name, new EsField(name + "f", dataType, emptyMap(), true));
     }
 
     // Matcher which extends the functionality of org.hamcrest.Matchers.matchesPattern(String)}

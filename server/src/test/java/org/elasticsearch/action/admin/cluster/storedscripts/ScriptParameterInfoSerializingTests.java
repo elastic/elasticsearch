@@ -42,7 +42,7 @@ public class ScriptParameterInfoSerializingTests extends AbstractXContentSeriali
     }
 
     @Override
-    protected ParameterInfo mutateInstance(ParameterInfo instance) throws IOException {
+    protected ParameterInfo mutateInstance(ParameterInfo instance) {
         return mutate(instance);
     }
 
@@ -54,8 +54,8 @@ public class ScriptParameterInfoSerializingTests extends AbstractXContentSeriali
     }
 
     static List<ParameterInfo> mutateOne(List<ParameterInfo> instances) {
-        if (instances.size() == 0) {
-            return Collections.unmodifiableList(List.of(randomInstance()));
+        if (instances.isEmpty()) {
+            return List.of(randomInstance());
         }
         ArrayList<ParameterInfo> mutated = new ArrayList<>(instances);
         int mutateIndex = randomIntBetween(0, instances.size() - 1);

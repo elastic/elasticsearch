@@ -13,6 +13,8 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -33,6 +35,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  * The request is returned in the REST response, and the REST client should make it available
  * to the browser.
  */
+@ServerlessScope(Scope.INTERNAL)
 public class RestSamlPrepareAuthenticationAction extends SamlBaseRestHandler {
 
     static final ObjectParser<SamlPrepareAuthenticationRequest, Void> PARSER = new ObjectParser<>(

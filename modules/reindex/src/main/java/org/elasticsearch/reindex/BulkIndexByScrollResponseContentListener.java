@@ -40,7 +40,7 @@ public class BulkIndexByScrollResponseContentListener extends RestBuilderListene
         return new RestResponse(getStatus(response), builder);
     }
 
-    private RestStatus getStatus(BulkByScrollResponse response) {
+    private static RestStatus getStatus(BulkByScrollResponse response) {
         /*
          * Return the highest numbered rest status under the assumption that higher numbered statuses are "more error" and thus more
          * interesting to the user.

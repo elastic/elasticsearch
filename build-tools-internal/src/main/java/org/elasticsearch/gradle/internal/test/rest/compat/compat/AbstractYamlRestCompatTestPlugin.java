@@ -11,13 +11,12 @@ package org.elasticsearch.gradle.internal.test.rest.compat.compat;
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.ElasticsearchJavaBasePlugin;
-import org.elasticsearch.gradle.internal.test.LegacyRestTestBasePlugin;
 import org.elasticsearch.gradle.internal.test.rest.CopyRestApiTask;
 import org.elasticsearch.gradle.internal.test.rest.CopyRestTestsTask;
 import org.elasticsearch.gradle.internal.test.rest.LegacyYamlRestTestPlugin;
 import org.elasticsearch.gradle.internal.test.rest.RestResourcesExtension;
 import org.elasticsearch.gradle.internal.test.rest.RestResourcesPlugin;
-import org.elasticsearch.gradle.testclusters.TestClustersPlugin;
+import org.elasticsearch.gradle.test.YamlRestTestPlugin;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
@@ -77,20 +76,17 @@ public abstract class AbstractYamlRestCompatTestPlugin implements Plugin<Project
         final Path compatRestResourcesDir = Path.of("restResources").resolve("v" + COMPATIBLE_VERSION);
         final Path compatSpecsDir = compatRestResourcesDir.resolve("yamlSpecs");
         final Path compatTestsDir = compatRestResourcesDir.resolve("yamlTests");
-
-        project.getPluginManager().apply(ElasticsearchJavaBasePlugin.class);
-        project.getPluginManager().apply(TestClustersPlugin.class);
-        project.getPluginManager().apply(LegacyRestTestBasePlugin.class);
-        project.getPluginManager().apply(RestResourcesPlugin.class);
         project.getPluginManager().apply(getBasePlugin());
+        project.getPluginManager().apply(ElasticsearchJavaBasePlugin.class);
+        project.getPluginManager().apply(RestResourcesPlugin.class);
 
         RestResourcesExtension extension = project.getExtensions().getByType(RestResourcesExtension.class);
 
         // create source set
         SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
         SourceSet yamlCompatTestSourceSet = sourceSets.create(SOURCE_SET_NAME);
-        SourceSet yamlTestSourceSet = sourceSets.getByName(LegacyYamlRestTestPlugin.SOURCE_SET_NAME);
-        GradleUtils.extendSourceSet(project, LegacyYamlRestTestPlugin.SOURCE_SET_NAME, SOURCE_SET_NAME);
+        SourceSet yamlTestSourceSet = sourceSets.getByName(YamlRestTestPlugin.YAML_REST_TEST);
+        GradleUtils.extendSourceSet(project, YamlRestTestPlugin.YAML_REST_TEST, SOURCE_SET_NAME);
 
         // copy compatible rest specs
         Configuration bwcMinorConfig = project.getConfigurations().create(BWC_MINOR_CONFIG_NAME);
@@ -127,7 +123,8 @@ public abstract class AbstractYamlRestCompatTestPlugin implements Plugin<Project
                             .resolve(RELATIVE_API_PATH)
                     )
                 );
-                task.onlyIf(t -> isEnabled(extraProperties));
+                onlyIfBwcEnabled(task, extraProperties);
+                // task.onlyIf(t -> isEnabled(extraProperties));
             });
 
         // copy compatible rest tests
@@ -165,7 +162,7 @@ public abstract class AbstractYamlRestCompatTestPlugin implements Plugin<Project
                     )
                 );
                 task.dependsOn(copyCompatYamlSpecTask);
-                task.onlyIf(t -> isEnabled(extraProperties));
+                onlyIfBwcEnabled(task, extraProperties);
             });
 
         // copy both local source set apis and compat apis to a single location to be exported as an artifact
@@ -189,7 +186,7 @@ public abstract class AbstractYamlRestCompatTestPlugin implements Plugin<Project
                 task.getSourceDirectory().set(copyCompatYamlTestTask.flatMap(CopyRestTestsTask::getOutputResourceDir));
                 task.getOutputDirectory()
                     .set(project.getLayout().getBuildDirectory().dir(compatTestsDir.resolve("transformed").toString()));
-                task.onlyIf(t -> isEnabled(extraProperties));
+                onlyIfBwcEnabled(task, extraProperties);
             });
 
         // Register compat rest resources with source set
@@ -224,6 +221,7 @@ public abstract class AbstractYamlRestCompatTestPlugin implements Plugin<Project
             testTask.setTestClassesDirs(
                 yamlTestSourceSet.getOutput().getClassesDirs().plus(yamlCompatTestSourceSet.getOutput().getClassesDirs())
             );
+            testTask.onlyIf("Compatibility tests are available", t -> yamlCompatTestSourceSet.getAllSource().isEmpty() == false);
             testTask.setClasspath(
                 yamlCompatTestSourceSet.getRuntimeClasspath()
                     // remove the "normal" api and tests
@@ -234,7 +232,7 @@ public abstract class AbstractYamlRestCompatTestPlugin implements Plugin<Project
 
             // run compatibility tests after "normal" tests
             testTask.mustRunAfter(project.getTasks().named(LegacyYamlRestTestPlugin.SOURCE_SET_NAME));
-            testTask.onlyIf(t -> isEnabled(extraProperties));
+            onlyIfBwcEnabled(testTask, extraProperties);
         });
 
         setupYamlRestTestDependenciesDefaults(project, yamlCompatTestSourceSet, true);
@@ -259,6 +257,10 @@ public abstract class AbstractYamlRestCompatTestPlugin implements Plugin<Project
     public abstract TaskProvider<? extends Test> registerTestTask(Project project, SourceSet sourceSet);
 
     public abstract Class<? extends Plugin<Project>> getBasePlugin();
+
+    private void onlyIfBwcEnabled(Task task, ExtraPropertiesExtension extraProperties) {
+        task.onlyIf("BWC tests disabled", t -> isEnabled(extraProperties));
+    }
 
     private boolean isEnabled(ExtraPropertiesExtension extraProperties) {
         Object bwcEnabled = extraProperties.getProperties().get("bwc_tests_enabled");

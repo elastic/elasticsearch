@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
@@ -31,7 +30,7 @@ public class TrainedModelCacheInfoAction extends ActionType<TrainedModelCacheInf
     public static final String NAME = "cluster:internal/xpack/ml/trained_models/cache/info";
 
     private TrainedModelCacheInfoAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
     public static class Request extends BaseNodesRequest<Request> {
@@ -47,11 +46,6 @@ public class TrainedModelCacheInfoAction extends ActionType<TrainedModelCacheInf
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-        }
-
-        @Override
-        public ActionRequestValidationException validate() {
-            return null;
         }
 
         @Override
@@ -132,12 +126,12 @@ public class TrainedModelCacheInfoAction extends ActionType<TrainedModelCacheInf
 
         @Override
         protected List<CacheInfo> readNodesFrom(StreamInput in) throws IOException {
-            return in.readList(CacheInfo::new);
+            return in.readCollectionAsList(CacheInfo::new);
         }
 
         @Override
         protected void writeNodesTo(StreamOutput out, List<CacheInfo> nodes) throws IOException {
-            out.writeList(nodes);
+            out.writeCollection(nodes);
         }
 
         @Override

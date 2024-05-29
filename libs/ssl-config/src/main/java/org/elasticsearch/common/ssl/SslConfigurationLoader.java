@@ -351,7 +351,7 @@ public abstract class SslConfigurationLoader {
             }
             if (certificatePath == null) {
                 throw new SslConfigException(
-                    "cannot specify [" + settingPrefix + KEYSTORE_PATH + "] without also setting [" + settingPrefix + CERTIFICATE + "]"
+                    "cannot specify [" + settingPrefix + KEY + "] without also setting [" + settingPrefix + CERTIFICATE + "]"
                 );
             }
             final char[] password = resolvePasswordSetting(KEY_SECURE_PASSPHRASE, KEY_LEGACY_PASSPHRASE);

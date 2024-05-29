@@ -10,8 +10,8 @@ package org.elasticsearch.ingest;
 
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
-import org.elasticsearch.action.ingest.PutPipelineAction;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
+import org.elasticsearch.action.ingest.PutPipelineTransportAction;
 import org.elasticsearch.action.ingest.ReservedPipelineAction;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -20,7 +20,6 @@ import org.elasticsearch.cluster.metadata.ReservedStateHandlerMetadata;
 import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.plugins.Plugin;
@@ -50,11 +49,6 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class IngestFileSettingsIT extends ESIntegTestCase {
-
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        return applyWorkaroundForIssue92812(super.nodeSettings(nodeOrdinal, otherSettings));
-    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -107,7 +101,7 @@ public class IngestFileSettingsIT extends ESIntegTestCase {
                  "ingest_pipelines": {
                    "my_ingest_pipeline": {
                        "description": "_description",
-                       "processors": [
+                       "processors":
                           {
                             "foo" : {
                               "field": "pipeline",
@@ -126,15 +120,15 @@ public class IngestFileSettingsIT extends ESIntegTestCase {
         FileSettingsService fileSettingsService = internalCluster().getInstance(FileSettingsService.class, node);
         assertTrue(fileSettingsService.watching());
 
-        Files.deleteIfExists(fileSettingsService.operatorSettingsFile());
+        Files.deleteIfExists(fileSettingsService.watchedFile());
 
-        Files.createDirectories(fileSettingsService.operatorSettingsDir());
+        Files.createDirectories(fileSettingsService.watchedFileDir());
         Path tempFilePath = createTempFile();
 
         logger.info("--> writing JSON config to node {} with path {}", node, tempFilePath);
         logger.info(Strings.format(json, version));
         Files.write(tempFilePath, Strings.format(json, version).getBytes(StandardCharsets.UTF_8));
-        Files.move(tempFilePath, fileSettingsService.operatorSettingsFile(), StandardCopyOption.ATOMIC_MOVE);
+        Files.move(tempFilePath, fileSettingsService.watchedFile(), StandardCopyOption.ATOMIC_MOVE);
     }
 
     private Tuple<CountDownLatch, AtomicLong> setupClusterStateListener(String node) {
@@ -163,10 +157,9 @@ public class IngestFileSettingsIT extends ESIntegTestCase {
         boolean awaitSuccessful = savedClusterState.await(20, TimeUnit.SECONDS);
         assertTrue(awaitSuccessful);
 
-        final ClusterStateResponse clusterStateResponse = client().admin()
-            .cluster()
-            .state(new ClusterStateRequest().waitForMetadataVersion(metadataVersion.get()))
-            .get();
+        final ClusterStateResponse clusterStateResponse = clusterAdmin().state(
+            new ClusterStateRequest().waitForMetadataVersion(metadataVersion.get())
+        ).get();
 
         ReservedStateMetadata reservedState = clusterStateResponse.getState()
             .metadata()
@@ -184,7 +177,7 @@ public class IngestFileSettingsIT extends ESIntegTestCase {
                 + "[[my_ingest_pipeline] set as read-only by [file_settings]]",
             expectThrows(
                 IllegalArgumentException.class,
-                () -> client().execute(PutPipelineAction.INSTANCE, sampleRestRequest("my_ingest_pipeline")).actionGet()
+                client().execute(PutPipelineTransportAction.TYPE, sampleRestRequest("my_ingest_pipeline"))
             ).getMessage()
         );
     }
@@ -210,11 +203,11 @@ public class IngestFileSettingsIT extends ESIntegTestCase {
                     clusterService.removeListener(this);
                     metadataVersion.set(event.state().metadata().version());
                     savedClusterState.countDown();
-                    assertEquals(ReservedStateErrorMetadata.ErrorKind.VALIDATION, reservedState.errorMetadata().errorKind());
+                    assertEquals(ReservedStateErrorMetadata.ErrorKind.PARSING, reservedState.errorMetadata().errorKind());
                     assertThat(reservedState.errorMetadata().errors(), allOf(notNullValue(), hasSize(1)));
                     assertThat(
                         reservedState.errorMetadata().errors().get(0),
-                        containsString("org.elasticsearch.ElasticsearchParseException: No processor type exists with name [foo]")
+                        containsString("org.elasticsearch.xcontent.XContentParseException: [17:16] [reserved_state_chunk] failed")
                     );
                 }
             }
@@ -228,7 +221,7 @@ public class IngestFileSettingsIT extends ESIntegTestCase {
         assertTrue(awaitSuccessful);
 
         // This should succeed, nothing was reserved
-        client().execute(PutPipelineAction.INSTANCE, sampleRestRequest("my_ingest_pipeline_bad")).get();
+        client().execute(PutPipelineTransportAction.TYPE, sampleRestRequest("my_ingest_pipeline_bad")).get();
     }
 
     public void testErrorSaved() throws Exception {

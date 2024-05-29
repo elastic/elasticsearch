@@ -30,14 +30,14 @@ public class PeersRequest extends TransportRequest {
     public PeersRequest(StreamInput in) throws IOException {
         super(in);
         sourceNode = new DiscoveryNode(in);
-        knownPeers = in.readList(DiscoveryNode::new);
+        knownPeers = in.readCollectionAsList(DiscoveryNode::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         sourceNode.writeTo(out);
-        out.writeList(knownPeers);
+        out.writeCollection(knownPeers);
     }
 
     public List<DiscoveryNode> getKnownPeers() {

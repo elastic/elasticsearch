@@ -63,4 +63,24 @@ public final class ScrollQueryFetchSearchResult extends SearchPhaseResult {
         getSearchShardTarget().writeTo(out);
         result.writeTo(out);
     }
+
+    @Override
+    public void incRef() {
+        result.incRef();
+    }
+
+    @Override
+    public boolean tryIncRef() {
+        return result.tryIncRef();
+    }
+
+    @Override
+    public boolean decRef() {
+        return result.decRef();
+    }
+
+    @Override
+    public boolean hasReferences() {
+        return result.hasReferences();
+    }
 }

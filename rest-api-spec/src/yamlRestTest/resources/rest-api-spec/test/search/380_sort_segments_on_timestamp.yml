@@ -1,9 +1,9 @@
 ---
 "Test that index segments are sorted on timestamp field if @timestamp field is defined in mapping":
-  - skip:
-      version: " - 7.99.99"
+  - requires:
+      cluster_features: ["gte_v8.0.0"]
       reason: "sorting segments was added in 7.16"
-      features: allowed_warnings
+      test_runner_features: allowed_warnings
 
   - do:
       indices.create:
@@ -15,8 +15,14 @@
                 type: date
           settings:
             number_of_shards: 1
-            number_of_replicas: 0
-
+            # ensure no relocation as we will verify segments.
+            routing.rebalance.enable: "none"
+  - do:
+      cluster.health:
+        index: test_index1
+        # ensure that all shards are ready before indexing/refresh as we will verify segments.
+        wait_for_events: languid
+        wait_for_no_initializing_shards: true
   # 1st segment
   - do:
       index:
@@ -43,10 +49,10 @@
 
 ---
 "Test that index segments are NOT sorted on timestamp field when @timestamp field is dynamically added":
-  - skip:
-      version: " - 7.99.99"
+  - requires:
+      cluster_features: ["gte_v8.0.0"]
       reason: "sorting segments was added in 7.16"
-      features: allowed_warnings
+      test_runner_features: allowed_warnings
 
   - do:
       indices.create:
@@ -54,8 +60,14 @@
         body:
           settings:
             number_of_shards: 1
-            number_of_replicas: 0
-
+            # make sure no relocation as we will verify segments.
+            routing.rebalance.enable: "none"
+  - do:
+      cluster.health:
+        index: test_index2
+        # ensure that all shards are ready before indexing/refresh as we will verify segments.
+        wait_for_events: languid
+        wait_for_no_initializing_shards: true
   # 1st segment
   - do:
       index:
@@ -99,10 +111,10 @@
 
 ---
 "Test if segments are missing @timestamp field we don't get errors":
-  - skip:
-      version: " - 7.99.99"
+  - requires:
+      cluster_features: "gte_v8.0.0"
       reason: "sorting segments was added in 7.16"
-      features: allowed_warnings
+      test_runner_features: "allowed_warnings"
 
   - do:
       indices.create:
@@ -114,8 +126,14 @@
                 type: date
           settings:
             number_of_shards: 1
-            number_of_replicas: 0
-
+            # make sure no relocation as we will verify segments.
+            routing.rebalance.enable: "none"
+  - do:
+      cluster.health:
+        index: test_index3
+        # ensure that all shards are ready before indexing/refresh as we will verify segments.
+        wait_for_events: languid
+        wait_for_no_initializing_shards: true
   # 1st segment missing @timestamp field
   - do:
       index:

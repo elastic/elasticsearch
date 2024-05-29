@@ -9,18 +9,15 @@ package org.elasticsearch.xpack.monitoring.exporter;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.Set;
-
-import static org.elasticsearch.xcontent.NamedXContentRegistry.EMPTY;
 
 /**
  * {@link FilteredMonitoringDoc} are a kind of {@link MonitoringDoc} whose XContent
@@ -59,14 +56,16 @@ public abstract class FilteredMonitoringDoc extends MonitoringDoc {
 
     @Override
     public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        final XContent xContent = builder.contentType().xContent();
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             try (XContentBuilder filteredBuilder = new XContentBuilder(builder.contentType(), out, filters)) {
                 super.toXContent(filteredBuilder, params);
             }
             try (
-                InputStream stream = out.bytes().streamInput();
-                XContentParser parser = xContent.createParser(EMPTY, LoggingDeprecationHandler.INSTANCE, stream)
+                XContentParser parser = XContentHelper.createParserNotCompressed(
+                    LoggingDeprecationHandler.XCONTENT_PARSER_CONFIG,
+                    out.bytes(),
+                    builder.contentType()
+                )
             ) {
                 return builder.copyCurrentStructure(parser);
             }

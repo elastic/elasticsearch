@@ -1,0 +1,54 @@
+[role="xpack"]
+[[watcher-api-start]]
+=== Start watch service API
+++++
+<titleabbrev>Start watch service</titleabbrev>
+++++
+
+Starts the {watcher} service if it is not already running.
+
+[[watcher-api-start-request]]
+==== {api-request-title}
+
+`POST _watcher/_start`
+
+[[watcher-api-start-prereqs]]
+==== {api-prereq-title}
+
+* You must have `manage_watcher` cluster privileges to use this API. For more
+information, see <<security-privileges>>.
+
+//[[watcher-api-start-desc]]
+//==== {api-description-title}
+
+//[[watcher-api-start-path-params]]
+//==== {api-path-parms-title}
+
+//[[watcher-api-start-query-params]]
+//==== {api-query-parms-title}
+
+//[[watcher-api-start-request-body]]
+//==== {api-request-body-title}
+
+//[[watcher-api-start-response-body]]
+//==== {api-response-body-title}
+
+//[[watcher-api-start-response-codes]]
+//==== {api-response-codes-title}
+
+[[watcher-api-start-example]]
+==== {api-examples-title}
+
+[source,console]
+--------------------------------------------------
+POST _watcher/_start
+--------------------------------------------------
+
+{watcher} returns the following response if the request is successful:
+
+[source,console-result]
+--------------------------------------------------
+{
+   "acknowledged": true
+}
+--------------------------------------------------

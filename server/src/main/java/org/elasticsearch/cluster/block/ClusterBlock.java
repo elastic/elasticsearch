@@ -98,12 +98,7 @@ public class ClusterBlock implements Writeable, ToXContentFragment {
     }
 
     public boolean contains(ClusterBlockLevel level) {
-        for (ClusterBlockLevel testLevel : levels) {
-            if (testLevel == level) {
-                return true;
-            }
-        }
-        return false;
+        return levels.contains(level);
     }
 
     /**
@@ -183,7 +178,7 @@ public class ClusterBlock implements Writeable, ToXContentFragment {
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, uuid);
+        return 31 * Integer.hashCode(id) + Objects.hashCode(uuid);
     }
 
     public boolean isAllowReleaseResources() {

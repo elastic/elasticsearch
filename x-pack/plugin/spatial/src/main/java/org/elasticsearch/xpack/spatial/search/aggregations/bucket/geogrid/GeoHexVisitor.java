@@ -10,10 +10,14 @@ package org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid;
 import org.apache.lucene.geo.Component2D;
 import org.apache.lucene.geo.GeoUtils;
 import org.apache.lucene.util.ArrayUtil;
+import org.elasticsearch.lucene.spatial.CoordinateEncoder;
 import org.elasticsearch.xpack.spatial.common.H3CartesianUtil;
-import org.elasticsearch.xpack.spatial.index.fielddata.CoordinateEncoder;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoRelation;
-import org.elasticsearch.xpack.spatial.index.fielddata.TriangleTreeVisitor;
+
+import static org.elasticsearch.lucene.spatial.TriangleTreeVisitor.TriangleTreeDecodedVisitor;
+import static org.elasticsearch.lucene.spatial.TriangleTreeVisitor.abFromTriangle;
+import static org.elasticsearch.lucene.spatial.TriangleTreeVisitor.bcFromTriangle;
+import static org.elasticsearch.lucene.spatial.TriangleTreeVisitor.caFromTriangle;
 
 /**
  * A reusable tree reader visitor for a previous serialized {@link org.elasticsearch.geometry.Geometry}.
@@ -22,7 +26,7 @@ import org.elasticsearch.xpack.spatial.index.fielddata.TriangleTreeVisitor;
  * a geometry touches any of the edges, then it will never return {@link GeoRelation#QUERY_CONTAINS}, for example a point on the boundary
  * return {@link GeoRelation#QUERY_CROSSES}.
  */
-class GeoHexVisitor extends TriangleTreeVisitor.TriangleTreeDecodedVisitor {
+class GeoHexVisitor extends TriangleTreeDecodedVisitor {
 
     private GeoRelation relation;
     private final double[] xs, ys;
@@ -101,9 +105,9 @@ class GeoHexVisitor extends TriangleTreeVisitor.TriangleTreeDecodedVisitor {
 
     @Override
     protected void visitDecodedTriangle(double aX, double aY, double bX, double bY, double cX, double cY, byte metadata) {
-        final boolean ab = (metadata & 1 << 4) == 1 << 4;
-        final boolean bc = (metadata & 1 << 5) == 1 << 5;
-        final boolean ca = (metadata & 1 << 6) == 1 << 6;
+        final boolean ab = abFromTriangle(metadata);
+        final boolean bc = bcFromTriangle(metadata);
+        final boolean ca = caFromTriangle(metadata);
         updateRelation(relateTriangle(aX, aY, ab, bX, bY, bc, cX, cY, ca));
     }
 

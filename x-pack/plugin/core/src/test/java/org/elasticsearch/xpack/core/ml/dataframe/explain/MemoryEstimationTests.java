@@ -32,6 +32,11 @@ public class MemoryEstimationTests extends AbstractXContentSerializingTestCase<M
     }
 
     @Override
+    protected MemoryEstimation mutateInstance(MemoryEstimation instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Writeable.Reader<MemoryEstimation> instanceReader() {
         return MemoryEstimation::new;
     }

@@ -12,15 +12,20 @@ import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.RestChunkedToXContentListener;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
+import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
 
 import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
+@ServerlessScope(Scope.PUBLIC)
 public class RestGetSettingsAction extends BaseRestHandler {
 
     @Override
@@ -44,14 +49,14 @@ public class RestGetSettingsAction extends BaseRestHandler {
         final String[] names = request.paramAsStringArrayOrEmptyIfAll("name");
         final boolean renderDefaults = request.paramAsBoolean("include_defaults", false);
         // This is required so the "flat_settings" parameter counts as consumed
-        request.paramAsBoolean("flat_settings", false);
+        request.paramAsBoolean(Settings.FLAT_SETTINGS_PARAM, false);
         GetSettingsRequest getSettingsRequest = new GetSettingsRequest().indices(Strings.splitStringByCommaToArray(request.param("index")))
             .indicesOptions(IndicesOptions.fromRequest(request, IndicesOptions.strictExpandOpen()))
             .humanReadable(request.hasParam("human"))
             .includeDefaults(renderDefaults)
             .names(names);
         getSettingsRequest.local(request.paramAsBoolean("local", getSettingsRequest.local()));
-        getSettingsRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getSettingsRequest.masterNodeTimeout()));
-        return channel -> client.admin().indices().getSettings(getSettingsRequest, new RestChunkedToXContentListener<>(channel));
+        getSettingsRequest.masterNodeTimeout(getMasterNodeTimeout(request));
+        return channel -> client.admin().indices().getSettings(getSettingsRequest, new RestRefCountedChunkedToXContentListener<>(channel));
     }
 }

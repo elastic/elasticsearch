@@ -9,7 +9,6 @@
 package org.elasticsearch.action.admin.cluster.reroute;
 
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
-import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateEmptyPrimaryAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateReplicaAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateStalePrimaryAllocationCommand;
@@ -22,6 +21,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.network.NetworkModule;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.admin.cluster.RestClusterRerouteAction;
 import org.elasticsearch.test.ESTestCase;
@@ -39,6 +39,7 @@ import java.util.Map;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
+import static org.elasticsearch.rest.RestUtils.REST_MASTER_TIMEOUT_PARAM;
 
 /**
  * Test for serialization and parsing of {@link ClusterRerouteRequest} and its commands. See the superclass for, well, everything.
@@ -99,7 +100,9 @@ public class ClusterRerouteRequestTests extends ESTestCase {
             ClusterRerouteRequest copy = new ClusterRerouteRequest().add(
                 request.getCommands().commands().toArray(new AllocationCommand[0])
             );
-            copy.dryRun(request.dryRun()).explain(request.explain()).timeout(request.timeout()).setRetryFailed(request.isRetryFailed());
+            AcknowledgedRequest<ClusterRerouteRequest> clusterRerouteRequestAcknowledgedRequest = copy.dryRun(request.dryRun())
+                .explain(request.explain());
+            clusterRerouteRequestAcknowledgedRequest.ackTimeout(request.ackTimeout()).setRetryFailed(request.isRetryFailed());
             copy.masterNodeTimeout(request.masterNodeTimeout());
             assertEquals(request, copy);
             assertEquals(copy, request); // Commutative
@@ -122,10 +125,10 @@ public class ClusterRerouteRequestTests extends ESTestCase {
             assertEquals(request.hashCode(), copy.hashCode());
 
             // Changing timeout makes requests not equal
-            copy.timeout(timeValueMillis(request.timeout().millis() + 1));
+            copy.ackTimeout(timeValueMillis(request.ackTimeout().millis() + 1));
             assertNotEquals(request, copy);
             assertNotEquals(request.hashCode(), copy.hashCode());
-            copy.timeout(request.timeout());
+            copy.ackTimeout(request.ackTimeout());
             assertEquals(request, copy);
             assertEquals(request.hashCode(), copy.hashCode());
 
@@ -193,14 +196,14 @@ public class ClusterRerouteRequestTests extends ESTestCase {
             builder.field("dry_run", original.dryRun());
         }
         params.put("explain", Boolean.toString(original.explain()));
-        if (false == original.timeout().equals(AcknowledgedRequest.DEFAULT_ACK_TIMEOUT) || randomBoolean()) {
-            params.put("timeout", original.timeout().toString());
+        if (false == original.ackTimeout().equals(AcknowledgedRequest.DEFAULT_ACK_TIMEOUT) || randomBoolean()) {
+            params.put("timeout", original.ackTimeout().toString());
         }
         if (original.isRetryFailed() || randomBoolean()) {
             params.put("retry_failed", Boolean.toString(original.isRetryFailed()));
         }
-        if (false == original.masterNodeTimeout().equals(MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT) || randomBoolean()) {
-            params.put("master_timeout", original.masterNodeTimeout().toString());
+        if (false == original.masterNodeTimeout().equals(TimeValue.THIRTY_SECONDS) || randomBoolean()) {
+            params.put(REST_MASTER_TIMEOUT_PARAM, original.masterNodeTimeout().toString());
         }
         if (original.getCommands() != null) {
             hasBody = true;

@@ -10,13 +10,15 @@ package org.elasticsearch.script;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -127,8 +129,8 @@ public final class ScriptMetadata implements Metadata.Custom, Writeable {
         }
 
         @Override
-        public Version getMinimalSupportedVersion() {
-            return Version.CURRENT.minimumCompatibilityVersion();
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersions.MINIMUM_COMPATIBLE;
         }
     }
 
@@ -257,15 +259,15 @@ public final class ScriptMetadata implements Metadata.Custom, Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(scripts, StreamOutput::writeString, (o, v) -> v.writeTo(o));
+        out.writeMap(scripts, StreamOutput::writeWriteable);
     }
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
-        return scripts.entrySet().stream().map(entry -> (ToXContent) (builder, params) -> {
+        return Iterators.map(scripts.entrySet().iterator(), entry -> (builder, params) -> {
             builder.field(entry.getKey());
             return entry.getValue().toXContent(builder, params);
-        }).iterator();
+        });
     }
 
     @Override
@@ -279,8 +281,8 @@ public final class ScriptMetadata implements Metadata.Custom, Writeable {
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.CURRENT.minimumCompatibilityVersion();
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.MINIMUM_COMPATIBLE;
     }
 
     @Override

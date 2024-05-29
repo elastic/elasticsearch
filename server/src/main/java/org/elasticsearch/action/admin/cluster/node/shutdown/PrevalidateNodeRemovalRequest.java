@@ -8,7 +8,7 @@
 
 package org.elasticsearch.action.admin.cluster.node.shutdown;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.common.Strings;
@@ -34,6 +34,7 @@ public class PrevalidateNodeRemovalRequest extends MasterNodeReadRequest<Prevali
     private TimeValue timeout = TimeValue.timeValueSeconds(30);
 
     private PrevalidateNodeRemovalRequest(Builder builder) {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
         this.names = builder.names;
         this.ids = builder.ids;
         this.externalIds = builder.externalIds;
@@ -44,7 +45,7 @@ public class PrevalidateNodeRemovalRequest extends MasterNodeReadRequest<Prevali
         names = in.readStringArray();
         ids = in.readStringArray();
         externalIds = in.readStringArray();
-        if (in.getVersion().onOrAfter(Version.V_8_7_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
             timeout = in.readTimeValue();
         }
     }
@@ -55,7 +56,7 @@ public class PrevalidateNodeRemovalRequest extends MasterNodeReadRequest<Prevali
         out.writeStringArray(names);
         out.writeStringArray(ids);
         out.writeStringArray(externalIds);
-        if (out.getVersion().onOrAfter(Version.V_8_7_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
             out.writeTimeValue(timeout);
         }
     }
@@ -94,9 +95,6 @@ public class PrevalidateNodeRemovalRequest extends MasterNodeReadRequest<Prevali
 
     public PrevalidateNodeRemovalRequest timeout(TimeValue timeout) {
         this.timeout = timeout;
-        if (masterNodeTimeout == DEFAULT_MASTER_NODE_TIMEOUT) {
-            masterNodeTimeout = timeout;
-        }
         return this;
     }
 

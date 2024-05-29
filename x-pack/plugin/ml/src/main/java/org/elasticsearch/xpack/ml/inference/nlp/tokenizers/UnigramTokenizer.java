@@ -30,7 +30,6 @@ import java.util.Objects;
 import java.util.Optional;
 
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.xpack.ml.inference.nlp.tokenizers.TokenizerUtils.numUtf8Bytes;
 import static org.elasticsearch.xpack.ml.inference.nlp.tokenizers.TokenizerUtils.splitOutNeverSplit;
 
 /**
@@ -50,7 +49,7 @@ public final class UnigramTokenizer extends Tokenizer {
     private final CharTermAttribute termAtt = addAttribute(CharTermAttribute.class);
     private final OffsetAttribute offsetAtt = addAttribute(OffsetAttribute.class);
 
-    static UnigramTokenizer build(List<String> neverSplit, List<String> dictionary, List<Double> scores, String unknownToken) {
+    static UnigramTokenizer build(List<String> neverSplit, List<String> dictionary, double[] scores, String unknownToken) {
         if (dictionary.isEmpty()) {
             throw new IllegalArgumentException("vocab empty");
         }
@@ -59,9 +58,9 @@ public final class UnigramTokenizer extends Tokenizer {
         }
         CharArraySet neverSplitSet = new CharArraySet(neverSplit, false);
         CharTrie neverSplitTree = CharTrie.build(neverSplit);
-        if (dictionary.size() != scores.size()) {
+        if (dictionary.size() != scores.length) {
             throw new IllegalArgumentException(
-                format("provided vocabulary [%s] and scores [%s] must have the same size", dictionary.size(), scores.size())
+                format("provided vocabulary [%s] and scores [%s] must have the same size", dictionary.size(), scores.length)
             );
         }
         int vocabSize = dictionary.size();
@@ -69,17 +68,15 @@ public final class UnigramTokenizer extends Tokenizer {
         Map<BytesRef, Integer> tokenToId = Maps.newHashMapWithExpectedSize(vocabSize);
         int vocabIndex = 0;
         double minScore = Double.POSITIVE_INFINITY;
-        double[] vocabScores = new double[vocabSize];
         for (String word : dictionary) {
-            minScore = Double.min(minScore, scores.get(vocabIndex));
+            minScore = Double.min(minScore, scores[vocabIndex]);
             BytesRef vocab = new BytesRef(word);
-            vocabScores[vocabIndex] = scores.get(vocabIndex);
             tokenToId.put(vocab, vocabIndex++);
             vocabTrie.insert(vocab);
         }
         return new UnigramTokenizer(
             minScore,
-            vocabScores,
+            scores,
             neverSplitTree,
             neverSplitSet,
             tokenToId,
@@ -130,6 +127,10 @@ public final class UnigramTokenizer extends Tokenizer {
         this.whitespaceTokenizer = new SimpleWhitespaceTokenizer();
     }
 
+    List<DelimitedToken.Encoded> getTokenizedValues() {
+        return tokenizedValues;
+    }
+
     @Override
     public void reset() throws IOException {
         super.reset();
@@ -144,13 +145,20 @@ public final class UnigramTokenizer extends Tokenizer {
         offsetAtt.setOffset(correctOffset(whitespaceTokenizer.finalOffset), correctOffset(whitespaceTokenizer.finalOffset));
     }
 
+    private void popFromTokens() {
+        if (tokens.isEmpty() == false) {
+            DelimitedToken.Encoded token = tokens.removeFirst();
+            tokenizedValues.add(token);
+            termAtt.setEmpty().append(token.charSequence());
+            offsetAtt.setOffset(token.startOffset(), token.endOffset());
+        }
+    }
+
     @Override
     public boolean incrementToken() throws IOException {
         clearAttributes();
         if (tokens.isEmpty() == false) {
-            DelimitedToken.Encoded token = tokens.removeFirst();
-            termAtt.setEmpty().append(token.charSequence());
-            offsetAtt.setOffset(token.startOffset(), token.endOffset());
+            popFromTokens();
             return true;
         }
         // First, whitespace tokenize
@@ -158,7 +166,7 @@ public final class UnigramTokenizer extends Tokenizer {
         if (whitespaceToken != null) {
             if (neverSplitHash.contains(whitespaceToken.charSequence())) {
                 Integer maybeTokenized = vocabToId.get(new BytesRef(whitespaceToken.charSequence()));
-                tokenizedValues.add(
+                tokens.add(
                     new DelimitedToken.Encoded(
                         whitespaceToken.charSequence().toString(),
                         Objects.requireNonNullElse(maybeTokenized, unknownTokenId),
@@ -166,7 +174,7 @@ public final class UnigramTokenizer extends Tokenizer {
                         correctOffset(whitespaceToken.endOffset())
                     )
                 );
-                offsetAtt.setOffset(correctOffset(whitespaceToken.startOffset()), correctOffset(whitespaceToken.endOffset()));
+                popFromTokens();
                 return true;
             }
             int inputOffsetStart = whitespaceToken.startOffset();
@@ -215,12 +223,9 @@ public final class UnigramTokenizer extends Tokenizer {
                     MultiCharSequence.from(PREFIX, token.charSequence()),
                     offsetCorrectorFunction
                 );
-                tokenizedValues.addAll(tokenList);
                 tokens.addAll(tokenList);
             }
-            DelimitedToken.Encoded token = tokens.removeFirst();
-            termAtt.setEmpty().append(token.charSequence());
-            offsetAtt.setOffset(token.startOffset(), token.endOffset());
+            popFromTokens();
             return true;
         }
         return false;
@@ -250,9 +255,14 @@ public final class UnigramTokenizer extends Tokenizer {
         BestPathNode[] bestPathNodes = new BestPathNode[numBytes + 1];
         int bytePos = 0;
         int charPos = 0;
-        while (bytePos < numBytes) {
+        while (charPos < inputSequence.length()) {
             double bestScoreTillHere = bestPathNodes[bytePos] == null ? 0 : bestPathNodes[bytePos].score;
-            int mblen = numUtf8Bytes(inputSequence.charAt(charPos));
+
+            boolean isSurrogatePair = (charPos + 1 < inputSequence.length()
+                && Character.isSurrogatePair(inputSequence.charAt(charPos), inputSequence.charAt(charPos + 1)));
+            int numUtf16Chars = isSurrogatePair ? 2 : 1;
+            int mblen = UnicodeUtil.calcUTF16toUTF8Length(inputSequence, charPos, numUtf16Chars);
+
             boolean hasSingleNode = false;
             // Find the matching prefixes, incrementing by the chars, each time
             for (BytesRef prefix : vocabTrie.matchingPrefixes(new BytesRef(normalizedByteBuffer, bytePos, numBytes - bytePos))) {
@@ -289,7 +299,7 @@ public final class UnigramTokenizer extends Tokenizer {
             }
             // Move our prefix search to the next char
             bytePos += mblen;
-            ++charPos;
+            charPos = charPos + numUtf16Chars;
         }
         int endsAtBytes = numBytes;
         int endsAtChars = inputSequence.length();

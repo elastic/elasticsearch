@@ -52,7 +52,7 @@ public class TransportIndicesSegmentsAction extends TransportBroadcastByNodeActi
             actionFilters,
             indexNameExpressionResolver,
             IndicesSegmentsRequest::new,
-            ThreadPool.Names.MANAGEMENT
+            transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT)
         );
         this.indicesService = indicesService;
     }
@@ -110,7 +110,7 @@ public class TransportIndicesSegmentsAction extends TransportBroadcastByNodeActi
             assert task instanceof CancellableTask;
             IndexService indexService = indicesService.indexServiceSafe(shardRouting.index());
             IndexShard indexShard = indexService.getShard(shardRouting.id());
-            return new ShardSegments(indexShard.routingEntry(), indexShard.segments());
+            return new ShardSegments(indexShard.routingEntry(), indexShard.segments(request.isIncludeVectorFormatsInfo()));
         });
     }
 }

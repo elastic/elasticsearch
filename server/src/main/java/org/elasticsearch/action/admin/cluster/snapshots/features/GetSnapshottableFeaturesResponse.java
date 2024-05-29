@@ -29,7 +29,7 @@ public class GetSnapshottableFeaturesResponse extends ActionResponse implements 
 
     public GetSnapshottableFeaturesResponse(StreamInput in) throws IOException {
         super(in);
-        snapshottableFeatures = in.readImmutableList(SnapshottableFeature::new);
+        snapshottableFeatures = in.readCollectionAsImmutableList(SnapshottableFeature::new);
     }
 
     public List<SnapshottableFeature> getSnapshottableFeatures() {
@@ -38,7 +38,7 @@ public class GetSnapshottableFeaturesResponse extends ActionResponse implements 
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeList(snapshottableFeatures);
+        out.writeCollection(snapshottableFeatures);
     }
 
     @Override

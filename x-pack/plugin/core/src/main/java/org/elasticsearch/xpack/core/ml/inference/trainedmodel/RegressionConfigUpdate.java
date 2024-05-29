@@ -6,7 +6,8 @@
  */
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -112,8 +113,8 @@ public class RegressionConfigUpdate implements InferenceConfigUpdate, NamedXCont
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_7_8_0;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.V_7_8_0;
     }
 
     @Override
@@ -144,38 +145,8 @@ public class RegressionConfigUpdate implements InferenceConfigUpdate, NamedXCont
     }
 
     @Override
-    public InferenceConfig apply(InferenceConfig originalConfig) {
-        if (originalConfig instanceof RegressionConfig == false) {
-            throw ExceptionsHelper.badRequestException(
-                "Inference config of type [{}] can not be updated with a inference request of type [{}]",
-                originalConfig.getName(),
-                getName()
-            );
-        }
-
-        RegressionConfig regressionConfig = (RegressionConfig) originalConfig;
-        if (isNoop(regressionConfig)) {
-            return originalConfig;
-        }
-        RegressionConfig.Builder builder = new RegressionConfig.Builder(regressionConfig);
-        if (resultsField != null) {
-            builder.setResultsField(resultsField);
-        }
-        if (numTopFeatureImportanceValues != null) {
-            builder.setNumTopFeatureImportanceValues(numTopFeatureImportanceValues);
-        }
-        return builder.build();
-    }
-
-    @Override
     public boolean isSupported(InferenceConfig inferenceConfig) {
         return inferenceConfig instanceof RegressionConfig;
-    }
-
-    boolean isNoop(RegressionConfig originalConfig) {
-        return (resultsField == null || originalConfig.getResultsField().equals(resultsField))
-            && (numTopFeatureImportanceValues == null
-                || originalConfig.getNumTopFeatureImportanceValues() == numTopFeatureImportanceValues);
     }
 
     public static class Builder implements InferenceConfigUpdate.Builder<Builder, RegressionConfigUpdate> {

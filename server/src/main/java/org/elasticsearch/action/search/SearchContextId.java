@@ -8,15 +8,15 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
@@ -25,20 +25,17 @@ import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.transport.RemoteClusterAware;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.util.Base64;
 import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.stream.Collectors;
 
 public final class SearchContextId {
     private final Map<ShardId, SearchContextIdForNode> shards;
     private final Map<String, AliasFilter> aliasFilter;
-    private transient Set<ShardSearchContextId> contextIds;
+    private final transient Set<ShardSearchContextId> contextIds;
 
     SearchContextId(Map<ShardId, SearchContextIdForNode> shards, Map<String, AliasFilter> aliasFilter) {
         this.shards = shards;
@@ -58,49 +55,68 @@ public final class SearchContextId {
         return contextIds.contains(contextId);
     }
 
-    public static String encode(List<SearchPhaseResult> searchPhaseResults, Map<String, AliasFilter> aliasFilter, Version version) {
-        final Map<ShardId, SearchContextIdForNode> shards = new HashMap<>();
-        for (SearchPhaseResult searchPhaseResult : searchPhaseResults) {
-            final SearchShardTarget target = searchPhaseResult.getSearchShardTarget();
-            shards.put(
-                target.getShardId(),
-                new SearchContextIdForNode(target.getClusterAlias(), target.getNodeId(), searchPhaseResult.getContextId())
-            );
-        }
-        try (BytesStreamOutput out = new BytesStreamOutput()) {
-            out.setVersion(version);
-            Version.writeVersion(version, out);
-            out.writeMap(shards, (o, k) -> k.writeTo(o), (o, v) -> v.writeTo(o));
-            out.writeMap(aliasFilter, StreamOutput::writeString, (o, v) -> v.writeTo(o));
-            return Base64.getUrlEncoder().encodeToString(BytesReference.toBytes(out.bytes()));
+    public static BytesReference encode(
+        List<SearchPhaseResult> searchPhaseResults,
+        Map<String, AliasFilter> aliasFilter,
+        TransportVersion version
+    ) {
+        try (var out = new BytesStreamOutput()) {
+            out.setTransportVersion(version);
+            TransportVersion.writeVersion(version, out);
+            out.writeCollection(searchPhaseResults, SearchContextId::writeSearchPhaseResult);
+            out.writeMap(aliasFilter, StreamOutput::writeWriteable);
+            return out.bytes();
         } catch (IOException e) {
+            assert false : e;
             throw new IllegalArgumentException(e);
         }
     }
 
-    public static SearchContextId decode(NamedWriteableRegistry namedWriteableRegistry, String id) {
-        final ByteBuffer byteBuffer;
-        try {
-            byteBuffer = ByteBuffer.wrap(Base64.getUrlDecoder().decode(id));
-        } catch (Exception e) {
-            throw new IllegalArgumentException("invalid id: [" + id + "]", e);
-        }
-        try (StreamInput in = new NamedWriteableAwareStreamInput(new ByteBufferStreamInput(byteBuffer), namedWriteableRegistry)) {
-            final Version version = Version.readVersion(in);
-            in.setVersion(version);
-            final Map<ShardId, SearchContextIdForNode> shards = in.readMap(ShardId::new, SearchContextIdForNode::new);
-            final Map<String, AliasFilter> aliasFilters = in.readMap(StreamInput::readString, AliasFilter::readFrom);
+    private static void writeSearchPhaseResult(StreamOutput out, SearchPhaseResult searchPhaseResult) throws IOException {
+        final SearchShardTarget target = searchPhaseResult.getSearchShardTarget();
+        target.getShardId().writeTo(out);
+        new SearchContextIdForNode(target.getClusterAlias(), target.getNodeId(), searchPhaseResult.getContextId()).writeTo(out);
+    }
+
+    public static SearchContextId decode(NamedWriteableRegistry namedWriteableRegistry, BytesReference id) {
+        try (var in = new NamedWriteableAwareStreamInput(id.streamInput(), namedWriteableRegistry)) {
+            final TransportVersion version = TransportVersion.readVersion(in);
+            in.setTransportVersion(version);
+            final Map<ShardId, SearchContextIdForNode> shards = Collections.unmodifiableMap(
+                in.readCollection(Maps::newHashMapWithExpectedSize, SearchContextId::readShardsMapEntry)
+            );
+            final Map<String, AliasFilter> aliasFilters = in.readImmutableMap(AliasFilter::readFrom);
             if (in.available() > 0) {
                 throw new IllegalArgumentException("Not all bytes were read");
             }
-            return new SearchContextId(Collections.unmodifiableMap(shards), Collections.unmodifiableMap(aliasFilters));
+            return new SearchContextId(shards, aliasFilters);
         } catch (IOException e) {
+            assert false : e;
             throw new IllegalArgumentException(e);
         }
     }
 
+    public static String[] decodeIndices(BytesReference id) {
+        try (var in = id.streamInput()) {
+            final TransportVersion version = TransportVersion.readVersion(in);
+            in.setTransportVersion(version);
+            final Map<ShardId, SearchContextIdForNode> shards = Collections.unmodifiableMap(
+                in.readCollection(Maps::newHashMapWithExpectedSize, SearchContextId::readShardsMapEntry)
+            );
+            return new SearchContextId(shards, Collections.emptyMap()).getActualIndices();
+        } catch (IOException e) {
+            assert false : e;
+            throw new IllegalArgumentException(e);
+        }
+    }
+
+    private static void readShardsMapEntry(StreamInput in, Map<ShardId, SearchContextIdForNode> shards) throws IOException {
+        shards.put(new ShardId(in), new SearchContextIdForNode(in));
+    }
+
     public String[] getActualIndices() {
-        final Set<String> indices = new HashSet<>();
+        // ensure that the order is consistent
+        final Set<String> indices = new TreeSet<>();
         for (Map.Entry<ShardId, SearchContextIdForNode> entry : shards().entrySet()) {
             final String indexName = entry.getKey().getIndexName();
             final String clusterAlias = entry.getValue().getClusterAlias();

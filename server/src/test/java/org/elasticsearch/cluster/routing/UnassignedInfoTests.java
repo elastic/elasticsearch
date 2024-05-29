@@ -10,7 +10,6 @@ package org.elasticsearch.cluster.routing;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -18,6 +17,7 @@ import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -32,26 +32,31 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.Collections;
+import java.time.Instant;
 import java.util.EnumSet;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.cluster.metadata.MetadataIndexStateService.VERIFIED_BEFORE_CLOSE_SETTING;
+import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Type.REMOVE;
+import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Type.REPLACE;
+import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Type.SIGTERM;
 import static org.elasticsearch.cluster.routing.RoutingNodesHelper.shardsWithState;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
+import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
@@ -122,7 +127,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
                 System.currentTimeMillis(),
                 false,
                 AllocationStatus.NO_ATTEMPT,
-                Collections.emptySet(),
+                Set.of(),
                 lastAssignedNodeId
             );
         } else {
@@ -146,12 +151,12 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
         Metadata metadata = Metadata.builder()
             .put(
                 IndexMetadata.builder("test")
-                    .settings(settings(Version.CURRENT))
+                    .settings(settings(IndexVersion.current()))
                     .numberOfShards(randomIntBetween(1, 3))
                     .numberOfReplicas(randomIntBetween(0, 3))
             )
             .build();
-        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(metadata)
             .routingTable(RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(metadata.index("test")).build())
             .build();
@@ -164,12 +169,12 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
         Metadata metadata = Metadata.builder()
             .put(
                 IndexMetadata.builder("test")
-                    .settings(settings(Version.CURRENT))
+                    .settings(settings(IndexVersion.current()))
                     .numberOfShards(randomIntBetween(1, 3))
                     .numberOfReplicas(randomIntBetween(0, 3))
             )
             .build();
-        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(metadata)
             .routingTable(
                 RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsRecovery(metadata.index("test")).build()
@@ -187,7 +192,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
         final var metadata0 = Metadata.builder()
             .put(
                 IndexMetadata.builder("test")
-                    .settings(settings(Version.CURRENT).put(VERIFIED_BEFORE_CLOSE_SETTING.getKey(), true))
+                    .settings(settings(IndexVersion.current()).put(VERIFIED_BEFORE_CLOSE_SETTING.getKey(), true))
                     .numberOfShards(randomIntBetween(1, 3))
                     .numberOfReplicas(randomIntBetween(0, 3))
             )
@@ -219,7 +224,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
                 for (DiscoveryNode node : routingAllocation.nodes()) {
                     if (routingAllocation.routingNodes().node(node.getId()).getByShardId(indexShardRoutingTable.shardId()) == null) {
                         routingAllocation.routingNodes()
-                            .relocateShard(indexShardRoutingTable.shard(0), node.getId(), 0L, routingAllocation.changes());
+                            .relocateShard(indexShardRoutingTable.shard(0), node.getId(), 0L, "test", routingAllocation.changes());
                         return;
                     }
                 }
@@ -318,12 +323,12 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
         Metadata metadata = Metadata.builder()
             .put(
                 IndexMetadata.builder("test")
-                    .settings(settings(Version.CURRENT))
+                    .settings(settings(IndexVersion.current()))
                     .numberOfShards(randomIntBetween(1, 3))
                     .numberOfReplicas(randomIntBetween(0, 3))
             )
             .build();
-        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(metadata)
             .routingTable(
                 RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsFromCloseToOpen(metadata.index("test")).build()
@@ -338,12 +343,12 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
         Metadata metadata = Metadata.builder()
             .put(
                 IndexMetadata.builder("test")
-                    .settings(settings(Version.CURRENT))
+                    .settings(settings(IndexVersion.current()))
                     .numberOfShards(randomIntBetween(1, 3))
                     .numberOfReplicas(randomIntBetween(0, 3))
             )
             .build();
-        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(metadata)
             .routingTable(
                 RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
@@ -352,7 +357,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
                         new SnapshotRecoverySource(
                             UUIDs.randomBase64UUID(),
                             new Snapshot("rep1", new SnapshotId("snp1", UUIDs.randomBase64UUID())),
-                            Version.CURRENT,
+                            IndexVersion.current(),
                             new IndexId("test", UUIDs.randomBase64UUID(random()))
                         ),
                         new HashSet<>()
@@ -372,7 +377,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
         final var metadata0 = Metadata.builder()
             .put(
                 IndexMetadata.builder("test")
-                    .settings(settings(Version.CURRENT).put(VERIFIED_BEFORE_CLOSE_SETTING.getKey(), true))
+                    .settings(settings(IndexVersion.current()).put(VERIFIED_BEFORE_CLOSE_SETTING.getKey(), true))
                     .numberOfShards(randomIntBetween(1, 3))
                     .numberOfReplicas(randomIntBetween(0, 3))
             )
@@ -422,7 +427,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
         final var metadata3 = Metadata.builder()
             .put(
                 IndexMetadata.builder("test")
-                    .settings(settings(Version.CURRENT))
+                    .settings(settings(IndexVersion.current()))
                     .numberOfShards(randomIntBetween(1, 3))
                     .numberOfReplicas(randomIntBetween(0, 3))
             )
@@ -436,7 +441,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
                         new SnapshotRecoverySource(
                             UUIDs.randomBase64UUID(),
                             new Snapshot("rep1", new SnapshotId("snp1", UUIDs.randomBase64UUID())),
-                            Version.CURRENT,
+                            IndexVersion.current(),
                             new IndexId("test", UUIDs.randomBase64UUID(random()))
                         )
                     )
@@ -454,12 +459,12 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
         Metadata metadata = Metadata.builder()
             .put(
                 IndexMetadata.builder("test")
-                    .settings(settings(Version.CURRENT))
+                    .settings(settings(IndexVersion.current()))
                     .numberOfShards(randomIntBetween(1, 3))
                     .numberOfReplicas(randomIntBetween(0, 3))
             )
             .build();
-        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(metadata)
             .routingTable(
                 RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsFromDangling(metadata.index("test")).build()
@@ -473,10 +478,10 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
     public void testReplicaAdded() {
         AllocationService allocation = createAllocationService();
         Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0))
+            .put(IndexMetadata.builder("test").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(0))
             .build();
         final Index index = metadata.index("test").getIndex();
-        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(metadata)
             .routingTable(RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(metadata.index(index)).build())
             .build();
@@ -505,15 +510,9 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
      * The unassigned meta is kept when a shard goes to INITIALIZING, but cleared when it moves to STARTED.
      */
     public void testStateTransitionMetaHandling() {
-        ShardRouting shard = TestShardRouting.newShardRouting(
-            "test",
-            1,
-            null,
-            null,
-            true,
-            ShardRoutingState.UNASSIGNED,
+        ShardRouting shard = shardRoutingBuilder("test", 1, null, true, ShardRoutingState.UNASSIGNED).withUnassignedInfo(
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null)
-        );
+        ).build();
         assertThat(shard.unassignedInfo(), notNullValue());
         shard = shard.initialize("test_node", null, -1);
         assertThat(shard.state(), equalTo(ShardRoutingState.INITIALIZING));
@@ -529,9 +528,9 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
     public void testNodeLeave() {
         AllocationService allocation = createAllocationService();
         Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
+            .put(IndexMetadata.builder("test").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(1))
             .build();
-        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(metadata)
             .routingTable(RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(metadata.index("test")).build())
             .build();
@@ -567,9 +566,9 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
     public void testFailedShard() {
         AllocationService allocation = createAllocationService();
         Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
+            .put(IndexMetadata.builder("test").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(1))
             .build();
-        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(metadata)
             .routingTable(RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(metadata.index("test")).build())
             .build();
@@ -586,7 +585,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
         ShardRouting shardToFail = shardsWithState(clusterState.getRoutingNodes(), STARTED).get(0);
         clusterState = allocation.applyFailedShards(
             clusterState,
-            Collections.singletonList(new FailedShard(shardToFail, "test fail", null, randomBoolean())),
+            List.of(new FailedShard(shardToFail, "test fail", null, randomBoolean())),
             List.of()
         );
         // verify the reason and details
@@ -614,11 +613,11 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
     /**
      * Verifies that delayed allocation calculation are correct when there are no registered node shutdowns.
      */
-    public void testRemainingDelayCalculationWithNoShutdowns() throws Exception {
+    public void testRemainingDelayCalculationWithNoShutdowns() {
         checkRemainingDelayCalculation(
             "bogusNodeId",
             TimeValue.timeValueNanos(10),
-            Collections.emptyMap(),
+            NodesShutdownMetadata.EMPTY,
             TimeValue.timeValueNanos(10),
             false
         );
@@ -628,21 +627,23 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
      * Verifies that delayed allocation calculations are correct when there are registered node shutdowns for nodes which are not relevant
      * to the shard currently being evaluated.
      */
-    public void testRemainingDelayCalculationsWithUnrelatedShutdowns() throws Exception {
+    public void testRemainingDelayCalculationsWithUnrelatedShutdowns() {
         String lastNodeId = "bogusNodeId";
-        Map<String, SingleNodeShutdownMetadata> shutdowns = new HashMap<>();
+        NodesShutdownMetadata shutdowns = NodesShutdownMetadata.EMPTY;
         int numberOfShutdowns = randomIntBetween(1, 15);
         for (int i = 0; i <= numberOfShutdowns; i++) {
             final SingleNodeShutdownMetadata.Type type = randomFrom(EnumSet.allOf(SingleNodeShutdownMetadata.Type.class));
-            final String targetNodeName = type == SingleNodeShutdownMetadata.Type.REPLACE ? randomAlphaOfLengthBetween(10, 20) : null;
-            SingleNodeShutdownMetadata shutdown = SingleNodeShutdownMetadata.builder()
-                .setNodeId(randomValueOtherThan(lastNodeId, () -> randomAlphaOfLengthBetween(5, 10)))
-                .setReason(this.getTestName())
-                .setStartedAtMillis(randomNonNegativeLong())
-                .setType(type)
-                .setTargetNodeName(targetNodeName)
-                .build();
-            shutdowns.put(shutdown.getNodeId(), shutdown);
+            final String targetNodeName = type == REPLACE ? randomAlphaOfLengthBetween(10, 20) : null;
+            shutdowns = shutdowns.putSingleNodeMetadata(
+                SingleNodeShutdownMetadata.builder()
+                    .setNodeId(randomValueOtherThan(lastNodeId, () -> randomAlphaOfLengthBetween(5, 10)))
+                    .setReason(this.getTestName())
+                    .setStartedAtMillis(randomNonNegativeLong())
+                    .setType(type)
+                    .setTargetNodeName(targetNodeName)
+                    .setGracePeriod(type == SIGTERM ? randomTimeValue() : null)
+                    .build()
+            );
         }
         checkRemainingDelayCalculation(lastNodeId, TimeValue.timeValueNanos(10), shutdowns, TimeValue.timeValueNanos(10), false);
     }
@@ -650,35 +651,38 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
     /**
      * Verifies that delay calculation is not impacted when the node the shard was last assigned to was registered for removal.
      */
-    public void testRemainingDelayCalculationWhenNodeIsShuttingDownForRemoval() throws Exception {
-        String lastNodeId = "bogusNodeId";
-        Map<String, SingleNodeShutdownMetadata> shutdowns = new HashMap<>();
-        SingleNodeShutdownMetadata shutdown = SingleNodeShutdownMetadata.builder()
-            .setNodeId(lastNodeId)
-            .setReason(this.getTestName())
-            .setStartedAtMillis(randomNonNegativeLong())
-            .setType(SingleNodeShutdownMetadata.Type.REMOVE)
-            .build();
-        shutdowns.put(shutdown.getNodeId(), shutdown);
+    public void testRemainingDelayCalculationWhenNodeIsShuttingDownForRemoval() {
+        for (SingleNodeShutdownMetadata.Type type : List.of(REMOVE, SIGTERM)) {
+            String lastNodeId = "bogusNodeId";
+            NodesShutdownMetadata shutdowns = NodesShutdownMetadata.EMPTY.putSingleNodeMetadata(
+                SingleNodeShutdownMetadata.builder()
+                    .setNodeId(lastNodeId)
+                    .setReason(this.getTestName())
+                    .setStartedAtMillis(randomNonNegativeLong())
+                    .setType(type)
+                    .setGracePeriod(type == SIGTERM ? randomTimeValue() : null)
+                    .build()
+            );
 
-        checkRemainingDelayCalculation(lastNodeId, TimeValue.timeValueNanos(10), shutdowns, TimeValue.timeValueNanos(10), false);
+            checkRemainingDelayCalculation(lastNodeId, TimeValue.timeValueNanos(10), shutdowns, TimeValue.timeValueNanos(10), false);
+        }
     }
 
     /**
      * Verifies that the delay calculation uses the configured delay value for nodes known to be restarting, because they are registered for
      * a `RESTART`-type shutdown, rather than the default global delay.
      */
-    public void testRemainingDelayCalculationWhenNodeIsKnownToBeRestartingWithCustomDelay() throws Exception {
+    public void testRemainingDelayCalculationWhenNodeIsKnownToBeRestartingWithCustomDelay() {
         String lastNodeId = "bogusNodeId";
-        Map<String, SingleNodeShutdownMetadata> shutdowns = new HashMap<>();
-        SingleNodeShutdownMetadata shutdown = SingleNodeShutdownMetadata.builder()
-            .setNodeId(lastNodeId)
-            .setReason(this.getTestName())
-            .setStartedAtMillis(randomNonNegativeLong())
-            .setType(SingleNodeShutdownMetadata.Type.RESTART)
-            .setAllocationDelay(TimeValue.timeValueMinutes(1))
-            .build();
-        shutdowns.put(shutdown.getNodeId(), shutdown);
+        NodesShutdownMetadata shutdowns = NodesShutdownMetadata.EMPTY.putSingleNodeMetadata(
+            SingleNodeShutdownMetadata.builder()
+                .setNodeId(lastNodeId)
+                .setReason(this.getTestName())
+                .setStartedAtMillis(randomNonNegativeLong())
+                .setType(SingleNodeShutdownMetadata.Type.RESTART)
+                .setAllocationDelay(TimeValue.timeValueMinutes(1))
+                .build()
+        );
 
         // Use a different index-level delay so this test will fail if that one gets used instead of the one from the shutdown metadata
         checkRemainingDelayCalculation(lastNodeId, TimeValue.timeValueNanos(10), shutdowns, TimeValue.timeValueMinutes(1), true);
@@ -688,18 +692,18 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
      * Verifies that the delay calculation uses the default delay value for nodes known to be restarting, because they are registered for
      * a `RESTART`-type shutdown, rather than the default global delay.
      */
-    public void testRemainingDelayCalculationWhenNodeIsKnownToBeRestartingWithDefaultDelay() throws Exception {
+    public void testRemainingDelayCalculationWhenNodeIsKnownToBeRestartingWithDefaultDelay() {
         String lastNodeId = "bogusNodeId";
-        Map<String, SingleNodeShutdownMetadata> shutdowns = new HashMap<>();
 
         // Note that we do not explicitly configure the reallocation delay here.
-        SingleNodeShutdownMetadata shutdown = SingleNodeShutdownMetadata.builder()
-            .setNodeId(lastNodeId)
-            .setReason(this.getTestName())
-            .setStartedAtMillis(randomNonNegativeLong())
-            .setType(SingleNodeShutdownMetadata.Type.RESTART)
-            .build();
-        shutdowns.put(shutdown.getNodeId(), shutdown);
+        NodesShutdownMetadata shutdowns = NodesShutdownMetadata.EMPTY.putSingleNodeMetadata(
+            SingleNodeShutdownMetadata.builder()
+                .setNodeId(lastNodeId)
+                .setReason(this.getTestName())
+                .setStartedAtMillis(randomNonNegativeLong())
+                .setType(SingleNodeShutdownMetadata.Type.RESTART)
+                .build()
+        );
 
         // Use a different index-level delay so this test will fail if that one gets used instead of the one from the shutdown metadata
         checkRemainingDelayCalculation(
@@ -711,28 +715,29 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
         );
     }
 
-    public void testRemainingDelayUsesIndexLevelDelayIfNodeWasNotRestartingWhenShardBecameUnassigned() throws Exception {
+    public void testRemainingDelayUsesIndexLevelDelayIfNodeWasNotRestartingWhenShardBecameUnassigned() {
         String lastNodeId = "bogusNodeId";
-        Map<String, SingleNodeShutdownMetadata> shutdowns = new HashMap<>();
 
         // Generate a random time value - but don't use nanos as extremely small values of nanos can break assertion calculations
-        final TimeValue shutdownDelay = TimeValue.parseTimeValue(
-            randomTimeValue(100, 1000, "d", "h", "ms", "s", "m", "micros"),
-            this.getTestName()
+        final TimeValue shutdownDelay = randomTimeValue(
+            100,
+            1000,
+            randomValueOtherThan(TimeUnit.NANOSECONDS, () -> randomFrom(TimeUnit.values()))
         );
-        SingleNodeShutdownMetadata shutdown = SingleNodeShutdownMetadata.builder()
-            .setNodeId(lastNodeId)
-            .setReason(this.getTestName())
-            .setStartedAtMillis(randomNonNegativeLong())
-            .setType(SingleNodeShutdownMetadata.Type.RESTART)
-            .setAllocationDelay(shutdownDelay)
-            .build();
-        shutdowns.put(shutdown.getNodeId(), shutdown);
+        NodesShutdownMetadata shutdowns = NodesShutdownMetadata.EMPTY.putSingleNodeMetadata(
+            SingleNodeShutdownMetadata.builder()
+                .setNodeId(lastNodeId)
+                .setReason(this.getTestName())
+                .setStartedAtMillis(randomNonNegativeLong())
+                .setType(SingleNodeShutdownMetadata.Type.RESTART)
+                .setAllocationDelay(shutdownDelay)
+                .build()
+        );
 
         // We want an index level delay that's less than the shutdown delay to avoid picking the index-level delay because it's larger
         final TimeValue indexLevelDelay = randomValueOtherThanMany(
             tv -> shutdownDelay.compareTo(tv) < 0,
-            () -> TimeValue.parseTimeValue(randomTimeValue(1, 1000, "d", "h", "ms", "s", "m", "micros"), this.getTestName())
+            () -> randomTimeValue(1, 1000, randomValueOtherThan(TimeUnit.NANOSECONDS, () -> randomFrom(TimeUnit.values())))
         );
 
         logger.info("index level delay: {}, shutdown delay: {}", indexLevelDelay, shutdownDelay);
@@ -742,10 +747,10 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
     private void checkRemainingDelayCalculation(
         String lastNodeId,
         TimeValue indexLevelTimeoutSetting,
-        Map<String, SingleNodeShutdownMetadata> nodeShutdowns,
+        NodesShutdownMetadata nodeShutdowns,
         TimeValue expectedTotalDelay,
         boolean nodeRestarting
-    ) throws Exception {
+    ) {
         final long baseTime = System.nanoTime();
         UnassignedInfo unassignedInfo = new UnassignedInfo(
             nodeRestarting ? UnassignedInfo.Reason.NODE_RESTARTING : UnassignedInfo.Reason.NODE_LEFT,
@@ -756,7 +761,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
             System.currentTimeMillis(),
             randomBoolean(),
             AllocationStatus.NO_ATTEMPT,
-            Collections.emptySet(),
+            Set.of(),
             lastNodeId
         );
         final long totalDelayNanos = expectedTotalDelay.nanos();
@@ -777,10 +782,10 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
     public void testNumberOfDelayedUnassigned() throws Exception {
         MockAllocationService allocation = createAllocationService(Settings.EMPTY, new DelayedShardsMockGatewayAllocator());
         Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("test1").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
-            .put(IndexMetadata.builder("test2").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
+            .put(IndexMetadata.builder("test1").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(1))
+            .put(IndexMetadata.builder("test2").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(1))
             .build();
-        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(metadata)
             .routingTable(
                 RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
@@ -815,18 +820,22 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
         Metadata metadata = Metadata.builder()
             .put(
                 IndexMetadata.builder("test1")
-                    .settings(settings(Version.CURRENT).put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), delayTest1))
+                    .settings(
+                        settings(IndexVersion.current()).put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), delayTest1)
+                    )
                     .numberOfShards(1)
                     .numberOfReplicas(1)
             )
             .put(
                 IndexMetadata.builder("test2")
-                    .settings(settings(Version.CURRENT).put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), delayTest2))
+                    .settings(
+                        settings(IndexVersion.current()).put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), delayTest2)
+                    )
                     .numberOfShards(1)
                     .numberOfReplicas(1)
             )
             .build();
-        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(metadata)
             .routingTable(
                 RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
@@ -889,20 +898,45 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
             if (randomBoolean() && delayed == null) {
                 delayedFlag = true;
             }
-            lastAllocatedNodeId = randomAlphaOfLength(10);
+            lastAllocatedNodeId = randomIdentifier();
         }
-        int failedAllocations = reason == UnassignedInfo.Reason.ALLOCATION_FAILED ? 1 : 0;
         return new UnassignedInfo(
             reason,
             message,
             null,
-            failedAllocations,
+            reason == UnassignedInfo.Reason.ALLOCATION_FAILED ? 1 : 0,
             System.nanoTime(),
             System.currentTimeMillis(),
             delayedFlag,
             UnassignedInfo.AllocationStatus.NO_ATTEMPT,
-            Collections.emptySet(),
+            reason == UnassignedInfo.Reason.ALLOCATION_FAILED ? Set.of(randomIdentifier()) : Set.of(),
             lastAllocatedNodeId
         );
+    }
+
+    public void testSummaryContainsImportantFields() {
+        var info = randomUnassignedInfo(randomBoolean() ? randomIdentifier() : null);
+        var summary = info.shortSummary();
+
+        assertThat("reason", summary, containsString("[reason=" + info.getReason() + ']'));
+        assertThat(
+            "delay",
+            summary,
+            containsString("at[" + UnassignedInfo.DATE_TIME_FORMATTER.format(Instant.ofEpochMilli(info.getUnassignedTimeInMillis())) + ']')
+        );
+        if (info.getNumFailedAllocations() > 0) {
+            assertThat("failed_allocations", summary, containsString("failed_attempts[" + info.getNumFailedAllocations() + ']'));
+        }
+        if (info.getFailedNodeIds().isEmpty() == false) {
+            assertThat("failed_nodes", summary, containsString("failed_nodes[" + info.getFailedNodeIds() + ']'));
+        }
+        assertThat("delayed", summary, containsString("delayed=" + info.isDelayed()));
+        if (info.getLastAllocatedNodeId() != null) {
+            assertThat("last_node", summary, containsString("last_node[" + info.getLastAllocatedNodeId() + ']'));
+        }
+        if (info.getMessage() != null) {
+            assertThat("details", summary, containsString("details[" + info.getMessage() + ']'));
+        }
+        assertThat("allocation_status", summary, containsString("allocation_status[" + info.getLastAllocationStatus().value() + ']'));
     }
 }

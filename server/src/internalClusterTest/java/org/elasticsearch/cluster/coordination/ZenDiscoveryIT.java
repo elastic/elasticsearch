@@ -35,9 +35,7 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
         internalCluster().startNodes(2, masterNodeSettings);
         Settings dateNodeSettings = dataNode();
         internalCluster().startNodes(2, dateNodeSettings);
-        ClusterHealthResponse clusterHealthResponse = client().admin()
-            .cluster()
-            .prepareHealth()
+        ClusterHealthResponse clusterHealthResponse = clusterAdmin().prepareHealth()
             .setWaitForEvents(Priority.LANGUID)
             .setWaitForNodes("4")
             .setWaitForNoRelocatingShards(true)
@@ -46,7 +44,7 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
 
         createIndex("test");
         ensureSearchable("test");
-        RecoveryResponse r = client().admin().indices().prepareRecoveries("test").get();
+        RecoveryResponse r = indicesAdmin().prepareRecoveries("test").get();
         int numRecoveriesBeforeNewMaster = r.shardRecoveryStates().get("test").size();
 
         final String oldMaster = internalCluster().getMasterName();
@@ -58,7 +56,7 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
         });
         ensureSearchable("test");
 
-        r = client().admin().indices().prepareRecoveries("test").get();
+        r = indicesAdmin().prepareRecoveries("test").get();
         int numRecoveriesAfterNewMaster = r.shardRecoveryStates().get("test").size();
         assertThat(numRecoveriesAfterNewMaster, equalTo(numRecoveriesBeforeNewMaster));
     }
@@ -74,7 +72,7 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
         ); // see https://github.com/elastic/elasticsearch/issues/24388
 
         logger.info("--> request node discovery stats");
-        NodesStatsResponse statsResponse = client().admin().cluster().prepareNodesStats().clear().setDiscovery(true).get();
+        NodesStatsResponse statsResponse = clusterAdmin().prepareNodesStats().clear().setDiscovery(true).get();
         assertThat(statsResponse.getNodes().size(), equalTo(1));
 
         DiscoveryStats stats = statsResponse.getNodes().get(0).getDiscoveryStats();

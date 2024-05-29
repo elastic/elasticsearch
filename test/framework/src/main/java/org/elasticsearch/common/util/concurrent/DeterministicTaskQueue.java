@@ -28,6 +28,7 @@ import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Delayed;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
@@ -81,7 +82,7 @@ public class DeterministicTaskQueue {
     }
 
     public void runAllTasks() {
-        while (hasDeferredTasks() || hasRunnableTasks()) {
+        while (hasAnyTasks()) {
             if (hasDeferredTasks() && random.nextBoolean()) {
                 advanceTime();
             } else if (hasRunnableTasks()) {
@@ -91,13 +92,26 @@ public class DeterministicTaskQueue {
     }
 
     public void runAllTasksInTimeOrder() {
-        while (hasDeferredTasks() || hasRunnableTasks()) {
+        while (hasAnyTasks()) {
             if (hasRunnableTasks()) {
                 runRandomTask();
             } else {
                 advanceTime();
             }
         }
+    }
+
+    /**
+     * Run all {@code runnableTasks} and {@code deferredTasks} that are scheduled to run before or on the given {@code timeInMillis}.
+     * The current time will be set to {@code timeInMillis} once the method returns.
+     */
+    public void runTasksUpToTimeInOrder(long timeInMillis) {
+        runAllRunnableTasks();
+        while (nextDeferredTaskExecutionTimeMillis <= timeInMillis) {
+            advanceTime();
+            runAllRunnableTasks();
+        }
+        currentTimeMillis = timeInMillis;
     }
 
     /**
@@ -112,6 +126,13 @@ public class DeterministicTaskQueue {
      */
     public boolean hasDeferredTasks() {
         return deferredTasks.isEmpty() == false;
+    }
+
+    /**
+     * @return whether there are any runnable or deferred tasks
+     */
+    public boolean hasAnyTasks() {
+        return hasDeferredTasks() || hasRunnableTasks();
     }
 
     /**
@@ -166,6 +187,14 @@ public class DeterministicTaskQueue {
         }
     }
 
+    /**
+     * Similar to {@link #scheduleAt} but also advance time to {@code executionTimeMillis} and run all eligible tasks.
+     */
+    public void scheduleAtAndRunUpTo(final long executionTimeMillis, final Runnable task) {
+        scheduleAt(executionTimeMillis, task);
+        runTasksUpToTimeInOrder(executionTimeMillis);
+    }
+
     private void scheduleDeferredTask(DeferredTask deferredTask) {
         nextDeferredTaskExecutionTimeMillis = Math.min(nextDeferredTaskExecutionTimeMillis, deferredTask.executionTimeMillis());
         latestDeferredExecutionTime = Math.max(latestDeferredExecutionTime, deferredTask.executionTimeMillis());
@@ -205,17 +234,9 @@ public class DeterministicTaskQueue {
     }
 
     public PrioritizedEsThreadPoolExecutor getPrioritizedEsThreadPoolExecutor(Function<Runnable, Runnable> runnableWrapper) {
-        return new PrioritizedEsThreadPoolExecutor(
-            "DeterministicTaskQueue",
-            1,
-            1,
-            1,
-            TimeUnit.SECONDS,
-            r -> { throw new AssertionError("should not create new threads"); },
-            null,
-            null,
-            PrioritizedEsThreadPoolExecutor.StarvationWatcher.NOOP_STARVATION_WATCHER
-        ) {
+        return new PrioritizedEsThreadPoolExecutor("DeterministicTaskQueue", 1, 1, 1, TimeUnit.SECONDS, r -> {
+            throw new AssertionError("should not create new threads");
+        }, null, null) {
             @Override
             public void execute(Runnable command, final TimeValue timeout, final Runnable timeoutCallback) {
                 throw new AssertionError("not implemented");
@@ -257,7 +278,7 @@ public class DeterministicTaskQueue {
 
                 @Override
                 public boolean isShutdown() {
-                    throw new UnsupportedOperationException();
+                    return false;
                 }
 
                 @Override
@@ -309,7 +330,17 @@ public class DeterministicTaskQueue {
                 public void execute(Runnable command) {
                     scheduleNow(runnableWrapper.apply(command));
                 }
+
+                @Override
+                public String toString() {
+                    return "DeterministicTaskQueue/forkingExecutor";
+                }
             };
+
+            @Override
+            public long relativeTimeInNanos() {
+                throw new AssertionError("DeterministicTaskQueue does not support nanosecond-precision timestamps");
+            }
 
             @Override
             public long relativeTimeInMillis() {
@@ -348,21 +379,22 @@ public class DeterministicTaskQueue {
 
             @Override
             public ExecutorService executor(String name) {
-                return Names.SAME.equals(name) ? EsExecutors.DIRECT_EXECUTOR_SERVICE : forkingExecutor;
+                return forkingExecutor;
             }
 
             @Override
-            public ScheduledCancellable schedule(Runnable command, TimeValue delay, String executor) {
+            public ScheduledCancellable schedule(Runnable command, TimeValue delay, Executor executor) {
                 final int NOT_STARTED = 0;
                 final int STARTED = 1;
                 final int CANCELLED = 2;
                 final AtomicInteger taskState = new AtomicInteger(NOT_STARTED);
+                final Runnable contextPreservingRunnable = getThreadContext().preserveContext(command);
 
                 scheduleAt(currentTimeMillis + delay.millis(), runnableWrapper.apply(new Runnable() {
                     @Override
                     public void run() {
                         if (taskState.compareAndSet(NOT_STARTED, STARTED)) {
-                            command.run();
+                            contextPreservingRunnable.run();
                         }
                     }
 
@@ -394,11 +426,6 @@ public class DeterministicTaskQueue {
                     }
 
                 };
-            }
-
-            @Override
-            public Cancellable scheduleWithFixedDelay(Runnable command, TimeValue interval, String executor) {
-                return super.scheduleWithFixedDelay(command, interval, executor);
             }
 
             @Override

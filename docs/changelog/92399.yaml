@@ -1,7 +1,0 @@
-pr: 92399
-summary: "[HealthAPI] Add size parameter that controls the number of affected resources\
-  \ returned"
-area: Health
-type: feature
-issues:
- - 91930

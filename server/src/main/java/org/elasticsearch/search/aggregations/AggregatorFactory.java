@@ -33,6 +33,7 @@ public abstract class AggregatorFactory {
      * @throws IOException
      *             if an error occurs creating the factory
      */
+    @SuppressWarnings("this-escape")
     public AggregatorFactory(
         String name,
         AggregationContext context,
@@ -62,8 +63,6 @@ public abstract class AggregatorFactory {
     public String name() {
         return name;
     }
-
-    public void doValidate() {}
 
     protected abstract Aggregator createInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
         throws IOException;

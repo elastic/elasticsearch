@@ -11,6 +11,7 @@ package org.elasticsearch.tasks;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.elasticsearch.telemetry.tracing.Traceable;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 
@@ -21,7 +22,7 @@ import java.util.Set;
 /**
  * Current task information
  */
-public class Task {
+public class Task implements Traceable {
 
     /**
      * The request header to mark tasks with specific ids
@@ -54,6 +55,8 @@ public class Task {
      * Has to be declared as a header copied over for tasks.
      */
     public static final String TRACE_ID = "trace.id";
+
+    public static final String TRACE_START_TIME = "trace.starttime";
     public static final String TRACE_PARENT = "traceparent";
 
     public static final Set<String> HEADERS_TO_COPY = Set.of(
@@ -136,6 +139,7 @@ public class Task {
         return new TaskInfo(
             new TaskId(localNodeId, getId()),
             getType(),
+            localNodeId,
             getAction(),
             description,
             status,
@@ -261,5 +265,10 @@ public class Task {
         } else {
             throw new IllegalStateException("response has to implement ToXContent to be able to store the results");
         }
+    }
+
+    @Override
+    public String getSpanId() {
+        return "task-" + getId();
     }
 }

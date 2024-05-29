@@ -21,18 +21,12 @@ import org.elasticsearch.gradle.ReaperService;
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.distribution.ElasticsearchDistributionTypes;
-import org.elasticsearch.gradle.transform.UnzipTransform;
 import org.elasticsearch.gradle.util.Pair;
 import org.gradle.api.Action;
 import org.gradle.api.Named;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Project;
-import org.gradle.api.artifacts.Configuration;
-import org.gradle.api.artifacts.Dependency;
-import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
-import org.gradle.api.attributes.Attribute;
 import org.gradle.api.file.ArchiveOperations;
-import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.FileSystemOperations;
 import org.gradle.api.file.FileTree;
@@ -52,7 +46,6 @@ import org.gradle.api.tasks.PathSensitive;
 import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.Sync;
 import org.gradle.api.tasks.TaskProvider;
-import org.gradle.api.tasks.bundling.AbstractArchiveTask;
 import org.gradle.api.tasks.bundling.Zip;
 import org.gradle.api.tasks.util.PatternFilterable;
 import org.gradle.process.ExecOperations;
@@ -75,7 +68,6 @@ import java.nio.file.StandardOpenOption;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -98,7 +90,6 @@ import java.util.stream.Stream;
 
 import static java.util.Objects.requireNonNull;
 import static java.util.Optional.ofNullable;
-import static org.elasticsearch.gradle.plugin.BasePluginBuildPlugin.EXPLODED_BUNDLE_CONFIG;
 
 public class ElasticsearchNode implements TestClusterConfiguration {
 
@@ -130,7 +121,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
     private final String path;
     private final String name;
-    private final Project project;
+    transient private final Project project;
     private final Provider<ReaperService> reaperServiceProvider;
     private final FileSystemOperations fileSystemOperations;
     private final ArchiveOperations archiveOperations;
@@ -140,8 +131,6 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private final Path workingDir;
 
     private final LinkedHashMap<String, Predicate<TestClusterConfiguration>> waitConditions = new LinkedHashMap<>();
-    private final Map<String, Configuration> pluginAndModuleConfigurations = new HashMap<>();
-    private final ConfigurableFileCollection pluginAndModuleConfiguration;
     private final List<Provider<File>> plugins = new ArrayList<>();
     private final List<Provider<File>> modules = new ArrayList<>();
     private final LazyPropertyMap<String, CharSequence> settings = new LazyPropertyMap<>("Settings", this);
@@ -151,6 +140,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private final LazyPropertyMap<String, CharSequence> systemProperties = new LazyPropertyMap<>("System properties", this);
     private final LazyPropertyMap<String, CharSequence> environment = new LazyPropertyMap<>("Environment", this);
     private final LazyPropertyList<CharSequence> jvmArgs = new LazyPropertyList<>("JVM arguments", this);
+    private final LazyPropertyList<CharSequence> cliJvmArgs = new LazyPropertyList<>("CLI JVM arguments", this);
     private final LazyPropertyMap<String, File> extraConfigFiles = new LazyPropertyMap<>("Extra config files", this, FileEntry::new);
     private final LazyPropertyList<FileCollection> extraJarConfigurations = new LazyPropertyList<>("Extra jar files", this);
     private final List<Map<String, String>> credentials = new ArrayList<>();
@@ -164,18 +154,17 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private final Path transportPortFile;
     private final Path httpPortsFile;
     private final Path readinessPortsFile;
+    private final Path remoteAccessPortsFile;
     private final Path esOutputFile;
     private final Path esInputFile;
     private final Path tmpDir;
     private final Provider<File> runtimeJava;
     private final Function<Version, Boolean> isReleasedVersion;
     private final List<ElasticsearchDistribution> distributions = new ArrayList<>();
-    private final Attribute<Boolean> bundleAttribute = Attribute.of("bundle", Boolean.class);
-
     private int currentDistro = 0;
     private TestDistribution testDistribution;
     private volatile Process esProcess;
-    private Function<String, String> nameCustomization = Function.identity();
+    private Function<String, String> nameCustomization = s -> s;
     private boolean isWorkingDirConfigured = false;
     private String httpPort = "0";
     private String transportPort = "0";
@@ -215,16 +204,15 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         transportPortFile = confPathLogs.resolve("transport.ports");
         httpPortsFile = confPathLogs.resolve("http.ports");
         readinessPortsFile = confPathLogs.resolve("readiness.ports");
+        remoteAccessPortsFile = confPathLogs.resolve("remote_cluster.ports");
         esOutputFile = confPathLogs.resolve("es.out");
         esInputFile = workingDir.resolve("es.in");
         tmpDir = workingDir.resolve("tmp");
         waitConditions.put("ports files", this::checkPortsFilesExistWithDelay);
         defaultConfig.put("cluster.name", clusterName);
 
-        pluginAndModuleConfiguration = project.getObjects().fileCollection();
         setTestDistribution(TestDistribution.INTEG_TEST);
         setVersion(VersionProperties.getElasticsearch());
-        configureArtifactTransforms();
     }
 
     @Input
@@ -300,84 +288,34 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         }
     }
 
-    // package protected so only TestClustersAware can access
-    @Internal
-    Collection<Configuration> getPluginAndModuleConfigurations() {
-        return pluginAndModuleConfigurations.values();
-    }
-
-    // creates a configuration to depend on the given plugin project, then wraps that configuration
-    // to grab the zip as a file provider
-    private Provider<RegularFile> maybeCreatePluginOrModuleDependency(String path, String consumingConfiguration) {
-        var configuration = pluginAndModuleConfigurations.computeIfAbsent(path, key -> {
-            var bundleDependency = this.project.getDependencies().project(Map.of("path", path, "configuration", consumingConfiguration));
-            return project.getConfigurations().detachedConfiguration(bundleDependency);
-        });
-
-        Provider<File> fileProvider = configuration.getElements()
-            .map(
-                s -> s.stream()
-                    .findFirst()
-                    .orElseThrow(
-                        () -> new IllegalStateException(consumingConfiguration + " configuration of project " + path + " had no files")
-                    )
-                    .getAsFile()
-            );
-        return project.getLayout().file(fileProvider);
-    }
-
     @Override
     public void plugin(Provider<RegularFile> plugin) {
         checkFrozen();
-        registerExtractedConfig(plugin);
         this.plugins.add(plugin.map(RegularFile::getAsFile));
     }
 
     @Override
     public void plugin(String pluginProjectPath) {
-        plugin(maybeCreatePluginOrModuleDependency(pluginProjectPath, "zip"));
+        throw new UnsupportedOperationException("Not Supported API");
     }
 
     public void plugin(TaskProvider<Zip> plugin) {
-        plugin(plugin.flatMap(AbstractArchiveTask::getArchiveFile));
+        throw new UnsupportedOperationException("Not Supported API");
     }
 
     @Override
     public void module(Provider<RegularFile> module) {
         checkFrozen();
-        registerExtractedConfig(module);
         this.modules.add(module.map(RegularFile::getAsFile));
     }
 
     public void module(TaskProvider<Sync> module) {
-        module(project.getLayout().file(module.map(Sync::getDestinationDir)));
-    }
-
-    private void registerExtractedConfig(Provider<RegularFile> pluginProvider) {
-        Dependency pluginDependency = this.project.getDependencies().create(project.files(pluginProvider));
-        Configuration extractedConfig = project.getConfigurations().detachedConfiguration(pluginDependency);
-        extractedConfig.getAttributes().attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE);
-        extractedConfig.getAttributes().attribute(bundleAttribute, true);
-        pluginAndModuleConfiguration.from(extractedConfig);
-    }
-
-    private void configureArtifactTransforms() {
-        project.getDependencies().getAttributesSchema().attribute(bundleAttribute);
-        project.getDependencies().getArtifactTypes().maybeCreate(ArtifactTypeDefinition.ZIP_TYPE);
-        project.getDependencies().registerTransform(UnzipTransform.class, transformSpec -> {
-            transformSpec.getFrom()
-                .attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.ZIP_TYPE)
-                .attribute(bundleAttribute, true);
-            transformSpec.getTo()
-                .attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE)
-                .attribute(bundleAttribute, true);
-            transformSpec.getParameters().setAsFiletreeOutput(true);
-        });
+        throw new IllegalStateException("Not Supported API");
     }
 
     @Override
     public void module(String moduleProjectPath) {
-        module(maybeCreatePluginOrModuleDependency(moduleProjectPath, EXPLODED_BUNDLE_CONFIG));
+        throw new IllegalStateException("Not Supported API");
     }
 
     @Override
@@ -469,6 +407,10 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         jvmArgs.addAll(Arrays.asList(values));
     }
 
+    public void cliJvmArgs(String... values) {
+        cliJvmArgs.addAll(Arrays.asList(values));
+    }
+
     @Internal
     public Path getConfigDir() {
         return configFile.getParent();
@@ -516,7 +458,9 @@ public class ElasticsearchNode implements TestClusterConfiguration {
                 // make sure we always start fresh
                 if (Files.exists(workingDir)) {
                     if (preserveDataDir) {
-                        Files.list(workingDir).filter(path -> path.equals(confPathData) == false).forEach(this::uncheckedDeleteWithRetry);
+                        try (var files = Files.list(workingDir)) {
+                            files.filter(path -> path.equals(confPathData) == false).forEach(this::uncheckedDeleteWithRetry);
+                        }
                     } else {
                         deleteWithRetry(workingDir);
                     }
@@ -930,6 +874,10 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         // Don't inherit anything from the environment for as that would lack reproducibility
         environment.clear();
         environment.putAll(getESEnvironment());
+        if (cliJvmArgs.isEmpty() == false) {
+            String cliJvmArgsString = String.join(" ", cliJvmArgs);
+            environment.put("CLI_JAVA_OPTS", cliJvmArgsString);
+        }
 
         // Direct the stderr to the ES log file. This should capture any jvm problems to start.
         // Stdout is discarded because ES duplicates the log file to stdout when run in the foreground.
@@ -999,6 +947,13 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         return getReadinessPortInternal();
     }
 
+    @Override
+    @Internal
+    public List<String> getAllRemoteAccessPortURI() {
+        waitForAllConditions();
+        return getRemoteAccessPortInternal();
+    }
+
     @Internal
     public File getServerLog() {
         return confPathLogs.resolve(defaultConfig.get("cluster.name") + "_server.json").toFile();
@@ -1021,6 +976,9 @@ public class ElasticsearchNode implements TestClusterConfiguration {
             }
             if (Files.exists(readinessPortsFile)) {
                 Files.delete(readinessPortsFile);
+            }
+            if (Files.exists(remoteAccessPortsFile)) {
+                Files.delete(remoteAccessPortsFile);
             }
         } catch (IOException e) {
             throw new UncheckedIOException(e);
@@ -1046,6 +1004,9 @@ public class ElasticsearchNode implements TestClusterConfiguration {
             }
             if (Files.exists(readinessPortsFile)) {
                 Files.delete(readinessPortsFile);
+            }
+            if (Files.exists(remoteAccessPortsFile)) {
+                Files.delete(remoteAccessPortsFile);
             }
         } catch (IOException e) {
             throw new UncheckedIOException(e);
@@ -1146,11 +1107,11 @@ public class ElasticsearchNode implements TestClusterConfiguration {
             return;
         }
 
-        boolean foundNettyLeaks = false;
+        boolean foundLeaks = false;
         for (String logLine : errorsAndWarnings.keySet()) {
-            if (logLine.contains("ResourceLeakDetector]")) {
+            if (logLine.contains("ResourceLeakDetector") || logLine.contains("LeakTracker")) {
                 tailLogs = true;
-                foundNettyLeaks = true;
+                foundLeaks = true;
                 break;
             }
         }
@@ -1179,8 +1140,8 @@ public class ElasticsearchNode implements TestClusterConfiguration {
                 });
             }
         }
-        if (foundNettyLeaks) {
-            throw new TestClustersException("Found Netty ByteBuf leaks in node logs.");
+        if (foundLeaks) {
+            throw new TestClustersException("Found resource leaks in node logs.");
         }
     }
 
@@ -1198,12 +1159,12 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         try {
             processHandle.onExit().get(ES_DESTROY_TIMEOUT, ES_DESTROY_TIMEOUT_UNIT);
         } catch (InterruptedException e) {
-            LOGGER.info("Interrupted while waiting for ES process", e);
+            LOGGER.info("[{}] Interrupted while waiting for ES process", name, e);
             Thread.currentThread().interrupt();
         } catch (ExecutionException e) {
-            LOGGER.info("Failure while waiting for process to exist", e);
+            LOGGER.info("[{}] Failure while waiting for process to exist", name, e);
         } catch (TimeoutException e) {
-            LOGGER.info("Timed out waiting for process to exit", e);
+            LOGGER.info("[{}] Timed out waiting for process to exit", name, e);
         }
     }
 
@@ -1357,7 +1318,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
                 }
             });
         } catch (UncheckedIOException e) {
-            if (e.getCause()instanceof NoSuchFileException cause) {
+            if (e.getCause() instanceof NoSuchFileException cause) {
                 // Ignore these files that are sometimes left behind by the JVM
                 if (cause.getFile() == null || cause.getFile().contains(".attach_pid") == false) {
                     throw new UncheckedIOException(cause);
@@ -1478,13 +1439,12 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         Map<String, String> expansions = new HashMap<>();
         Version version = getVersion();
         String heapDumpOrigin = getVersion().onOrAfter("6.3.0") ? "-XX:HeapDumpPath=data" : "-XX:HeapDumpPath=/heap/dump/path";
-        Path relativeLogPath = workingDir.relativize(confPathLogs);
-        expansions.put(heapDumpOrigin, "-XX:HeapDumpPath=" + relativeLogPath);
+        expansions.put(heapDumpOrigin, "-XX:HeapDumpPath=" + confPathLogs);
         if (version.onOrAfter("6.2.0")) {
-            expansions.put("logs/gc.log", relativeLogPath.resolve("gc.log").toString());
+            expansions.put("logs/gc.log", confPathLogs.resolve("gc.log").toString());
         }
         if (getVersion().getMajor() >= 7) {
-            expansions.put("-XX:ErrorFile=logs/hs_err_pid%p.log", "-XX:ErrorFile=" + relativeLogPath.resolve("hs_err_pid%p.log"));
+            expansions.put("-XX:ErrorFile=logs/hs_err_pid%p.log", "-XX:ErrorFile=" + confPathLogs.resolve("hs_err_pid%p.log"));
         }
         return expansions;
     }
@@ -1519,6 +1479,14 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         }
     }
 
+    private List<String> getRemoteAccessPortInternal() {
+        try {
+            return readPortsFile(remoteAccessPortsFile);
+        } catch (IOException e) {
+            return new ArrayList<>();
+        }
+    }
+
     private List<String> readPortsFile(Path file) throws IOException {
         try (Stream<String> lines = Files.lines(file, StandardCharsets.UTF_8)) {
             return lines.map(String::trim).collect(Collectors.toList());
@@ -1527,17 +1495,6 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
     private Path getExtractedDistributionDir() {
         return distributions.get(currentDistro).getExtracted().getSingleFile().toPath();
-    }
-
-    @Classpath
-    public FileCollection getInstalledClasspath() {
-        return pluginAndModuleConfiguration.getAsFileTree().filter(f -> f.getName().endsWith(".jar"));
-    }
-
-    @InputFiles
-    @PathSensitive(PathSensitivity.RELATIVE)
-    public FileCollection getInstalledFiles() {
-        return pluginAndModuleConfiguration.getAsFileTree().filter(f -> f.getName().endsWith(".jar") == false);
     }
 
     @Classpath
@@ -1673,20 +1630,17 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     void configureHttpWait(WaitForHttpResource wait) {
-        if (settings.containsKey("xpack.security.http.ssl.certificate_authorities")) {
-            wait.setCertificateAuthorities(
-                getConfigDir().resolve(settings.get("xpack.security.http.ssl.certificate_authorities").toString()).toFile()
-            );
-        }
         if (settings.containsKey("xpack.security.http.ssl.certificate")) {
-            wait.setCertificateAuthorities(getConfigDir().resolve(settings.get("xpack.security.http.ssl.certificate").toString()).toFile());
-        }
-        if (settings.containsKey("xpack.security.http.ssl.keystore.path")
-            && settings.containsKey("xpack.security.http.ssl.certificate_authorities") == false) { // Can not set both trust stores and CA
-            wait.setTrustStoreFile(getConfigDir().resolve(settings.get("xpack.security.http.ssl.keystore.path").toString()).toFile());
-        }
-        if (keystoreSettings.containsKey("xpack.security.http.ssl.keystore.secure_password")) {
-            wait.setTrustStorePassword(keystoreSettings.get("xpack.security.http.ssl.keystore.secure_password").toString());
+            wait.setServerCertificate(getConfigDir().resolve(settings.get("xpack.security.http.ssl.certificate").toString()).toFile());
+        } else {
+            if (settings.containsKey("xpack.security.http.ssl.keystore.path")) {
+                wait.setServerKeystoreFile(
+                    getConfigDir().resolve(settings.get("xpack.security.http.ssl.keystore.path").toString()).toFile()
+                );
+            }
+            if (keystoreSettings.containsKey("xpack.security.http.ssl.keystore.secure_password")) {
+                wait.setServerKeystorePassword(keystoreSettings.get("xpack.security.http.ssl.keystore.secure_password").toString());
+            }
         }
     }
 

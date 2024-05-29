@@ -16,6 +16,7 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
@@ -40,7 +41,7 @@ import java.util.Collection;
  * this is done to avoid creating all segment's {@link TermsEnum} each time we want to access the values of a single
  * segment.
  */
-public final class GlobalOrdinalsIndexFieldData implements IndexOrdinalsFieldData, Accountable {
+public final class GlobalOrdinalsIndexFieldData implements IndexOrdinalsFieldData, Accountable, GlobalOrdinalsAccounting {
 
     private final String fieldName;
     private final ValuesSourceType valuesSourceType;
@@ -49,14 +50,16 @@ public final class GlobalOrdinalsIndexFieldData implements IndexOrdinalsFieldDat
     private final OrdinalMap ordinalMap;
     private final LeafOrdinalsFieldData[] segmentAfd;
     private final ToScriptFieldFactory<SortedSetDocValues> toScriptFieldFactory;
+    private final TimeValue took;
 
-    protected GlobalOrdinalsIndexFieldData(
+    GlobalOrdinalsIndexFieldData(
         String fieldName,
         ValuesSourceType valuesSourceType,
         LeafOrdinalsFieldData[] segmentAfd,
         OrdinalMap ordinalMap,
         long memorySizeInBytes,
-        ToScriptFieldFactory<SortedSetDocValues> toScriptFieldFactory
+        ToScriptFieldFactory<SortedSetDocValues> toScriptFieldFactory,
+        TimeValue took
     ) {
         this.fieldName = fieldName;
         this.valuesSourceType = valuesSourceType;
@@ -64,6 +67,7 @@ public final class GlobalOrdinalsIndexFieldData implements IndexOrdinalsFieldDat
         this.ordinalMap = ordinalMap;
         this.segmentAfd = segmentAfd;
         this.toScriptFieldFactory = toScriptFieldFactory;
+        this.took = took;
     }
 
     public IndexOrdinalsFieldData newConsumer(DirectoryReader source) {
@@ -132,6 +136,16 @@ public final class GlobalOrdinalsIndexFieldData implements IndexOrdinalsFieldDat
     @Override
     public boolean supportsGlobalOrdinalsMapping() {
         return true;
+    }
+
+    @Override
+    public long getValueCount() {
+        return ordinalMap.getValueCount();
+    }
+
+    @Override
+    public TimeValue getBuildingTime() {
+        return took;
     }
 
     /**

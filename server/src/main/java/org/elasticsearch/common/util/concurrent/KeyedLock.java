@@ -10,9 +10,10 @@ package org.elasticsearch.common.util.concurrent;
 
 import org.elasticsearch.core.Releasable;
 
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.VarHandle;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantLock;
 
 /**
@@ -26,22 +27,6 @@ import java.util.concurrent.locks.ReentrantLock;
 public final class KeyedLock<T> {
 
     private final ConcurrentMap<T, KeyLock> map = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
-    private final boolean fair;
-
-    /**
-     * Creates a new lock
-     * @param fair Use fair locking, ie threads get the lock in the order they requested it
-     */
-    public KeyedLock(boolean fair) {
-        this.fair = fair;
-    }
-
-    /**
-     * Creates a non-fair lock
-     */
-    public KeyedLock() {
-        this(false);
-    }
 
     /**
      * Acquires a lock for the given key. The key is compared by it's equals method not by object identity. The lock can be acquired
@@ -56,9 +41,8 @@ public final class KeyedLock<T> {
                     return newLock;
                 }
             } else {
-                assert perNodeLock != null;
-                int i = perNodeLock.count.get();
-                if (i > 0 && perNodeLock.count.compareAndSet(i, i + 1)) {
+                int i = perNodeLock.count;
+                if (i > 0 && perNodeLock.tryIncCount(i)) {
                     perNodeLock.lock();
                     return new ReleasableLock(key, perNodeLock);
                 }
@@ -76,11 +60,11 @@ public final class KeyedLock<T> {
         }
         if (perNodeLock.tryLock()) { // ok we got it - make sure we increment it accordingly otherwise release it again
             int i;
-            while ((i = perNodeLock.count.get()) > 0) {
+            while ((i = perNodeLock.count) > 0) {
                 // we have to do this in a loop here since even if the count is > 0
                 // there could be a concurrent blocking acquire that changes the count and then this CAS fails. Since we already got
                 // the lock we should retry and see if we can still get it or if the count is 0. If that is the case and we give up.
-                if (perNodeLock.count.compareAndSet(i, i + 1)) {
+                if (perNodeLock.tryIncCount(i)) {
                     return new ReleasableLock(key, perNodeLock);
                 }
             }
@@ -90,7 +74,7 @@ public final class KeyedLock<T> {
     }
 
     private ReleasableLock tryCreateNewLock(T key) {
-        KeyLock newLock = new KeyLock(fair);
+        KeyLock newLock = new KeyLock();
         newLock.lock();
         KeyLock keyLock = map.putIfAbsent(key, newLock);
         if (keyLock == null) {
@@ -112,7 +96,7 @@ public final class KeyedLock<T> {
 
     private void release(T key, KeyLock lock) {
         assert lock == map.get(key);
-        final int decrementAndGet = lock.count.decrementAndGet();
+        final int decrementAndGet = lock.decCountAndGet();
         lock.unlock();
         if (decrementAndGet == 0) {
             map.remove(key, lock);
@@ -120,31 +104,54 @@ public final class KeyedLock<T> {
         assert decrementAndGet >= 0 : decrementAndGet + " must be >= 0 but wasn't";
     }
 
-    private final class ReleasableLock implements Releasable {
-        final T key;
+    private final class ReleasableLock extends AtomicReference<T> implements Releasable {
         final KeyLock lock;
-        final AtomicBoolean closed = new AtomicBoolean();
 
         private ReleasableLock(T key, KeyLock lock) {
-            this.key = key;
+            super(key);
             this.lock = lock;
         }
 
         @Override
         public void close() {
-            if (closed.compareAndSet(false, true)) {
-                release(key, lock);
+            T k = getAndSet(null);
+            if (k != null) {
+                release(k, lock);
             }
         }
     }
 
-    @SuppressWarnings("serial")
     private static final class KeyLock extends ReentrantLock {
-        KeyLock(boolean fair) {
-            super(fair);
+        private static final VarHandle VH_COUNT_FIELD;
+
+        static {
+            try {
+                VH_COUNT_FIELD = MethodHandles.lookup().in(KeyLock.class).findVarHandle(KeyLock.class, "count", int.class);
+            } catch (NoSuchFieldException | IllegalAccessException e) {
+                throw new RuntimeException(e);
+            }
         }
 
-        private final AtomicInteger count = new AtomicInteger(1);
+        @SuppressWarnings("FieldMayBeFinal") // updated via VH_COUNT_FIELD (and _only_ via VH_COUNT_FIELD)
+        private volatile int count = 1;
+
+        KeyLock() {
+            super();
+        }
+
+        int decCountAndGet() {
+            do {
+                int i = count;
+                int newCount = i - 1;
+                if (VH_COUNT_FIELD.weakCompareAndSet(this, i, newCount)) {
+                    return newCount;
+                }
+            } while (true);
+        }
+
+        boolean tryIncCount(int expectedCount) {
+            return VH_COUNT_FIELD.compareAndSet(this, expectedCount, expectedCount + 1);
+        }
     }
 
     /**

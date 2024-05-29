@@ -29,7 +29,6 @@ public final class CompositeBytesReference extends AbstractBytesReference {
 
     private final BytesReference[] references;
     private final int[] offsets; // we use the offsets to seek into the right BytesReference for random access and slicing
-    private final int length;
     private final long ramBytesUsed;
 
     public static BytesReference of(BytesReference... references) {
@@ -87,6 +86,7 @@ public final class CompositeBytesReference extends AbstractBytesReference {
     }
 
     private CompositeBytesReference(BytesReference[] references, int[] offsets, int length, long ramBytesUsed) {
+        super(length);
         assert references != null && offsets != null;
         assert references.length > 1
             : "Should not build composite reference from less than two references but received [" + references.length + "]";
@@ -97,7 +97,6 @@ public final class CompositeBytesReference extends AbstractBytesReference {
         assert ramBytesUsed > Arrays.stream(references).mapToLong(BytesReference::ramBytesUsed).sum();
         this.references = Objects.requireNonNull(references, "references must not be null");
         this.offsets = offsets;
-        this.length = length;
         this.ramBytesUsed = ramBytesUsed;
     }
 
@@ -136,11 +135,6 @@ public final class CompositeBytesReference extends AbstractBytesReference {
     }
 
     @Override
-    public int length() {
-        return length;
-    }
-
-    @Override
     public BytesReference slice(int from, int length) {
         if (from == 0 && this.length == length) {
             return this;
@@ -154,16 +148,17 @@ public final class CompositeBytesReference extends AbstractBytesReference {
         // for slices we only need to find the start and the end reference
         // adjust them and pass on the references in between as they are fully contained
         final int to = from + length;
-        final int limit = getOffsetIndex(to - 1);
         final int start = getOffsetIndex(from);
-        final BytesReference[] inSlice = new BytesReference[1 + (limit - start)];
-        for (int i = 0, j = start; i < inSlice.length; i++) {
-            inSlice[i] = references[j++];
+        int limit = start;
+        for (int i = start + 1; i < offsets.length && offsets[i] < to; i++) {
+            limit = i;
         }
         int inSliceOffset = from - offsets[start];
-        if (inSlice.length == 1) {
-            return inSlice[0].slice(inSliceOffset, length);
+        if (start == limit) {
+            return references[start].slice(inSliceOffset, length);
         }
+        final BytesReference[] inSlice = new BytesReference[1 + (limit - start)];
+        System.arraycopy(references, start, inSlice, 0, inSlice.length);
         // now adjust slices in front and at the end
         inSlice[0] = inSlice[0].slice(inSliceOffset, inSlice[0].length() - inSliceOffset);
         inSlice[inSlice.length - 1] = inSlice[inSlice.length - 1].slice(0, to - offsets[limit]);

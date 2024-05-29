@@ -13,7 +13,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexClusterStateUpdateRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateAckListener;
-import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.SimpleBatchedAckListenerTaskExecutor;
@@ -21,6 +20,7 @@ import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
@@ -48,22 +48,21 @@ public class MetadataDeleteIndexService {
     private static final Logger logger = LogManager.getLogger(MetadataDeleteIndexService.class);
 
     private final Settings settings;
-    private final ClusterService clusterService;
 
     // package private for tests
     final ClusterStateTaskExecutor<DeleteIndexClusterStateUpdateRequest> executor;
+    private final MasterServiceTaskQueue<DeleteIndexClusterStateUpdateRequest> taskQueue;
 
     @Inject
     public MetadataDeleteIndexService(Settings settings, ClusterService clusterService, AllocationService allocationService) {
         this.settings = settings;
-        this.clusterService = clusterService;
         executor = new SimpleBatchedAckListenerTaskExecutor<>() {
             @Override
             public Tuple<ClusterState, ClusterStateAckListener> executeTask(
                 DeleteIndexClusterStateUpdateRequest task,
                 ClusterState clusterState
             ) {
-                return Tuple.tuple(deleteIndices(clusterState, Sets.newHashSet(task.indices())), task);
+                return Tuple.tuple(MetadataDeleteIndexService.deleteIndices(clusterState, Sets.newHashSet(task.indices()), settings), task);
             }
 
             @Override
@@ -78,38 +77,40 @@ public class MetadataDeleteIndexService {
                 return clusterState;
             }
         };
+        taskQueue = clusterService.createTaskQueue("delete-index", Priority.URGENT, executor);
     }
-
-    private static final ClusterStateTaskConfig URGENT_CONFIG = ClusterStateTaskConfig.build(Priority.URGENT);
 
     public void deleteIndices(final DeleteIndexClusterStateUpdateRequest request) {
         if (request.indices() == null || request.indices().length == 0) {
             throw new IllegalArgumentException("Index name is required");
         }
-        clusterService.submitStateUpdateTask("delete-index " + Arrays.toString(request.indices()), request, URGENT_CONFIG, executor);
+        taskQueue.submitTask("delete-index " + Arrays.toString(request.indices()), request, request.masterNodeTimeout());
     }
 
     /**
      * Delete some indices from the cluster state.
      */
-    public ClusterState deleteIndices(ClusterState currentState, Set<Index> indices) {
+    public static ClusterState deleteIndices(ClusterState currentState, Set<Index> indices, Settings settings) {
         final Metadata meta = currentState.metadata();
         final Set<Index> indicesToDelete = new HashSet<>();
-        final Map<Index, DataStream> backingIndices = new HashMap<>();
+        final Map<Index, DataStream> dataStreamIndices = new HashMap<>();
         for (Index index : indices) {
             IndexMetadata im = meta.getIndexSafe(index);
-            IndexAbstraction.DataStream parent = meta.getIndicesLookup().get(im.getIndex().getName()).getParentDataStream();
+            DataStream parent = meta.getIndicesLookup().get(im.getIndex().getName()).getParentDataStream();
             if (parent != null) {
-                if (parent.getWriteIndex().equals(im.getIndex())) {
+                boolean isFailureStoreWriteIndex = im.getIndex().equals(parent.getFailureStoreWriteIndex());
+                if (isFailureStoreWriteIndex || im.getIndex().equals(parent.getWriteIndex())) {
                     throw new IllegalArgumentException(
                         "index ["
                             + index.getName()
-                            + "] is the write index for data stream ["
+                            + "] is the "
+                            + (isFailureStoreWriteIndex ? "failure store " : "")
+                            + "write index for data stream ["
                             + parent.getName()
                             + "] and cannot be deleted"
                     );
                 } else {
-                    backingIndices.put(index, parent.getDataStream());
+                    dataStreamIndices.put(index, parent);
                 }
             }
             indicesToDelete.add(im.getIndex());
@@ -137,9 +138,13 @@ public class MetadataDeleteIndexService {
             routingTableBuilder.remove(indexName);
             clusterBlocksBuilder.removeIndexBlocks(indexName);
             metadataBuilder.remove(indexName);
-            if (backingIndices.containsKey(index)) {
-                DataStream parent = metadataBuilder.dataStream(backingIndices.get(index).getName());
-                metadataBuilder.put(parent.removeBackingIndex(index));
+            if (dataStreamIndices.containsKey(index)) {
+                DataStream parent = metadataBuilder.dataStream(dataStreamIndices.get(index).getName());
+                if (parent.isFailureStoreIndex(index.getName())) {
+                    metadataBuilder.put(parent.removeFailureStoreIndex(index));
+                } else {
+                    metadataBuilder.put(parent.removeBackingIndex(index));
+                }
             }
         }
         // add tombstones to the cluster state for each deleted index
@@ -157,7 +162,7 @@ public class MetadataDeleteIndexService {
 
         // update snapshot restore entries
         Map<String, ClusterState.Custom> customs = currentState.getCustoms();
-        final RestoreInProgress restoreInProgress = currentState.custom(RestoreInProgress.TYPE, RestoreInProgress.EMPTY);
+        final RestoreInProgress restoreInProgress = RestoreInProgress.get(currentState);
         RestoreInProgress updatedRestoreInProgress = RestoreService.updateRestoreStateWithDeletedIndices(restoreInProgress, indices);
         if (updatedRestoreInProgress != restoreInProgress) {
             ImmutableOpenMap.Builder<String, ClusterState.Custom> builder = ImmutableOpenMap.builder(customs);

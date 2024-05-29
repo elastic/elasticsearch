@@ -8,7 +8,8 @@
 
 package org.elasticsearch.search.aggregations.bucket.nested;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -69,13 +70,6 @@ public class ReverseNestedAggregationBuilder extends AbstractAggregationBuilder<
         }
         this.path = path;
         return this;
-    }
-
-    /**
-     * Get the path to use for this nested aggregation.
-     */
-    public String path() {
-        return path;
     }
 
     @Override
@@ -176,7 +170,7 @@ public class ReverseNestedAggregationBuilder extends AbstractAggregationBuilder<
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_EMPTY;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.ZERO;
     }
 }

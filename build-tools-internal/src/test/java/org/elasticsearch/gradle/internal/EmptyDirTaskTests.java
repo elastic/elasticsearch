@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.gradle.internal;
 
-import org.apache.tools.ant.taskdefs.condition.Os;
+import org.elasticsearch.gradle.OS;
 import org.gradle.api.Project;
 import org.gradle.testfixtures.ProjectBuilder;
 import org.junit.Test;
@@ -46,7 +46,7 @@ public class EmptyDirTaskTests {
 
     @Test
     public void testCreateEmptyDirNoPermissions() throws Exception {
-        assumeFalse("Functionality is Unix specific", Os.isFamily(Os.FAMILY_WINDOWS));
+        assumeFalse("Functionality is Unix specific", OS.current() == OS.WINDOWS);
 
         Project project = ProjectBuilder.builder().build();
         EmptyDirTask emptyDirTask = project.getTasks().create("emptyDirTask", EmptyDirTask.class);

@@ -8,13 +8,14 @@
 
 package org.elasticsearch.search.internal;
 
-import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
+import org.elasticsearch.index.mapper.IdLoader;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -33,12 +34,12 @@ import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.subphase.highlight.SearchHighlightContext;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QuerySearchResult;
+import org.elasticsearch.search.rank.context.QueryPhaseRankShardContext;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 
 import java.util.List;
-import java.util.Map;
 
 public abstract class FilteredSearchContext extends SearchContext {
 
@@ -139,8 +140,13 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public void suggest(SuggestionSearchContext suggest) {
-        in.suggest(suggest);
+    public QueryPhaseRankShardContext queryPhaseRankShardContext() {
+        return in.queryPhaseRankShardContext();
+    }
+
+    @Override
+    public void queryPhaseRankShardContext(QueryPhaseRankShardContext queryPhaseRankShardContext) {
+        in.queryPhaseRankShardContext(queryPhaseRankShardContext);
     }
 
     @Override
@@ -161,11 +167,6 @@ public abstract class FilteredSearchContext extends SearchContext {
     @Override
     public boolean sourceRequested() {
         return in.sourceRequested();
-    }
-
-    @Override
-    public boolean hasFetchSourceContext() {
-        return in.hasFetchSourceContext();
     }
 
     @Override
@@ -196,11 +197,6 @@ public abstract class FilteredSearchContext extends SearchContext {
     @Override
     public TimeValue timeout() {
         return in.timeout();
-    }
-
-    @Override
-    public void timeout(TimeValue timeout) {
-        in.timeout(timeout);
     }
 
     @Override
@@ -329,11 +325,6 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public void groupStats(List<String> groupStats) {
-        in.groupStats(groupStats);
-    }
-
-    @Override
     public boolean version() {
         return in.version();
     }
@@ -354,18 +345,13 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public int[] docIdsToLoad() {
-        return in.docIdsToLoad();
-    }
-
-    @Override
-    public SearchContext docIdsToLoad(int[] docIdsToLoad) {
-        return in.docIdsToLoad(docIdsToLoad);
-    }
-
-    @Override
     public DfsSearchResult dfsResult() {
         return in.dfsResult();
+    }
+
+    @Override
+    public void addDfsResult() {
+        in.addDfsResult();
     }
 
     @Override
@@ -374,8 +360,28 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
+    public void addQueryResult() {
+        in.addQueryResult();
+    }
+
+    @Override
+    public TotalHits getTotalHits() {
+        return in.getTotalHits();
+    }
+
+    @Override
+    public float getMaxScore() {
+        return in.getMaxScore();
+    }
+
+    @Override
     public FetchSearchResult fetchResult() {
         return in.fetchResult();
+    }
+
+    @Override
+    public void addFetchResult() {
+        in.addFetchResult();
     }
 
     @Override
@@ -389,11 +395,6 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public void addSearchExt(SearchExtBuilder searchExtBuilder) {
-        in.addSearchExt(searchExtBuilder);
-    }
-
-    @Override
     public SearchExtBuilder getSearchExt(String name) {
         return in.getSearchExt(name);
     }
@@ -401,11 +402,6 @@ public abstract class FilteredSearchContext extends SearchContext {
     @Override
     public Profilers getProfilers() {
         return in.getProfilers();
-    }
-
-    @Override
-    public Map<Class<?>, Collector> queryCollectors() {
-        return in.queryCollectors();
     }
 
     @Override
@@ -429,11 +425,6 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public SearchContext collapse(CollapseContext collapse) {
-        return in.collapse(collapse);
-    }
-
-    @Override
     public CollapseContext collapse() {
         return in.collapse();
     }
@@ -451,5 +442,10 @@ public abstract class FilteredSearchContext extends SearchContext {
     @Override
     public SourceLoader newSourceLoader() {
         return in.newSourceLoader();
+    }
+
+    @Override
+    public IdLoader newIdLoader() {
+        return in.newIdLoader();
     }
 }

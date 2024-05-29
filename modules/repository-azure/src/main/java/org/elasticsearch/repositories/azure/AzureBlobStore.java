@@ -16,6 +16,7 @@ import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 
 import com.azure.core.http.rest.ResponseBase;
+import com.azure.core.util.BinaryData;
 import com.azure.storage.blob.BlobAsyncClient;
 import com.azure.storage.blob.BlobClient;
 import com.azure.storage.blob.BlobContainerAsyncClient;
@@ -31,18 +32,25 @@ import com.azure.storage.blob.models.BlobRequestConditions;
 import com.azure.storage.blob.models.BlobStorageException;
 import com.azure.storage.blob.models.DownloadRetryOptions;
 import com.azure.storage.blob.models.ListBlobsOptions;
+import com.azure.storage.blob.options.BlobParallelUploadOptions;
 import com.azure.storage.blob.options.BlockBlobSimpleUploadOptions;
+import com.azure.storage.blob.specialized.BlobLeaseClientBuilder;
 import com.azure.storage.blob.specialized.BlockBlobAsyncClient;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.core.util.Throwables;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.DeleteResult;
+import org.elasticsearch.common.blobstore.OperationPurpose;
+import org.elasticsearch.common.blobstore.OptionalBytesReference;
+import org.elasticsearch.common.blobstore.support.BlobContainerUtils;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -52,6 +60,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.repositories.azure.AzureRepository.Repository;
 import org.elasticsearch.repositories.blobstore.ChunkedBlobOutputStream;
+import org.elasticsearch.rest.RestStatus;
 
 import java.io.FilterInputStream;
 import java.io.IOException;
@@ -113,9 +122,9 @@ public class AzureBlobStore implements BlobStore {
                 (httpMethod, url) -> httpMethod.equals("GET") && isListRequest(httpMethod, url) == false,
                 stats.getOperations::incrementAndGet
             ),
-            RequestStatsCollector.create(this::isListRequest, stats.listOperations::incrementAndGet),
-            RequestStatsCollector.create(this::isPutBlockRequest, stats.putBlockOperations::incrementAndGet),
-            RequestStatsCollector.create(this::isPutBlockListRequest, stats.putBlockListOperations::incrementAndGet),
+            RequestStatsCollector.create(AzureBlobStore::isListRequest, stats.listOperations::incrementAndGet),
+            RequestStatsCollector.create(AzureBlobStore::isPutBlockRequest, stats.putBlockOperations::incrementAndGet),
+            RequestStatsCollector.create(AzureBlobStore::isPutBlockListRequest, stats.putBlockListOperations::incrementAndGet),
             RequestStatsCollector.create(
                 // https://docs.microsoft.com/en-us/rest/api/storageservices/put-blob#uri-parameters
                 // The only URI parameter allowed for put-blob operation is "timeout", but if a sas token is used,
@@ -149,18 +158,18 @@ public class AzureBlobStore implements BlobStore {
         };
     }
 
-    private boolean isListRequest(String httpMethod, URL url) {
+    private static boolean isListRequest(String httpMethod, URL url) {
         return httpMethod.equals("GET") && url.getQuery() != null && url.getQuery().contains("comp=list");
     }
 
     // https://docs.microsoft.com/en-us/rest/api/storageservices/put-block
-    private boolean isPutBlockRequest(String httpMethod, URL url) {
+    private static boolean isPutBlockRequest(String httpMethod, URL url) {
         String queryParams = url.getQuery() == null ? "" : url.getQuery();
         return httpMethod.equals("PUT") && queryParams.contains("comp=block") && queryParams.contains("blockid=");
     }
 
     // https://docs.microsoft.com/en-us/rest/api/storageservices/put-block-list
-    private boolean isPutBlockListRequest(String httpMethod, URL url) {
+    private static boolean isPutBlockListRequest(String httpMethod, URL url) {
         String queryParams = url.getQuery() == null ? "" : url.getQuery();
         return httpMethod.equals("PUT") && queryParams.contains("comp=blocklist");
     }
@@ -255,7 +264,8 @@ public class AzureBlobStore implements BlobStore {
         throw exception;
     }
 
-    void deleteBlobs(Iterator<String> blobs) throws IOException {
+    @Override
+    public void deleteBlobsIgnoringIfNotExists(OperationPurpose purpose, Iterator<String> blobs) throws IOException {
         if (blobs.hasNext() == false) {
             return;
         }
@@ -494,7 +504,7 @@ public class AzureBlobStore implements BlobStore {
     private static final Base64.Encoder base64Encoder = Base64.getEncoder().withoutPadding();
     private static final Base64.Decoder base64UrlDecoder = Base64.getUrlDecoder();
 
-    private String makeMultipartBlockId() {
+    private static String makeMultipartBlockId() {
         return base64Encoder.encodeToString(base64UrlDecoder.decode(UUIDs.base64UUID()));
     }
 
@@ -707,7 +717,19 @@ public class AzureBlobStore implements BlobStore {
         @Override
         public int read() throws IOException {
             byte[] b = new byte[1];
-            return read(b, 0, 1);
+            var bytesRead = read(b, 0, 1);
+
+            if (bytesRead > 1) {
+                throw new IOException("Stream returned more data than requested");
+            }
+
+            if (bytesRead == 1) {
+                return b[0] & 0xFF;
+            } else if (bytesRead == 0) {
+                throw new IOException("Stream returned unexpected number of bytes");
+            } else {
+                return -1;
+            }
         }
 
         @Override
@@ -743,11 +765,6 @@ public class AzureBlobStore implements BlobStore {
                 closed = true;
                 releaseByteBuf(byteBuf);
             }
-        }
-
-        @Override
-        public long skip(long n) {
-            throw new UnsupportedOperationException("skip is not supported");
         }
 
         private void releaseByteBuf(ByteBuf buf) {
@@ -795,4 +812,114 @@ public class AzureBlobStore implements BlobStore {
             onHttpRequest.run();
         }
     }
+
+    OptionalBytesReference getRegister(String blobPath, String containerPath, String blobKey) {
+        try {
+            return SocketAccess.doPrivilegedException(
+                () -> OptionalBytesReference.of(
+                    downloadRegisterBlob(
+                        containerPath,
+                        blobKey,
+                        getAzureBlobServiceClientClient().getSyncClient().getBlobContainerClient(container).getBlobClient(blobPath),
+                        null
+                    )
+                )
+            );
+        } catch (Exception e) {
+            if (Throwables.getRootCause(e) instanceof BlobStorageException blobStorageException
+                && blobStorageException.getStatusCode() == RestStatus.NOT_FOUND.getStatus()) {
+                return OptionalBytesReference.EMPTY;
+            }
+            throw e;
+        }
+    }
+
+    OptionalBytesReference compareAndExchangeRegister(
+        String blobPath,
+        String containerPath,
+        String blobKey,
+        BytesReference expected,
+        BytesReference updated
+    ) {
+        BlobContainerUtils.ensureValidRegisterContent(updated);
+        try {
+            return SocketAccess.doPrivilegedException(
+                () -> OptionalBytesReference.of(
+                    innerCompareAndExchangeRegister(
+                        containerPath,
+                        blobKey,
+                        getAzureBlobServiceClientClient().getSyncClient().getBlobContainerClient(container).getBlobClient(blobPath),
+                        expected,
+                        updated
+                    )
+                )
+            );
+        } catch (Exception e) {
+            if (Throwables.getRootCause(e) instanceof BlobStorageException blobStorageException) {
+                if (blobStorageException.getStatusCode() == RestStatus.PRECONDITION_FAILED.getStatus()
+                    || blobStorageException.getStatusCode() == RestStatus.CONFLICT.getStatus()) {
+                    return OptionalBytesReference.MISSING;
+                }
+            }
+            throw e;
+        }
+    }
+
+    private static BytesReference innerCompareAndExchangeRegister(
+        String containerPath,
+        String blobKey,
+        BlobClient blobClient,
+        BytesReference expected,
+        BytesReference updated
+    ) throws IOException {
+        if (blobClient.exists()) {
+            final var leaseClient = new BlobLeaseClientBuilder().blobClient(blobClient).buildClient();
+            final var leaseId = leaseClient.acquireLease(60);
+            try {
+                final BytesReference currentValue = downloadRegisterBlob(
+                    containerPath,
+                    blobKey,
+                    blobClient,
+                    new BlobRequestConditions().setLeaseId(leaseId)
+                );
+                if (currentValue.equals(expected)) {
+                    uploadRegisterBlob(updated, blobClient, new BlobRequestConditions().setLeaseId(leaseId));
+                }
+                return currentValue;
+            } finally {
+                leaseClient.releaseLease();
+            }
+        } else {
+            if (expected.length() == 0) {
+                uploadRegisterBlob(updated, blobClient, new BlobRequestConditions().setIfNoneMatch("*"));
+            }
+            return BytesArray.EMPTY;
+        }
+    }
+
+    private static BytesReference downloadRegisterBlob(
+        String containerPath,
+        String blobKey,
+        BlobClient blobClient,
+        BlobRequestConditions blobRequestConditions
+    ) throws IOException {
+        return BlobContainerUtils.getRegisterUsingConsistentRead(
+            blobClient.downloadContentWithResponse(new DownloadRetryOptions().setMaxRetryRequests(0), blobRequestConditions, null, null)
+                .getValue()
+                .toStream(),
+            containerPath,
+            blobKey
+        );
+    }
+
+    private static void uploadRegisterBlob(BytesReference blobContents, BlobClient blobClient, BlobRequestConditions requestConditions)
+        throws IOException {
+        blobClient.uploadWithResponse(
+            new BlobParallelUploadOptions(BinaryData.fromStream(blobContents.streamInput(), (long) blobContents.length()))
+                .setRequestConditions(requestConditions),
+            null,
+            null
+        );
+    }
+
 }

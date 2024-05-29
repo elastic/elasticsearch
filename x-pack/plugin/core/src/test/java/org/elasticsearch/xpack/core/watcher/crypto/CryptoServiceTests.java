@@ -45,12 +45,12 @@ public class CryptoServiceTests extends ESTestCase {
     public void testEncryptedChar() throws Exception {
         CryptoService service = new CryptoService(settings);
 
-        assertThat(service.isEncrypted((char[]) null), is(false));
-        assertThat(service.isEncrypted(new char[0]), is(false));
-        assertThat(service.isEncrypted(new char[CryptoService.ENCRYPTED_TEXT_PREFIX.length()]), is(false));
-        assertThat(service.isEncrypted(CryptoService.ENCRYPTED_TEXT_PREFIX.toCharArray()), is(true));
-        assertThat(service.isEncrypted(randomAlphaOfLengthBetween(0, 100).toCharArray()), is(false));
-        assertThat(service.isEncrypted(service.encrypt(randomAlphaOfLength(10).toCharArray())), is(true));
+        assertThat(CryptoService.isEncrypted((char[]) null), is(false));
+        assertThat(CryptoService.isEncrypted(new char[0]), is(false));
+        assertThat(CryptoService.isEncrypted(new char[CryptoService.ENCRYPTED_TEXT_PREFIX.length()]), is(false));
+        assertThat(CryptoService.isEncrypted(CryptoService.ENCRYPTED_TEXT_PREFIX.toCharArray()), is(true));
+        assertThat(CryptoService.isEncrypted(randomAlphaOfLengthBetween(0, 100).toCharArray()), is(false));
+        assertThat(CryptoService.isEncrypted(service.encrypt(randomAlphaOfLength(10).toCharArray())), is(true));
     }
 
     public void testErrorMessageWhenSecureEncryptionKeySettingDoesNotExist() throws Exception {

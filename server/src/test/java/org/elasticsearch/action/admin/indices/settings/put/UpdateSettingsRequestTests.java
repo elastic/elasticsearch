@@ -11,6 +11,7 @@ package org.elasticsearch.action.admin.indices.settings.put;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.xcontent.ToXContent;
@@ -64,6 +65,9 @@ public class UpdateSettingsRequestTests extends AbstractXContentTestCase<UpdateS
 
     private static UpdateSettingsRequest createTestInstance(boolean enclosedSettings) {
         UpdateSettingsRequest testRequest = UpdateSettingsRequestSerializationTests.createTestItem();
+        if (randomBoolean()) {
+            testRequest.reopen(true);
+        }
         if (enclosedSettings) {
             UpdateSettingsRequest requestWithEnclosingSettings = new UpdateSettingsRequest(testRequest.settings()) {
                 public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
@@ -75,6 +79,7 @@ public class UpdateSettingsRequestTests extends AbstractXContentTestCase<UpdateS
                     return builder;
                 }
             };
+            requestWithEnclosingSettings.reopen(testRequest.reopen());
             return requestWithEnclosingSettings;
         }
         return testRequest;
@@ -106,7 +111,7 @@ public class UpdateSettingsRequestTests extends AbstractXContentTestCase<UpdateS
         if (enclosedSettings) {
             return field -> field.startsWith("settings");
         }
-        return field -> true;
+        return Predicates.always();
     }
 
     @Override

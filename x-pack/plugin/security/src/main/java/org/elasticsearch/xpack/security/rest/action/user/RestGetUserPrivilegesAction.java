@@ -15,6 +15,8 @@ import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -34,6 +36,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 /**
  * REST handler that list the privileges held by a user.
  */
+@ServerlessScope(Scope.INTERNAL)
 public class RestGetUserPrivilegesAction extends SecurityBaseRestHandler {
 
     private final SecurityContext securityContext;
@@ -93,7 +96,9 @@ public class RestGetUserPrivilegesAction extends SecurityBaseRestHandler {
             if (response.hasRemoteIndicesPrivileges()) {
                 builder.field(RoleDescriptor.Fields.REMOTE_INDICES.getPreferredName(), response.getRemoteIndexPrivileges());
             }
-
+            if (response.hasRemoteClusterPrivileges()) {
+                builder.array(RoleDescriptor.Fields.REMOTE_CLUSTER.getPreferredName(), response.getRemoteClusterPermissions());
+            }
             builder.endObject();
             return new RestResponse(RestStatus.OK, builder);
         }

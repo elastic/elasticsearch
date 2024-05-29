@@ -28,6 +28,11 @@ public class TransformIndexerPositionTests extends AbstractXContentSerializingTe
     }
 
     @Override
+    protected TransformIndexerPosition mutateInstance(TransformIndexerPosition instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Reader<TransformIndexerPosition> instanceReader() {
         return TransformIndexerPosition::new;
     }

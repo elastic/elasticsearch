@@ -11,7 +11,6 @@ package org.elasticsearch.action.admin.cluster.node.shutdown;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
-import java.io.IOException;
 import java.util.Arrays;
 
 public class PrevalidateNodeRemovalRequestSerializationTests extends AbstractWireSerializingTestCase<PrevalidateNodeRemovalRequest> {
@@ -27,7 +26,7 @@ public class PrevalidateNodeRemovalRequestSerializationTests extends AbstractWir
     }
 
     @Override
-    protected PrevalidateNodeRemovalRequest mutateInstance(PrevalidateNodeRemovalRequest request) throws IOException {
+    protected PrevalidateNodeRemovalRequest mutateInstance(PrevalidateNodeRemovalRequest request) {
         int i = randomIntBetween(0, 2);
         return switch (i) {
             case 0 -> PrevalidateNodeRemovalRequest.builder()

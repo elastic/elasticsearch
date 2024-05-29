@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.core.ml.inference.results;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -35,6 +36,10 @@ abstract class NlpInferenceResults implements InferenceResults {
 
     abstract void addMapFields(Map<String, Object> map);
 
+    public boolean isTruncated() {
+        return isTruncated;
+    }
+
     @Override
     public final void writeTo(StreamOutput out) throws IOException {
         out.writeBoolean(isTruncated);
@@ -54,10 +59,21 @@ abstract class NlpInferenceResults implements InferenceResults {
     public final Map<String, Object> asMap() {
         Map<String, Object> map = new LinkedHashMap<>();
         addMapFields(map);
+        addSupportingFieldsToMap(map);
+        return map;
+    }
+
+    @Override
+    public Map<String, Object> asMap(String outputField) {
+        Map<String, Object> map = new LinkedHashMap<>();
+        addSupportingFieldsToMap(map);
+        return map;
+    }
+
+    private void addSupportingFieldsToMap(Map<String, Object> map) {
         if (isTruncated) {
             map.put("is_truncated", isTruncated);
         }
-        return map;
     }
 
     @Override

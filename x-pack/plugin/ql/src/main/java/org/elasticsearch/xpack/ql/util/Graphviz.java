@@ -305,10 +305,6 @@ public abstract class Graphviz {
         return "\"" + value + "\"";
     }
 
-    private static String escapeGraphviz(String value) {
-        return value.replace("<", "\\<").replace(">", "\\>").replace("\"", "\\\"");
-    }
-
     private static void indent(StringBuilder sb, int indent) {
         for (int i = 0; i < indent; i++) {
             sb.append(" ");

@@ -1,0 +1,5 @@
+pr: 97072
+summary: Log when update AffixSetting using addAffixMapUpdateConsumer
+area: Infra/Logging
+type: bug
+issues: []

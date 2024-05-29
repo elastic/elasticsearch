@@ -22,6 +22,7 @@ import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.annotations.Network;
+import org.elasticsearch.transport.RemoteClusterPortSettings;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
 import org.elasticsearch.xpack.security.Security;
@@ -37,11 +38,15 @@ import java.net.SocketException;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
+import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE;
+import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED;
+import static org.elasticsearch.xpack.security.transport.filter.IPFilter.REMOTE_CLUSTER_FILTER_ALLOW_SETTING;
+import static org.elasticsearch.xpack.security.transport.filter.IPFilter.REMOTE_CLUSTER_FILTER_DENY_SETTING;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.ArgumentMatchers.eq;
@@ -65,20 +70,21 @@ public class IPFilterTests extends ESTestCase {
         when(licenseState.isAllowed(Security.IP_FILTERING_FEATURE)).thenReturn(true);
         when(licenseState.isAllowed(Security.AUDITING_FEATURE)).thenReturn(true);
         auditTrail = mock(AuditTrail.class);
-        auditTrailService = new AuditTrailService(Collections.singletonList(auditTrail), licenseState);
+        auditTrailService = new AuditTrailService(auditTrail, licenseState);
         clusterSettings = new ClusterSettings(
             Settings.EMPTY,
-            new HashSet<>(
-                Arrays.asList(
-                    IPFilter.HTTP_FILTER_ALLOW_SETTING,
-                    IPFilter.HTTP_FILTER_DENY_SETTING,
-                    IPFilter.IP_FILTER_ENABLED_HTTP_SETTING,
-                    IPFilter.IP_FILTER_ENABLED_SETTING,
-                    IPFilter.TRANSPORT_FILTER_ALLOW_SETTING,
-                    IPFilter.TRANSPORT_FILTER_DENY_SETTING,
-                    IPFilter.PROFILE_FILTER_ALLOW_SETTING,
-                    IPFilter.PROFILE_FILTER_DENY_SETTING
-                )
+            Set.of(
+                IPFilter.HTTP_FILTER_ALLOW_SETTING,
+                IPFilter.HTTP_FILTER_DENY_SETTING,
+                IPFilter.IP_FILTER_ENABLED_HTTP_SETTING,
+                IPFilter.IP_FILTER_ENABLED_SETTING,
+                IPFilter.TRANSPORT_FILTER_ALLOW_SETTING,
+                IPFilter.TRANSPORT_FILTER_DENY_SETTING,
+                IPFilter.REMOTE_CLUSTER_FILTER_ALLOW_SETTING,
+                IPFilter.REMOTE_CLUSTER_FILTER_DENY_SETTING,
+                IPFilter.PROFILE_FILTER_ALLOW_SETTING,
+                IPFilter.PROFILE_FILTER_DENY_SETTING,
+                RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED
             )
         );
 
@@ -92,9 +98,15 @@ public class IPFilterTests extends ESTestCase {
         when(transport.boundAddress()).thenReturn(new BoundTransportAddress(new TransportAddress[] { address }, address));
         when(transport.lifecycleState()).thenReturn(Lifecycle.State.STARTED);
 
-        Map<String, BoundTransportAddress> profileBoundAddresses = Collections.singletonMap(
+        Map<String, BoundTransportAddress> profileBoundAddresses = new HashMap<>();
+        profileBoundAddresses.put(
             "client",
             new BoundTransportAddress(new TransportAddress[] { new TransportAddress(InetAddress.getLoopbackAddress(), 9500) }, address)
+        );
+
+        profileBoundAddresses.put(
+            REMOTE_CLUSTER_PROFILE,
+            new BoundTransportAddress(new TransportAddress[] { new TransportAddress(InetAddress.getLoopbackAddress(), 9600) }, address)
         );
         when(transport.profileBoundAddresses()).thenReturn(profileBoundAddresses);
     }
@@ -286,6 +298,66 @@ public class IPFilterTests extends ESTestCase {
         try (Node node = new MockNode(settings, Arrays.asList(LocalStateSecurity.class))) {
             assertNotNull(node);
         }
+    }
+
+    public void testRemoteAccessCanBeFilteredSeparately() throws Exception {
+        Settings settings = Settings.builder()
+            .put("xpack.security.transport.filter.allow", "192.168.0.2")
+            .put("xpack.security.transport.filter.deny", "192.168.0.1")
+            .put("xpack.security.remote_cluster.filter.allow", "192.168.0.1")
+            .put("xpack.security.remote_cluster.filter.deny", "_all")
+            .put(REMOTE_CLUSTER_SERVER_ENABLED.getKey(), true)
+            .build();
+        ipFilter = new IPFilter(settings, auditTrailService, clusterSettings, licenseState);
+        ipFilter.setBoundTransportAddress(transport.boundAddress(), transport.profileBoundAddresses());
+        assertAddressIsAllowed("192.168.0.2");
+        assertAddressIsDenied("192.168.0.1");
+        assertAddressIsAllowedForProfile(REMOTE_CLUSTER_PROFILE, "192.168.0.1");
+        assertAddressIsDeniedForProfile(REMOTE_CLUSTER_PROFILE, randomNonLocalIPv4Address());
+    }
+
+    /**
+     * Checks that if the Remote Cluster port is enabled, it uses the IP filters configured for transport in general if the specific
+     * remote_cluster filters are not set.
+     */
+    public void testThatRemoteAccessFallsBackToDefault() throws Exception {
+        Settings settings = Settings.builder()
+            .put("xpack.security.transport.filter.allow", "192.168.0.1")
+            .put("xpack.security.transport.filter.deny", "_all")
+            .put(REMOTE_CLUSTER_SERVER_ENABLED.getKey(), true)
+            .build();
+        ipFilter = new IPFilter(settings, auditTrailService, clusterSettings, licenseState);
+        ipFilter.setBoundTransportAddress(transport.boundAddress(), transport.profileBoundAddresses());
+        assertAddressIsDenied(randomNonLocalIPv4Address());
+        assertAddressIsAllowedForProfile(REMOTE_CLUSTER_PROFILE, "192.168.0.1");
+        assertAddressIsDeniedForProfile(REMOTE_CLUSTER_PROFILE, randomNonLocalIPv4Address());
+    }
+
+    /**
+     * This test is very similar to {@link #testThatProfilesAreUpdateable()}, but specifically checks the remote cluster port settings.
+     */
+    public void testThatRemoteAccessIsUpdateable() throws Exception {
+        Settings settings = Settings.builder()
+            .put("xpack.security.transport.filter.allow", "localhost")
+            .put("xpack.security.transport.filter.deny", "_all")
+            .put(REMOTE_CLUSTER_FILTER_ALLOW_SETTING.getKey(), "192.168.0.1")
+            .put(REMOTE_CLUSTER_FILTER_DENY_SETTING.getKey(), "_all")
+            .put(REMOTE_CLUSTER_SERVER_ENABLED.getKey(), true)
+            .build();
+        ipFilter = new IPFilter(settings, auditTrailService, clusterSettings, licenseState);
+        ipFilter.setBoundTransportAddress(transport.boundAddress(), transport.profileBoundAddresses());
+        Settings newSettings = Settings.builder()
+            .putList(REMOTE_CLUSTER_FILTER_ALLOW_SETTING.getKey(), "192.168.0.1", "192.168.0.2")
+            .put(REMOTE_CLUSTER_FILTER_DENY_SETTING.getKey(), "192.168.0.3")
+            .build();
+        Settings.Builder updatedSettingsBuilder = Settings.builder();
+        clusterSettings.updateDynamicSettings(newSettings, updatedSettingsBuilder, Settings.builder(), "test");
+        clusterSettings.applySettings(updatedSettingsBuilder.build());
+        assertAddressIsAllowed("127.0.0.1");
+        // when "localhost" is used, ES considers all local addresses see PatternRule#isLocalhost()
+        assertAddressIsDenied(randomNonLocalIPv4Address());
+        assertAddressIsAllowedForProfile(REMOTE_CLUSTER_PROFILE, "192.168.0.1", "192.168.0.2");
+        assertAddressIsDeniedForProfile(REMOTE_CLUSTER_PROFILE, "192.168.0.3");
     }
 
     private void assertAddressIsAllowedForProfile(String profile, String... inetAddresses) {

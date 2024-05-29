@@ -34,7 +34,7 @@ public class TotalHitsExtractor extends ConstantExtractor {
         return validate(super.extract(hit));
     }
 
-    private Object validate(Object value) {
+    private static Object validate(Object value) {
         if (Number.class.isInstance(value) == false) {
             throw new QlIllegalArgumentException(
                 "Inconsistent total hits count handling, expected a numeric value but found a {}: {}",

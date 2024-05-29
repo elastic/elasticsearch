@@ -9,9 +9,18 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.StringField;
+import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermInSetQuery;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.query.SearchExecutionContext;
 
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.Map;
 
 /**
@@ -69,6 +78,57 @@ public abstract class IdFieldMapper extends MetadataFieldMapper {
      * the {@code _id} so it can be fetched easily from the index.
      */
     public static Field standardIdField(String id) {
-        return new Field(NAME, Uid.encodeId(id), ProvidedIdFieldMapper.Defaults.FIELD_TYPE);
+        return new StringField(NAME, Uid.encodeId(id), Field.Store.YES);
+    }
+
+    protected abstract static class AbstractIdFieldType extends TermBasedFieldType {
+
+        public AbstractIdFieldType() {
+            super(NAME, true, true, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
+        }
+
+        @Override
+        public String typeName() {
+            return CONTENT_TYPE;
+        }
+
+        @Override
+        public boolean isSearchable() {
+            // The _id field is always searchable.
+            return true;
+        }
+
+        @Override
+        public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
+            failIfNotIndexed();
+            BytesRef[] bytesRefs = values.stream().map(v -> {
+                Object idObject = v;
+                if (idObject instanceof BytesRef) {
+                    idObject = ((BytesRef) idObject).utf8ToString();
+                }
+                return Uid.encodeId(idObject.toString());
+            }).toArray(BytesRef[]::new);
+            return new TermInSetQuery(name(), bytesRefs);
+        }
+
+        @Override
+        public Query termQuery(Object value, SearchExecutionContext context) {
+            return termsQuery(Arrays.asList(value), context);
+        }
+
+        @Override
+        public Query existsQuery(SearchExecutionContext context) {
+            return new MatchAllDocsQuery();
+        }
+
+        @Override
+        public BlockLoader blockLoader(BlockLoaderContext blContext) {
+            return new BlockStoredFieldsReader.IdBlockLoader();
+        }
+
+        @Override
+        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+            return new StoredValueFetcher(context.lookup(), NAME);
+        }
     }
 }

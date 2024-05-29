@@ -12,9 +12,14 @@ import com.maxmind.db.NoCache;
 import com.maxmind.db.Reader;
 import com.maxmind.geoip2.DatabaseReader;
 import com.maxmind.geoip2.model.AbstractResponse;
+import com.maxmind.geoip2.model.AnonymousIpResponse;
 import com.maxmind.geoip2.model.AsnResponse;
 import com.maxmind.geoip2.model.CityResponse;
+import com.maxmind.geoip2.model.ConnectionTypeResponse;
 import com.maxmind.geoip2.model.CountryResponse;
+import com.maxmind.geoip2.model.DomainResponse;
+import com.maxmind.geoip2.model.EnterpriseResponse;
+import com.maxmind.geoip2.model.IspResponse;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -41,11 +46,11 @@ import java.util.concurrent.atomic.AtomicInteger;
  * Facilitates lazy loading of the database reader, so that when the geoip plugin is installed, but not used,
  * no memory is being wasted on the database reader.
  */
-class DatabaseReaderLazyLoader implements Closeable {
+class DatabaseReaderLazyLoader implements GeoIpDatabase, Closeable {
 
     private static final boolean LOAD_DATABASE_ON_HEAP = Booleans.parseBoolean(System.getProperty("es.geoip.load_db_on_heap", "false"));
 
-    private static final Logger LOGGER = LogManager.getLogger(DatabaseReaderLazyLoader.class);
+    private static final Logger logger = LogManager.getLogger(DatabaseReaderLazyLoader.class);
 
     private final String md5;
     private final GeoIpCache cache;
@@ -81,7 +86,8 @@ class DatabaseReaderLazyLoader implements Closeable {
      * @return the database type
      * @throws IOException if an I/O exception occurs reading the database type
      */
-    final String getDatabaseType() throws IOException {
+    @Override
+    public final String getDatabaseType() throws IOException {
         if (databaseType.get() == null) {
             synchronized (databaseType) {
                 if (databaseType.get() == null) {
@@ -151,25 +157,59 @@ class DatabaseReaderLazyLoader implements Closeable {
     }
 
     @Nullable
-    CityResponse getCity(InetAddress ipAddress) {
+    @Override
+    public CityResponse getCity(InetAddress ipAddress) {
         return getResponse(ipAddress, DatabaseReader::tryCity);
     }
 
     @Nullable
-    CountryResponse getCountry(InetAddress ipAddress) {
+    @Override
+    public CountryResponse getCountry(InetAddress ipAddress) {
         return getResponse(ipAddress, DatabaseReader::tryCountry);
     }
 
     @Nullable
-    AsnResponse getAsn(InetAddress ipAddress) {
+    @Override
+    public AsnResponse getAsn(InetAddress ipAddress) {
         return getResponse(ipAddress, DatabaseReader::tryAsn);
+    }
+
+    @Nullable
+    @Override
+    public AnonymousIpResponse getAnonymousIp(InetAddress ipAddress) {
+        return getResponse(ipAddress, DatabaseReader::tryAnonymousIp);
+    }
+
+    @Nullable
+    @Override
+    public ConnectionTypeResponse getConnectionType(InetAddress ipAddress) {
+        return getResponse(ipAddress, DatabaseReader::tryConnectionType);
+    }
+
+    @Nullable
+    @Override
+    public DomainResponse getDomain(InetAddress ipAddress) {
+        return getResponse(ipAddress, DatabaseReader::tryDomain);
+    }
+
+    @Nullable
+    @Override
+    public EnterpriseResponse getEnterprise(InetAddress ipAddress) {
+        return getResponse(ipAddress, DatabaseReader::tryEnterprise);
+    }
+
+    @Nullable
+    @Override
+    public IspResponse getIsp(InetAddress ipAddress) {
+        return getResponse(ipAddress, DatabaseReader::tryIsp);
     }
 
     boolean preLookup() {
         return currentUsages.updateAndGet(current -> current < 0 ? current : current + 1) > 0;
     }
 
-    void postLookup() throws IOException {
+    @Override
+    public void release() throws IOException {
         if (currentUsages.updateAndGet(current -> current > 0 ? current - 1 : current + 1) == -1) {
             doClose();
         }
@@ -198,7 +238,7 @@ class DatabaseReaderLazyLoader implements Closeable {
             synchronized (databaseReader) {
                 if (databaseReader.get() == null) {
                     databaseReader.set(loader.get());
-                    LOGGER.debug("loaded [{}] geo-IP database", databasePath);
+                    logger.debug("loaded [{}] geo-IP database", databasePath);
                 }
             }
         }
@@ -221,12 +261,13 @@ class DatabaseReaderLazyLoader implements Closeable {
         }
     }
 
-    private void doClose() throws IOException {
+    // Visible for Testing
+    protected void doClose() throws IOException {
         IOUtils.close(databaseReader.get());
         int numEntriesEvicted = cache.purgeCacheEntriesForDatabase(databasePath);
-        LOGGER.info("evicted [{}] entries from cache after reloading database [{}]", numEntriesEvicted, databasePath);
+        logger.info("evicted [{}] entries from cache after reloading database [{}]", numEntriesEvicted, databasePath);
         if (deleteDatabaseFileOnClose) {
-            LOGGER.info("deleting [{}]", databasePath);
+            logger.info("deleting [{}]", databasePath);
             Files.delete(databasePath);
         }
     }

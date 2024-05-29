@@ -55,7 +55,7 @@ public class OverallBucket implements ToXContentObject, Writeable {
         timestamp = new Date(in.readLong());
         bucketSpan = in.readLong();
         overallScore = in.readDouble();
-        jobs = in.readList(JobInfo::new);
+        jobs = in.readCollectionAsList(JobInfo::new);
         isInterim = in.readBoolean();
     }
 
@@ -64,7 +64,7 @@ public class OverallBucket implements ToXContentObject, Writeable {
         out.writeLong(timestamp.getTime());
         out.writeLong(bucketSpan);
         out.writeDouble(overallScore);
-        out.writeList(jobs);
+        out.writeCollection(jobs);
         out.writeBoolean(isInterim);
     }
 

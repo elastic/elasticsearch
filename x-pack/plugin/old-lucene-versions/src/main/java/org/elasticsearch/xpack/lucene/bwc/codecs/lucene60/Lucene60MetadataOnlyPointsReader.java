@@ -35,7 +35,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 /** Reads the metadata of point values previously written with Lucene60PointsWriter */
-public class Lucene60MetadataOnlyPointsReader extends PointsReader {
+public final class Lucene60MetadataOnlyPointsReader extends PointsReader {
     final IndexInput dataIn;
     final SegmentReadState readState;
     final Map<Integer, PointValues> readers = new HashMap<>();

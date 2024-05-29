@@ -8,7 +8,8 @@
 
 package org.elasticsearch.search.aggregations.bucket.range;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -198,19 +199,7 @@ public class RangeAggregationBuilder extends AbstractRangeBuilder<RangeAggregati
     }
 
     @Override
-    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
-        return REGISTRY_KEY;
-    }
-
-    private static String generateKey(double from, double to, DocValueFormat format) {
-        StringBuilder builder = new StringBuilder().append(Double.isInfinite(from) ? "*" : format.format(from))
-            .append("-")
-            .append(Double.isInfinite(to) ? "*" : format.format(to));
-        return builder.toString();
-    }
-
-    @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_EMPTY;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.ZERO;
     }
 }

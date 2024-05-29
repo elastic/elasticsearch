@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.core.security.authc.ldap.PoolingSessionFactorySet
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.hamcrest.Matchers;
 
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -330,10 +329,9 @@ public class RealmSettingsTests extends ESTestCase {
 
         if (useTrustStore) {
             builder.put("truststore.path", randomAlphaOfLengthBetween(8, 32));
-            SecuritySettingsSource.addSecureSettings(
-                builder,
-                secureSettings -> { secureSettings.setString("truststore.secure_password", randomAlphaOfLength(8)); }
-            );
+            SecuritySettingsSource.addSecureSettings(builder, secureSettings -> {
+                secureSettings.setString("truststore.secure_password", randomAlphaOfLength(8));
+            });
             builder.put("truststore.algorithm", randomAlphaOfLengthBetween(6, 10));
         } else {
             builder.putList("certificate_authorities", generateRandomStringArray(5, 32, false, false));
@@ -443,12 +441,7 @@ public class RealmSettingsTests extends ESTestCase {
 
     private void validate(Settings settings) {
         final Set<Setting<?>> settingsSet = new HashSet<>(InternalRealmsSettings.getSettings());
-        final AbstractScopedSettings validator = new AbstractScopedSettings(
-            settings,
-            settingsSet,
-            Collections.emptySet(),
-            Setting.Property.NodeScope
-        ) {
+        final AbstractScopedSettings validator = new AbstractScopedSettings(settings, settingsSet, Setting.Property.NodeScope) {
         };
         validator.validate(settings, false);
     }

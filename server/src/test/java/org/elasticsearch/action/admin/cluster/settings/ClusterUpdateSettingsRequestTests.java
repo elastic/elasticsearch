@@ -10,12 +10,14 @@ package org.elasticsearch.action.admin.cluster.settings;
 
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.reservedstate.action.ReservedClusterSettingsAction;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -59,10 +61,11 @@ public class ClusterUpdateSettingsRequestTests extends ESTestCase {
                     () -> randomAlphaOfLengthBetween(3, 10)
                 )
             );
-            XContentParseException iae = expectThrows(
-                XContentParseException.class,
-                () -> ClusterUpdateSettingsRequest.fromXContent(createParser(xContentType.xContent(), mutated))
-            );
+            XContentParseException iae = expectThrows(XContentParseException.class, () -> {
+                try (var parser = createParser(xContentType.xContent(), mutated)) {
+                    ClusterUpdateSettingsRequest.fromXContent(parser);
+                }
+            });
             assertThat(iae.getMessage(), containsString("[cluster_update_settings_request] unknown field [" + unsupportedField + "]"));
         } else {
             try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
@@ -85,10 +88,13 @@ public class ClusterUpdateSettingsRequestTests extends ESTestCase {
     public void testOperatorHandler() throws IOException {
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
 
+        final ThreadPool threadPool = mock(ThreadPool.class);
+        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
         TransportClusterUpdateSettingsAction action = new TransportClusterUpdateSettingsAction(
-            mock(TransportService.class),
+            transportService,
             mock(ClusterService.class),
-            mock(ThreadPool.class),
+            mock(RerouteService.class),
+            threadPool,
             mock(ActionFilters.class),
             mock(IndexNameExpressionResolver.class),
             clusterSettings

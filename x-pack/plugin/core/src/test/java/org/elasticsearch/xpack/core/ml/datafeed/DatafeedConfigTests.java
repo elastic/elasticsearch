@@ -10,7 +10,7 @@ import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.aggregations.AggregationsPlugin;
@@ -65,12 +65,11 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfigBuilderTests.createRandomizedDatafeedConfigBuilder;
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_AGGREGATIONS_INTERVAL_MUST_BE_GREATER_THAN_ZERO;
-import static org.elasticsearch.xpack.core.ml.utils.QueryProviderTests.createRandomValidQueryProvider;
+import static org.elasticsearch.xpack.core.ml.utils.QueryProviderTests.createTestQueryProvider;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -82,6 +81,8 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 public class DatafeedConfigTests extends AbstractXContentSerializingTestCase<DatafeedConfig> {
+
+    private static final String[] EXPAND_WILDCARDS_VALUES = { "open", "closed", "hidden" };
 
     @Override
     protected DatafeedConfig createTestInstance() {
@@ -794,7 +795,7 @@ public class DatafeedConfigTests extends AbstractXContentSerializingTestCase<Dat
             .subAggregation(bucketScriptPipelineAggregationBuilder);
         DatafeedConfig.Builder datafeedConfigBuilder = createDatafeedBuilderWithDateHistogram(dateHistogram);
         datafeedConfigBuilder.setQueryProvider(
-            createRandomValidQueryProvider(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10))
+            createTestQueryProvider(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10))
         );
         DatafeedConfig datafeedConfig = datafeedConfigBuilder.build();
         AggregatorFactories.Builder aggBuilder = new AggregatorFactories.Builder().addAggregator(dateHistogram);
@@ -859,10 +860,10 @@ public class DatafeedConfigTests extends AbstractXContentSerializingTestCase<Dat
         DatafeedConfig datafeedConfig = datafeedConfigBuilder.build();
 
         try (BytesStreamOutput output = new BytesStreamOutput()) {
-            output.setVersion(Version.CURRENT);
+            output.setTransportVersion(TransportVersion.current());
             datafeedConfig.writeTo(output);
             try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), getNamedWriteableRegistry())) {
-                in.setVersion(Version.CURRENT);
+                in.setTransportVersion(TransportVersion.current());
                 DatafeedConfig streamedDatafeedConfig = new DatafeedConfig(in);
                 assertEquals(datafeedConfig, streamedDatafeedConfig);
 
@@ -953,7 +954,7 @@ public class DatafeedConfigTests extends AbstractXContentSerializingTestCase<Dat
     }
 
     @Override
-    protected DatafeedConfig mutateInstance(DatafeedConfig instance) throws IOException {
+    protected DatafeedConfig mutateInstance(DatafeedConfig instance) {
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder(instance);
         switch (between(0, 12)) {
             case 0:
@@ -1034,7 +1035,7 @@ public class DatafeedConfigTests extends AbstractXContentSerializingTestCase<Dat
             case 11:
                 builder.setIndicesOptions(
                     IndicesOptions.fromParameters(
-                        randomFrom(IndicesOptions.WildcardStates.values()).name().toLowerCase(Locale.ROOT),
+                        randomFrom(EXPAND_WILDCARDS_VALUES),
                         Boolean.toString(instance.getIndicesOptions().ignoreUnavailable() == false),
                         Boolean.toString(instance.getIndicesOptions().allowNoIndices() == false),
                         Boolean.toString(instance.getIndicesOptions().ignoreThrottled() == false),

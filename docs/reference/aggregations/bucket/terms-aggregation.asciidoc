@@ -107,7 +107,7 @@ or <<binary, `binary`>>.
 
 NOTE: By default, you cannot run a `terms` aggregation on a `text` field. Use a
 `keyword` <<multi-fields,sub-field>> instead. Alternatively, you can enable
-<<fielddata,`fielddata`>> on the `text` field to create buckets for the field's
+<<fielddata-mapping-param,`fielddata`>> on the `text` field to create buckets for the field's
 <<analysis,analyzed>> terms. Enabling `fielddata` can significantly increase
 memory usage.
 

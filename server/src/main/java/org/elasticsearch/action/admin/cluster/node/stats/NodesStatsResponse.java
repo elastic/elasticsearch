@@ -9,12 +9,14 @@
 package org.elasticsearch.action.admin.cluster.node.stats;
 
 import org.elasticsearch.action.FailedNodeException;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.nodes.BaseNodesXContentResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
@@ -23,35 +25,30 @@ import java.util.List;
 
 public class NodesStatsResponse extends BaseNodesXContentResponse<NodeStats> {
 
-    public NodesStatsResponse(StreamInput in) throws IOException {
-        super(in);
-    }
-
     public NodesStatsResponse(ClusterName clusterName, List<NodeStats> nodes, List<FailedNodeException> failures) {
         super(clusterName, nodes, failures);
     }
 
     @Override
     protected List<NodeStats> readNodesFrom(StreamInput in) throws IOException {
-        return in.readList(NodeStats::new);
+        return TransportAction.localOnly();
     }
 
     @Override
     protected void writeNodesTo(StreamOutput out, List<NodeStats> nodes) throws IOException {
-        out.writeList(nodes);
+        TransportAction.localOnly();
     }
 
     @Override
-    protected Iterator<? extends ToXContent> xContentChunks() {
+    protected Iterator<? extends ToXContent> xContentChunks(ToXContent.Params outerParams) {
         return Iterators.concat(
-            Iterators.single((b, p) -> b.startObject("nodes")),
-            getNodes().stream().map(nodeStats -> (ToXContent) (b, p) -> {
-                b.startObject(nodeStats.getNode().getId());
-                b.field("timestamp", nodeStats.getTimestamp());
-                nodeStats.toXContent(b, p);
-                return b.endObject();
-            }).iterator(),
-            Iterators.single((b, p) -> b.endObject())
+            ChunkedToXContentHelper.startObject("nodes"),
+            Iterators.flatMap(getNodes().iterator(), nodeStats -> Iterators.concat(Iterators.single((builder, params) -> {
+                builder.startObject(nodeStats.getNode().getId());
+                builder.field("timestamp", nodeStats.getTimestamp());
+                return builder;
+            }), nodeStats.toXContentChunked(outerParams), ChunkedToXContentHelper.endObject())),
+            ChunkedToXContentHelper.endObject()
         );
     }
 

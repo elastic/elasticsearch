@@ -29,7 +29,10 @@ public class RestPutRollupJobAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         final String id = request.param("id");
-        final PutRollupJobAction.Request putRollupJobRequest = PutRollupJobAction.Request.fromXContent(request.contentParser(), id);
+        final PutRollupJobAction.Request putRollupJobRequest;
+        try (var parser = request.contentParser()) {
+            putRollupJobRequest = PutRollupJobAction.Request.fromXContent(parser, id);
+        }
         return channel -> client.execute(PutRollupJobAction.INSTANCE, putRollupJobRequest, new RestToXContentListener<>(channel));
     }
 

@@ -10,17 +10,22 @@ package org.elasticsearch.test.cluster.util.resource;
 
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
+import java.util.function.Supplier;
 
 class StringResource implements Resource {
-    private final String text;
+    private final Supplier<String> text;
 
     StringResource(String text) {
-        this.text = text;
+        this.text = () -> text;
+    }
+
+    StringResource(Supplier<String> supplier) {
+        this.text = supplier;
     }
 
     @Override
     public InputStream asStream() {
-        return new ByteArrayInputStream(text.getBytes());
+        return new ByteArrayInputStream(text.get().getBytes());
     }
 
 }

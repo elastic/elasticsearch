@@ -55,7 +55,7 @@ public class Netty4TransportPublishAddressIT extends ESNetty4IntegTestCase {
         ensureStableCluster(2); // fails if port of publish address does not match corresponding bound address
 
         logger.info("--> checking if boundAddress matching publishAddress has same port");
-        NodesInfoResponse nodesInfoResponse = client().admin().cluster().prepareNodesInfo().get();
+        NodesInfoResponse nodesInfoResponse = clusterAdmin().prepareNodesInfo().get();
         for (NodeInfo nodeInfo : nodesInfoResponse.getNodes()) {
             BoundTransportAddress boundTransportAddress = nodeInfo.getInfo(TransportInfo.class).getAddress();
             if (nodeInfo.getNode().getName().equals(ipv4OnlyNode)) {

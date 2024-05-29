@@ -12,13 +12,14 @@ import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.example.analysis.lucene.CharSkippingTokenizer;
 import org.elasticsearch.example.analysis.lucene.ReplaceCharToNumber;
 import org.elasticsearch.example.analysis.lucene.SkipStartingWithDigitTokenFilter;
-import org.elasticsearch.plugin.api.NamedComponent;
-import org.elasticsearch.plugin.api.Inject;
+import org.elasticsearch.plugin.analysis.AnalyzerFactory;
+import org.elasticsearch.plugin.NamedComponent;
+import org.elasticsearch.plugin.Inject;
 
 import java.util.List;
 
 @NamedComponent( "example_analyzer_factory")
-public class CustomAnalyzerFactory implements org.elasticsearch.plugin.analysis.api.AnalyzerFactory {
+public class CustomAnalyzerFactory implements AnalyzerFactory {
     private final ExampleAnalysisSettings settings;
 
     @Inject

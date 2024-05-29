@@ -1,6 +1,6 @@
 setup:
-  - skip:
-      version: " - 8.3.99"
+  - requires:
+      cluster_features: ["gte_v8.4.0"]
       reason: introduced in 8.4.0
 
   - do:
@@ -30,7 +30,6 @@ setup:
       index:
         index:   test
         id:      1
-        refresh: true
         body:
           foo: the quick brown fox jumped over the lazy dog
 
@@ -38,7 +37,6 @@ setup:
       index:
         index:   test
         id:      2
-        refresh: true
         body:
           foo:
             - "To be, or not to be, that is the question:"
@@ -74,6 +72,10 @@ setup:
             - "And enterprises of great pith and moment"
             - "With this regard their currents turn awry"
             - "And lose the name of action."
+
+  - do:
+      indices.refresh:
+        index: [test]
 
 ---
 keyword single plain:
@@ -197,6 +199,10 @@ text multi plain:
 
 ---
 text single unified from reanalysis:
+  - requires:
+      cluster_features: ["gte_v8.10.0"]
+      reason: "support for weight matches was added in 8.10"
+
   - do:
       search:
         index: test
@@ -208,10 +214,14 @@ text single unified from reanalysis:
             fields:
               foo.analyze:
                 type: unified
-  - match: { hits.hits.0.highlight.foo\.analyze.0: <em>the</em> <em>quick</em> <em>brown</em> <em>fox</em> <em>jumped</em> <em>over</em> <em>the</em> <em>lazy</em> <em>dog</em> }
+  - match: { hits.hits.0.highlight.foo\.analyze.0: <em>the quick brown fox jumped over the lazy dog</em> }
 
 ---
 text multi unified from reanalysis:
+  - requires:
+      cluster_features: ["gte_v8.10.0"]
+      reason: "support for weight matches was added in 8.10"
+
   - do:
       search:
         index: test
@@ -223,10 +233,14 @@ text multi unified from reanalysis:
             fields:
               foo.analyze:
                 type: unified
-  - match: { hits.hits.0.highlight.foo\.analyze.0: <em>That</em> <em>makes</em> <em>calamity</em> <em>of</em> <em>so</em> <em>long</em> <em>life</em>. }
+  - match: { hits.hits.0.highlight.foo\.analyze.0: <em>That makes calamity of so long life</em>. }
 
 ---
 text single unified from positions:
+  - requires:
+      cluster_features: ["gte_v8.10.0"]
+      reason: "support for weight matches was added in 8.10"
+
   - do:
       search:
         index: test
@@ -238,10 +252,14 @@ text single unified from positions:
             fields:
               foo.positions:
                 type: unified
-  - match: { hits.hits.0.highlight.foo\.positions.0: <em>the</em> <em>quick</em> <em>brown</em> <em>fox</em> <em>jumped</em> <em>over</em> <em>the</em> <em>lazy</em> <em>dog</em> }
+  - match: { hits.hits.0.highlight.foo\.positions.0: <em>the quick brown fox jumped over the lazy dog</em> }
 
 ---
 text multi unified from positions:
+  - requires:
+      cluster_features: ["gte_v8.10.0"]
+      reason: "support for weight matches was added in 8.10"
+
   - do:
       search:
         index: test
@@ -253,10 +271,14 @@ text multi unified from positions:
             fields:
               foo.positions:
                 type: unified
-  - match: { hits.hits.0.highlight.foo\.positions.0: <em>That</em> <em>makes</em> <em>calamity</em> <em>of</em> <em>so</em> <em>long</em> <em>life</em>. }
+  - match: { hits.hits.0.highlight.foo\.positions.0: <em>That makes calamity of so long life</em>. }
 
 ---
 text single unified from vectors:
+  - requires:
+      cluster_features: ["gte_v8.10.0"]
+      reason: "support for weight matches was added in 8.10"
+
   - do:
       search:
         index: test
@@ -268,10 +290,14 @@ text single unified from vectors:
             fields:
               foo.vectors:
                 type: unified
-  - match: { hits.hits.0.highlight.foo\.vectors.0: <em>the</em> <em>quick</em> <em>brown</em> <em>fox</em> <em>jumped</em> <em>over</em> <em>the</em> <em>lazy</em> <em>dog</em> }
+  - match: { hits.hits.0.highlight.foo\.vectors.0: <em>the quick brown fox jumped over the lazy dog</em> }
 
 ---
 text multi unified from vectors:
+  - requires:
+      cluster_features: ["gte_v8.10.0"]
+      reason: "support for weight matches was added in 8.10"
+
   - do:
       search:
         index: test
@@ -283,10 +309,14 @@ text multi unified from vectors:
             fields:
               foo.vectors:
                 type: unified
-  - match: { hits.hits.0.highlight.foo\.vectors.0: <em>That</em> <em>makes</em> <em>calamity</em> <em>of</em> <em>so</em> <em>long</em> <em>life</em>. }
+  - match: { hits.hits.0.highlight.foo\.vectors.0: <em>That makes calamity of so long life</em>. }
 
 ---
 text single fvh source order:
+  - requires:
+      cluster_features: ["gte_v8.10.0"]
+      reason: "support for weight matches was added in 8.10"
+
   - do:
       search:
         index: test
@@ -302,6 +332,10 @@ text single fvh source order:
 
 ---
 text multi fvh source order:
+  - requires:
+      cluster_features: ["gte_v8.10.0"]
+      reason: "support for weight matches was added in 8.10"
+
   - do:
       catch: /The fast vector highlighter doesn't support loading multi-valued fields from _source in index \[test\] because _source can reorder field values/
       search:
@@ -317,6 +351,10 @@ text multi fvh source order:
 
 ---
 text single fvh score order:
+  - requires:
+      cluster_features: ["gte_v8.10.0"]
+      reason: "support for weight matches was added in 8.10"
+
   - do:
       search:
         index: test
@@ -333,6 +371,10 @@ text single fvh score order:
 
 ---
 text multi fvh score order:
+  - requires:
+      cluster_features: ["gte_v8.10.0"]
+      reason: "support for weight matches was added in 8.10"
+
   - do:
       catch: /The fast vector highlighter doesn't support loading multi-valued fields from _source in index \[test\] because _source can reorder field values/
       search:

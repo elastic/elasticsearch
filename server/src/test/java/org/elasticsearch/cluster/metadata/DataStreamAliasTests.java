@@ -59,6 +59,11 @@ public class DataStreamAliasTests extends AbstractXContentSerializingTestCase<Da
         return DataStreamTestHelper.randomAliasInstance();
     }
 
+    @Override
+    protected DataStreamAlias mutateInstance(DataStreamAlias instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public void testUpdate() {
         // Add ds-3 to alias, a different instance is returned with ds-3 as one of the data streams being referred to
         DataStreamAlias alias = new DataStreamAlias("my-alias", List.of("ds-1", "ds-2"), null, null);

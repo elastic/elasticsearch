@@ -10,11 +10,11 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.MultiReader;
-import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.MappedFieldType.Relation;
+import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -29,7 +29,7 @@ public class RangeQueryRewriteTests extends ESSingleNodeTestCase {
     public void testRewriteMissingField() throws Exception {
         IndexService indexService = createIndex("test");
         IndexReader reader = new MultiReader();
-        QueryRewriteContext context = new SearchExecutionContext(
+        SearchExecutionContext context = new SearchExecutionContext(
             0,
             0,
             indexService.getIndexSettings(),
@@ -42,13 +42,14 @@ public class RangeQueryRewriteTests extends ESSingleNodeTestCase {
             parserConfig(),
             writableRegistry(),
             null,
-            new IndexSearcher(reader),
+            newSearcher(reader),
             null,
             null,
             null,
             () -> true,
             null,
-            emptyMap()
+            emptyMap(),
+            MapperMetrics.NOOP
         );
         RangeQueryBuilder range = new RangeQueryBuilder("foo");
         assertEquals(Relation.DISJOINT, range.getRelation(context));
@@ -69,7 +70,7 @@ public class RangeQueryRewriteTests extends ESSingleNodeTestCase {
                 .endObject()
         );
         indexService.mapperService().merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
-        QueryRewriteContext context = new SearchExecutionContext(
+        SearchExecutionContext context = new SearchExecutionContext(
             0,
             0,
             indexService.getIndexSettings(),
@@ -88,7 +89,8 @@ public class RangeQueryRewriteTests extends ESSingleNodeTestCase {
             null,
             () -> true,
             null,
-            emptyMap()
+            emptyMap(),
+            MapperMetrics.NOOP
         );
         RangeQueryBuilder range = new RangeQueryBuilder("foo");
         // can't make assumptions on a missing reader, so it must return INTERSECT
@@ -111,7 +113,7 @@ public class RangeQueryRewriteTests extends ESSingleNodeTestCase {
         );
         indexService.mapperService().merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
         IndexReader reader = new MultiReader();
-        QueryRewriteContext context = new SearchExecutionContext(
+        SearchExecutionContext context = new SearchExecutionContext(
             0,
             0,
             indexService.getIndexSettings(),
@@ -124,13 +126,14 @@ public class RangeQueryRewriteTests extends ESSingleNodeTestCase {
             parserConfig(),
             writableRegistry(),
             null,
-            new IndexSearcher(reader),
+            newSearcher(reader),
             null,
             null,
             null,
             () -> true,
             null,
-            emptyMap()
+            emptyMap(),
+            MapperMetrics.NOOP
         );
         RangeQueryBuilder range = new RangeQueryBuilder("foo");
         // no values -> DISJOINT

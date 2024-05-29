@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.action.admin.cluster.configuration;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata;
@@ -15,6 +14,7 @@ import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfigE
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes.Builder;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
@@ -23,7 +23,6 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.util.Set;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
@@ -59,41 +58,22 @@ public class AddVotingConfigExclusionsRequestTests extends ESTestCase {
     }
 
     public void testResolve() {
-        final DiscoveryNode localNode = new DiscoveryNode(
-            "local",
-            "local",
-            buildNewFakeTransportAddress(),
-            emptyMap(),
-            Set.of(DiscoveryNodeRole.MASTER_ROLE),
-            Version.CURRENT
-        );
+        final DiscoveryNode localNode = DiscoveryNodeUtils.builder("local")
+            .name("local")
+            .roles(Set.of(DiscoveryNodeRole.MASTER_ROLE))
+            .build();
         final VotingConfigExclusion localNodeExclusion = new VotingConfigExclusion(localNode);
-        final DiscoveryNode otherNode1 = new DiscoveryNode(
-            "other1",
-            "other1",
-            buildNewFakeTransportAddress(),
-            emptyMap(),
-            Set.of(DiscoveryNodeRole.MASTER_ROLE),
-            Version.CURRENT
-        );
+        final DiscoveryNode otherNode1 = DiscoveryNodeUtils.builder("other1")
+            .name("other1")
+            .roles(Set.of(DiscoveryNodeRole.MASTER_ROLE))
+            .build();
         final VotingConfigExclusion otherNode1Exclusion = new VotingConfigExclusion(otherNode1);
-        final DiscoveryNode otherNode2 = new DiscoveryNode(
-            "other2",
-            "other2",
-            buildNewFakeTransportAddress(),
-            emptyMap(),
-            Set.of(DiscoveryNodeRole.MASTER_ROLE),
-            Version.CURRENT
-        );
+        final DiscoveryNode otherNode2 = DiscoveryNodeUtils.builder("other2")
+            .name("other2")
+            .roles(Set.of(DiscoveryNodeRole.MASTER_ROLE))
+            .build();
         final VotingConfigExclusion otherNode2Exclusion = new VotingConfigExclusion(otherNode2);
-        final DiscoveryNode otherDataNode = new DiscoveryNode(
-            "data",
-            "data",
-            buildNewFakeTransportAddress(),
-            emptyMap(),
-            emptySet(),
-            Version.CURRENT
-        );
+        final DiscoveryNode otherDataNode = DiscoveryNodeUtils.builder("data").name("data").roles(emptySet()).build();
 
         final ClusterState clusterState = ClusterState.builder(new ClusterName("cluster"))
             .nodes(new Builder().add(localNode).add(otherNode1).add(otherNode2).add(otherDataNode).localNodeId(localNode.getId()))
@@ -136,34 +116,22 @@ public class AddVotingConfigExclusionsRequestTests extends ESTestCase {
     }
 
     public void testResolveByNodeIds() {
-        final DiscoveryNode node1 = new DiscoveryNode(
-            "nodeName1",
-            "nodeId1",
-            buildNewFakeTransportAddress(),
-            emptyMap(),
-            Set.of(DiscoveryNodeRole.MASTER_ROLE),
-            Version.CURRENT
-        );
+        final DiscoveryNode node1 = DiscoveryNodeUtils.builder("nodeId1")
+            .name("nodeName1")
+            .roles(Set.of(DiscoveryNodeRole.MASTER_ROLE))
+            .build();
         final VotingConfigExclusion node1Exclusion = new VotingConfigExclusion(node1);
 
-        final DiscoveryNode node2 = new DiscoveryNode(
-            "nodeName2",
-            "nodeId2",
-            buildNewFakeTransportAddress(),
-            emptyMap(),
-            Set.of(DiscoveryNodeRole.MASTER_ROLE),
-            Version.CURRENT
-        );
+        final DiscoveryNode node2 = DiscoveryNodeUtils.builder("nodeId2")
+            .name("nodeName2")
+            .roles(Set.of(DiscoveryNodeRole.MASTER_ROLE))
+            .build();
         final VotingConfigExclusion node2Exclusion = new VotingConfigExclusion(node2);
 
-        final DiscoveryNode node3 = new DiscoveryNode(
-            "nodeName3",
-            "nodeId3",
-            buildNewFakeTransportAddress(),
-            emptyMap(),
-            Set.of(DiscoveryNodeRole.MASTER_ROLE),
-            Version.CURRENT
-        );
+        final DiscoveryNode node3 = DiscoveryNodeUtils.builder("nodeId3")
+            .name("nodeName3")
+            .roles(Set.of(DiscoveryNodeRole.MASTER_ROLE))
+            .build();
 
         final VotingConfigExclusion unresolvableVotingConfigExclusion = new VotingConfigExclusion(
             "unresolvableNodeId",
@@ -188,34 +156,22 @@ public class AddVotingConfigExclusionsRequestTests extends ESTestCase {
     }
 
     public void testResolveByNodeNames() {
-        final DiscoveryNode node1 = new DiscoveryNode(
-            "nodeName1",
-            "nodeId1",
-            buildNewFakeTransportAddress(),
-            emptyMap(),
-            Set.of(DiscoveryNodeRole.MASTER_ROLE),
-            Version.CURRENT
-        );
+        final DiscoveryNode node1 = DiscoveryNodeUtils.builder("nodeId1")
+            .name("nodeName1")
+            .roles(Set.of(DiscoveryNodeRole.MASTER_ROLE))
+            .build();
         final VotingConfigExclusion node1Exclusion = new VotingConfigExclusion(node1);
 
-        final DiscoveryNode node2 = new DiscoveryNode(
-            "nodeName2",
-            "nodeId2",
-            buildNewFakeTransportAddress(),
-            emptyMap(),
-            Set.of(DiscoveryNodeRole.MASTER_ROLE),
-            Version.CURRENT
-        );
+        final DiscoveryNode node2 = DiscoveryNodeUtils.builder("nodeId2")
+            .name("nodeName2")
+            .roles(Set.of(DiscoveryNodeRole.MASTER_ROLE))
+            .build();
         final VotingConfigExclusion node2Exclusion = new VotingConfigExclusion(node2);
 
-        final DiscoveryNode node3 = new DiscoveryNode(
-            "nodeName3",
-            "nodeId3",
-            buildNewFakeTransportAddress(),
-            emptyMap(),
-            Set.of(DiscoveryNodeRole.MASTER_ROLE),
-            Version.CURRENT
-        );
+        final DiscoveryNode node3 = DiscoveryNodeUtils.builder("nodeId3")
+            .name("nodeName3")
+            .roles(Set.of(DiscoveryNodeRole.MASTER_ROLE))
+            .build();
 
         final VotingConfigExclusion unresolvableVotingConfigExclusion = new VotingConfigExclusion(
             VotingConfigExclusion.MISSING_VALUE_MARKER,
@@ -238,23 +194,15 @@ public class AddVotingConfigExclusionsRequestTests extends ESTestCase {
     }
 
     public void testResolveAmbiguousName() {
-        final DiscoveryNode node1 = new DiscoveryNode(
-            "ambiguous-name",
-            "nodeId1",
-            buildNewFakeTransportAddress(),
-            emptyMap(),
-            Set.of(DiscoveryNodeRole.MASTER_ROLE),
-            Version.CURRENT
-        );
+        final DiscoveryNode node1 = DiscoveryNodeUtils.builder("nodeId1")
+            .name("ambiguous-name")
+            .roles(Set.of(DiscoveryNodeRole.MASTER_ROLE))
+            .build();
 
-        final DiscoveryNode node2 = new DiscoveryNode(
-            "ambiguous-name",
-            "nodeId2",
-            buildNewFakeTransportAddress(),
-            emptyMap(),
-            Set.of(DiscoveryNodeRole.MASTER_ROLE),
-            Version.CURRENT
-        );
+        final DiscoveryNode node2 = DiscoveryNodeUtils.builder("nodeId2")
+            .name("ambiguous-name")
+            .roles(Set.of(DiscoveryNodeRole.MASTER_ROLE))
+            .build();
 
         final ClusterState clusterState = ClusterState.builder(new ClusterName("cluster"))
             .nodes(new Builder().add(node1).add(node2).localNodeId(node1.getId()))
@@ -272,33 +220,21 @@ public class AddVotingConfigExclusionsRequestTests extends ESTestCase {
     }
 
     public void testResolveRemoveExistingVotingConfigExclusions() {
-        final DiscoveryNode node1 = new DiscoveryNode(
-            "nodeName1",
-            "nodeId1",
-            buildNewFakeTransportAddress(),
-            emptyMap(),
-            Set.of(DiscoveryNodeRole.MASTER_ROLE),
-            Version.CURRENT
-        );
+        final DiscoveryNode node1 = DiscoveryNodeUtils.builder("nodeId1")
+            .name("nodeName1")
+            .roles(Set.of(DiscoveryNodeRole.MASTER_ROLE))
+            .build();
 
-        final DiscoveryNode node2 = new DiscoveryNode(
-            "nodeName2",
-            "nodeId2",
-            buildNewFakeTransportAddress(),
-            emptyMap(),
-            Set.of(DiscoveryNodeRole.MASTER_ROLE),
-            Version.CURRENT
-        );
+        final DiscoveryNode node2 = DiscoveryNodeUtils.builder("nodeId2")
+            .name("nodeName2")
+            .roles(Set.of(DiscoveryNodeRole.MASTER_ROLE))
+            .build();
         final VotingConfigExclusion node2Exclusion = new VotingConfigExclusion(node2);
 
-        final DiscoveryNode node3 = new DiscoveryNode(
-            "nodeName3",
-            "nodeId3",
-            buildNewFakeTransportAddress(),
-            emptyMap(),
-            Set.of(DiscoveryNodeRole.MASTER_ROLE),
-            Version.CURRENT
-        );
+        final DiscoveryNode node3 = DiscoveryNodeUtils.builder("nodeId3")
+            .name("nodeName3")
+            .roles(Set.of(DiscoveryNodeRole.MASTER_ROLE))
+            .build();
 
         final VotingConfigExclusion existingVotingConfigExclusion = new VotingConfigExclusion(node1);
 
@@ -319,32 +255,20 @@ public class AddVotingConfigExclusionsRequestTests extends ESTestCase {
     }
 
     public void testResolveAndCheckMaximum() {
-        final DiscoveryNode localNode = new DiscoveryNode(
-            "local",
-            "local",
-            buildNewFakeTransportAddress(),
-            emptyMap(),
-            Set.of(DiscoveryNodeRole.MASTER_ROLE),
-            Version.CURRENT
-        );
+        final DiscoveryNode localNode = DiscoveryNodeUtils.builder("local")
+            .name("local")
+            .roles(Set.of(DiscoveryNodeRole.MASTER_ROLE))
+            .build();
         final VotingConfigExclusion localNodeExclusion = new VotingConfigExclusion(localNode);
-        final DiscoveryNode otherNode1 = new DiscoveryNode(
-            "other1",
-            "other1",
-            buildNewFakeTransportAddress(),
-            emptyMap(),
-            Set.of(DiscoveryNodeRole.MASTER_ROLE),
-            Version.CURRENT
-        );
+        final DiscoveryNode otherNode1 = DiscoveryNodeUtils.builder("other1")
+            .name("other1")
+            .roles(Set.of(DiscoveryNodeRole.MASTER_ROLE))
+            .build();
         final VotingConfigExclusion otherNode1Exclusion = new VotingConfigExclusion(otherNode1);
-        final DiscoveryNode otherNode2 = new DiscoveryNode(
-            "other2",
-            "other2",
-            buildNewFakeTransportAddress(),
-            emptyMap(),
-            Set.of(DiscoveryNodeRole.MASTER_ROLE),
-            Version.CURRENT
-        );
+        final DiscoveryNode otherNode2 = DiscoveryNodeUtils.builder("other2")
+            .name("other2")
+            .roles(Set.of(DiscoveryNodeRole.MASTER_ROLE))
+            .build();
 
         final ClusterState.Builder builder = ClusterState.builder(new ClusterName("cluster"))
             .nodes(new Builder().add(localNode).add(otherNode1).add(otherNode2).localNodeId(localNode.getId()));

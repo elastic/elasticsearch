@@ -38,8 +38,8 @@ public interface ClusterStateTaskExecutor<T extends ClusterStateTaskListener> {
      * already have become master and updated the state in a way that would be inconsistent with the response that {@code N} sends back to
      * clients.
      *
-     * @return The resulting cluster state after executing all the tasks. If {code batchExecutionContext.initialState()} is returned then no
-     * update is published.
+     * @return The resulting cluster state after executing all the tasks. If {@code batchExecutionContext.initialState()} is returned then
+     * no update is published.
      */
     ClusterState execute(BatchExecutionContext<T> batchExecutionContext) throws Exception;
 
@@ -197,9 +197,9 @@ public interface ClusterStateTaskExecutor<T extends ClusterStateTaskListener> {
      *                                   emitted response headers, for cases where things like deprecation warnings may be emitted but
      *                                   cannot be associated with any specific task.
      */
-    record BatchExecutionContext<T extends ClusterStateTaskListener> (
+    record BatchExecutionContext<T extends ClusterStateTaskListener>(
         ClusterState initialState,
-        List<TaskContext<T>> taskContexts,
+        List<? extends TaskContext<T>> taskContexts,
         Supplier<Releasable> dropHeadersContextSupplier
     ) {
         /**

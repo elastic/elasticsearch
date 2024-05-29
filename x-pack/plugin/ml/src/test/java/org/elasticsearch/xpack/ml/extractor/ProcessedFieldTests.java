@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.ml.extractor;
 
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.FrequencyEncoding;
@@ -59,7 +58,7 @@ public class ProcessedFieldTests extends ESTestCase {
             new FrequencyEncoding(
                 randomAlphaOfLength(10),
                 randomAlphaOfLength(10),
-                MapBuilder.<String, Double>newMapBuilder().put("bar", 1.0).put("1", 0.5).put("false", 0.0).map(),
+                Map.of("bar", 1.0, "1", 0.5, "false", 0.0),
                 randomBoolean()
             ),
             new Object[] { "bar", 1, false },
@@ -72,7 +71,7 @@ public class ProcessedFieldTests extends ESTestCase {
             new TargetMeanEncoding(
                 randomAlphaOfLength(10),
                 randomAlphaOfLength(10),
-                MapBuilder.<String, Double>newMapBuilder().put("bar", 1.0).put("1", 0.5).put("false", 0.0).map(),
+                Map.of("bar", 1.0, "1", 0.5, "false", 0.0),
                 0.8,
                 randomBoolean()
             ),

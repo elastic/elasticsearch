@@ -27,7 +27,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.RemoveCorruptedShardDataCommand;
 import org.elasticsearch.index.shard.ShardPath;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.IOException;
 import java.nio.channels.FileChannel;
@@ -46,11 +45,6 @@ import java.util.TreeSet;
 public class TruncateTranslogAction {
 
     protected static final Logger logger = LogManager.getLogger(TruncateTranslogAction.class);
-    private final NamedXContentRegistry namedXContentRegistry;
-
-    public TruncateTranslogAction(NamedXContentRegistry namedXContentRegistry) {
-        this.namedXContentRegistry = namedXContentRegistry;
-    }
 
     public static Tuple<RemoveCorruptedShardDataCommand.CleanStatus, String> getCleanStatus(
         ShardPath shardPath,
@@ -215,7 +209,7 @@ public class TruncateTranslogAction {
     private static int writeEmptyTranslog(Path filename, String translogUUID) throws IOException {
         try (FileChannel fc = FileChannel.open(filename, StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW)) {
             TranslogHeader header = new TranslogHeader(translogUUID, SequenceNumbers.UNASSIGNED_PRIMARY_TERM);
-            header.write(fc);
+            header.write(fc, true);
             return header.sizeInBytes();
         }
     }

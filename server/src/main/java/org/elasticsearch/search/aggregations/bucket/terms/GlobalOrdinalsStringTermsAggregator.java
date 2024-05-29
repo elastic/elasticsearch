@@ -9,14 +9,21 @@
 package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.ArrayUtil;
+import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.PriorityQueue;
+import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.LongHash;
+import org.elasticsearch.common.util.ObjectArrayPriorityQueue;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.DocValueFormat;
@@ -56,8 +63,9 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
     protected final ValuesSource.Bytes.WithOrdinals valuesSource;
 
     private final LongPredicate acceptedGlobalOrdinals;
+
+    private final CheckedSupplier<SortedSetDocValues, IOException> valuesSupplier;
     private final long valueCount;
-    private final GlobalOrdLookupFunction lookupGlobalOrd;
     protected final CollectionStrategy collectionStrategy;
     protected int segmentsWithSingleValuedOrds = 0;
     protected int segmentsWithMultiValuedOrds = 0;
@@ -66,12 +74,13 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         BytesRef apply(long ord) throws IOException;
     }
 
+    @SuppressWarnings("this-escape")
     public GlobalOrdinalsStringTermsAggregator(
         String name,
         AggregatorFactories factories,
         Function<GlobalOrdinalsStringTermsAggregator, ResultStrategy<?, ?, ?>> resultStrategy,
         ValuesSource.Bytes.WithOrdinals valuesSource,
-        SortedSetDocValues values,
+        CheckedSupplier<SortedSetDocValues, IOException> valuesSupplier,
         BucketOrder order,
         DocValueFormat format,
         BucketCountThresholds bucketCountThresholds,
@@ -82,22 +91,24 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         SubAggCollectionMode collectionMode,
         boolean showTermDocCountError,
         CardinalityUpperBound cardinality,
-        Map<String, Object> metadata
+        Map<String, Object> metadata,
+        boolean excludeDeletedDocs
     ) throws IOException {
         super(name, factories, context, parent, order, format, bucketCountThresholds, collectionMode, showTermDocCountError, metadata);
         this.resultStrategy = resultStrategy.apply(this); // ResultStrategy needs a reference to the Aggregator to do its job.
         this.valuesSource = valuesSource;
-        this.valueCount = values.getValueCount();
-        this.lookupGlobalOrd = values::lookupOrd;
+        this.valuesSupplier = valuesSupplier;
+        this.valueCount = valuesSupplier.get().getValueCount();
         this.acceptedGlobalOrdinals = acceptedOrds;
         if (remapGlobalOrds) {
-            this.collectionStrategy = new RemapGlobalOrds(cardinality);
+            this.collectionStrategy = new RemapGlobalOrds(cardinality, excludeDeletedDocs);
         } else {
             this.collectionStrategy = cardinality.map(estimate -> {
                 if (estimate > 1) {
+                    // This is a 500 class error, because we should never be able to reach it.
                     throw new AggregationExecutionException("Dense ords don't know how to collect from many buckets");
                 }
-                return new DenseGlobalOrds();
+                return new DenseGlobalOrds(excludeDeletedDocs);
             });
         }
     }
@@ -265,7 +276,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             AggregatorFactories factories,
             Function<GlobalOrdinalsStringTermsAggregator, ResultStrategy<?, ?, ?>> resultStrategy,
             ValuesSource.Bytes.WithOrdinals valuesSource,
-            SortedSetDocValues values,
+            CheckedSupplier<SortedSetDocValues, IOException> valuesSupplier,
             BucketOrder order,
             DocValueFormat format,
             BucketCountThresholds bucketCountThresholds,
@@ -274,14 +285,15 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             boolean remapGlobalOrds,
             SubAggCollectionMode collectionMode,
             boolean showTermDocCountError,
-            Map<String, Object> metadata
+            Map<String, Object> metadata,
+            boolean excludeDeletedDocs
         ) throws IOException {
             super(
                 name,
                 factories,
                 resultStrategy,
                 valuesSource,
-                values,
+                valuesSupplier,
                 order,
                 format,
                 bucketCountThresholds,
@@ -292,7 +304,8 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                 collectionMode,
                 showTermDocCountError,
                 CardinalityUpperBound.ONE,
-                metadata
+                metadata,
+                excludeDeletedDocs
             );
             assert factories == null || factories.countAggregators() == 0;
             this.segmentDocCounts = context.bigArrays().newLongArray(1, true);
@@ -441,6 +454,13 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
      * bucket ordinal.
      */
     class DenseGlobalOrds extends CollectionStrategy {
+
+        private final boolean excludeDeletedDocs;
+
+        DenseGlobalOrds(boolean excludeDeletedDocs) {
+            this.excludeDeletedDocs = excludeDeletedDocs;
+        }
+
         @Override
         String describe() {
             return "dense";
@@ -471,6 +491,14 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         @Override
         void forEach(long owningBucketOrd, BucketInfoConsumer consumer) throws IOException {
             assert owningBucketOrd == 0;
+            if (excludeDeletedDocs) {
+                forEachExcludeDeletedDocs(consumer);
+            } else {
+                forEachAllowDeletedDocs(consumer);
+            }
+        }
+
+        private void forEachAllowDeletedDocs(BucketInfoConsumer consumer) throws IOException {
             for (long globalOrd = 0; globalOrd < valueCount; globalOrd++) {
                 if (false == acceptedGlobalOrdinals.test(globalOrd)) {
                     continue;
@@ -478,6 +506,39 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                 long docCount = bucketDocCount(globalOrd);
                 if (bucketCountThresholds.getMinDocCount() == 0 || docCount > 0) {
                     consumer.accept(globalOrd, globalOrd, docCount);
+                }
+            }
+        }
+
+        /**
+         * Excludes deleted docs in the results by cross-checking with liveDocs.
+         */
+        private void forEachExcludeDeletedDocs(BucketInfoConsumer consumer) throws IOException {
+            try (LongHash accepted = new LongHash(20, new BigArrays(null, null, ""))) {
+                for (LeafReaderContext ctx : searcher().getTopReaderContext().leaves()) {
+                    LeafReader reader = ctx.reader();
+                    Bits liveDocs = reader.getLiveDocs();
+                    SortedSetDocValues globalOrds = null;
+                    for (int docId = 0; docId < reader.maxDoc(); ++docId) {
+                        if (liveDocs == null || liveDocs.get(docId)) {  // document is not deleted
+                            globalOrds = globalOrds == null ? valuesSource.globalOrdinalsValues(ctx) : globalOrds;
+                            if (globalOrds.advanceExact(docId)) {
+                                for (long globalOrd = globalOrds.nextOrd(); globalOrd != NO_MORE_ORDS; globalOrd = globalOrds.nextOrd()) {
+                                    if (accepted.find(globalOrd) >= 0) {
+                                        continue;
+                                    }
+                                    if (false == acceptedGlobalOrdinals.test(globalOrd)) {
+                                        continue;
+                                    }
+                                    long docCount = bucketDocCount(globalOrd);
+                                    if (bucketCountThresholds.getMinDocCount() == 0 || docCount > 0) {
+                                        consumer.accept(globalOrd, globalOrd, docCount);
+                                        accepted.add(globalOrd);
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -494,9 +555,11 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
      */
     private class RemapGlobalOrds extends CollectionStrategy {
         private final LongKeyedBucketOrds bucketOrds;
+        private final boolean excludeDeletedDocs;
 
-        private RemapGlobalOrds(CardinalityUpperBound cardinality) {
+        private RemapGlobalOrds(CardinalityUpperBound cardinality, boolean excludeDeletedDocs) {
             bucketOrds = LongKeyedBucketOrds.buildForValueRange(bigArrays(), cardinality, 0, valueCount - 1);
+            this.excludeDeletedDocs = excludeDeletedDocs;
         }
 
         @Override
@@ -530,27 +593,20 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
 
         @Override
         void forEach(long owningBucketOrd, BucketInfoConsumer consumer) throws IOException {
+            if (excludeDeletedDocs) {
+                forEachExcludeDeletedDocs(owningBucketOrd, consumer);
+            } else {
+                forEachAllowDeletedDocs(owningBucketOrd, consumer);
+            }
+        }
+
+        void forEachAllowDeletedDocs(long owningBucketOrd, BucketInfoConsumer consumer) throws IOException {
             if (bucketCountThresholds.getMinDocCount() == 0) {
                 for (long globalOrd = 0; globalOrd < valueCount; globalOrd++) {
                     if (false == acceptedGlobalOrdinals.test(globalOrd)) {
                         continue;
                     }
-                    /*
-                     * Use `add` instead of `find` here to assign an ordinal
-                     * even if the global ord wasn't found so we can build
-                     * sub-aggregations without trouble even though we haven't
-                     * hit any documents for them. This is wasteful, but
-                     * settings minDocCount == 0 is wasteful in general.....
-                     */
-                    long bucketOrd = bucketOrds.add(owningBucketOrd, globalOrd);
-                    long docCount;
-                    if (bucketOrd < 0) {
-                        bucketOrd = -1 - bucketOrd;
-                        docCount = bucketDocCount(bucketOrd);
-                    } else {
-                        docCount = 0;
-                    }
-                    consumer.accept(globalOrd, bucketOrd, docCount);
+                    addBucketForMinDocCountZero(owningBucketOrd, globalOrd, consumer, null);
                 }
             } else {
                 LongKeyedBucketOrds.BucketOrdsEnum ordsEnum = bucketOrds.ordsEnum(owningBucketOrd);
@@ -560,6 +616,64 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                     }
                     consumer.accept(ordsEnum.value(), ordsEnum.ord(), bucketDocCount(ordsEnum.ord()));
                 }
+            }
+        }
+
+        /**
+         * Excludes deleted docs in the results by cross-checking with liveDocs.
+         */
+        void forEachExcludeDeletedDocs(long owningBucketOrd, BucketInfoConsumer consumer) throws IOException {
+            assert bucketCountThresholds.getMinDocCount() == 0;
+            try (LongHash accepted = new LongHash(20, new BigArrays(null, null, ""))) {
+                for (LeafReaderContext ctx : searcher().getTopReaderContext().leaves()) {
+                    LeafReader reader = ctx.reader();
+                    Bits liveDocs = reader.getLiveDocs();
+                    SortedSetDocValues globalOrds = null;
+                    for (int docId = 0; docId < reader.maxDoc(); ++docId) {
+                        if (liveDocs == null || liveDocs.get(docId)) {  // document is not deleted
+                            globalOrds = globalOrds == null ? valuesSource.globalOrdinalsValues(ctx) : globalOrds;
+                            if (globalOrds.advanceExact(docId)) {
+                                for (long globalOrd = globalOrds.nextOrd(); globalOrd != NO_MORE_ORDS; globalOrd = globalOrds.nextOrd()) {
+                                    if (accepted.find(globalOrd) >= 0) {
+                                        continue;
+                                    }
+                                    if (false == acceptedGlobalOrdinals.test(globalOrd)) {
+                                        continue;
+                                    }
+                                    addBucketForMinDocCountZero(owningBucketOrd, globalOrd, consumer, accepted);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        private void addBucketForMinDocCountZero(
+            long owningBucketOrd,
+            long globalOrd,
+            BucketInfoConsumer consumer,
+            @Nullable LongHash accepted
+        ) throws IOException {
+            /*
+             * Use `add` instead of `find` here to assign an ordinal
+             * even if the global ord wasn't found so we can build
+             * sub-aggregations without trouble even though we haven't
+             * hit any documents for them. This is wasteful, but
+             * settings minDocCount == 0 is wasteful in general.....
+             */
+            long bucketOrd = bucketOrds.add(owningBucketOrd, globalOrd);
+            long docCount;
+            if (bucketOrd < 0) {
+                bucketOrd = -1 - bucketOrd;
+                docCount = bucketDocCount(bucketOrd);
+            } else {
+                docCount = 0;
+            }
+            assert globalOrd >= 0;
+            consumer.accept(globalOrd, bucketOrd, docCount);
+            if (accepted != null) {
+                accepted.add(globalOrd);
             }
         }
 
@@ -588,6 +702,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
 
             B[][] topBucketsPreOrd = buildTopBucketsPerOrd(owningBucketOrds.length);
             long[] otherDocCount = new long[owningBucketOrds.length];
+            GlobalOrdLookupFunction lookupGlobalOrd = valuesSupplier.get()::lookupOrd;
             for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
                 final int size;
                 if (bucketCountThresholds.getMinDocCount() == 0) {
@@ -596,30 +711,31 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                 } else {
                     size = (int) Math.min(maxBucketOrd(), bucketCountThresholds.getShardSize());
                 }
-                PriorityQueue<TB> ordered = buildPriorityQueue(size);
-                final int finalOrdIdx = ordIdx;
-                BucketUpdater<TB> updater = bucketUpdater(owningBucketOrds[ordIdx]);
-                collectionStrategy.forEach(owningBucketOrds[ordIdx], new BucketInfoConsumer() {
-                    TB spare = null;
+                try (ObjectArrayPriorityQueue<TB> ordered = buildPriorityQueue(size)) {
+                    final int finalOrdIdx = ordIdx;
+                    BucketUpdater<TB> updater = bucketUpdater(owningBucketOrds[ordIdx], lookupGlobalOrd);
+                    collectionStrategy.forEach(owningBucketOrds[ordIdx], new BucketInfoConsumer() {
+                        TB spare = null;
 
-                    @Override
-                    public void accept(long globalOrd, long bucketOrd, long docCount) throws IOException {
-                        otherDocCount[finalOrdIdx] += docCount;
-                        if (docCount >= bucketCountThresholds.getShardMinDocCount()) {
-                            if (spare == null) {
-                                spare = buildEmptyTemporaryBucket();
+                        @Override
+                        public void accept(long globalOrd, long bucketOrd, long docCount) throws IOException {
+                            otherDocCount[finalOrdIdx] += docCount;
+                            if (docCount >= bucketCountThresholds.getShardMinDocCount()) {
+                                if (spare == null) {
+                                    spare = buildEmptyTemporaryBucket();
+                                }
+                                updater.updateBucket(spare, globalOrd, bucketOrd, docCount);
+                                spare = ordered.insertWithOverflow(spare);
                             }
-                            updater.updateBucket(spare, globalOrd, bucketOrd, docCount);
-                            spare = ordered.insertWithOverflow(spare);
                         }
-                    }
-                });
+                    });
 
-                // Get the top buckets
-                topBucketsPreOrd[ordIdx] = buildBuckets(ordered.size());
-                for (int i = ordered.size() - 1; i >= 0; --i) {
-                    topBucketsPreOrd[ordIdx][i] = convertTempBucketToRealBucket(ordered.pop());
-                    otherDocCount[ordIdx] -= topBucketsPreOrd[ordIdx][i].getDocCount();
+                    // Get the top buckets
+                    topBucketsPreOrd[ordIdx] = buildBuckets((int) ordered.size());
+                    for (int i = (int) ordered.size() - 1; i >= 0; --i) {
+                        topBucketsPreOrd[ordIdx][i] = convertTempBucketToRealBucket(ordered.pop(), lookupGlobalOrd);
+                        otherDocCount[ordIdx] -= topBucketsPreOrd[ordIdx][i].getDocCount();
+                    }
                 }
             }
 
@@ -653,13 +769,13 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
          * Update fields in {@code spare} to reflect information collected for
          * this bucket ordinal.
          */
-        abstract BucketUpdater<TB> bucketUpdater(long owningBucketOrd) throws IOException;
+        abstract BucketUpdater<TB> bucketUpdater(long owningBucketOrd, GlobalOrdLookupFunction lookupGlobalOrd) throws IOException;
 
         /**
          * Build a {@link PriorityQueue} to sort the buckets. After we've
          * collected all of the buckets we'll collect all entries in the queue.
          */
-        abstract PriorityQueue<TB> buildPriorityQueue(int size);
+        abstract ObjectArrayPriorityQueue<TB> buildPriorityQueue(int size);
 
         /**
          * Build an array to hold the "top" buckets for each ordinal.
@@ -675,7 +791,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         /**
          * Convert a temporary bucket into a real bucket.
          */
-        abstract B convertTempBucketToRealBucket(TB temp) throws IOException;
+        abstract B convertTempBucketToRealBucket(TB temp, GlobalOrdLookupFunction lookupGlobalOrd) throws IOException;
 
         /**
          * Build the sub-aggregations into the buckets. This will usually
@@ -735,7 +851,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         }
 
         @Override
-        BucketUpdater<OrdBucket> bucketUpdater(long owningBucketOrd) throws IOException {
+        BucketUpdater<OrdBucket> bucketUpdater(long owningBucketOrd, GlobalOrdLookupFunction lookupGlobalOrd) throws IOException {
             return (spare, globalOrd, bucketOrd, docCount) -> {
                 spare.globalOrd = globalOrd;
                 spare.bucketOrd = bucketOrd;
@@ -744,11 +860,12 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         }
 
         @Override
-        PriorityQueue<OrdBucket> buildPriorityQueue(int size) {
-            return new BucketPriorityQueue<>(size, partiallyBuiltBucketComparator);
+        ObjectArrayPriorityQueue<OrdBucket> buildPriorityQueue(int size) {
+            return new BucketPriorityQueue<>(size, bigArrays(), partiallyBuiltBucketComparator);
         }
 
-        StringTerms.Bucket convertTempBucketToRealBucket(OrdBucket temp) throws IOException {
+        @Override
+        StringTerms.Bucket convertTempBucketToRealBucket(OrdBucket temp, GlobalOrdLookupFunction lookupGlobalOrd) throws IOException {
             BytesRef term = BytesRef.deepCopyOf(lookupGlobalOrd.apply(temp.globalOrd));
             StringTerms.Bucket result = new StringTerms.Bucket(term, temp.docCount, null, showTermDocCountError, 0, format);
             result.bucketOrd = temp.bucketOrd;
@@ -871,7 +988,8 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         }
 
         @Override
-        BucketUpdater<SignificantStringTerms.Bucket> bucketUpdater(long owningBucketOrd) throws IOException {
+        BucketUpdater<SignificantStringTerms.Bucket> bucketUpdater(long owningBucketOrd, GlobalOrdLookupFunction lookupGlobalOrd)
+            throws IOException {
             long subsetSize = subsetSize(owningBucketOrd);
             return (spare, globalOrd, bucketOrd, docCount) -> {
                 spare.bucketOrd = bucketOrd;
@@ -890,12 +1008,15 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         }
 
         @Override
-        PriorityQueue<SignificantStringTerms.Bucket> buildPriorityQueue(int size) {
-            return new BucketSignificancePriorityQueue<>(size);
+        ObjectArrayPriorityQueue<SignificantStringTerms.Bucket> buildPriorityQueue(int size) {
+            return new BucketSignificancePriorityQueue<>(size, bigArrays());
         }
 
         @Override
-        SignificantStringTerms.Bucket convertTempBucketToRealBucket(SignificantStringTerms.Bucket temp) throws IOException {
+        SignificantStringTerms.Bucket convertTempBucketToRealBucket(
+            SignificantStringTerms.Bucket temp,
+            GlobalOrdLookupFunction lookupGlobalOrd
+        ) throws IOException {
             return temp;
         }
 

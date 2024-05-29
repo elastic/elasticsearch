@@ -202,11 +202,7 @@ public class CartesianPoint implements SpatialPoint, ToXContentFragment {
      */
     public static CartesianPoint parsePoint(XContentParser parser, final boolean ignoreZValue) throws IOException,
         ElasticsearchParseException {
-        return cartesianPointParser.parsePoint(parser, ignoreZValue, value -> {
-            CartesianPoint point = new CartesianPoint();
-            point.resetFromString(value, ignoreZValue);
-            return point;
-        }, value -> null);
+        return cartesianPointParser.parsePoint(parser, ignoreZValue, value -> new CartesianPoint().resetFromString(value, ignoreZValue));
     }
 
     public static CartesianPoint parsePoint(Object value, boolean ignoreZValue) throws ElasticsearchParseException {
@@ -244,7 +240,7 @@ public class CartesianPoint implements SpatialPoint, ToXContentFragment {
         }
     }
 
-    private static GenericPointParser<CartesianPoint> cartesianPointParser = new GenericPointParser<>("point", "x", "y", false) {
+    private static final GenericPointParser<CartesianPoint> cartesianPointParser = new GenericPointParser<>("point", "x", "y") {
 
         @Override
         public void assertZValue(boolean ignoreZValue, double zValue) {

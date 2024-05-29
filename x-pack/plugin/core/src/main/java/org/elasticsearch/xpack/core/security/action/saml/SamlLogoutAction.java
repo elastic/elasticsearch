@@ -17,6 +17,6 @@ public final class SamlLogoutAction extends ActionType<SamlLogoutResponse> {
     public static final SamlLogoutAction INSTANCE = new SamlLogoutAction();
 
     private SamlLogoutAction() {
-        super(NAME, SamlLogoutResponse::new);
+        super(NAME);
     }
 }

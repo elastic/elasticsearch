@@ -34,6 +34,10 @@ to match. For example, if you use a `max` aggregation on a time field called
 descending order. Additional `composite` aggregation value sources are allowed, 
 such as `terms`.
 
+* The `size` parameter of the non-composite aggregations must match the 
+cardinality of your data. A greater value of the `size` parameter increases the 
+memory requirement of the aggregation.
+
 * If you set the `summary_count_field_name` property to a non-null value, the 
 {anomaly-job} expects to receive aggregated input. The property must be set to 
 the name of the field that contains the count of raw data points that have been 
@@ -71,6 +75,10 @@ chart.
 
 * Your {dfeed} can contain multiple aggregations, but only the ones with names
 that match values in the job configuration are fed to the job.
+
+* Using 
+{ref}/search-aggregations-metrics-scripted-metric-aggregation.html[scripted metric]
+aggregations is not supported in {dfeeds}.
 
 
 [discrete]

@@ -9,7 +9,7 @@
 package org.elasticsearch.gradle.fixtures
 
 import org.apache.commons.io.FileUtils
-import org.elasticsearch.gradle.internal.test.ConfigurationCacheCompatibleAwareGradleRunner
+import org.elasticsearch.gradle.internal.test.BuildConfigurationAwareGradleRunner
 import org.elasticsearch.gradle.internal.test.InternalAwareGradleRunner
 import org.elasticsearch.gradle.internal.test.NormalizeOutputGradleRunner
 import org.elasticsearch.gradle.internal.test.TestResultExtension
@@ -21,6 +21,8 @@ import spock.lang.Specification
 import spock.lang.TempDir
 
 import java.lang.management.ManagementFactory
+import java.nio.file.Files
+import java.nio.file.Path
 import java.util.jar.JarEntry
 import java.util.jar.JarOutputStream
 
@@ -39,7 +41,8 @@ abstract class AbstractGradleFuncTest extends Specification {
     File propertiesFile
     File projectDir
 
-    boolean configurationCacheCompatible = true
+    protected boolean configurationCacheCompatible = true
+    protected boolean buildApiRestrictionsDisabled = false
 
     def setup() {
         projectDir = testProjectDir.root
@@ -49,6 +52,17 @@ abstract class AbstractGradleFuncTest extends Specification {
         propertiesFile = testProjectDir.newFile('gradle.properties')
         propertiesFile <<
             "org.gradle.java.installations.fromEnv=JAVA_HOME,RUNTIME_JAVA_HOME,JAVA15_HOME,JAVA14_HOME,JAVA13_HOME,JAVA12_HOME,JAVA11_HOME,JAVA8_HOME"
+
+        def nativeLibsProject = subProject(":libs:elasticsearch-native:elasticsearch-native-libraries")
+        nativeLibsProject << """
+            plugins {
+                id 'base'
+            }
+        """
+        def mutedTestsFile = testProjectDir.newFile("muted-tests.yml")
+        mutedTestsFile << """
+            tests: []
+        """
     }
 
     def cleanup() {
@@ -79,16 +93,17 @@ abstract class AbstractGradleFuncTest extends Specification {
 
     GradleRunner gradleRunner(File projectDir, Object... arguments) {
         return new NormalizeOutputGradleRunner(
-            new ConfigurationCacheCompatibleAwareGradleRunner(
+            new BuildConfigurationAwareGradleRunner(
                     new InternalAwareGradleRunner(
-                            GradleRunner.create()
-                                    .withDebug(ManagementFactory.getRuntimeMXBean().getInputArguments()
-                                            .toString().indexOf("-agentlib:jdwp") > 0
-                                    )
-                                    .withProjectDir(projectDir)
-                                    .withPluginClasspath()
-                                    .forwardOutput()
-                    ), configurationCacheCompatible),
+                        GradleRunner.create()
+                                .withDebug(ManagementFactory.getRuntimeMXBean().getInputArguments()
+                                        .toString().indexOf("-agentlib:jdwp") > 0
+                                )
+                                .withProjectDir(projectDir)
+                                .withPluginClasspath()
+                                .forwardOutput()
+            ), configurationCacheCompatible,
+                buildApiRestrictionsDisabled)
         ).withArguments(arguments.collect { it.toString() })
     }
 
@@ -152,16 +167,15 @@ abstract class AbstractGradleFuncTest extends Specification {
         import org.elasticsearch.gradle.Architecture
         import org.elasticsearch.gradle.internal.info.BuildParams
 
-        import org.elasticsearch.gradle.internal.BwcVersions.VersionPair
         import org.elasticsearch.gradle.internal.BwcVersions
         import org.elasticsearch.gradle.Version
 
         Version currentVersion = Version.fromString("8.1.0")
         def versionList = [
-          new VersionPair(Version.fromString("$bugfix"), Version.fromString("$bugfixLucene")),
-          new VersionPair(Version.fromString("$staged"), Version.fromString("$stagedLucene")),
-          new VersionPair(Version.fromString("$minor"), Version.fromString("$minorLucene")),
-          new VersionPair(currentVersion, Version.fromString("9.0.0"))
+          Version.fromString("$bugfix"),
+          Version.fromString("$staged"),
+          Version.fromString("$minor"),
+          currentVersion
         ]
 
         BwcVersions versions = new BwcVersions(currentVersion, versionList)

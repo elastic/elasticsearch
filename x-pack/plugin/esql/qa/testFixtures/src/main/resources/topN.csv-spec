@@ -1,0 +1,136 @@
+ipSortingAsTiebreaker
+from hosts | sort host desc, card, ip1 desc | limit 8 | keep host, card, ip0, ip1;
+
+ host:keyword  | card:keyword  |                                ip0:ip                                           |                         ip1:ip
+gamma          |eth0           |fe80::cae2:65ff:fece:feb9                                                        |127.0.0.3                                             
+gamma          |lo0            |fe80::cae2:65ff:fece:feb9                                                        |fe81::cae2:65ff:fece:feb9                             
+epsilon        |eth0           |[fe80::cae2:65ff:fece:feb9, fe80::cae2:65ff:fece:fec0, fe80::cae2:65ff:fece:fec1]|fe80::cae2:65ff:fece:fec1                             
+epsilon        |eth1           |null                                                                             |[127.0.0.1, 127.0.0.2, 127.0.0.3]                     
+epsilon        |eth2           |[fe81::cae2:65ff:fece:feb9, fe82::cae2:65ff:fece:fec0]                           |[fe81::cae2:65ff:fece:feb9, fe82::cae2:65ff:fece:fec0]
+beta           |eth0           |127.0.0.1                                                                        |::1                                                   
+beta           |eth1           |127.0.0.1                                                                        |128.0.0.1                                             
+beta           |eth1           |127.0.0.1                                                                        |127.0.0.2
+;
+
+ipSortingByTwoIPs
+from hosts | sort ip0, ip1 desc | limit 8 | keep host, card, ip0, ip1;
+
+ host:keyword  | card:keyword  |                                ip0:ip                                           |                         ip1:ip
+alpha          |eth1           |::1                                                                              |::1                      
+beta           |eth1           |127.0.0.1                                                                        |128.0.0.1                
+beta           |eth1           |127.0.0.1                                                                        |127.0.0.2                
+alpha          |eth0           |127.0.0.1                                                                        |127.0.0.1                
+beta           |eth0           |127.0.0.1                                                                        |::1                      
+gamma          |lo0            |fe80::cae2:65ff:fece:feb9                                                        |fe81::cae2:65ff:fece:feb9
+epsilon        |eth0           |[fe80::cae2:65ff:fece:feb9, fe80::cae2:65ff:fece:fec0, fe80::cae2:65ff:fece:fec1]|fe80::cae2:65ff:fece:fec1
+gamma          |eth0           |fe80::cae2:65ff:fece:feb9                                                        |127.0.0.3
+;
+
+ipSortingBySameIPfield
+from hosts | sort ip0 asc nulls first, ip0 desc, card, host, ip1 | limit 15 | keep host, card, ip0, ip1 | where card != "lo0";
+
+ host:keyword  | card:keyword  |                                ip0:ip                                           |           ip1:ip
+epsilon        |eth1           |null                                                                             |[127.0.0.1, 127.0.0.2, 127.0.0.3]                     
+alpha          |eth1           |::1                                                                              |::1                                                   
+alpha          |eth0           |127.0.0.1                                                                        |127.0.0.1                                             
+beta           |eth0           |127.0.0.1                                                                        |::1                                                   
+beta           |eth1           |127.0.0.1                                                                        |127.0.0.2                                             
+beta           |eth1           |127.0.0.1                                                                        |128.0.0.1                                             
+epsilon        |eth0           |[fe80::cae2:65ff:fece:feb9, fe80::cae2:65ff:fece:fec0, fe80::cae2:65ff:fece:fec1]|fe80::cae2:65ff:fece:fec1                             
+gamma          |eth0           |fe80::cae2:65ff:fece:feb9                                                        |127.0.0.3                                             
+epsilon        |eth2           |[fe81::cae2:65ff:fece:feb9, fe82::cae2:65ff:fece:fec0]                           |[fe81::cae2:65ff:fece:feb9, fe82::cae2:65ff:fece:fec0]
+;
+
+complexMultiSortingFields_SameFieldAscAndDesc
+from employees | sort job_positions asc, languages nulls first, gender desc, job_positions desc, emp_no | limit 20 | keep job_positions, languages, gender, emp_no;
+
+                       job_positions:keyword                                |languages:integer|gender:keyword | emp_no:integer    
+[Accountant, Internship, Python Developer, Tech Lead]                       |null             |M              |10028          
+Accountant                                                                  |null             |M              |10025          
+[Accountant, Purchase Manager, Support Engineer]                            |null             |F              |10023          
+[Accountant, Business Analyst, Data Scientist, Python Developer]            |1                |M              |10034          
+[Accountant, Principal Support Engineer, Support Engineer, Tech Lead]       |1                |F              |10044          
+[Accountant, Junior Developer]                                              |1                |F              |10092          
+[Accountant, Purchase Manager, Python Developer, Reporting Analyst]         |2                |null           |10016          
+[Accountant, Senior Python Developer, Tech Lead]                            |2                |M              |10037          
+[Accountant, Junior Developer, Reporting Analyst, Support Engineer]         |2                |M              |10050          
+[Accountant, Senior Python Developer]                                       |2                |M              |10001          
+[Accountant, Internship]                                                    |2                |M              |10081          
+[Accountant, Junior Developer, Principal Support Engineer, Purchase Manager]|3                |M              |10045          
+[Accountant, Business Analyst, Purchase Manager]                            |3                |M              |10051          
+[Accountant, Junior Developer]                                              |4                |F              |10089          
+[Accountant, Head Human Resources]                                          |5                |null           |10012          
+[Accountant, Business Analyst, Senior Python Developer, Tech Lead]          |5                |M              |10085          
+[Accountant, Data Scientist, Internship, Senior Python Developer]           |5                |M              |10066          
+[Accountant, Principal Support Engineer, Senior Python Developer]           |5                |F              |10094          
+[Architect, Principal Support Engineer, Purchase Manager, Senior Team Lead] |2                |F              |10059          
+[Architect, Internship, Principal Support Engineer]                         |2                |F              |10078 
+;
+
+sortingOnMVDoubles
+from employees | sort salary_change desc nulls last | limit 10 | keep first_name, last_name, salary_change;
+
+first_name:keyword|last_name:keyword|salary_change:double        
+Weiyi             |Meriste          |[-8.94, 1.92, 6.97, 14.74]  
+Parto             |Bamford          |[12.82, 14.68]              
+Bojan             |Montemayor       |[0.8, 14.63]                
+Satosi            |Awdeh            |[-9.81, -1.47, 14.44]       
+Tse               |Herber           |[-2.58, -0.95, 14.39]       
+Valter            |Sullins          |[-8.78, -3.98, 10.71, 14.26]
+Guoxiang          |Nooteboom        |[12.4, 14.25]               
+Hironobu          |Haraldson        |[-7.49, 13.97]              
+Somnath           |Foote            |13.61                       
+Chirstian         |Koblick          |[-0.35, 1.13, 3.65, 13.48]
+;
+
+sortingOnMVDoubles_1
+from employees | sort salary_change desc nulls last | limit 10 | keep first_name, last_name, salary_change;
+
+first_name:keyword|last_name:keyword|salary_change:double        
+Weiyi             |Meriste          |[-8.94, 1.92, 6.97, 14.74]  
+Parto             |Bamford          |[12.82, 14.68]              
+Bojan             |Montemayor       |[0.8, 14.63]                
+Satosi            |Awdeh            |[-9.81, -1.47, 14.44]       
+Tse               |Herber           |[-2.58, -0.95, 14.39]       
+Valter            |Sullins          |[-8.78, -3.98, 10.71, 14.26]
+Guoxiang          |Nooteboom        |[12.4, 14.25]               
+Hironobu          |Haraldson        |[-7.49, 13.97]              
+Somnath           |Foote            |13.61                       
+Chirstian         |Koblick          |[-0.35, 1.13, 3.65, 13.48]
+;
+
+sortingOnMVDoubles_2
+from employees | sort salary_change asc nulls last | limit 10 | keep first_name, last_name, salary_change;
+
+first_name:keyword|last_name:keyword|salary_change:double        
+Satosi            |Awdeh            |[-9.81, -1.47, 14.44]       
+Magy              |Stamatiou        |[-9.28, 9.42]               
+Amabile           |Gomatam          |[-9.23, 5.19, 5.85, 7.5]    
+Weiyi             |Meriste          |[-8.94, 1.92, 6.97, 14.74]  
+Valter            |Sullins          |[-8.78, -3.98, 10.71, 14.26]
+Udi               |Jansch           |[-8.66, -2.52]              
+null              |Swan             |-8.46                       
+Otmar             |Herbst           |[-8.19, -1.9, -0.32]        
+Danel             |Mondadori        |[-7.88, 9.98, 12.52]        
+Mary              |Sluis            |[-7.82, 3.48, 8.73, 10.35]
+;
+
+sortingOnNumbersFromStrings
+from employees 
+| eval long_from_string = to_long(salary_change.keyword) 
+| sort long_from_string asc nulls last, emp_no 
+| limit 10 
+| keep first_name, last_name, salary_change, salary_change.keyword, long_from_string, emp_no;
+
+first_name:keyword|last_name:keyword|salary_change:double        |salary_change.keyword:keyword|long_from_string:long|emp_no:integer     
+Satosi            |Awdeh            |[-9.81, -1.47, 14.44]       |[-1.47, -9.81, 14.44]        |[-1, -10, 14]        |10065          
+Weiyi             |Meriste          |[-8.94, 1.92, 6.97, 14.74]  |[-8.94, 1.92, 14.74, 6.97]   |[-9, 2, 15, 7]       |10040          
+Magy              |Stamatiou        |[-9.28, 9.42]               |[-9.28, 9.42]                |[-9, 9]              |10042          
+Udi               |Jansch           |[-8.66, -2.52]              |[-2.52, -8.66]               |[-3, -9]             |10064          
+Amabile           |Gomatam          |[-9.23, 5.19, 5.85, 7.5]    |[-9.23, 5.19, 5.85, 7.50]    |[-9, 5, 6, 8]        |10091          
+Valter            |Sullins          |[-8.78, -3.98, 10.71, 14.26]|[-3.98, -8.78, 10.71, 14.26] |[-4, -9, 11, 14]     |10099          
+Mary              |Sluis            |[-7.82, 3.48, 8.73, 10.35]  |[-7.82, 10.35, 3.48, 8.73]   |[-8, 10, 3, 9]       |10011          
+Otmar             |Herbst           |[-8.19, -1.9, -0.32]        |[-0.32, -1.90, -8.19]        |[0, -2, -8]          |10029          
+null              |Swan             |-8.46                       |-8.46                        |-8                   |10034          
+Sanjiv            |Zschoche         |[-7.67, -3.25]              |[-3.25, -7.67]               |[-3, -8]             |10053
+;

@@ -15,7 +15,7 @@ import java.util.Map;
 
 public class TestIngestCtxMetadata extends IngestDocMetadata {
     public TestIngestCtxMetadata(Map<String, Object> map, Map<String, FieldProperty<?>> properties) {
-        super(map, properties, null);
+        super(map, Map.copyOf(properties), null);
     }
 
     public static TestIngestCtxMetadata withNullableVersion(Map<String, Object> map) {

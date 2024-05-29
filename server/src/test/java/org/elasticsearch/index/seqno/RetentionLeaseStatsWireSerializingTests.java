@@ -39,6 +39,11 @@ public class RetentionLeaseStatsWireSerializingTests extends AbstractWireSeriali
     }
 
     @Override
+    protected RetentionLeaseStats mutateInstance(RetentionLeaseStats instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Writeable.Reader<RetentionLeaseStats> instanceReader() {
         return RetentionLeaseStats::new;
     }

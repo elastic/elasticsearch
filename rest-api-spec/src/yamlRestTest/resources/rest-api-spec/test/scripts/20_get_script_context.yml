@@ -1,6 +1,6 @@
 "Action to get all contexts":
-  - skip:
-      version: " - 7.6.0"
+  - requires:
+      cluster_features: ["gte_v7.6.1"]
       reason: "get_all_contexts introduced in 7.6.0"
   - do:
       get_script_context: {}

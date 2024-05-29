@@ -8,8 +8,9 @@
 
 package org.elasticsearch.common.time;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 
 import java.time.Instant;
 import java.time.ZoneId;
@@ -100,10 +101,10 @@ public interface DateFormatter {
     DateMathParser toDateMathParser();
 
     static DateFormatter forPattern(String input) {
-        return forPattern(input, Version.CURRENT);
+        return forPattern(input, IndexVersion.current());
     }
 
-    static DateFormatter forPattern(String input, Version supportedVersion) {
+    static DateFormatter forPattern(String input, IndexVersion supportedVersion) {
         if (Strings.hasLength(input) == false) {
             throw new IllegalArgumentException("No date pattern provided");
         }
@@ -119,7 +120,7 @@ public interface DateFormatter {
         List<DateFormatter> formatters = new ArrayList<>(patterns.length);
         for (String pattern : patterns) {
             // make sure we still support camel case for indices created before 8.0
-            if (supportedVersion.before(Version.V_8_0_0)) {
+            if (supportedVersion.before(IndexVersions.V_8_0_0)) {
                 pattern = LegacyFormatNames.camelCaseToSnakeCase(pattern);
             }
             formatters.add(DateFormatters.forPattern(pattern));

@@ -153,8 +153,7 @@ public record ActiveShardCount(int value) implements Writeable {
                 waitForActiveShards = SETTING_WAIT_FOR_ACTIVE_SHARDS.get(indexMetadata.getSettings());
             }
             for (int i = 0; i < indexRoutingTable.size(); i++) {
-                IndexShardRoutingTable shardRouting = indexRoutingTable.shard(i);
-                if (waitForActiveShards.enoughShardsActive(shardRouting) == false) {
+                if (waitForActiveShards.enoughShardsActive(indexRoutingTable.shard(i)).enoughShards() == false) {
                     // not enough active shard copies yet
                     return false;
                 }
@@ -165,20 +164,36 @@ public record ActiveShardCount(int value) implements Writeable {
     }
 
     /**
-     * Returns true iff the active shard count in the shard routing table is enough
-     * to meet the required shard count represented by this instance.
+     * Record that captures the decision of {@link #enoughShardsActive(IndexShardRoutingTable)}.
+     * @param enoughShards the decision of whether the active shard count is enough to meet the required shard count of this instance
+     * @param currentActiveShards the currently active shards considered for making the decision
      */
-    public boolean enoughShardsActive(final IndexShardRoutingTable shardRoutingTable) {
+    public record EnoughShards(boolean enoughShards, int currentActiveShards) {};
+
+    /**
+     * Returns a {@link EnoughShards} record where the first value is true iff the active shard count in the shard routing table is enough
+     * to meet the required shard count represented by this instance, and the second value is the active shard count.
+     */
+    public EnoughShards enoughShardsActive(final IndexShardRoutingTable shardRoutingTable) {
         final int activeShardCount = shardRoutingTable.activeShards().size();
+        boolean enoughShards = false;
+        int currentActiveShards = activeShardCount;
         if (this == ActiveShardCount.ALL) {
-            // adding 1 for the primary in addition to the total number of replicas,
-            // which gives us the total number of shard copies
-            return activeShardCount == shardRoutingTable.replicaShards().size() + 1;
-        } else if (this == ActiveShardCount.DEFAULT) {
-            return activeShardCount >= 1;
+            enoughShards = activeShardCount == shardRoutingTable.size();
+        } else if (value == 0) {
+            enoughShards = true;
+        } else if (value == 1) {
+            if (shardRoutingTable.hasSearchShards()) {
+                enoughShards = shardRoutingTable.getActiveSearchShardCount() >= 1;
+                currentActiveShards = shardRoutingTable.getActiveSearchShardCount();
+            } else {
+                enoughShards = activeShardCount >= 1;
+            }
         } else {
-            return activeShardCount >= value;
+            enoughShards = shardRoutingTable.getActiveSearchShardCount() >= value;
+            currentActiveShards = shardRoutingTable.getActiveSearchShardCount();
         }
+        return new EnoughShards(enoughShards, currentActiveShards);
     }
 
     @Override
@@ -189,5 +204,4 @@ public record ActiveShardCount(int value) implements Writeable {
             default -> Integer.toString(value);
         };
     }
-
 }

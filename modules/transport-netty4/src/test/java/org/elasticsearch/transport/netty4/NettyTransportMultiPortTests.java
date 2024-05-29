@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.transport.netty4;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
@@ -110,7 +110,7 @@ public class NettyTransportMultiPortTests extends ESTestCase {
         PageCacheRecycler recycler = new MockPageCacheRecycler(Settings.EMPTY);
         TcpTransport transport = new Netty4Transport(
             settings,
-            Version.CURRENT,
+            TransportVersion.current(),
             threadPool,
             new NetworkService(Collections.emptyList()),
             recycler,

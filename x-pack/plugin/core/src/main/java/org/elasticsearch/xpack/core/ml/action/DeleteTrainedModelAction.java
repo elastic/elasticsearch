@@ -6,8 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -28,7 +27,7 @@ public class DeleteTrainedModelAction extends ActionType<AcknowledgedResponse> {
     public static final String NAME = "cluster:admin/xpack/ml/inference/delete";
 
     private DeleteTrainedModelAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
+        super(NAME);
     }
 
     public static class Request extends AcknowledgedRequest<Request> implements ToXContentFragment {
@@ -41,7 +40,7 @@ public class DeleteTrainedModelAction extends ActionType<AcknowledgedResponse> {
         public Request(StreamInput in) throws IOException {
             super(in);
             id = in.readString();
-            if (in.getVersion().onOrAfter(Version.V_8_1_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0)) {
                 force = in.readBoolean();
             } else {
                 force = false;
@@ -49,6 +48,7 @@ public class DeleteTrainedModelAction extends ActionType<AcknowledgedResponse> {
         }
 
         public Request(String id) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
             this.id = ExceptionsHelper.requireNonNull(id, TrainedModelConfig.MODEL_ID);
         }
 
@@ -62,11 +62,6 @@ public class DeleteTrainedModelAction extends ActionType<AcknowledgedResponse> {
 
         public void setForce(boolean force) {
             this.force = force;
-        }
-
-        @Override
-        public ActionRequestValidationException validate() {
-            return null;
         }
 
         @Override
@@ -88,7 +83,7 @@ public class DeleteTrainedModelAction extends ActionType<AcknowledgedResponse> {
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(id);
-            if (out.getVersion().onOrAfter(Version.V_8_1_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0)) {
                 out.writeBoolean(force);
             }
         }

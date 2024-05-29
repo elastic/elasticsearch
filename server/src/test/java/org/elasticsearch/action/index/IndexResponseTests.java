@@ -9,6 +9,7 @@
 package org.elasticsearch.action.index;
 
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.bulk.BulkItemResponseTests;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -23,10 +24,13 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.action.support.replication.ReplicationResponseTests.assertShardInfo;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_UUID_NA_VALUE;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
 
 public class IndexResponseTests extends ESTestCase {
@@ -49,7 +53,7 @@ public class IndexResponseTests extends ESTestCase {
         {
             IndexResponse indexResponse = new IndexResponse(new ShardId("index", "index_uuid", 0), "id", -1, 17, 7, true);
             indexResponse.setForcedRefresh(true);
-            indexResponse.setShardInfo(new ReplicationResponse.ShardInfo(10, 5));
+            indexResponse.setShardInfo(ReplicationResponse.ShardInfo.of(10, 5));
             String output = Strings.toString(indexResponse);
             assertEquals(XContentHelper.stripWhitespace("""
                 {
@@ -80,6 +84,13 @@ public class IndexResponseTests extends ESTestCase {
         doFromXContentTestWithRandomFields(true);
     }
 
+    public void testSerialization() throws IOException {
+        // Note: IndexRequest does not implement equals or hashCode, so we can't test serialization in the usual way for a Writable
+        Tuple<IndexResponse, IndexResponse> responseTuple = randomIndexResponse();
+        IndexResponse copy = copyWriteable(responseTuple.v1(), null, IndexResponse::new);
+        assertDocWriteResponse(responseTuple.v1(), copy);
+    }
+
     private void doFromXContentTestWithRandomFields(boolean addRandomFields) throws IOException {
         final Tuple<IndexResponse, IndexResponse> tuple = randomIndexResponse();
         IndexResponse indexResponse = tuple.v1();
@@ -102,7 +113,7 @@ public class IndexResponseTests extends ESTestCase {
         }
         IndexResponse parsedIndexResponse;
         try (XContentParser parser = createParser(xContentType.xContent(), mutated)) {
-            parsedIndexResponse = IndexResponse.fromXContent(parser);
+            parsedIndexResponse = parseInstanceFromXContent(parser);
             assertNull(parser.nextToken());
         }
 
@@ -110,6 +121,15 @@ public class IndexResponseTests extends ESTestCase {
         // because the random index response can contain shard failures with exceptions,
         // and those exceptions are not parsed back with the same types.
         assertDocWriteResponse(expectedIndexResponse, parsedIndexResponse);
+    }
+
+    private static IndexResponse parseInstanceFromXContent(XContentParser parser) throws IOException {
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
+        IndexResponse.Builder context = new IndexResponse.Builder();
+        while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+            BulkItemResponseTests.parseInnerToXContent(parser, context);
+        }
+        return context.build();
     }
 
     public static void assertDocWriteResponse(DocWriteResponse expected, DocWriteResponse actual) {
@@ -141,12 +161,37 @@ public class IndexResponseTests extends ESTestCase {
         boolean forcedRefresh = randomBoolean();
 
         Tuple<ReplicationResponse.ShardInfo, ReplicationResponse.ShardInfo> shardInfos = RandomObjects.randomShardInfo(random());
-
-        IndexResponse actual = new IndexResponse(new ShardId(index, indexUUid, shardId), id, seqNo, primaryTerm, version, created);
+        boolean includePipelines = randomBoolean();
+        final List<String> pipelines;
+        if (includePipelines) {
+            pipelines = new ArrayList<>();
+            for (int i = 0; i < randomIntBetween(0, 20); i++) {
+                pipelines.add(randomAlphaOfLength(20));
+            }
+        } else {
+            pipelines = null;
+        }
+        IndexResponse actual = new IndexResponse(
+            new ShardId(index, indexUUid, shardId),
+            id,
+            seqNo,
+            primaryTerm,
+            version,
+            created,
+            pipelines
+        );
         actual.setForcedRefresh(forcedRefresh);
         actual.setShardInfo(shardInfos.v1());
 
-        IndexResponse expected = new IndexResponse(new ShardId(index, INDEX_UUID_NA_VALUE, -1), id, seqNo, primaryTerm, version, created);
+        IndexResponse expected = new IndexResponse(
+            new ShardId(index, INDEX_UUID_NA_VALUE, -1),
+            id,
+            seqNo,
+            primaryTerm,
+            version,
+            created,
+            pipelines
+        );
         expected.setForcedRefresh(forcedRefresh);
         expected.setShardInfo(shardInfos.v2());
 

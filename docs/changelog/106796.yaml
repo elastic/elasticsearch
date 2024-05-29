@@ -1,0 +1,5 @@
+pr: 106796
+summary: Bulk loading enrich fields in ESQL
+area: ES|QL
+type: enhancement
+issues: []

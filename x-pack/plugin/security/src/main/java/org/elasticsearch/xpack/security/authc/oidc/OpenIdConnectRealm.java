@@ -232,7 +232,7 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
 
     }
 
-    private RelyingPartyConfiguration buildRelyingPartyConfiguration(RealmConfig config) {
+    private static RelyingPartyConfiguration buildRelyingPartyConfiguration(RealmConfig config) {
         final String redirectUriString = require(config, RP_REDIRECT_URI);
         final URI redirectUri;
         try {

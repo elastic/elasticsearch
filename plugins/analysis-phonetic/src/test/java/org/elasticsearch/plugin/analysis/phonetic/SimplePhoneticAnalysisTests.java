@@ -12,10 +12,10 @@ import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.apache.lucene.analysis.phonetic.DaitchMokotoffSoundexFilter;
 import org.apache.lucene.tests.analysis.BaseTokenStreamTestCase;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.MatcherAssert;
@@ -35,7 +35,7 @@ public class SimplePhoneticAnalysisTests extends ESTestCase {
         String yaml = "/org/elasticsearch/plugin/analysis/phonetic/phonetic-1.yml";
         Settings settings = Settings.builder()
             .loadFromStream(yaml, getClass().getResourceAsStream(yaml), false)
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .build();
         this.analysis = createTestAnalysis(new Index("test", "_na_"), settings, new AnalysisPhoneticPlugin());
     }

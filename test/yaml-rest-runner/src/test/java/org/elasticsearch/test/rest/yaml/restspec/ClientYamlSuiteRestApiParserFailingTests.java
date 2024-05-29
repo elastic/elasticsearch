@@ -88,6 +88,14 @@ public class ClientYamlSuiteRestApiParserFailingTests extends ESTestCase {
         );
     }
 
+    public void testBrokenSpecShouldThrowUsefulExceptionWhenParsingFailsOnDeprecated() throws Exception {
+        parseAndExpectParsingException(
+            BROKEN_DEPRECATED_DEF,
+            "indices.get_template.json",
+            "indices.get_template API: expected [deprecated] field in rest api definition to hold an object"
+        );
+    }
+
     public void testBrokenSpecShouldThrowUsefulExceptionWhenParsingFailsOnParts() throws Exception {
         parseAndExpectParsingException(
             BROKEN_SPEC_PARTS,
@@ -163,5 +171,43 @@ public class ClientYamlSuiteRestApiParserFailingTests extends ESTestCase {
               "body": null
             }
           }
+        """;
+
+    // deprecated needs to be an object
+    private static final String BROKEN_DEPRECATED_DEF = """
+        {
+          "indices.get_template":{
+            "documentation":{
+              "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-templates.html",
+              "description":"Returns an index template."
+            },
+            "headers": { "accept": ["application/json"] },
+            "stability": "stable",
+            "visibility": "public",
+            "deprecated" : true,
+            "url":{
+              "paths":[
+                {
+                  "path":"/_template",
+                  "methods":[
+                    "GET"
+                  ]
+                },
+                {
+                  "path":"/_template/{name}",
+                  "methods":[
+                    "GET"
+                  ],
+                  "parts":{
+                    "name":{
+                      "type":"list",
+                      "description":"The comma separated names of the index templates"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
         """;
 }

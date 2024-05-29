@@ -199,7 +199,7 @@ class SystemIndexMigrationInfo implements Comparable<SystemIndexMigrationInfo> {
         if (descriptor.isAutomaticallyManaged()) {
             Settings.Builder settingsBuilder = Settings.builder();
             settingsBuilder.put(descriptor.getSettings());
-            settingsBuilder.remove("index.version.created"); // Simplifies testing, should never impact real uses.
+            settingsBuilder.remove(IndexMetadata.SETTING_VERSION_CREATED); // Simplifies testing, should never impact real uses.
             settings = settingsBuilder.build();
 
             mapping = descriptor.getMappings();
@@ -230,7 +230,9 @@ class SystemIndexMigrationInfo implements Comparable<SystemIndexMigrationInfo> {
             .filter(Objects::nonNull)
             .filter(setting -> setting.getProperties().contains(Setting.Property.NotCopyableOnResize) == false)
             .filter(setting -> setting.getProperties().contains(Setting.Property.PrivateIndex) == false)
-            .forEach(setting -> { newIndexSettings.put(setting.getKey(), currentIndexSettings.get(setting.getKey())); });
+            .forEach(setting -> {
+                newIndexSettings.put(setting.getKey(), currentIndexSettings.get(setting.getKey()));
+            });
         return newIndexSettings.build();
     }
 

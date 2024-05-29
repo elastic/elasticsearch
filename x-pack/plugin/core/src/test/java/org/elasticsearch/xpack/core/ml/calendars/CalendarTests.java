@@ -45,6 +45,11 @@ public class CalendarTests extends AbstractXContentSerializingTestCase<Calendar>
     }
 
     @Override
+    protected Calendar mutateInstance(Calendar instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Writeable.Reader<Calendar> instanceReader() {
         return Calendar::new;
     }

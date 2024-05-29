@@ -18,7 +18,7 @@ import org.elasticsearch.index.shard.ShardId;
 import java.io.IOException;
 import java.util.Objects;
 
-public class RecoverFilesRecoveryException extends ElasticsearchException implements ElasticsearchWrapperException {
+public final class RecoverFilesRecoveryException extends ElasticsearchException implements ElasticsearchWrapperException {
 
     private final int numberOfFiles;
 
@@ -47,8 +47,8 @@ public class RecoverFilesRecoveryException extends ElasticsearchException implem
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
+    protected void writeTo(StreamOutput out, Writer<Throwable> nestedExceptionsWriter) throws IOException {
+        super.writeTo(out, nestedExceptionsWriter);
         out.writeInt(numberOfFiles);
         totalFilesSize.writeTo(out);
     }

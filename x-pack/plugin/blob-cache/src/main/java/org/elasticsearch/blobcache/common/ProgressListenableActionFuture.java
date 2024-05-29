@@ -9,7 +9,7 @@ package org.elasticsearch.blobcache.common;
 
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.AdapterActionFuture;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.core.Tuple;
 
 import java.util.ArrayList;
@@ -23,7 +23,7 @@ import java.util.function.Supplier;
  * Listeners are executed within the thread that triggers the completion, the failure or the progress update and
  * the progress value passed to the listeners on execution is the last updated value.
  */
-class ProgressListenableActionFuture extends AdapterActionFuture<Long, Long> {
+class ProgressListenableActionFuture extends PlainActionFuture<Long> {
 
     protected final long start;
     protected final long end;
@@ -111,6 +111,10 @@ class ProgressListenableActionFuture extends AdapterActionFuture<Long, Long> {
 
     @Override
     public void onResponse(Long result) {
+        if (result == null || result < start || end < result) {
+            assert false : start + " < " + result + " < " + end;
+            throw new IllegalArgumentException("Invalid completion value [start=" + start + ",end=" + end + ",response=" + result + ']');
+        }
         ensureNotCompleted();
         super.onResponse(result);
     }
@@ -132,13 +136,13 @@ class ProgressListenableActionFuture extends AdapterActionFuture<Long, Long> {
         super.done(success);
         final List<Tuple<Long, ActionListener<Long>>> listenersToExecute;
         synchronized (this) {
-            assert progress == end || success == false;
+            assert completed == false;
             completed = true;
             listenersToExecute = this.listeners;
             listeners = null;
         }
         if (listenersToExecute != null) {
-            listenersToExecute.stream().map(Tuple::v2).forEach(listener -> executeListener(listener, () -> actionGet(0L)));
+            listenersToExecute.stream().map(Tuple::v2).forEach(listener -> executeListener(listener, this::actionResult));
         }
         assert invariant();
     }
@@ -167,7 +171,7 @@ class ProgressListenableActionFuture extends AdapterActionFuture<Long, Long> {
             }
         }
         if (executeImmediate) {
-            executeListener(listener, completed ? () -> actionGet(0L) : () -> progressValue);
+            executeListener(listener, completed ? this::actionResult : () -> progressValue);
         }
         assert invariant();
     }
@@ -178,15 +182,6 @@ class ProgressListenableActionFuture extends AdapterActionFuture<Long, Long> {
         } catch (Exception e) {
             listener.onFailure(e);
         }
-    }
-
-    @Override
-    protected Long convert(Long response) {
-        if (response == null || response < start || end < response) {
-            assert false : start + " < " + response + " < " + end;
-            throw new IllegalArgumentException("Invalid completion value [start=" + start + ",end=" + end + ",response=" + response + ']');
-        }
-        return response;
     }
 
     @Override

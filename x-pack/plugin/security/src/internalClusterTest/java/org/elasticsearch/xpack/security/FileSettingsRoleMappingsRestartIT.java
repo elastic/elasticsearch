@@ -13,7 +13,6 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.ReservedStateHandlerMetadata;
 import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.reservedstate.service.FileSettingsService;
@@ -39,11 +38,6 @@ import static org.hamcrest.Matchers.notNullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, autoManageMasterNodes = false)
 public class FileSettingsRoleMappingsRestartIT extends SecurityIntegTestCase {
-
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        return applyWorkaroundForIssue92812(super.nodeSettings(nodeOrdinal, otherSettings));
-    }
 
     private static AtomicLong versionCounter = new AtomicLong(1);
 
@@ -82,15 +76,15 @@ public class FileSettingsRoleMappingsRestartIT extends SecurityIntegTestCase {
 
         FileSettingsService fileSettingsService = internalCluster().getInstance(FileSettingsService.class, node);
 
-        Files.deleteIfExists(fileSettingsService.operatorSettingsFile());
+        Files.deleteIfExists(fileSettingsService.watchedFile());
 
-        Files.createDirectories(fileSettingsService.operatorSettingsDir());
+        Files.createDirectories(fileSettingsService.watchedFileDir());
         Path tempFilePath = createTempFile();
 
         logger.info("--> writing JSON config to node {} with path {}", node, tempFilePath);
         logger.info(Strings.format(json, version));
         Files.write(tempFilePath, Strings.format(json, version).getBytes(StandardCharsets.UTF_8));
-        Files.move(tempFilePath, fileSettingsService.operatorSettingsFile(), StandardCopyOption.ATOMIC_MOVE);
+        Files.move(tempFilePath, fileSettingsService.watchedFile(), StandardCopyOption.ATOMIC_MOVE);
     }
 
     private Tuple<CountDownLatch, AtomicLong> setupClusterStateListener(String node, String expectedKey) {
@@ -115,6 +109,7 @@ public class FileSettingsRoleMappingsRestartIT extends SecurityIntegTestCase {
         return new Tuple<>(savedClusterState, metadataVersion);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/93048")
     public void testReservedStatePersistsOnRestart() throws Exception {
         internalCluster().setBootstrapMasterNodeIndex(0);
 
@@ -135,7 +130,7 @@ public class FileSettingsRoleMappingsRestartIT extends SecurityIntegTestCase {
 
         ensureGreen();
 
-        var clusterStateResponse = client().admin().cluster().state(new ClusterStateRequest()).actionGet();
+        var clusterStateResponse = clusterAdmin().state(new ClusterStateRequest()).actionGet();
         assertThat(
             clusterStateResponse.getState()
                 .metadata()

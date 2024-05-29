@@ -23,10 +23,6 @@ public interface HistogramFactory {
      *  must return the double value of the key. */
     Number getKey(MultiBucketsAggregation.Bucket bucket);
 
-    /** Given a key returned by {@link #getKey}, compute the lowest key that is
-     *  greater than it. */
-    Number nextKey(Number key);
-
     /** Create an {@link InternalAggregation} object that wraps the given buckets. */
     InternalAggregation createAggregation(List<MultiBucketsAggregation.Bucket> buckets);
 

@@ -10,10 +10,12 @@ package org.elasticsearch.search.internal;
 
 import org.apache.lucene.codecs.StoredFieldsReader;
 import org.apache.lucene.index.BinaryDocValues;
+import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.FilterDirectoryReader;
+import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.ImpactsEnum;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.NumericDocValues;
@@ -23,10 +25,11 @@ import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.StoredFieldVisitor;
+import org.apache.lucene.index.StoredFields;
+import org.apache.lucene.index.TermVectors;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
-import org.apache.lucene.index.VectorValues;
-import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.search.suggest.document.CompletionTerms;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
@@ -109,6 +112,21 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
         }
 
         @Override
+        public TermVectors termVectors() throws IOException {
+            TermVectors termVectors = super.termVectors();
+            return new TermVectors() {
+                @Override
+                public Fields get(int doc) throws IOException {
+                    Fields f = termVectors.get(doc);
+                    if (f != null) {
+                        f = new FieldUsageTrackingTermVectorFields(f);
+                    }
+                    return f;
+                }
+            };
+        }
+
+        @Override
         public PointValues getPointValues(String field) throws IOException {
             PointValues pointValues = super.getPointValues(field);
             if (pointValues != null) {
@@ -119,11 +137,22 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
 
         @Override
         public void document(final int docID, final StoredFieldVisitor visitor) throws IOException {
-            if (visitor instanceof FieldNamesProvidingStoredFieldsVisitor) {
-                super.document(docID, new FieldUsageFieldsVisitor((FieldNamesProvidingStoredFieldsVisitor) visitor));
-            } else {
-                super.document(docID, new FieldUsageStoredFieldVisitor(visitor));
-            }
+            storedFields().document(docID, visitor);
+        }
+
+        @Override
+        public StoredFields storedFields() throws IOException {
+            StoredFields storedFields = super.storedFields();
+            return new StoredFields() {
+                @Override
+                public void document(int docID, StoredFieldVisitor visitor) throws IOException {
+                    if (visitor instanceof FieldNamesProvidingStoredFieldsVisitor) {
+                        storedFields.document(docID, new FieldUsageFieldsVisitor((FieldNamesProvidingStoredFieldsVisitor) visitor));
+                    } else {
+                        storedFields.document(docID, new FieldUsageStoredFieldVisitor(visitor));
+                    }
+                }
+            };
         }
 
         @Override
@@ -187,8 +216,8 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
         }
 
         @Override
-        public VectorValues getVectorValues(String field) throws IOException {
-            VectorValues vectorValues = super.getVectorValues(field);
+        public FloatVectorValues getFloatVectorValues(String field) throws IOException {
+            FloatVectorValues vectorValues = super.getFloatVectorValues(field);
             if (vectorValues != null) {
                 notifier.onKnnVectorsUsed(field);
             }
@@ -196,18 +225,33 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
         }
 
         @Override
-        public TopDocs searchNearestVectors(String field, float[] target, int k, Bits acceptDocs, int visitedLimit) throws IOException {
-            TopDocs topDocs = super.searchNearestVectors(field, target, k, acceptDocs, visitedLimit);
-            if (topDocs != null) {
+        public ByteVectorValues getByteVectorValues(String field) throws IOException {
+            ByteVectorValues vectorValues = super.getByteVectorValues(field);
+            if (vectorValues != null) {
                 notifier.onKnnVectorsUsed(field);
             }
-            return topDocs;
+            return vectorValues;
+        }
+
+        @Override
+        public void searchNearestVectors(String field, byte[] target, KnnCollector collector, Bits acceptDocs) throws IOException {
+            super.searchNearestVectors(field, target, collector, acceptDocs);
+            if (collector.visitedCount() > 0) {
+                notifier.onKnnVectorsUsed(field);
+            }
+        }
+
+        @Override
+        public void searchNearestVectors(String field, float[] target, KnnCollector collector, Bits acceptDocs) throws IOException {
+            super.searchNearestVectors(field, target, collector, acceptDocs);
+            if (collector.visitedCount() > 0) {
+                notifier.onKnnVectorsUsed(field);
+            }
         }
 
         @Override
         public String toString() {
-            final StringBuilder sb = new StringBuilder("FieldUsageTrackingLeafReader(reader=");
-            return sb.append(in).append(')').toString();
+            return "FieldUsageTrackingLeafReader(reader=" + in + ')';
         }
 
         @Override
@@ -223,8 +267,8 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
             }
 
             @Override
-            public void visitDocument(int docID, StoredFieldVisitor visitor) throws IOException {
-                reader.visitDocument(docID, new FieldUsageStoredFieldVisitor(visitor));
+            public void document(int docID, StoredFieldVisitor visitor) throws IOException {
+                reader.document(docID, new FieldUsageStoredFieldVisitor(visitor));
             }
 
             @Override
@@ -280,11 +324,6 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
                 long totalTermFreq = super.getSumTotalTermFreq();
                 notifier.onTermFrequenciesUsed(field);
                 return totalTermFreq;
-            }
-
-            @Override
-            public long getSumDocFreq() throws IOException {
-                return in.getSumDocFreq();
             }
 
             @Override

@@ -16,6 +16,7 @@ import org.elasticsearch.cloud.gce.GceInstancesService;
 import org.elasticsearch.cloud.gce.util.Access;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugin.discovery.gce.GceDiscoveryPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -67,7 +68,7 @@ public class GceDiscoverTests extends ESIntegTestCase {
         ClusterStateResponse clusterStateResponse = client(masterNode).admin()
             .cluster()
             .prepareState()
-            .setMasterNodeTimeout("1s")
+            .setMasterNodeTimeout(TimeValue.timeValueSeconds(1))
             .clear()
             .setNodes(true)
             .get();
@@ -79,7 +80,7 @@ public class GceDiscoverTests extends ESIntegTestCase {
         clusterStateResponse = client(secondNode).admin()
             .cluster()
             .prepareState()
-            .setMasterNodeTimeout("1s")
+            .setMasterNodeTimeout(TimeValue.timeValueSeconds(1))
             .clear()
             .setNodes(true)
             .setLocal(true)
@@ -118,7 +119,7 @@ public class GceDiscoverTests extends ESIntegTestCase {
      * @param expected the expected number of nodes
      */
     private static void assertNumberOfNodes(final int expected) {
-        assertEquals(expected, client().admin().cluster().prepareNodesInfo().clear().get().getNodes().size());
+        assertEquals(expected, clusterAdmin().prepareNodesInfo().clear().get().getNodes().size());
     }
 
     /**

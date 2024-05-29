@@ -18,6 +18,6 @@ public class DeleteRoleMappingAction extends ActionType<DeleteRoleMappingRespons
     public static final String NAME = "cluster:admin/xpack/security/role_mapping/delete";
 
     private DeleteRoleMappingAction() {
-        super(NAME, DeleteRoleMappingResponse::new);
+        super(NAME);
     }
 }

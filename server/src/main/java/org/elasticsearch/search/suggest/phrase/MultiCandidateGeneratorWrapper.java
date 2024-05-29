@@ -19,16 +19,11 @@ import java.util.Arrays;
 public final class MultiCandidateGeneratorWrapper extends CandidateGenerator {
 
     private final CandidateGenerator[] candidateGenerator;
-    private int numCandidates;
+    private final int numCandidates;
 
     public MultiCandidateGeneratorWrapper(int numCandidates, CandidateGenerator... candidateGenerators) {
         this.candidateGenerator = candidateGenerators;
         this.numCandidates = numCandidates;
-    }
-
-    @Override
-    public boolean isKnownWord(BytesRef term) throws IOException {
-        return candidateGenerator[0].isKnownWord(term);
     }
 
     @Override

@@ -28,7 +28,7 @@ import com.wdtinc.mapbox_vector_tile.encoding.MvtUtil;
 import com.wdtinc.mapbox_vector_tile.encoding.ZigZag;
 import com.wdtinc.mapbox_vector_tile.util.Vec2d;
 
-import org.locationtech.jts.algorithm.CGAlgorithms;
+import org.locationtech.jts.algorithm.Area;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.CoordinateArrays;
 import org.locationtech.jts.geom.Geometry;
@@ -144,7 +144,7 @@ final class PatchedJtsAdapter {
                 final LineString exteriorRing = nextPoly.getExteriorRing();
 
                 // Area must be non-zero
-                final double exteriorArea = CGAlgorithms.signedArea(exteriorRing.getCoordinates());
+                final double exteriorArea = Area.ofRingSigned(exteriorRing.getCoordinates());
                 if (((int) Math.round(exteriorArea)) == 0) {
                     continue;
                 }
@@ -166,7 +166,7 @@ final class PatchedJtsAdapter {
                     final LineString nextInteriorRing = nextPoly.getInteriorRingN(ringIndex);
 
                     // Area must be non-zero
-                    final double interiorArea = CGAlgorithms.signedArea(nextInteriorRing.getCoordinates());
+                    final double interiorArea = Area.ofRingSigned(nextInteriorRing.getCoordinates());
                     if (((int) Math.round(interiorArea)) == 0) {
                         continue;
                     }

@@ -181,7 +181,9 @@ public class LifecycleExecutionStateTests extends ESTestCase {
                 newState.setSnapshotName(randomValueOtherThan(toMutate.snapshotName(), () -> randomAlphaOfLengthBetween(5, 20)));
                 break;
             case 14:
-                newState.setRollupIndexName(randomValueOtherThan(toMutate.rollupIndexName(), () -> randomAlphaOfLengthBetween(5, 20)));
+                newState.setDownsampleIndexName(
+                    randomValueOtherThan(toMutate.downsampleIndexName(), () -> randomAlphaOfLengthBetween(5, 20))
+                );
                 break;
             case 15:
                 newState.setIsAutoRetryableError(randomValueOtherThan(toMutate.isAutoRetryableError(), ESTestCase::randomBoolean));

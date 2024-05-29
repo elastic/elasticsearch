@@ -1,5 +1,5 @@
 ---
-"Test geo_line aggregation on geo points":
+setup:
   - do:
       indices.create:
         index: races
@@ -12,46 +12,16 @@
                 type: geo_point
 
   - do:
-      bulk:
-        refresh: true
+      indices.create:
+        index: locations
         body:
-          - index:
-              _index: races
-              _id: "1"
-          - '{"position": "POINT(4.912350 52.374081)", "race_id": "Amsterdam", "timestamp": 4}'
-          - index:
-              _index:  races
-              _id: "2"
-          - '{"position": "POINT(4.901618 52.369219)", "race_id": "Amsterdam", "timestamp": 3}'
-          - index:
-              _index: races
-              _id: "3"
-          - '{"position": "POINT(4.914722 52.371667)", "race_id": "Amsterdam", "timestamp": 10}'
+          mappings:
+            properties:
+              location:
+                type: geo_point
+              rank:
+                type: double
 
-  - do:
-      search:
-        rest_total_hits_as_int: true
-        index: races
-        size: 0
-        body:
-          aggs:
-            trace:
-              geo_line:
-                point:
-                  field: position
-                sort:
-                  field: timestamp
-  - match: { hits.total: 3 }
-  - match: { aggregations.trace.type: "Feature" }
-  - match: { aggregations.trace.geometry.type: "LineString" }
-  - length: { aggregations.trace.geometry.coordinates: 3 }
-  - match: { aggregations.trace.geometry.coordinates.0: [4.901618, 52.369219] }
-  - match: { aggregations.trace.geometry.coordinates.1: [4.91235, 52.374081] }
-  - match: { aggregations.trace.geometry.coordinates.2: [4.914722, 52.371667] }
-  - is_true: aggregations.trace.properties.complete
-
----
-"Test empty buckets":
   - do:
       indices.create:
         index: test1
@@ -80,33 +50,206 @@
 
   - do:
       bulk:
+        index: races
         refresh: true
-        body:
-          - index:
-              _index: test1
-              _id: "1"
-          - '{ "date" : "2020-01-01T01:00:00.0Z", "entity" : "e1", "location" : { "lat" : 50.3, "lon" : 0.13 }}'
-          - index:
-              _index: test1
-              _id: "2"
-          - '{ "date" : "2020-01-01T01:00:01.0Z", "entity" : "e1", "location" : { "lat" : 50.4, "lon" : 0.13 } }'
-          - index:
-              _index: test1
-              _id: "3"
-          - '{ "date" : "2020-01-01T01:00:03.0Z", "entity" : "e1", "location" : { "lat" : 50.5, "lon" : 0.13 }}'
-          - index:
-              _index: test2
-              _id: "1"
-          - '{ "date" : "2020-01-02T02:00:01.0Z", "entity" : "e2",  "location" : { "lat" : 51.3, "lon" : 0.13 }}'
-          - index:
-              _index: test2
-              _id: "2"
-          - '{ "date" : "2020-01-02T02:00:02.0Z", "entity" : "e2",  "location" : { "lat" : 51.4, "lon" : 0.13 }}'
-          - index:
-              _index: test2
-              _id: "3"
-          - '{ "date" : "2020-01-02T02:00:03.0Z", "entity" : "e2", "location" : { "lat" : 51.5, "lon" : 0.13 }}'
+        body: |
+          {"index":{}}
+          {"position": "POINT(4.912350 52.374081)", "race_id": "Amsterdam", "timestamp": 4}
+          {"index":{}}
+          {"position": "POINT(4.901618 52.369219)", "race_id": "Amsterdam", "timestamp": 3}
+          {"index":{}}
+          {"position": "POINT(4.914722 52.371667)", "race_id": "Amsterdam", "timestamp": 10}
 
+  - do:
+      bulk:
+        index: locations
+        refresh: true
+        body: |
+          {"index":{}}
+          {"location": [13.37139831, 47.82930284], "rank": 2.0 }
+          {"index":{}}
+          {"location": [13.3784208402, 47.88832084022], "rank": 0.0 }
+          {"index":{}}
+          {"location": [13.371830148701, 48.2084200148], "rank": 1.2 }
+
+  - do:
+      bulk:
+        index: test1
+        refresh: true
+        body: |
+          { "index":{} }
+          { "date" : "2020-01-01T01:00:00.0Z", "entity" : "e1", "location" : { "lat" : 50.3, "lon" : 0.13 } }
+          { "index":{} }
+          { "date" : "2020-01-01T01:00:01.0Z", "entity" : "e1", "location" : { "lat" : 50.4, "lon" : 0.13 } }
+          { "index":{} }
+          { "date" : "2020-01-01T01:00:02.0Z", "entity" : "e1", "location" : { "lat" : 50.5, "lon" : 0.13 } }
+          { "index":{} }
+          { "date" : "2020-01-01T01:00:03.0Z", "entity" : "e1", "location" : { "lat" : 50.6, "lon" : 0.13 } }
+
+  - do:
+      bulk:
+        index: test2
+        refresh: true
+        body: |
+          { "index":{} }
+          { "date" : "2020-01-02T02:00:01.0Z", "entity" : "e2",  "location" : { "lat" : 51.3, "lon" : 0.13 } }
+          { "index":{} }
+          { "date" : "2020-01-02T02:00:02.0Z", "entity" : "e2",  "location" : { "lat" : 51.4, "lon" : 0.13 } }
+          { "index":{} }
+          { "date" : "2020-01-02T02:00:03.0Z", "entity" : "e2", "location" : { "lat" : 51.5, "lon" : 0.13 } }
+
+
+  - do:
+      indices.refresh: { }
+
+---
+"Test geo_line aggregation on geo points sort by double and include_sort":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: locations
+        size: 0
+        body:
+          aggs:
+            path:
+              geo_line:
+                include_sort: true
+                point:
+                  field: location
+                sort:
+                  field: rank
+  - match: { hits.total:  3 }
+  - match: { aggregations.path.type: "Feature" }
+  - match: { aggregations.path.geometry.type: "LineString" }
+  - length: { aggregations.path.geometry.coordinates: 3 }
+  - match: { aggregations.path.geometry.coordinates.0.0: 13.378421 }
+  - match: { aggregations.path.geometry.coordinates.0.1: 47.888321 }
+  - match: { aggregations.path.geometry.coordinates.1.0: 13.37183 }
+  - match: { aggregations.path.geometry.coordinates.1.1: 48.20842 }
+  - match: { aggregations.path.geometry.coordinates.2.0: 13.371398 }
+  - match: { aggregations.path.geometry.coordinates.2.1: 47.829303 }
+  - is_true: aggregations.path.properties.complete
+  - length: { aggregations.path.properties.sort_values: 3 }
+  - match: { aggregations.path.properties.sort_values.0: 0.0 }
+  - match: { aggregations.path.properties.sort_values.1: 1.2 }
+  - match: { aggregations.path.properties.sort_values.2: 2.0 }
+
+---
+"Test geo_line aggregation on geo points reverse sort by double and include_sort":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: locations
+        size: 0
+        body:
+          aggs:
+            path:
+              geo_line:
+                include_sort: true
+                sort_order: "desc"
+                point:
+                  field: location
+                sort:
+                  field: rank
+  - match: { hits.total:  3 }
+  - match: { aggregations.path.type: "Feature" }
+  - match: { aggregations.path.geometry.type: "LineString" }
+  - length: { aggregations.path.geometry.coordinates: 3 }
+  - match: { aggregations.path.geometry.coordinates.0.0: 13.371398 }
+  - match: { aggregations.path.geometry.coordinates.0.1: 47.829303 }
+  - match: { aggregations.path.geometry.coordinates.1.0: 13.37183 }
+  - match: { aggregations.path.geometry.coordinates.1.1: 48.20842 }
+  - match: { aggregations.path.geometry.coordinates.2.0: 13.378421 }
+  - match: { aggregations.path.geometry.coordinates.2.1: 47.888321 }
+  - is_true: aggregations.path.properties.complete
+  - length: { aggregations.path.properties.sort_values: 3 }
+  - match: { aggregations.path.properties.sort_values.0: 2.0 }
+  - match: { aggregations.path.properties.sort_values.1: 1.2 }
+  - match: { aggregations.path.properties.sort_values.2: 0.0 }
+
+---
+"Test geo_line aggregation on geo points limit size":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: locations
+        size: 0
+        body:
+          aggs:
+            path:
+              geo_line:
+                size: 2
+                point:
+                  field: location
+                sort:
+                  field: rank
+  - match: { hits.total:  3 }
+  - match: { aggregations.path.type: "Feature" }
+  - match: { aggregations.path.geometry.type: "LineString" }
+  - length: { aggregations.path.geometry.coordinates: 2 }
+  - match: { aggregations.path.geometry.coordinates.0.0: 13.378421 }
+  - match: { aggregations.path.geometry.coordinates.0.1: 47.888321 }
+  - match: { aggregations.path.geometry.coordinates.1.0: 13.37183 }
+  - match: { aggregations.path.geometry.coordinates.1.1: 48.20842 }
+  - is_false: aggregations.path.properties.complete
+
+---
+"Test geo_line aggregation on geo points limit and sort":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: locations
+        size: 0
+        body:
+          aggs:
+            path:
+              geo_line:
+                size: 2
+                include_sort: true
+                sort_order: "desc"
+                point:
+                  field: location
+                sort:
+                  field: rank
+  - match: { hits.total:  3 }
+  - match: { aggregations.path.type: "Feature" }
+  - match: { aggregations.path.geometry.type: "LineString" }
+  - length: { aggregations.path.geometry.coordinates: 2 }
+  - match: { aggregations.path.geometry.coordinates.0.0: 13.371398 }
+  - match: { aggregations.path.geometry.coordinates.0.1: 47.829303 }
+  - match: { aggregations.path.geometry.coordinates.1.0: 13.37183 }
+  - match: { aggregations.path.geometry.coordinates.1.1: 48.20842 }
+  - is_false: aggregations.path.properties.complete
+  - length: { aggregations.path.properties.sort_values: 2 }
+  - match: { aggregations.path.properties.sort_values.0: 2.0 }
+  - match: { aggregations.path.properties.sort_values.1: 1.2 }
+
+---
+"Test geo_line aggregation on geo points with no grouping":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: races
+        size: 0
+        body:
+          aggs:
+            trace:
+              geo_line:
+                point:
+                  field: position
+                sort:
+                  field: timestamp
+  - match: { hits.total: 3 }
+  - match: { aggregations.trace.type: "Feature" }
+  - match: { aggregations.trace.geometry.type: "LineString" }
+  - length: { aggregations.trace.geometry.coordinates: 3 }
+  - match: { aggregations.trace.geometry.coordinates.0: [4.901618, 52.369219] }
+  - match: { aggregations.trace.geometry.coordinates.1: [4.91235, 52.374081] }
+  - match: { aggregations.trace.geometry.coordinates.2: [4.914722, 52.371667] }
+  - is_true: aggregations.trace.properties.complete
+
+---
+"Test empty buckets on multiple indices by grouping with filters":
   - do:
       search:
         index: test1,test2
@@ -116,10 +259,10 @@
             tracks:
               filters:
                 filters:
-                  1:
+                  F1:
                     term:
                       entity: e3
-                  2:
+                  F2:
                     term:
                       entity: e4
               aggs:
@@ -130,19 +273,20 @@
                     sort:
                       field: date
 
-  - match: { hits.total.value:  6 }
-  - match: { aggregations.tracks.buckets.1.doc_count: 0 }
-  - match: { aggregations.tracks.buckets.1.path.type: "Feature" }
-  - match: { aggregations.tracks.buckets.1.path.geometry.type: "LineString" }
-  - length: { aggregations.tracks.buckets.1.path.geometry.coordinates: 0 }
-  - match: { aggregations.tracks.buckets.1.path.properties.complete: true }
-  - match: { aggregations.tracks.buckets.2.doc_count: 0 }
-  - match: { aggregations.tracks.buckets.2.path.type: "Feature" }
-  - match: { aggregations.tracks.buckets.2.path.geometry.type: "LineString" }
-  - length: { aggregations.tracks.buckets.2.path.geometry.coordinates: 0 }
-  - match: { aggregations.tracks.buckets.2.path.properties.complete: true }
+  - match: { hits.total.value:  7 }
+  - match: { aggregations.tracks.buckets.F1.doc_count: 0 }
+  - match: { aggregations.tracks.buckets.F1.path.type: "Feature" }
+  - match: { aggregations.tracks.buckets.F1.path.geometry.type: "LineString" }
+  - length: { aggregations.tracks.buckets.F1.path.geometry.coordinates: 0 }
+  - match: { aggregations.tracks.buckets.F1.path.properties.complete: true }
+  - match: { aggregations.tracks.buckets.F2.doc_count: 0 }
+  - match: { aggregations.tracks.buckets.F2.path.type: "Feature" }
+  - match: { aggregations.tracks.buckets.F2.path.geometry.type: "LineString" }
+  - length: { aggregations.tracks.buckets.F2.path.geometry.coordinates: 0 }
+  - match: { aggregations.tracks.buckets.F2.path.properties.complete: true }
 
-
+---
+"Test geo_line on multiple indices by grouping with filters":
   - do:
       search:
         index: test1,test2
@@ -152,10 +296,10 @@
             tracks:
               filters:
                 filters:
-                  1:
+                  F1:
                     term:
                       entity: e1
-                  2:
+                  F2:
                     term:
                       entity: e2
               aggs:
@@ -166,20 +310,63 @@
                     sort:
                       field: date
 
-  - match: { hits.total.value:  6 }
+  - match: { hits.total.value:  7 }
+  - length: { aggregations.tracks.buckets: 2 }
+  - match: { aggregations.tracks.buckets.F1.doc_count: 4 }
+  - match: { aggregations.tracks.buckets.F1.path.type: "Feature" }
+  - match: { aggregations.tracks.buckets.F1.path.geometry.type: "LineString" }
+  - length: { aggregations.tracks.buckets.F1.path.geometry.coordinates: 4 }
+  - match: { aggregations.tracks.buckets.F1.path.geometry.coordinates.0: [0.13,50.3] }
+  - match: { aggregations.tracks.buckets.F1.path.geometry.coordinates.1: [0.13,50.4] }
+  - match: { aggregations.tracks.buckets.F1.path.geometry.coordinates.2: [0.13,50.5] }
+  - match: { aggregations.tracks.buckets.F1.path.geometry.coordinates.3: [0.13,50.6] }
+  - match: { aggregations.tracks.buckets.F1.path.properties.complete: true }
+  - match: { aggregations.tracks.buckets.F2.doc_count: 3 }
+  - match: { aggregations.tracks.buckets.F2.path.type: "Feature" }
+  - match: { aggregations.tracks.buckets.F2.path.geometry.type: "LineString" }
+  - length: { aggregations.tracks.buckets.F2.path.geometry.coordinates: 3 }
+  - match: { aggregations.tracks.buckets.F2.path.geometry.coordinates.0: [0.13,51.3] }
+  - match: { aggregations.tracks.buckets.F2.path.geometry.coordinates.1: [0.13,51.4] }
+  - match: { aggregations.tracks.buckets.F2.path.geometry.coordinates.2: [0.13,51.5] }
+  - match: { aggregations.tracks.buckets.F2.path.properties.complete: true }
+
+---
+"Test geo_line on multiple indices by grouping with terms":
+  - do:
+      search:
+        index: test1,test2
+        body:
+          size: 6
+          aggs:
+            tracks:
+              terms:
+                field: entity
+              aggs:
+                path:
+                  geo_line:
+                    point:
+                      field: location
+                    sort:
+                      field: date
+
+  - match: { hits.total.value:  7 }
+  - length: { aggregations.tracks.buckets: 2 }
+  - match: { aggregations.tracks.buckets.0.key: "e1" }
+  - match: { aggregations.tracks.buckets.0.doc_count: 4 }
+  - match: { aggregations.tracks.buckets.0.path.type: "Feature" }
+  - match: { aggregations.tracks.buckets.0.path.geometry.type: "LineString" }
+  - length: { aggregations.tracks.buckets.0.path.geometry.coordinates: 4 }
+  - match: { aggregations.tracks.buckets.0.path.geometry.coordinates.0: [0.13,50.3] }
+  - match: { aggregations.tracks.buckets.0.path.geometry.coordinates.1: [0.13,50.4] }
+  - match: { aggregations.tracks.buckets.0.path.geometry.coordinates.2: [0.13,50.5] }
+  - match: { aggregations.tracks.buckets.0.path.geometry.coordinates.3: [0.13,50.6] }
+  - match: { aggregations.tracks.buckets.0.path.properties.complete: true }
+  - match: { aggregations.tracks.buckets.1.key: "e2" }
   - match: { aggregations.tracks.buckets.1.doc_count: 3 }
   - match: { aggregations.tracks.buckets.1.path.type: "Feature" }
   - match: { aggregations.tracks.buckets.1.path.geometry.type: "LineString" }
   - length: { aggregations.tracks.buckets.1.path.geometry.coordinates: 3 }
-  - match: { aggregations.tracks.buckets.1.path.geometry.coordinates.0: [0.13,50.3] }
-  - match: { aggregations.tracks.buckets.1.path.geometry.coordinates.1: [0.13,50.4] }
-  - match: { aggregations.tracks.buckets.1.path.geometry.coordinates.2: [0.13,50.5] }
+  - match: { aggregations.tracks.buckets.1.path.geometry.coordinates.0: [0.13,51.3] }
+  - match: { aggregations.tracks.buckets.1.path.geometry.coordinates.1: [0.13,51.4] }
+  - match: { aggregations.tracks.buckets.1.path.geometry.coordinates.2: [0.13,51.5] }
   - match: { aggregations.tracks.buckets.1.path.properties.complete: true }
-  - match: { aggregations.tracks.buckets.2.doc_count: 3 }
-  - match: { aggregations.tracks.buckets.2.path.type: "Feature" }
-  - match: { aggregations.tracks.buckets.2.path.geometry.type: "LineString" }
-  - length: { aggregations.tracks.buckets.2.path.geometry.coordinates: 3 }
-  - match: { aggregations.tracks.buckets.2.path.geometry.coordinates.0: [0.13,51.3] }
-  - match: { aggregations.tracks.buckets.2.path.geometry.coordinates.1: [0.13,51.4] }
-  - match: { aggregations.tracks.buckets.2.path.geometry.coordinates.2: [0.13,51.5] }
-  - match: { aggregations.tracks.buckets.2.path.properties.complete: true }

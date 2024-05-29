@@ -10,17 +10,22 @@ package org.elasticsearch.xpack.transform.integration;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
@@ -221,7 +226,7 @@ public class TransformPivotRestSpecialCasesIT extends TransformRestTestCase {
         )).get(0);
 
         assertEquals(28.0, (double) percentiles.get("50"), 0.000001);
-        assertEquals(77.0, (double) percentiles.get("99"), 0.000001);
+        assertEquals(76.12, (double) percentiles.get("99"), 0.000001);
 
         searchResult = getAsMap(transformIndex + "/_search?q=host:host-3");
         assertEquals(1, XContentMapValues.extractValue("hits.total.value", searchResult));
@@ -358,6 +363,83 @@ public class TransformPivotRestSpecialCasesIT extends TransformRestTestCase {
             request.addParameter("refresh", "true");
             client().performRequest(request);
         }
+    }
+
+    public void testDataStreamUnsupportedAsDestIndex() throws Exception {
+        String transformId = "transform-data-stream-unsupported-as-dest";
+        String sourceIndex = REVIEWS_INDEX_NAME;
+        String dataStreamIndexTemplate = transformId + "_it";
+        String destDataStream = transformId + "_ds";
+
+        // Create transform
+        final Request createTransformRequest = new Request("PUT", getTransformEndpoint() + transformId);
+        createTransformRequest.setJsonEntity(Strings.format("""
+            {
+              "source": {
+                "index": "%s"
+              },
+              "dest": {
+                "index": "%s"
+              },
+              "frequency": "1m",
+              "pivot": {
+                "group_by": {
+                  "user_id": {
+                    "terms": {
+                      "field": "user_id"
+                    }
+                  }
+                },
+                "aggregations": {
+                  "stars_sum": {
+                    "sum": {
+                      "field": "stars"
+                    }
+                  },
+                  "bs": {
+                    "bucket_selector": {
+                      "buckets_path": {
+                        "stars_sum": "stars_sum.value"
+                      },
+                      "script": "params.stars_sum > 20"
+                    }
+                  }
+                }
+              }
+            }""", sourceIndex, destDataStream));
+        Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
+        assertThat(createTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
+
+        // Create index template for data stream
+        Request createIndexTemplateRequest = new Request("PUT", "_index_template/" + dataStreamIndexTemplate);
+        createIndexTemplateRequest.setJsonEntity(String.format(Locale.ROOT, """
+            {
+              "index_patterns": [ "%s*" ],
+              "data_stream": {}
+            }
+            """, destDataStream));
+        Response createIndexTemplateResponse = client().performRequest(createIndexTemplateRequest);
+        assertThat(createIndexTemplateResponse.getStatusLine().getStatusCode(), is(equalTo(RestStatus.OK.getStatus())));
+
+        // Create data stream
+        Request createDataStreamRequest = new Request("PUT", "_data_stream/" + destDataStream);
+        Response createDataStreamResponse = client().performRequest(createDataStreamRequest);
+        assertThat(createDataStreamResponse.getStatusLine().getStatusCode(), is(equalTo(RestStatus.OK.getStatus())));
+
+        // Try starting the transform, it fails because destination index cannot be created from the data stream template
+        ResponseException e = expectThrows(ResponseException.class, () -> startTransform(transformId));
+        assertThat(
+            e.getMessage(),
+            containsString(
+                String.format(
+                    Locale.ROOT,
+                    "cannot create index with name [%s], because it matches with template [%s] that creates data streams only, "
+                        + "use create data stream api instead",
+                    destDataStream,
+                    dataStreamIndexTemplate
+                )
+            )
+        );
     }
 
     private void verifyDestIndexHitsCount(String sourceIndex, String transformId, int maxPageSearchSize, long expectedDestIndexCount)

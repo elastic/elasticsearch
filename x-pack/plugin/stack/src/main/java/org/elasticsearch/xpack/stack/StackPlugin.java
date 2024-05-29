@@ -6,28 +6,14 @@
  */
 package org.elasticsearch.xpack.stack;
 
-import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.repositories.RepositoriesService;
-import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.tracing.Tracer;
-import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.function.Supplier;
 
 public class StackPlugin extends Plugin implements ActionPlugin {
     private final Settings settings;
@@ -42,23 +28,25 @@ public class StackPlugin extends Plugin implements ActionPlugin {
     }
 
     @Override
-    public Collection<Object> createComponents(
-        Client client,
-        ClusterService clusterService,
-        ThreadPool threadPool,
-        ResourceWatcherService resourceWatcherService,
-        ScriptService scriptService,
-        NamedXContentRegistry xContentRegistry,
-        Environment environment,
-        NodeEnvironment nodeEnvironment,
-        NamedWriteableRegistry namedWriteableRegistry,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        Supplier<RepositoriesService> repositoriesServiceSupplier,
-        Tracer tracer,
-        AllocationService allocationService
-    ) {
-        StackTemplateRegistry templateRegistry = new StackTemplateRegistry(settings, clusterService, threadPool, client, xContentRegistry);
-        templateRegistry.initialize();
-        return Collections.singleton(templateRegistry);
+    public Collection<?> createComponents(PluginServices services) {
+        LegacyStackTemplateRegistry legacyStackTemplateRegistry = new LegacyStackTemplateRegistry(
+            settings,
+            services.clusterService(),
+            services.threadPool(),
+            services.client(),
+            services.xContentRegistry(),
+            services.featureService()
+        );
+        legacyStackTemplateRegistry.initialize();
+        StackTemplateRegistry stackTemplateRegistry = new StackTemplateRegistry(
+            settings,
+            services.clusterService(),
+            services.threadPool(),
+            services.client(),
+            services.xContentRegistry(),
+            services.featureService()
+        );
+        stackTemplateRegistry.initialize();
+        return List.of(legacyStackTemplateRegistry, stackTemplateRegistry);
     }
 }

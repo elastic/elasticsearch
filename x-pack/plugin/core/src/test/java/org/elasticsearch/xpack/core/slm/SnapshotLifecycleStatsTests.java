@@ -53,7 +53,7 @@ public class SnapshotLifecycleStatsTests extends AbstractXContentSerializingTest
     }
 
     @Override
-    protected SnapshotLifecycleStats mutateInstance(SnapshotLifecycleStats instance) throws IOException {
+    protected SnapshotLifecycleStats mutateInstance(SnapshotLifecycleStats instance) {
         return randomValueOtherThan(instance, () -> instance.merge(createTestInstance()));
     }
 

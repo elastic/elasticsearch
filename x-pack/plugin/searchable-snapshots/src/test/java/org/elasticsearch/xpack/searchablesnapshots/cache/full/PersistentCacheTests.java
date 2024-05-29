@@ -14,8 +14,6 @@ import org.apache.lucene.tests.mockfile.FilterFileChannel;
 import org.apache.lucene.tests.mockfile.FilterFileSystemProvider;
 import org.apache.lucene.tests.mockfile.FilterPath;
 import org.elasticsearch.blobcache.common.ByteRange;
-import org.elasticsearch.blobcache.common.CacheFile;
-import org.elasticsearch.blobcache.common.CacheKey;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
@@ -27,6 +25,8 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsTestCase;
+import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheFile;
+import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheKey;
 
 import java.io.IOException;
 import java.nio.channels.FileChannel;
@@ -48,10 +48,10 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.blobcache.BlobCacheTestUtils.assertCacheFileEquals;
-import static org.elasticsearch.blobcache.BlobCacheTestUtils.randomPopulateAndReads;
-import static org.elasticsearch.blobcache.BlobCacheTestUtils.sumOfCompletedRangesLengths;
 import static org.elasticsearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
+import static org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils.assertCacheFileEquals;
+import static org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils.randomPopulateAndReads;
+import static org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils.sumOfCompletedRangesLengths;
 import static org.elasticsearch.xpack.searchablesnapshots.cache.full.PersistentCache.createCacheIndexWriter;
 import static org.elasticsearch.xpack.searchablesnapshots.cache.full.PersistentCache.resolveCacheIndexFolder;
 import static org.hamcrest.Matchers.equalTo;
@@ -388,16 +388,12 @@ public class PersistentCacheTests extends AbstractSearchableSnapshotsTestCase {
                         super.force(metaData);
                         return;
                     }
-                    try {
-                        blockingLatch.countDown();
-                        releasingLatch.await();
-                        if (failFSync.get()) {
-                            throw new IOException("Simulated");
-                        } else {
-                            super.force(metaData);
-                        }
-                    } catch (InterruptedException e) {
-                        throw new AssertionError(e);
+                    blockingLatch.countDown();
+                    safeAwait(releasingLatch);
+                    if (failFSync.get()) {
+                        throw new IOException("Simulated");
+                    } else {
+                        super.force(metaData);
                     }
                 }
             };
@@ -409,11 +405,7 @@ public class PersistentCacheTests extends AbstractSearchableSnapshotsTestCase {
         }
 
         public void waitForBlock() {
-            try {
-                blockingLatch.await();
-            } catch (InterruptedException e) {
-                throw new AssertionError(e);
-            }
+            safeAwait(blockingLatch);
         }
 
         public void unblock() {

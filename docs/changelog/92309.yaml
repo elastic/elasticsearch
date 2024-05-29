@@ -1,5 +1,0 @@
-pr: 92309
-summary: Increase the number of threads of GET threadpool
-area: Search
-type: enhancement
-issues: []

@@ -50,6 +50,9 @@ using metrics.
   `adaptive_selection`::
       Statistics about <<search-adaptive-replica,adaptive replica selection>>.
 
+  `allocations`::
+      Statistics about allocated shards
+
   `breaker`::
       Statistics about the field data circuit breaker.
 
@@ -83,6 +86,9 @@ using metrics.
   `process`::
       Process statistics, memory consumption, cpu usage, open
       file descriptors.
+
+  `repositories`::
+      Statistics about snapshot repositories.
 
   `thread_pool`::
       Statistics about each thread pool, including current size, queue and
@@ -118,33 +124,34 @@ using metrics.
     * `store`
     * `translog`
     * `warmer`
+    * `dense_vector`
 --
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=node-id]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=node-id]
 
 
 [[cluster-nodes-stats-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=completion-fields]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=completion-fields]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=fielddata-fields]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=fielddata-fields]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=fields]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=fields]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=groups]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=groups]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=level]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=level]
 
 `types`::
     (Optional, string) A comma-separated list of document types for the
     `indexing` index metric.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=timeout-nodes-request]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=include-segment-file-sizes]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=include-segment-file-sizes]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=include-unloaded-segments]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=include-unloaded-segments]
 
 [role="child_attributes"]
 [[cluster-nodes-stats-api-response-body]]
@@ -237,11 +244,11 @@ node.
 =======
 `count`::
 (integer)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=docs-count]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=docs-count]
 
 `deleted`::
 (integer)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=docs-deleted]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=docs-deleted]
 =======
 
 `store`::
@@ -619,6 +626,7 @@ Total time spent performing flush operations.
 (integer)
 Total time in milliseconds
 spent performing flush operations.
+
 =======
 
 `warmer`::
@@ -679,12 +687,11 @@ Number of query cache misses.
 
 `cache_size`::
 (integer)
-Size, in bytes, of the query cache.
+Current number of cached queries.
 
 `cache_count`::
 (integer)
-Count of queries
-in the query cache.
+Total number of all queries that have been cached.
 
 `evictions`::
 (integer)
@@ -1001,6 +1008,18 @@ Estimated heap overhead of mappings on this node, which allows for 1kiB of heap 
 Estimated heap overhead, in bytes, of mappings on this node, which allows for 1kiB of heap for every mapped field.
 =======
 
+`dense_vector`::
+(object)
+Contains statistics about dense_vector across all shards assigned to the node.
++
+.Properties of `dense_vector`
+[%collapsible%open]
+=======
+`value_count`::
+(integer)
+Total number of dense vector indexed across all shards assigned
+to the node.
+=======
 ======
 
 [[cluster-nodes-stats-api-response-body-os]]
@@ -1672,6 +1691,31 @@ Total number of classes unloaded since the JVM started.
 =======
 ======
 
+[[cluster-nodes-stats-api-response-body-repositories]]
+`repositories`::
+(object)
+Statistics about snapshot repositories.
++
+.Properties of `repositories`
+[%collapsible%open]
+======
+`<repository_name>`::
+(object)
+Contains repository throttling statistics for the node.
++
+.Properties of `<repository_name>`
+[%collapsible%open]
+=======
+`total_read_throttled_time_nanos`::
+(integer)
+Total number of nanos which node had to wait during recovery.
+
+`total_write_throttled_time_nanos`::
+(integer)
+Total number of nanos which node had to wait during snapshotting.
+=======
+======
+
 [[cluster-nodes-stats-api-response-body-threadpool]]
 `thread_pool`::
 (object)
@@ -1752,14 +1796,14 @@ Total number of unallocated bytes in all file stores.
 `available`::
 (<<byte-units,byte value>>)
 Total disk space available to this Java virtual machine on all file
-stores. Depending on OS or process level restrictions, this might appear
+stores. Depending on OS or process level restrictions (e.g. XFS quotas), this might appear
 less than `free`. This is the actual amount of free disk
 space the {es} node can utilise.
 
 `available_in_bytes`::
 (integer)
 Total number of bytes available to this Java virtual machine on all file
-stores. Depending on OS or process level restrictions, this might appear
+stores. Depending on OS or process level restrictions (e.g. XFS quotas), this might appear
 less than `free_in_bytes`. This is the actual amount of free disk
 space the {es} node can utilise.
 =======
@@ -1809,6 +1853,68 @@ store.
 (integer)
 Total number of bytes available to this Java virtual machine on this file
 store.
+
+`low_watermark_free_space`::
+(<<byte-units,byte value>>)
+The effective low disk watermark for this data path on this node: when a node
+has less free space than this value for at least one data path, its disk usage
+has exceeded the low watermark. See <<disk-based-shard-allocation>> for more
+information about disk watermarks and their effects on shard allocation.
+
+`low_watermark_free_space_in_bytes`::
+(integer)
+The effective low disk watermark, in bytes, for this data path on this node:
+when a node has less free space than this value for at least one data path, its
+disk usage has exceeded the low watermark. See <<disk-based-shard-allocation>>
+for more information about disk watermarks and their effects on shard
+allocation.
+
+`high_watermark_free_space`::
+(<<byte-units,byte value>>)
+The effective high disk watermark for this data path on this node: when a node
+has less free space than this value for at least one data path, its disk usage
+has exceeded the high watermark. See <<disk-based-shard-allocation>> for more
+information about disk watermarks and their effects on shard allocation.
+
+`high_watermark_free_space_in_bytes`::
+(integer)
+The effective high disk watermark, in bytes, for this data path on this node:
+when a node has less free space than this value for at least one data path, its
+disk usage has exceeded the high watermark. See <<disk-based-shard-allocation>>
+for more information about disk watermarks and their effects on shard
+allocation.
+
+`flood_stage_free_space`::
+(<<byte-units,byte value>>)
+The effective flood stage disk watermark for this data path on this node: when
+a node has less free space than this value for at least one data path, its disk
+usage has exceeded the flood stage watermark. See
+<<disk-based-shard-allocation>> for more information about disk watermarks and
+their effects on shard allocation.
+
+`flood_stage_free_space_in_bytes`::
+(integer)
+The effective flood stage disk watermark, in bytes, for this data path on this
+node: when a node has less free space than this value for at least one data
+path, its disk usage has exceeded the flood stage watermark. See
+<<disk-based-shard-allocation>> for more information about disk watermarks and
+their effects on shard allocation.
+
+`frozen_flood_stage_free_space`::
+(<<byte-units,byte value>>)
+The effective flood stage disk watermark for this data path on a dedicated
+frozen node: when a dedicated frozen node has less free space than this value
+for at least one data path, its disk usage has exceeded the flood stage
+watermark. See <<disk-based-shard-allocation>> for more information about disk
+watermarks and their effects on shard allocation.
+
+`frozen_flood_stage_free_space_in_bytes`::
+(integer)
+The effective flood stage disk watermark, in bytes, for this data path on a
+dedicated frozen node: when a dedicated frozen node has less free space than
+this value for at least one data path, its disk usage has exceeded the flood
+stage watermark. See <<disk-based-shard-allocation>> for more information about
+disk watermarks and their effects on shard allocation.
 =======
 
 `io_stats` (Linux only)::
@@ -1860,6 +1966,13 @@ The total time in milliseconds spent performing I/O operations for the device
 since starting {es}.
 ========
 
+`total` (Linux only)::
+(object)
+The sum of the disk metrics for all devices that back an {es} data path.
++
+.Properties of `total`
+[%collapsible%open]
+========
 `operations` (Linux only)::
     (integer)
     The total number of read and write operations across all devices used by
@@ -1889,6 +2002,8 @@ since starting {es}.
     (integer)
     The total time in milliseconds spent performing I/O operations across all
     devices used by {es} since starting {es}.
+========
+
 =======
 ======
 
@@ -1948,15 +2063,25 @@ thread, represented as a histogram.
 .Properties of `inbound_handling_time_histogram`
 [%collapsible]
 =======
+`ge`::
+(string)
+The inclusive lower bound of the bucket as a human-readable string. May be
+omitted on the first bucket if this bucket has no lower bound.
+
 `ge_millis`::
 (integer)
-The inclusive lower bound of the bucket in milliseconds. Omitted on the first
-bucket since this bucket has no lower bound.
+The inclusive lower bound of the bucket in milliseconds. May be omitted on the
+first bucket if this bucket has no lower bound.
+
+`lt`::
+(string)
+The exclusive upper bound of the bucket as a human-readable string. May be
+omitted on the last bucket if this bucket has no upper bound.
 
 `lt_millis`::
 (integer)
-The exclusive upper bound of the bucket in milliseconds. Omitted on the last
-bucket since this bucket has no upper bound.
+The exclusive upper bound of the bucket in milliseconds. May be omitted on the
+last bucket if this bucket has no upper bound.
 
 `count`::
 (integer)
@@ -1972,21 +2097,91 @@ transport thread, represented as a histogram.
 .Properties of `outbound_handling_time_histogram`
 [%collapsible]
 =======
+`ge`::
+(string)
+The inclusive lower bound of the bucket as a human-readable string. May be
+omitted on the first bucket if this bucket has no lower bound.
+
 `ge_millis`::
 (integer)
-The inclusive lower bound of the bucket in milliseconds. Omitted on the first
-bucket since this bucket has no lower bound.
+The inclusive lower bound of the bucket in milliseconds. May be omitted on the
+first bucket if this bucket has no lower bound.
+
+`lt`::
+(string)
+The exclusive upper bound of the bucket as a human-readable string. May be
+omitted on the last bucket if this bucket has no upper bound.
 
 `lt_millis`::
 (integer)
-The exclusive upper bound of the bucket in milliseconds. Omitted on the last
-bucket since this bucket has no upper bound.
+The exclusive upper bound of the bucket in milliseconds. May be omitted on the
+last bucket if this bucket has no upper bound.
 
 `count`::
 (integer)
 The number of times a transport thread took a period of time within the bounds
 of this bucket to send a transport message.
 =======
+
+`actions`::
+(object)
+An action-by-action breakdown of the transport traffic handled by this node,
+showing the total amount of traffic and a histogram of message sizes for
+incoming requests and outgoing responses.
++
+.Properties of `actions.*.requests` and `actions.*.responses`
+[%collapsible]
+=======
+`count`::
+(integer)
+The total number of requests received, or responses sent, for the current
+action.
+
+`total_size`::
+(<<byte-units,byte value>>)
+The total size (as a human-readable string) of all requests received, or
+responses sent, for the current action.
+
+`total_size_in_bytes`::
+(integer)
+The total size in bytes of all requests received, or responses sent, for the
+current action.
+
+`histogram`::
+(array)
+A breakdown of the distribution of sizes of requests received, or responses
+sent, for the current action.
++
+.Properties of `histogram`
+[%collapsible]
+========
+`ge`::
+(<<byte-units,byte value>>)
+The inclusive lower bound of the bucket as a human-readable string. May be
+omitted on the first bucket if this bucket has no lower bound.
+
+`ge_bytes`::
+(integer)
+The inclusive lower bound of the bucket in bytes. May be omitted on the first
+bucket if this bucket has no lower bound.
+
+`lt`::
+(<<byte-units,byte value>>)
+The exclusive upper bound of the bucket as a human-readable string. May be
+omitted on the last bucket if this bucket has no upper bound.
+
+`lt_bytes`::
+(integer)
+The exclusive upper bound of the bucket in bytes. May be omitted on the last
+bucket if this bucket has no upper bound.
+
+`count`::
+(integer)
+The number of times a request was received, or a response sent, with a size
+within the bounds of this bucket.
+========
+=======
+
 ======
 
 [[cluster-nodes-stats-api-response-body-http]]
@@ -2025,11 +2220,11 @@ included in the response.
 
 `local_address`::
 (string)
-Local address for the HTTP client.
+Local address for the HTTP connection.
 
 `remote_address`::
 (string)
-Remote address for the HTTP client.
+Remote address for the HTTP connection.
 
 `last_uri`::
 (string)
@@ -2448,6 +2643,34 @@ pipeline.
 (integer)
 Total number of failed operations for the ingest pipeline.
 
+`ingested_as_first_pipeline`::
+(<<byte-units,byte value>>)
+Total ingested size of all documents which were first processed by this pipeline.
+A document is not added to the stat value for this pipeline if it is a final pipeline after a default pipeline, a pipeline
+run after a reroute processor, or is within a pipeline processor.
+Instead, the document size is added to the stat value of the pipeline which initially ingested the document.
+
+`ingested_as_first_pipeline_in_bytes`::
+(integer)
+Total ingested size, in bytes, of all documents which were first processed by this pipeline.
+A document is not added to the stat value for this pipeline if it is a final pipeline after a default pipeline, a pipeline
+run after a reroute processor, or is within a pipeline processor.
+Instead, the document size is added to the stat value of the pipeline which initially ingested the document.
+
+`produced_as_first_pipeline`::
+(<<byte-units,byte value>>)
+Total produced size of all documents which were first processed by this pipeline.
+A document is not added to the stat value for this pipeline if it is a final pipeline after a default pipeline, a pipeline
+run after a reroute processor, or is within a pipeline processor.
+Instead, the document size is added to the stat value of the pipeline which initially ingested the document.
+
+`produced_as_first_pipeline_in_bytes`::
+(integer)
+Total produced size, in bytes, of all documents which were first processed by this pipeline.
+A document is not added to the stat value for this pipeline if it is a final pipeline after a default pipeline, a pipeline
+run after a reroute processor, or is within a pipeline processor.
+Instead, the document size is added to the stat value of the pipeline which initially ingested the document.
+
 `processors`::
 (array of objects)
 Contains statistics for the ingest processors for the ingest pipeline.
@@ -2672,6 +2895,44 @@ search requests on the keyed node.
 (string)
 The rank of this node; used for shard selection when routing search
 requests.
+======
+
+[[cluster-nodes-stats-api-response-body-allocations]]
+`allocations`::
+(object)
+Contains allocations statistics for the node.
++
+.Properties of `allocations`
+[%collapsible%open]
+======
+`shards`::
+(integer)
+The number of shards currently allocated to this node
+
+`undesired_shards`::
+(integer)
+The amount of shards that are scheduled to be moved elsewhere in the cluster
+if desired balance allocator is used or -1 if any other allocator is used.
+
+`forecasted_ingest_load`::
+(double)
+Total forecasted ingest load of all shards assigned to this node
+
+`forecasted_disk_usage`::
+(<<byte-units,byte value>>)
+Forecasted size of all shards assigned to the node
+
+`forecasted_disk_usage_bytes`::
+(integer)
+Forecasted size, in bytes, of all shards assigned to the node
+
+`current_disk_usage`::
+(<<byte-units,byte value>>)
+Current size of all shards assigned to the node
+
+`current_disk_usage_bytes`::
+(integer)
+Current size, in bytes, of all shards assigned to the node
 ======
 =====
 ====

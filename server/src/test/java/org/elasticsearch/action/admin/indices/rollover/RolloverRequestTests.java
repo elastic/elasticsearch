@@ -10,6 +10,7 @@ package org.elasticsearch.action.admin.indices.rollover;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -34,11 +35,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
 import java.util.Map;
-import java.util.function.Consumer;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -70,8 +67,10 @@ public class RolloverRequestTests extends ESTestCase {
             .field("min_primary_shard_docs", 10)
             .endObject()
             .endObject();
-        request.fromXContent(false, createParser(builder));
-        Map<String, Condition<?>> conditions = request.getConditions();
+        try (var parser = createParser(builder)) {
+            request.fromXContent(false, parser);
+        }
+        Map<String, Condition<?>> conditions = request.getConditions().getConditions();
         assertThat(conditions.size(), equalTo(10));
         MaxAgeCondition maxAgeCondition = (MaxAgeCondition) conditions.get(MaxAgeCondition.NAME);
         assertThat(maxAgeCondition.value.getMillis(), equalTo(TimeValue.timeValueHours(24 * 10).getMillis()));
@@ -122,8 +121,10 @@ public class RolloverRequestTests extends ESTestCase {
             .endObject()
             .endObject()
             .endObject();
-        request.fromXContent(false, createParser(builder));
-        Map<String, Condition<?>> conditions = request.getConditions();
+        try (var parser = createParser(builder)) {
+            request.fromXContent(false, parser);
+        }
+        Map<String, Condition<?>> conditions = request.getConditions().getConditions();
         assertThat(conditions.size(), equalTo(3));
         assertThat(request.getCreateIndexRequest().mappings(), containsString("not_analyzed"));
         assertThat(request.getCreateIndexRequest().aliases().size(), equalTo(1));
@@ -143,8 +144,9 @@ public class RolloverRequestTests extends ESTestCase {
             .endObject()
             .endObject();
 
-        request.fromXContent(false, createParser(builder));
-
+        try (var parser = createParser(builder)) {
+            request.fromXContent(false, parser);
+        }
         CreateIndexRequest createIndexRequest = request.getCreateIndexRequest();
         String mapping = createIndexRequest.mappings();
         assertNotNull(mapping);
@@ -159,16 +161,27 @@ public class RolloverRequestTests extends ESTestCase {
 
     public void testSerialize() throws Exception {
         RolloverRequest originalRequest = new RolloverRequest("alias-index", "new-index-name");
-        originalRequest.addMaxIndexDocsCondition(randomNonNegativeLong());
-        originalRequest.addMaxIndexAgeCondition(TimeValue.timeValueNanos(randomNonNegativeLong()));
-        originalRequest.addMaxIndexSizeCondition(ByteSizeValue.ofBytes(randomNonNegativeLong()));
-        originalRequest.addMaxPrimaryShardSizeCondition(ByteSizeValue.ofBytes(randomNonNegativeLong()));
-        originalRequest.addMaxPrimaryShardDocsCondition(randomNonNegativeLong());
-        originalRequest.addMinIndexDocsCondition(randomNonNegativeLong());
-        originalRequest.addMinIndexAgeCondition(TimeValue.timeValueNanos(randomNonNegativeLong()));
-        originalRequest.addMinIndexSizeCondition(ByteSizeValue.ofBytes(randomNonNegativeLong()));
-        originalRequest.addMinPrimaryShardSizeCondition(ByteSizeValue.ofBytes(randomNonNegativeLong()));
-        originalRequest.addMinPrimaryShardDocsCondition(randomNonNegativeLong());
+        originalRequest.setConditions(
+            RolloverConditions.newBuilder()
+                .addMaxIndexDocsCondition(randomNonNegativeLong())
+                .addMaxIndexAgeCondition(TimeValue.timeValueNanos(randomNonNegativeLong()))
+                .addMaxIndexSizeCondition(ByteSizeValue.ofBytes(randomNonNegativeLong()))
+                .addMaxPrimaryShardSizeCondition(ByteSizeValue.ofBytes(randomNonNegativeLong()))
+                .addMaxPrimaryShardDocsCondition(randomNonNegativeLong())
+                .addMinIndexDocsCondition(randomNonNegativeLong())
+                .addMinIndexAgeCondition(TimeValue.timeValueNanos(randomNonNegativeLong()))
+                .addMinIndexSizeCondition(ByteSizeValue.ofBytes(randomNonNegativeLong()))
+                .addMinPrimaryShardSizeCondition(ByteSizeValue.ofBytes(randomNonNegativeLong()))
+                .addMinPrimaryShardDocsCondition(randomNonNegativeLong())
+                .build()
+        );
+        originalRequest.lazy(randomBoolean());
+        originalRequest.setIndicesOptions(
+            IndicesOptions.builder(originalRequest.indicesOptions())
+                .failureStoreOptions(new IndicesOptions.FailureStoreOptions(randomBoolean(), randomBoolean()))
+                .build()
+        );
+
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             originalRequest.writeTo(out);
             BytesReference bytes = out.bytes();
@@ -176,8 +189,13 @@ public class RolloverRequestTests extends ESTestCase {
                 RolloverRequest cloneRequest = new RolloverRequest(in);
                 assertThat(cloneRequest.getNewIndexName(), equalTo(originalRequest.getNewIndexName()));
                 assertThat(cloneRequest.getRolloverTarget(), equalTo(originalRequest.getRolloverTarget()));
-                for (Map.Entry<String, Condition<?>> entry : cloneRequest.getConditions().entrySet()) {
-                    Condition<?> condition = originalRequest.getConditions().get(entry.getKey());
+                assertThat(cloneRequest.isLazy(), equalTo(originalRequest.isLazy()));
+                assertThat(
+                    cloneRequest.indicesOptions().failureStoreOptions(),
+                    equalTo(originalRequest.indicesOptions().failureStoreOptions())
+                );
+                for (Map.Entry<String, Condition<?>> entry : cloneRequest.getConditions().getConditions().entrySet()) {
+                    Condition<?> condition = originalRequest.getConditions().getConditions().get(entry.getKey());
                     // here we compare the string representation as there is some information loss when serializing
                     // and de-serializing MaxAgeCondition/MinAgeCondition
                     assertEquals(condition.toString(), entry.getValue().toString());
@@ -198,14 +216,11 @@ public class RolloverRequestTests extends ESTestCase {
         }
         builder.endObject();
         BytesReference mutated = XContentTestUtils.insertRandomFields(xContentType, BytesReference.bytes(builder), null, random());
-        expectThrows(XContentParseException.class, () -> request.fromXContent(false, createParser(xContentType.xContent(), mutated)));
-    }
-
-    public void testSameConditionCanOnlyBeAddedOnce() {
-        RolloverRequest rolloverRequest = new RolloverRequest();
-        Consumer<RolloverRequest> rolloverRequestConsumer = randomFrom(conditionsGenerator);
-        rolloverRequestConsumer.accept(rolloverRequest);
-        expectThrows(IllegalArgumentException.class, () -> rolloverRequestConsumer.accept(rolloverRequest));
+        expectThrows(XContentParseException.class, () -> {
+            try (var parser = createParser(xContentType.xContent(), mutated)) {
+                request.fromXContent(false, parser);
+            }
+        });
     }
 
     public void testValidation() {
@@ -220,7 +235,7 @@ public class RolloverRequestTests extends ESTestCase {
 
         {
             RolloverRequest rolloverRequest = new RolloverRequest("alias-index", "new-index-name");
-            rolloverRequest.addMinIndexDocsCondition(1L);
+            rolloverRequest.setConditions(RolloverConditions.newBuilder().addMinIndexDocsCondition(1L).build());
             ActionRequestValidationException validationException = rolloverRequest.validate();
             assertNotNull(validationException);
             assertEquals(1, validationException.validationErrors().size());
@@ -233,11 +248,31 @@ public class RolloverRequestTests extends ESTestCase {
         {
             RolloverRequest rolloverRequest = new RolloverRequest("alias-index", "new-index-name");
             if (randomBoolean()) {
-                rolloverRequest.addMaxIndexAgeCondition(TimeValue.timeValueHours(1));
-                rolloverRequest.addMinIndexDocsCondition(1L);
+                rolloverRequest.setConditions(
+                    RolloverConditions.newBuilder()
+                        .addMaxIndexAgeCondition(TimeValue.timeValueHours(1))
+                        .addMinIndexDocsCondition(1L)
+                        .build()
+                );
             }
             ActionRequestValidationException validationException = rolloverRequest.validate();
             assertNull(validationException);
+        }
+
+        {
+            RolloverRequest rolloverRequest = new RolloverRequest("alias-index", "new-index-name");
+            rolloverRequest.setIndicesOptions(
+                IndicesOptions.builder(rolloverRequest.indicesOptions())
+                    .failureStoreOptions(new IndicesOptions.FailureStoreOptions(true, true))
+                    .build()
+            );
+            ActionRequestValidationException validationException = rolloverRequest.validate();
+            assertNotNull(validationException);
+            assertEquals(1, validationException.validationErrors().size());
+            assertEquals(
+                "rollover cannot be applied to both regular and failure indices at the same time",
+                validationException.validationErrors().get(0)
+            );
         }
     }
 
@@ -276,7 +311,7 @@ public class RolloverRequestTests extends ESTestCase {
         ) {
             final RolloverRequest request = new RolloverRequest(randomAlphaOfLength(10), randomAlphaOfLength(10));
             request.fromXContent(true, parser);
-            Map<String, Condition<?>> conditions = request.getConditions();
+            Map<String, Condition<?>> conditions = request.getConditions().getConditions();
             assertThat(conditions.size(), equalTo(2));
             assertThat(request.getCreateIndexRequest().mappings(), equalTo("""
                 {"_doc":{"properties":{"field1":{"index":"not_analyzed","type":"string"}}}}"""));
@@ -308,53 +343,4 @@ public class RolloverRequestTests extends ESTestCase {
             expectThrows(IllegalArgumentException.class, () -> request.fromXContent(false, parser));
         }
     }
-
-    public void testConditionsAreMet() throws Exception {
-        RolloverRequest rolloverRequest = new RolloverRequest();
-        assertTrue(rolloverRequest.areConditionsMet(Collections.emptyMap()));
-
-        TimeValue age = TimeValue.timeValueSeconds(5);
-        rolloverRequest.addMaxIndexAgeCondition(age);
-        MaxAgeCondition maxAgeCondition = new MaxAgeCondition(age);
-        assertFalse(rolloverRequest.areConditionsMet(Map.of(maxAgeCondition.toString(), false)));
-        assertTrue(rolloverRequest.areConditionsMet(Map.of(maxAgeCondition.toString(), true)));
-
-        rolloverRequest.addMaxIndexDocsCondition(100L);
-        MaxDocsCondition maxDocsCondition = new MaxDocsCondition(100L);
-        assertFalse(rolloverRequest.areConditionsMet(Map.of(maxAgeCondition.toString(), false)));
-        assertTrue(rolloverRequest.areConditionsMet(Map.of(maxAgeCondition.toString(), true)));
-        assertFalse(rolloverRequest.areConditionsMet(Map.of(maxDocsCondition.toString(), false)));
-        assertTrue(rolloverRequest.areConditionsMet(Map.of(maxDocsCondition.toString(), true)));
-
-        MinDocsCondition minDocsCondition = new MinDocsCondition(1L);
-        rolloverRequest.addMinIndexDocsCondition(1L);
-        assertFalse(rolloverRequest.areConditionsMet(Map.of(maxAgeCondition.toString(), false)));
-        assertFalse(rolloverRequest.areConditionsMet(Map.of(maxAgeCondition.toString(), true)));
-        assertFalse(rolloverRequest.areConditionsMet(Map.of(maxDocsCondition.toString(), false)));
-        assertFalse(rolloverRequest.areConditionsMet(Map.of(maxDocsCondition.toString(), true)));
-        assertFalse(rolloverRequest.areConditionsMet(Map.of(minDocsCondition.toString(), true)));
-        assertTrue(rolloverRequest.areConditionsMet(Map.of(maxAgeCondition.toString(), true, minDocsCondition.toString(), true)));
-
-        MinAgeCondition minAgeCondition = new MinAgeCondition(age);
-        rolloverRequest.addMinIndexAgeCondition(age);
-        assertFalse(rolloverRequest.areConditionsMet(Map.of(maxAgeCondition.toString(), true, minDocsCondition.toString(), true)));
-        assertTrue(
-            rolloverRequest.areConditionsMet(
-                Map.of(maxAgeCondition.toString(), true, minDocsCondition.toString(), true, minAgeCondition.toString(), true)
-            )
-        );
-    }
-
-    private static final List<Consumer<RolloverRequest>> conditionsGenerator = Arrays.asList(
-        (request) -> request.addMaxIndexDocsCondition(randomNonNegativeLong()),
-        (request) -> request.addMaxIndexSizeCondition(ByteSizeValue.ofBytes(randomNonNegativeLong())),
-        (request) -> request.addMaxIndexAgeCondition(new TimeValue(randomNonNegativeLong())),
-        (request) -> request.addMaxPrimaryShardSizeCondition(ByteSizeValue.ofBytes(randomNonNegativeLong())),
-        (request) -> request.addMaxPrimaryShardDocsCondition(randomNonNegativeLong()),
-        (request) -> request.addMinIndexDocsCondition(randomNonNegativeLong()),
-        (request) -> request.addMinIndexSizeCondition(ByteSizeValue.ofBytes(randomNonNegativeLong())),
-        (request) -> request.addMinIndexAgeCondition(new TimeValue(randomNonNegativeLong())),
-        (request) -> request.addMinPrimaryShardSizeCondition(ByteSizeValue.ofBytes(randomNonNegativeLong())),
-        (request) -> request.addMinPrimaryShardDocsCondition(randomNonNegativeLong())
-    );
 }

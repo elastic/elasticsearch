@@ -43,13 +43,13 @@ public class XContentSourceFilterTests extends AbstractFilteringTestCase {
         if (includes == null) {
             sourceIncludes = randomBoolean() ? Strings.EMPTY_ARRAY : null;
         } else {
-            sourceIncludes = includes.toArray(new String[includes.size()]);
+            sourceIncludes = includes.toArray(String[]::new);
         }
         String[] sourceExcludes;
         if (excludes == null) {
             sourceExcludes = randomBoolean() ? Strings.EMPTY_ARRAY : null;
         } else {
-            sourceExcludes = excludes.toArray(new String[excludes.size()]);
+            sourceExcludes = excludes.toArray(String[]::new);
         }
         SourceFilter filter = new SourceFilter(sourceIncludes, sourceExcludes);
         Source filtered = Source.fromBytes(toBytesReference(actual, xContentType, humanReadable), xContentType).filter(filter);

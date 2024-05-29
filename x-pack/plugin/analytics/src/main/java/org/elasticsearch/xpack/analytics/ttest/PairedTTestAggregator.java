@@ -10,8 +10,8 @@ package org.elasticsearch.xpack.analytics.ttest;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationErrors;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
@@ -48,7 +48,7 @@ public class PairedTTestAggregator extends TTestAggregator<PairedTTestState> {
 
     @Override
     protected PairedTTestState getEmptyState() {
-        return new PairedTTestState(new TTestStats(0, 0, 0), tails);
+        return new PairedTTestState(TTestStats.EMPTY, tails);
     }
 
     @Override
@@ -71,10 +71,7 @@ public class PairedTTestAggregator extends TTestAggregator<PairedTTestState> {
             public void collect(int doc, long bucket) throws IOException {
                 if (docAValues.advanceExact(doc) && docBValues.advanceExact(doc)) {
                     if (docAValues.docValueCount() > 1 || docBValues.docValueCount() > 1) {
-                        throw new AggregationExecutionException(
-                            "Encountered more than one value for a "
-                                + "single document. Use a script to combine multiple values per doc into a single value."
-                        );
+                        throw AggregationErrors.unsupportedMultivalue();
                     }
                     statsBuilder.grow(bigArrays(), bucket + 1);
                     // There should always be one value if advanceExact lands us here, either

@@ -45,7 +45,7 @@ public class ValueSourceTests extends ESTestCase {
 
         IngestDocument ingestDocument = TestIngestDocument.emptyIngestDocument();
         ingestDocument.setFieldValue(
-            new TestTemplateService.MockTemplateScript.Factory("field1"),
+            ingestDocument.renderTemplate(new TestTemplateService.MockTemplateScript.Factory("field1")),
             ValueSource.wrap(myPreciousMap, TestTemplateService.instance())
         );
         ingestDocument.removeField("field1.field2");
@@ -60,7 +60,7 @@ public class ValueSourceTests extends ESTestCase {
 
         IngestDocument ingestDocument = TestIngestDocument.emptyIngestDocument();
         ingestDocument.setFieldValue(
-            new TestTemplateService.MockTemplateScript.Factory("field1"),
+            ingestDocument.renderTemplate(new TestTemplateService.MockTemplateScript.Factory("field1")),
             ValueSource.wrap(myPreciousList, TestTemplateService.instance())
         );
         ingestDocument.removeField("field1.0");

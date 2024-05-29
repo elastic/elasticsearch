@@ -119,7 +119,16 @@ public class AwsEc2ServiceImplTests extends ESTestCase {
     }
 
     public void testAWSDefaultConfiguration() {
-        launchAWSConfigurationTest(Settings.EMPTY, Protocol.HTTPS, null, -1, null, null, ClientConfiguration.DEFAULT_SOCKET_TIMEOUT);
+        launchAWSConfigurationTest(
+            Settings.EMPTY,
+            Protocol.HTTPS,
+            null,
+            -1,
+            Protocol.HTTP,
+            null,
+            null,
+            ClientConfiguration.DEFAULT_SOCKET_TIMEOUT
+        );
     }
 
     public void testAWSConfigurationWithAwsSettings() {
@@ -130,10 +139,20 @@ public class AwsEc2ServiceImplTests extends ESTestCase {
             .put("discovery.ec2.protocol", "http")
             .put("discovery.ec2.proxy.host", "aws_proxy_host")
             .put("discovery.ec2.proxy.port", 8080)
+            .put("discovery.ec2.proxy.scheme", "http")
             .put("discovery.ec2.read_timeout", "10s")
             .setSecureSettings(secureSettings)
             .build();
-        launchAWSConfigurationTest(settings, Protocol.HTTP, "aws_proxy_host", 8080, "aws_proxy_username", "aws_proxy_password", 10000);
+        launchAWSConfigurationTest(
+            settings,
+            Protocol.HTTP,
+            "aws_proxy_host",
+            8080,
+            Protocol.HTTP,
+            "aws_proxy_username",
+            "aws_proxy_password",
+            10000
+        );
     }
 
     protected void launchAWSConfigurationTest(
@@ -141,6 +160,7 @@ public class AwsEc2ServiceImplTests extends ESTestCase {
         Protocol expectedProtocol,
         String expectedProxyHost,
         int expectedProxyPort,
+        Protocol expectedProxyScheme,
         String expectedProxyUsername,
         String expectedProxyPassword,
         int expectedReadTimeout
@@ -151,6 +171,7 @@ public class AwsEc2ServiceImplTests extends ESTestCase {
         assertThat(configuration.getProtocol(), is(expectedProtocol));
         assertThat(configuration.getProxyHost(), is(expectedProxyHost));
         assertThat(configuration.getProxyPort(), is(expectedProxyPort));
+        assertThat(configuration.getProxyProtocol(), is(expectedProxyScheme));
         assertThat(configuration.getProxyUsername(), is(expectedProxyUsername));
         assertThat(configuration.getProxyPassword(), is(expectedProxyPassword));
         assertThat(configuration.getSocketTimeout(), is(expectedReadTimeout));

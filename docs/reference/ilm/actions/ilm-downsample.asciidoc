@@ -2,8 +2,6 @@
 [[ilm-downsample]]
 === Downsample
 
-preview::[]
-
 Phases allowed: hot, warm, cold.
 
 Aggregates a time series (TSDS) index and stores

@@ -6,7 +6,9 @@ esplugin {
     classname 'org.elasticsearch.xpack.async.AsyncResultsIndexPlugin'
     extendedPlugins = ['x-pack-core']
 }
-archivesBaseName = 'x-pack-async'
+base {
+  archivesName = 'x-pack-async'
+}
 
 dependencies {
   compileOnly project(":server")

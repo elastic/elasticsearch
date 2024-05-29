@@ -8,7 +8,6 @@
 
 package org.elasticsearch.action.support;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
@@ -18,8 +17,9 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.EmptySystemIndices;
-import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.indices.SystemIndexDescriptorUtils;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.ESTestCase;
@@ -232,7 +232,8 @@ public class AutoCreateIndexTests extends ESTestCase {
      */
     public void testNullAllowAutoCreateInTemplateDoesNotOverrideMatchingAutoCreateIndexSetting() {
         String randomIndex = randomAlphaOfLengthBetween(2, 10);
-        final ComposableIndexTemplate template = new ComposableIndexTemplate.Builder().indexPatterns(List.of(randomIndex.charAt(0) + "*"))
+        final ComposableIndexTemplate template = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of(randomIndex.charAt(0) + "*"))
             .componentTemplates(List.of())
             .metadata(Map.of())
             .build();
@@ -252,7 +253,8 @@ public class AutoCreateIndexTests extends ESTestCase {
      */
     public void testCanHandleNullAutoCreateSettingInTemplate() {
         String randomIndex = randomAlphaOfLengthBetween(2, 10);
-        final ComposableIndexTemplate template = new ComposableIndexTemplate.Builder().indexPatterns(List.of(randomIndex.charAt(0) + "*"))
+        final ComposableIndexTemplate template = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of(randomIndex.charAt(0) + "*"))
             .componentTemplates(List.of())
             .metadata(Map.of())
             .build();
@@ -275,7 +277,8 @@ public class AutoCreateIndexTests extends ESTestCase {
      */
     public void testDisabledAutoCreateTemplateSettingDoesNotOverride() {
         String randomIndex = randomAlphaOfLengthBetween(2, 10);
-        final ComposableIndexTemplate template = new ComposableIndexTemplate.Builder().indexPatterns(List.of(randomIndex.charAt(0) + "*"))
+        final ComposableIndexTemplate template = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of(randomIndex.charAt(0) + "*"))
             .componentTemplates(List.of())
             .metadata(Map.of())
             .allowAutoCreate(false)
@@ -299,7 +302,8 @@ public class AutoCreateIndexTests extends ESTestCase {
      */
     public void testEnabledAutoCreateTemplateSettingDoesOverride() {
         String randomIndex = randomAlphaOfLengthBetween(2, 10);
-        final ComposableIndexTemplate template = new ComposableIndexTemplate.Builder().indexPatterns(List.of(randomIndex.charAt(0) + "*"))
+        final ComposableIndexTemplate template = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of(randomIndex.charAt(0) + "*"))
             .componentTemplates(List.of())
             .metadata(Map.of())
             .allowAutoCreate(true)
@@ -316,17 +320,19 @@ public class AutoCreateIndexTests extends ESTestCase {
     private static ClusterState buildClusterState(String... indices) {
         Metadata.Builder metadata = Metadata.builder();
         for (String index : indices) {
-            metadata.put(IndexMetadata.builder(index).settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1));
+            metadata.put(IndexMetadata.builder(index).settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(1));
         }
-        return ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-            .metadata(metadata)
-            .build();
+        return ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();
     }
 
     private AutoCreateIndex newAutoCreateIndex(Settings settings) {
         SystemIndices systemIndices = new SystemIndices(
             List.of(
-                new SystemIndices.Feature("plugin", "test feature", List.of(new SystemIndexDescriptor(TEST_SYSTEM_INDEX_NAME + "*", "")))
+                new SystemIndices.Feature(
+                    "plugin",
+                    "test feature",
+                    List.of(SystemIndexDescriptorUtils.createUnmanaged(TEST_SYSTEM_INDEX_NAME + "*", ""))
+                )
             )
         );
         return new AutoCreateIndex(

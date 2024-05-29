@@ -1,5 +1,0 @@
-pr: 92315
-summary: JWT realm - Simplify token principal calculation
-area: Authentication
-type: enhancement
-issues: []

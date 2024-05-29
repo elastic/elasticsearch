@@ -7,26 +7,40 @@
 package org.elasticsearch.xpack.spatial.index.mapper;
 
 import org.apache.lucene.index.IndexableField;
-import org.elasticsearch.Version;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.geo.GeoJson;
+import org.elasticsearch.common.geo.GeometryNormalizer;
 import org.elasticsearch.common.geo.Orientation;
+import org.elasticsearch.geo.GeometryTestUtils;
+import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.utils.GeometryValidator;
+import org.elasticsearch.geometry.utils.WellKnownBinary;
+import org.elasticsearch.geometry.utils.WellKnownText;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.AbstractGeometryFieldMapper;
 import org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapper;
 import org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapper.AbstractShapeGeometryFieldType;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.Function;
+import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -46,14 +60,10 @@ public class GeoShapeWithDocValuesFieldMapperTests extends GeoFieldMapperTests {
     }
 
     @Override
-    protected boolean supportsStoredFields() {
-        return false;
-    }
-
-    @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {
         checker.registerConflictCheck("doc_values", b -> b.field("doc_values", false));
         checker.registerConflictCheck("index", b -> b.field("index", false));
+        checker.registerConflictCheck("store", b -> b.field("store", true));
         checker.registerUpdateCheck(b -> b.field("orientation", "right"), m -> {
             AbstractShapeGeometryFieldMapper<?> gsfm = (AbstractShapeGeometryFieldMapper<?>) m;
             assertEquals(Orientation.RIGHT, gsfm.orientation());
@@ -88,7 +98,7 @@ public class GeoShapeWithDocValuesFieldMapperTests extends GeoFieldMapperTests {
     }
 
     public void testDefaultDocValueConfigurationOnPre7_8() throws IOException {
-        Version oldVersion = VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.V_7_7_0);
+        IndexVersion oldVersion = IndexVersionUtils.randomVersionBetween(random(), IndexVersions.V_7_0_0, IndexVersions.V_7_7_0);
         DocumentMapper defaultMapper = createDocumentMapper(oldVersion, fieldMapping(this::minimalMapping));
         Mapper fieldMapper = defaultMapper.mappers().getMapper(FIELD_NAME);
         assertThat(fieldMapper, instanceOf(fieldMapperClass()));
@@ -228,6 +238,32 @@ public class GeoShapeWithDocValuesFieldMapperTests extends GeoFieldMapperTests {
         assertFalse(((AbstractGeometryFieldMapper<?>) fieldMapper).fieldType().isAggregatable());
     }
 
+    /**
+     * Test that store parameter correctly parses
+     */
+    public void testStore() throws IOException {
+        DocumentMapper defaultMapper = createDocumentMapper(fieldMapping(b -> {
+            b.field("type", getFieldName());
+            b.field("store", true);
+        }));
+        Mapper fieldMapper = defaultMapper.mappers().getMapper(FIELD_NAME);
+        assertThat(fieldMapper, instanceOf(fieldMapperClass()));
+
+        boolean isStored = ((AbstractGeometryFieldMapper<?>) fieldMapper).fieldType().isStored();
+        assertTrue(isStored);
+
+        // explicit false doc_values
+        defaultMapper = createDocumentMapper(fieldMapping(b -> {
+            b.field("type", getFieldName());
+            b.field("store", false);
+        }));
+        fieldMapper = defaultMapper.mappers().getMapper(FIELD_NAME);
+        assertThat(fieldMapper, instanceOf(fieldMapperClass()));
+
+        isStored = ((AbstractGeometryFieldMapper<?>) fieldMapper).fieldType().isStored();
+        assertFalse(isStored);
+    }
+
     public void testShapeMapperMerge() throws Exception {
         MapperService mapperService = createMapperService(fieldMapping(b -> {
             b.field("type", getFieldName());
@@ -249,10 +285,9 @@ public class GeoShapeWithDocValuesFieldMapperTests extends GeoFieldMapperTests {
     public void testInvalidCurrentVersion() {
         MapperParsingException e = expectThrows(
             MapperParsingException.class,
-            () -> super.createMapperService(
-                Version.CURRENT,
-                fieldMapping((b) -> { b.field("type", getFieldName()).field("strategy", "recursive"); })
-            )
+            () -> super.createMapperService(IndexVersion.current(), fieldMapping((b) -> {
+                b.field("type", getFieldName()).field("strategy", "recursive");
+            }))
         );
         assertThat(
             e.getMessage(),
@@ -261,7 +296,7 @@ public class GeoShapeWithDocValuesFieldMapperTests extends GeoFieldMapperTests {
     }
 
     public void testGeoShapeLegacyMerge() throws Exception {
-        Version version = VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0);
+        IndexVersion version = IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersions.V_8_0_0);
         MapperService m = createMapperService(version, fieldMapping(b -> b.field("type", getFieldName())));
         Exception e = expectThrows(
             IllegalArgumentException.class,
@@ -290,6 +325,27 @@ public class GeoShapeWithDocValuesFieldMapperTests extends GeoFieldMapperTests {
         String serialized = toXContentString((GeoShapeWithDocValuesFieldMapper) defaultMapper.mappers().getMapper(FIELD_NAME));
         assertTrue(serialized, serialized.contains("\"orientation\":\"" + Orientation.RIGHT + "\""));
         assertTrue(serialized, serialized.contains("\"doc_values\":true"));
+        assertTrue(serialized, serialized.contains("\"store\":false"));
+        assertTrue(serialized, serialized.contains("\"index\":true"));
+    }
+
+    public void testSerializeNonDefaultsDefaults() throws Exception {
+        boolean docValues = randomBoolean();
+        boolean store = randomBoolean();
+        boolean index = randomBoolean();
+        Orientation orientation = randomBoolean() ? Orientation.LEFT : Orientation.RIGHT;
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+            b.field("type", getFieldName());
+            b.field("doc_values", docValues);
+            b.field("store", store);
+            b.field("index", index);
+            b.field("orientation", orientation);
+        }));
+        String serialized = toXContentString((GeoShapeWithDocValuesFieldMapper) mapper.mappers().getMapper(FIELD_NAME));
+        assertTrue(serialized, serialized.contains("\"orientation\":\"" + orientation + "\""));
+        assertTrue(serialized, serialized.contains("\"doc_values\":" + docValues));
+        assertTrue(serialized, serialized.contains("\"store\":" + store));
+        assertTrue(serialized, serialized.contains("\"index\":" + index));
     }
 
     public void testSerializeDocValues() throws IOException {
@@ -301,14 +357,19 @@ public class GeoShapeWithDocValuesFieldMapperTests extends GeoFieldMapperTests {
         String serialized = toXContentString((GeoShapeWithDocValuesFieldMapper) mapper.mappers().getMapper(FIELD_NAME));
         assertTrue(serialized, serialized.contains("\"orientation\":\"" + Orientation.RIGHT + "\""));
         assertTrue(serialized, serialized.contains("\"doc_values\":" + docValues));
+        assertTrue(serialized, serialized.contains("\"store\":false"));
+        assertTrue(serialized, serialized.contains("\"index\":true"));
     }
 
     public void testShapeArrayParsing() throws Exception {
 
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+            b.field("type", getFieldName());
+            b.field("store", true);
+        }));
 
         SourceToParse sourceToParse = source(b -> {
-            b.startArray("shape")
+            b.startArray(FIELD_NAME)
                 .startObject()
                 .field("type", "Point")
                 .startArray("coordinates")
@@ -328,8 +389,9 @@ public class GeoShapeWithDocValuesFieldMapperTests extends GeoFieldMapperTests {
 
         ParsedDocument document = mapper.parse(sourceToParse);
         assertThat(document.docs(), hasSize(1));
-        IndexableField[] fields = document.docs().get(0).getFields("shape.type");
-        assertThat(fields.length, equalTo(2));
+        List<IndexableField> fields = document.docs().get(0).getFields(FIELD_NAME);
+        // 2 BKD points, 2 stored fields and 1 doc value
+        assertThat(fields, hasSize(5));
     }
 
     public void testMultiFieldsDeprecationWarning() throws Exception {
@@ -344,8 +406,8 @@ public class GeoShapeWithDocValuesFieldMapperTests extends GeoFieldMapperTests {
 
     public void testSelfIntersectPolygon() throws IOException {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
-        MapperParsingException ex = expectThrows(
-            MapperParsingException.class,
+        DocumentParsingException ex = expectThrows(
+            DocumentParsingException.class,
             () -> mapper.parse(source(b -> b.field("field", "POLYGON((0 0, 1 1, 0 1, 1 0, 0 0))")))
         );
         assertThat(ex.getCause().getMessage(), containsString("Polygon self-intersection at lat=0.5 lon=0.5"));
@@ -365,11 +427,6 @@ public class GeoShapeWithDocValuesFieldMapperTests extends GeoFieldMapperTests {
     }
 
     @Override
-    protected void assertSearchable(MappedFieldType fieldType) {
-
-    }
-
-    @Override
     protected Object generateRandomInputValue(MappedFieldType ft) {
         assumeFalse("Test implemented in a follow up", true);
         return null;
@@ -377,7 +434,161 @@ public class GeoShapeWithDocValuesFieldMapperTests extends GeoFieldMapperTests {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
-        throw new AssumptionViolatedException("not supported");
+        // Almost like GeoShapeType but no circles
+        enum ShapeType {
+            POINT,
+            LINESTRING,
+            POLYGON,
+            MULTIPOINT,
+            MULTILINESTRING,
+            MULTIPOLYGON,
+            GEOMETRYCOLLECTION,
+            ENVELOPE
+        }
+
+        return new SyntheticSourceSupport() {
+            @Override
+            public boolean preservesExactSource() {
+                return true;
+            }
+
+            @Override
+            public SyntheticSourceExample example(int maxValues) throws IOException {
+                if (randomBoolean()) {
+                    Value v = generateValue();
+                    if (v.blockLoaderOutput != null) {
+                        return new SyntheticSourceExample(v.input, v.output, v.blockLoaderOutput, this::mapping);
+                    }
+                    return new SyntheticSourceExample(v.input, v.output, this::mapping);
+                }
+
+                List<Value> values = randomList(1, maxValues, this::generateValue);
+                List<Object> in = values.stream().map(Value::input).toList();
+                List<Object> out = values.stream().map(Value::output).toList();
+
+                // Block loader infrastructure will never return nulls
+                List<Object> outBlockList = values.stream()
+                    .filter(v -> v.input != null)
+                    .map(v -> v.blockLoaderOutput != null ? v.blockLoaderOutput : v.output)
+                    .toList();
+                var outBlock = outBlockList.size() == 1 ? outBlockList.get(0) : outBlockList;
+
+                return new SyntheticSourceExample(in, out, outBlock, this::mapping);
+            }
+
+            private record Value(Object input, Object output, String blockLoaderOutput) {
+                Value(Object input, Object output) {
+                    this(input, output, null);
+                }
+            }
+
+            private Value generateValue() {
+                if (ignoreMalformed && randomBoolean()) {
+                    List<Supplier<Object>> choices = List.of(
+                        () -> randomAlphaOfLength(3),
+                        ESTestCase::randomInt,
+                        ESTestCase::randomLong,
+                        ESTestCase::randomFloat,
+                        ESTestCase::randomDouble
+                    );
+                    Object v = randomFrom(choices).get();
+                    return new Value(v, v);
+                }
+                if (randomBoolean()) {
+                    return new Value(null, null);
+                }
+
+                var type = randomFrom(ShapeType.values());
+                var isGeoJson = randomBoolean();
+
+                switch (type) {
+                    case POINT -> {
+                        var point = GeometryTestUtils.randomPoint(false);
+                        return value(point, isGeoJson);
+                    }
+                    case LINESTRING -> {
+                        var line = GeometryTestUtils.randomLine(false);
+                        return value(line, isGeoJson);
+                    }
+                    case POLYGON -> {
+                        var polygon = GeometryTestUtils.randomPolygon(false);
+                        return value(polygon, isGeoJson);
+                    }
+                    case MULTIPOINT -> {
+                        var multiPoint = GeometryTestUtils.randomMultiPoint(false);
+                        return value(multiPoint, isGeoJson);
+                    }
+                    case MULTILINESTRING -> {
+                        var multiPoint = GeometryTestUtils.randomMultiLine(false);
+                        return value(multiPoint, isGeoJson);
+                    }
+                    case MULTIPOLYGON -> {
+                        var multiPolygon = GeometryTestUtils.randomMultiPolygon(false);
+                        return value(multiPolygon, isGeoJson);
+                    }
+                    case GEOMETRYCOLLECTION -> {
+                        var multiPolygon = GeometryTestUtils.randomGeometryCollectionWithoutCircle(false);
+                        return value(multiPolygon, isGeoJson);
+                    }
+                    case ENVELOPE -> {
+                        var rectangle = GeometryTestUtils.randomRectangle();
+                        var wktString = WellKnownText.toWKT(rectangle);
+
+                        return new Value(wktString, wktString);
+                    }
+                    default -> throw new UnsupportedOperationException("Unsupported shape");
+                }
+            }
+
+            private static Value value(Geometry geometry, boolean isGeoJson) {
+                var wktString = WellKnownText.toWKT(geometry);
+                var normalizedWktString = GeometryNormalizer.needsNormalize(Orientation.RIGHT, geometry)
+                    ? WellKnownText.toWKT(GeometryNormalizer.apply(Orientation.RIGHT, geometry))
+                    : wktString;
+
+                if (isGeoJson) {
+                    var map = GeoJson.toMap(geometry);
+                    return new Value(map, map, normalizedWktString);
+                }
+
+                return new Value(wktString, wktString, normalizedWktString);
+            }
+
+            private void mapping(XContentBuilder b) throws IOException {
+                b.field("type", "geo_shape");
+                if (rarely()) {
+                    b.field("index", false);
+                }
+                if (rarely()) {
+                    b.field("doc_values", false);
+                }
+                if (ignoreMalformed) {
+                    b.field("ignore_malformed", true);
+                }
+            }
+
+            @Override
+            public List<SyntheticSourceInvalidExample> invalidExample() throws IOException {
+                return List.of();
+            }
+        };
+    }
+
+    @Override
+    protected Function<Object, Object> loadBlockExpected(BlockReaderSupport blockReaderSupport, boolean columnReader) {
+        return v -> asWKT((BytesRef) v);
+    }
+
+    protected static Object asWKT(BytesRef value) {
+        // Internally we use WKB in BytesRef, but for test assertions we want to use WKT for readability
+        Geometry geometry = WellKnownBinary.fromWKB(GeometryValidator.NOOP, false, value.bytes);
+        return WellKnownText.toWKT(geometry);
+    }
+
+    @Override
+    protected BlockReaderSupport getSupportedReaders(MapperService mapper, String loaderFieldName) {
+        // Synthetic source is currently not supported.
+        return new BlockReaderSupport(false, false, mapper, loaderFieldName);
     }
 
     @Override

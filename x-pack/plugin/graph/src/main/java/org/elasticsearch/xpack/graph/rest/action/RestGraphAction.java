@@ -20,6 +20,8 @@ import org.elasticsearch.protocol.xpack.graph.Hop;
 import org.elasticsearch.protocol.xpack.graph.VertexRequest;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
@@ -38,6 +40,7 @@ import static org.elasticsearch.xpack.core.graph.action.GraphExploreAction.INSTA
 /**
  * @see GraphExploreRequest
  */
+@ServerlessScope(Scope.PUBLIC)
 public class RestGraphAction extends BaseRestHandler {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestGraphAction.class);
@@ -123,7 +126,7 @@ public class RestGraphAction extends BaseRestHandler {
         return channel -> client.execute(INSTANCE, graphRequest, new RestToXContentListener<>(channel));
     }
 
-    private void parseHop(XContentParser parser, Hop currentHop, GraphExploreRequest graphRequest) throws IOException {
+    private static void parseHop(XContentParser parser, Hop currentHop, GraphExploreRequest graphRequest) throws IOException {
         String fieldName = null;
         XContentParser.Token token;
 
@@ -160,7 +163,7 @@ public class RestGraphAction extends BaseRestHandler {
         }
     }
 
-    private void parseVertices(XContentParser parser, Hop currentHop) throws IOException {
+    private static void parseVertices(XContentParser parser, Hop currentHop) throws IOException {
         XContentParser.Token token;
 
         String fieldName = null;
@@ -317,7 +320,7 @@ public class RestGraphAction extends BaseRestHandler {
 
     }
 
-    private void parseControls(XContentParser parser, GraphExploreRequest graphRequest) throws IOException {
+    private static void parseControls(XContentParser parser, GraphExploreRequest graphRequest) throws IOException {
         XContentParser.Token token;
 
         String fieldName = null;

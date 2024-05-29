@@ -24,11 +24,9 @@ import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
-import java.util.function.Function;
 
-import static java.util.Collections.emptyList;
 import static org.elasticsearch.common.settings.Setting.Property;
-import static org.elasticsearch.common.settings.Setting.listSetting;
+import static org.elasticsearch.common.settings.Setting.stringListSetting;
 import static org.elasticsearch.common.settings.Setting.timeSetting;
 
 /**
@@ -39,10 +37,8 @@ public abstract class Collector {
     /**
      * List of indices names whose stats will be exported (default to all indices)
      */
-    public static final Setting<List<String>> INDICES = listSetting(
+    public static final Setting<List<String>> INDICES = stringListSetting(
         collectionSetting("indices"),
-        emptyList(),
-        Function.identity(),
         Property.Dynamic,
         Property.NodeScope,
         Setting.Property.DeprecatedWarning

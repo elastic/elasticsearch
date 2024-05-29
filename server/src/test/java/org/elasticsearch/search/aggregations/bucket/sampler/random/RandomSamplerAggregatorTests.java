@@ -10,7 +10,6 @@ package org.elasticsearch.search.aggregations.bucket.sampler.random;
 
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
-import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
@@ -59,7 +58,7 @@ public class RandomSamplerAggregatorTests extends AggregatorTestCase {
                 counts[integer.get()] = result.getDocCount();
                 if (result.getDocCount() > 0) {
                     Avg agg = result.getAggregations().get("avg");
-                    assertThat(Strings.toString(result), agg.getValue(), allOf(not(notANumber()), IsFinite.isFinite()));
+                    assertThat(Strings.toString(result), agg.getValue(), allOf(not(notANumber()), isFinite()));
                     avgs[integer.get()] = agg.getValue();
                 }
             },
@@ -142,7 +141,6 @@ public class RandomSamplerAggregatorTests extends AggregatorTestCase {
             w.addDocument(
                 List.of(
                     new SortedNumericDocValuesField(NUMERIC_FIELD_NAME, 1),
-                    new SortedSetDocValuesField(KEYWORD_FIELD_NAME, new BytesRef(KEYWORD_FIELD_VALUE)),
                     new KeywordFieldMapper.KeywordField(
                         KEYWORD_FIELD_NAME,
                         new BytesRef(KEYWORD_FIELD_VALUE),
@@ -155,7 +153,6 @@ public class RandomSamplerAggregatorTests extends AggregatorTestCase {
             w.addDocument(
                 List.of(
                     new SortedNumericDocValuesField(NUMERIC_FIELD_NAME, 2),
-                    new SortedSetDocValuesField(KEYWORD_FIELD_NAME, new BytesRef(KEYWORD_FIELD_VALUE)),
                     new KeywordFieldMapper.KeywordField(
                         KEYWORD_FIELD_NAME,
                         new BytesRef(KEYWORD_FIELD_VALUE),
@@ -166,11 +163,11 @@ public class RandomSamplerAggregatorTests extends AggregatorTestCase {
         }
     }
 
-    private static class IsFinite extends TypeSafeMatcher<Double> {
-        public static Matcher<Double> isFinite() {
-            return new IsFinite();
-        }
+    public static Matcher<Double> isFinite() {
+        return new IsFinite();
+    }
 
+    private static class IsFinite extends TypeSafeMatcher<Double> {
         @Override
         protected boolean matchesSafely(Double item) {
             return Double.isFinite(item);

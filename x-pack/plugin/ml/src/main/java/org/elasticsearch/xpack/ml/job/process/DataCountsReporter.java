@@ -20,7 +20,7 @@ import java.util.function.Predicate;
 /**
  * Status reporter for tracking counts of the good/bad records written to the API.
  * Call one of the reportXXX() methods to update the records counts.
- *
+ * <p>
  * Stats are logged at specific stages
  * <ol>
  * <li>Every 10,000 records for the first 100,000 records</li>
@@ -42,6 +42,8 @@ public class DataCountsReporter {
 
     private final DataCounts totalRecordStats;
     private volatile DataCounts incrementalRecordStats;
+
+    private DataCounts unreportedStats;
 
     private long analyzedFieldsPerRecord = 1;
 
@@ -236,7 +238,32 @@ public class DataCountsReporter {
         totalRecordStats.setLastDataTimeStamp(now);
         diagnostics.flush();
         retrieveDiagnosticsIntermediateResults();
-        dataCountsPersister.persistDataCounts(job.getId(), runningTotalStats());
+        synchronized (this) {
+            unreportedStats = null;
+        }
+        DataCounts statsToReport = runningTotalStats();
+        try {
+            if (dataCountsPersister.persistDataCounts(job.getId(), statsToReport, false) == false) {
+                synchronized (this) {
+                    unreportedStats = statsToReport;
+                }
+            }
+        } catch (InterruptedException e) {
+            assert false : "This should never happen when persistDataCounts is called with mustWait set to false";
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    /**
+     * Report the most recent counts, if any, that {@link #finishReporting} failed to
+     * report when the previous persistence was in progress.
+     */
+    public synchronized void writeUnreportedCounts() throws InterruptedException {
+        if (unreportedStats != null) {
+            boolean persisted = dataCountsPersister.persistDataCounts(job.getId(), unreportedStats, true);
+            assert persisted;
+            unreportedStats = null;
+        }
     }
 
     /**

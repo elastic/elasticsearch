@@ -179,7 +179,7 @@ public class SeedHostsResolver extends AbstractLifecycleComponent implements Con
         }
 
         if (resolveInProgress.compareAndSet(false, true)) {
-            transportService.getThreadPool().generic().execute(new AbstractRunnable() {
+            transportService.getThreadPool().executor(ThreadPool.Names.CLUSTER_COORDINATION).execute(new AbstractRunnable() {
                 @Override
                 public void onFailure(Exception e) {
                     logger.debug("failure when resolving unicast hosts list", e);

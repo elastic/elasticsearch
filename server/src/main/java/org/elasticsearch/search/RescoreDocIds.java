@@ -31,7 +31,7 @@ public final class RescoreDocIds implements Writeable {
     }
 
     public RescoreDocIds(StreamInput in) throws IOException {
-        docIds = in.readMap(StreamInput::readVInt, i -> i.readSet(StreamInput::readVInt));
+        docIds = in.readMap(StreamInput::readVInt, i -> i.readCollectionAsSet(StreamInput::readVInt));
     }
 
     @Override

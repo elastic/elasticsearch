@@ -10,14 +10,16 @@ package org.elasticsearch.reservedstate.service;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.support.GroupedActionListener;
+import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.metadata.ReservedStateErrorMetadata;
 import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
+import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.reservedstate.NonStateTransformResult;
@@ -29,6 +31,7 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -39,6 +42,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.ExceptionsHelper.stackTrace;
+import static org.elasticsearch.cluster.metadata.ReservedStateMetadata.EMPTY_VERSION;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.reservedstate.service.ReservedStateErrorTask.checkErrorVersion;
 import static org.elasticsearch.reservedstate.service.ReservedStateErrorTask.isNewError;
@@ -60,8 +64,8 @@ public class ReservedClusterStateService {
 
     final Map<String, ReservedClusterStateHandler<?>> handlers;
     final ClusterService clusterService;
-    private final ReservedStateUpdateTaskExecutor updateStateTaskExecutor;
-    private final ReservedStateErrorTaskExecutor errorStateTaskExecutor;
+    private final MasterServiceTaskQueue<ReservedStateUpdateTask> updateTaskQueue;
+    private final MasterServiceTaskQueue<ReservedStateErrorTask> errorTaskQueue;
 
     @SuppressWarnings("unchecked")
     private final ConstructingObjectParser<ReservedStateChunk, Void> stateChunkParser = new ConstructingObjectParser<>(
@@ -82,10 +86,18 @@ public class ReservedClusterStateService {
      * @param clusterService for fetching and saving the modified state
      * @param handlerList a list of reserved state handlers, which we use to transform the state
      */
-    public ReservedClusterStateService(ClusterService clusterService, List<ReservedClusterStateHandler<?>> handlerList) {
+    public ReservedClusterStateService(
+        ClusterService clusterService,
+        RerouteService rerouteService,
+        List<ReservedClusterStateHandler<?>> handlerList
+    ) {
         this.clusterService = clusterService;
-        this.updateStateTaskExecutor = new ReservedStateUpdateTaskExecutor(clusterService.getRerouteService());
-        this.errorStateTaskExecutor = new ReservedStateErrorTaskExecutor();
+        this.updateTaskQueue = clusterService.createTaskQueue(
+            "reserved state update",
+            Priority.URGENT,
+            new ReservedStateUpdateTaskExecutor(rerouteService)
+        );
+        this.errorTaskQueue = clusterService.createTaskQueue("reserved state error", Priority.URGENT, new ReservedStateErrorTaskExecutor());
         this.handlers = handlerList.stream().collect(Collectors.toMap(ReservedClusterStateHandler::name, Function.identity()));
         stateChunkParser.declareNamedObjects(ConstructingObjectParser.constructorArg(), (p, c, name) -> {
             if (handlers.containsKey(name) == false) {
@@ -101,7 +113,7 @@ public class ReservedClusterStateService {
         try {
             return stateChunkParser.apply(parser, null);
         } catch (Exception e) {
-            ErrorState errorState = new ErrorState(namespace, -1L, e, ReservedStateErrorMetadata.ErrorKind.PARSING);
+            ErrorState errorState = new ErrorState(namespace, EMPTY_VERSION, e, ReservedStateErrorMetadata.ErrorKind.PARSING);
             updateErrorState(errorState);
             logger.debug("error processing state change request for [{}] with the following errors [{}]", namespace, errorState);
 
@@ -123,7 +135,7 @@ public class ReservedClusterStateService {
         try {
             stateChunk = parse(namespace, parser);
         } catch (Exception e) {
-            ErrorState errorState = new ErrorState(namespace, -1L, e, ReservedStateErrorMetadata.ErrorKind.PARSING);
+            ErrorState errorState = new ErrorState(namespace, EMPTY_VERSION, e, ReservedStateErrorMetadata.ErrorKind.PARSING);
             updateErrorState(errorState);
             logger.debug("error processing state change request for [{}] with the following errors [{}]", namespace, errorState);
 
@@ -134,6 +146,26 @@ public class ReservedClusterStateService {
         }
 
         process(namespace, stateChunk, errorListener);
+    }
+
+    public void initEmpty(String namespace, ActionListener<ActionResponse.Empty> listener) {
+        var missingVersion = new ReservedStateVersion(EMPTY_VERSION, Version.CURRENT);
+        var emptyState = new ReservedStateChunk(Map.of(), missingVersion);
+        updateTaskQueue.submitTask(
+            "empty initial cluster state [" + namespace + "]",
+            new ReservedStateUpdateTask(
+                namespace,
+                emptyState,
+                List.of(),
+                Map.of(),
+                List.of(),
+                // error state should not be possible since there is no metadata being parsed or processed
+                errorState -> { throw new AssertionError(); },
+                listener
+            ),
+            null
+        );
+
     }
 
     /**
@@ -199,7 +231,7 @@ public class ReservedClusterStateService {
                 // Once all of the non-state transformation results complete, we can proceed to
                 // do the final save of the cluster state. The non-state transformation reserved keys are applied
                 // to the reserved state after all other key handlers.
-                clusterService.submitStateUpdateTask(
+                updateTaskQueue.submitTask(
                     "reserved cluster state [" + namespace + "]",
                     new ReservedStateUpdateTask(
                         namespace,
@@ -227,15 +259,14 @@ public class ReservedClusterStateService {
                             }
                         }
                     ),
-                    ClusterStateTaskConfig.build(Priority.URGENT),
-                    updateStateTaskExecutor
+                    null
                 );
             }
 
             @Override
             public void onFailure(Exception e) {
                 // If we encounter an error while runnin the non-state transforms, we avoid saving any cluster state.
-                errorListener.accept(checkAndReportError(namespace, List.of(e.getMessage()), reservedStateVersion));
+                errorListener.accept(checkAndReportError(namespace, List.of(stackTrace(e)), reservedStateVersion));
             }
         });
     }
@@ -273,7 +304,7 @@ public class ReservedClusterStateService {
     }
 
     private void submitErrorUpdateTask(ErrorState errorState) {
-        clusterService.submitStateUpdateTask(
+        errorTaskQueue.submitTask(
             "reserved cluster state update error for [ " + errorState.namespace() + "]",
             new ReservedStateErrorTask(errorState, new ActionListener<>() {
                 @Override
@@ -286,8 +317,7 @@ public class ReservedClusterStateService {
                     logger.error("Failed to apply reserved error cluster state", e);
                 }
             }),
-            ClusterStateTaskConfig.build(Priority.URGENT),
-            errorStateTaskExecutor
+            null
         );
     }
 
@@ -341,36 +371,18 @@ public class ReservedClusterStateService {
      *
      * Package private for testing
      */
-    void executeNonStateTransformationSteps(
+    static void executeNonStateTransformationSteps(
         List<Consumer<ActionListener<NonStateTransformResult>>> nonStateTransforms,
         ActionListener<Collection<NonStateTransformResult>> listener
     ) {
-        // Don't create grouped listener with 0 actions, just return
-        if (nonStateTransforms.isEmpty()) {
-            listener.onResponse(List.of());
-            return;
-        }
-
-        GroupedActionListener<NonStateTransformResult> postTasksListener = new GroupedActionListener<>(
-            nonStateTransforms.size(),
-            new ActionListener<>() {
-                @Override
-                public void onResponse(Collection<NonStateTransformResult> updateKeyTaskResult) {
-                    listener.onResponse(updateKeyTaskResult);
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e);
-                }
+        final List<NonStateTransformResult> result = Collections.synchronizedList(new ArrayList<>(nonStateTransforms.size()));
+        try (var listeners = new RefCountingListener(listener.map(ignored -> result))) {
+            for (var transform : nonStateTransforms) {
+                // non cluster state transforms don't modify the cluster state, they however are given a chance to return a more
+                // up-to-date version of the modified keys we should save in the reserved state. These calls are
+                // async and report back when they are done through the postTasksListener.
+                transform.accept(listeners.acquire(result::add));
             }
-        );
-
-        for (var transform : nonStateTransforms) {
-            // non cluster state transforms don't modify the cluster state, they however are given a chance to return a more
-            // up-to-date version of the modified keys we should save in the reserved state. These calls are
-            // async and report back when they are done through the postTasksListener.
-            transform.accept(postTasksListener);
         }
     }
 

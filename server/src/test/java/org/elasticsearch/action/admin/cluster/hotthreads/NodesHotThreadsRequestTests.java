@@ -8,14 +8,14 @@
 
 package org.elasticsearch.action.admin.cluster.hotthreads;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsRequest;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.monitor.jvm.HotThreads;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.TransportVersionUtils;
 
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
@@ -32,18 +32,18 @@ public class NodesHotThreadsRequestTests extends ESTestCase {
         request.interval(sampleInterval);
         request.snapshots(3);
 
-        Version latest = Version.CURRENT;
-        Version previous = VersionUtils.randomVersionBetween(
+        TransportVersion latest = TransportVersion.current();
+        TransportVersion previous = TransportVersionUtils.randomVersionBetween(
             random(),
-            VersionUtils.getFirstVersion(),
-            VersionUtils.getPreviousVersion(Version.CURRENT)
+            TransportVersionUtils.getFirstVersion(),
+            TransportVersionUtils.getPreviousVersion(TransportVersion.current())
         );
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
-            out.setVersion(latest);
+            out.setTransportVersion(latest);
             request.writeTo(out);
             try (StreamInput in = out.bytes().streamInput()) {
-                in.setVersion(previous);
+                in.setTransportVersion(previous);
                 NodesHotThreadsRequest deserialized = new NodesHotThreadsRequest(in);
                 assertEquals(request.threads(), deserialized.threads());
                 assertEquals(request.ignoreIdleThreads(), deserialized.ignoreIdleThreads());
@@ -55,10 +55,10 @@ public class NodesHotThreadsRequestTests extends ESTestCase {
         }
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
-            out.setVersion(previous);
+            out.setTransportVersion(previous);
             request.writeTo(out);
             try (StreamInput in = out.bytes().streamInput()) {
-                in.setVersion(previous);
+                in.setTransportVersion(previous);
                 NodesHotThreadsRequest deserialized = new NodesHotThreadsRequest(in);
                 assertEquals(request.threads(), deserialized.threads());
                 assertEquals(request.ignoreIdleThreads(), deserialized.ignoreIdleThreads());

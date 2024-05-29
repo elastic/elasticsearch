@@ -17,7 +17,7 @@ import java.util.Objects;
  */
 public class MlControllerHolder {
 
-    private MlController mlController;
+    private final MlController mlController;
 
     public MlControllerHolder(MlController mlController) {
         this.mlController = Objects.requireNonNull(mlController);

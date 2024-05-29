@@ -14,4 +14,8 @@ module org.elasticsearch.datastreams {
     requires org.apache.lucene.core;
 
     exports org.elasticsearch.datastreams.action to org.elasticsearch.server;
+    exports org.elasticsearch.datastreams.lifecycle.action to org.elasticsearch.server;
+    exports org.elasticsearch.datastreams.lifecycle;
+
+    provides org.elasticsearch.features.FeatureSpecification with org.elasticsearch.datastreams.DataStreamFeatures;
 }

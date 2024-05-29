@@ -9,13 +9,14 @@
 package org.elasticsearch.action.admin.indices.flush;
 
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 
-public class FlushAction extends ActionType<FlushResponse> {
+public class FlushAction extends ActionType<BroadcastResponse> {
 
     public static final FlushAction INSTANCE = new FlushAction();
     public static final String NAME = "indices:admin/flush";
 
     private FlushAction() {
-        super(NAME, FlushResponse::new);
+        super(NAME);
     }
 }

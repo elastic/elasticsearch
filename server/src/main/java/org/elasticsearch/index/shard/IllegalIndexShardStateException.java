@@ -23,6 +23,7 @@ public class IllegalIndexShardStateException extends ElasticsearchException {
         this(shardId, currentState, msg, null, args);
     }
 
+    @SuppressWarnings("this-escape")
     public IllegalIndexShardStateException(ShardId shardId, IndexShardState currentState, String msg, Throwable ex, Object... args) {
         super("CurrentState[" + currentState + "] " + msg, ex, args);
         setShard(shardId);
@@ -39,8 +40,8 @@ public class IllegalIndexShardStateException extends ElasticsearchException {
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
+    protected void writeTo(StreamOutput out, Writer<Throwable> nestedExceptionsWriter) throws IOException {
+        super.writeTo(out, nestedExceptionsWriter);
         out.writeByte(currentState.id());
     }
 

@@ -22,6 +22,7 @@ import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 import java.nio.ByteOrder;
 import java.util.ArrayList;
+import java.util.Objects;
 
 /**
  * A @link {@link StreamOutput} that uses {@link Recycler.V<BytesRef>} to acquire pages of bytes, which
@@ -42,9 +43,7 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
 
     public RecyclerBytesStreamOutput(Recycler<BytesRef> recycler) {
         this.recycler = recycler;
-        try (Recycler.V<BytesRef> obtain = recycler.obtain()) {
-            pageSize = obtain.v().length;
-        }
+        this.pageSize = recycler.pageSize();
         this.currentPageOffset = pageSize;
     }
 
@@ -68,10 +67,7 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
             return;
         }
 
-        // illegal args: offset and/or length exceed array size
-        if (b.length < (offset + length)) {
-            throw new IllegalArgumentException("Illegal offset " + offset + "/length " + length + " for byte[] of length " + b.length);
-        }
+        Objects.checkFromIndexSize(offset, length, b.length);
 
         // get enough pages for new size
         ensureCapacity(length);
@@ -127,7 +123,7 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
         // manipulation of the offsets on the pages after writing to tmp. This will require adjustments to the places in this class
         // that make assumptions about the page size
         try (RecyclerBytesStreamOutput tmp = new RecyclerBytesStreamOutput(recycler)) {
-            tmp.setVersion(getVersion());
+            tmp.setTransportVersion(getTransportVersion());
             writeable.writeTo(tmp);
             int size = tmp.size();
             writeVInt(size);
@@ -144,13 +140,6 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
         }
     }
 
-    public void reset() {
-        Releasables.close(pages);
-        pages.clear();
-        pageIndex = -1;
-        currentPageOffset = pageSize;
-    }
-
     @Override
     public void flush() {
         // nothing to do
@@ -158,8 +147,18 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
 
     public void seek(long position) {
         ensureCapacityFromPosition(position);
-        this.pageIndex = (int) position / pageSize;
-        this.currentPageOffset = (int) position % pageSize;
+        int offsetInPage = (int) (position % pageSize);
+        int pageIndex = (int) position / pageSize;
+        // Special handling for seeking to the first index in a new page, which is handled as a seeking to one-after the last index
+        // in the previous case. This is done so that seeking to the first index of a new page does not cause a page allocation while
+        // still allowing a fast check via (pageSize - currentPageOffset) on the remaining size in the current page in all other methods.
+        if (offsetInPage == 0) {
+            this.pageIndex = pageIndex - 1;
+            this.currentPageOffset = pageSize;
+        } else {
+            this.pageIndex = pageIndex;
+            this.currentPageOffset = offsetInPage;
+        }
     }
 
     public void skip(int length) {
@@ -234,12 +233,12 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
             Recycler.V<BytesRef> newPage = recycler.obtain();
             assert pageSize == newPage.v().length;
             pages.add(newPage);
-            // We are at the end of the current page, increment page index
-            if (currentPageOffset == pageSize) {
-                pageIndex++;
-                currentPageOffset = 0;
-            }
             currentCapacity += pageSize;
+        }
+        // We are at the end of the current page, increment page index
+        if (currentPageOffset == pageSize) {
+            pageIndex++;
+            currentPageOffset = 0;
         }
     }
 }

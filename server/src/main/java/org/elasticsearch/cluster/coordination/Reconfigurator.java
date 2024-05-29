@@ -10,8 +10,10 @@ package org.elasticsearch.cluster.coordination;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -52,6 +54,7 @@ public class Reconfigurator {
 
     private volatile boolean autoShrinkVotingConfiguration;
 
+    @SuppressWarnings("this-escape")
     public Reconfigurator(Settings settings, ClusterSettings clusterSettings) {
         autoShrinkVotingConfiguration = CLUSTER_AUTO_SHRINK_VOTING_CONFIGURATION.get(settings);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_AUTO_SHRINK_VOTING_CONFIGURATION, this::setAutoShrinkVotingConfiguration);
@@ -90,12 +93,15 @@ public class Reconfigurator {
     ) {
         assert liveNodes.contains(currentMaster) : "liveNodes = " + liveNodes + " master = " + currentMaster;
         logger.trace(
-            "{} reconfiguring {} based on liveNodes={}, retiredNodeIds={}, currentMaster={}",
-            this,
-            currentConfig,
-            liveNodes,
-            retiredNodeIds,
-            currentMaster
+            () -> Strings.format(
+                "%s reconfiguring %s based on liveNodes=%s, retiredNodeIds=%s, currentMaster=%s",
+                this,
+                currentConfig,
+                // Sorting the node IDs for deterministic logging until https://github.com/elastic/elasticsearch/issues/94946 is fixed
+                liveNodes.stream().map(DiscoveryNode::toString).sorted().collect(Collectors.joining(", ", "[", "]")),
+                retiredNodeIds.stream().sorted().collect(Collectors.joining(", ")),
+                currentMaster
+            )
         );
 
         final Set<String> liveNodeIds = liveNodes.stream()
@@ -137,6 +143,15 @@ public class Reconfigurator {
             // If there are not enough live nodes to form a quorum in the newly-proposed configuration, it's better to do nothing.
             return currentConfig;
         }
+    }
+
+    public ClusterState maybeReconfigureAfterNewMasterIsElected(ClusterState clusterState) {
+        return clusterState;
+    }
+
+    public void ensureVotingConfigCanBeModified() {
+        // Temporary workaround until #98055 is tackled
+        // no-op
     }
 
     record VotingConfigNode(String id, boolean live, boolean currentMaster, boolean inCurrentConfig)

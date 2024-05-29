@@ -384,7 +384,7 @@ public final class JobModelSnapshotUpgrader {
             if (process.isProcessAlive() == false) {
                 logger.debug("[{}] [{}] process is dead, no need to shutdown", jobId, snapshotId);
                 onFinish.accept(e);
-                autodetectWorkerExecutor.shutdown();
+                autodetectWorkerExecutor.shutdownNow();
                 stateStreamer.cancel();
                 return;
             }
@@ -408,7 +408,7 @@ public final class JobModelSnapshotUpgrader {
             });
             try {
                 future.get();
-                autodetectWorkerExecutor.shutdown();
+                autodetectWorkerExecutor.shutdownNow();
             } catch (InterruptedException interrupt) {
                 Thread.currentThread().interrupt();
             } catch (ExecutionException executionException) {

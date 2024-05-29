@@ -12,6 +12,8 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.script.StoredScriptSource;
 import org.elasticsearch.xcontent.XContentType;
@@ -21,7 +23,10 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
+import static org.elasticsearch.rest.RestUtils.getAckTimeout;
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
+@ServerlessScope(Scope.PUBLIC)
 public class RestPutStoredScriptAction extends BaseRestHandler {
 
     @Override
@@ -48,8 +53,8 @@ public class RestPutStoredScriptAction extends BaseRestHandler {
         StoredScriptSource source = StoredScriptSource.parse(content, xContentType);
 
         PutStoredScriptRequest putRequest = new PutStoredScriptRequest(id, context, content, request.getXContentType(), source);
-        putRequest.masterNodeTimeout(request.paramAsTime("master_timeout", putRequest.masterNodeTimeout()));
-        putRequest.timeout(request.paramAsTime("timeout", putRequest.timeout()));
+        putRequest.masterNodeTimeout(getMasterNodeTimeout(request));
+        putRequest.ackTimeout(getAckTimeout(request));
         return channel -> client.admin().cluster().putStoredScript(putRequest, new RestToXContentListener<>(channel));
     }
 }

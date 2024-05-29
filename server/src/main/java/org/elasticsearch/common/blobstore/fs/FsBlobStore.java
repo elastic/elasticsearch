@@ -12,10 +12,13 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.common.blobstore.OperationPurpose;
+import org.elasticsearch.core.IOUtils;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Iterator;
 import java.util.List;
 
 public class FsBlobStore implements BlobStore {
@@ -50,24 +53,52 @@ public class FsBlobStore implements BlobStore {
 
     @Override
     public BlobContainer blobContainer(BlobPath path) {
-        try {
-            return new FsBlobContainer(this, path, buildAndCreate(path));
-        } catch (IOException ex) {
-            throw new ElasticsearchException("failed to create blob container", ex);
+        Path f = buildPath(path);
+        if (readOnly == false) {
+            try {
+                Files.createDirectories(f);
+            } catch (IOException ex) {
+                throw new ElasticsearchException("failed to create blob container", ex);
+            }
+        }
+        return new FsBlobContainer(this, path, f);
+    }
+
+    @Override
+    public void deleteBlobsIgnoringIfNotExists(OperationPurpose purpose, Iterator<String> blobNames) throws IOException {
+        IOException ioe = null;
+        long suppressedExceptions = 0;
+        while (blobNames.hasNext()) {
+            try {
+                // FsBlobContainer uses this method to delete blobs; in that case each blob name is already an absolute path meaning that
+                // the resolution done here is effectively a non-op.
+                Path resolve = path.resolve(blobNames.next());
+                IOUtils.rm(resolve);
+            } catch (IOException e) {
+                // IOUtils.rm puts the original exception as a string in the IOException message. Ignore no such file exception.
+                if (e.getMessage().contains("NoSuchFileException") == false) {
+                    // track up to 10 delete exceptions and try to continue deleting on exceptions
+                    if (ioe == null) {
+                        ioe = e;
+                    } else if (ioe.getSuppressed().length < 10) {
+                        ioe.addSuppressed(e);
+                    } else {
+                        ++suppressedExceptions;
+                    }
+                }
+            }
+        }
+        if (ioe != null) {
+            if (suppressedExceptions > 0) {
+                ioe.addSuppressed(new IOException("Failed to delete files, suppressed [" + suppressedExceptions + "] failures"));
+            }
+            throw ioe;
         }
     }
 
     @Override
     public void close() {
         // nothing to do here...
-    }
-
-    private synchronized Path buildAndCreate(BlobPath path) throws IOException {
-        Path f = buildPath(path);
-        if (readOnly == false) {
-            Files.createDirectories(f);
-        }
-        return f;
     }
 
     private Path buildPath(BlobPath path) {

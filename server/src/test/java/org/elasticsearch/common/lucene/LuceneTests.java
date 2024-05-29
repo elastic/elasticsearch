@@ -60,7 +60,7 @@ import org.elasticsearch.index.fielddata.fieldcomparator.LongValuesComparatorSou
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.sort.ShardDocSortField;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.TransportVersionUtils;
 
 import java.io.IOException;
 import java.io.StringReader;
@@ -170,7 +170,7 @@ public class LuceneTests extends ESTestCase {
         assertEquals(0, open.numDeletedDocs());
         assertEquals(3, open.maxDoc());
 
-        IndexSearcher s = new IndexSearcher(open);
+        IndexSearcher s = newSearcher(open);
         assertEquals(s.search(new TermQuery(new Term("id", "1")), 1).totalHits.value, 1);
         assertEquals(s.search(new TermQuery(new Term("id", "2")), 1).totalHits.value, 1);
         assertEquals(s.search(new TermQuery(new Term("id", "3")), 1).totalHits.value, 1);
@@ -439,8 +439,9 @@ public class LuceneTests extends ESTestCase {
                     w.addDocument(doc);
                 }
                 w.forceMerge(1);
-                try (IndexReader reader = DirectoryReader.open(w)) {
-                    IndexSearcher searcher = newSearcher(reader);
+                try (IndexReader indexReader = DirectoryReader.open(w)) {
+                    IndexSearcher searcher = newSearcher(indexReader);
+                    IndexReader reader = searcher.getIndexReader();
                     searcher.setQueryCache(null);
                     Query query = new IndexOrDocValuesQuery(new UnsupportedQuery(), NumericDocValuesField.newSlowRangeQuery("foo", 3L, 5L));
                     Weight weight = searcher.createWeight(query, ScoreMode.COMPLETE_NO_SCORES, 1f);
@@ -503,7 +504,7 @@ public class LuceneTests extends ESTestCase {
         try (DirectoryReader unwrapped = DirectoryReader.open(writer)) {
             DirectoryReader reader = Lucene.wrapAllDocsLive(unwrapped);
             assertThat(reader.numDocs(), equalTo(liveDocs.size()));
-            IndexSearcher searcher = new IndexSearcher(reader);
+            IndexSearcher searcher = newSearcher(reader);
             Set<String> actualDocs = new HashSet<>();
             TopDocs topDocs = searcher.search(new MatchAllDocsQuery(), Integer.MAX_VALUE);
             for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
@@ -549,7 +550,7 @@ public class LuceneTests extends ESTestCase {
             DirectoryReader reader = Lucene.wrapAllDocsLive(unwrapped);
             assertThat(reader.maxDoc(), equalTo(numDocs + abortedDocs));
             assertThat(reader.numDocs(), equalTo(liveDocs.size()));
-            IndexSearcher searcher = new IndexSearcher(reader);
+            IndexSearcher searcher = newSearcher(reader);
             List<String> actualDocs = new ArrayList<>();
             TopDocs topDocs = searcher.search(new MatchAllDocsQuery(), Integer.MAX_VALUE);
             for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
@@ -567,7 +568,7 @@ public class LuceneTests extends ESTestCase {
             EMPTY_REGISTRY,
             Lucene::writeSortField,
             Lucene::readSortField,
-            VersionUtils.randomVersion(random())
+            TransportVersionUtils.randomVersion(random())
         );
         assertEquals(sortFieldTuple.v2(), deserialized);
     }
@@ -579,7 +580,7 @@ public class LuceneTests extends ESTestCase {
             EMPTY_REGISTRY,
             Lucene::writeSortValue,
             Lucene::readSortValue,
-            VersionUtils.randomVersion(random())
+            TransportVersionUtils.randomVersion(random())
         );
         assertEquals(sortValue, deserialized);
     }

@@ -16,8 +16,8 @@ import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
-import org.elasticsearch.action.admin.indices.template.delete.DeleteComposableIndexTemplateAction;
-import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.delete.TransportDeleteComposableIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.indices.TestSystemIndexDescriptor;
 import org.elasticsearch.indices.TestSystemIndexDescriptorAllowsTemplates;
 import org.elasticsearch.indices.TestSystemIndexPlugin;
@@ -38,8 +39,6 @@ import org.elasticsearch.xcontent.XContentType;
 import org.junit.After;
 import org.junit.Before;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -51,7 +50,6 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.indices.TestSystemIndexDescriptor.INDEX_NAME;
 import static org.elasticsearch.indices.TestSystemIndexDescriptor.PRIMARY_INDEX_NAME;
-import static org.elasticsearch.test.XContentTestUtils.convertToXContent;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -67,9 +65,12 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
 
     @After
     public void afterEach() throws Exception {
-        assertAcked(client().admin().indices().prepareDeleteTemplate("*").get());
+        assertAcked(indicesAdmin().prepareDeleteTemplate("*").get());
         assertAcked(
-            client().execute(DeleteComposableIndexTemplateAction.INSTANCE, new DeleteComposableIndexTemplateAction.Request("*")).get()
+            client().execute(
+                TransportDeleteComposableIndexTemplateAction.TYPE,
+                new TransportDeleteComposableIndexTemplateAction.Request("*")
+            )
         );
     }
 
@@ -112,10 +113,9 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
         assertTrue(indexExists(INDEX_NAME + "-2"));
 
         // Check that a non-primary system index is not assigned as the write index for the alias
-        final GetAliasesResponse getAliasesResponse = client().admin()
-            .indices()
-            .getAliases(new GetAliasesRequest().indicesOptions(IndicesOptions.strictExpandHidden()))
-            .actionGet();
+        final GetAliasesResponse getAliasesResponse = indicesAdmin().getAliases(
+            new GetAliasesRequest().indicesOptions(IndicesOptions.strictExpandHidden())
+        ).actionGet();
 
         assertThat(getAliasesResponse.getAliases().size(), equalTo(1));
         assertThat(getAliasesResponse.getAliases().get(nonPrimarySystemIndex).size(), equalTo(1));
@@ -160,12 +160,9 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
 
     private void createSystemAliasViaV1Template(String indexName, String primaryIndexName) throws Exception {
         assertAcked(
-            client().admin()
-                .indices()
-                .preparePutTemplate("test-template")
+            indicesAdmin().preparePutTemplate("test-template")
                 .setPatterns(List.of(indexName + "*"))
                 .addAlias(new Alias(indexName + "-legacy-alias"))
-                .get()
         );
 
         assertAcked(prepareCreate(primaryIndexName));
@@ -202,23 +199,25 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
     }
 
     private void createIndexWithComposableTemplates(String indexName, String primaryIndexName) throws Exception {
-        ComposableIndexTemplate cit = new ComposableIndexTemplate(
-            Collections.singletonList(indexName + "*"),
-            new Template(
-                null,
-                null,
-                Map.of(indexName + "-composable-alias", AliasMetadata.builder(indexName + "-composable-alias").build())
-            ),
-            Collections.emptyList(),
-            4L,
-            5L,
-            Collections.emptyMap()
-        );
+        ComposableIndexTemplate cit = ComposableIndexTemplate.builder()
+            .indexPatterns(Collections.singletonList(indexName + "*"))
+            .template(
+                new Template(
+                    null,
+                    null,
+                    Map.of(indexName + "-composable-alias", AliasMetadata.builder(indexName + "-composable-alias").build())
+                )
+            )
+            .componentTemplates(Collections.emptyList())
+            .priority(4L)
+            .version(5L)
+            .metadata(Collections.emptyMap())
+            .build();
         assertAcked(
             client().execute(
-                PutComposableIndexTemplateAction.INSTANCE,
-                new PutComposableIndexTemplateAction.Request("test-composable-template").indexTemplate(cit)
-            ).get()
+                TransportPutComposableIndexTemplateAction.TYPE,
+                new TransportPutComposableIndexTemplateAction.Request("test-composable-template").indexTemplate(cit)
+            )
         );
 
         assertAcked(prepareCreate(primaryIndexName));
@@ -235,9 +234,9 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
 
         assertAcked(
             client().execute(
-                DeleteComposableIndexTemplateAction.INSTANCE,
-                new DeleteComposableIndexTemplateAction.Request("test-composable-template")
-            ).get()
+                TransportDeleteComposableIndexTemplateAction.TYPE,
+                new TransportDeleteComposableIndexTemplateAction.Request("test-composable-template")
+            )
         );
     }
 
@@ -262,9 +261,9 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
 
         assertAcked(
             client().execute(
-                DeleteComposableIndexTemplateAction.INSTANCE,
-                new DeleteComposableIndexTemplateAction.Request("test-composable-template")
-            ).get()
+                TransportDeleteComposableIndexTemplateAction.TYPE,
+                new TransportDeleteComposableIndexTemplateAction.Request("test-composable-template")
+            )
         );
     }
 
@@ -278,8 +277,8 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
         assertMappingsAndSettings(TestSystemIndexDescriptor.getOldMappings(), concreteIndex);
 
         // Remove the index and alias...
-        assertAcked(client().admin().indices().prepareAliases().removeAlias(concreteIndex, INDEX_NAME).get());
-        assertAcked(client().admin().indices().prepareDelete(concreteIndex));
+        assertAcked(indicesAdmin().prepareAliases().removeAlias(concreteIndex, INDEX_NAME).get());
+        assertAcked(indicesAdmin().prepareDelete(concreteIndex));
 
         // ...so that we can check that the they will still be auto-created again,
         // but this time with updated settings
@@ -321,10 +320,9 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
      * Make sure that aliases are created hidden
      */
     private void assertAliases(String concreteIndex) {
-        final GetAliasesResponse getAliasesResponse = client().admin()
-            .indices()
-            .getAliases(new GetAliasesRequest().indicesOptions(IndicesOptions.strictExpandHidden()))
-            .actionGet();
+        final GetAliasesResponse getAliasesResponse = indicesAdmin().getAliases(
+            new GetAliasesRequest().indicesOptions(IndicesOptions.strictExpandHidden())
+        ).actionGet();
 
         assertThat(getAliasesResponse.getAliases().size(), equalTo(1));
         assertThat(getAliasesResponse.getAliases().get(concreteIndex).size(), equalTo(1));
@@ -334,10 +332,9 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
 
     private void assertHasAliases(Set<String> aliasNames, String name, String primaryName, int aliasCount) throws InterruptedException,
         java.util.concurrent.ExecutionException {
-        final GetAliasesResponse getAliasesResponse = client().admin()
-            .indices()
-            .getAliases(new GetAliasesRequest().indicesOptions(IndicesOptions.strictExpandHidden()))
-            .get();
+        final GetAliasesResponse getAliasesResponse = indicesAdmin().getAliases(
+            new GetAliasesRequest().indicesOptions(IndicesOptions.strictExpandHidden())
+        ).get();
 
         assertThat(getAliasesResponse.getAliases().size(), equalTo(1));
         assertThat(getAliasesResponse.getAliases().get(primaryName).size(), equalTo(aliasCount));
@@ -357,12 +354,9 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
 
     /**
      * Fetch the mappings and settings for {@link TestSystemIndexDescriptor#INDEX_NAME} and verify that they match the expected values.
-     * Note that in the case of the mappings, this is just a dumb string comparison, so order of keys matters.
      */
     private void assertMappingsAndSettings(String expectedMappings, String concreteIndex) {
-        final GetMappingsResponse getMappingsResponse = client().admin()
-            .indices()
-            .getMappings(new GetMappingsRequest().indices(INDEX_NAME))
+        final GetMappingsResponse getMappingsResponse = indicesAdmin().getMappings(new GetMappingsRequest().indices(INDEX_NAME))
             .actionGet();
 
         final Map<String, MappingMetadata> mappings = getMappingsResponse.getMappings();
@@ -373,15 +367,9 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
         );
         final Map<String, Object> sourceAsMap = mappings.get(concreteIndex).getSourceAsMap();
 
-        try {
-            assertThat(convertToXContent(sourceAsMap, XContentType.JSON).utf8ToString(), equalTo(expectedMappings));
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
+        assertThat(sourceAsMap, equalTo(XContentHelper.convertToMap(XContentType.JSON.xContent(), expectedMappings, false)));
 
-        final GetSettingsResponse getSettingsResponse = client().admin()
-            .indices()
-            .getSettings(new GetSettingsRequest().indices(INDEX_NAME))
+        final GetSettingsResponse getSettingsResponse = indicesAdmin().getSettings(new GetSettingsRequest().indices(INDEX_NAME))
             .actionGet();
 
         final Settings actual = getSettingsResponse.getIndexToSettings().get(concreteIndex);

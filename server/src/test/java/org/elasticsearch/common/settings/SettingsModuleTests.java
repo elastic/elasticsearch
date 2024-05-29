@@ -17,7 +17,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.Supplier;
 
-import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.hasToString;
@@ -155,8 +154,7 @@ public class SettingsModuleTests extends ModuleTestCase {
                     Setting.boolSetting("bar.foo", true, Property.NodeScope, Property.Filtered),
                     Setting.boolSetting("bar.baz", true, Property.NodeScope)
                 ),
-                Arrays.asList("foo.*", "bar.foo"),
-                emptySet()
+                Arrays.asList("foo.*", "bar.foo")
             );
             fail();
         } catch (IllegalArgumentException ex) {
@@ -169,8 +167,7 @@ public class SettingsModuleTests extends ModuleTestCase {
                 Setting.boolSetting("bar.foo", true, Property.NodeScope, Property.Filtered),
                 Setting.boolSetting("bar.baz", true, Property.NodeScope)
             ),
-            Arrays.asList("foo.*"),
-            emptySet()
+            Arrays.asList("foo.*")
         );
         assertInstanceBinding(module, Settings.class, (s) -> s == settings);
         assertInstanceBinding(module, SettingsFilter.class, (s) -> s.filter(settings).size() == 1);
@@ -217,28 +214,19 @@ public class SettingsModuleTests extends ModuleTestCase {
     public void testPluginSettingWithoutNamespace() {
         final String key = randomAlphaOfLength(8);
         final Setting<String> setting = Setting.simpleString(key, Property.NodeScope);
-        runSettingWithoutNamespaceTest(
-            key,
-            () -> new SettingsModule(Settings.EMPTY, List.of(setting), List.of(), Set.of(), Set.of(), Set.of())
-        );
+        runSettingWithoutNamespaceTest(key, () -> new SettingsModule(Settings.EMPTY, List.of(setting), List.of(), Set.of(), Set.of()));
     }
 
     public void testClusterSettingWithoutNamespace() {
         final String key = randomAlphaOfLength(8);
         final Setting<String> setting = Setting.simpleString(key, Property.NodeScope);
-        runSettingWithoutNamespaceTest(
-            key,
-            () -> new SettingsModule(Settings.EMPTY, List.of(), List.of(), Set.of(), Set.of(setting), Set.of())
-        );
+        runSettingWithoutNamespaceTest(key, () -> new SettingsModule(Settings.EMPTY, List.of(), List.of(), Set.of(setting), Set.of()));
     }
 
     public void testIndexSettingWithoutNamespace() {
         final String key = randomAlphaOfLength(8);
         final Setting<String> setting = Setting.simpleString(key, Property.IndexScope);
-        runSettingWithoutNamespaceTest(
-            key,
-            () -> new SettingsModule(Settings.EMPTY, List.of(), List.of(), Set.of(), Set.of(), Set.of(setting))
-        );
+        runSettingWithoutNamespaceTest(key, () -> new SettingsModule(Settings.EMPTY, List.of(), List.of(), Set.of(), Set.of(setting)));
     }
 
     private void runSettingWithoutNamespaceTest(final String key, final Supplier<SettingsModule> supplier) {

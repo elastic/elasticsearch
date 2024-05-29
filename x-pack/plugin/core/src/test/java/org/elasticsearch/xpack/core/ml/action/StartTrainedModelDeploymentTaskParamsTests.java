@@ -33,15 +33,23 @@ public class StartTrainedModelDeploymentTaskParamsTests extends AbstractXContent
         return createRandom();
     }
 
+    @Override
+    protected TaskParams mutateInstance(TaskParams instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public static StartTrainedModelDeploymentAction.TaskParams createRandom() {
         return new TaskParams(
+            randomAlphaOfLength(10),
             randomAlphaOfLength(10),
             randomNonNegativeLong(),
             randomIntBetween(1, 8),
             randomIntBetween(1, 8),
             randomIntBetween(1, 10000),
             randomBoolean() ? null : ByteSizeValue.ofBytes(randomNonNegativeLong()),
-            randomFrom(Priority.values())
+            randomFrom(Priority.values()),
+            randomNonNegativeLong(),
+            randomNonNegativeLong()
         );
     }
 }

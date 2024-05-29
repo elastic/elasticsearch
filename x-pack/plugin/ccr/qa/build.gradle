@@ -10,6 +10,6 @@ subprojects {
   tasks.withType(Test).configureEach {
     // These fail in CI but only when run as part of checkPart2 and not individually.
     // Tracked in : https://github.com/elastic/elasticsearch/issues/66661
-    onlyIf { BuildParams.inFipsJvm == false }
+    BuildParams.withFipsEnabledOnly(it)
   }
 }

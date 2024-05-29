@@ -184,7 +184,7 @@ public class SlackMessage implements MessageElement {
 
         @Override
         public int hashCode() {
-            return Objects.hash(from, to, text, icon, attachments, dynamicAttachments);
+            return Objects.hash(from, Arrays.hashCode(to), text, icon, Arrays.hashCode(attachments), dynamicAttachments);
         }
 
         public SlackMessage render(

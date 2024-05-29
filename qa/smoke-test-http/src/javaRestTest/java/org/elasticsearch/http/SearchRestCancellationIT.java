@@ -15,10 +15,10 @@ import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
-import org.elasticsearch.action.search.MultiSearchAction;
 import org.elasticsearch.action.search.MultiSearchRequest;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.TransportMultiSearchAction;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Cancellable;
@@ -73,7 +73,7 @@ public class SearchRestCancellationIT extends HttpSmokeTestCase {
             scriptQuery(new Script(ScriptType.INLINE, "mockscript", ScriptedBlockPlugin.SCRIPT_NAME, Collections.emptyMap()))
         );
         searchRequest.setJsonEntity(Strings.toString(searchSource));
-        verifyCancellationDuringQueryPhase(SearchAction.NAME, searchRequest);
+        verifyCancellationDuringQueryPhase(TransportSearchAction.TYPE.name(), searchRequest);
     }
 
     public void testAutomaticCancellationMultiSearchDuringQueryPhase() throws Exception {
@@ -89,7 +89,7 @@ public class SearchRestCancellationIT extends HttpSmokeTestCase {
         Request restRequest = new Request("POST", "/_msearch");
         byte[] requestBody = MultiSearchRequest.writeMultiLineFormat(multiSearchRequest, contentType.xContent());
         restRequest.setEntity(new NByteArrayEntity(requestBody, createContentType(contentType)));
-        verifyCancellationDuringQueryPhase(MultiSearchAction.NAME, restRequest);
+        verifyCancellationDuringQueryPhase(TransportMultiSearchAction.TYPE.name(), restRequest);
     }
 
     void verifyCancellationDuringQueryPhase(String searchAction, Request searchRequest) throws Exception {
@@ -98,7 +98,7 @@ public class SearchRestCancellationIT extends HttpSmokeTestCase {
         List<ScriptedBlockPlugin> plugins = initBlockFactory();
         indexTestData();
 
-        PlainActionFuture<Response> future = PlainActionFuture.newFuture();
+        PlainActionFuture<Response> future = new PlainActionFuture<>();
         Cancellable cancellable = getRestClient().performRequestAsync(searchRequest, wrapAsRestResponseListener(future));
 
         awaitForBlock(plugins);
@@ -116,7 +116,7 @@ public class SearchRestCancellationIT extends HttpSmokeTestCase {
             new Script(ScriptType.INLINE, "mockscript", ScriptedBlockPlugin.SCRIPT_NAME, Collections.emptyMap())
         );
         searchRequest.setJsonEntity(Strings.toString(searchSource));
-        verifyCancellationDuringFetchPhase(SearchAction.NAME, searchRequest);
+        verifyCancellationDuringFetchPhase(TransportSearchAction.TYPE.name(), searchRequest);
     }
 
     public void testAutomaticCancellationMultiSearchDuringFetchPhase() throws Exception {
@@ -132,7 +132,7 @@ public class SearchRestCancellationIT extends HttpSmokeTestCase {
         Request restRequest = new Request("POST", "/_msearch");
         byte[] requestBody = MultiSearchRequest.writeMultiLineFormat(multiSearchRequest, contentType.xContent());
         restRequest.setEntity(new NByteArrayEntity(requestBody, createContentType(contentType)));
-        verifyCancellationDuringFetchPhase(MultiSearchAction.NAME, restRequest);
+        verifyCancellationDuringFetchPhase(TransportMultiSearchAction.TYPE.name(), restRequest);
     }
 
     void verifyCancellationDuringFetchPhase(String searchAction, Request searchRequest) throws Exception {
@@ -141,7 +141,7 @@ public class SearchRestCancellationIT extends HttpSmokeTestCase {
         List<ScriptedBlockPlugin> plugins = initBlockFactory();
         indexTestData();
 
-        PlainActionFuture<Response> future = PlainActionFuture.newFuture();
+        PlainActionFuture<Response> future = new PlainActionFuture<>();
         Cancellable cancellable = getRestClient().performRequestAsync(searchRequest, wrapAsRestResponseListener(future));
 
         awaitForBlock(plugins);
@@ -154,7 +154,7 @@ public class SearchRestCancellationIT extends HttpSmokeTestCase {
 
     private static Map<String, String> readNodesInfo() {
         Map<String, String> nodeIdToName = new HashMap<>();
-        NodesInfoResponse nodesInfoResponse = client().admin().cluster().prepareNodesInfo().get();
+        NodesInfoResponse nodesInfoResponse = clusterAdmin().prepareNodesInfo().get();
         assertFalse(nodesInfoResponse.hasFailures());
         for (NodeInfo node : nodesInfoResponse.getNodes()) {
             nodeIdToName.put(node.getNode().getId(), node.getNode().getName());
@@ -164,7 +164,7 @@ public class SearchRestCancellationIT extends HttpSmokeTestCase {
 
     private static void ensureSearchTaskIsCancelled(String transportAction, Function<String, String> nodeIdToName) throws Exception {
         SetOnce<TaskInfo> searchTask = new SetOnce<>();
-        ListTasksResponse listTasksResponse = client().admin().cluster().prepareListTasks().get();
+        ListTasksResponse listTasksResponse = clusterAdmin().prepareListTasks().get();
         for (TaskInfo task : listTasksResponse.getTasks()) {
             if (task.action().equals(transportAction)) {
                 searchTask.set(task);
@@ -186,7 +186,7 @@ public class SearchRestCancellationIT extends HttpSmokeTestCase {
             // Make sure we have a few segments
             BulkRequestBuilder bulkRequestBuilder = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
             for (int j = 0; j < 20; j++) {
-                bulkRequestBuilder.add(client().prepareIndex("test").setId(Integer.toString(i * 5 + j)).setSource("field", "value"));
+                bulkRequestBuilder.add(prepareIndex("test").setId(Integer.toString(i * 5 + j)).setSource("field", "value"));
             }
             assertNoFailures(bulkRequestBuilder.get());
         }
@@ -195,7 +195,7 @@ public class SearchRestCancellationIT extends HttpSmokeTestCase {
     private static List<ScriptedBlockPlugin> initBlockFactory() {
         List<ScriptedBlockPlugin> plugins = new ArrayList<>();
         for (PluginsService pluginsService : internalCluster().getDataNodeInstances(PluginsService.class)) {
-            plugins.addAll(pluginsService.filterPlugins(ScriptedBlockPlugin.class));
+            pluginsService.filterPlugins(ScriptedBlockPlugin.class).forEach(plugins::add);
         }
         for (ScriptedBlockPlugin plugin : plugins) {
             plugin.reset();

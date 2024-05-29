@@ -42,7 +42,7 @@ Identifiers can be of two types: __quoted__ and __unquoted__:
 SELECT ip_address FROM "hosts-*"
 ----
 
-This query has two identifiers, `ip_address` and `hosts-*` (an <<multi-index,index pattern>>). As `ip_address` does not clash with any key words it can be used verbatim, `hosts-*` on the other hand cannot as it clashes with `-` (minus operation) and `*` hence the double quotes.
+This query has two identifiers, `ip_address` and `hosts-*` (an <<api-multi-index,index pattern>>). As `ip_address` does not clash with any key words it can be used verbatim, `hosts-*` on the other hand cannot as it clashes with `-` (minus operation) and `*` hence the double quotes.
 
 Another example:
 
@@ -51,7 +51,7 @@ Another example:
 SELECT "from" FROM "<logstash-{now/d}>"
 ----
 
-The first identifier from needs to quoted as otherwise it clashes with the `FROM` key word (which is case insensitive as thus can be written as `from`) while the second identifier using {es} <<date-math-index-names>> would have otherwise confuse the parser.
+The first identifier from needs to quoted as otherwise it clashes with the `FROM` key word (which is case insensitive as thus can be written as `from`) while the second identifier using {es} <<api-date-math-index-names>> would have otherwise confuse the parser.
 
 Hence why in general, *especially* when dealing with user input it is *highly* recommended to use quotes for identifiers. It adds minimal increase to your queries and in return offers clarity and disambiguation.
 

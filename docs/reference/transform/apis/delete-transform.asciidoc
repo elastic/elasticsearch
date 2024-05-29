@@ -26,7 +26,7 @@ in the `transform_admin` built-in role.
 
 `<transform_id>`::
 (Required, string)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-id]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=transform-id]
 
 [[delete-transform-query-parms]]
 == {api-query-parms-title}
@@ -35,6 +35,11 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-id]
 (Optional, Boolean) When `true`, the {transform} is deleted regardless of its
 current state. The default value is `false`, meaning that the {transform} must be
 `stopped` before it can be deleted.
+
+`delete_dest_index`::
+(Optional, Boolean) When `true`, the destination index is deleted together with
+the {transform}. The default value is `false`, meaning that the destination
+index will not be deleted.
 
 `timeout`::
 (Optional, time)

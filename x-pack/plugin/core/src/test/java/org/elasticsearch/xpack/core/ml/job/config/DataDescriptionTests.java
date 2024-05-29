@@ -125,7 +125,7 @@ public class DataDescriptionTests extends AbstractXContentSerializingTestCase<Da
     }
 
     @Override
-    protected DataDescription mutateInstance(DataDescription instance) throws java.io.IOException {
+    protected DataDescription mutateInstance(DataDescription instance) {
         String timeField = instance.getTimeField();
         String timeFormat = instance.getTimeFormat();
         switch (between(0, 1)) {

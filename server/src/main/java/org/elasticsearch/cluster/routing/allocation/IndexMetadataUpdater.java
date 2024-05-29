@@ -69,12 +69,14 @@ public class IndexMetadataUpdater implements RoutingChangesObserver {
                 + "] and startedShard.allocationId ["
                 + startedShard.allocationId().getId()
                 + "] have to have the same";
-        Updates updates = changes(startedShard.shardId());
-        updates.addedAllocationIds.add(startedShard.allocationId().getId());
-        if (startedShard.primary()
-            // started shard has to have null recoverySource; have to pick up recoverySource from its initializing state
-            && (initializingShard.recoverySource() == RecoverySource.ExistingStoreRecoverySource.FORCE_STALE_PRIMARY_INSTANCE)) {
-            updates.removedAllocationIds.add(RecoverySource.ExistingStoreRecoverySource.FORCED_ALLOCATION_ID);
+        if (startedShard.isPromotableToPrimary()) {
+            Updates updates = changes(startedShard.shardId());
+            updates.addedAllocationIds.add(startedShard.allocationId().getId());
+            if (startedShard.primary()
+                // started shard has to have null recoverySource; have to pick up recoverySource from its initializing state
+                && (initializingShard.recoverySource() == RecoverySource.ExistingStoreRecoverySource.FORCE_STALE_PRIMARY_INSTANCE)) {
+                updates.removedAllocationIds.add(RecoverySource.ExistingStoreRecoverySource.FORCED_ALLOCATION_ID);
+            }
         }
     }
 
@@ -171,7 +173,8 @@ public class IndexMetadataUpdater implements RoutingChangesObserver {
                         updatedIndexMetadata.getTimestampRange().removeShard(shardId.id(), oldIndexMetadata.getNumberOfShards())
                     );
                 } else {
-                    assert recoverySource instanceof RecoverySource.SnapshotRecoverySource : recoverySource;
+                    assert recoverySource instanceof RecoverySource.SnapshotRecoverySource
+                        || isStatelessIndexRecovery(oldIndexMetadata, recoverySource) : recoverySource;
                     allocationId = updates.initializedPrimary.allocationId().getId();
                 }
                 // forcing a stale primary resets the in-sync allocations to the singleton set with the stale id
@@ -231,6 +234,11 @@ public class IndexMetadataUpdater implements RoutingChangesObserver {
             }
         }
         return updatedIndexMetadata;
+    }
+
+    private static boolean isStatelessIndexRecovery(IndexMetadata indexMetadata, RecoverySource recoverySource) {
+        var allocator = indexMetadata.getSettings().get(ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING.getKey());
+        return Objects.equals(allocator, "stateless") && recoverySource instanceof RecoverySource.ExistingStoreRecoverySource;
     }
 
     /**

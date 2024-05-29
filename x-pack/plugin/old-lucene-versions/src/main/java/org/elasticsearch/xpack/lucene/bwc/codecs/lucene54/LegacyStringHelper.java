@@ -44,8 +44,9 @@ abstract class LegacyStringHelper {
         final int offLeft = left.offset;
         byte[] bytesRight = right.bytes;
         final int offRight = right.offset;
-        for (int i = 0; i < len; i++)
+        for (int i = 0; i < len; i++) {
             if (bytesLeft[i + offLeft] != bytesRight[i + offRight]) return i;
+        }
         return len;
     }
 

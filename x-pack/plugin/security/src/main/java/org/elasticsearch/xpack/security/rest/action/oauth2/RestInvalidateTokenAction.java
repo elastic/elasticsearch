@@ -14,6 +14,8 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestRequestFilter;
 import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -32,6 +34,7 @@ import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 /**
  * Rest handler for handling access token invalidation requests
  */
+@ServerlessScope(Scope.INTERNAL)
 public final class RestInvalidateTokenAction extends TokenBaseRestHandler implements RestRequestFilter {
 
     static final ConstructingObjectParser<InvalidateTokenRequest, Void> PARSER = new ConstructingObjectParser<>("invalidate_token", a -> {

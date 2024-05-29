@@ -20,7 +20,7 @@ import java.io.IOException;
  * The health status of the disk space of this node along with the cause.
  */
 public record DiskHealthInfo(HealthStatus healthStatus, @Nullable Cause cause) implements Writeable {
-    DiskHealthInfo(HealthStatus healthStatus) {
+    public DiskHealthInfo(HealthStatus healthStatus) {
         this(healthStatus, null);
     }
 

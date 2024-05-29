@@ -1,0 +1,6 @@
+pr: 106065
+summary: "ESQL: Values aggregation function"
+area: ES|QL
+type: feature
+issues:
+ - 103600

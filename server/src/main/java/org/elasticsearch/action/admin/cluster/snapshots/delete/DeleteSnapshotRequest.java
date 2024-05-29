@@ -10,10 +10,12 @@ package org.elasticsearch.action.admin.cluster.snapshots.delete;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -30,28 +32,15 @@ public class DeleteSnapshotRequest extends MasterNodeRequest<DeleteSnapshotReque
     private String[] snapshots;
 
     /**
-     * Constructs a new delete snapshots request
-     */
-    public DeleteSnapshotRequest() {}
-
-    /**
      * Constructs a new delete snapshots request with repository and snapshot names
      *
      * @param repository repository name
      * @param snapshots  snapshot names
      */
     public DeleteSnapshotRequest(String repository, String... snapshots) {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
         this.repository = repository;
         this.snapshots = snapshots;
-    }
-
-    /**
-     * Constructs a new delete snapshots request with repository name
-     *
-     * @param repository repository name
-     */
-    public DeleteSnapshotRequest(String repository) {
-        this.repository = repository;
     }
 
     public DeleteSnapshotRequest(StreamInput in) throws IOException {
@@ -110,5 +99,10 @@ public class DeleteSnapshotRequest extends MasterNodeRequest<DeleteSnapshotReque
     public DeleteSnapshotRequest snapshots(String... snapshots) {
         this.snapshots = snapshots;
         return this;
+    }
+
+    @Override
+    public String getDescription() {
+        return Strings.format("[%s]%s", repository, Arrays.toString(snapshots));
     }
 }

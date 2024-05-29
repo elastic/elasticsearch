@@ -28,11 +28,6 @@ import static org.hamcrest.Matchers.equalTo;
 public class ResponseHeaderPluginIT extends HttpSmokeTestCase {
 
     @Override
-    protected boolean addMockHttpTransport() {
-        return false; // enable http
-    }
-
-    @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return CollectionUtils.appendToCopy(super.nodePlugins(), TestResponseHeaderPlugin.class);
     }

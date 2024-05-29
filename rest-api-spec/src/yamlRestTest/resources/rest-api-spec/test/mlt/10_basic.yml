@@ -4,9 +4,6 @@
      indices.create:
        index:    test_1
        body:
-         settings:
-           index:
-             number_of_replicas: 0
          mappings:
            properties:
              foo:
@@ -22,10 +19,6 @@
 
   - do:
       indices.refresh: {}
-
-  - do:
-      cluster.health:
-           wait_for_status: green
 
   - do:
       search:

@@ -45,6 +45,16 @@
         "type":"boolean",
         "default":false,
         "description": "flag to show the limited-by role descriptors of API Keys"
+      },
+      "with_profile_uid":{
+        "type":"boolean",
+        "default":false,
+        "description": "flag to also retrieve the API Key's owner profile uid, if it exists"
+      },
+      "active_only":{
+        "type":"boolean",
+        "default":false,
+        "description": "flag to limit response to only active (not invalidated or expired) API keys"
       }
     }
   }

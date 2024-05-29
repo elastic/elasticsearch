@@ -13,7 +13,7 @@ package org.elasticsearch.search.suggest.completion.context;
  */
 public abstract class ContextBuilder<E extends ContextMapping<?>> {
 
-    protected String name;
+    protected final String name;
 
     /**
      * @param name of the context mapper to build

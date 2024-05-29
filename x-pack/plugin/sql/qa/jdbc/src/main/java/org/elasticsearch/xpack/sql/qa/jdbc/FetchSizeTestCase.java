@@ -89,6 +89,7 @@ public abstract class FetchSizeTestCase extends JdbcIntegrationTestCase {
      * Test for {@code SELECT} that is implemented as a scroll query.
      * In this test we don't retrieve all records and rely on close() to clean the cursor
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105840")
     public void testIncompleteScroll() throws SQLException {
         try (Connection c = esJdbc(); Statement s = c.createStatement()) {
             s.setFetchSize(4);
@@ -152,6 +153,7 @@ public abstract class FetchSizeTestCase extends JdbcIntegrationTestCase {
     /**
      * Test for {@code SELECT} that is implemented as an aggregation.
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105840")
     public void testAggregation() throws SQLException {
         try (Connection c = esJdbc(); Statement s = c.createStatement()) {
             s.setFetchSize(4);
@@ -170,6 +172,7 @@ public abstract class FetchSizeTestCase extends JdbcIntegrationTestCase {
     /**
      * Test for nested documents.
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105840")
     public void testNestedDocuments() throws SQLException {
         try (Connection c = esJdbc(); Statement s = c.createStatement()) {
             s.setFetchSize(5);

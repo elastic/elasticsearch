@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.deprecation.logging;
 
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
@@ -33,16 +34,12 @@ public class DeprecationCacheResetAction extends ActionType<DeprecationCacheRese
     public static final String NAME = "cluster:admin/deprecation/cache/reset";
 
     private DeprecationCacheResetAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
     public static class Request extends BaseNodesRequest<Request> implements ToXContentObject {
         public Request() {
             super((String[]) null);
-        }
-
-        public Request(StreamInput in) throws IOException {
-            super(in);
         }
 
         @Override
@@ -71,26 +68,22 @@ public class DeprecationCacheResetAction extends ActionType<DeprecationCacheRese
     }
 
     public static class Response extends BaseNodesResponse<NodeResponse> implements Writeable, ToXContentObject {
-        public Response(StreamInput in) throws IOException {
-            super(in);
-        }
-
         public Response(ClusterName clusterName, List<NodeResponse> nodes, List<FailedNodeException> failures) {
             super(clusterName, nodes, failures);
         }
 
         @Override
-        protected List<NodeResponse> readNodesFrom(StreamInput in) throws IOException {
-            return in.readList(NodeResponse::new);
+        protected List<NodeResponse> readNodesFrom(StreamInput in) {
+            return TransportAction.localOnly();
         }
 
         @Override
-        protected void writeNodesTo(StreamOutput out, List<NodeResponse> nodes) throws IOException {
-            out.writeList(nodes);
+        protected void writeNodesTo(StreamOutput out, List<NodeResponse> nodes) {
+            TransportAction.localOnly();
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) {
             return builder;
         }
 
@@ -113,7 +106,7 @@ public class DeprecationCacheResetAction extends ActionType<DeprecationCacheRese
             super(in);
         }
 
-        public NodeRequest(Request request) {}
+        public NodeRequest() {}
     }
 
     public static class NodeResponse extends BaseNodeResponse {

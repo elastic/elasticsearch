@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.core.security.authc.support;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -56,13 +56,13 @@ public class TokensInvalidationResult implements ToXContentObject, Writeable {
     }
 
     public TokensInvalidationResult(StreamInput in) throws IOException {
-        this.invalidatedTokens = in.readStringList();
-        this.previouslyInvalidatedTokens = in.readStringList();
-        this.errors = in.readList(StreamInput::readException);
-        if (in.getVersion().before(Version.V_7_2_0)) {
+        this.invalidatedTokens = in.readStringCollectionAsList();
+        this.previouslyInvalidatedTokens = in.readStringCollectionAsList();
+        this.errors = in.readCollectionAsList(StreamInput::readException);
+        if (in.getTransportVersion().before(TransportVersions.V_7_2_0)) {
             in.readVInt();
         }
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
             this.restStatus = RestStatus.readFrom(in);
         }
     }
@@ -111,10 +111,10 @@ public class TokensInvalidationResult implements ToXContentObject, Writeable {
         out.writeStringCollection(invalidatedTokens);
         out.writeStringCollection(previouslyInvalidatedTokens);
         out.writeCollection(errors, StreamOutput::writeException);
-        if (out.getVersion().before(Version.V_7_2_0)) {
+        if (out.getTransportVersion().before(TransportVersions.V_7_2_0)) {
             out.writeVInt(5);
         }
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
             RestStatus.writeTo(out, restStatus);
         }
     }

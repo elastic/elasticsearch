@@ -580,7 +580,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
 
         /**
          * Sets the total number of translog operations to be recovered locally before performing peer recovery
-         * @see IndexShard#recoverLocallyUpToGlobalCheckpoint()
+         * @see IndexShard#recoverLocallyUpToGlobalCheckpoint
          */
         public synchronized void totalLocal(int totalLocal) {
             assert totalLocal >= recovered : totalLocal + " < " + recovered;
@@ -610,6 +610,17 @@ public class RecoveryState implements ToXContentFragment, Writeable {
             builder.humanReadableField(Fields.TOTAL_TIME_IN_MILLIS, Fields.TOTAL_TIME, new TimeValue(time()));
             return builder;
         }
+
+        @Override
+        public synchronized String toString() {
+            return Strings.format(
+                "Translog{recovered=%d, total=%d, totalOnStart=%d, totalLocal=%d}",
+                recovered,
+                total,
+                totalOnStart,
+                totalLocal
+            );
+        }
     }
 
     public static class FileDetail implements ToXContentObject, Writeable {
@@ -631,7 +642,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
             length = in.readVLong();
             recovered = in.readVLong();
             reused = in.readBoolean();
-            if (in.getVersion().onOrAfter(RecoverySettings.SNAPSHOT_RECOVERIES_SUPPORTED_VERSION)) {
+            if (in.getTransportVersion().onOrAfter(RecoverySettings.SNAPSHOT_RECOVERIES_SUPPORTED_TRANSPORT_VERSION)) {
                 recoveredFromSnapshot = in.readLong();
             }
         }
@@ -642,7 +653,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
             out.writeVLong(length);
             out.writeVLong(recovered);
             out.writeBoolean(reused);
-            if (out.getVersion().onOrAfter(RecoverySettings.SNAPSHOT_RECOVERIES_SUPPORTED_VERSION)) {
+            if (out.getTransportVersion().onOrAfter(RecoverySettings.SNAPSHOT_RECOVERIES_SUPPORTED_TRANSPORT_VERSION)) {
                 out.writeLong(recoveredFromSnapshot);
             }
         }
@@ -769,7 +780,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
 
         RecoveryFilesDetails(StreamInput in) throws IOException {
             fileDetails = in.readMapValues(FileDetail::new, FileDetail::name);
-            if (in.getVersion().onOrAfter(StoreStats.RESERVED_BYTES_VERSION)) {
+            if (in.getTransportVersion().onOrAfter(StoreStats.RESERVED_BYTES_VERSION)) {
                 complete = in.readBoolean();
             } else {
                 // This flag is used by disk-based allocation to decide whether the remaining bytes measurement is accurate or not; if not
@@ -783,7 +794,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeCollection(values());
-            if (out.getVersion().onOrAfter(StoreStats.RESERVED_BYTES_VERSION)) {
+            if (out.getTransportVersion().onOrAfter(StoreStats.RESERVED_BYTES_VERSION)) {
                 out.writeBoolean(complete);
             }
         }
@@ -831,10 +842,6 @@ public class RecoveryState implements ToXContentFragment, Writeable {
 
         public int size() {
             return fileDetails.size();
-        }
-
-        public boolean isEmpty() {
-            return fileDetails.isEmpty();
         }
 
         public void clear() {
@@ -990,8 +997,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
             if (total == recovered) {
                 return 100.0f;
             } else {
-                float result = 100.0f * (recovered / (float) total);
-                return result;
+                return 100.0f * (recovered / (float) total);
             }
         }
 

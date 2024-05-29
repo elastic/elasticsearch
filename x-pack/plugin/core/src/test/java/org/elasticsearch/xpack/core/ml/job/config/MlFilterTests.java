@@ -36,6 +36,11 @@ public class MlFilterTests extends AbstractXContentSerializingTestCase<MlFilter>
         return createRandom();
     }
 
+    @Override
+    protected MlFilter mutateInstance(MlFilter instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public static MlFilter createRandom() {
         return createRandom(randomValidFilterId());
     }

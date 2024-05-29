@@ -10,6 +10,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.grok.Grok;
+import org.elasticsearch.grok.GrokBuiltinPatterns;
+import org.elasticsearch.grok.PatternBank;
 import org.elasticsearch.ingest.Pipeline;
 import org.elasticsearch.xpack.core.textstructure.structurefinder.FieldStats;
 
@@ -27,6 +29,9 @@ import java.util.TreeMap;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.grok.GrokBuiltinPatterns.ECS_COMPATIBILITY_DISABLED;
+import static org.elasticsearch.grok.GrokBuiltinPatterns.ECS_COMPATIBILITY_V1;
+
 public final class TextStructureUtils {
 
     // The ECS Grok pattern compatibility mode to use when no ecs_compatibility parameter is specified in the request.
@@ -43,7 +48,7 @@ public final class TextStructureUtils {
 
     public static final String NULL_TIMESTAMP_FORMAT = "null";
 
-    private static final Map<String, String> EXTENDED_PATTERNS;
+    private static final PatternBank EXTENDED_PATTERNS;
     static {
         Map<String, String> patterns = new HashMap<>();
         patterns.put("GEO_POINT", "%{NUMBER} %{NUMBER}");
@@ -61,19 +66,18 @@ public final class TextStructureUtils {
             "(?:%{WKT_POINT}|%{WKT_LINESTRING}|%{WKT_MULTIPOINT}|%{WKT_POLYGON}|%{WKT_MULTILINESTRING}|%{WKT_MULTIPOLYGON}|%{WKT_BBOX})"
         );
         patterns.put("WKT_GEOMETRYCOLLECTION", "GEOMETRYCOLLECTION \\(%{WKT_ANY}(?:, %{WKT_ANY})\\)");
-        patterns.putAll(Grok.getBuiltinPatterns(false));
-        EXTENDED_PATTERNS = Collections.unmodifiableMap(patterns);
+        EXTENDED_PATTERNS = GrokBuiltinPatterns.legacyPatterns().extendWith(patterns);
     }
 
     private static final int NUM_TOP_HITS = 10;
     // NUMBER Grok pattern doesn't support scientific notation, so we extend it
     private static final Grok NUMBER_GROK = new Grok(
-        Grok.getBuiltinPatterns(false),
+        GrokBuiltinPatterns.legacyPatterns(),
         "^%{NUMBER}(?:[eE][+-]?[0-3]?[0-9]{1,2})?$",
         TimeoutChecker.watchdog,
         logger::warn
     );
-    private static final Grok IP_GROK = new Grok(Grok.getBuiltinPatterns(false), "^%{IP}$", TimeoutChecker.watchdog, logger::warn);
+    private static final Grok IP_GROK = new Grok(GrokBuiltinPatterns.legacyPatterns(), "^%{IP}$", TimeoutChecker.watchdog, logger::warn);
     private static final Grok GEO_POINT_WKT = new Grok(EXTENDED_PATTERNS, "^%{WKT_POINT}$", TimeoutChecker.watchdog, logger::warn);
     private static final Grok GEO_WKT = new Grok(
         EXTENDED_PATTERNS,
@@ -228,7 +232,7 @@ public final class TextStructureUtils {
                         true,
                         true,
                         timeoutChecker,
-                        Grok.ECS_COMPATIBILITY_MODES[1].equals(overrides.getEcsCompatibility())
+                        ECS_COMPATIBILITY_V1.equals(overrides.getEcsCompatibility())
                     );
                     try {
                         timestampFormatFinder.addSample(value.toString());
@@ -642,7 +646,7 @@ public final class TextStructureUtils {
             }
             grokProcessorSettings.put(
                 "ecs_compatibility",
-                (ecsCompatibility == null || ecsCompatibility.isEmpty()) ? Grok.ECS_COMPATIBILITY_MODES[0] : ecsCompatibility
+                (ecsCompatibility == null || ecsCompatibility.isEmpty()) ? ECS_COMPATIBILITY_DISABLED : ecsCompatibility
             );
             processors.add(Collections.singletonMap("grok", grokProcessorSettings));
         } else {

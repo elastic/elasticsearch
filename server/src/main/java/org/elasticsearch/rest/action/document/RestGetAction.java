@@ -9,14 +9,14 @@
 package org.elasticsearch.rest.action.document;
 
 import org.elasticsearch.action.get.GetRequest;
-import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
@@ -29,6 +29,7 @@ import static org.elasticsearch.rest.RestRequest.Method.HEAD;
 import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 import static org.elasticsearch.rest.RestStatus.OK;
 
+@ServerlessScope(Scope.PUBLIC)
 public class RestGetAction extends BaseRestHandler {
     static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in "
         + "document get requests is deprecated, use the /{index}/_doc/{id} endpoint instead.";
@@ -82,12 +83,7 @@ public class RestGetAction extends BaseRestHandler {
             getRequest.setForceSyntheticSource(true);
         }
 
-        return channel -> client.get(getRequest, new RestToXContentListener<GetResponse>(channel) {
-            @Override
-            protected RestStatus getStatus(final GetResponse response) {
-                return response.isExists() ? OK : NOT_FOUND;
-            }
-        });
+        return channel -> client.get(getRequest, new RestToXContentListener<>(channel, r -> r.isExists() ? OK : NOT_FOUND));
     }
 
 }

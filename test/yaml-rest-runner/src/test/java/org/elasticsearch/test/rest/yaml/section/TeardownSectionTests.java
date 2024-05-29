@@ -8,7 +8,6 @@
 
 package org.elasticsearch.test.rest.yaml.section;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.xcontent.yaml.YamlXContent;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -36,7 +35,7 @@ public class TeardownSectionTests extends AbstractClientYamlTestFragmentParserTe
 
         TeardownSection section = TeardownSection.parse(parser);
         assertThat(section, notNullValue());
-        assertThat(section.getSkipSection().isEmpty(), equalTo(true));
+        assertThat(section.getPrerequisiteSection().isEmpty(), equalTo(true));
         assertThat(section.getDoSections().size(), equalTo(2));
         assertThat(((DoSection) section.getDoSections().get(0)).getApiCallSection().getApi(), equalTo("delete"));
         assertThat(((DoSection) section.getDoSections().get(1)).getApiCallSection().getApi(), equalTo("delete2"));
@@ -45,7 +44,7 @@ public class TeardownSectionTests extends AbstractClientYamlTestFragmentParserTe
     public void testParseWithSkip() throws Exception {
         parser = createParser(YamlXContent.yamlXContent, """
             - skip:
-                version:  "6.0.0 - 6.3.0"
+                cluster_features:  "some_feature"
                 reason:   "there is a reason"
             - do:
                 delete:
@@ -63,10 +62,36 @@ public class TeardownSectionTests extends AbstractClientYamlTestFragmentParserTe
 
         TeardownSection section = TeardownSection.parse(parser);
         assertThat(section, notNullValue());
-        assertThat(section.getSkipSection().isEmpty(), equalTo(false));
-        assertThat(section.getSkipSection().getLowerVersion(), equalTo(Version.fromString("6.0.0")));
-        assertThat(section.getSkipSection().getUpperVersion(), equalTo(Version.fromString("6.3.0")));
-        assertThat(section.getSkipSection().getReason(), equalTo("there is a reason"));
+        assertThat(section.getPrerequisiteSection().isEmpty(), equalTo(false));
+        assertThat(section.getPrerequisiteSection().skipReason, equalTo("there is a reason"));
+        assertThat(section.getDoSections().size(), equalTo(2));
+        assertThat(((DoSection) section.getDoSections().get(0)).getApiCallSection().getApi(), equalTo("delete"));
+        assertThat(((DoSection) section.getDoSections().get(1)).getApiCallSection().getApi(), equalTo("delete2"));
+    }
+
+    public void testParseWithRequires() throws Exception {
+        parser = createParser(YamlXContent.yamlXContent, """
+            - requires:
+                cluster_features:  "some_feature"
+                reason:   "there is a reason"
+            - do:
+                delete:
+                  index: foo
+                  type: doc
+                  id: 1
+                  ignore: 404
+            - do:
+                delete2:
+                  index: foo
+                  type: doc
+                  id: 1
+                  ignore: 404
+            """);
+
+        TeardownSection section = TeardownSection.parse(parser);
+        assertThat(section, notNullValue());
+        assertThat(section.getPrerequisiteSection().isEmpty(), equalTo(false));
+        assertThat(section.getPrerequisiteSection().requireReason, equalTo("there is a reason"));
         assertThat(section.getDoSections().size(), equalTo(2));
         assertThat(((DoSection) section.getDoSections().get(0)).getApiCallSection().getApi(), equalTo("delete"));
         assertThat(((DoSection) section.getDoSections().get(1)).getApiCallSection().getApi(), equalTo("delete2"));

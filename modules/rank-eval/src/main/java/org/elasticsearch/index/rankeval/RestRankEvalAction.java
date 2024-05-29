@@ -12,13 +12,17 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -75,9 +79,16 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  *   }
  * }
  */
+@ServerlessScope(Scope.PUBLIC)
 public class RestRankEvalAction extends BaseRestHandler {
 
     public static final String ENDPOINT = "_rank_eval";
+
+    private Predicate<NodeFeature> clusterSupportsFeature;
+
+    public RestRankEvalAction(Predicate<NodeFeature> clusterSupportsFeature) {
+        this.clusterSupportsFeature = clusterSupportsFeature;
+    }
 
     @Override
     public List<Route> routes() {
@@ -93,22 +104,27 @@ public class RestRankEvalAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         RankEvalRequest rankEvalRequest = new RankEvalRequest();
         try (XContentParser parser = request.contentOrSourceParamParser()) {
-            parseRankEvalRequest(rankEvalRequest, request, parser);
+            parseRankEvalRequest(rankEvalRequest, request, parser, clusterSupportsFeature);
         }
         return channel -> client.executeLocally(
-            RankEvalAction.INSTANCE,
+            RankEvalPlugin.ACTION,
             rankEvalRequest,
             new RestToXContentListener<RankEvalResponse>(channel)
         );
     }
 
-    private static void parseRankEvalRequest(RankEvalRequest rankEvalRequest, RestRequest request, XContentParser parser) {
+    private static void parseRankEvalRequest(
+        RankEvalRequest rankEvalRequest,
+        RestRequest request,
+        XContentParser parser,
+        Predicate<NodeFeature> clusterSupportsFeature
+    ) {
         rankEvalRequest.indices(Strings.splitStringByCommaToArray(request.param("index")));
         rankEvalRequest.indicesOptions(IndicesOptions.fromRequest(request, rankEvalRequest.indicesOptions()));
         if (request.hasParam("search_type")) {
             rankEvalRequest.searchType(SearchType.fromString(request.param("search_type")));
         }
-        RankEvalSpec spec = RankEvalSpec.parse(parser);
+        RankEvalSpec spec = RankEvalSpec.parse(parser, clusterSupportsFeature);
         rankEvalRequest.setRankEvalSpec(spec);
     }
 

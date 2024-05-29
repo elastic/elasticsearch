@@ -55,7 +55,7 @@ public class AllocationFilteringIntegTests extends BaseSearchableSnapshotsIntegT
         populateIndex(indexName, 10);
         ensureGreen(indexName);
         createFullSnapshot(fsRepoName, snapshotName);
-        assertAcked(client().admin().indices().prepareDelete(indexName));
+        assertAcked(indicesAdmin().prepareDelete(indexName));
 
         final Settings.Builder indexSettingsBuilder = Settings.builder()
             .put(SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), true)
@@ -131,14 +131,8 @@ public class AllocationFilteringIntegTests extends BaseSearchableSnapshotsIntegT
         final MountSearchableSnapshotRequest mountRequest = prepareMountRequest(indexSettings, mountSettings);
 
         // block allocation to node 0 at the cluster level
-        assertAcked(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(
-                    Settings.builder()
-                        .put(CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING.getConcreteSettingForNamespace("_name").getKey(), nodes.get(0))
-                )
+        updateClusterSettings(
+            Settings.builder().put(CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING.getConcreteSettingForNamespace("_name").getKey(), nodes.get(0))
         );
 
         // mount snapshot and verify it is allocated as expected
@@ -147,9 +141,7 @@ public class AllocationFilteringIntegTests extends BaseSearchableSnapshotsIntegT
         assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(0));
         ensureGreen(mountRequest.mountedIndexName());
 
-        final Settings mountedIndexSettings = client().admin()
-            .indices()
-            .prepareGetSettings(mountRequest.mountedIndexName())
+        final Settings mountedIndexSettings = indicesAdmin().prepareGetSettings(mountRequest.mountedIndexName())
             .get()
             .getIndexToSettings()
             .get(mountRequest.mountedIndexName());
@@ -162,13 +154,8 @@ public class AllocationFilteringIntegTests extends BaseSearchableSnapshotsIntegT
             assertFalse(mountedIndexSettings.toString(), indexSetting.getConcreteSettingForNamespace("_name").exists(mountedIndexSettings));
         }
 
-        assertAcked(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(
-                    Settings.builder().putNull(CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING.getConcreteSettingForNamespace("_name").getKey())
-                )
+        updateClusterSettings(
+            Settings.builder().putNull(CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING.getConcreteSettingForNamespace("_name").getKey())
         );
     }
 

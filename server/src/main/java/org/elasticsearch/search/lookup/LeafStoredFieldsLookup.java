@@ -7,39 +7,29 @@
  */
 package org.elasticsearch.search.lookup;
 
-import org.apache.lucene.index.StoredFieldVisitor;
-import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.CheckedBiConsumer;
-import org.elasticsearch.index.fieldvisitor.SingleFieldsVisitor;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
-import java.util.ArrayList;
+import java.io.UncheckedIOException;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
-
-import static java.util.Collections.singletonMap;
 
 @SuppressWarnings({ "unchecked", "rawtypes" })
 public class LeafStoredFieldsLookup implements Map<Object, FieldLookup> {
 
     private final Function<String, MappedFieldType> fieldTypeLookup;
-    private final CheckedBiConsumer<Integer, StoredFieldVisitor, IOException> reader;
+    private final LeafFieldLookupProvider leafFieldLookupProvider;
 
     private int docId = -1;
 
     private final Map<String, FieldLookup> cachedFieldData = new HashMap<>();
 
-    LeafStoredFieldsLookup(
-        Function<String, MappedFieldType> fieldTypeLookup,
-        CheckedBiConsumer<Integer, StoredFieldVisitor, IOException> reader
-    ) {
+    LeafStoredFieldsLookup(Function<String, MappedFieldType> fieldTypeLookup, LeafFieldLookupProvider leafFieldLookupProvider) {
         this.fieldTypeLookup = fieldTypeLookup;
-        this.reader = reader;
+        this.leafFieldLookupProvider = leafFieldLookupProvider;
     }
 
     public void setDocument(int docId) {
@@ -52,7 +42,11 @@ public class LeafStoredFieldsLookup implements Map<Object, FieldLookup> {
 
     @Override
     public FieldLookup get(Object key) {
-        return loadFieldData(key.toString());
+        try {
+            return loadFieldData(key.toString());
+        } catch (IOException e) {
+            throw new UncheckedIOException("Failed to load stored fields for document [" + docId + "]", e);
+        }
     }
 
     @Override
@@ -115,7 +109,7 @@ public class LeafStoredFieldsLookup implements Map<Object, FieldLookup> {
         throw new UnsupportedOperationException();
     }
 
-    private FieldLookup loadFieldData(String name) {
+    private FieldLookup loadFieldData(String name) throws IOException {
         FieldLookup data = cachedFieldData.get(name);
         if (data == null) {
             MappedFieldType fieldType = fieldTypeLookup.apply(name);
@@ -125,15 +119,8 @@ public class LeafStoredFieldsLookup implements Map<Object, FieldLookup> {
             data = new FieldLookup(fieldType);
             cachedFieldData.put(name, data);
         }
-        if (data.fields() == null) {
-            List<Object> values = new ArrayList<>(2);
-            SingleFieldsVisitor visitor = new SingleFieldsVisitor(data.fieldType(), values);
-            try {
-                reader.accept(docId, visitor);
-            } catch (IOException e) {
-                throw new ElasticsearchParseException("failed to load field [{}]", e, name);
-            }
-            data.fields(singletonMap(data.fieldType().name(), values));
+        if (data.isLoaded() == false) {
+            leafFieldLookupProvider.populateFieldLookup(data, docId);
         }
         return data;
     }

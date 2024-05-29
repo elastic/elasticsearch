@@ -8,12 +8,20 @@
 
 package org.elasticsearch.core;
 
-import java.util.function.Consumer;
+import java.util.Objects;
 
 /**
- * A {@link Consumer}-like interface which allows throwing checked exceptions.
+ * A {@link java.util.function.Consumer}-like interface which allows throwing checked exceptions.
  */
 @FunctionalInterface
 public interface CheckedConsumer<T, E extends Exception> {
     void accept(T t) throws E;
+
+    default CheckedConsumer<T, E> andThen(CheckedConsumer<? super T, E> after) throws E {
+        Objects.requireNonNull(after);
+        return (T t) -> {
+            accept(t);
+            after.accept(t);
+        };
+    }
 }

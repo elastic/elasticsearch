@@ -7,12 +7,12 @@
 
 package org.elasticsearch.xpack.core.slm.action;
 
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.TimeValue;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -22,31 +22,25 @@ public class DeleteSnapshotLifecycleAction extends ActionType<AcknowledgedRespon
     public static final String NAME = "cluster:admin/slm/delete";
 
     protected DeleteSnapshotLifecycleAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
+        super(NAME);
     }
 
     public static class Request extends AcknowledgedRequest<Request> {
 
-        private String lifecycleId;
+        private final String lifecycleId;
 
         public Request(StreamInput in) throws IOException {
             super(in);
             lifecycleId = in.readString();
         }
 
-        public Request() {}
-
-        public Request(String lifecycleId) {
+        public Request(TimeValue masterNodeTimeout, TimeValue ackTimeout, String lifecycleId) {
+            super(masterNodeTimeout, ackTimeout);
             this.lifecycleId = Objects.requireNonNull(lifecycleId, "id may not be null");
         }
 
         public String getLifecycleId() {
             return this.lifecycleId;
-        }
-
-        @Override
-        public ActionRequestValidationException validate() {
-            return null;
         }
 
         @Override

@@ -32,6 +32,11 @@ public class TimeRetentionPolicyConfigTests extends AbstractXContentSerializingT
     }
 
     @Override
+    protected TimeRetentionPolicyConfig mutateInstance(TimeRetentionPolicyConfig instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Reader<TimeRetentionPolicyConfig> instanceReader() {
         return TimeRetentionPolicyConfig::new;
     }

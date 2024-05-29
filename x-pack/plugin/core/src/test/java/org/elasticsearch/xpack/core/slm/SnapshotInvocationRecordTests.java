@@ -14,6 +14,9 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
+
 public class SnapshotInvocationRecordTests extends AbstractXContentSerializingTestCase<SnapshotInvocationRecord> {
 
     @Override
@@ -53,6 +56,42 @@ public class SnapshotInvocationRecordTests extends AbstractXContentSerializingTe
                 );
             default:
                 throw new AssertionError("failure, got illegal switch case");
+        }
+    }
+
+    public void testDetailsFieldIsTruncated() {
+        {
+            // value larger than the max allowed
+            SnapshotInvocationRecord snapshotInvocationRecord = new SnapshotInvocationRecord(
+                randomAlphaOfLengthBetween(5, 10),
+                randomNonNegativeNullableLong(),
+                randomNonNegativeLong(),
+                randomAlphaOfLengthBetween(1300, 1500)
+            );
+            assertThat(snapshotInvocationRecord.getDetails().length(), is(SnapshotInvocationRecord.MAX_DETAILS_LENGTH));
+        }
+
+        {
+            // value lower than the max allowed
+            String details = randomAlphaOfLengthBetween(5, 500);
+            SnapshotInvocationRecord snapshotInvocationRecord = new SnapshotInvocationRecord(
+                randomAlphaOfLengthBetween(5, 10),
+                randomNonNegativeNullableLong(),
+                randomNonNegativeLong(),
+                details
+            );
+            assertThat(snapshotInvocationRecord.getDetails().length(), is(details.length()));
+        }
+
+        {
+            // null value, remains null
+            SnapshotInvocationRecord snapshotInvocationRecord = new SnapshotInvocationRecord(
+                randomAlphaOfLengthBetween(5, 10),
+                randomNonNegativeNullableLong(),
+                randomNonNegativeLong(),
+                null
+            );
+            assertThat(snapshotInvocationRecord.getDetails(), is(nullValue()));
         }
     }
 

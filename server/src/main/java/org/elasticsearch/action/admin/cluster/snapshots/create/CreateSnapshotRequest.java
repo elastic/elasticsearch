@@ -9,11 +9,13 @@
 package org.elasticsearch.action.admin.cluster.snapshots.create;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -54,7 +56,7 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
         IndicesRequest.Replaceable,
         ToXContentObject {
 
-    public static final Version SETTINGS_IN_REQUEST_VERSION = Version.V_8_0_0;
+    public static final TransportVersion SETTINGS_IN_REQUEST_VERSION = TransportVersions.V_8_0_0;
 
     public static int MAXIMUM_METADATA_BYTES = 1024; // chosen arbitrarily
 
@@ -64,7 +66,9 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
 
     private String[] indices = EMPTY_ARRAY;
 
-    private IndicesOptions indicesOptions = IndicesOptions.strictExpandHidden();
+    private IndicesOptions indicesOptions = DataStream.isFailureStoreFeatureFlagEnabled()
+        ? IndicesOptions.strictExpandHiddenIncludeFailureStore()
+        : IndicesOptions.strictExpandHidden();
 
     private String[] featureStates = EMPTY_ARRAY;
 
@@ -77,7 +81,9 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
     @Nullable
     private Map<String, Object> userMetadata;
 
-    public CreateSnapshotRequest() {}
+    public CreateSnapshotRequest() {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
+    }
 
     /**
      * Constructs a new put repository request with the provided snapshot and repository names
@@ -86,6 +92,7 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
      * @param snapshot   snapshot name
      */
     public CreateSnapshotRequest(String repository, String snapshot) {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
         this.snapshot = snapshot;
         this.repository = repository;
     }
@@ -96,14 +103,14 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
         repository = in.readString();
         indices = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
-        if (in.getVersion().before(SETTINGS_IN_REQUEST_VERSION)) {
+        if (in.getTransportVersion().before(SETTINGS_IN_REQUEST_VERSION)) {
             readSettingsFromStream(in);
         }
         featureStates = in.readStringArray();
         includeGlobalState = in.readBoolean();
         waitForCompletion = in.readBoolean();
         partial = in.readBoolean();
-        userMetadata = in.readMap();
+        userMetadata = in.readGenericMap();
     }
 
     @Override
@@ -113,7 +120,7 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
         out.writeString(repository);
         out.writeStringArray(indices);
         indicesOptions.writeIndicesOptions(out);
-        if (out.getVersion().before(SETTINGS_IN_REQUEST_VERSION)) {
+        if (out.getTransportVersion().before(SETTINGS_IN_REQUEST_VERSION)) {
             Settings.EMPTY.writeTo(out);
         }
         out.writeStringArray(featureStates);
@@ -428,17 +435,9 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
         builder.startObject();
         builder.field("repository", repository);
         builder.field("snapshot", snapshot);
-        builder.startArray("indices");
-        for (String index : indices) {
-            builder.value(index);
-        }
-        builder.endArray();
+        builder.array("indices", indices);
         if (featureStates != null) {
-            builder.startArray("feature_states");
-            for (String plugin : featureStates) {
-                builder.value(plugin);
-            }
-            builder.endArray();
+            builder.array("feature_states", featureStates);
         }
         builder.field("partial", partial);
         builder.field("include_global_state", includeGlobalState);
@@ -468,7 +467,7 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
             && Arrays.equals(indices, that.indices)
             && Objects.equals(indicesOptions, that.indicesOptions)
             && Arrays.equals(featureStates, that.featureStates)
-            && Objects.equals(masterNodeTimeout, that.masterNodeTimeout)
+            && Objects.equals(masterNodeTimeout(), that.masterNodeTimeout())
             && Objects.equals(userMetadata, that.userMetadata);
     }
 
@@ -502,7 +501,7 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
             + ", waitForCompletion="
             + waitForCompletion
             + ", masterNodeTimeout="
-            + masterNodeTimeout
+            + masterNodeTimeout()
             + ", metadata="
             + userMetadata
             + '}';

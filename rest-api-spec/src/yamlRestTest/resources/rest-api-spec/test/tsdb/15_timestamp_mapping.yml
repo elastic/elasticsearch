@@ -1,8 +1,15 @@
+---
+setup:
+  - skip:
+      known_issues:
+        - cluster_feature: "gte_v8.7.0"
+          fixed_by: "gte_v8.10.0"
+      reason: "Synthetic source shows up in the mapping in 8.10 and on, may trigger assert failures in mixed cluster tests"
 
 ---
 date:
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: tsdb indexing changed in 8.2.0
 
   - do:
@@ -16,7 +23,6 @@ date:
                 time_series:
                   start_time: 2021-04-28T00:00:00Z
                   end_time: 2021-04-29T00:00:00Z
-                number_of_replicas: 0
                 number_of_shards: 2
             mappings:
               properties:
@@ -50,8 +56,8 @@ date:
 
 ---
 date_nanos:
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: tsdb indexing changed in 8.2.0
 
   - do:
@@ -65,7 +71,6 @@ date_nanos:
                 time_series:
                   start_time: 2021-04-28T00:00:00Z
                   end_time: 2021-04-29T00:00:00Z
-                number_of_replicas: 0
                 number_of_shards: 2
             mappings:
               properties:
@@ -99,8 +104,8 @@ date_nanos:
 
 ---
 automatically add with date:
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: tsdb indexing changed in 8.2.0
 
   - do:
@@ -114,7 +119,6 @@ automatically add with date:
                 time_series:
                   start_time: 2021-04-28T00:00:00Z
                   end_time: 2021-04-29T00:00:00Z
-                number_of_replicas: 0
                 number_of_shards: 2
             mappings:
               properties:
@@ -146,12 +150,12 @@ automatically add with date:
 
 ---
 reject @timestamp with wrong type:
-  - skip:
-      version: " - 8.0.99"
+  - requires:
+      cluster_features: ["gte_v8.1.0"]
       reason: introduced in 8.1.0
 
   - do:
-      catch: /data stream timestamp field \[@timestamp\] is of type \[keyword\], but \[date,date_nanos\] is expected/
+      catch: /data stream timestamp field \[@timestamp\] is of type \[long\], but \[date,date_nanos\] is expected/
       indices.create:
           index: test
           body:
@@ -162,17 +166,16 @@ reject @timestamp with wrong type:
                 time_series:
                   start_time: 2021-04-28T00:00:00Z
                   end_time: 2021-04-29T00:00:00Z
-                number_of_replicas: 0
                 number_of_shards: 2
             mappings:
               properties:
                 "@timestamp":
-                  type: keyword
+                  type: long
 
 ---
 reject timestamp meta field with wrong type:
-  - skip:
-      version: " - 8.0.99"
+  - requires:
+      cluster_features: ["gte_v8.1.0"]
       reason: introduced in 8.1.0
 
   - do:
@@ -187,7 +190,6 @@ reject timestamp meta field with wrong type:
               time_series:
                 start_time: 2021-04-28T00:00:00Z
                 end_time: 2021-04-29T00:00:00Z
-              number_of_replicas: 0
               number_of_shards: 2
           mappings:
             _data_stream_timestamp:
@@ -195,8 +197,8 @@ reject timestamp meta field with wrong type:
 
 ---
 enable timestamp meta field:
-  - skip:
-      version: " - 8.0.99"
+  - requires:
+      cluster_features: ["gte_v8.1.0"]
       reason: introduced in 8.1.0
 
   - do:
@@ -210,7 +212,6 @@ enable timestamp meta field:
               time_series:
                 start_time: 2021-04-28T00:00:00Z
                 end_time: 2021-04-29T00:00:00Z
-              number_of_replicas: 0
               number_of_shards: 2
           mappings:
             _data_stream_timestamp:
@@ -224,8 +225,8 @@ enable timestamp meta field:
 
 ---
 reject bad timestamp meta field:
-  - skip:
-      version: " - 8.0.99"
+  - requires:
+      cluster_features: ["gte_v8.1.0"]
       reason: introduced in 8.1.0
 
   - do:
@@ -240,15 +241,14 @@ reject bad timestamp meta field:
               time_series:
                 start_time: 2021-04-28T00:00:00Z
                 end_time: 2021-04-29T00:00:00Z
-              number_of_replicas: 0
               number_of_shards: 2
           mappings:
             _data_stream_timestamp: enabled
 
 ---
 write without timestamp:
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: tsdb indexing changed in 8.2.0
 
   - do:
@@ -262,7 +262,6 @@ write without timestamp:
               time_series:
                 start_time: 2021-04-28T00:00:00Z
                 end_time: 2021-04-29T00:00:00Z
-              number_of_replicas: 0
               number_of_shards: 2
           mappings:
             properties:
@@ -287,8 +286,8 @@ write without timestamp:
 
 ---
 explicitly enable timestamp meta field:
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: tsdb indexing changed in 8.2.0
 
   - do:
@@ -302,7 +301,6 @@ explicitly enable timestamp meta field:
               time_series:
                 start_time: 2021-04-28T00:00:00Z
                 end_time: 2021-04-29T00:00:00Z
-              number_of_replicas: 0
               number_of_shards: 2
           mappings:
             properties:
@@ -342,8 +340,8 @@ explicitly enable timestamp meta field:
 
 ---
 unable to create a time series index with @timestamp runtime field:
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: tsdb indexing changed in 8.2.0
 
   - do:
@@ -353,7 +351,6 @@ unable to create a time series index with @timestamp runtime field:
         body:
           settings:
             number_of_shards: 1
-            number_of_replicas: 0
             index:
               mode: time_series
               routing_path: [metricset, k8s.pod.uid]

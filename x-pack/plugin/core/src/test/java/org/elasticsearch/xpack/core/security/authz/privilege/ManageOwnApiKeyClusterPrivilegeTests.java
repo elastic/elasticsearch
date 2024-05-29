@@ -11,8 +11,11 @@ package org.elasticsearch.xpack.core.security.authz.privilege;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.xpack.core.security.action.apikey.ApiKeyTests;
 import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.apikey.CreateCrossClusterApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.apikey.CreateCrossClusterApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.GrantApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.GrantApiKeyRequest;
@@ -20,6 +23,8 @@ import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyReque
 import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.UpdateApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.apikey.UpdateCrossClusterApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.apikey.UpdateCrossClusterApiKeyRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTests;
@@ -28,7 +33,9 @@ import org.elasticsearch.xpack.core.security.authc.RealmDomain;
 import org.elasticsearch.xpack.core.security.authz.permission.ClusterPermission;
 import org.elasticsearch.xpack.core.security.user.User;
 
+import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
@@ -82,7 +89,7 @@ public class ManageOwnApiKeyClusterPrivilegeTests extends ESTestCase {
             .build();
         final List<String> apiKeyIds = randomList(1, 5, () -> randomAlphaOfLengthBetween(4, 7));
         final Authentication authentication = AuthenticationTestHelper.builder().build();
-        final TransportRequest bulkUpdateApiKeyRequest = new BulkUpdateApiKeyRequest(apiKeyIds, null, null);
+        final TransportRequest bulkUpdateApiKeyRequest = new BulkUpdateApiKeyRequest(apiKeyIds, null, null, null);
 
         assertTrue(clusterPermission.check("cluster:admin/xpack/security/api_key/update", bulkUpdateApiKeyRequest, authentication));
     }
@@ -252,8 +259,16 @@ public class ManageOwnApiKeyClusterPrivilegeTests extends ESTestCase {
     public void testCheckQueryApiKeyRequest() {
         final ClusterPermission clusterPermission = ManageOwnApiKeyClusterPrivilege.INSTANCE.buildPermission(ClusterPermission.builder())
             .build();
-
-        final QueryApiKeyRequest queryApiKeyRequest = new QueryApiKeyRequest(null, null, null, null, null, randomBoolean());
+        QueryApiKeyRequest queryApiKeyRequest = new QueryApiKeyRequest(
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            randomBoolean(),
+            randomBoolean()
+        );
         if (randomBoolean()) {
             queryApiKeyRequest.setFilterForCurrentUser();
         }
@@ -272,7 +287,7 @@ public class ManageOwnApiKeyClusterPrivilegeTests extends ESTestCase {
             .build();
 
         final boolean withLimitedBy = randomBoolean();
-        final QueryApiKeyRequest queryApiKeyRequest = new QueryApiKeyRequest(null, null, null, null, null, withLimitedBy);
+        QueryApiKeyRequest queryApiKeyRequest = new QueryApiKeyRequest(null, null, null, null, null, null, withLimitedBy, randomBoolean());
         queryApiKeyRequest.setFilterForCurrentUser();
         assertThat(
             clusterPermission.check(QueryApiKeyAction.NAME, queryApiKeyRequest, AuthenticationTestHelper.builder().apiKey().build(false)),
@@ -288,5 +303,30 @@ public class ManageOwnApiKeyClusterPrivilegeTests extends ESTestCase {
         grantApiKeyRequest.setApiKeyRequest(new CreateApiKeyRequest());
 
         assertFalse(clusterPermission.check(GrantApiKeyAction.NAME, grantApiKeyRequest, AuthenticationTestHelper.builder().build()));
+    }
+
+    public void testCheckCreateCrossClusterApiKeyRequestDenied() throws IOException {
+        final ClusterPermission clusterPermission = ManageOwnApiKeyClusterPrivilege.INSTANCE.buildPermission(ClusterPermission.builder())
+            .build();
+        final CreateCrossClusterApiKeyRequest request = CreateCrossClusterApiKeyRequest.withNameAndAccess(
+            randomAlphaOfLengthBetween(3, 8),
+            """
+                {
+                  "search": [ {"names": ["logs"]} ]
+                }"""
+        );
+        assertFalse(clusterPermission.check(CreateCrossClusterApiKeyAction.NAME, request, AuthenticationTestHelper.builder().build()));
+    }
+
+    public void testCheckUpdateCrossClusterApiKeyRequestDenied() {
+        final ClusterPermission clusterPermission = ManageOwnApiKeyClusterPrivilege.INSTANCE.buildPermission(ClusterPermission.builder())
+            .build();
+        final UpdateCrossClusterApiKeyRequest request = new UpdateCrossClusterApiKeyRequest(
+            randomAlphaOfLengthBetween(4, 7),
+            null,
+            Map.of(),
+            ApiKeyTests.randomFutureExpirationTime()
+        );
+        assertFalse(clusterPermission.check(UpdateCrossClusterApiKeyAction.NAME, request, AuthenticationTestHelper.builder().build()));
     }
 }

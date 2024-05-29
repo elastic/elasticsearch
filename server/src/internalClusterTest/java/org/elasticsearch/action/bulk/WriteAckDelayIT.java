@@ -9,7 +9,6 @@
 package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -17,6 +16,8 @@ import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 
 import java.util.ArrayList;
 import java.util.List;
+
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 
 public class WriteAckDelayIT extends ESIntegTestCase {
 
@@ -34,7 +35,7 @@ public class WriteAckDelayIT extends ESIntegTestCase {
         logger.info("indexing [{}] docs", numOfDocs);
         List<IndexRequestBuilder> builders = new ArrayList<>(numOfDocs);
         for (int j = 0; j < numOfDocs; j++) {
-            builders.add(client().prepareIndex("test").setSource("field", "value_" + j));
+            builders.add(prepareIndex("test").setSource("field", "value_" + j));
         }
         indexRandom(true, builders);
         logger.info("verifying indexed content");
@@ -42,17 +43,18 @@ public class WriteAckDelayIT extends ESIntegTestCase {
         for (int j = 0; j < numOfChecks; j++) {
             try {
                 logger.debug("running search");
-                SearchResponse response = client().prepareSearch("test").get();
-                if (response.getHits().getTotalHits().value != numOfDocs) {
-                    final String message = "Count is "
-                        + response.getHits().getTotalHits().value
-                        + " but "
-                        + numOfDocs
-                        + " was expected. "
-                        + ElasticsearchAssertions.formatShardStatus(response);
-                    logger.error("{}. search response: \n{}", message, response);
-                    fail(message);
-                }
+                assertResponse(prepareSearch("test"), response -> {
+                    if (response.getHits().getTotalHits().value != numOfDocs) {
+                        final String message = "Count is "
+                            + response.getHits().getTotalHits().value
+                            + " but "
+                            + numOfDocs
+                            + " was expected. "
+                            + ElasticsearchAssertions.formatShardStatus(response);
+                        logger.error("{}. search response: \n{}", message, response);
+                        fail(message);
+                    }
+                });
             } catch (Exception e) {
                 logger.error("search failed", e);
                 throw e;

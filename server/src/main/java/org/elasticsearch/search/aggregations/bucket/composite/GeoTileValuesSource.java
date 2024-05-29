@@ -46,11 +46,9 @@ class GeoTileValuesSource extends LongValuesSource {
         } else if (value instanceof Number) {
             afterValue = ((Number) value).longValue();
         } else {
-            afterValue = format.parseLong(
-                value.toString(),
-                false,
-                () -> { throw new IllegalArgumentException("now() is not supported in [after] key"); }
-            );
+            afterValue = format.parseLong(value.toString(), false, () -> {
+                throw new IllegalArgumentException("now() is not supported in [after] key");
+            });
         }
     }
 }

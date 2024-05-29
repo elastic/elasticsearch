@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.sql.execution.search;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.aggregations.pipeline.BucketSelectorPipelineAggregationBuilder;
@@ -79,7 +80,7 @@ public class CompositeAggCursor implements Cursor {
         nextQuery = new SearchSourceBuilder(in);
         limit = in.readVInt();
 
-        extractors = in.readNamedWriteableList(BucketExtractor.class);
+        extractors = in.readNamedWriteableCollectionAsList(BucketExtractor.class);
         mask = BitSet.valueOf(in.readByteArray());
         includeFrozen = in.readBoolean();
     }
@@ -90,7 +91,7 @@ public class CompositeAggCursor implements Cursor {
         nextQuery.writeTo(out);
         out.writeVInt(limit);
 
-        out.writeNamedWriteableList(extractors);
+        out.writeNamedWriteableCollection(extractors);
         out.writeByteArray(mask.toByteArray());
         out.writeBoolean(includeFrozen);
     }
@@ -136,7 +137,7 @@ public class CompositeAggCursor implements Cursor {
 
         SearchRequest request = prepareRequest(nextQuery, cfg, includeFrozen, indices);
 
-        client.search(request, new ActionListener.Delegating<>(listener) {
+        client.search(request, new DelegatingActionListener<>(listener) {
             @Override
             public void onResponse(SearchResponse response) {
                 handle(

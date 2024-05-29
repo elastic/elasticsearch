@@ -59,7 +59,7 @@ public final class FrequentItemSetCollector {
         }
 
         public FrequentItemSet(StreamInput in) throws IOException {
-            this.fields = in.readMapOfLists(StreamInput::readString, StreamInput::readGenericValue);
+            this.fields = in.readMapOfLists(StreamInput::readGenericValue);
             this.docCount = in.readVLong();
             this.support = in.readDouble();
         }
@@ -97,7 +97,7 @@ public final class FrequentItemSetCollector {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeMapOfLists(fields, StreamOutput::writeString, StreamOutput::writeGenericValue);
+            out.writeMap(fields, (o, v) -> o.writeCollection(v, StreamOutput::writeGenericValue));
             out.writeVLong(getDocCount());
             out.writeDouble(support);
         }
@@ -177,7 +177,8 @@ public final class FrequentItemSetCollector {
             int pos = items.nextSetBit(0);
             while (pos > 0) {
                 Tuple<Integer, Object> item = transactionStore.getItem(topItemIds.getItemIdAt(pos - 1));
-                assert item.v1() < fields.size() : "item id exceed number of given items, did you configure eclat correctly?";
+                assert item.v1() < fields.size()
+                    : "eclat error: item id (" + item.v1() + ") exceeds the number of given items (" + fields.size() + ")";
                 final Field field = fields.get(item.v1());
                 Object formattedValue = field.formatValue(item.v2());
                 String fieldName = fields.get(item.v1()).getName();
@@ -252,19 +253,20 @@ public final class FrequentItemSetCollector {
         this.topItemIds = topItemIds;
         this.size = size;
         this.min = min;
-        queue = new FrequentItemSetPriorityQueue(size);
-        frequentItemsByCount = Maps.newMapWithExpectedSize(size / 10);
+        this.queue = new FrequentItemSetPriorityQueue(size);
+        this.frequentItemsByCount = Maps.newMapWithExpectedSize(size / 10);
     }
 
     public FrequentItemSet[] finalizeAndGetResults(List<Field> fields) throws IOException {
-        FrequentItemSet[] topFrequentItems = new FrequentItemSet[size()];
+        FrequentItemSet[] topFrequentItems = new FrequentItemSet[queue.size()];
         for (int i = topFrequentItems.length - 1; i >= 0; i--) {
             topFrequentItems[i] = queue.pop().toFrequentItemSet(fields);
         }
         return topFrequentItems;
     }
 
-    public int size() {
+    // Visible for testing
+    int size() {
         return queue.size();
     }
 

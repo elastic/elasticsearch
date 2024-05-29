@@ -9,7 +9,6 @@
 package org.elasticsearch.search.aggregations.pipeline;
 
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
-import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 
@@ -30,5 +29,5 @@ public abstract class SiblingPipelineAggregator extends PipelineAggregator {
         });
     }
 
-    public abstract InternalAggregation doReduce(Aggregations aggregations, AggregationReduceContext context);
+    public abstract InternalAggregation doReduce(InternalAggregations aggregations, AggregationReduceContext context);
 }

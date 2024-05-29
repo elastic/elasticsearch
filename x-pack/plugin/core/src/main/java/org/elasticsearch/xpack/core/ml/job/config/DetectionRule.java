@@ -62,14 +62,14 @@ public class DetectionRule implements ToXContentObject, Writeable {
     public DetectionRule(StreamInput in) throws IOException {
         actions = in.readEnumSet(RuleAction.class);
         scope = new RuleScope(in);
-        conditions = in.readList(RuleCondition::new);
+        conditions = in.readCollectionAsList(RuleCondition::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeEnumSet(actions);
         scope.writeTo(out);
-        out.writeList(conditions);
+        out.writeCollection(conditions);
     }
 
     @Override

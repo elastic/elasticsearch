@@ -8,6 +8,7 @@
 
 package org.elasticsearch.rest.action.admin.cluster;
 
+import org.elasticsearch.action.admin.cluster.node.info.NodesInfoMetrics;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
@@ -16,6 +17,8 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestActions.NodesResponseRestListener;
 
 import java.io.IOException;
@@ -23,9 +26,11 @@ import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestUtils.getTimeout;
 
+@ServerlessScope(Scope.INTERNAL)
 public class RestNodesInfoAction extends BaseRestHandler {
-    static final Set<String> ALLOWED_METRICS = NodesInfoRequest.Metric.allMetrics();
+    static final Set<String> ALLOWED_METRICS = NodesInfoMetrics.Metric.allMetrics();
 
     private final SettingsFilter settingsFilter;
 
@@ -82,7 +87,7 @@ public class RestNodesInfoAction extends BaseRestHandler {
         }
 
         final NodesInfoRequest nodesInfoRequest = new NodesInfoRequest(nodeIds);
-        nodesInfoRequest.timeout(request.param("timeout"));
+        nodesInfoRequest.timeout(getTimeout(request));
         // shortcut, don't do checks if only all is specified
         if (metrics.size() == 1 && metrics.contains("_all")) {
             nodesInfoRequest.all();

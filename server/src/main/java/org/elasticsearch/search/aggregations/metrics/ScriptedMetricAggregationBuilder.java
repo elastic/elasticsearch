@@ -8,7 +8,8 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.script.Script;
@@ -93,7 +94,7 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
         combineScript = in.readOptionalWriteable(Script::new);
         reduceScript = in.readOptionalWriteable(Script::new);
         if (in.readBoolean()) {
-            params = in.readMap();
+            params = in.readGenericMap();
         }
     }
 
@@ -127,13 +128,6 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
     }
 
     /**
-     * Get the {@code init} script.
-     */
-    public Script initScript() {
-        return initScript;
-    }
-
-    /**
      * Set the {@code map} script.
      */
     public ScriptedMetricAggregationBuilder mapScript(Script mapScript) {
@@ -142,13 +136,6 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
         }
         this.mapScript = mapScript;
         return this;
-    }
-
-    /**
-     * Get the {@code map} script.
-     */
-    public Script mapScript() {
-        return mapScript;
     }
 
     /**
@@ -163,13 +150,6 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
     }
 
     /**
-     * Get the {@code combine} script.
-     */
-    public Script combineScript() {
-        return combineScript;
-    }
-
-    /**
      * Set the {@code reduce} script.
      */
     public ScriptedMetricAggregationBuilder reduceScript(Script reduceScript) {
@@ -178,13 +158,6 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
         }
         this.reduceScript = reduceScript;
         return this;
-    }
-
-    /**
-     * Get the {@code reduce} script.
-     */
-    public Script reduceScript() {
-        return reduceScript;
     }
 
     /**
@@ -197,14 +170,6 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
         }
         this.params = params;
         return this;
-    }
-
-    /**
-     * Get parameters that will be available in the {@code init},
-     * {@code map} and {@code combine} phases.
-     */
-    public Map<String, Object> params() {
-        return params;
     }
 
     @Override
@@ -298,8 +263,8 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_EMPTY;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.ZERO;
     }
 
     @Override
@@ -319,5 +284,4 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
             && Objects.equals(reduceScript, other.reduceScript)
             && Objects.equals(params, other.params);
     }
-
 }

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.aggregatemetric.mapper;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
@@ -17,6 +18,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.aggregatemetric.AggregateMetricMapperPlugin;
@@ -32,11 +34,12 @@ import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper.Names.IGNORE_MALFORMED;
 import static org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper.Names.METRICS;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.matchesPattern;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.core.IsInstanceOf.instanceOf;
 
@@ -58,38 +61,29 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
 
     @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {
-        checker.registerConflictCheck(
-            DEFAULT_METRIC,
-            fieldMapping(this::minimalMapping),
-            fieldMapping(
-                b -> { b.field("type", CONTENT_TYPE).field(METRICS_FIELD, new String[] { "min", "max" }).field(DEFAULT_METRIC, "min"); }
-            )
-        );
+        checker.registerConflictCheck(DEFAULT_METRIC, fieldMapping(this::minimalMapping), fieldMapping(b -> {
+            b.field("type", CONTENT_TYPE).field(METRICS_FIELD, new String[] { "min", "max" }).field(DEFAULT_METRIC, "min");
+        }));
 
-        checker.registerConflictCheck(
-            METRICS_FIELD,
-            fieldMapping(this::minimalMapping),
-            fieldMapping(
-                b -> { b.field("type", CONTENT_TYPE).field(METRICS_FIELD, new String[] { "min", "max" }).field(DEFAULT_METRIC, "max"); }
-            )
-        );
+        checker.registerConflictCheck(METRICS_FIELD, fieldMapping(this::minimalMapping), fieldMapping(b -> {
+            b.field("type", CONTENT_TYPE).field(METRICS_FIELD, new String[] { "min", "max" }).field(DEFAULT_METRIC, "max");
+        }));
 
-        checker.registerConflictCheck(
-            METRICS_FIELD,
-            fieldMapping(this::minimalMapping),
-            fieldMapping(
-                b -> {
-                    b.field("type", CONTENT_TYPE)
-                        .field(METRICS_FIELD, new String[] { "min", "max", "value_count", "sum" })
-                        .field(DEFAULT_METRIC, "min");
-                }
-            )
-        );
+        checker.registerConflictCheck(METRICS_FIELD, fieldMapping(this::minimalMapping), fieldMapping(b -> {
+            b.field("type", CONTENT_TYPE)
+                .field(METRICS_FIELD, new String[] { "min", "max", "value_count", "sum" })
+                .field(DEFAULT_METRIC, "min");
+        }));
     }
 
     @Override
     protected Object getSampleValueForDocument() {
         return Map.of("min", -10.1, "max", 50.0, "value_count", 14);
+    }
+
+    @Override
+    protected Object getSampleObjectForDocument() {
+        return getSampleValueForDocument();
     }
 
     @Override
@@ -110,7 +104,7 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
         ParsedDocument doc = mapper.parse(
             source(b -> b.startObject("field").field("min", -10.1).field("max", 50.0).field("value_count", 14).endObject())
         );
-        assertEquals(-10.1, doc.rootDoc().getField("field.min").numericValue());
+        assertEquals("DoubleField <field.min:-10.1>", doc.rootDoc().getField("field.min").toString());
 
         Mapper fieldMapper = mapper.mappers().getMapper("field");
         assertThat(fieldMapper, instanceOf(AggregateDoubleMetricFieldMapper.class));
@@ -141,7 +135,7 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
     public void testParseEmptyValue() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
 
-        Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> b.startObject("field").endObject())));
+        Exception e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> b.startObject("field").endObject())));
         assertThat(
             e.getCause().getMessage(),
             containsString("Aggregate metric field [field] must contain all metrics [min, max, value_count]")
@@ -212,7 +206,7 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
 
         // min > max
         Exception e = expectThrows(
-            MapperParsingException.class,
+            DocumentParsingException.class,
             () -> mapper.parse(
                 source(b -> b.startObject("field").field("min", 50.0).field("max", 10.0).field("value_count", 14).endObject())
             )
@@ -242,7 +236,7 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
     public void testParseArrayValue() throws Exception {
         int randomNumber = randomIntBetween(0, 3);
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> randomMapping(b, randomNumber)));
-        Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> {
+        Exception e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> {
             b.startArray("field").startObject();
             switch (randomNumber) {
                 case 0 -> b.field("min", 10.0);
@@ -475,8 +469,12 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
-        assumeFalse("synthetic _source support for aggregate_double_metric doesn't support ignore_malformed", ignoreMalformed);
-        return new AggregateDoubleMetricSyntheticSourceSupport();
+        return new AggregateDoubleMetricSyntheticSourceSupport(ignoreMalformed);
+    }
+
+    @Override
+    public void testSyntheticSourceIgnoreMalformedExamples() {
+        assumeTrue("Scenarios are covered in scope of syntheticSourceSupport", false);
     }
 
     @Override
@@ -486,16 +484,94 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
 
     protected final class AggregateDoubleMetricSyntheticSourceSupport implements SyntheticSourceSupport {
 
-        private final EnumSet<Metric> storedMetrics = EnumSet.copyOf(randomNonEmptySubsetOf(Arrays.asList(Metric.values())));
+        private final boolean malformedExample;
+        private final EnumSet<Metric> storedMetrics;
+
+        public AggregateDoubleMetricSyntheticSourceSupport(boolean malformedExample) {
+            this.malformedExample = malformedExample;
+            this.storedMetrics = EnumSet.copyOf(randomNonEmptySubsetOf(Arrays.asList(Metric.values())));
+        }
 
         @Override
         public SyntheticSourceExample example(int maxVals) {
             // aggregate_metric_double field does not support arrays
-            Map<String, Object> value = randomAggregateMetric();
+            Object value = randomAggregateMetric();
             return new SyntheticSourceExample(value, value, this::mapping);
         }
 
-        private Map<String, Object> randomAggregateMetric() {
+        private Object randomAggregateMetric() {
+            if (malformedExample && randomBoolean()) {
+                return malformedValue();
+            }
+
+            return validMetrics();
+        }
+
+        private Object malformedValue() {
+            List<Supplier<Object>> choices = List.of(
+                () -> randomAlphaOfLength(3),
+                ESTestCase::randomInt,
+                ESTestCase::randomLong,
+                ESTestCase::randomFloat,
+                ESTestCase::randomDouble,
+                ESTestCase::randomBoolean,
+                // no metrics
+                Map::of,
+                // unmapped metric
+                () -> {
+                    var metrics = validMetrics();
+                    metrics.put("hello", "world");
+                    return metrics;
+                },
+                // missing metric
+                () -> {
+                    var metrics = validMetrics();
+                    metrics.remove(storedMetrics.stream().findFirst().get().name());
+                    return metrics;
+                },
+                // invalid metric value
+                () -> {
+                    var metrics = validMetrics();
+                    metrics.put(storedMetrics.stream().findFirst().get().name(), "boom");
+                    return metrics;
+                },
+                // metric is an object
+                () -> {
+                    var metrics = validMetrics();
+                    metrics.put(storedMetrics.stream().findFirst().get().name(), Map.of("hello", "world"));
+                    return metrics;
+                },
+                // invalid metric value with additional data
+                () -> {
+                    var metrics = validMetrics();
+                    metrics.put(storedMetrics.stream().findFirst().get().name(), "boom");
+                    metrics.put("hello", "world");
+                    metrics.put("object", Map.of("hello", "world"));
+                    metrics.put("list", List.of("hello", "world"));
+                    return metrics;
+                },
+                // negative value count
+                () -> {
+                    var metrics = validMetrics();
+                    if (storedMetrics.contains(Metric.value_count.name())) {
+                        metrics.put(Metric.value_count.name(), -100);
+                    }
+                    return metrics;
+                },
+                // value count with decimal digits (whole numbers formatted as doubles are permitted, but non-whole numbers are not)
+                () -> {
+                    var metrics = validMetrics();
+                    if (storedMetrics.contains(Metric.value_count.name())) {
+                        metrics.put(Metric.value_count.name(), 10.5);
+                    }
+                    return metrics;
+                }
+            );
+
+            return randomFrom(choices).get();
+        }
+
+        private Map<String, Object> validMetrics() {
             Map<String, Object> value = new LinkedHashMap<>(storedMetrics.size());
             for (Metric m : storedMetrics) {
                 if (Metric.value_count == m) {
@@ -514,19 +590,14 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
         private void mapping(XContentBuilder b) throws IOException {
             String[] metrics = storedMetrics.stream().map(Metric::toString).toArray(String[]::new);
             b.field("type", CONTENT_TYPE).array(METRICS_FIELD, metrics).field(DEFAULT_METRIC, metrics[0]);
+            if (malformedExample) {
+                b.field(IGNORE_MALFORMED, true);
+            }
         }
 
         @Override
         public List<SyntheticSourceInvalidExample> invalidExample() throws IOException {
-            return List.of(
-                new SyntheticSourceInvalidExample(
-                    matchesPattern("field \\[field] of type \\[.+] doesn't support synthetic source because it ignores malformed numbers"),
-                    b -> {
-                        mapping(b);
-                        b.field("ignore_malformed", true);
-                    }
-                )
-            );
+            return List.of();
         }
     }
 

@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.watcher.actions.jira;
 
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.ScriptService;
@@ -285,7 +284,7 @@ public class ExecutableJiraActionTests extends ESTestCase {
     private WatchExecutionContext createWatchExecutionContext() {
         ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
         Wid wid = new Wid(randomAlphaOfLength(5), now);
-        Map<String, Object> metadata = MapBuilder.<String, Object>newMapBuilder().put("_key", "_val").map();
+        Map<String, Object> metadata = Map.of("_key", "_val");
         return mockExecutionContextBuilder("watch1").wid(wid)
             .payload(new Payload.Simple())
             .time("watch1", now)

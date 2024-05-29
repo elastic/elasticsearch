@@ -20,10 +20,10 @@
 
 ---
 "Test cat tasks output with X-Opaque-Id":
-  - skip:
-      version: " - 7.9.99"
+  - requires:
+      cluster_features: ["gte_v7.10.0"]
       reason: support for opaque_id was added in 7.10.0
-      features: headers
+      test_runner_features: ["headers"]
 
   - do:
       headers: { "X-Opaque-Id": "TestID" }

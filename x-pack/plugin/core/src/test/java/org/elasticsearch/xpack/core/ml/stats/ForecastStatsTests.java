@@ -232,6 +232,11 @@ public class ForecastStatsTests extends AbstractWireSerializingTestCase<Forecast
     }
 
     @Override
+    protected ForecastStats mutateInstance(ForecastStats instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Reader<ForecastStats> instanceReader() {
         return ForecastStats::new;
     }

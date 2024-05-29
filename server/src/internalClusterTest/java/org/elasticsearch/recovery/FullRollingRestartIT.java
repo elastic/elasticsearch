@@ -12,7 +12,6 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequestBuilder
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.Priority;
@@ -47,22 +46,14 @@ public class FullRollingRestartIT extends ESIntegTestCase {
         internalCluster().startNode();
         createIndex("test");
 
-        final String healthTimeout = "1m";
+        final var healthTimeout = TimeValue.timeValueMinutes(1);
 
         for (int i = 0; i < 1000; i++) {
-            client().prepareIndex("test")
-                .setId(Long.toString(i))
-                .setSource(Map.<String, Object>of("test", "value" + i))
-                .execute()
-                .actionGet();
+            prepareIndex("test").setId(Long.toString(i)).setSource(Map.<String, Object>of("test", "value" + i)).get();
         }
         flush();
         for (int i = 1000; i < 2000; i++) {
-            client().prepareIndex("test")
-                .setId(Long.toString(i))
-                .setSource(Map.<String, Object>of("test", "value" + i))
-                .execute()
-                .actionGet();
+            prepareIndex("test").setId(Long.toString(i)).setSource(Map.<String, Object>of("test", "value" + i)).get();
         }
 
         logger.info("--> now start adding nodes");
@@ -71,9 +62,7 @@ public class FullRollingRestartIT extends ESIntegTestCase {
 
         // make sure the cluster state is green, and all has been recovered
         assertTimeout(
-            client().admin()
-                .cluster()
-                .prepareHealth()
+            clusterAdmin().prepareHealth()
                 .setWaitForEvents(Priority.LANGUID)
                 .setTimeout(healthTimeout)
                 .setWaitForGreenStatus()
@@ -87,9 +76,7 @@ public class FullRollingRestartIT extends ESIntegTestCase {
 
         // make sure the cluster state is green, and all has been recovered
         assertTimeout(
-            client().admin()
-                .cluster()
-                .prepareHealth()
+            clusterAdmin().prepareHealth()
                 .setWaitForEvents(Priority.LANGUID)
                 .setTimeout(healthTimeout)
                 .setWaitForGreenStatus()
@@ -100,16 +87,14 @@ public class FullRollingRestartIT extends ESIntegTestCase {
         logger.info("--> refreshing and checking data");
         refresh();
         for (int i = 0; i < 10; i++) {
-            assertHitCount(client().prepareSearch().setSize(0).setQuery(matchAllQuery()).get(), 2000L);
+            assertHitCount(prepareSearch().setSize(0).setQuery(matchAllQuery()), 2000L);
         }
 
         // now start shutting nodes down
         internalCluster().stopRandomDataNode();
         // make sure the cluster state is green, and all has been recovered
         assertTimeout(
-            client().admin()
-                .cluster()
-                .prepareHealth()
+            clusterAdmin().prepareHealth()
                 .setWaitForEvents(Priority.LANGUID)
                 .setTimeout(healthTimeout)
                 .setWaitForGreenStatus()
@@ -120,9 +105,7 @@ public class FullRollingRestartIT extends ESIntegTestCase {
         internalCluster().stopRandomDataNode();
         // make sure the cluster state is green, and all has been recovered
         assertTimeout(
-            client().admin()
-                .cluster()
-                .prepareHealth()
+            clusterAdmin().prepareHealth()
                 .setWaitForEvents(Priority.LANGUID)
                 .setTimeout(healthTimeout)
                 .setWaitForGreenStatus()
@@ -133,16 +116,14 @@ public class FullRollingRestartIT extends ESIntegTestCase {
         logger.info("--> stopped two nodes, verifying data");
         refresh();
         for (int i = 0; i < 10; i++) {
-            assertHitCount(client().prepareSearch().setSize(0).setQuery(matchAllQuery()).get(), 2000L);
+            assertHitCount(prepareSearch().setSize(0).setQuery(matchAllQuery()), 2000L);
         }
 
         // closing the 3rd node
         internalCluster().stopRandomDataNode();
         // make sure the cluster state is green, and all has been recovered
         assertTimeout(
-            client().admin()
-                .cluster()
-                .prepareHealth()
+            clusterAdmin().prepareHealth()
                 .setWaitForEvents(Priority.LANGUID)
                 .setTimeout(healthTimeout)
                 .setWaitForGreenStatus()
@@ -154,9 +135,7 @@ public class FullRollingRestartIT extends ESIntegTestCase {
 
         // make sure the cluster state is yellow, and all has been recovered
         assertTimeout(
-            client().admin()
-                .cluster()
-                .prepareHealth()
+            clusterAdmin().prepareHealth()
                 .setWaitForEvents(Priority.LANGUID)
                 .setTimeout(healthTimeout)
                 .setWaitForYellowStatus()
@@ -167,7 +146,7 @@ public class FullRollingRestartIT extends ESIntegTestCase {
         logger.info("--> one node left, verifying data");
         refresh();
         for (int i = 0; i < 10; i++) {
-            assertHitCount(client().prepareSearch().setSize(0).setQuery(matchAllQuery()).get(), 2000L);
+            assertHitCount(prepareSearch().setSize(0).setQuery(matchAllQuery()), 2000L);
         }
     }
 
@@ -182,22 +161,15 @@ public class FullRollingRestartIT extends ESIntegTestCase {
          * We have a fix for this to wait until we have allocated unallocated shards now so this shouldn't happen.
          */
         prepareCreate("test").setSettings(
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, "6")
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, "0")
-                .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueMinutes(1))
+            indexSettings(6, 0).put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueMinutes(1))
         ).get();
 
         for (int i = 0; i < 100; i++) {
-            client().prepareIndex("test")
-                .setId(Long.toString(i))
-                .setSource(Map.<String, Object>of("test", "value" + i))
-                .execute()
-                .actionGet();
+            prepareIndex("test").setId(Long.toString(i)).setSource(Map.<String, Object>of("test", "value" + i)).get();
         }
         ensureGreen();
-        ClusterState state = client().admin().cluster().prepareState().get().getState();
-        RecoveryResponse recoveryResponse = client().admin().indices().prepareRecoveries("test").get();
+        ClusterState state = clusterAdmin().prepareState().get().getState();
+        RecoveryResponse recoveryResponse = indicesAdmin().prepareRecoveries("test").get();
         for (RecoveryState recoveryState : recoveryResponse.shardRecoveryStates().get("test")) {
             assertNotEquals(
                 "relocated "
@@ -214,9 +186,9 @@ public class FullRollingRestartIT extends ESIntegTestCase {
         }
         internalCluster().restartRandomDataNode();
         ensureGreen();
-        client().admin().cluster().prepareState().get();
+        clusterAdmin().prepareState().get();
 
-        recoveryResponse = client().admin().indices().prepareRecoveries("test").get();
+        recoveryResponse = indicesAdmin().prepareRecoveries("test").get();
         for (RecoveryState recoveryState : recoveryResponse.shardRecoveryStates().get("test")) {
             assertNotEquals(
                 "relocated "

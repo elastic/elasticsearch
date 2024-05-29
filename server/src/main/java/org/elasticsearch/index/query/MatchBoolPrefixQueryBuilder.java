@@ -10,7 +10,8 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -404,7 +405,7 @@ public class MatchBoolPrefixQueryBuilder extends AbstractQueryBuilder<MatchBoolP
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_7_2_0;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.V_7_2_0;
     }
 }

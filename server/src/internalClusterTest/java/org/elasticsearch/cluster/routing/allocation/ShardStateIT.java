@@ -10,7 +10,6 @@ package org.elasticsearch.cluster.routing.allocation;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
@@ -22,16 +21,14 @@ public class ShardStateIT extends ESIntegTestCase {
 
     public void testPrimaryFailureIncreasesTerm() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(2);
-        prepareCreate("test").setSettings(
-            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-        ).get();
+        prepareCreate("test").setSettings(indexSettings(2, 1)).get();
         ensureGreen();
         assertPrimaryTerms(1, 1);
 
         logger.info("--> disabling allocation to capture shard failure");
         disableAllocation("test");
 
-        ClusterState state = client().admin().cluster().prepareState().get().getState();
+        ClusterState state = clusterAdmin().prepareState().get().getState();
         final int shard = randomBoolean() ? 0 : 1;
         final String nodeId = state.routingTable().index("test").shard(shard).primaryShard().currentNodeId();
         final String node = state.nodes().get(nodeId).getName();
@@ -41,9 +38,7 @@ public class ShardStateIT extends ESIntegTestCase {
 
         logger.info("--> waiting for a yellow index");
         // we can't use ensureYellow since that one is just as happy with a GREEN status.
-        assertBusy(
-            () -> assertThat(client().admin().cluster().prepareHealth("test").get().getStatus(), equalTo(ClusterHealthStatus.YELLOW))
-        );
+        assertBusy(() -> assertThat(clusterAdmin().prepareHealth("test").get().getStatus(), equalTo(ClusterHealthStatus.YELLOW)));
 
         final long term0 = shard == 0 ? 2 : 1;
         final long term1 = shard == 1 ? 2 : 1;

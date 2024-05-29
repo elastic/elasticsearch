@@ -10,6 +10,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
@@ -34,7 +35,13 @@ public class TransportDeletePrivilegesAction extends HandledTransportAction<Dele
         NativePrivilegeStore privilegeStore,
         TransportService transportService
     ) {
-        super(DeletePrivilegesAction.NAME, transportService, actionFilters, DeletePrivilegesRequest::new);
+        super(
+            DeletePrivilegesAction.NAME,
+            transportService,
+            actionFilters,
+            DeletePrivilegesRequest::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
         this.privilegeStore = privilegeStore;
     }
 

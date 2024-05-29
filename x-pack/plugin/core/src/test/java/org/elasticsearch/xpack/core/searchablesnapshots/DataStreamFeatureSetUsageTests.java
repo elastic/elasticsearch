@@ -11,19 +11,22 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.datastreams.DataStreamFeatureSetUsage;
 
-import java.io.IOException;
-
 public class DataStreamFeatureSetUsageTests extends AbstractWireSerializingTestCase<DataStreamFeatureSetUsage> {
 
     @Override
     protected DataStreamFeatureSetUsage createTestInstance() {
         return new DataStreamFeatureSetUsage(
-            new DataStreamFeatureSetUsage.DataStreamStats(randomNonNegativeLong(), randomNonNegativeLong())
+            new DataStreamFeatureSetUsage.DataStreamStats(
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong()
+            )
         );
     }
 
     @Override
-    protected DataStreamFeatureSetUsage mutateInstance(DataStreamFeatureSetUsage instance) throws IOException {
+    protected DataStreamFeatureSetUsage mutateInstance(DataStreamFeatureSetUsage instance) {
         return randomValueOtherThan(instance, this::createTestInstance);
     }
 

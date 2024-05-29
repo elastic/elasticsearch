@@ -26,7 +26,7 @@ import static org.mockito.Mockito.when;
 /**
  * Tests {@link HttpResource}.
  */
-public class HttpResourceTests extends ESTestCase {
+public final class HttpResourceTests extends ESTestCase {
 
     private final String owner = getTestName();
     private final RestClient mockClient = mock(RestClient.class);

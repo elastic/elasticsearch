@@ -10,12 +10,11 @@ package org.elasticsearch.gateway;
 
 import org.apache.lucene.index.IndexWriter;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ReleasableLock;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
@@ -36,7 +35,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.transport.TransportService;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -61,9 +59,9 @@ import static org.hamcrest.Matchers.hasSize;
 /**
  * A legacy version of {@link ReplicaShardAllocatorIT#testPreferCopyCanPerformNoopRecovery()} verifying
  * that the {@link ReplicaShardAllocator} prefers copies with matching sync_id.
- * TODO: Remove this test in 9.0
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
+@UpdateForV9    // remove this test in v9
 public class ReplicaShardAllocatorSyncIdIT extends ESIntegTestCase {
 
     private static final AtomicBoolean allowFlush = new AtomicBoolean();
@@ -98,7 +96,7 @@ public class ReplicaShardAllocatorSyncIdIT extends ESIntegTestCase {
             // make sure that background merges won't happen; otherwise, IndexWriter#hasUncommittedChanges can become true again
             forceMerge(false, 1, false, UUIDs.randomBase64UUID());
             assertNotNull(indexWriter);
-            try (ReleasableLock ignored = writeLock.acquire()) {
+            try (var ignored = acquireEnsureOpenRef()) {
                 assertThat(getTranslogStats().getUncommittedOperations(), equalTo(0));
                 Map<String, String> userData = new HashMap<>(getLastCommittedSegmentInfos().userData);
                 SequenceNumbers.CommitInfo commitInfo = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(userData.entrySet());
@@ -151,24 +149,15 @@ public class ReplicaShardAllocatorSyncIdIT extends ESIntegTestCase {
         String indexName = "test";
         String nodeWithPrimary = internalCluster().startNode();
 
-        assertAcked(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(
-                    Settings.builder().put(CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)
-                )
+        updateClusterSettings(
+            Settings.builder().put(CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)
         );
-
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate(indexName)
+            indicesAdmin().prepareCreate(indexName)
                 .setSettings(
-                    Settings.builder()
-                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                        .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING.getKey(), "1ms") // expire PRRLs quickly
+                    indexSettings(1, 1)
+                        // expire PRRLs quickly
+                        .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING.getKey(), "1ms")
                         .put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), "100ms")
                         .put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), "100ms")
                         .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "1ms")
@@ -181,35 +170,27 @@ public class ReplicaShardAllocatorSyncIdIT extends ESIntegTestCase {
             randomBoolean(),
             randomBoolean(),
             randomBoolean(),
-            IntStream.range(0, between(100, 500)).mapToObj(n -> client().prepareIndex(indexName).setSource("f", "v")).toList()
+            IntStream.range(0, between(100, 500)).mapToObj(n -> prepareIndex(indexName).setSource("f", "v")).toList()
         );
         if (randomBoolean()) {
-            client().admin().indices().prepareFlush(indexName).get();
+            indicesAdmin().prepareFlush(indexName).get();
         }
         ensureGlobalCheckpointAdvancedAndSynced(indexName);
         syncFlush(indexName);
         internalCluster().stopNode(nodeWithReplica);
         // Wait until the peer recovery retention leases of the offline node are expired
         assertBusy(() -> {
-            for (ShardStats shardStats : client().admin().indices().prepareStats(indexName).get().getShards()) {
+            for (ShardStats shardStats : indicesAdmin().prepareStats(indexName).get().getShards()) {
                 assertThat(shardStats.getRetentionLeaseStats().retentionLeases().leases(), hasSize(1));
             }
         });
         CountDownLatch blockRecovery = new CountDownLatch(1);
         CountDownLatch recoveryStarted = new CountDownLatch(1);
-        MockTransportService transportServiceOnPrimary = (MockTransportService) internalCluster().getInstance(
-            TransportService.class,
-            nodeWithPrimary
-        );
+        final var transportServiceOnPrimary = MockTransportService.getInstance(nodeWithPrimary);
         transportServiceOnPrimary.addSendBehavior((connection, requestId, action, request, options) -> {
             if (PeerRecoveryTargetService.Actions.FILES_INFO.equals(action)) {
                 recoveryStarted.countDown();
-                try {
-                    blockRecovery.await();
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    throw new AssertionError(e);
-                }
+                safeAwait(blockRecovery);
             }
             connection.sendRequest(requestId, action, request, options);
         });
@@ -217,7 +198,7 @@ public class ReplicaShardAllocatorSyncIdIT extends ESIntegTestCase {
         recoveryStarted.await();
         nodeWithReplica = internalCluster().startDataOnlyNode(nodeWithReplicaSettings);
         // AllocationService only calls GatewayAllocator if there are unassigned shards
-        assertAcked(client().admin().indices().prepareCreate("dummy-index").setWaitForActiveShards(0));
+        assertAcked(indicesAdmin().prepareCreate("dummy-index").setWaitForActiveShards(0));
         ensureGreen(indexName);
         assertThat(internalCluster().nodesInclude(indexName), containsInAnyOrder(nodeWithPrimary, nodeWithReplica));
         assertNoOpRecoveries(indexName);
@@ -230,14 +211,12 @@ public class ReplicaShardAllocatorSyncIdIT extends ESIntegTestCase {
         internalCluster().ensureAtLeastNumDataNodes(numOfReplicas + 2);
         String indexName = "test";
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate(indexName)
+            indicesAdmin().prepareCreate(indexName)
                 .setSettings(
-                    Settings.builder()
-                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numOfReplicas)
-                        .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), randomIntBetween(10, 100) + "kb")
+                    indexSettings(1, numOfReplicas).put(
+                        IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(),
+                        randomIntBetween(10, 100) + "kb"
+                    )
                         .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING.getKey(), "1ms") // expire PRRLs quickly
                         .put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), "100ms")
                         .put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), "100ms")
@@ -248,33 +227,23 @@ public class ReplicaShardAllocatorSyncIdIT extends ESIntegTestCase {
             randomBoolean(),
             randomBoolean(),
             randomBoolean(),
-            IntStream.range(0, between(200, 500)).mapToObj(n -> client().prepareIndex(indexName).setSource("f", "v")).toList()
+            IntStream.range(0, between(200, 500)).mapToObj(n -> prepareIndex(indexName).setSource("f", "v")).toList()
         );
         if (randomBoolean()) {
-            client().admin().indices().prepareFlush(indexName).get();
+            indicesAdmin().prepareFlush(indexName).get();
         }
         ensureGlobalCheckpointAdvancedAndSynced(indexName);
         syncFlush(indexName);
-        assertAcked(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(Settings.builder().put("cluster.routing.allocation.enable", "primaries").build())
-        );
+        updateClusterSettings(Settings.builder().put("cluster.routing.allocation.enable", "primaries"));
         internalCluster().fullRestart();
         ensureYellow(indexName);
         // Wait until the peer recovery retention leases of the offline node are expired
         assertBusy(() -> {
-            for (ShardStats shardStats : client().admin().indices().prepareStats(indexName).get().getShards()) {
+            for (ShardStats shardStats : indicesAdmin().prepareStats(indexName).get().getShards()) {
                 assertThat(shardStats.getRetentionLeaseStats().retentionLeases().leases(), hasSize(1));
             }
         });
-        assertAcked(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(Settings.builder().putNull("cluster.routing.allocation.enable").build())
-        );
+        updateClusterSettings(Settings.builder().putNull("cluster.routing.allocation.enable"));
         ensureGreen(indexName);
         assertNoOpRecoveries(indexName);
     }
@@ -289,31 +258,24 @@ public class ReplicaShardAllocatorSyncIdIT extends ESIntegTestCase {
         internalCluster().startMasterOnlyNode();
         String source = internalCluster().startDataOnlyNode();
         String indexName = "test";
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate(indexName)
-                .setSettings(
-                    Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                )
-        );
+        createIndex(indexName, 1, 0);
         ensureGreen(indexName);
         if (randomBoolean()) {
             indexRandom(
                 randomBoolean(),
                 randomBoolean(),
                 randomBoolean(),
-                IntStream.range(0, between(200, 500)).mapToObj(n -> client().prepareIndex(indexName).setSource("f", "v")).toList()
+                IntStream.range(0, between(200, 500)).mapToObj(n -> prepareIndex(indexName).setSource("f", "v")).toList()
             );
         }
         if (randomBoolean()) {
-            client().admin().indices().prepareFlush(indexName).get();
+            indicesAdmin().prepareFlush(indexName).get();
         }
         if (randomBoolean()) {
             syncFlush(indexName);
         }
         internalCluster().startDataOnlyNode();
-        MockTransportService transportService = (MockTransportService) internalCluster().getInstance(TransportService.class, source);
+        final var transportService = MockTransportService.getInstance(source);
         Semaphore failRecovery = new Semaphore(1);
         transportService.addSendBehavior((connection, requestId, action, request, options) -> {
             if (action.equals(PeerRecoveryTargetService.Actions.CLEAN_FILES)) {
@@ -334,19 +296,13 @@ public class ReplicaShardAllocatorSyncIdIT extends ESIntegTestCase {
             }
             connection.sendRequest(requestId, action, request, options);
         });
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareUpdateSettings()
-                .setIndices(indexName)
-                .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).build())
-        );
+        setReplicaCount(1, indexName);
         ensureGreen(indexName);
         transportService.clearAllRules();
     }
 
     private void assertNoOpRecoveries(String indexName) {
-        for (RecoveryState recovery : client().admin().indices().prepareRecoveries(indexName).get().shardRecoveryStates().get(indexName)) {
+        for (RecoveryState recovery : indicesAdmin().prepareRecoveries(indexName).get().shardRecoveryStates().get(indexName)) {
             if (recovery.getPrimary() == false) {
                 assertThat(recovery.getIndex().fileDetails(), empty());
                 assertThat(recovery.getTranslog().totalLocal(), equalTo(recovery.getTranslog().totalOperations()));

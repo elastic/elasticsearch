@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.index.shard;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
@@ -53,6 +54,13 @@ public interface IndexEventListener {
      * @param indexShard The index shard
      */
     default void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard, Settings indexSettings) {}
+
+    /**
+     * Called after the index shard has been marked closed. It could still be waiting for the async close of the engine.
+     * The ordering between this and the subsequent state notifications (closed, deleted, store closed) is
+     * not guaranteed.
+     */
+    default void afterIndexShardClosing(ShardId shardId, @Nullable IndexShard indexShard, Settings indexSettings) {}
 
     /**
      * Called after the index shard has been closed.
@@ -166,8 +174,15 @@ public interface IndexEventListener {
      *
      * @param indexShard    the shard that is about to recover
      * @param indexSettings the shard's index settings
+     * @param listener      listener notified when this step completes
      */
-    default void beforeIndexShardRecovery(IndexShard indexShard, IndexSettings indexSettings) {}
+    default void beforeIndexShardRecovery(IndexShard indexShard, IndexSettings indexSettings, ActionListener<Void> listener) {
+        listener.onResponse(null);
+    }
+
+    default void afterIndexShardRecovery(IndexShard indexShard, ActionListener<Void> listener) {
+        listener.onResponse(null);
+    }
 
     /**
      * Called after the raw files have been restored from the repository but any other recovery processing has happened

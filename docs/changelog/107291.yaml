@@ -1,0 +1,6 @@
+pr: 107291
+summary: Support data streams in enrich policy indices
+area: Ingest Node
+type: enhancement
+issues:
+ - 98836

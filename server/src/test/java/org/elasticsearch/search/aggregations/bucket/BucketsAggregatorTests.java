@@ -12,7 +12,6 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
@@ -36,7 +35,7 @@ public class BucketsAggregatorTests extends AggregatorTestCase {
     private List<AggregationContext> toRelease = new ArrayList<>();
 
     @Override
-    protected AggregationContext createAggregationContext(IndexSearcher indexSearcher, Query query, MappedFieldType... fieldTypes)
+    protected AggregationContext createAggregationContext(IndexReader indexSearcher, Query query, MappedFieldType... fieldTypes)
         throws IOException {
         AggregationContext context = super.createAggregationContext(indexSearcher, query, fieldTypes);
         // Generally, we should avoid doing this, but this test doesn't do anything with reduction, so it should be safe here
@@ -59,10 +58,8 @@ public class BucketsAggregatorTests extends AggregatorTestCase {
             }
 
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
-                IndexSearcher indexSearcher = new IndexSearcher(indexReader);
-
                 AggregationContext context = createAggregationContext(
-                    indexSearcher,
+                    indexReader,
                     null,
                     new NumberFieldMapper.NumberFieldType("test", NumberFieldMapper.NumberType.INTEGER)
                 );

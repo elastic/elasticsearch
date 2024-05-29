@@ -14,6 +14,7 @@ setup:
                    positive_score_impact: false
 
 
+
   - do:
       index:
         index: test
@@ -164,3 +165,19 @@ setup:
       hits.hits.0._id: "1"
   - match:
       hits.hits.1._id: "2"
+
+---
+"Dot in feature name":
+
+  - do:
+      catch: /\[rank_features\] fields do not support dots in feature names but found \[qu\.ux\]/
+      index:
+        index: test
+        id: "3"
+        body:
+          tags:
+            bar: 6
+            qu.ux: 10
+          negative_reviews:
+            1star: 1
+            2star: 10

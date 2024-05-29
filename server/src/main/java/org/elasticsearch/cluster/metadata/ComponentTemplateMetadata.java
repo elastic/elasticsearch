@@ -8,7 +8,8 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiff;
@@ -59,7 +60,7 @@ public class ComponentTemplateMetadata implements Metadata.Custom {
     }
 
     public ComponentTemplateMetadata(StreamInput in) throws IOException {
-        this.componentTemplates = in.readMap(StreamInput::readString, ComponentTemplate::new);
+        this.componentTemplates = in.readMap(ComponentTemplate::new);
     }
 
     public Map<String, ComponentTemplate> componentTemplates() {
@@ -86,13 +87,13 @@ public class ComponentTemplateMetadata implements Metadata.Custom {
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_7_7_0;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.V_7_7_0;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(this.componentTemplates, StreamOutput::writeString, (stream, val) -> val.writeTo(stream));
+        out.writeMap(this.componentTemplates, StreamOutput::writeWriteable);
     }
 
     public static ComponentTemplateMetadata fromXContent(XContentParser parser) throws IOException {
@@ -163,8 +164,8 @@ public class ComponentTemplateMetadata implements Metadata.Custom {
         }
 
         @Override
-        public Version getMinimalSupportedVersion() {
-            return Version.V_7_7_0;
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersions.V_7_7_0;
         }
     }
 }

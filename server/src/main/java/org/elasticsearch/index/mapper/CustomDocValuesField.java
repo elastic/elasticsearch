@@ -11,6 +11,8 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.FieldType;
+import org.apache.lucene.document.InvertableType;
+import org.apache.lucene.document.StoredValue;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
@@ -20,11 +22,12 @@ import java.io.Reader;
 // used for binary, geo and range fields
 public abstract class CustomDocValuesField implements IndexableField {
 
-    public static final FieldType TYPE = new FieldType();
+    public static final FieldType TYPE;
     static {
-        TYPE.setDocValuesType(DocValuesType.BINARY);
-        TYPE.setOmitNorms(true);
-        TYPE.freeze();
+        FieldType ft = new FieldType();
+        ft.setDocValuesType(DocValuesType.BINARY);
+        ft.setOmitNorms(true);
+        TYPE = Mapper.freezeAndDeduplicateFieldType(ft);
     }
 
     private final String name;
@@ -63,4 +66,13 @@ public abstract class CustomDocValuesField implements IndexableField {
         return null;
     }
 
+    @Override
+    public StoredValue storedValue() {
+        return null;
+    }
+
+    @Override
+    public InvertableType invertableType() {
+        return InvertableType.BINARY;
+    }
 }

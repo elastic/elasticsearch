@@ -54,7 +54,7 @@ public class SearchTemplateRequest extends ActionRequest implements CompositeInd
         scriptType = ScriptType.readFrom(in);
         script = in.readOptionalString();
         if (in.readBoolean()) {
-            scriptParams = in.readMap();
+            scriptParams = in.readGenericMap();
         }
     }
 

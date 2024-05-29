@@ -12,7 +12,8 @@ import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.automaton.Operations;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -44,7 +45,7 @@ import java.util.TreeMap;
  * (using {@link #field(String)}), will run the parsed query against the provided fields, and combine
  * them using Dismax.
  */
-public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQueryBuilder> {
+public final class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQueryBuilder> {
 
     public static final String NAME = "query_string";
 
@@ -192,7 +193,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeString(this.queryString);
         out.writeOptionalString(this.defaultField);
-        out.writeMap(this.fieldsAndWeights, StreamOutput::writeString, StreamOutput::writeFloat);
+        out.writeMap(this.fieldsAndWeights, StreamOutput::writeFloat);
         this.defaultOperator.writeTo(out);
         out.writeOptionalString(this.analyzer);
         out.writeOptionalString(this.quoteAnalyzer);
@@ -967,7 +968,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_EMPTY;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.ZERO;
     }
 }

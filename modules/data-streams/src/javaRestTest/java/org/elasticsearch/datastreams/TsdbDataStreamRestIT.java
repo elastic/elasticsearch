@@ -10,8 +10,9 @@ package org.elasticsearch.datastreams;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.time.FormatNames;
-import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.junit.Before;
 
@@ -19,7 +20,6 @@ import java.io.IOException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -34,7 +34,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class TsdbDataStreamRestIT extends ESRestTestCase {
+public class TsdbDataStreamRestIT extends DisabledSecurityDataStreamTestCase {
 
     private static final String COMPONENT_TEMPLATE = """
         {
@@ -50,7 +50,7 @@ public class TsdbDataStreamRestIT extends ESRestTestCase {
             "template": {
                 "settings":{
                     "index": {
-                        "number_of_replicas": 0,
+                        "number_of_replicas": 1,
                         "number_of_shards": 2,
                         "mode": "time_series"
                     }
@@ -117,7 +117,7 @@ public class TsdbDataStreamRestIT extends ESRestTestCase {
             "template": {
                 "settings":{
                     "index": {
-                        "number_of_replicas": 0,
+                        "number_of_replicas": 1,
                         "number_of_shards": 2
                     }
                 },
@@ -213,77 +213,96 @@ public class TsdbDataStreamRestIT extends ESRestTestCase {
     }
 
     public void testTsdbDataStreams() throws Exception {
-        var bulkRequest = new Request("POST", "/k8s/_bulk");
-        bulkRequest.setJsonEntity(BULK.replace("$now", formatInstant(Instant.now())));
-        bulkRequest.addParameter("refresh", "true");
-        var response = client().performRequest(bulkRequest);
-        assertOK(response);
-        var responseBody = entityAsMap(response);
-        assertThat("errors in response:\n " + responseBody, responseBody.get("errors"), equalTo(false));
-
-        var getDataStreamsRequest = new Request("GET", "/_data_stream");
-        response = client().performRequest(getDataStreamsRequest);
-        assertOK(response);
-        var dataStreams = entityAsMap(response);
-        assertThat(ObjectPath.evaluate(dataStreams, "data_streams"), hasSize(1));
-        assertThat(ObjectPath.evaluate(dataStreams, "data_streams.0.name"), equalTo("k8s"));
-        assertThat(ObjectPath.evaluate(dataStreams, "data_streams.0.generation"), equalTo(1));
-        assertThat(ObjectPath.evaluate(dataStreams, "data_streams.0.template"), equalTo("1"));
-        assertThat(ObjectPath.evaluate(dataStreams, "data_streams.0.indices"), hasSize(1));
-        String firstBackingIndex = ObjectPath.evaluate(dataStreams, "data_streams.0.indices.0.index_name");
-        assertThat(firstBackingIndex, backingIndexEqualTo("k8s", 1));
-
-        var indices = getIndex(firstBackingIndex);
-        var escapedBackingIndex = firstBackingIndex.replace(".", "\\.");
-        assertThat(ObjectPath.evaluate(indices, escapedBackingIndex + ".data_stream"), equalTo("k8s"));
-        assertThat(ObjectPath.evaluate(indices, escapedBackingIndex + ".settings.index.mode"), equalTo("time_series"));
-        String startTimeFirstBackingIndex = ObjectPath.evaluate(indices, escapedBackingIndex + ".settings.index.time_series.start_time");
-        assertThat(startTimeFirstBackingIndex, notNullValue());
-        String endTimeFirstBackingIndex = ObjectPath.evaluate(indices, escapedBackingIndex + ".settings.index.time_series.end_time");
-        assertThat(endTimeFirstBackingIndex, notNullValue());
-        List<?> routingPaths = ObjectPath.evaluate(indices, escapedBackingIndex + ".settings.index.routing_path");
-        assertThat(routingPaths, containsInAnyOrder("metricset", "k8s.pod.uid", "pod.labels.*"));
-
-        var rolloverRequest = new Request("POST", "/k8s/_rollover");
-        assertOK(client().performRequest(rolloverRequest));
-
-        response = client().performRequest(getDataStreamsRequest);
-        assertOK(response);
-        dataStreams = entityAsMap(response);
-        assertThat(ObjectPath.evaluate(dataStreams, "data_streams.0.name"), equalTo("k8s"));
-        assertThat(ObjectPath.evaluate(dataStreams, "data_streams.0.generation"), equalTo(2));
-        String secondBackingIndex = ObjectPath.evaluate(dataStreams, "data_streams.0.indices.1.index_name");
-        assertThat(secondBackingIndex, backingIndexEqualTo("k8s", 2));
-
-        indices = getIndex(secondBackingIndex);
-        escapedBackingIndex = secondBackingIndex.replace(".", "\\.");
-        assertThat(ObjectPath.evaluate(indices, escapedBackingIndex + ".data_stream"), equalTo("k8s"));
-        String startTimeSecondBackingIndex = ObjectPath.evaluate(indices, escapedBackingIndex + ".settings.index.time_series.start_time");
-        assertThat(startTimeSecondBackingIndex, equalTo(endTimeFirstBackingIndex));
-        String endTimeSecondBackingIndex = ObjectPath.evaluate(indices, escapedBackingIndex + ".settings.index.time_series.end_time");
-        assertThat(endTimeSecondBackingIndex, notNullValue());
-
-        var indexRequest = new Request("POST", "/k8s/_doc");
-        Instant time = parseInstant(startTimeFirstBackingIndex);
-        indexRequest.setJsonEntity(DOC.replace("$time", formatInstant(time)));
-        response = client().performRequest(indexRequest);
-        assertOK(response);
-        assertThat(entityAsMap(response).get("_index"), equalTo(firstBackingIndex));
-
-        indexRequest = new Request("POST", "/k8s/_doc");
-        time = parseInstant(endTimeSecondBackingIndex).minusMillis(1);
-        indexRequest.setJsonEntity(DOC.replace("$time", formatInstant(time)));
-        response = client().performRequest(indexRequest);
-        assertOK(response);
-        assertThat(entityAsMap(response).get("_index"), equalTo(secondBackingIndex));
+        assertTsdbDataStream();
     }
 
     public void testTsdbDataStreamsNanos() throws Exception {
-        // Create a template
+        // Overwrite template to use date_nanos field type:
         var putComposableIndexTemplateRequest = new Request("POST", "/_index_template/1");
         putComposableIndexTemplateRequest.setJsonEntity(TEMPLATE.replace("date", "date_nanos"));
         assertOK(client().performRequest(putComposableIndexTemplateRequest));
 
+        assertTsdbDataStream();
+    }
+
+    public void testTsbdDataStreamComponentTemplateWithAllSettingsAndMappings() throws Exception {
+        // Different component and index template. All settings and mapping are in component template.
+        final String COMPONENT_TEMPLATE_WITH_SETTINGS_AND_MAPPINGS = """
+            {
+                "template": {
+                    "settings":{
+                        "index": {
+                            "mode": "time_series",
+                            "routing_path": ["metricset", "k8s.pod.uid"]
+                        }
+                    },
+                    "mappings":{
+                        "properties": {
+                            "@timestamp" : {
+                                "type": "date"
+                            },
+                            "metricset": {
+                                "type": "keyword",
+                                "time_series_dimension": true
+                            },
+                            "k8s": {
+                                "properties": {
+                                    "pod": {
+                                        "properties": {
+                                            "uid": {
+                                                "type": "keyword",
+                                                "time_series_dimension": true
+                                            },
+                                            "name": {
+                                                "type": "keyword"
+                                            },
+                                            "ip": {
+                                                "type": "ip"
+                                            },
+                                            "network": {
+                                                "properties": {
+                                                    "tx": {
+                                                        "type": "long"
+                                                    },
+                                                    "rx": {
+                                                        "type": "long"
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            """;
+        final String DELEGATE_TEMPLATE = """
+            {
+                "index_patterns": ["k8s*"],
+                "composed_of": ["custom_template"],
+                "data_stream": {
+                }
+            }""";
+
+        // Delete and add new the templates:
+        var deleteRequest = new Request("DELETE", "/_index_template/1");
+        assertOK(client().performRequest(deleteRequest));
+        deleteRequest = new Request("DELETE", "/_component_template/custom_template");
+        assertOK(client().performRequest(deleteRequest));
+        var request = new Request("POST", "/_component_template/custom_template");
+        request.setJsonEntity(COMPONENT_TEMPLATE_WITH_SETTINGS_AND_MAPPINGS);
+        assertOK(client().performRequest(request));
+        request = new Request("POST", "/_index_template/1");
+        request.setJsonEntity(DELEGATE_TEMPLATE);
+        assertOK(client().performRequest(request));
+
+        // Ensure everything behaves the same, regardless of the fact that all settings and mappings are in component template:
+        assertTsdbDataStream();
+    }
+
+    private void assertTsdbDataStream() throws IOException {
         var bulkRequest = new Request("POST", "/k8s/_bulk");
         bulkRequest.setJsonEntity(BULK.replace("$now", formatInstantNanos(Instant.now())));
         bulkRequest.addParameter("refresh", "true");
@@ -333,6 +352,7 @@ public class TsdbDataStreamRestIT extends ESRestTestCase {
         assertThat(endTimeSecondBackingIndex, notNullValue());
 
         var indexRequest = new Request("POST", "/k8s/_doc");
+        indexRequest.addParameter("refresh", "true");
         Instant time = parseInstant(startTimeFirstBackingIndex);
         indexRequest.setJsonEntity(DOC.replace("$time", formatInstantNanos(time)));
         response = client().performRequest(indexRequest);
@@ -340,11 +360,45 @@ public class TsdbDataStreamRestIT extends ESRestTestCase {
         assertThat(entityAsMap(response).get("_index"), equalTo(firstBackingIndex));
 
         indexRequest = new Request("POST", "/k8s/_doc");
+        indexRequest.addParameter("refresh", "true");
         time = parseInstant(endTimeSecondBackingIndex).minusMillis(1);
         indexRequest.setJsonEntity(DOC.replace("$time", formatInstantNanos(time)));
         response = client().performRequest(indexRequest);
         assertOK(response);
         assertThat(entityAsMap(response).get("_index"), equalTo(secondBackingIndex));
+
+        var searchRequest = new Request("GET", "k8s/_search");
+        searchRequest.setJsonEntity("""
+            {
+                "query": {
+                    "range":{
+                        "@timestamp":{
+                            "gte": "now-7d",
+                            "lte": "now+7d"
+                        }
+                    }
+                },
+                "sort": [
+                    {
+                        "@timestamp": {
+                            "order": "desc"
+                        }
+                    }
+                ]
+            }
+            """);
+        response = client().performRequest(searchRequest);
+        assertOK(response);
+        responseBody = entityAsMap(response);
+        try {
+            assertThat(ObjectPath.evaluate(responseBody, "hits.total.value"), equalTo(10));
+            assertThat(ObjectPath.evaluate(responseBody, "hits.total.relation"), equalTo("eq"));
+            assertThat(ObjectPath.evaluate(responseBody, "hits.hits.0._index"), equalTo(secondBackingIndex));
+            assertThat(ObjectPath.evaluate(responseBody, "hits.hits.1._index"), equalTo(firstBackingIndex));
+        } catch (Exception | AssertionError e) {
+            logger.error("search response body causing assertion error [" + responseBody + "]", e);
+            throw e;
+        }
     }
 
     public void testSimulateTsdbDataStreamTemplate() throws Exception {
@@ -354,7 +408,7 @@ public class TsdbDataStreamRestIT extends ESRestTestCase {
         var responseBody = entityAsMap(response);
         assertThat(ObjectPath.evaluate(responseBody, "template.settings.index"), aMapWithSize(6));
         assertThat(ObjectPath.evaluate(responseBody, "template.settings.index.number_of_shards"), equalTo("2"));
-        assertThat(ObjectPath.evaluate(responseBody, "template.settings.index.number_of_replicas"), equalTo("0"));
+        assertThat(ObjectPath.evaluate(responseBody, "template.settings.index.number_of_replicas"), equalTo("1"));
         assertThat(ObjectPath.evaluate(responseBody, "template.settings.index.mode"), equalTo("time_series"));
         assertThat(ObjectPath.evaluate(responseBody, "template.settings.index.time_series.start_time"), notNullValue());
         assertThat(ObjectPath.evaluate(responseBody, "template.settings.index.time_series.end_time"), notNullValue());
@@ -564,6 +618,237 @@ public class TsdbDataStreamRestIT extends ESRestTestCase {
             }
             """);
         client().performRequest(request);
+    }
+
+    public void testLookBackTime() throws IOException {
+        // Create template that uses index.look_back_time index setting:
+        String template = """
+            {
+                "index_patterns": ["test*"],
+                "template": {
+                    "settings":{
+                        "index": {
+                            "look_back_time": "24h",
+                            "number_of_replicas": 1,
+                            "mode": "time_series"
+                        }
+                    },
+                    "mappings":{
+                        "properties": {
+                            "@timestamp" : {
+                                "type": "date"
+                            },
+                            "field": {
+                                "type": "keyword",
+                                "time_series_dimension": true
+                            }
+                        }
+                    }
+                },
+                "data_stream": {}
+            }""";
+        var putIndexTemplateRequest = new Request("PUT", "/_index_template/2");
+        putIndexTemplateRequest.setJsonEntity(template);
+        assertOK(client().performRequest(putIndexTemplateRequest));
+
+        // Create data stream:
+        var createDataStreamRequest = new Request("PUT", "/_data_stream/test123");
+        assertOK(client().performRequest(createDataStreamRequest));
+
+        // Check data stream has been created:
+        var getDataStreamsRequest = new Request("GET", "/_data_stream");
+        var response = client().performRequest(getDataStreamsRequest);
+        assertOK(response);
+        var dataStreams = entityAsMap(response);
+        assertThat(ObjectPath.evaluate(dataStreams, "data_streams"), hasSize(1));
+        assertThat(ObjectPath.evaluate(dataStreams, "data_streams.0.name"), equalTo("test123"));
+        assertThat(ObjectPath.evaluate(dataStreams, "data_streams.0.generation"), equalTo(1));
+        assertThat(ObjectPath.evaluate(dataStreams, "data_streams.0.template"), equalTo("2"));
+        assertThat(ObjectPath.evaluate(dataStreams, "data_streams.0.indices"), hasSize(1));
+        String firstBackingIndex = ObjectPath.evaluate(dataStreams, "data_streams.0.indices.0.index_name");
+        assertThat(firstBackingIndex, backingIndexEqualTo("test123", 1));
+
+        // Check the backing index:
+        // 2023-08-15T04:35:50.000Z
+        var indices = getIndex(firstBackingIndex);
+        var escapedBackingIndex = firstBackingIndex.replace(".", "\\.");
+        assertThat(ObjectPath.evaluate(indices, escapedBackingIndex + ".data_stream"), equalTo("test123"));
+        assertThat(ObjectPath.evaluate(indices, escapedBackingIndex + ".settings.index.mode"), equalTo("time_series"));
+        String startTimeFirstBackingIndex = ObjectPath.evaluate(indices, escapedBackingIndex + ".settings.index.time_series.start_time");
+        assertThat(startTimeFirstBackingIndex, notNullValue());
+        Instant now = Instant.now();
+        Instant startTime = DateFormatters.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(startTimeFirstBackingIndex)).toInstant();
+        assertTrue(now.minus(24, ChronoUnit.HOURS).isAfter(startTime));
+        String endTimeFirstBackingIndex = ObjectPath.evaluate(indices, escapedBackingIndex + ".settings.index.time_series.end_time");
+        assertThat(endTimeFirstBackingIndex, notNullValue());
+    }
+
+    public void testReindexTsdbDataStream() throws Exception {
+        var deleteRequest = new Request("DELETE", "/_index_template/1");
+        assertOK(client().performRequest(deleteRequest));
+        deleteRequest = new Request("DELETE", "/_component_template/custom_template");
+        assertOK(client().performRequest(deleteRequest));
+
+        final int SECONDS_PER_DAY = 24 * 60 * 60;
+        final String CUSTOM_TEMPLATE_WITH_START_END_TIME = """
+            {
+                "template": {
+                    "settings":{
+                        "index": {
+                            "number_of_replicas": 1,
+                            "number_of_shards": 4,
+                            "mode": "time_series",
+                            "routing_path": ["metricset", "k8s.pod.uid"],
+                            "time_series": {
+                                "start_time": "$start",
+                                "end_time": "$end"
+                            }
+                        }
+                    },
+                    "mappings":{
+                        "properties": {
+                            "@timestamp" : {
+                                "type": "date"
+                            },
+                            "metricset": {
+                                "type": "keyword",
+                                "time_series_dimension": true
+                            },
+                            "k8s": {
+                                "properties": {
+                                    "pod": {
+                                        "properties": {
+                                            "uid": {
+                                                "type": "keyword",
+                                                "time_series_dimension": true
+                                            },
+                                            "name": {
+                                                "type": "keyword"
+                                            },
+                                            "ip": {
+                                                "type": "ip"
+                                            },
+                                            "network": {
+                                                "properties": {
+                                                    "tx": {
+                                                        "type": "long"
+                                                    },
+                                                    "rx": {
+                                                        "type": "long"
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            """;
+
+        // Create a data stream that's one week old.
+        var request = new Request("POST", "/_component_template/source_template");
+        request.setJsonEntity(
+            CUSTOM_TEMPLATE_WITH_START_END_TIME.replace("$start", formatInstantNanos(Instant.now().minusSeconds(8 * SECONDS_PER_DAY)))
+                .replace("$end", formatInstantNanos(Instant.now().minusSeconds(6 * SECONDS_PER_DAY)))
+        );
+        assertOK(client().performRequest(request));
+
+        request = new Request("POST", "/_index_template/1");
+        request.setJsonEntity("""
+            {
+                "index_patterns": ["k8s*"],
+                "composed_of": ["source_template"],
+                "data_stream": {
+                }
+            }""");
+        assertOK(client().performRequest(request));
+
+        // Add some docs to it.
+        var bulkRequest = new Request("POST", "/k8s/_bulk");
+        bulkRequest.setJsonEntity(BULK.replace("$now", formatInstantNanos(Instant.now().minusSeconds(7 * SECONDS_PER_DAY))));
+        bulkRequest.addParameter("refresh", "true");
+        var response = client().performRequest(bulkRequest);
+        assertOK(response);
+        var responseBody = entityAsMap(response);
+        assertThat("errors in response:\n " + responseBody, responseBody.get("errors"), equalTo(false));
+
+        // Clone the old data stream.
+        request = new Request("POST", "/_component_template/destination_template");
+        request.setJsonEntity(
+            CUSTOM_TEMPLATE_WITH_START_END_TIME.replace("$start", formatInstantNanos(Instant.now().minusSeconds(8 * SECONDS_PER_DAY)))
+                .replace("$end", formatInstantNanos(Instant.now().minusSeconds(6 * SECONDS_PER_DAY)))
+        );
+        assertOK(client().performRequest(request));
+
+        request = new Request("POST", "/_index_template/2");
+        request.setJsonEntity("""
+            {
+                "index_patterns": ["k9s*"],
+                "composed_of": ["destination_template"],
+                "data_stream": {
+                }
+            }""");
+        assertOK(client().performRequest(request));
+
+        // Reindex.
+        request = new Request("POST", "/_reindex");
+        request.setJsonEntity("""
+            {
+                "source": {
+                    "index": "k8s"
+                  },
+                  "dest": {
+                    "index": "k9s",
+                    "op_type": "create"
+                  }
+            }
+            """);
+        assertOK(client().performRequest(request));
+
+        var getDataStreamsRequest = new Request("GET", "/_data_stream");
+        response = client().performRequest(getDataStreamsRequest);
+        assertOK(response);
+        var dataStreams = entityAsMap(response);
+        assertThat(ObjectPath.evaluate(dataStreams, "data_streams"), hasSize(2));
+        assertThat(ObjectPath.evaluate(dataStreams, "data_streams.0.name"), equalTo("k8s"));
+        assertThat(ObjectPath.evaluate(dataStreams, "data_streams.0.indices"), hasSize(1));
+        assertThat(ObjectPath.evaluate(dataStreams, "data_streams.1.name"), equalTo("k9s"));
+        assertThat(ObjectPath.evaluate(dataStreams, "data_streams.1.indices"), hasSize(1));
+
+        // Update the start and end time of the new data stream.
+        request = new Request("POST", "/_component_template/destination_template");
+        request.setJsonEntity(
+            CUSTOM_TEMPLATE_WITH_START_END_TIME.replace("$start", formatInstantNanos(Instant.now().minusSeconds(SECONDS_PER_DAY)))
+                .replace("$end", formatInstantNanos(Instant.now().plusSeconds(SECONDS_PER_DAY)))
+        );
+        assertOK(client().performRequest(request));
+
+        // Rollover to create a new index with the new settings.
+        request = new Request("POST", "/k9s/_rollover");
+        client().performRequest(request);
+
+        // Insert a doc with a current timestamp.
+        request = new Request("POST", "/k9s/_doc");
+        request.setJsonEntity(DOC.replace("$time", formatInstantNanos(Instant.now())));
+        assertOK(client().performRequest(request));
+
+        request = new Request("POST", "_refresh");
+        assertOK(client().performRequest(request));
+
+        var searchRequest = new Request("GET", "k9s/_search");
+        response = client().performRequest(searchRequest);
+        assertOK(response);
+        responseBody = entityAsMap(response);
+        try {
+            assertThat(ObjectPath.evaluate(responseBody, "hits.total.value"), equalTo(9));
+            assertThat(ObjectPath.evaluate(responseBody, "hits.total.relation"), equalTo("eq"));
+        } catch (Exception | AssertionError e) {
+            logger.error("search response body causing assertion error [" + responseBody + "]", e);
+            throw e;
+        }
     }
 
     private static Map<?, ?> getIndex(String indexName) throws IOException {

@@ -140,20 +140,21 @@ Every new backing index is an opportunity to further tune your strategy.
 
 [discrete]
 [[shard-size-recommendation]]
-==== Aim for shard sizes between 10GB and 50GB
+==== Aim for shards of up to 200M documents, or with sizes between 10GB and 50GB
 
-Larger shards take longer to recover after a failure. When a node fails, {es}
-rebalances the node's shards across the data tier's remaining nodes. This
-recovery process typically involves copying the shard contents across the
-network, so a 100GB shard will take twice as long to recover than a 50GB shard.
-In contrast, small shards carry proportionally more overhead and are less
-efficient to search. Searching fifty 1GB shards will take substantially more
-resources than searching a single 50GB shard containing the same data.
+There is some overhead associated with each shard, both in terms of cluster
+management and search performance. Searching a thousand 50MB shards will be
+substantially more expensive than searching a single 50GB shard containing the
+same data. However, very large shards can also cause slower searches and will
+take longer to recover after a failure.
 
-There are no hard limits on shard size, but experience shows that shards
-between 10GB and 50GB typically work well for logs and time series data. You
-may be able to use larger shards depending on your network and use case.
-Smaller shards may be appropriate for
+There is no hard limit on the physical size of a shard, and each shard can in
+theory contain up to just over two billion documents. However, experience shows
+that shards between 10GB and 50GB typically work well for many use cases, as
+long as the per-shard document count is kept below 200 million.
+
+You may be able to use larger shards depending on your network and use case,
+and smaller shards may be appropriate for
 {enterprise-search-ref}/index.html[Enterprise Search] and similar use cases.
 
 If you use {ilm-init}, set the <<ilm-rollover,rollover action>>'s
@@ -219,6 +220,15 @@ node.
 GET _cat/shards?v=true
 ----
 // TEST[setup:my_index]
+
+[discrete]
+[[shard-count-per-node-recommendation]]
+==== Add enough nodes to stay within the cluster shard limits
+
+The <<cluster-shard-limit,cluster shard limits>> prevent creation of more than
+1000 non-frozen shards per node, and 3000 frozen shards per dedicated frozen
+node. Make sure you have enough nodes of each type in your cluster to handle
+the number of shards you need.
 
 [discrete]
 [[field-count-recommendation]]

@@ -12,33 +12,29 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.transport.TransportChannel;
-import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportResponse;
 
 import static org.elasticsearch.core.Strings.format;
 
-public final class ChannelActionListener<Response extends TransportResponse, Request extends TransportRequest>
-    implements
-        ActionListener<Response> {
+public final class ChannelActionListener<Response extends TransportResponse> implements ActionListener<Response> {
 
     private static final Logger logger = LogManager.getLogger(ChannelActionListener.class);
 
     private final TransportChannel channel;
-    private final Request request;
-    private final String actionName;
 
-    public ChannelActionListener(TransportChannel channel, String actionName, Request request) {
+    public ChannelActionListener(TransportChannel channel) {
         this.channel = channel;
-        this.request = request;
-        this.actionName = actionName;
     }
 
     @Override
     public void onResponse(Response response) {
         try {
             channel.sendResponse(response);
-        } catch (Exception e) {
-            onFailure(e);
+        } catch (RuntimeException e) {
+            final String message = format("channel [%s] threw exceptions on sendResponse", channel);
+            assert false : new AssertionError(message, e);
+            logger.error(() -> message, e);
+            throw e;
         }
     }
 
@@ -46,14 +42,17 @@ public final class ChannelActionListener<Response extends TransportResponse, Req
     public void onFailure(Exception e) {
         try {
             channel.sendResponse(e);
-        } catch (Exception sendException) {
+        } catch (RuntimeException sendException) {
             sendException.addSuppressed(e);
-            logger.warn(() -> format("Failed to send error response for action [%s] and request [%s]", actionName, request), sendException);
+            final String message = format("channel [%s] threw exceptions on sendResponse", channel);
+            assert false : new AssertionError(message, sendException);
+            logger.error(() -> message, sendException);
+            throw sendException;
         }
     }
 
     @Override
     public String toString() {
-        return "ChannelActionListener{" + channel + "}{" + request + "}{" + actionName + "}";
+        return "ChannelActionListener{" + channel + "}";
     }
 }

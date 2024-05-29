@@ -25,6 +25,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.SubSearchContext;
 import org.elasticsearch.search.lookup.Source;
+import org.elasticsearch.search.profile.Profilers;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -86,6 +87,11 @@ public final class InnerHitsContext {
 
         public String getName() {
             return name;
+        }
+
+        @Override
+        public Profilers getProfilers() {
+            return null;
         }
 
         @Override
@@ -172,7 +178,11 @@ public final class InnerHitsContext {
                 }
             }
         } catch (CollectionTerminatedException e) {
-            // ignore and continue
+            // collection was terminated prematurely
+            // continue with the following leaf
         }
+        // Finish the leaf collection in preparation for the next.
+        // This includes any collection that was terminated early via `CollectionTerminatedException`
+        leafCollector.finish();
     }
 }

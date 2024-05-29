@@ -6,7 +6,8 @@
  */
 package org.elasticsearch.xpack.core.ml;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
@@ -65,8 +66,8 @@ public class MlMetadata implements Metadata.Custom {
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.CURRENT.minimumCompatibilityVersion();
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.MINIMUM_COMPATIBLE;
     }
 
     @Override
@@ -85,7 +86,7 @@ public class MlMetadata implements Metadata.Custom {
     }
 
     public MlMetadata(StreamInput in) throws IOException {
-        if (in.getVersion().before(Version.V_8_0_0)) {
+        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             int size = in.readVInt();
             for (int i = 0; i < size; i++) {
                 in.readString();
@@ -103,7 +104,7 @@ public class MlMetadata implements Metadata.Custom {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().before(Version.V_8_0_0)) {
+        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             writeMap(Collections.emptySortedMap(), out);
             writeMap(Collections.emptySortedMap(), out);
         }
@@ -138,7 +139,7 @@ public class MlMetadata implements Metadata.Custom {
         }
 
         public MlMetadataDiff(StreamInput in) throws IOException {
-            if (in.getVersion().before(Version.V_8_0_0)) {
+            if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
                 DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(), Job::new, MlMetadataDiff::readJobDiffFrom);
                 DiffableUtils.readJdkMapDiff(
                     in,
@@ -163,7 +164,7 @@ public class MlMetadata implements Metadata.Custom {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getVersion().before(Version.V_8_0_0)) {
+            if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
                 SortedMap<String, Job> jobs = Collections.emptySortedMap();
                 DiffableUtils.diff(jobs, jobs, DiffableUtils.getStringKeySerializer()).writeTo(out);
                 SortedMap<String, DatafeedConfig> datafeeds = Collections.emptySortedMap();
@@ -179,8 +180,8 @@ public class MlMetadata implements Metadata.Custom {
         }
 
         @Override
-        public Version getMinimalSupportedVersion() {
-            return Version.CURRENT.minimumCompatibilityVersion();
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersions.MINIMUM_COMPATIBLE;
         }
 
         static Diff<Job> readJobDiffFrom(StreamInput in) throws IOException {

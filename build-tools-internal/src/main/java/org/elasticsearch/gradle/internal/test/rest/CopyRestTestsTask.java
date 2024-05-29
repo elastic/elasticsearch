@@ -15,6 +15,7 @@ import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.FileSystemOperations;
 import org.gradle.api.file.FileTree;
 import org.gradle.api.file.ProjectLayout;
+import org.gradle.api.internal.file.FileOperations;
 import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.provider.ListProperty;
 import org.gradle.api.tasks.IgnoreEmptyDirectories;
@@ -43,7 +44,7 @@ import static org.elasticsearch.gradle.util.GradleUtils.getProjectPathFromTask;
  *
  * @see RestResourcesPlugin
  */
-public class CopyRestTestsTask extends DefaultTask {
+public abstract class CopyRestTestsTask extends DefaultTask {
     private static final String REST_TEST_PREFIX = "rest-api-spec/test";
     private final ListProperty<String> includeCore;
     private final ListProperty<String> includeXpack;
@@ -61,6 +62,9 @@ public class CopyRestTestsTask extends DefaultTask {
     private final PatternFilterable xpackPatternSet;
     private final ProjectLayout projectLayout;
     private final FileSystemOperations fileSystemOperations;
+
+    @Inject
+    public abstract FileOperations getFileOperations();
 
     @Inject
     public CopyRestTestsTask(

@@ -8,6 +8,7 @@
 * <<get-transform-stats>>
 * <<preview-transform>>
 * <<reset-transform>>
+* <<schedule-now-transform>>
 * <<start-transform>>
 * <<stop-transform>>
 * <<update-transform>>

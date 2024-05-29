@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.core.security.action.profile;
 
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -21,11 +20,6 @@ public class ActivateProfileResponse extends ActionResponse implements ToXConten
 
     public ActivateProfileResponse(Profile profile) {
         this.profile = profile;
-    }
-
-    public ActivateProfileResponse(StreamInput in) throws IOException {
-        super(in);
-        this.profile = new Profile(in);
     }
 
     public Profile getProfile() {

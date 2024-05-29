@@ -6,11 +6,13 @@
  */
 package org.elasticsearch.xpack.core.ml.inference.persistence;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xpack.core.ml.utils.MlIndexAndAlias;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
+
+import java.util.Map;
 
 /**
  * Class containing the index constants so that the index version, name, and prefix are available to a wider audience.
@@ -40,16 +42,23 @@ public final class InferenceIndexConstants {
     public static final ParseField DOC_TYPE = new ParseField("doc_type");
 
     private static final String NATIVE_INDEX_PREFIX = INDEX_NAME_PREFIX + "native-";
-    private static final String NATIVE_INDEX_VERSION = "000001";
+
+    // 000002 added support for platform specific models
+    private static final String NATIVE_INDEX_VERSION = "000002";
     private static final String NATIVE_LATEST_INDEX = NATIVE_INDEX_PREFIX + NATIVE_INDEX_VERSION;
 
     private static final String MAPPINGS_VERSION_VARIABLE = "xpack.ml.version";
 
+    // 2 added support for platform specific models
+    // 3 added prefix strings configuration
+    public static final int INFERENCE_INDEX_MAPPINGS_VERSION = 3;
+
     public static String mapping() {
         return TemplateUtils.loadTemplate(
-            "/org/elasticsearch/xpack/core/ml/inference_index_mappings.json",
-            Version.CURRENT.toString(),
-            MAPPINGS_VERSION_VARIABLE
+            "/ml/inference_index_mappings.json",
+            MlIndexAndAlias.BWC_MAPPINGS_VERSION, // Only needed for BWC with pre-8.10.0 nodes
+            MAPPINGS_VERSION_VARIABLE,
+            Map.of("xpack.ml.managed.index.version", Integer.toString(INFERENCE_INDEX_MAPPINGS_VERSION))
         );
     }
 

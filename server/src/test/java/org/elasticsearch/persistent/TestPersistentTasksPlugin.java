@@ -10,7 +10,7 @@ package org.elasticsearch.persistent;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -41,7 +41,7 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.PersistentTaskPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -76,9 +76,11 @@ import static org.junit.Assert.fail;
  */
 public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, PersistentTaskPlugin {
 
+    public static final ActionType<TestTasksResponse> TEST_ACTION = new ActionType<>("cluster:admin/persistent/task_test");
+
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        return Collections.singletonList(new ActionHandler<>(TestTaskAction.INSTANCE, TransportTestTaskAction.class));
+        return Collections.singletonList(new ActionHandler<>(TEST_ACTION, TransportTestTaskAction.class));
     }
 
     @Override
@@ -127,7 +129,7 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
             REQUEST_PARSER.declareString(constructorArg(), new ParseField("param"));
         }
 
-        private final Version minVersion;
+        private final TransportVersion minVersion;
         private final Optional<String> feature;
 
         private String executorNodeAttr = null;
@@ -141,10 +143,10 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
         }
 
         public TestParams(String testParam) {
-            this(testParam, Version.CURRENT, Optional.empty());
+            this(testParam, TransportVersion.current(), Optional.empty());
         }
 
-        public TestParams(String testParam, Version minVersion, Optional<String> feature) {
+        public TestParams(String testParam, TransportVersion minVersion, Optional<String> feature) {
             this.testParam = testParam;
             this.minVersion = minVersion;
             this.feature = feature;
@@ -154,7 +156,7 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
             executorNodeAttr = in.readOptionalString();
             responseNode = in.readOptionalString();
             testParam = in.readOptionalString();
-            minVersion = Version.readVersion(in);
+            minVersion = TransportVersion.readVersion(in);
             feature = Optional.ofNullable(in.readOptionalString());
         }
 
@@ -184,7 +186,7 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
             out.writeOptionalString(executorNodeAttr);
             out.writeOptionalString(responseNode);
             out.writeOptionalString(testParam);
-            Version.writeVersion(minVersion, out);
+            TransportVersion.writeVersion(minVersion, out);
             out.writeOptionalString(feature.orElse(null));
         }
 
@@ -216,7 +218,7 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
         }
 
         @Override
-        public Version getMinimalSupportedVersion() {
+        public TransportVersion getMinimalSupportedVersion() {
             return minVersion;
         }
 
@@ -261,11 +263,6 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
         }
 
         @Override
-        public boolean isFragment() {
-            return false;
-        }
-
-        @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(phase);
         }
@@ -301,7 +298,7 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
         private static volatile boolean nonClusterStateCondition = true;
 
         public TestPersistentTasksExecutor(ClusterService clusterService) {
-            super(NAME, ThreadPool.Names.GENERIC);
+            super(NAME, clusterService.threadPool().generic());
             this.clusterService = clusterService;
         }
 
@@ -418,16 +415,6 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
         }
     }
 
-    public static class TestTaskAction extends ActionType<TestTasksResponse> {
-
-        public static final TestTaskAction INSTANCE = new TestTaskAction();
-        public static final String NAME = "cluster:admin/persistent/task_test";
-
-        private TestTaskAction() {
-            super(NAME, TestTasksResponse::new);
-        }
-    }
-
     public static class TestTask extends AllocatedPersistentTask {
         private volatile String operation;
 
@@ -451,9 +438,7 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
 
     static class TestTaskResponse implements Writeable {
 
-        TestTaskResponse() {
-
-        }
+        TestTaskResponse() {}
 
         TestTaskResponse(StreamInput in) throws IOException {
             in.readBoolean();
@@ -494,7 +479,7 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
     public static class TestTasksRequestBuilder extends TasksRequestBuilder<TestTasksRequest, TestTasksResponse, TestTasksRequestBuilder> {
 
         protected TestTasksRequestBuilder(ElasticsearchClient client) {
-            super(client, TestTaskAction.INSTANCE, new TestTasksRequest());
+            super(client, TEST_ACTION, new TestTasksRequest());
         }
 
         public TestTasksRequestBuilder setOperation(String operation) {
@@ -518,13 +503,13 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
 
         public TestTasksResponse(StreamInput in) throws IOException {
             super(in);
-            tasks = in.readList(TestTaskResponse::new);
+            tasks = in.readCollectionAsList(TestTaskResponse::new);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeList(tasks);
+            out.writeCollection(tasks);
         }
 
         public List<TestTaskResponse> getTasks() {
@@ -541,14 +526,13 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
         @Inject
         public TransportTestTaskAction(ClusterService clusterService, TransportService transportService, ActionFilters actionFilters) {
             super(
-                TestTaskAction.NAME,
+                TEST_ACTION.name(),
                 clusterService,
                 transportService,
                 actionFilters,
                 TestTasksRequest::new,
-                TestTasksResponse::new,
                 TestTaskResponse::new,
-                ThreadPool.Names.MANAGEMENT
+                transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT)
             );
         }
 
@@ -563,7 +547,12 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
         }
 
         @Override
-        protected void taskOperation(Task actionTask, TestTasksRequest request, TestTask task, ActionListener<TestTaskResponse> listener) {
+        protected void taskOperation(
+            CancellableTask actionTask,
+            TestTasksRequest request,
+            TestTask task,
+            ActionListener<TestTaskResponse> listener
+        ) {
             task.setOperation(request.operation);
             listener.onResponse(new TestTaskResponse());
         }

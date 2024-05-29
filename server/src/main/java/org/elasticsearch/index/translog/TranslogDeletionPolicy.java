@@ -9,7 +9,7 @@
 package org.elasticsearch.index.translog;
 
 import org.apache.lucene.util.Counter;
-import org.elasticsearch.Assertions;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 

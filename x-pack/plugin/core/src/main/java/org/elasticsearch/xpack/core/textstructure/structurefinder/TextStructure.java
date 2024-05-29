@@ -6,11 +6,11 @@
  */
 package org.elasticsearch.xpack.core.textstructure.structurefinder;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.grok.Grok;
+import org.elasticsearch.grok.GrokBuiltinPatterns;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -26,6 +26,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.SortedMap;
 import java.util.TreeMap;
+
+import static org.elasticsearch.grok.GrokBuiltinPatterns.ECS_COMPATIBILITY_DISABLED;
 
 /**
  * Stores the determined file format.
@@ -131,7 +133,7 @@ public class TextStructure implements ToXContentObject, Writeable {
     }
 
     private static String getNonNullEcsCompatibilityString(String ecsCompatibility) {
-        return (ecsCompatibility == null || ecsCompatibility.isEmpty()) ? Grok.ECS_COMPATIBILITY_MODES[0] : ecsCompatibility;
+        return (ecsCompatibility == null || ecsCompatibility.isEmpty()) ? ECS_COMPATIBILITY_DISABLED : ecsCompatibility;
     }
 
     private final int numLinesAnalyzed;
@@ -218,25 +220,25 @@ public class TextStructure implements ToXContentObject, Writeable {
         format = in.readEnum(Format.class);
         multilineStartPattern = in.readOptionalString();
         excludeLinesPattern = in.readOptionalString();
-        columnNames = in.readBoolean() ? in.readImmutableList(StreamInput::readString) : null;
+        columnNames = in.readBoolean() ? in.readCollectionAsImmutableList(StreamInput::readString) : null;
         hasHeaderRow = in.readOptionalBoolean();
         delimiter = in.readBoolean() ? (char) in.readVInt() : null;
         quote = in.readBoolean() ? (char) in.readVInt() : null;
         shouldTrimFields = in.readOptionalBoolean();
         grokPattern = in.readOptionalString();
-        if (in.getVersion().onOrAfter(Version.V_8_5_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_5_0)) {
             ecsCompatibility = getNonNullEcsCompatibilityString(in.readString());
         } else {
             ecsCompatibility = getNonNullEcsCompatibilityString(null);
         }
-        jodaTimestampFormats = in.readBoolean() ? in.readImmutableList(StreamInput::readString) : null;
-        javaTimestampFormats = in.readBoolean() ? in.readImmutableList(StreamInput::readString) : null;
+        jodaTimestampFormats = in.readBoolean() ? in.readCollectionAsImmutableList(StreamInput::readString) : null;
+        javaTimestampFormats = in.readBoolean() ? in.readCollectionAsImmutableList(StreamInput::readString) : null;
         timestampField = in.readOptionalString();
         needClientTimezone = in.readBoolean();
-        mappings = Collections.unmodifiableSortedMap(new TreeMap<>(in.readMap()));
-        ingestPipeline = in.readBoolean() ? Collections.unmodifiableMap(in.readMap()) : null;
-        fieldStats = Collections.unmodifiableSortedMap(new TreeMap<>(in.readMap(StreamInput::readString, FieldStats::new)));
-        explanation = in.readImmutableList(StreamInput::readString);
+        mappings = Collections.unmodifiableSortedMap(new TreeMap<>(in.readGenericMap()));
+        ingestPipeline = in.readBoolean() ? Collections.unmodifiableMap(in.readGenericMap()) : null;
+        fieldStats = Collections.unmodifiableSortedMap(new TreeMap<>(in.readMap(FieldStats::new)));
+        explanation = in.readCollectionAsImmutableList(StreamInput::readString);
     }
 
     @Override
@@ -253,7 +255,7 @@ public class TextStructure implements ToXContentObject, Writeable {
             out.writeBoolean(false);
         } else {
             out.writeBoolean(true);
-            out.writeCollection(columnNames, StreamOutput::writeString);
+            out.writeStringCollection(columnNames);
         }
         out.writeOptionalBoolean(hasHeaderRow);
         if (delimiter == null) {
@@ -270,20 +272,20 @@ public class TextStructure implements ToXContentObject, Writeable {
         }
         out.writeOptionalBoolean(shouldTrimFields);
         out.writeOptionalString(grokPattern);
-        if (out.getVersion().onOrAfter(Version.V_8_5_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_5_0)) {
             out.writeString(ecsCompatibility);
         }
         if (jodaTimestampFormats == null) {
             out.writeBoolean(false);
         } else {
             out.writeBoolean(true);
-            out.writeCollection(jodaTimestampFormats, StreamOutput::writeString);
+            out.writeStringCollection(jodaTimestampFormats);
         }
         if (javaTimestampFormats == null) {
             out.writeBoolean(false);
         } else {
             out.writeBoolean(true);
-            out.writeCollection(javaTimestampFormats, StreamOutput::writeString);
+            out.writeStringCollection(javaTimestampFormats);
         }
         out.writeOptionalString(timestampField);
         out.writeBoolean(needClientTimezone);
@@ -294,8 +296,8 @@ public class TextStructure implements ToXContentObject, Writeable {
             out.writeBoolean(true);
             out.writeGenericMap(ingestPipeline);
         }
-        out.writeMap(fieldStats, StreamOutput::writeString, (out1, value) -> value.writeTo(out1));
-        out.writeCollection(explanation, StreamOutput::writeString);
+        out.writeMap(fieldStats, StreamOutput::writeWriteable);
+        out.writeStringCollection(explanation);
     }
 
     public int getNumLinesAnalyzed() {
@@ -521,7 +523,7 @@ public class TextStructure implements ToXContentObject, Writeable {
             && Objects.equals(this.explanation, that.explanation);
     }
 
-    public static class Builder {
+    public static final class Builder {
 
         private int numLinesAnalyzed;
         private int numMessagesAnalyzed;
@@ -755,11 +757,11 @@ public class TextStructure implements ToXContentObject, Writeable {
                     }
                     if (ecsCompatibility != null
                         && ecsCompatibility.isEmpty() == false
-                        && Grok.isValidEcsCompatibilityMode(ecsCompatibility) == false) {
+                        && GrokBuiltinPatterns.isValidEcsCompatibilityMode(ecsCompatibility) == false) {
                         throw new IllegalArgumentException(
                             ECS_COMPATIBILITY.getPreferredName()
                                 + "] must be one of ["
-                                + String.join(", ", Grok.ECS_COMPATIBILITY_MODES)
+                                + String.join(", ", GrokBuiltinPatterns.ECS_COMPATIBILITY_MODES)
                                 + "] if specified"
                         );
                     }

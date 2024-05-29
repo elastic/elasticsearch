@@ -15,6 +15,7 @@ import org.elasticsearch.ingest.TestTemplateService;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -33,20 +34,10 @@ public class NetworkDirectionProcessorTests extends ESTestCase {
     }
 
     private Map<String, Object> buildEvent(String source, String destination) {
-        return new HashMap<>() {
-            {
-                put("source", new HashMap<String, Object>() {
-                    {
-                        put("ip", source);
-                    }
-                });
-                put("destination", new HashMap<String, Object>() {
-                    {
-                        put("ip", destination);
-                    }
-                });
-            }
-        };
+        Map<String, Object> event = new HashMap<>();
+        event.put("source", Collections.singletonMap("ip", source));
+        event.put("destination", Collections.singletonMap("ip", destination));
+        return event;
     }
 
     public void testNoInternalNetworks() throws Exception {

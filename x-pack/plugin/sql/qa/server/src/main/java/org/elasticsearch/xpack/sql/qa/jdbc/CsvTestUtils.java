@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Properties;
 
+import static org.elasticsearch.xpack.ql.CsvSpecReader.CsvTestCase;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.emptyOrNullString;
@@ -156,70 +157,5 @@ public final class CsvTestUtils {
             case "ul" -> "bigdecimal"; // CSV JDBC driver lacks biginteger support
             default -> type;
         };
-    }
-
-    /**
-     * Returns an instance of a parser for csv-spec tests.
-     */
-    public static CsvSpecParser specParser() {
-        return new CsvSpecParser();
-    }
-
-    private static class CsvSpecParser implements SpecBaseIntegrationTestCase.Parser {
-        private static final String SCHEMA_PREFIX = "schema::";
-
-        private final StringBuilder earlySchema = new StringBuilder();
-        private final StringBuilder query = new StringBuilder();
-        private final StringBuilder data = new StringBuilder();
-        private CsvTestCase testCase;
-
-        @Override
-        public Object parse(String line) {
-            // read the query
-            if (testCase == null) {
-                if (line.startsWith(SCHEMA_PREFIX)) {
-                    assertThat("Early schema already declared " + earlySchema, earlySchema.length(), is(0));
-                    earlySchema.append(line.substring(SCHEMA_PREFIX.length()).trim());
-                } else {
-                    if (line.endsWith(";")) {
-                        // pick up the query
-                        testCase = new CsvTestCase();
-                        query.append(line.substring(0, line.length() - 1).trim());
-                        testCase.query = query.toString();
-                        testCase.earlySchema = earlySchema.toString();
-                        earlySchema.setLength(0);
-                        query.setLength(0);
-                    }
-                    // keep reading the query
-                    else {
-                        query.append(line);
-                        query.append("\r\n");
-                    }
-                }
-            }
-            // read the results
-            else {
-                // read data
-                if (line.startsWith(";")) {
-                    testCase.expectedResults = data.toString();
-                    // clean-up and emit
-                    CsvTestCase result = testCase;
-                    testCase = null;
-                    data.setLength(0);
-                    return result;
-                } else {
-                    data.append(line);
-                    data.append("\r\n");
-                }
-            }
-
-            return null;
-        }
-    }
-
-    public static class CsvTestCase {
-        public String query;
-        public String earlySchema;
-        public String expectedResults;
     }
 }

@@ -1347,7 +1347,7 @@ public class Cron implements ToXContentFragment {
         };
     }
 
-    private ValueSet getValue(int v, String s, int i) {
+    private static ValueSet getValue(int v, String s, int i) {
         char c = s.charAt(i);
         StringBuilder s1 = new StringBuilder(String.valueOf(v));
         while (c >= '0' && c <= '9') {
@@ -1365,13 +1365,13 @@ public class Cron implements ToXContentFragment {
         return val;
     }
 
-    private int getNumericValue(String s, int i) {
+    private static int getNumericValue(String s, int i) {
         int endOfVal = findNextWhiteSpace(i, s);
         String val = s.substring(i, endOfVal);
         return Integer.parseInt(val);
     }
 
-    private int getMonthNumber(String s) {
+    private static int getMonthNumber(String s) {
         Integer integer = MONTH_MAP.get(s);
 
         if (integer == null) {
@@ -1381,7 +1381,7 @@ public class Cron implements ToXContentFragment {
         return integer;
     }
 
-    private int getDayOfWeekNumber(String s) {
+    private static int getDayOfWeekNumber(String s) {
         Integer integer = DAY_MAP.get(s);
 
         if (integer == null) {
@@ -1409,7 +1409,7 @@ public class Cron implements ToXContentFragment {
         return ((year % 4 == 0 && year % 100 != 0) || (year % 400 == 0));
     }
 
-    private int getLastDayOfMonth(int monthNum, int year) {
+    private static int getLastDayOfMonth(int monthNum, int year) {
 
         return switch (monthNum) {
             case 1 -> 31;

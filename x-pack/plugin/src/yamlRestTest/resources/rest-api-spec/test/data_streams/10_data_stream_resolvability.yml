@@ -1,9 +1,9 @@
 ---
 "Verify data stream resolvability for xpack apis":
-  - skip:
-      version: " - 7.8.99"
+  - requires:
+      cluster_features: ["gte_v7.9.0"]
       reason: "data streams available in 7.9+"
-      features: allowed_warnings
+      test_runner_features: allowed_warnings
 
   - do:
       allowed_warnings:
@@ -52,10 +52,10 @@
 
 ---
 "Verify data stream resolvability in ilm explain api":
-  - skip:
-      version: " - 7.8.99"
+  - requires:
+      cluster_features: ["gte_v7.9.0"]
       reason: "data streams available in 7.9+"
-      features: allowed_warnings
+      test_runner_features: allowed_warnings
 
   - do:
       ilm.put_lifecycle:
@@ -122,10 +122,10 @@
   - is_true: acknowledged
 ---
 "Verify data stream resolvability rollup":
-  - skip:
-      version: " - 7.8.99"
+  - requires:
+      cluster_features: ["gte_v7.9.0"]
       reason: "data streams available in 7.9+"
-      features: allowed_warnings
+      test_runner_features: allowed_warnings
 
   - do:
       allowed_warnings:
@@ -157,10 +157,10 @@
 
 ---
 "Verify data stream resolvability in ILM remove policy API":
-  - skip:
-      version: " - 7.8.99"
+  - requires:
+      cluster_features: ["gte_v7.9.0"]
       reason: "data streams available in 7.9+"
-      features: allowed_warnings
+      test_runner_features: allowed_warnings
 
   - do:
       ilm.put_lifecycle:
@@ -253,10 +253,10 @@
 
 ---
 "Verify data stream resolvability for graph explore API":
-  - skip:
-      version: " - 7.8.99"
+  - requires:
+      cluster_features: ["gte_v7.9.0"]
       reason: "data streams available in 7.9+"
-      features: allowed_warnings
+      test_runner_features: allowed_warnings
 
   - do:
       allowed_warnings:
@@ -316,10 +316,10 @@
 
 ---
 "Verify data stream resolvability in migrations API":
-  - skip:
-      version: " - 7.8.99"
+  - requires:
+      cluster_features: ["gte_v7.9.0"]
       reason: "data streams available in 7.9+"
-      features: allowed_warnings
+      test_runner_features: allowed_warnings
 
   - do:
       allowed_warnings:
@@ -355,10 +355,10 @@
 
 ---
 "Verify data stream resolvability in async search":
-  - skip:
-      version: " - 7.8.99"
+  - requires:
+      cluster_features: ["gte_v7.9.0"]
       reason: "data streams available in 7.9+"
-      features: allowed_warnings
+      test_runner_features: allowed_warnings
 
   - do:
       allowed_warnings:
@@ -425,10 +425,10 @@
 
 ---
 "Verify data stream resolvability in rollup search":
-  - skip:
-      version: " - 7.8.99"
+  - requires:
+      cluster_features: ["gte_v7.9.0"]
       reason: "data streams available in 7.9+"
-      features: allowed_warnings
+      test_runner_features: allowed_warnings
 
   - do:
       allowed_warnings:
@@ -497,10 +497,10 @@
 
 ---
 "Verify data stream resolvability in EQL search API with no sequences":
-  - skip:
-      version: " - 7.9.1"
+  - requires:
+      cluster_features: ["gte_v7.9.2"]
       reason: "EQL data stream resolution only properly works from 7.9.2"
-      features: allowed_warnings
+      test_runner_features: allowed_warnings
 
   - do:
       allowed_warnings:
@@ -561,10 +561,10 @@
 
 ---
 "Verify data stream resolvability in EQL search API with sequences":
-  - skip:
-      version: " - 7.9.99"
+  - requires:
+      cluster_features: ["gte_v7.10.0"]
       reason: "EQL data stream resolution with queries using sequences only properly works from 7.10.0 (when point-in-time is introduced)"
-      features: allowed_warnings
+      test_runner_features: allowed_warnings
 
   - do:
       allowed_warnings:
@@ -626,10 +626,10 @@
 
 ---
 "Verify data stream resolvability in PIT searches":
-  - skip:
-      version: " - 7.9.99"
+  - requires:
+      cluster_features: ["gte_v7.10.0"]
       reason: "Point-In-Time was introduced in 7.10.0"
-      features: allowed_warnings
+      test_runner_features: allowed_warnings
 
   - do:
       allowed_warnings:

@@ -22,13 +22,13 @@ public class PutCalendarActionRequestTests extends AbstractXContentSerializingTe
     }
 
     @Override
-    protected Writeable.Reader<PutCalendarAction.Request> instanceReader() {
-        return PutCalendarAction.Request::new;
+    protected PutCalendarAction.Request mutateInstance(PutCalendarAction.Request instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override
-    protected boolean supportsUnknownFields() {
-        return false;
+    protected Writeable.Reader<PutCalendarAction.Request> instanceReader() {
+        return PutCalendarAction.Request::new;
     }
 
     @Override

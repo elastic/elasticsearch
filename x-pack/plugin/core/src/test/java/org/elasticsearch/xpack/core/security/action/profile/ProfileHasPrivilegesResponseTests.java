@@ -49,7 +49,7 @@ public class ProfileHasPrivilegesResponseTests extends AbstractWireSerializingTe
     }
 
     @Override
-    protected ProfileHasPrivilegesResponse mutateInstance(ProfileHasPrivilegesResponse instance) throws IOException {
+    protected ProfileHasPrivilegesResponse mutateInstance(ProfileHasPrivilegesResponse instance) {
         return randomFrom(
             new ProfileHasPrivilegesResponse(newMutatedSet(instance.hasPrivilegeUids()), instance.errors()),
             new ProfileHasPrivilegesResponse(instance.hasPrivilegeUids(), randomValueOtherThan(instance.errors(), this::randomErrors)),

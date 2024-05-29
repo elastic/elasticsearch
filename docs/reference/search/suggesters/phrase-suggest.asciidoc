@@ -366,7 +366,7 @@ The direct generators support the following parameters:
 
 `max_inspections`::
     A factor that is used to multiply with the
-    `shards_size` in order to inspect more candidate spelling corrections on
+    `shard_size` in order to inspect more candidate spelling corrections on
     the shard level. Can improve accuracy at the cost of performance.
     Defaults to 5.
 

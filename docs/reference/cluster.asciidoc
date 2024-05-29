@@ -24,7 +24,7 @@ one of the following:
   `coordinating_only:true`, which respectively add to the subset all
   master-eligible nodes, all data nodes, all ingest nodes, all voting-only
   nodes, all machine learning nodes, and all coordinating-only nodes.
-* `master:false`, `data:false`, `ingest:false`, `voting_only:true`, `ml:false`,
+* `master:false`, `data:false`, `ingest:false`, `voting_only:false`, `ml:false`,
   or `coordinating_only:false`, which respectively remove from the subset all
   master-eligible nodes, all data nodes, all ingest nodes, all voting-only
   nodes, all machine learning nodes, and all coordinating-only nodes.
@@ -104,6 +104,8 @@ include::cluster/nodes-reload-secure-settings.asciidoc[]
 
 include::cluster/nodes-stats.asciidoc[]
 
+include::cluster/cluster-info.asciidoc[]
+
 include::cluster/pending.asciidoc[]
 
 include::cluster/remote-info.asciidoc[]
@@ -119,3 +121,5 @@ include::cluster/get-desired-nodes.asciidoc[]
 include::cluster/delete-desired-nodes.asciidoc[]
 
 include::cluster/get-desired-balance.asciidoc[]
+
+include::cluster/delete-desired-balance.asciidoc[]

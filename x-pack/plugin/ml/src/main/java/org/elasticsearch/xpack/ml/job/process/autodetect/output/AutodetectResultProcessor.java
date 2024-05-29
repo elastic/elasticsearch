@@ -35,7 +35,7 @@ import org.elasticsearch.xpack.core.ml.job.results.Forecast;
 import org.elasticsearch.xpack.core.ml.job.results.ForecastRequestStats;
 import org.elasticsearch.xpack.core.ml.job.results.Influencer;
 import org.elasticsearch.xpack.core.ml.job.results.ModelPlot;
-import org.elasticsearch.xpack.core.security.user.XPackUser;
+import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.elasticsearch.xpack.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.TimingStatsReporter;
@@ -58,8 +58,6 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
-import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
-import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.JOB_FORECAST_NATIVE_PROCESS_KILLED;
 
 /**
@@ -394,10 +392,12 @@ public class AutodetectResultProcessor {
             try {
                 bulkResultsPersister.executeRequest();
                 bulkAnnotationsPersister.executeRequest();
-                persister.commitWrites(
-                    jobId,
-                    EnumSet.of(JobResultsPersister.CommitType.RESULTS, JobResultsPersister.CommitType.ANNOTATIONS)
-                );
+                if (flushAcknowledgement.getRefreshRequired()) {
+                    persister.commitWrites(
+                        jobId,
+                        EnumSet.of(JobResultsPersister.CommitType.RESULTS, JobResultsPersister.CommitType.ANNOTATIONS)
+                    );
+                }
             } catch (Exception e) {
                 logger.error(
                     "["
@@ -425,12 +425,12 @@ public class AutodetectResultProcessor {
             Messages.getMessage(Messages.JOB_AUDIT_SNAPSHOT_STORED, modelSnapshot.getSnapshotId())
         )
             .setCreateTime(currentTime)
-            .setCreateUsername(XPackUser.NAME)
+            .setCreateUsername(InternalUsers.XPACK_USER.principal())
             .setTimestamp(modelSnapshot.getLatestResultTimeStamp())
             .setEndTimestamp(modelSnapshot.getLatestResultTimeStamp())
             .setJobId(jobId)
             .setModifiedTime(currentTime)
-            .setModifiedUsername(XPackUser.NAME)
+            .setModifiedUsername(InternalUsers.XPACK_USER.principal())
             .setType(Annotation.Type.ANNOTATION)
             .setEvent(Annotation.Event.MODEL_SNAPSHOT_STORED)
             .build();
@@ -504,19 +504,27 @@ public class AutodetectResultProcessor {
             return;
         }
 
-        executeAsyncWithOrigin(client, ML_ORIGIN, UpdateJobAction.INSTANCE, updateRequest, new ActionListener<PutJobAction.Response>() {
-            @Override
-            public void onResponse(PutJobAction.Response response) {
-                updateModelSnapshotSemaphore.release();
-                logger.debug("[{}] Updated job with model snapshot id [{}]", jobId, modelSnapshot.getSnapshotId());
-            }
+        RetryableUpdateModelSnapshotAction updateModelSnapshotAction = new RetryableUpdateModelSnapshotAction(
+            client,
+            updateRequest,
+            new ActionListener<>() {
+                @Override
+                public void onResponse(PutJobAction.Response response) {
+                    updateModelSnapshotSemaphore.release();
+                    logger.debug("[{}] Updated job with model snapshot id [{}]", jobId, modelSnapshot.getSnapshotId());
+                }
 
-            @Override
-            public void onFailure(Exception e) {
-                updateModelSnapshotSemaphore.release();
-                logger.error("[" + jobId + "] Failed to update job with new model snapshot id [" + modelSnapshot.getSnapshotId() + "]", e);
+                @Override
+                public void onFailure(Exception e) {
+                    updateModelSnapshotSemaphore.release();
+                    logger.error(
+                        "[" + jobId + "] Failed to update job with new model snapshot id [" + modelSnapshot.getSnapshotId() + "]",
+                        e
+                    );
+                }
             }
-        });
+        );
+        updateModelSnapshotAction.run();
     }
 
     public void awaitCompletion() throws TimeoutException {

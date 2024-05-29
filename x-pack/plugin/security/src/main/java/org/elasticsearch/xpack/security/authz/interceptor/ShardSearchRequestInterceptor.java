@@ -11,7 +11,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -25,11 +24,8 @@ public class ShardSearchRequestInterceptor extends FieldAndDocumentLevelSecurity
 
     private static final Logger logger = LogManager.getLogger(ShardSearchRequestInterceptor.class);
 
-    private final ClusterService clusterService;
-
-    public ShardSearchRequestInterceptor(ThreadPool threadPool, XPackLicenseState licenseState, ClusterService clusterService) {
+    public ShardSearchRequestInterceptor(ThreadPool threadPool, XPackLicenseState licenseState) {
         super(threadPool.getThreadContext(), licenseState);
-        this.clusterService = clusterService;
     }
 
     @Override

@@ -9,7 +9,6 @@
 package org.elasticsearch.action;
 
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -30,9 +29,9 @@ public class ListenerActionIT extends ESIntegTestCase {
             request.source(Requests.INDEX_CONTENT_TYPE, "field1", "value1");
         }
 
-        client.index(request, new ActionListener<IndexResponse>() {
+        client.index(request, new ActionListener<DocWriteResponse>() {
             @Override
-            public void onResponse(IndexResponse indexResponse) {
+            public void onResponse(DocWriteResponse indexResponse) {
                 threadName.set(Thread.currentThread().getName());
                 latch.countDown();
             }

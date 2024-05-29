@@ -8,14 +8,12 @@
 
 package org.elasticsearch.action.admin.cluster.node.shutdown;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
-import java.io.IOException;
-
-import static org.elasticsearch.action.admin.cluster.node.shutdown.PrevalidateShardPathRequestSerializationTests.createSetMutation;
+import static org.elasticsearch.action.admin.cluster.node.shutdown.PrevalidateShardPathRequestSerializationTestUtils.createSetMutation;
 
 public class NodePrevalidateShardPathResponseSerializationTests extends AbstractWireSerializingTestCase<NodePrevalidateShardPathResponse> {
 
@@ -32,22 +30,22 @@ public class NodePrevalidateShardPathResponseSerializationTests extends Abstract
     public static NodePrevalidateShardPathResponse getRandomResponse() {
         return new NodePrevalidateShardPathResponse(
             getRandomNode(),
-            randomSet(0, 100, PrevalidateShardPathRequestSerializationTests::randomShardId)
+            randomSet(0, 100, PrevalidateShardPathRequestSerializationTestUtils::randomShardId)
         );
     }
 
     public static DiscoveryNode getRandomNode() {
-        return new DiscoveryNode(randomAlphaOfLength(10), buildNewFakeTransportAddress(), Version.CURRENT);
+        return DiscoveryNodeUtils.create(randomAlphaOfLength(10));
     }
 
     @Override
-    protected NodePrevalidateShardPathResponse mutateInstance(NodePrevalidateShardPathResponse response) throws IOException {
+    protected NodePrevalidateShardPathResponse mutateInstance(NodePrevalidateShardPathResponse response) {
         if (randomBoolean()) {
             return new NodePrevalidateShardPathResponse(getRandomNode(), response.getShardIds());
         }
         return new NodePrevalidateShardPathResponse(
             response.getNode(),
-            createSetMutation(response.getShardIds(), PrevalidateShardPathRequestSerializationTests::randomShardId)
+            createSetMutation(response.getShardIds(), PrevalidateShardPathRequestSerializationTestUtils::randomShardId)
         );
     }
 }

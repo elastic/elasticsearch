@@ -9,16 +9,14 @@ package org.elasticsearch.xpack.ml.job.persistence;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.search.MultiSearchAction;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchRequestBuilder;
 import org.elasticsearch.action.search.MultiSearchResponse;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
@@ -26,6 +24,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.search.SearchHit;
@@ -645,7 +644,7 @@ public class JobResultsProviderTests extends ESTestCase {
 
         IndexMetadata indexMetadata1 = new IndexMetadata.Builder("index1").settings(
             Settings.builder()
-                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
         ).putMapping(new MappingMetadata("type1", Collections.singletonMap("properties", mapping))).build();
@@ -661,7 +660,7 @@ public class JobResultsProviderTests extends ESTestCase {
 
         IndexMetadata indexMetadata2 = new IndexMetadata.Builder("index1").settings(
             Settings.builder()
-                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
         ).putMapping(new MappingMetadata("type1", Collections.singletonMap("properties", mapping))).build();
@@ -696,10 +695,7 @@ public class JobResultsProviderTests extends ESTestCase {
         provider.datafeedTimingStats(
             List.of(),
             null,
-            ActionListener.wrap(
-                statsByJobId -> assertThat(statsByJobId, anEmptyMap()),
-                e -> { throw new AssertionError("Failure getting datafeed timing stats", e); }
-            )
+            ActionTestUtils.assertNoFailureListener(statsByJobId -> assertThat(statsByJobId, anEmptyMap()))
         );
 
         verifyNoMoreInteractions(client);
@@ -750,68 +746,72 @@ public class JobResultsProviderTests extends ESTestCase {
         );
         SearchResponse responseFoo = createSearchResponse(sourceFoo);
         SearchResponse responseBar = createSearchResponse(sourceBar);
-        MultiSearchResponse multiSearchResponse = new MultiSearchResponse(
+        final MultiSearchResponse multiSearchResponse = new MultiSearchResponse(
             new MultiSearchResponse.Item[] {
                 new MultiSearchResponse.Item(responseFoo, null),
                 new MultiSearchResponse.Item(responseBar, null) },
             randomNonNegativeLong()
         );
 
-        Client client = getBasicMockedClient();
-        when(client.prepareMultiSearch()).thenReturn(new MultiSearchRequestBuilder(client, MultiSearchAction.INSTANCE));
-        doAnswer(invocationOnMock -> {
-            MultiSearchRequest multiSearchRequest = (MultiSearchRequest) invocationOnMock.getArguments()[0];
-            assertThat(multiSearchRequest.requests(), hasSize(2));
-            assertThat(multiSearchRequest.requests().get(0).source().query().getName(), equalTo("ids"));
-            assertThat(multiSearchRequest.requests().get(1).source().query().getName(), equalTo("ids"));
-            @SuppressWarnings("unchecked")
-            ActionListener<MultiSearchResponse> actionListener = (ActionListener<MultiSearchResponse>) invocationOnMock.getArguments()[1];
-            actionListener.onResponse(multiSearchResponse);
-            return null;
-        }).when(client).multiSearch(any(), any());
-        when(client.prepareSearch(AnomalyDetectorsIndex.jobResultsAliasedName("foo"))).thenReturn(
-            new SearchRequestBuilder(client, SearchAction.INSTANCE).setIndices(AnomalyDetectorsIndex.jobResultsAliasedName("foo"))
-        );
-        when(client.prepareSearch(AnomalyDetectorsIndex.jobResultsAliasedName("bar"))).thenReturn(
-            new SearchRequestBuilder(client, SearchAction.INSTANCE).setIndices(AnomalyDetectorsIndex.jobResultsAliasedName("bar"))
-        );
+        try {
+            Client client = getBasicMockedClient();
+            when(client.prepareMultiSearch()).thenReturn(new MultiSearchRequestBuilder(client));
+            doAnswer(invocationOnMock -> {
+                MultiSearchRequest multiSearchRequest = (MultiSearchRequest) invocationOnMock.getArguments()[0];
+                assertThat(multiSearchRequest.requests(), hasSize(2));
+                assertThat(multiSearchRequest.requests().get(0).source().query().getName(), equalTo("ids"));
+                assertThat(multiSearchRequest.requests().get(1).source().query().getName(), equalTo("ids"));
+                @SuppressWarnings("unchecked")
+                ActionListener<MultiSearchResponse> actionListener = (ActionListener<MultiSearchResponse>) invocationOnMock
+                    .getArguments()[1];
+                actionListener.onResponse(multiSearchResponse);
+                return null;
+            }).when(client).multiSearch(any(), any());
+            when(client.prepareSearch(AnomalyDetectorsIndex.jobResultsAliasedName("foo"))).thenReturn(
+                new SearchRequestBuilder(client).setIndices(AnomalyDetectorsIndex.jobResultsAliasedName("foo"))
+            );
+            when(client.prepareSearch(AnomalyDetectorsIndex.jobResultsAliasedName("bar"))).thenReturn(
+                new SearchRequestBuilder(client).setIndices(AnomalyDetectorsIndex.jobResultsAliasedName("bar"))
+            );
 
-        JobResultsProvider provider = createProvider(client);
-        ExponentialAverageCalculationContext contextFoo = new ExponentialAverageCalculationContext(
-            600.0,
-            Instant.ofEpochMilli(100000600),
-            60.0
-        );
-        ExponentialAverageCalculationContext contextBar = new ExponentialAverageCalculationContext(
-            700.0,
-            Instant.ofEpochMilli(100000700),
-            70.0
-        );
-        provider.datafeedTimingStats(
-            List.of("foo", "bar"),
-            null,
-            ActionListener.wrap(
-                statsByJobId -> assertThat(
-                    statsByJobId,
-                    equalTo(
-                        Map.of(
-                            "foo",
-                            new DatafeedTimingStats("foo", 6, 66, 666.0, contextFoo),
-                            "bar",
-                            new DatafeedTimingStats("bar", 7, 77, 777.0, contextBar)
+            JobResultsProvider provider = createProvider(client);
+            ExponentialAverageCalculationContext contextFoo = new ExponentialAverageCalculationContext(
+                600.0,
+                Instant.ofEpochMilli(100000600),
+                60.0
+            );
+            ExponentialAverageCalculationContext contextBar = new ExponentialAverageCalculationContext(
+                700.0,
+                Instant.ofEpochMilli(100000700),
+                70.0
+            );
+            provider.datafeedTimingStats(
+                List.of("foo", "bar"),
+                null,
+                ActionTestUtils.assertNoFailureListener(
+                    statsByJobId -> assertThat(
+                        statsByJobId,
+                        equalTo(
+                            Map.of(
+                                "foo",
+                                new DatafeedTimingStats("foo", 6, 66, 666.0, contextFoo),
+                                "bar",
+                                new DatafeedTimingStats("bar", 7, 77, 777.0, contextBar)
+                            )
                         )
                     )
-                ),
-                e -> fail(e.getMessage())
-            )
-        );
+                )
+            );
 
-        verify(client).threadPool();
-        verify(client).prepareMultiSearch();
-        verify(client).multiSearch(any(MultiSearchRequest.class), any());
-        verify(client).prepareSearch(AnomalyDetectorsIndex.jobResultsAliasedName("foo"));
-        verify(client).prepareSearch(AnomalyDetectorsIndex.jobResultsAliasedName("bar"));
-        verifyNoMoreInteractions(client);
+            verify(client).threadPool();
+            verify(client).prepareMultiSearch();
+            verify(client).multiSearch(any(MultiSearchRequest.class), any());
+            verify(client).prepareSearch(AnomalyDetectorsIndex.jobResultsAliasedName("foo"));
+            verify(client).prepareSearch(AnomalyDetectorsIndex.jobResultsAliasedName("bar"));
+            verifyNoMoreInteractions(client);
+        } finally {
+            multiSearchResponse.decRef();
+        }
     }
 
     public void testDatafeedTimingStats_Ok() throws IOException {
@@ -840,7 +840,7 @@ public class JobResultsProviderTests extends ESTestCase {
         SearchResponse response = createSearchResponse(source);
         Client client = getMockedClient(queryBuilder -> assertThat(queryBuilder.getName(), equalTo("ids")), response);
 
-        when(client.prepareSearch(indexName)).thenReturn(new SearchRequestBuilder(client, SearchAction.INSTANCE).setIndices(indexName));
+        when(client.prepareSearch(indexName)).thenReturn(new SearchRequestBuilder(client).setIndices(indexName));
         JobResultsProvider provider = createProvider(client);
         ExponentialAverageCalculationContext contextFoo = new ExponentialAverageCalculationContext(
             600.0,
@@ -850,7 +850,9 @@ public class JobResultsProviderTests extends ESTestCase {
         provider.datafeedTimingStats(
             "foo",
             stats -> assertThat(stats, equalTo(new DatafeedTimingStats("foo", 6, 66, 666.0, contextFoo))),
-            e -> { throw new AssertionError("Failure getting datafeed timing stats", e); }
+            e -> {
+                throw new AssertionError("Failure getting datafeed timing stats", e);
+            }
         );
 
         verify(client).prepareSearch(indexName);
@@ -865,13 +867,11 @@ public class JobResultsProviderTests extends ESTestCase {
         SearchResponse response = createSearchResponse(source);
         Client client = getMockedClient(queryBuilder -> assertThat(queryBuilder.getName(), equalTo("ids")), response);
 
-        when(client.prepareSearch(indexName)).thenReturn(new SearchRequestBuilder(client, SearchAction.INSTANCE).setIndices(indexName));
+        when(client.prepareSearch(indexName)).thenReturn(new SearchRequestBuilder(client).setIndices(indexName));
         JobResultsProvider provider = createProvider(client);
-        provider.datafeedTimingStats(
-            "foo",
-            stats -> assertThat(stats, equalTo(new DatafeedTimingStats("foo"))),
-            e -> { throw new AssertionError("Failure getting datafeed timing stats", e); }
-        );
+        provider.datafeedTimingStats("foo", stats -> assertThat(stats, equalTo(new DatafeedTimingStats("foo"))), e -> {
+            throw new AssertionError("Failure getting datafeed timing stats", e);
+        });
 
         verify(client).prepareSearch(indexName);
         verify(client).threadPool();
@@ -927,8 +927,9 @@ public class JobResultsProviderTests extends ESTestCase {
 
             list.add(hit);
         }
-        SearchHits hits = new SearchHits(list.toArray(new SearchHit[0]), new TotalHits(source.size(), TotalHits.Relation.EQUAL_TO), 1);
-        when(response.getHits()).thenReturn(hits);
+        SearchHits hits = new SearchHits(list.toArray(SearchHits.EMPTY), new TotalHits(source.size(), TotalHits.Relation.EQUAL_TO), 1);
+        when(response.getHits()).thenReturn(hits.asUnpooled());
+        hits.decRef();
 
         return response;
     }
@@ -948,11 +949,13 @@ public class JobResultsProviderTests extends ESTestCase {
             queryBuilderConsumer.accept(multiSearchRequest.requests().get(0).source().query());
             @SuppressWarnings("unchecked")
             ActionListener<MultiSearchResponse> actionListener = (ActionListener<MultiSearchResponse>) invocationOnMock.getArguments()[1];
-            MultiSearchResponse mresponse = new MultiSearchResponse(
-                new MultiSearchResponse.Item[] { new MultiSearchResponse.Item(response, null) },
-                randomNonNegativeLong()
+            ActionListener.respondAndRelease(
+                actionListener,
+                new MultiSearchResponse(
+                    new MultiSearchResponse.Item[] { new MultiSearchResponse.Item(response, null) },
+                    randomNonNegativeLong()
+                )
             );
-            actionListener.onResponse(mresponse);
             return null;
         }).when(client).multiSearch(any(), any());
         doAnswer(invocationOnMock -> {

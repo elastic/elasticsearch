@@ -23,16 +23,11 @@ import java.util.Arrays;
 import static org.elasticsearch.xpack.spatial.util.GeoTestUtils.geoShapeValue;
 import static org.hamcrest.Matchers.equalTo;
 
-public class GeoHashTilerTests extends GeoGridTilerTestCase {
+public class GeoHashTilerTests extends GeoGridTilerTestCase<GeoHashGridTiler> {
 
     @Override
-    protected GeoGridTiler getUnboundedGridTiler(int precision) {
-        return new UnboundedGeoHashGridTiler(precision);
-    }
-
-    @Override
-    protected GeoGridTiler getBoundedGridTiler(GeoBoundingBox bbox, int precision) {
-        return new BoundedGeoHashGridTiler(precision, bbox);
+    protected GeoHashGridTiler getGridTiler(GeoBoundingBox bbox, int precision) {
+        return GeoHashGridTiler.makeGridTiler(precision, bbox);
     }
 
     @Override
@@ -57,7 +52,7 @@ public class GeoHashTilerTests extends GeoGridTilerTestCase {
     @Override
     protected void assertSetValuesBruteAndRecursive(Geometry geometry) throws Exception {
         int precision = randomIntBetween(1, 3);
-        UnboundedGeoHashGridTiler tiler = new UnboundedGeoHashGridTiler(precision);
+        GeoHashGridTiler tiler = getGridTiler(precision);
         GeoShapeValues.GeoShapeValue value = geoShapeValue(geometry);
         GeoShapeCellValues recursiveValues = new GeoShapeCellValues(null, tiler, NOOP_BREAKER);
         int recursiveCount;
@@ -137,7 +132,7 @@ public class GeoHashTilerTests extends GeoGridTilerTestCase {
         double x = randomDouble();
         double y = randomDouble();
         int precision = randomIntBetween(0, 6);
-        assertThat(new UnboundedGeoHashGridTiler(precision).encode(x, y), equalTo(Geohash.longEncode(x, y, precision)));
+        assertThat(getGridTiler(precision).encode(x, y), equalTo(Geohash.longEncode(x, y, precision)));
 
         Rectangle tile = Geohash.toBoundingBox(Geohash.stringEncode(x, y, 5));
 
@@ -151,23 +146,22 @@ public class GeoHashTilerTests extends GeoGridTilerTestCase {
 
         // test shape within tile bounds
         {
-            GeoShapeCellValues values = new GeoShapeCellValues(makeGeoShapeValues(value), new UnboundedGeoHashGridTiler(5), NOOP_BREAKER);
+            GeoShapeCellValues values = new GeoShapeCellValues(makeGeoShapeValues(value), getGridTiler(5), NOOP_BREAKER);
             assertTrue(values.advanceExact(0));
             int count = values.docValueCount();
             assertThat(count, equalTo(1));
         }
         {
-            GeoShapeCellValues values = new GeoShapeCellValues(makeGeoShapeValues(value), new UnboundedGeoHashGridTiler(6), NOOP_BREAKER);
+            GeoShapeCellValues values = new GeoShapeCellValues(makeGeoShapeValues(value), getGridTiler(6), NOOP_BREAKER);
             assertTrue(values.advanceExact(0));
             int count = values.docValueCount();
             assertThat(count, equalTo(32));
         }
         {
-            GeoShapeCellValues values = new GeoShapeCellValues(makeGeoShapeValues(value), new UnboundedGeoHashGridTiler(7), NOOP_BREAKER);
+            GeoShapeCellValues values = new GeoShapeCellValues(makeGeoShapeValues(value), getGridTiler(7), NOOP_BREAKER);
             assertTrue(values.advanceExact(0));
             int count = values.docValueCount();
             assertThat(count, equalTo(1024));
         }
     }
-
 }

@@ -18,11 +18,7 @@ public class ClearRolesCacheRequestBuilder extends NodesOperationRequestBuilder<
     ClearRolesCacheRequestBuilder> {
 
     public ClearRolesCacheRequestBuilder(ElasticsearchClient client) {
-        this(client, ClearRolesCacheAction.INSTANCE, new ClearRolesCacheRequest());
-    }
-
-    public ClearRolesCacheRequestBuilder(ElasticsearchClient client, ClearRolesCacheAction action, ClearRolesCacheRequest request) {
-        super(client, action, request);
+        super(client, ClearRolesCacheAction.INSTANCE, new ClearRolesCacheRequest());
     }
 
     /**

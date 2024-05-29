@@ -1,0 +1,342 @@
+setup:
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "a": 2, "b": 12, "c": 21, "gappy": 99 }
+          - { "index": { } }
+          - { "a": 3, "b": 56, "c": 12 }
+          - { "index": { } }
+          - { "a": 4, "b": 82, "c": 13, "gappy": 98 }
+          - { "index": { } }
+          - { "a": 5, "b": 12, "c": 54 }
+
+---
+calculate:
+  - do:
+      search:
+        body:
+          aggs:
+            a:
+              histogram:
+                field: a
+                interval: 1
+              aggs:
+                b:
+                  sum:
+                    field: b
+                c:
+                  sum:
+                    field: c
+                d:
+                  bucket_script:
+                    buckets_path:
+                      b: b
+                      c: c
+                    script: params.b + params.c
+  - length: { aggregations.a.buckets: 4 }
+  - match: { aggregations.a.buckets.0.d.value: 33.0 }
+  - match: { aggregations.a.buckets.1.d.value: 68.0 }
+  - match: { aggregations.a.buckets.2.d.value: 95.0 }
+  - match: { aggregations.a.buckets.3.d.value: 66.0 }
+
+---
+input is unmapped sum:
+  - do:
+      search:
+        body:
+          aggs:
+            a:
+              histogram:
+                field: a
+                interval: 1
+              aggs:
+                b:
+                  sum:
+                    field: b
+                unmapped:
+                  sum:
+                    field: unmapped
+                d:
+                  bucket_script:
+                    buckets_path:
+                      b: b
+                      unmapped: unmapped
+                    script: params.b + params.unmapped
+  # sum(unmapped) is 0
+  - length: { aggregations.a.buckets: 4 }
+  - match: { aggregations.a.buckets.0.d.value: 12.0 }
+  - match: { aggregations.a.buckets.1.d.value: 56.0 }
+  - match: { aggregations.a.buckets.2.d.value: 82.0 }
+  - match: { aggregations.a.buckets.3.d.value: 12.0 }
+
+---
+input is unmapped avg:
+  - do:
+      search:
+        body:
+          aggs:
+            a:
+              histogram:
+                field: a
+                interval: 1
+              aggs:
+                b:
+                  avg:
+                    field: b
+                unmapped:
+                  avg:
+                    field: unmapped
+                d:
+                  bucket_script:
+                    buckets_path:
+                      b: b
+                      unmapped: unmapped
+                    script: params.b + params.unmapped
+  # unmapped avg is null which is skipped
+  - length: { aggregations.a.buckets: 4 }
+  - is_false: aggregations.a.buckets.0.d
+  - is_false: aggregations.a.buckets.1.d
+  - is_false: aggregations.a.buckets.2.d
+  - is_false: aggregations.a.buckets.3.d
+
+---
+params:
+  - do:
+      search:
+        body:
+          aggs:
+            a:
+              histogram:
+                field: a
+                interval: 1
+              aggs:
+                b:
+                  sum:
+                    field: b
+                c:
+                  sum:
+                    field: c
+                d:
+                  bucket_script:
+                    buckets_path:
+                      b: b
+                    script:
+                      source: params.b + params.extra
+                      params:
+                        extra: 1
+  - length: { aggregations.a.buckets: 4 }
+  - match: { aggregations.a.buckets.0.d.value: 13.0 }
+  - match: { aggregations.a.buckets.1.d.value: 57.0 }
+  - match: { aggregations.a.buckets.2.d.value: 83.0 }
+  - match: { aggregations.a.buckets.3.d.value: 13.0 }
+
+---
+default gap_policy is skip:
+  - do:
+      search:
+        body:
+          aggs:
+            a:
+              histogram:
+                field: a
+                interval: 1
+              aggs:
+                b:
+                  sum:
+                    field: b
+                gappy:
+                  sum:
+                    field: gappy
+                d:
+                  bucket_script:
+                    buckets_path:
+                      b: b
+                      gappy: gappy
+                    script: params.b + params.gappy
+  - length: { aggregations.a.buckets: 4 }
+  - match: { aggregations.a.buckets.0.d.value: 111.0 }
+  - match: { aggregations.a.buckets.1.d.value:  56.0 }
+  - match: { aggregations.a.buckets.2.d.value: 180.0 }
+  - match: { aggregations.a.buckets.3.d.value:  12.0 }
+
+---
+gap_policy is skip:
+  - do:
+      search:
+        body:
+          aggs:
+            a:
+              histogram:
+                field: a
+                interval: 1
+              aggs:
+                b:
+                  sum:
+                    field: b
+                gappy:
+                  sum:
+                    field: gappy
+                d:
+                  bucket_script:
+                    gap_policy: skip
+                    buckets_path:
+                      b: b
+                      gappy: gappy
+                    script: params.b + params.gappy
+  - length: { aggregations.a.buckets: 4 }
+  - match: { aggregations.a.buckets.0.d.value: 111.0 }
+  - match: { aggregations.a.buckets.1.d.value:  56.0 }
+  - match: { aggregations.a.buckets.2.d.value: 180.0 }
+  - match: { aggregations.a.buckets.3.d.value:  12.0 }
+
+---
+gap_policy is insert_zeros:
+  - do:
+      search:
+        body:
+          aggs:
+            a:
+              histogram:
+                field: a
+                interval: 1
+              aggs:
+                b:
+                  sum:
+                    field: b
+                gappy:
+                  sum:
+                    field: gappy
+                d:
+                  bucket_script:
+                    gap_policy: insert_zeros
+                    buckets_path:
+                      b: b
+                      gappy: gappy
+                    script: params.b + params.gappy
+  - length: { aggregations.a.buckets: 4 }
+  - match: { aggregations.a.buckets.0.d.value: 111.0 }
+  - match: { aggregations.a.buckets.1.d.value:  56.0 }
+  - match: { aggregations.a.buckets.2.d.value: 180.0 }
+  - match: { aggregations.a.buckets.3.d.value:  12.0 }
+
+---
+gap_policy is keep_values:
+  - do:
+      search:
+        body:
+          aggs:
+            a:
+              histogram:
+                field: a
+                interval: 1
+              aggs:
+                b:
+                  sum:
+                    field: b
+                gappy:
+                  sum:
+                    field: gappy
+                d:
+                  bucket_script:
+                    gap_policy: keep_values
+                    buckets_path:
+                      b: b
+                      gappy: gappy
+                    script: params.b + params.gappy
+  - length: { aggregations.a.buckets: 4 }
+  - match: { aggregations.a.buckets.0.d.value: 111.0 }
+  - match: { aggregations.a.buckets.1.d.value:  56.0 }
+  - match: { aggregations.a.buckets.2.d.value: 180.0 }
+  - match: { aggregations.a.buckets.3.d.value:  12.0 }
+
+---
+format:
+  - do:
+      search:
+        body:
+          aggs:
+            a:
+              histogram:
+                field: a
+                interval: 1
+              aggs:
+                b:
+                  sum:
+                    field: b
+                gappy:
+                  sum:
+                    field: gappy
+                d:
+                  bucket_script:
+                    format: "000.00"
+                    buckets_path:
+                      b: b
+                      gappy: gappy
+                    script: params.b + params.gappy
+  - length: { aggregations.a.buckets: 4 }
+  - match: { aggregations.a.buckets.0.d.value: 111.0 }
+  - match: { aggregations.a.buckets.1.d.value:  56.0 }
+  - match: { aggregations.a.buckets.2.d.value: 180.0 }
+  - match: { aggregations.a.buckets.3.d.value:  12.0 }
+  - match: { aggregations.a.buckets.0.d.value_as_string: "111.00" }
+  - match: { aggregations.a.buckets.1.d.value_as_string: "056.00" }
+  - match: { aggregations.a.buckets.2.d.value_as_string: "180.00" }
+  - match: { aggregations.a.buckets.3.d.value_as_string: "012.00" }
+
+---
+bad script:
+  - do:
+      catch: /NullPointerException/
+      search:
+        body:
+          aggs:
+            a:
+              histogram:
+                field: a
+                interval: 1
+              aggs:
+                b:
+                  sum:
+                    field: b
+                d:
+                  bucket_script:
+                    buckets_path:
+                      b: b
+                    script: params.garbage + 12
+
+---
+invalid path:
+  - do:
+      catch: /No aggregation found for path \[missing\]/
+      search:
+        body:
+          aggs:
+            a:
+              histogram:
+                field: a
+                interval: 1
+              aggs:
+                d:
+                  bucket_script:
+                    buckets_path:
+                      missing: missing
+                    script: params.missing + 12
+
+---
+top level fails:
+  - do:
+      catch: /bucket_script aggregation \[d\] must be declared inside of another aggregation/
+      search:
+        body:
+          aggs:
+            b:
+              sum:
+                field: b
+            d:
+              bucket_script:
+                buckets_path:
+                  b: b
+                script: params.b + 12

@@ -26,15 +26,12 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.recycler.Recycler;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -42,6 +39,11 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.ConnectionProfile;
+import org.elasticsearch.transport.InboundAggregator;
+import org.elasticsearch.transport.InboundDecoder;
+import org.elasticsearch.transport.InboundPipeline;
+import org.elasticsearch.transport.NetworkTraceFlag;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportSettings;
 
@@ -49,10 +51,10 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.Map;
 
-import static org.elasticsearch.common.settings.Setting.byteSizeSetting;
-import static org.elasticsearch.common.settings.Setting.intSetting;
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE;
+import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED;
 
 /**
  * There are 4 types of connections per node, low/med/high/ping. Low if for batch oriented APIs (like recovery or
@@ -63,30 +65,9 @@ import static org.elasticsearch.core.Strings.format;
 public class Netty4Transport extends TcpTransport {
     private static final Logger logger = LogManager.getLogger(Netty4Transport.class);
 
-    public static final Setting<Integer> WORKER_COUNT = new Setting<>(
-        "transport.netty.worker_count",
-        (s) -> Integer.toString(EsExecutors.allocatedProcessors(s)),
-        (s) -> Setting.parseInt(s, 1, "transport.netty.worker_count"),
-        Property.NodeScope
-    );
-
-    public static final Setting<ByteSizeValue> NETTY_RECEIVE_PREDICTOR_SIZE = Setting.byteSizeSetting(
-        "transport.netty.receive_predictor_size",
-        new ByteSizeValue(64, ByteSizeUnit.KB),
-        Property.NodeScope
-    );
-    public static final Setting<ByteSizeValue> NETTY_RECEIVE_PREDICTOR_MIN = byteSizeSetting(
-        "transport.netty.receive_predictor_min",
-        NETTY_RECEIVE_PREDICTOR_SIZE,
-        Property.NodeScope
-    );
-    public static final Setting<ByteSizeValue> NETTY_RECEIVE_PREDICTOR_MAX = byteSizeSetting(
-        "transport.netty.receive_predictor_max",
-        NETTY_RECEIVE_PREDICTOR_SIZE,
-        Property.NodeScope
-    );
-
-    public static final Setting<Integer> NETTY_BOSS_COUNT = intSetting("transport.netty.boss_count", 1, 1, Property.NodeScope);
+    public static final ChannelOption<Integer> OPTION_TCP_KEEP_IDLE = NioChannelOption.of(NetUtils.getTcpKeepIdleSocketOption());
+    public static final ChannelOption<Integer> OPTION_TCP_KEEP_INTERVAL = NioChannelOption.of(NetUtils.getTcpKeepIntervalSocketOption());
+    public static final ChannelOption<Integer> OPTION_TCP_KEEP_COUNT = NioChannelOption.of(NetUtils.getTcpKeepCountSocketOption());
 
     private final SharedGroupFactory sharedGroupFactory;
     private final RecvByteBufAllocator recvByteBufAllocator;
@@ -95,10 +76,11 @@ public class Netty4Transport extends TcpTransport {
     private final Map<String, ServerBootstrap> serverBootstraps = newConcurrentMap();
     private volatile Bootstrap clientBootstrap;
     private volatile SharedGroupFactory.SharedGroup sharedGroup;
+    protected final boolean remoteClusterPortEnabled;
 
     public Netty4Transport(
         Settings settings,
-        Version version,
+        TransportVersion version,
         ThreadPool threadPool,
         NetworkService networkService,
         PageCacheRecycler pageCacheRecycler,
@@ -112,8 +94,8 @@ public class Netty4Transport extends TcpTransport {
         this.sharedGroupFactory = sharedGroupFactory;
 
         // See AdaptiveReceiveBufferSizePredictor#DEFAULT_XXX for default values in netty..., we can use higher ones for us, even fixed one
-        this.receivePredictorMin = NETTY_RECEIVE_PREDICTOR_MIN.get(settings);
-        this.receivePredictorMax = NETTY_RECEIVE_PREDICTOR_MAX.get(settings);
+        this.receivePredictorMin = Netty4Plugin.NETTY_RECEIVE_PREDICTOR_MIN.get(settings);
+        this.receivePredictorMax = Netty4Plugin.NETTY_RECEIVE_PREDICTOR_MAX.get(settings);
         if (receivePredictorMax.getBytes() == receivePredictorMin.getBytes()) {
             recvByteBufAllocator = new FixedRecvByteBufAllocator((int) receivePredictorMax.getBytes());
         } else {
@@ -123,6 +105,7 @@ public class Netty4Transport extends TcpTransport {
                 (int) receivePredictorMax.getBytes()
             );
         }
+        this.remoteClusterPortEnabled = REMOTE_CLUSTER_SERVER_ENABLED.get(settings);
     }
 
     @Override
@@ -159,24 +142,21 @@ public class Netty4Transport extends TcpTransport {
         bootstrap.channel(NettyAllocator.getChannelType());
         bootstrap.option(ChannelOption.ALLOCATOR, NettyAllocator.getAllocator());
 
+        // The TCP options are re-configured for client connections to RCS remote clusters
+        // If how options are configured is changed here, please also update RemoteClusterClientBootstrapOptions#configure
+        // which is used inside SecurityNetty4Transport#getClientBootstrap
         bootstrap.option(ChannelOption.TCP_NODELAY, TransportSettings.TCP_NO_DELAY.get(settings));
         bootstrap.option(ChannelOption.SO_KEEPALIVE, TransportSettings.TCP_KEEP_ALIVE.get(settings));
         if (TransportSettings.TCP_KEEP_ALIVE.get(settings)) {
             // Note that Netty logs a warning if it can't set the option
             if (TransportSettings.TCP_KEEP_IDLE.get(settings) >= 0) {
-                bootstrap.option(NioChannelOption.of(NetUtils.getTcpKeepIdleSocketOption()), TransportSettings.TCP_KEEP_IDLE.get(settings));
+                bootstrap.option(OPTION_TCP_KEEP_IDLE, TransportSettings.TCP_KEEP_IDLE.get(settings));
             }
             if (TransportSettings.TCP_KEEP_INTERVAL.get(settings) >= 0) {
-                bootstrap.option(
-                    NioChannelOption.of(NetUtils.getTcpKeepIntervalSocketOption()),
-                    TransportSettings.TCP_KEEP_INTERVAL.get(settings)
-                );
+                bootstrap.option(OPTION_TCP_KEEP_INTERVAL, TransportSettings.TCP_KEEP_INTERVAL.get(settings));
             }
             if (TransportSettings.TCP_KEEP_COUNT.get(settings) >= 0) {
-                bootstrap.option(
-                    NioChannelOption.of(NetUtils.getTcpKeepCountSocketOption()),
-                    TransportSettings.TCP_KEEP_COUNT.get(settings)
-                );
+                bootstrap.option(OPTION_TCP_KEEP_COUNT, TransportSettings.TCP_KEEP_COUNT.get(settings));
             }
         }
 
@@ -267,7 +247,7 @@ public class Netty4Transport extends TcpTransport {
         return new ServerChannelInitializer(name);
     }
 
-    protected ChannelHandler getClientChannelInitializer(DiscoveryNode node) {
+    protected ChannelHandler getClientChannelInitializer(DiscoveryNode node, ConnectionProfile connectionProfile) {
         return new ClientChannelInitializer();
     }
 
@@ -275,10 +255,10 @@ public class Netty4Transport extends TcpTransport {
     static final AttributeKey<Netty4TcpServerChannel> SERVER_CHANNEL_KEY = AttributeKey.newInstance("es-server-channel");
 
     @Override
-    protected Netty4TcpChannel initiateChannel(DiscoveryNode node) throws IOException {
+    protected Netty4TcpChannel initiateChannel(DiscoveryNode node, ConnectionProfile connectionProfile) throws IOException {
         InetSocketAddress address = node.getAddress().address();
-        Bootstrap bootstrapWithHandler = clientBootstrap.clone();
-        bootstrapWithHandler.handler(getClientChannelInitializer(node));
+        Bootstrap bootstrapWithHandler = getClientBootstrap(connectionProfile);
+        bootstrapWithHandler.handler(getClientChannelInitializer(node, connectionProfile));
         bootstrapWithHandler.remoteAddress(address);
         ChannelFuture connectFuture = bootstrapWithHandler.connect();
 
@@ -288,10 +268,20 @@ public class Netty4Transport extends TcpTransport {
             throw new IOException(connectFuture.cause());
         }
 
-        Netty4TcpChannel nettyChannel = new Netty4TcpChannel(channel, false, "default", rstOnClose, connectFuture);
+        Netty4TcpChannel nettyChannel = new Netty4TcpChannel(
+            channel,
+            false,
+            connectionProfile.getTransportProfile(),
+            rstOnClose,
+            connectFuture
+        );
         channel.attr(CHANNEL_KEY).set(nettyChannel);
 
         return nettyChannel;
+    }
+
+    protected Bootstrap getClientBootstrap(ConnectionProfile connectionProfile) {
+        return clientBootstrap.clone();
     }
 
     @Override
@@ -319,7 +309,7 @@ public class Netty4Transport extends TcpTransport {
             addClosedExceptionLogger(ch);
             assert ch instanceof Netty4NioSocketChannel;
             NetUtils.tryEnsureReasonableKeepAliveConfig(((Netty4NioSocketChannel) ch).javaChannel());
-            setupPipeline(ch);
+            setupPipeline(ch, false);
         }
 
         @Override
@@ -332,9 +322,11 @@ public class Netty4Transport extends TcpTransport {
     protected class ServerChannelInitializer extends ChannelInitializer<Channel> {
 
         protected final String name;
+        private final boolean isRemoteClusterServerChannel;
 
         protected ServerChannelInitializer(String name) {
             this.name = name;
+            this.isRemoteClusterServerChannel = remoteClusterPortEnabled && REMOTE_CLUSTER_PROFILE.equals(name);
         }
 
         @Override
@@ -344,7 +336,7 @@ public class Netty4Transport extends TcpTransport {
             NetUtils.tryEnsureReasonableKeepAliveConfig(((Netty4NioSocketChannel) ch).javaChannel());
             Netty4TcpChannel nettyTcpChannel = new Netty4TcpChannel(ch, true, name, rstOnClose, ch.newSucceededFuture());
             ch.attr(CHANNEL_KEY).set(nettyTcpChannel);
-            setupPipeline(ch);
+            setupPipeline(ch, isRemoteClusterServerChannel);
             serverAcceptedChannel(nettyTcpChannel);
         }
 
@@ -355,12 +347,24 @@ public class Netty4Transport extends TcpTransport {
         }
     }
 
-    private void setupPipeline(Channel ch) {
-        ch.pipeline()
-            .addLast("byte_buf_sizer", NettyByteBufSizer.INSTANCE)
-            .addLast("logging", ESLoggingHandler.INSTANCE)
-            .addLast("chunked_writer", new Netty4WriteThrottlingHandler(getThreadPool().getThreadContext()))
-            .addLast("dispatcher", new Netty4MessageInboundHandler(this, recycler));
+    private void setupPipeline(Channel ch, boolean isRemoteClusterServerChannel) {
+        final var pipeline = ch.pipeline();
+        pipeline.addLast("byte_buf_sizer", NettyByteBufSizer.INSTANCE);
+        if (NetworkTraceFlag.TRACE_ENABLED) {
+            pipeline.addLast("logging", ESLoggingHandler.INSTANCE);
+        }
+        pipeline.addLast("chunked_writer", new Netty4WriteThrottlingHandler(getThreadPool().getThreadContext()));
+        pipeline.addLast("dispatcher", new Netty4MessageInboundHandler(this, getInboundPipeline(ch, isRemoteClusterServerChannel)));
+    }
+
+    protected InboundPipeline getInboundPipeline(Channel ch, boolean isRemoteClusterServerChannel) {
+        return new InboundPipeline(
+            getStatsTracker(),
+            threadPool::relativeTimeInMillis,
+            new InboundDecoder(recycler),
+            new InboundAggregator(getInflightBreaker(), getRequestHandlers()::getHandler, ignoreDeserializationErrors()),
+            this::inboundMessage
+        );
     }
 
     private static void addClosedExceptionLogger(Channel channel) {

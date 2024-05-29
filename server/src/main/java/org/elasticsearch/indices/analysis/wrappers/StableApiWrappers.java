@@ -136,7 +136,7 @@ public class StableApiWrappers {
                 return mapAnalysisMode(f.getAnalysisMode());
             }
 
-            private org.elasticsearch.index.analysis.AnalysisMode mapAnalysisMode(AnalysisMode analysisMode) {
+            private static org.elasticsearch.index.analysis.AnalysisMode mapAnalysisMode(AnalysisMode analysisMode) {
                 return org.elasticsearch.index.analysis.AnalysisMode.valueOf(analysisMode.name());
             }
         };
@@ -204,7 +204,9 @@ public class StableApiWrappers {
                     }
                     return (T) constructor.newInstance(parameters);
                 } else {
-                    throw new IllegalStateException("Missing @Inject annotation for constructor with settings.");
+                    throw new IllegalStateException(
+                        "Missing @" + Inject.class.getCanonicalName() + " annotation for constructor with settings."
+                    );
                 }
             }
 

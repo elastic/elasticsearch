@@ -97,7 +97,7 @@ And the following may be the response:
                  "doc_count": 3,
                  "the_percentile": {
                      "values": {
-                       "1.0": 150.0,
+                       "1.0": 151.0,
                        "99.0": 200.0
                      }
                  }
@@ -108,13 +108,13 @@ And the following may be the response:
                  "doc_count": 2,
                  "the_percentile": {
                      "values": {
-                       "1.0": 10.0,
-                       "99.0": 50.0
+                       "1.0": 10.4,
+                       "99.0": 49.6
                      }
                  },
                  "the_movperc": {
                    "values": {
-                     "1.0": 150.0,
+                     "1.0": 151.0,
                      "99.0": 200.0
                    }
                  }
@@ -125,13 +125,13 @@ And the following may be the response:
                  "doc_count": 2,
                  "the_percentile": {
                     "values": {
-                      "1.0": 175.0,
-                      "99.0": 200.0
+                      "1.0": 175.25,
+                      "99.0": 199.75
                     }
                  },
                  "the_movperc": {
                     "values": {
-                      "1.0": 10.0,
+                      "1.0": 11.6,
                       "99.0": 200.0
                     }
                  }

@@ -7,10 +7,10 @@
  */
 package org.elasticsearch.search;
 
-import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.util.CharsRefBuilder;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.CheckedBiConsumer;
+import org.elasticsearch.common.io.stream.GenericNamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -26,11 +26,9 @@ import org.elasticsearch.index.query.TypeQueryV7Builder;
 import org.elasticsearch.index.query.functionscore.GaussDecayFunctionBuilder;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.BaseAggregationBuilder;
-import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.heuristic.ChiSquare;
 import org.elasticsearch.search.aggregations.pipeline.AbstractPipelineAggregationBuilder;
@@ -41,26 +39,21 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.subphase.ExplainPhase;
 import org.elasticsearch.search.fetch.subphase.highlight.CustomHighlighter;
+import org.elasticsearch.search.fetch.subphase.highlight.DefaultHighlighter;
 import org.elasticsearch.search.fetch.subphase.highlight.FastVectorHighlighter;
 import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
 import org.elasticsearch.search.fetch.subphase.highlight.PlainHighlighter;
-import org.elasticsearch.search.fetch.subphase.highlight.UnifiedHighlighter;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.rescore.RescorerBuilder;
 import org.elasticsearch.search.suggest.Suggest.Suggestion;
-import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry;
-import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry.Option;
-import org.elasticsearch.search.suggest.Suggester;
 import org.elasticsearch.search.suggest.SuggestionBuilder;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
-import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
 import org.elasticsearch.search.suggest.term.TermSuggestion;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
 import org.elasticsearch.test.ESTestCase;
@@ -284,6 +277,7 @@ public class SearchModuleTests extends ESTestCase {
             1,
             module.getNamedWriteables().stream().filter(e -> e.categoryClass.equals(Suggestion.class) && e.name.equals("test")).count()
         );
+        assertEquals(1, module.getNamedWriteables().stream().filter(e -> e.categoryClass.equals(GenericNamedWriteable.class)).count());
     }
 
     public void testRegisterHighlighter() {
@@ -298,7 +292,7 @@ public class SearchModuleTests extends ESTestCase {
         Map<String, Highlighter> highlighters = module.getHighlighters();
         assertEquals(FastVectorHighlighter.class, highlighters.get("fvh").getClass());
         assertEquals(PlainHighlighter.class, highlighters.get("plain").getClass());
-        assertEquals(UnifiedHighlighter.class, highlighters.get("unified").getClass());
+        assertEquals(DefaultHighlighter.class, highlighters.get("unified").getClass());
         assertSame(highlighters.get("custom"), customHighlighter);
     }
 
@@ -431,6 +425,7 @@ public class SearchModuleTests extends ESTestCase {
         "combined_fields",
         "dis_max",
         "exists",
+        "exact_knn",
         "function_score",
         "fuzzy",
         "geo_bounding_box",
@@ -512,11 +507,6 @@ public class SearchModuleTests extends ESTestCase {
         }
 
         @Override
-        protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
-            return ValuesSourceRegistry.UNREGISTERED_KEY;
-        }
-
-        @Override
         protected void innerWriteTo(StreamOutput out) throws IOException {}
 
         @Override
@@ -544,8 +534,8 @@ public class SearchModuleTests extends ESTestCase {
         }
 
         @Override
-        public Version getMinimalSupportedVersion() {
-            return Version.V_EMPTY;
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersions.ZERO;
         }
     }
 
@@ -556,7 +546,9 @@ public class SearchModuleTests extends ESTestCase {
         public static final ConstructingObjectParser<TestPipelineAggregationBuilder, String> PARSER = new ConstructingObjectParser<>(
             "test",
             false,
-            (args, name) -> { return new TestPipelineAggregationBuilder(name, (String) args[0]); }
+            (args, name) -> {
+                return new TestPipelineAggregationBuilder(name, (String) args[0]);
+            }
         );
         static {
             PARSER.declareString(constructorArg(), PipelineAggregator.Parser.BUCKETS_PATH);
@@ -591,30 +583,12 @@ public class SearchModuleTests extends ESTestCase {
             return null;
         }
 
-        private static TestPipelineAggregationBuilder fromXContent(String name, XContentParser p) {
-            return null;
-        }
-
         @Override
         protected void validate(ValidationContext context) {}
 
         @Override
-        public Version getMinimalSupportedVersion() {
-            return Version.V_EMPTY;
-        }
-    }
-
-    /**
-     * Dummy test {@link PipelineAggregator} used to test registering aggregation builders.
-     */
-    private static class TestPipelineAggregator extends PipelineAggregator {
-        TestPipelineAggregator() {
-            super("test", new String[] {}, null);
-        }
-
-        @Override
-        public InternalAggregation reduce(InternalAggregation aggregation, AggregationReduceContext reduceContext) {
-            return null;
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersions.ZERO;
         }
     }
 
@@ -649,30 +623,8 @@ public class SearchModuleTests extends ESTestCase {
         }
 
         @Override
-        public Version getMinimalSupportedVersion() {
-            return Version.V_EMPTY;
-        }
-    }
-
-    private static class TestSuggester extends Suggester<SuggestionSearchContext.SuggestionContext> {
-
-        @Override
-        protected Suggestion<? extends Suggestion.Entry<? extends Suggestion.Entry.Option>> innerExecute(
-            String name,
-            SuggestionSearchContext.SuggestionContext suggestion,
-            IndexSearcher searcher,
-            CharsRefBuilder spare
-        ) throws IOException {
-            return null;
-        }
-
-        @Override
-        protected Suggestion<? extends Entry<? extends Option>> emptySuggestion(
-            String name,
-            SuggestionContext suggestion,
-            CharsRefBuilder spare
-        ) throws IOException {
-            return null;
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersions.ZERO;
         }
     }
 
@@ -717,8 +669,8 @@ public class SearchModuleTests extends ESTestCase {
         }
 
         @Override
-        public Version getMinimalSupportedVersion() {
-            return Version.V_EMPTY;
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersions.ZERO;
         }
     }
 

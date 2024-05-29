@@ -8,12 +8,9 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterInfo;
-import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
@@ -22,12 +19,17 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.AllocationId;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
+import org.elasticsearch.cluster.routing.allocation.allocator.ShardAssignment;
 import org.elasticsearch.cluster.routing.allocation.command.AbstractAllocateAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateEmptyPrimaryAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateReplicaAllocationCommand;
@@ -37,6 +39,7 @@ import org.elasticsearch.cluster.routing.allocation.command.CancelAllocationComm
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -45,6 +48,8 @@ import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
@@ -57,15 +62,13 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.singleton;
-import static org.elasticsearch.cluster.ClusterModule.BALANCED_ALLOCATOR;
-import static org.elasticsearch.cluster.ClusterModule.DESIRED_BALANCE_ALLOCATOR;
 import static org.elasticsearch.cluster.routing.RoutingNodesHelper.shardsWithState;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
+import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -73,26 +76,20 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 public class AllocationCommandsTests extends ESAllocationTestCase {
-    private final Logger logger = LogManager.getLogger(AllocationCommandsTests.class);
 
     public void testMoveShardCommand() {
         AllocationService allocation = createAllocationService(
-            Settings.builder()
-                .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
-                .put(ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING.getKey(), randomShardsAllocator())
-                .build()
+            Settings.builder().put("cluster.routing.allocation.node_concurrent_recoveries", 10).build()
         );
 
         logger.info("creating an index with 1 shard, no replica");
         Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0))
+            .put(IndexMetadata.builder("test").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(0))
             .build();
         RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
             .addAsNew(metadata.index("test"))
             .build();
-        ClusterState clusterState = ClusterState.builder(
-            org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)
-        ).metadata(metadata).routingTable(routingTable).build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(routingTable).build();
 
         logger.info("adding two nodes and performing rerouting");
         clusterState = ClusterState.builder(clusterState)
@@ -144,7 +141,6 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
             Settings.builder()
                 .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none")
                 .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), "none")
-                .put(ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING.getKey(), randomShardsAllocator())
                 .build()
         );
         final String index = "test";
@@ -153,7 +149,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
         Metadata metadata = Metadata.builder()
             .put(
                 IndexMetadata.builder(index)
-                    .settings(settings(Version.CURRENT))
+                    .settings(settings(IndexVersion.current()))
                     .numberOfShards(1)
                     .numberOfReplicas(1)
                     .putInSyncAllocationIds(0, Collections.singleton("asdf"))
@@ -165,9 +161,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
         RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
             .addAsRecovery(metadata.index(index))
             .build();
-        ClusterState clusterState = ClusterState.builder(
-            org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)
-        ).metadata(metadata).routingTable(routingTable).build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(routingTable).build();
         final ShardId shardId = new ShardId(metadata.index(index).getIndex(), 0);
 
         logger.info("--> adding 3 nodes on same rack and do rerouting");
@@ -363,7 +357,6 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
             Settings.builder()
                 .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none")
                 .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), "none")
-                .put(ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING.getKey(), randomShardsAllocator())
                 .build()
         );
         final String index = "test";
@@ -372,7 +365,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
         Metadata metadata = Metadata.builder()
             .put(
                 IndexMetadata.builder(index)
-                    .settings(settings(Version.CURRENT))
+                    .settings(settings(IndexVersion.current()))
                     .numberOfShards(1)
                     .numberOfReplicas(1)
                     .putInSyncAllocationIds(0, Collections.singleton("asdf"))
@@ -384,10 +377,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
         RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
             .addAsRecovery(metadata.index(index))
             .build();
-        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-            .metadata(metadata)
-            .routingTable(routingTable)
-            .build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(routingTable).build();
 
         final String node1 = "node1";
         final String node2 = "node2";
@@ -427,20 +417,17 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
             Settings.builder()
                 .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none")
                 .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), "none")
-                .put(ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING.getKey(), randomShardsAllocator())
                 .build()
         );
 
         logger.info("--> building initial routing table");
         Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
+            .put(IndexMetadata.builder("test").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(1))
             .build();
         RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
             .addAsNew(metadata.index("test"))
             .build();
-        ClusterState clusterState = ClusterState.builder(
-            org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)
-        ).metadata(metadata).routingTable(routingTable).build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(routingTable).build();
 
         logger.info("--> adding 3 nodes");
         clusterState = ClusterState.builder(clusterState)
@@ -707,6 +694,57 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
         }
     }
 
+    public void testCanceledShardIsInitializedRespectingAllocationDeciders() {
+
+        var allocationId1 = AllocationId.newInitializing(UUIDs.randomBase64UUID());
+        var allocationId2 = AllocationId.newInitializing(UUIDs.randomBase64UUID());
+
+        var indexMetadata = IndexMetadata.builder("test")
+            .settings(indexSettings(IndexVersion.current(), 1, 1).put("index.routing.allocation.exclude._id", "node-0"))
+            .putInSyncAllocationIds(0, Set.of(allocationId1.getId(), allocationId2.getId()))
+            .build();
+        var shardId = new ShardId(indexMetadata.getIndex(), 0);
+
+        ShardRouting primary = shardRoutingBuilder(shardId, "node-0", true, STARTED).withAllocationId(allocationId1).build();
+        ShardRouting replica = shardRoutingBuilder(shardId, "node-1", false, STARTED).withAllocationId(allocationId2).build();
+
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(
+                DiscoveryNodes.builder()
+                    .add(newNode("node-0", Version.V_8_10_0, IndexVersions.V_8_10_0))
+                    .add(newNode("node-1", Version.V_8_9_0, IndexVersions.V_8_9_0))
+                    .add(newNode("node-2", Version.V_8_9_0, IndexVersions.V_8_9_0))
+            )
+            .metadata(Metadata.builder().put(indexMetadata, false))
+            .routingTable(RoutingTable.builder().add(IndexRoutingTable.builder(shardId.getIndex()).addShard(primary).addShard(replica)))
+            .build();
+
+        var allocation = createAllocationService();
+        clusterState = startInitializingShardsAndReroute(allocation, clusterState);
+        if (allocation.shardsAllocator instanceof DesiredBalanceShardsAllocator dbsa) {
+            // ShardAssignment still contains `node-0` even though `can_remain_decision=no` for it
+            assertThat(dbsa.getDesiredBalance().getAssignment(shardId), equalTo(new ShardAssignment(Set.of("node-0", "node-1"), 2, 0, 0)));
+        }
+
+        clusterState = allocation.reroute(
+            clusterState,
+            new AllocationCommands(new CancelAllocationCommand(shardId.getIndexName(), 0, "node-0", true)),
+            false,
+            false,
+            false,
+            ActionListener.noop()
+        ).clusterState();
+        clusterState = startInitializingShardsAndReroute(allocation, clusterState);
+
+        assertThat(clusterState.getRoutingNodes().node("node-0").size(), equalTo(0));
+        assertThat(clusterState.getRoutingNodes().node("node-1").numberOfShardsWithState(STARTED), equalTo(1));
+        assertThat(clusterState.getRoutingNodes().node("node-2").numberOfShardsWithState(STARTED), equalTo(1));
+
+        if (allocation.shardsAllocator instanceof DesiredBalanceShardsAllocator dbsa) {
+            assertThat(dbsa.getDesiredBalance().getAssignment(shardId), equalTo(new ShardAssignment(Set.of("node-1", "node-2"), 2, 0, 0)));
+        }
+    }
+
     public void testSerialization() throws Exception {
         AllocationCommands commands = new AllocationCommands(
             new AllocateEmptyPrimaryAllocationCommand("test", 1, "node1", true),
@@ -724,32 +762,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
         in = new NamedWriteableAwareStreamInput(in, namedWriteableRegistry);
 
         // Now we can read them!
-        AllocationCommands sCommands = AllocationCommands.readFrom(in);
-
-        assertThat(sCommands.commands().size(), equalTo(5));
-        assertThat(((AllocateEmptyPrimaryAllocationCommand) (sCommands.commands().get(0))).shardId(), equalTo(1));
-        assertThat(((AllocateEmptyPrimaryAllocationCommand) (sCommands.commands().get(0))).index(), equalTo("test"));
-        assertThat(((AllocateEmptyPrimaryAllocationCommand) (sCommands.commands().get(0))).node(), equalTo("node1"));
-        assertThat(((AllocateEmptyPrimaryAllocationCommand) (sCommands.commands().get(0))).acceptDataLoss(), equalTo(true));
-
-        assertThat(((AllocateStalePrimaryAllocationCommand) (sCommands.commands().get(1))).shardId(), equalTo(2));
-        assertThat(((AllocateStalePrimaryAllocationCommand) (sCommands.commands().get(1))).index(), equalTo("test"));
-        assertThat(((AllocateStalePrimaryAllocationCommand) (sCommands.commands().get(1))).node(), equalTo("node1"));
-        assertThat(((AllocateStalePrimaryAllocationCommand) (sCommands.commands().get(1))).acceptDataLoss(), equalTo(true));
-
-        assertThat(((AllocateReplicaAllocationCommand) (sCommands.commands().get(2))).shardId(), equalTo(2));
-        assertThat(((AllocateReplicaAllocationCommand) (sCommands.commands().get(2))).index(), equalTo("test"));
-        assertThat(((AllocateReplicaAllocationCommand) (sCommands.commands().get(2))).node(), equalTo("node1"));
-
-        assertThat(((MoveAllocationCommand) (sCommands.commands().get(3))).shardId(), equalTo(3));
-        assertThat(((MoveAllocationCommand) (sCommands.commands().get(3))).index(), equalTo("test"));
-        assertThat(((MoveAllocationCommand) (sCommands.commands().get(3))).fromNode(), equalTo("node2"));
-        assertThat(((MoveAllocationCommand) (sCommands.commands().get(3))).toNode(), equalTo("node3"));
-
-        assertThat(((CancelAllocationCommand) (sCommands.commands().get(4))).shardId(), equalTo(4));
-        assertThat(((CancelAllocationCommand) (sCommands.commands().get(4))).index(), equalTo("test"));
-        assertThat(((CancelAllocationCommand) (sCommands.commands().get(4))).node(), equalTo("node5"));
-        assertThat(((CancelAllocationCommand) (sCommands.commands().get(4))).allowPrimary(), equalTo(true));
+        assertThat(AllocationCommands.readFrom(in), equalTo(commands));
     }
 
     public void testXContent() throws Exception {
@@ -798,36 +811,24 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
                ]
              }
             """;
-        XContentParser parser = createParser(JsonXContent.jsonXContent, commands);
-        // move two tokens, parser expected to be "on" `commands` field
-        parser.nextToken();
-        parser.nextToken();
-        AllocationCommands sCommands = AllocationCommands.fromXContent(parser);
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, commands)) {
+            // move two tokens, parser expected to be "on" `commands` field
+            parser.nextToken();
+            parser.nextToken();
 
-        assertThat(sCommands.commands().size(), equalTo(5));
-        assertThat(((AllocateEmptyPrimaryAllocationCommand) (sCommands.commands().get(0))).shardId(), equalTo(1));
-        assertThat(((AllocateEmptyPrimaryAllocationCommand) (sCommands.commands().get(0))).index(), equalTo("test"));
-        assertThat(((AllocateEmptyPrimaryAllocationCommand) (sCommands.commands().get(0))).node(), equalTo("node1"));
-        assertThat(((AllocateEmptyPrimaryAllocationCommand) (sCommands.commands().get(0))).acceptDataLoss(), equalTo(true));
-
-        assertThat(((AllocateStalePrimaryAllocationCommand) (sCommands.commands().get(1))).shardId(), equalTo(2));
-        assertThat(((AllocateStalePrimaryAllocationCommand) (sCommands.commands().get(1))).index(), equalTo("test"));
-        assertThat(((AllocateStalePrimaryAllocationCommand) (sCommands.commands().get(1))).node(), equalTo("node1"));
-        assertThat(((AllocateStalePrimaryAllocationCommand) (sCommands.commands().get(1))).acceptDataLoss(), equalTo(true));
-
-        assertThat(((AllocateReplicaAllocationCommand) (sCommands.commands().get(2))).shardId(), equalTo(2));
-        assertThat(((AllocateReplicaAllocationCommand) (sCommands.commands().get(2))).index(), equalTo("test"));
-        assertThat(((AllocateReplicaAllocationCommand) (sCommands.commands().get(2))).node(), equalTo("node1"));
-
-        assertThat(((MoveAllocationCommand) (sCommands.commands().get(3))).shardId(), equalTo(3));
-        assertThat(((MoveAllocationCommand) (sCommands.commands().get(3))).index(), equalTo("test"));
-        assertThat(((MoveAllocationCommand) (sCommands.commands().get(3))).fromNode(), equalTo("node2"));
-        assertThat(((MoveAllocationCommand) (sCommands.commands().get(3))).toNode(), equalTo("node3"));
-
-        assertThat(((CancelAllocationCommand) (sCommands.commands().get(4))).shardId(), equalTo(4));
-        assertThat(((CancelAllocationCommand) (sCommands.commands().get(4))).index(), equalTo("test"));
-        assertThat(((CancelAllocationCommand) (sCommands.commands().get(4))).node(), equalTo("node5"));
-        assertThat(((CancelAllocationCommand) (sCommands.commands().get(4))).allowPrimary(), equalTo(true));
+            assertThat(
+                AllocationCommands.fromXContent(parser),
+                equalTo(
+                    new AllocationCommands(
+                        new AllocateEmptyPrimaryAllocationCommand("test", 1, "node1", true),
+                        new AllocateStalePrimaryAllocationCommand("test", 2, "node1", true),
+                        new AllocateReplicaAllocationCommand("test", 2, "node1"),
+                        new MoveAllocationCommand("test", 3, "node2", "node3"),
+                        new CancelAllocationCommand("test", 4, "node5", true)
+                    )
+                )
+            );
+        }
     }
 
     @Override
@@ -837,47 +838,32 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
 
     public void testMoveShardToNonDataNode() {
         AllocationService allocation = createAllocationService(
-            Settings.builder()
-                .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
-                .put(ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING.getKey(), randomShardsAllocator())
-                .build()
+            Settings.builder().put("cluster.routing.allocation.node_concurrent_recoveries", 10).build()
         );
 
         logger.info("creating an index with 1 shard, no replica");
         Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0))
+            .put(IndexMetadata.builder("test").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(0))
             .build();
         RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
             .addAsNew(metadata.index("test"))
             .build();
-        ClusterState clusterState = ClusterState.builder(
-            org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)
-        ).metadata(metadata).routingTable(routingTable).build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(routingTable).build();
 
         logger.info("--> adding two nodes");
 
-        DiscoveryNode node1 = new DiscoveryNode(
-            "node1",
-            "node1",
-            "node1",
-            "test1",
-            "test1",
-            buildNewFakeTransportAddress(),
-            emptyMap(),
-            MASTER_DATA_ROLES,
-            Version.CURRENT
-        );
-        DiscoveryNode node2 = new DiscoveryNode(
-            "node2",
-            "node2",
-            "node2",
-            "test2",
-            "test2",
-            buildNewFakeTransportAddress(),
-            emptyMap(),
-            new HashSet<>(randomSubsetOf(Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.INGEST_ROLE))),
-            Version.CURRENT
-        );
+        DiscoveryNode node1 = DiscoveryNodeUtils.builder("node1")
+            .name("node1")
+            .ephemeralId("node1")
+            .address("test1", "test1", buildNewFakeTransportAddress())
+            .roles(MASTER_DATA_ROLES)
+            .build();
+        DiscoveryNode node2 = DiscoveryNodeUtils.builder("node2")
+            .name("node2")
+            .ephemeralId("node2")
+            .address("test2", "test2", buildNewFakeTransportAddress())
+            .roles(new HashSet<>(randomSubsetOf(Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.INGEST_ROLE))))
+            .build();
 
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().add(node1).add(node2)).build();
 
@@ -910,47 +896,32 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
 
     public void testMoveShardFromNonDataNode() {
         AllocationService allocation = createAllocationService(
-            Settings.builder()
-                .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
-                .put(ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING.getKey(), randomShardsAllocator())
-                .build()
+            Settings.builder().put("cluster.routing.allocation.node_concurrent_recoveries", 10).build()
         );
 
         logger.info("creating an index with 1 shard, no replica");
         Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0))
+            .put(IndexMetadata.builder("test").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(0))
             .build();
         RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
             .addAsNew(metadata.index("test"))
             .build();
-        ClusterState clusterState = ClusterState.builder(
-            org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)
-        ).metadata(metadata).routingTable(routingTable).build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(routingTable).build();
 
         logger.info("--> adding two nodes");
 
-        DiscoveryNode node1 = new DiscoveryNode(
-            "node1",
-            "node1",
-            "node1",
-            "test1",
-            "test1",
-            buildNewFakeTransportAddress(),
-            emptyMap(),
-            MASTER_DATA_ROLES,
-            Version.CURRENT
-        );
-        DiscoveryNode node2 = new DiscoveryNode(
-            "node2",
-            "node2",
-            "node2",
-            "test2",
-            "test2",
-            buildNewFakeTransportAddress(),
-            emptyMap(),
-            new HashSet<>(randomSubsetOf(Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.INGEST_ROLE))),
-            Version.CURRENT
-        );
+        DiscoveryNode node1 = DiscoveryNodeUtils.builder("node1")
+            .name("node1")
+            .ephemeralId("node1")
+            .address("test1", "test1", buildNewFakeTransportAddress())
+            .roles(MASTER_DATA_ROLES)
+            .build();
+        DiscoveryNode node2 = DiscoveryNodeUtils.builder("node2")
+            .name("node2")
+            .ephemeralId("node2")
+            .address("test2", "test2", buildNewFakeTransportAddress())
+            .roles(new HashSet<>(randomSubsetOf(Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.INGEST_ROLE))))
+            .build();
 
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().add(node1).add(node2)).build();
         logger.info("start primary shard");
@@ -985,7 +956,6 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
             Settings.builder()
                 .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none")
                 .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), "none")
-                .put(ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING.getKey(), randomShardsAllocator())
                 .build()
         );
 
@@ -996,7 +966,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
         Metadata metadata = Metadata.builder()
             .put(
                 IndexMetadata.builder(index1)
-                    .settings(settings(Version.CURRENT))
+                    .settings(settings(IndexVersion.current()))
                     .numberOfShards(1)
                     .numberOfReplicas(1)
                     .putInSyncAllocationIds(0, Collections.singleton("randomAllocID"))
@@ -1004,7 +974,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
             )
             .put(
                 IndexMetadata.builder(index2)
-                    .settings(settings(Version.CURRENT))
+                    .settings(settings(IndexVersion.current()))
                     .numberOfShards(1)
                     .numberOfReplicas(1)
                     .putInSyncAllocationIds(0, Collections.singleton("randomAllocID"))
@@ -1012,7 +982,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
             )
             .put(
                 IndexMetadata.builder(index3)
-                    .settings(settings(Version.CURRENT))
+                    .settings(settings(IndexVersion.current()))
                     .numberOfShards(1)
                     .numberOfReplicas(1)
                     .putInSyncAllocationIds(0, Collections.singleton("randomAllocID"))
@@ -1024,10 +994,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
             .addAsRecovery(metadata.index(index2))
             .addAsRecovery(metadata.index(index3))
             .build();
-        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-            .metadata(metadata)
-            .routingTable(routingTable)
-            .build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(routingTable).build();
 
         final String node1 = "node1";
         final String node2 = "node2";
@@ -1090,9 +1057,5 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
                 ActionListener.noop()
             );
         }).getMessage(), containsString("all copies of [" + index3 + "][0] are already assigned. Use the move allocation command instead"));
-    }
-
-    private static String randomShardsAllocator() {
-        return randomFrom(BALANCED_ALLOCATOR, DESIRED_BALANCE_ALLOCATOR);
     }
 }

@@ -11,6 +11,7 @@ import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.PointValues;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.datastreams.DataStreamsActionUtil;
 import org.elasticsearch.action.datastreams.DataStreamsStatsAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
@@ -18,6 +19,7 @@ import org.elasticsearch.action.support.broadcast.node.TransportBroadcastByNodeA
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -33,7 +35,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.tasks.Task;
@@ -48,16 +49,13 @@ import java.util.Map;
 import java.util.OptionalDouble;
 import java.util.Set;
 import java.util.SortedMap;
-import java.util.stream.Stream;
 
 public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAction<
     DataStreamsStatsAction.Request,
     DataStreamsStatsAction.Response,
     DataStreamsStatsAction.DataStreamShardStats> {
 
-    private final ClusterService clusterService;
     private final IndicesService indicesService;
-    private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final WriteLoadForecaster writeLoadForecaster;
 
     @Inject
@@ -76,11 +74,9 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
             actionFilters,
             indexNameExpressionResolver,
             DataStreamsStatsAction.Request::new,
-            ThreadPool.Names.MANAGEMENT
+            transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT)
         );
-        this.clusterService = clusterService;
         this.indicesService = indicesService;
-        this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.writeLoadForecaster = writeLoadForecaster;
     }
 
@@ -111,25 +107,12 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
 
     @Override
     protected String[] resolveConcreteIndexNames(ClusterState clusterState, DataStreamsStatsAction.Request request) {
-        List<String> abstractionNames = indexNameExpressionResolver.dataStreamNames(
+        return DataStreamsActionUtil.resolveConcreteIndexNames(
+            indexNameExpressionResolver,
             clusterState,
-            request.indicesOptions(),
-            request.indices()
-        );
-        SortedMap<String, IndexAbstraction> indicesLookup = clusterState.getMetadata().getIndicesLookup();
-
-        String[] concreteDatastreamIndices = abstractionNames.stream().flatMap(abstractionName -> {
-            IndexAbstraction indexAbstraction = indicesLookup.get(abstractionName);
-            assert indexAbstraction != null;
-            if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM) {
-                IndexAbstraction.DataStream dataStream = (IndexAbstraction.DataStream) indexAbstraction;
-                List<Index> indices = dataStream.getIndices();
-                return indices.stream().map(Index::getName);
-            } else {
-                return Stream.empty();
-            }
-        }).toArray(String[]::new);
-        return concreteDatastreamIndices;
+            request.indices(),
+            request.indicesOptions()
+        ).toArray(String[]::new);
     }
 
     @Override
@@ -147,20 +130,15 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
         ActionListener.completeWith(listener, () -> {
             IndexService indexService = indicesService.indexServiceSafe(shardRouting.shardId().getIndex());
             IndexShard indexShard = indexService.getShard(shardRouting.shardId().id());
-            // if we don't have the routing entry yet, we need it stats wise, we treat it as if the shard is not ready yet
-            if (indexShard.routingEntry() == null) {
-                throw new ShardNotFoundException(indexShard.shardId());
-            }
             StoreStats storeStats = indexShard.storeStats();
             IndexAbstraction indexAbstraction = clusterService.state().getMetadata().getIndicesLookup().get(shardRouting.getIndexName());
             assert indexAbstraction != null;
-            IndexAbstraction.DataStream dataStream = indexAbstraction.getParentDataStream();
+            DataStream dataStream = indexAbstraction.getParentDataStream();
             assert dataStream != null;
             long maxTimestamp = 0L;
             try (Engine.Searcher searcher = indexShard.acquireSearcher("data_stream_stats")) {
                 IndexReader indexReader = searcher.getIndexReader();
-                String fieldName = dataStream.getDataStream().getTimeStampField().getName();
-                byte[] maxPackedValue = PointValues.getMaxPackedValue(indexReader, fieldName);
+                byte[] maxPackedValue = PointValues.getMaxPackedValue(indexReader, DataStream.TIMESTAMP_FIELD_NAME);
                 if (maxPackedValue != null) {
                     maxTimestamp = LongPoint.decodeDimension(maxPackedValue, 0);
                 }
@@ -194,7 +172,7 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
             IndexAbstraction indexAbstraction = indicesLookup.get(abstractionName);
             assert indexAbstraction != null;
             if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM) {
-                IndexAbstraction.DataStream dataStream = (IndexAbstraction.DataStream) indexAbstraction;
+                DataStream dataStream = (DataStream) indexAbstraction;
                 AggregatedStats stats = aggregatedDataStreamsStats.computeIfAbsent(dataStream.getName(), s -> new AggregatedStats());
                 Index writeIndex = indexAbstraction.getWriteIndex();
                 if (writeIndex != null) {
@@ -247,15 +225,15 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
             for (DataStreamsStatsAction.DataStreamShardStats shardStat : dataStreamShardStats) {
                 String indexName = shardStat.getShardRouting().getIndexName();
                 IndexAbstraction indexAbstraction = indicesLookup.get(indexName);
-                IndexAbstraction.DataStream dataStream = indexAbstraction.getParentDataStream();
+                DataStream dataStream = indexAbstraction.getParentDataStream();
                 assert dataStream != null;
 
                 // Aggregate global stats
-                totalStoreSizeBytes += shardStat.getStoreStats().sizeInBytes();
+                totalStoreSizeBytes += shardStat.getStoreStats().totalDataSetSizeInBytes();
 
                 // Aggregate data stream stats
                 AggregatedStats stats = aggregatedDataStreamsStats.computeIfAbsent(dataStream.getName(), s -> new AggregatedStats());
-                stats.storageBytes += shardStat.getStoreStats().sizeInBytes();
+                stats.storageBytes += shardStat.getStoreStats().totalDataSetSizeInBytes();
                 stats.maxTimestamp = Math.max(stats.maxTimestamp, shardStat.getMaxTimestamp());
             }
 

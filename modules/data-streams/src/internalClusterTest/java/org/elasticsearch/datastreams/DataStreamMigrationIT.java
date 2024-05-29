@@ -47,8 +47,8 @@ public class DataStreamMigrationIT extends ESIntegTestCase {
     public void testBasicMigration() throws Exception {
         putComposableIndexTemplate("id1", List.of("migrate*"));
 
-        admin().indices().create(new CreateIndexRequest("index1")).get();
-        admin().indices().create(new CreateIndexRequest("index2")).get();
+        indicesAdmin().create(new CreateIndexRequest("index1")).get();
+        indicesAdmin().create(new CreateIndexRequest("index2")).get();
 
         int numDocs1 = randomIntBetween(2, 16);
         indexDocs("index1", numDocs1);
@@ -59,13 +59,13 @@ public class DataStreamMigrationIT extends ESIntegTestCase {
         IndicesAliasesRequest request = new IndicesAliasesRequest();
         request.addAliasAction(IndicesAliasesRequest.AliasActions.add().index("index1").alias(alias).writeIndex(true));
         request.addAliasAction(IndicesAliasesRequest.AliasActions.add().index("index2").alias(alias).writeIndex(false));
-        assertAcked(admin().indices().aliases(request).get());
+        assertAcked(indicesAdmin().aliases(request).get());
 
         ResolveIndexAction.Request resolveRequest = new ResolveIndexAction.Request(
             new String[] { "*" },
             IndicesOptions.fromOptions(true, true, true, true, true)
         );
-        ResolveIndexAction.Response resolveResponse = admin().indices().resolveIndex(resolveRequest).get();
+        ResolveIndexAction.Response resolveResponse = indicesAdmin().resolveIndex(resolveRequest).get();
         assertThat(resolveResponse.getAliases().size(), equalTo(1));
         assertThat(resolveResponse.getAliases().get(0).getName(), equalTo(alias));
         assertThat(resolveResponse.getDataStreams().size(), equalTo(0));
@@ -73,7 +73,7 @@ public class DataStreamMigrationIT extends ESIntegTestCase {
 
         client().execute(MigrateToDataStreamAction.INSTANCE, new MigrateToDataStreamAction.Request(alias)).get();
 
-        resolveResponse = admin().indices().resolveIndex(resolveRequest).get();
+        resolveResponse = indicesAdmin().resolveIndex(resolveRequest).get();
         assertThat(resolveResponse.getAliases().size(), equalTo(0));
         assertThat(resolveResponse.getDataStreams().size(), equalTo(1));
         assertThat(resolveResponse.getDataStreams().get(0).getName(), equalTo(alias));
@@ -86,8 +86,8 @@ public class DataStreamMigrationIT extends ESIntegTestCase {
     }
 
     public void testMigrationWithoutTemplate() throws Exception {
-        admin().indices().create(new CreateIndexRequest("index1")).get();
-        admin().indices().create(new CreateIndexRequest("index2")).get();
+        indicesAdmin().create(new CreateIndexRequest("index1")).get();
+        indicesAdmin().create(new CreateIndexRequest("index2")).get();
 
         int numDocs1 = randomIntBetween(2, 16);
         indexDocs("index1", numDocs1);
@@ -98,13 +98,13 @@ public class DataStreamMigrationIT extends ESIntegTestCase {
         IndicesAliasesRequest request = new IndicesAliasesRequest();
         request.addAliasAction(IndicesAliasesRequest.AliasActions.add().index("index1").alias(alias).writeIndex(true));
         request.addAliasAction(IndicesAliasesRequest.AliasActions.add().index("index2").alias(alias).writeIndex(false));
-        assertAcked(admin().indices().aliases(request).get());
+        assertAcked(indicesAdmin().aliases(request).get());
 
         ResolveIndexAction.Request resolveRequest = new ResolveIndexAction.Request(
             new String[] { "*" },
             IndicesOptions.fromOptions(true, true, true, true, true)
         );
-        ResolveIndexAction.Response resolveResponse = admin().indices().resolveIndex(resolveRequest).get();
+        ResolveIndexAction.Response resolveResponse = indicesAdmin().resolveIndex(resolveRequest).get();
         assertThat(resolveResponse.getAliases().size(), equalTo(1));
         assertThat(resolveResponse.getAliases().get(0).getName(), equalTo(alias));
         assertThat(resolveResponse.getDataStreams().size(), equalTo(0));
@@ -123,20 +123,20 @@ public class DataStreamMigrationIT extends ESIntegTestCase {
     public void testMigrationWithoutIndexMappings() throws Exception {
         putComposableIndexTemplate("id1", List.of("migrate*"));
 
-        admin().indices().create(new CreateIndexRequest("index1")).get();
-        admin().indices().create(new CreateIndexRequest("index2")).get();
+        indicesAdmin().create(new CreateIndexRequest("index1")).get();
+        indicesAdmin().create(new CreateIndexRequest("index2")).get();
 
         String alias = "migrate-to-data-stream";
         IndicesAliasesRequest request = new IndicesAliasesRequest();
         request.addAliasAction(IndicesAliasesRequest.AliasActions.add().index("index1").alias(alias).writeIndex(true));
         request.addAliasAction(IndicesAliasesRequest.AliasActions.add().index("index2").alias(alias).writeIndex(false));
-        assertAcked(admin().indices().aliases(request).get());
+        assertAcked(indicesAdmin().aliases(request).get());
 
         ResolveIndexAction.Request resolveRequest = new ResolveIndexAction.Request(
             new String[] { "*" },
             IndicesOptions.fromOptions(true, true, true, true, true)
         );
-        ResolveIndexAction.Response resolveResponse = admin().indices().resolveIndex(resolveRequest).get();
+        ResolveIndexAction.Response resolveResponse = indicesAdmin().resolveIndex(resolveRequest).get();
         assertThat(resolveResponse.getAliases().size(), equalTo(1));
         assertThat(resolveResponse.getAliases().get(0).getName(), equalTo(alias));
         assertThat(resolveResponse.getDataStreams().size(), equalTo(0));
@@ -153,8 +153,8 @@ public class DataStreamMigrationIT extends ESIntegTestCase {
     public void testMigrationWithoutTimestampMapping() throws Exception {
         putComposableIndexTemplate("id1", List.of("migrate*"));
 
-        admin().indices().create(new CreateIndexRequest("index1")).get();
-        admin().indices().create(new CreateIndexRequest("index2")).get();
+        indicesAdmin().create(new CreateIndexRequest("index1")).get();
+        indicesAdmin().create(new CreateIndexRequest("index2")).get();
 
         int numDocs1 = randomIntBetween(2, 16);
         indexDocs("index1", numDocs1, "foo");
@@ -165,13 +165,13 @@ public class DataStreamMigrationIT extends ESIntegTestCase {
         IndicesAliasesRequest request = new IndicesAliasesRequest();
         request.addAliasAction(IndicesAliasesRequest.AliasActions.add().index("index1").alias(alias).writeIndex(true));
         request.addAliasAction(IndicesAliasesRequest.AliasActions.add().index("index2").alias(alias).writeIndex(false));
-        assertAcked(admin().indices().aliases(request).get());
+        assertAcked(indicesAdmin().aliases(request).get());
 
         ResolveIndexAction.Request resolveRequest = new ResolveIndexAction.Request(
             new String[] { "*" },
             IndicesOptions.fromOptions(true, true, true, true, true)
         );
-        ResolveIndexAction.Response resolveResponse = admin().indices().resolveIndex(resolveRequest).get();
+        ResolveIndexAction.Response resolveResponse = indicesAdmin().resolveIndex(resolveRequest).get();
         assertThat(resolveResponse.getAliases().size(), equalTo(1));
         assertThat(resolveResponse.getAliases().get(0).getName(), equalTo(alias));
         assertThat(resolveResponse.getDataStreams().size(), equalTo(0));
@@ -188,8 +188,8 @@ public class DataStreamMigrationIT extends ESIntegTestCase {
     public void testMigrationWithoutWriteIndex() throws Exception {
         putComposableIndexTemplate("id1", List.of("migrate*"));
 
-        admin().indices().create(new CreateIndexRequest("index1")).get();
-        admin().indices().create(new CreateIndexRequest("index2")).get();
+        indicesAdmin().create(new CreateIndexRequest("index1")).get();
+        indicesAdmin().create(new CreateIndexRequest("index2")).get();
 
         int numDocs1 = randomIntBetween(2, 16);
         indexDocs("index1", numDocs1);
@@ -200,13 +200,13 @@ public class DataStreamMigrationIT extends ESIntegTestCase {
         IndicesAliasesRequest request = new IndicesAliasesRequest();
         request.addAliasAction(IndicesAliasesRequest.AliasActions.add().index("index1").alias(alias).writeIndex(false));
         request.addAliasAction(IndicesAliasesRequest.AliasActions.add().index("index2").alias(alias).writeIndex(false));
-        assertAcked(admin().indices().aliases(request).get());
+        assertAcked(indicesAdmin().aliases(request).get());
 
         ResolveIndexAction.Request resolveRequest = new ResolveIndexAction.Request(
             new String[] { "*" },
             IndicesOptions.fromOptions(true, true, true, true, true)
         );
-        ResolveIndexAction.Response resolveResponse = admin().indices().resolveIndex(resolveRequest).get();
+        ResolveIndexAction.Response resolveResponse = indicesAdmin().resolveIndex(resolveRequest).get();
         assertThat(resolveResponse.getAliases().size(), equalTo(1));
         assertThat(resolveResponse.getAliases().get(0).getName(), equalTo(alias));
         assertThat(resolveResponse.getDataStreams().size(), equalTo(0));
@@ -249,7 +249,7 @@ public class DataStreamMigrationIT extends ESIntegTestCase {
             assertThat(itemResponse.getFailureMessage(), nullValue());
             assertThat(itemResponse.status(), equalTo(RestStatus.CREATED));
         }
-        client().admin().indices().refresh(new RefreshRequest(index)).actionGet();
+        indicesAdmin().refresh(new RefreshRequest(index)).actionGet();
     }
 
 }

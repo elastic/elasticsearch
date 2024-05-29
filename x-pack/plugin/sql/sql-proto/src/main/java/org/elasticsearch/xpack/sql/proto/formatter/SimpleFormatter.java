@@ -138,7 +138,7 @@ public class SimpleFormatter {
                     }
                 } else {
                     // Trim
-                    sb.append(string.substring(0, width[i] - 1));
+                    sb.append(string, 0, width[i] - 1);
                     sb.append('~');
                 }
             }
@@ -175,6 +175,6 @@ public class SimpleFormatter {
 
     @Override
     public int hashCode() {
-        return Objects.hash(width, formatOption);
+        return Objects.hash(Arrays.hashCode(width), formatOption);
     }
 }

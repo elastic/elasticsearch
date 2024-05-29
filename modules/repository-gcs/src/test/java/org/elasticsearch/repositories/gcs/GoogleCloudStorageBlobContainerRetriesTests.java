@@ -63,12 +63,14 @@ import static fixture.gcs.GoogleCloudStorageHttpHandler.getContentRangeStart;
 import static fixture.gcs.GoogleCloudStorageHttpHandler.parseMultipartRequestBody;
 import static fixture.gcs.TestUtils.createServiceAccount;
 import static java.nio.charset.StandardCharsets.UTF_8;
+import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
 import static org.elasticsearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase.randomBytes;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageBlobStore.MAX_DELETES_PER_BATCH;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.CREDENTIALS_FILE_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.ENDPOINT_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.READ_TIMEOUT_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.TOKEN_URI_SETTING;
+import static org.elasticsearch.test.hamcrest.OptionalMatchers.isPresent;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -187,7 +189,7 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
             exchange.close();
         });
 
-        try (InputStream inputStream = blobContainer.readBlob("large_blob_retries")) {
+        try (InputStream inputStream = blobContainer.readBlob(randomPurpose(), "large_blob_retries")) {
             assertArrayEquals(bytes, BytesReference.toBytes(Streams.readFully(inputStream)));
         }
     }
@@ -202,7 +204,7 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
             assertThat(exchange.getRequestURI().getQuery(), containsString("uploadType=multipart"));
             if (countDown.countDown()) {
                 Optional<Tuple<String, BytesReference>> content = parseMultipartRequestBody(exchange.getRequestBody());
-                assertThat(content.isPresent(), is(true));
+                assertThat(content, isPresent());
                 assertThat(content.get().v1(), equalTo(blobContainer.path().buildAsString() + "write_blob_max_retries"));
                 if (Objects.deepEquals(bytes, BytesReference.toBytes(content.get().v2()))) {
                     byte[] response = Strings.format("""
@@ -218,7 +220,10 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
             }
             if (randomBoolean()) {
                 if (randomBoolean()) {
-                    Streams.readFully(exchange.getRequestBody(), new byte[randomIntBetween(1, Math.max(1, bytes.length - 1))]);
+                    org.elasticsearch.core.Streams.readFully(
+                        exchange.getRequestBody(),
+                        new byte[randomIntBetween(1, Math.max(1, bytes.length - 1))]
+                    );
                 } else {
                     Streams.readFully(exchange.getRequestBody());
                     exchange.sendResponseHeaders(HttpStatus.SC_INTERNAL_SERVER_ERROR, -1);
@@ -227,7 +232,7 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
         }));
 
         try (InputStream stream = new InputStreamIndexInput(new ByteArrayIndexInput("desc", bytes), bytes.length)) {
-            blobContainer.writeBlob("write_blob_max_retries", stream, bytes.length, false);
+            blobContainer.writeBlob(randomPurpose(), "write_blob_max_retries", stream, bytes.length, false);
         }
         assertThat(countDown.isCountedDown(), is(true));
     }
@@ -241,7 +246,7 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
         httpServer.createContext("/upload/storage/v1/b/bucket/o", exchange -> {
             if (randomBoolean()) {
                 if (randomBoolean()) {
-                    Streams.readFully(exchange.getRequestBody(), new byte[randomIntBetween(1, bytes.length - 1)]);
+                    org.elasticsearch.core.Streams.readFully(exchange.getRequestBody(), new byte[randomIntBetween(1, bytes.length - 1)]);
                 } else {
                     Streams.readFully(exchange.getRequestBody());
                 }
@@ -250,7 +255,7 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
 
         Exception exception = expectThrows(StorageException.class, () -> {
             try (InputStream stream = new InputStreamIndexInput(new ByteArrayIndexInput("desc", bytes), bytes.length)) {
-                blobContainer.writeBlob("write_blob_timeout", stream, bytes.length, false);
+                blobContainer.writeBlob(randomPurpose(), "write_blob_timeout", stream, bytes.length, false);
             }
         });
         assertThat(exception.getMessage().toLowerCase(Locale.ROOT), containsString("read timed out"));
@@ -388,10 +393,10 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
 
         if (randomBoolean()) {
             try (InputStream stream = new InputStreamIndexInput(new ByteArrayIndexInput("desc", data), data.length)) {
-                blobContainer.writeBlob("write_large_blob", stream, data.length, false);
+                blobContainer.writeBlob(randomPurpose(), "write_large_blob", stream, data.length, false);
             }
         } else {
-            blobContainer.writeMetadataBlob("write_large_blob", false, randomBoolean(), out -> out.write(data));
+            blobContainer.writeMetadataBlob(randomPurpose(), "write_large_blob", false, randomBoolean(), out -> out.write(data));
         }
 
         assertThat(countInits.get(), equalTo(0));
@@ -448,7 +453,7 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
             exchange.getResponseBody().write(response);
         }));
 
-        blobContainer.deleteBlobsIgnoringIfNotExists(blobNamesIterator);
+        blobContainer.deleteBlobsIgnoringIfNotExists(randomPurpose(), blobNamesIterator);
 
         // Ensure that the remaining deletes are sent in the last batch
         if (pendingDeletes.get() > 0) {

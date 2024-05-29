@@ -12,6 +12,8 @@ import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.RefCounted;
+import org.elasticsearch.core.Releasable;
 
 /**
  * Base class for {@link Runnable}s that need to call {@link ActionListener#onFailure(Exception)} in case an uncaught
@@ -34,6 +36,11 @@ public abstract class ActionRunnable<Response> extends AbstractRunnable {
                 runnable.run();
                 listener.onResponse(null);
             }
+
+            @Override
+            public String toString() {
+                return runnable.toString();
+            }
         };
     }
 
@@ -48,6 +55,27 @@ public abstract class ActionRunnable<Response> extends AbstractRunnable {
             @Override
             public void accept(ActionListener<T> l) throws Exception {
                 l.onResponse(supplier.get());
+            }
+
+            @Override
+            public String toString() {
+                return supplier.toString();
+            }
+        });
+    }
+
+    /**
+     * Same as {@link #supply(ActionListener, CheckedSupplier)} but the supplier always returns an object of reference counted result type
+     * which will have its reference count decremented after invoking the listener.
+     */
+    public static <T extends RefCounted> ActionRunnable<T> supplyAndDecRef(
+        ActionListener<T> listener,
+        CheckedSupplier<T, Exception> supplier
+    ) {
+        return wrap(listener, new CheckedConsumer<>() {
+            @Override
+            public void accept(ActionListener<T> l) throws Exception {
+                ActionListener.respondAndRelease(l, supplier.get());
             }
 
             @Override
@@ -75,6 +103,37 @@ public abstract class ActionRunnable<Response> extends AbstractRunnable {
             @Override
             public String toString() {
                 return "ActionRunnable#wrap[" + consumer + "]";
+            }
+        };
+    }
+
+    /**
+     * Like {#wrap} except with a {@link Releasable} which is released after executing the consumer, or if the action is rejected. This is
+     * particularly useful for submitting actions holding resources to a threadpool which might have a bounded queue.
+     */
+    public static <T> ActionRunnable<T> wrapReleasing(
+        ActionListener<T> listener,
+        Releasable releasable,
+        CheckedConsumer<ActionListener<T>, Exception> consumer
+    ) {
+        return new ActionRunnable<>(listener) {
+            @Override
+            protected void doRun() {
+                try (releasable) {
+                    ActionListener.run(listener, consumer);
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                try (releasable) {
+                    super.onFailure(e);
+                }
+            }
+
+            @Override
+            public String toString() {
+                return "ActionRunnable#wrapReleasing[" + consumer + "]";
             }
         };
     }

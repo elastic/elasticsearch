@@ -18,6 +18,7 @@ import org.elasticsearch.xcontent.XContent;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * Handler for REST requests
@@ -47,6 +48,26 @@ public interface RestHandler {
     }
 
     /**
+     * Returns the concrete RestHandler for this RestHandler. That is, if this is a delegating RestHandler it returns the delegate.
+     * Otherwise it returns itself.
+     * @return The underlying RestHandler
+     */
+    default RestHandler getConcreteRestHandler() {
+        return this;
+    }
+
+    /**
+     * Returns the serverless Scope of this RestHandler. This is only meaningful when running in a servlerless environment. If a
+     * RestHandler has no ServerlessScope annotation, then this method returns null, meaning that this RestHandler is not visible at all in
+     * Serverless mode.
+     * @return The Scope for this handler, or null if there is no ServerlessScope annotation
+     */
+    default Scope getServerlessScope() {
+        ServerlessScope serverlessScope = getConcreteRestHandler().getClass().getAnnotation(ServerlessScope.class);
+        return serverlessScope == null ? null : serverlessScope.value();
+    }
+
+    /**
      * Indicates if the RestHandler supports working with pooled buffers. If the request handler will not escape the return
      * {@link RestRequest#content()} or any buffers extracted from it then there is no need to make a copies of any pooled buffers in the
      * {@link RestRequest} instance before passing a request to this handler. If this instance does not support pooled/unsafe buffers
@@ -63,6 +84,34 @@ public interface RestHandler {
      */
     default List<Route> routes() {
         return Collections.emptyList();
+    }
+
+    /**
+     * The set of path and query parameters that could be present on this handler.
+     * This method is only required due to <a href="https://github.com/elastic/elasticsearch/issues/36785">#36785</a>,
+     * which conflates query and path parameters inside the rest handler.
+     * This method should be overridden to add path parameters to {@link #supportedQueryParameters}
+     * if the handler has path parameters.
+     * This method will be removed when {@link #supportedQueryParameters()} and {@link BaseRestHandler#responseParams()} are combined.
+     */
+    default @Nullable Set<String> allSupportedParameters() {
+        return supportedQueryParameters();
+    }
+
+    /**
+     * The set of query parameters accepted by this rest handler,
+     * {@code null} if query parameters should not be checked nor validated.
+     * TODO - make this not nullable when all handlers have been updated
+     */
+    default @Nullable Set<String> supportedQueryParameters() {
+        return null;
+    }
+
+    /**
+     * The set of capabilities this rest handler supports.
+     */
+    default Set<String> supportedCapabilities() {
+        return Set.of();
     }
 
     /**

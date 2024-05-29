@@ -8,14 +8,15 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.plugins.FieldPredicate;
 import org.elasticsearch.plugins.MapperPlugin;
 
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.function.Function;
-import java.util.function.Predicate;
 
 /**
  * A registry for all field mappers.
@@ -28,13 +29,13 @@ public final class MapperRegistry {
     private final Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers7x;
     private final Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers6x;
     private final Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers5x;
-    private final Function<String, Predicate<String>> fieldFilter;
+    private final Function<String, FieldPredicate> fieldFilter;
 
     public MapperRegistry(
         Map<String, Mapper.TypeParser> mapperParsers,
         Map<String, RuntimeField.Parser> runtimeFieldParsers,
         Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers,
-        Function<String, Predicate<String>> fieldFilter
+        Function<String, FieldPredicate> fieldFilter
     ) {
         this.mapperParsers = Collections.unmodifiableMap(new LinkedHashMap<>(mapperParsers));
         this.runtimeFieldParsers = runtimeFieldParsers;
@@ -53,7 +54,7 @@ public final class MapperRegistry {
     /**
      * Return a mapper parser for the given type and index creation version.
      */
-    public Mapper.TypeParser getMapperParser(String type, Version indexVersionCreated) {
+    public Mapper.TypeParser getMapperParser(String type, IndexVersion indexVersionCreated) {
         Mapper.TypeParser parser = mapperParsers.get(type);
         if (indexVersionCreated.isLegacyIndexVersion() && (parser == null || parser.supportsVersion(indexVersionCreated) == false)) {
             return PlaceHolderFieldMapper.PARSER.apply(type);
@@ -70,14 +71,14 @@ public final class MapperRegistry {
      * Return a map of the meta mappers that have been registered. The
      * returned map uses the name of the field as a key.
      */
-    public Map<String, MetadataFieldMapper.TypeParser> getMetadataMapperParsers(Version indexCreatedVersion) {
-        if (indexCreatedVersion.onOrAfter(Version.V_8_0_0)) {
+    public Map<String, MetadataFieldMapper.TypeParser> getMetadataMapperParsers(IndexVersion indexCreatedVersion) {
+        if (indexCreatedVersion.onOrAfter(IndexVersions.V_8_0_0)) {
             return metadataMapperParsers;
-        } else if (indexCreatedVersion.major == 7) {
+        } else if (indexCreatedVersion.onOrAfter(IndexVersions.V_7_0_0)) {
             return metadataMapperParsers7x;
-        } else if (indexCreatedVersion.major == 6) {
+        } else if (indexCreatedVersion.onOrAfter(IndexVersion.fromId(6000099))) {
             return metadataMapperParsers6x;
-        } else if (indexCreatedVersion.major == 5) {
+        } else if (indexCreatedVersion.onOrAfter(IndexVersion.fromId(5000099))) {
             return metadataMapperParsers5x;
         } else {
             throw new AssertionError("unknown version: " + indexCreatedVersion);
@@ -91,7 +92,7 @@ public final class MapperRegistry {
      * {@link MapperPlugin#getFieldFilter()}, only fields that match all the registered filters will be returned by get mappings,
      * get index, get field mappings and field capabilities API.
      */
-    public Function<String, Predicate<String>> getFieldFilter() {
+    public Function<String, FieldPredicate> getFieldFilter() {
         return fieldFilter;
     }
 }

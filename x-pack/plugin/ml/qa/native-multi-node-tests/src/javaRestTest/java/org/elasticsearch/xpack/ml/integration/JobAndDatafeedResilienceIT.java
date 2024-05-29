@@ -56,7 +56,7 @@ public class JobAndDatafeedResilienceIT extends MlNativeAutodetectIntegTestCase 
         forceCloseJob(jobId);
         assertBusy(
             () -> assertThat(
-                client().admin().cluster().prepareListTasks().setActions(MlTasks.JOB_TASK_NAME + "[c]").get().getTasks().size(),
+                clusterAdmin().prepareListTasks().setActions(MlTasks.JOB_TASK_NAME + "[c]").get().getTasks().size(),
                 equalTo(0)
             )
         );
@@ -93,7 +93,7 @@ public class JobAndDatafeedResilienceIT extends MlNativeAutodetectIntegTestCase 
         forceStopDatafeed(datafeedConfig.getId());
         assertBusy(
             () -> assertThat(
-                client().admin().cluster().prepareListTasks().setActions(MlTasks.DATAFEED_TASK_NAME + "[c]").get().getTasks().size(),
+                clusterAdmin().prepareListTasks().setActions(MlTasks.DATAFEED_TASK_NAME + "[c]").get().getTasks().size(),
                 equalTo(0)
             )
         );
@@ -127,7 +127,7 @@ public class JobAndDatafeedResilienceIT extends MlNativeAutodetectIntegTestCase 
         closeJob(jobId2);
         assertBusy(
             () -> assertThat(
-                client().admin().cluster().prepareListTasks().setActions(MlTasks.JOB_TASK_NAME + "[c]").get().getTasks().size(),
+                clusterAdmin().prepareListTasks().setActions(MlTasks.JOB_TASK_NAME + "[c]").get().getTasks().size(),
                 equalTo(0)
             )
         );
@@ -181,7 +181,7 @@ public class JobAndDatafeedResilienceIT extends MlNativeAutodetectIntegTestCase 
         stopDatafeed(datafeedConfig2.getId());
         assertBusy(
             () -> assertThat(
-                client().admin().cluster().prepareListTasks().setActions(MlTasks.DATAFEED_TASK_NAME + "[c]").get().getTasks().size(),
+                clusterAdmin().prepareListTasks().setActions(MlTasks.DATAFEED_TASK_NAME + "[c]").get().getTasks().size(),
                 equalTo(0)
             )
         );

@@ -9,6 +9,7 @@
 package org.elasticsearch.gradle.internal;
 
 import org.gradle.api.Project;
+import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.Dependency;
 import org.gradle.api.artifacts.dsl.DependencyHandler;
 import org.gradle.api.plugins.BasePluginExtension;
@@ -32,7 +33,7 @@ public class InternalTestArtifactExtension {
         JavaPluginExtension javaPluginExtension = project.getExtensions().getByType(JavaPluginExtension.class);
         javaPluginExtension.registerFeature(name + "Artifacts", featureSpec -> {
             featureSpec.usingSourceSet(sourceSet);
-            featureSpec.capability("org.elasticsearch.gradle", project.getName() + "-" + name + "-artifacts", "1.0");
+            featureSpec.capability("org.elasticsearch.gradle", project.getName() + "-" + sourceSet.getName() + "-artifacts", "1.0");
             // This feature is only used internally in the
             // elasticsearch build so we do not need any publication.
             featureSpec.disablePublication();
@@ -40,9 +41,18 @@ public class InternalTestArtifactExtension {
 
         DependencyHandler dependencies = project.getDependencies();
         project.getPlugins().withType(JavaPlugin.class, javaPlugin -> {
+            Configuration apiElements = project.getConfigurations().getByName(sourceSet.getApiElementsConfigurationName());
+            Configuration apiElementsTestArtifacts = project.getConfigurations()
+                .create(sourceSet.getApiConfigurationName() + "TestArtifacts");
+            apiElements.extendsFrom(apiElementsTestArtifacts);
             Dependency projectDependency = dependencies.create(project);
-            dependencies.add(sourceSet.getApiElementsConfigurationName(), projectDependency);
-            dependencies.add(sourceSet.getRuntimeElementsConfigurationName(), projectDependency);
+            dependencies.add(apiElementsTestArtifacts.getName(), projectDependency);
+
+            Configuration runtimeElements = project.getConfigurations().getByName(sourceSet.getRuntimeElementsConfigurationName());
+            Configuration runtimeElementsTestArtifacts = project.getConfigurations()
+                .create(sourceSet.getRuntimeElementsConfigurationName() + "TestArtifacts");
+            runtimeElements.extendsFrom(runtimeElementsTestArtifacts);
+            dependencies.add(runtimeElementsTestArtifacts.getName(), projectDependency);
         });
         // PolicyUtil doesn't handle classifier notation well probably.
         // Instead of fixing PoliceUtil we stick to the pattern of changing

@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.core.security.authz.store;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.hash.MessageDigests;
+import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 
 import java.util.HashSet;
 import java.util.List;
@@ -79,11 +81,22 @@ public interface RoleReference {
         private final BytesReference roleDescriptorsBytes;
         private final ApiKeyRoleType roleType;
         private RoleKey id = null;
+        private final boolean checkForInvalidLegacyRoleDescriptorsForCrossClusterAccess;
 
         public ApiKeyRoleReference(String apiKeyId, BytesReference roleDescriptorsBytes, ApiKeyRoleType roleType) {
+            this(apiKeyId, roleDescriptorsBytes, roleType, false);
+        }
+
+        public ApiKeyRoleReference(
+            String apiKeyId,
+            BytesReference roleDescriptorsBytes,
+            ApiKeyRoleType roleType,
+            boolean checkForInvalidLegacyRoleDescriptorsForCrossClusterAccess
+        ) {
             this.apiKeyId = apiKeyId;
             this.roleDescriptorsBytes = roleDescriptorsBytes;
             this.roleType = roleType;
+            this.checkForInvalidLegacyRoleDescriptorsForCrossClusterAccess = checkForInvalidLegacyRoleDescriptorsForCrossClusterAccess;
         }
 
         @Override
@@ -113,6 +126,71 @@ public interface RoleReference {
 
         public ApiKeyRoleType getRoleType() {
             return roleType;
+        }
+
+        public boolean checkForInvalidLegacyRoleDescriptorsForCrossClusterAccess() {
+            return checkForInvalidLegacyRoleDescriptorsForCrossClusterAccess;
+        }
+    }
+
+    final class CrossClusterAccessRoleReference implements RoleReference {
+
+        private final CrossClusterAccessSubjectInfo.RoleDescriptorsBytes roleDescriptorsBytes;
+        private RoleKey id = null;
+        private final String userPrincipal;
+
+        public CrossClusterAccessRoleReference(
+            String userPrincipal,
+            CrossClusterAccessSubjectInfo.RoleDescriptorsBytes roleDescriptorsBytes
+        ) {
+            this.userPrincipal = userPrincipal;
+            this.roleDescriptorsBytes = roleDescriptorsBytes;
+        }
+
+        @Override
+        public RoleKey id() {
+            // Hashing can be expensive. memorize the result in case the method is called multiple times.
+            if (id == null) {
+                final String roleDescriptorsHash = roleDescriptorsBytes.digest();
+                id = new RoleKey(Set.of("cross_cluster_access:" + roleDescriptorsHash), "cross_cluster_access");
+            }
+            return id;
+        }
+
+        @Override
+        public void resolve(RoleReferenceResolver resolver, ActionListener<RolesRetrievalResult> listener) {
+            resolver.resolveCrossClusterAccessRoleReference(this, listener);
+        }
+
+        public String getUserPrincipal() {
+            return userPrincipal;
+        }
+
+        public CrossClusterAccessSubjectInfo.RoleDescriptorsBytes getRoleDescriptorsBytes() {
+            return roleDescriptorsBytes;
+        }
+    }
+
+    final class FixedRoleReference implements RoleReference {
+
+        private final RoleDescriptor roleDescriptor;
+        private final String source;
+
+        public FixedRoleReference(RoleDescriptor roleDescriptor, String source) {
+            this.roleDescriptor = roleDescriptor;
+            this.source = source;
+        }
+
+        @Override
+        public RoleKey id() {
+            return new RoleKey(Set.of(roleDescriptor.getName()), source);
+        }
+
+        @Override
+        public void resolve(RoleReferenceResolver resolver, ActionListener<RolesRetrievalResult> listener) {
+            final RolesRetrievalResult rolesRetrievalResult = new RolesRetrievalResult();
+            rolesRetrievalResult.addDescriptors(Set.of(roleDescriptor));
+            listener.onResponse(rolesRetrievalResult);
         }
     }
 

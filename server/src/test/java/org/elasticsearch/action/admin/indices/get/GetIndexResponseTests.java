@@ -76,6 +76,11 @@ public class GetIndexResponseTests extends AbstractWireSerializingTestCase<GetIn
         return new GetIndexResponse(indices, mappings, aliases, settings, defaultSettings, dataStreams);
     }
 
+    @Override
+    protected GetIndexResponse mutateInstance(GetIndexResponse instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public void testChunking() throws IOException {
         AbstractChunkedSerializingTestCase.assertChunkCount(createTestInstance(), response -> response.getIndices().length + 2);
     }

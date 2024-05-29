@@ -21,8 +21,8 @@
 
 <% if (docker_base == 'iron_bank') { %>
 ARG BASE_REGISTRY=registry1.dso.mil
-ARG BASE_IMAGE=ironbank/redhat/ubi/ubi8
-ARG BASE_TAG=8.6
+ARG BASE_IMAGE=ironbank/redhat/ubi/ubi9
+ARG BASE_TAG=9.3
 <% } %>
 
 ################################################################################
@@ -289,7 +289,7 @@ ENTRYPOINT ["/bin/tini", "--", "/usr/local/bin/docker-entrypoint.sh"]
 CMD ["eswrapper"]
 <% } %>
 
-USER elasticsearch:root
+USER 1000:0
 
 <% if (docker_base == 'iron_bank') { %>
 HEALTHCHECK --interval=10s --timeout=5s --start-period=1m --retries=5 CMD curl -I -f --max-time 5 http://localhost:9200 || exit 1

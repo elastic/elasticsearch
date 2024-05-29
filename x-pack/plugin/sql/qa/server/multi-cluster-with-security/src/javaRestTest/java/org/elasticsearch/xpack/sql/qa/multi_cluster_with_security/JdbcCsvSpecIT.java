@@ -8,23 +8,55 @@ package org.elasticsearch.xpack.sql.qa.multi_cluster_with_security;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.client.RestClient;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.xpack.ql.SpecReader;
 import org.elasticsearch.xpack.sql.qa.jdbc.CsvSpecTestCase;
-import org.elasticsearch.xpack.sql.qa.jdbc.CsvTestUtils.CsvTestCase;
+import org.junit.ClassRule;
 
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Properties;
 import java.util.regex.Pattern;
 
 import static org.elasticsearch.transport.RemoteClusterAware.buildRemoteIndexName;
+import static org.elasticsearch.xpack.ql.CsvSpecReader.CsvTestCase;
+import static org.elasticsearch.xpack.ql.CsvSpecReader.specParser;
 import static org.elasticsearch.xpack.ql.TestUtils.classpathResources;
-import static org.elasticsearch.xpack.sql.qa.jdbc.CsvTestUtils.specParser;
+import static org.elasticsearch.xpack.sql.qa.multi_cluster_with_security.SqlTestClusterWithRemote.PASSWORD;
+import static org.elasticsearch.xpack.sql.qa.multi_cluster_with_security.SqlTestClusterWithRemote.REMOTE_CLUSTER_ALIAS;
+import static org.elasticsearch.xpack.sql.qa.multi_cluster_with_security.SqlTestClusterWithRemote.USER_NAME;
 
 public class JdbcCsvSpecIT extends CsvSpecTestCase {
+    @ClassRule
+    public static SqlTestClusterWithRemote clusterAndRemote = new SqlTestClusterWithRemote();
 
-    public static final String REMOTE_CLUSTER_NAME = "my_remote_cluster"; // gradle defined
+    @Override
+    protected String getTestRestCluster() {
+        return clusterAndRemote.getCluster().getHttpAddresses();
+    }
+
+    @Override
+    protected Settings restClientSettings() {
+        return clusterAndRemote.clusterAuthSettings();
+    }
+
+    @Override
+    protected RestClient provisioningClient() {
+        return clusterAndRemote.getRemoteClient();
+    }
+
+    @Override
+    protected Properties connectionProperties() {
+        Properties connectionProperties = super.connectionProperties();
+        connectionProperties.put("user", USER_NAME);
+        connectionProperties.put("password", PASSWORD);
+        return connectionProperties;
+    }
+
     public static final String EXTRACT_FN_NAME = "EXTRACT";
 
     private static final Pattern DESCRIBE_OR_SHOW = Pattern.compile("(?i)\\s*(DESCRIBE|SHOW).*");
@@ -34,7 +66,7 @@ public class JdbcCsvSpecIT extends CsvSpecTestCase {
     public static List<Object[]> readScriptSpec() throws Exception {
         List<Object[]> list = new ArrayList<>();
         list.addAll(CsvSpecTestCase.readScriptSpec());
-        list.addAll(readScriptSpec(classpathResources("/multi-cluster-with-security/*.csv-spec"), specParser()));
+        list.addAll(SpecReader.readScriptSpec(classpathResources("/multi-cluster-with-security/*.csv-spec"), specParser()));
         return list;
     }
 
@@ -57,7 +89,7 @@ public class JdbcCsvSpecIT extends CsvSpecTestCase {
             j = j >= 0 ? i + j : query.length();
             sb.append(
                 query.substring(i, j)
-                    .replaceAll("(?i)(FROM)(\\s+)(\\w+|\"[^\"]+\")", "$1$2" + buildRemoteIndexName(REMOTE_CLUSTER_NAME, "$3"))
+                    .replaceAll("(?i)(FROM)(\\s+)(\\w+|\"[^\"]+\")", "$1$2" + buildRemoteIndexName(REMOTE_CLUSTER_ALIAS, "$3"))
             );
             boolean inString = false, escaping = false;
             char stringDelim = 0, crrChar;
@@ -103,7 +135,7 @@ public class JdbcCsvSpecIT extends CsvSpecTestCase {
         // Only set the default catalog if the query index isn't yet qualified with the catalog, which can happen if query has been written
         // qualified from the start (for the documentation) or edited in qualifyFromClause() above.
         if (isFromQualified(csvTestCase().query) == false) {
-            connection.setCatalog(REMOTE_CLUSTER_NAME);
+            connection.setCatalog(REMOTE_CLUSTER_ALIAS);
         }
         return connection;
     }

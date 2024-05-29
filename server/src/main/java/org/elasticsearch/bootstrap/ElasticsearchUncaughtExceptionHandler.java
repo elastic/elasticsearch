@@ -60,7 +60,7 @@ class ElasticsearchUncaughtExceptionHandler implements Thread.UncaughtExceptionH
         logErrorMessage(t, message);
     }
 
-    private void logErrorMessage(Throwable t, String message) {
+    private static void logErrorMessage(Throwable t, String message) {
         AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
             logger.error(message, t);
             return null;

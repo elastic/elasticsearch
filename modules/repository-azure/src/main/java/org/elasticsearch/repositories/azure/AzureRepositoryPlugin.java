@@ -11,29 +11,20 @@ package org.elasticsearch.repositories.azure;
 import com.azure.core.util.serializer.JacksonAdapter;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ReloadablePlugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
-import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.Repository;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.tracing.Tracer;
-import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.util.Arrays;
@@ -41,7 +32,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Supplier;
 
 /**
  * A plugin to add a repository type that writes to and from the Azure cloud storage service.
@@ -60,11 +50,10 @@ public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin, R
     // protected for testing
     final SetOnce<AzureStorageService> azureStoreService = new SetOnce<>();
     private final Settings settings;
-    private final Map<String, AzureStorageSettings> initialClientSettings;
 
     public AzureRepositoryPlugin(Settings settings) {
         // eagerly load client settings so that secure settings are read
-        this.initialClientSettings = AzureStorageSettings.load(settings);
+        AzureStorageSettings.load(settings);
         this.settings = settings;
     }
 
@@ -74,7 +63,8 @@ public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin, R
         NamedXContentRegistry namedXContentRegistry,
         ClusterService clusterService,
         BigArrays bigArrays,
-        RecoverySettings recoverySettings
+        RecoverySettings recoverySettings,
+        RepositoriesMetrics repositoriesMetrics
     ) {
         return Collections.singletonMap(AzureRepository.TYPE, metadata -> {
             AzureStorageService storageService = azureStoreService.get();
@@ -84,22 +74,8 @@ public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin, R
     }
 
     @Override
-    public Collection<Object> createComponents(
-        Client client,
-        ClusterService clusterService,
-        ThreadPool threadPool,
-        ResourceWatcherService resourceWatcherService,
-        ScriptService scriptService,
-        NamedXContentRegistry xContentRegistry,
-        Environment environment,
-        NodeEnvironment nodeEnvironment,
-        NamedWriteableRegistry namedWriteableRegistry,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        Supplier<RepositoriesService> repositoriesServiceSupplier,
-        Tracer tracer,
-        AllocationService allocationService
-    ) {
-        AzureClientProvider azureClientProvider = AzureClientProvider.create(threadPool, settings);
+    public Collection<?> createComponents(PluginServices services) {
+        AzureClientProvider azureClientProvider = AzureClientProvider.create(services.threadPool(), settings);
         azureStoreService.set(createAzureStorageService(settings, azureClientProvider));
         return List.of(azureClientProvider);
     }
@@ -119,7 +95,9 @@ public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin, R
             AzureStorageSettings.MAX_RETRIES_SETTING,
             AzureStorageSettings.PROXY_TYPE_SETTING,
             AzureStorageSettings.PROXY_HOST_SETTING,
-            AzureStorageSettings.PROXY_PORT_SETTING
+            AzureStorageSettings.PROXY_PORT_SETTING,
+            AzureStorageSettings.ENDPOINT_SETTING,
+            AzureStorageSettings.SECONDARY_ENDPOINT_SETTING
         );
     }
 

@@ -65,7 +65,7 @@ public final class ResyncReplicationRequest extends ReplicatedWriteRequest<Resyn
         super.writeTo(out);
         out.writeZLong(trimAboveSeqNo);
         out.writeZLong(maxSeenAutoIdTimestampOnPrimary);
-        out.writeArray(Translog.Operation::writeOperation, operations);
+        out.writeArray(operations);
     }
 
     @Override
@@ -80,7 +80,7 @@ public final class ResyncReplicationRequest extends ReplicatedWriteRequest<Resyn
 
     @Override
     public int hashCode() {
-        return Objects.hash(trimAboveSeqNo, maxSeenAutoIdTimestampOnPrimary, operations);
+        return Objects.hash(trimAboveSeqNo, maxSeenAutoIdTimestampOnPrimary, Arrays.hashCode(operations));
     }
 
     @Override

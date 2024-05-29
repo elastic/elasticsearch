@@ -24,11 +24,9 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.MultiReader;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.FieldExistsQuery;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
@@ -257,14 +255,9 @@ public class MinAggregatorTests extends AggregatorTestCase {
 
         MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("not_a_number");
 
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> testCase(
-                iw -> { iw.addDocument(singleton(new SortedSetDocValuesField("string", new BytesRef("foo")))); },
-                (Consumer<Min>) min -> { fail("Should have thrown exception"); },
-                new AggTestConfig(aggregationBuilder, fieldType)
-            )
-        );
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> testCase(iw -> {
+            iw.addDocument(singleton(new SortedSetDocValuesField("string", new BytesRef("foo"))));
+        }, (Consumer<Min>) min -> { fail("Should have thrown exception"); }, new AggTestConfig(aggregationBuilder, fieldType)));
         assertEquals("Field [not_a_number] of type [keyword] is not supported for aggregation [min]", e.getMessage());
     }
 
@@ -360,36 +353,6 @@ public class MinAggregatorTests extends AggregatorTestCase {
         }, new AggTestConfig(globalBuilder, fieldType));
     }
 
-    public void testSingleValuedFieldPartiallyUnmapped() throws IOException {
-
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.INTEGER);
-        MinAggregationBuilder aggregationBuilder = new MinAggregationBuilder("min").field("number");
-
-        try (Directory directory = newDirectory(); Directory unmappedDirectory = newDirectory()) {
-            RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
-            indexWriter.addDocument(singleton(new NumericDocValuesField("number", 7)));
-            indexWriter.addDocument(singleton(new NumericDocValuesField("number", 2)));
-            indexWriter.addDocument(singleton(new NumericDocValuesField("number", 3)));
-            indexWriter.close();
-
-            RandomIndexWriter unmappedIndexWriter = new RandomIndexWriter(random(), unmappedDirectory);
-            unmappedIndexWriter.close();
-
-            try (
-                IndexReader indexReader = DirectoryReader.open(directory);
-                IndexReader unamappedIndexReader = DirectoryReader.open(unmappedDirectory)
-            ) {
-
-                MultiReader multiReader = new MultiReader(indexReader, unamappedIndexReader);
-                IndexSearcher indexSearcher = newSearcher(multiReader, true, true);
-
-                Min min = searchAndReduce(indexSearcher, new AggTestConfig(aggregationBuilder, fieldType));
-                assertEquals(2.0, min.value(), 0);
-                assertTrue(AggregationInspectionHelper.hasValue(min));
-            }
-        }
-    }
-
     public void testSingleValuedFieldPartiallyUnmappedWithMissing() throws IOException {
 
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.INTEGER);
@@ -400,21 +363,11 @@ public class MinAggregatorTests extends AggregatorTestCase {
             indexWriter.addDocument(singleton(new NumericDocValuesField("number", 7)));
             indexWriter.addDocument(singleton(new NumericDocValuesField("number", 2)));
             indexWriter.addDocument(singleton(new NumericDocValuesField("number", 3)));
+            indexWriter.addDocument(singleton(new NumericDocValuesField("unrelated", 100)));
             indexWriter.close();
 
-            RandomIndexWriter unmappedIndexWriter = new RandomIndexWriter(random(), unmappedDirectory);
-            unmappedIndexWriter.addDocument(singleton(new NumericDocValuesField("unrelated", 100)));
-            unmappedIndexWriter.close();
-
-            try (
-                IndexReader indexReader = DirectoryReader.open(directory);
-                IndexReader unamappedIndexReader = DirectoryReader.open(unmappedDirectory)
-            ) {
-
-                MultiReader multiReader = new MultiReader(indexReader, unamappedIndexReader);
-                IndexSearcher indexSearcher = newSearcher(multiReader, true, true);
-
-                Min min = searchAndReduce(indexSearcher, new AggTestConfig(aggregationBuilder, fieldType));
+            try (DirectoryReader indexReader = DirectoryReader.open(directory)) {
+                Min min = searchAndReduce(indexReader, new AggTestConfig(aggregationBuilder, fieldType));
                 assertEquals(-19.0, min.value(), 0);
                 assertTrue(AggregationInspectionHelper.hasValue(min));
             }
@@ -600,10 +553,8 @@ public class MinAggregatorTests extends AggregatorTestCase {
             indexWriter.addDocument(singleton(new NumericDocValuesField("number", 3)));
             indexWriter.close();
 
-            try (IndexReader indexReader = DirectoryReader.open(directory)) {
-                IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
-
-                try (AggregationContext context = createAggregationContext(indexSearcher, new MatchAllDocsQuery(), fieldType)) {
+            try (DirectoryReader indexReader = DirectoryReader.open(directory)) {
+                try (AggregationContext context = createAggregationContext(indexReader, new MatchAllDocsQuery(), fieldType)) {
                     createAggregator(aggregationBuilder, context);
                     assertTrue(context.isCacheable());
                 }
@@ -627,15 +578,13 @@ public class MinAggregatorTests extends AggregatorTestCase {
             indexWriter.addDocument(singleton(new NumericDocValuesField("number", 3)));
             indexWriter.close();
 
-            try (IndexReader indexReader = DirectoryReader.open(directory)) {
-                IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
-
-                try (AggregationContext context = createAggregationContext(indexSearcher, new MatchAllDocsQuery(), fieldType)) {
+            try (DirectoryReader indexReader = DirectoryReader.open(directory)) {
+                try (AggregationContext context = createAggregationContext(indexReader, new MatchAllDocsQuery(), fieldType)) {
                     createAggregator(nonDeterministicAggregationBuilder, context);
                     assertFalse(context.isCacheable());
                 }
 
-                try (AggregationContext context = createAggregationContext(indexSearcher, new MatchAllDocsQuery(), fieldType)) {
+                try (AggregationContext context = createAggregationContext(indexReader, new MatchAllDocsQuery(), fieldType)) {
                     createAggregator(aggregationBuilder, context);
                     assertTrue(context.isCacheable());
                 }

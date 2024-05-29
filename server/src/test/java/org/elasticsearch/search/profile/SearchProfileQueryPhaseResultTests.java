@@ -42,6 +42,11 @@ public class SearchProfileQueryPhaseResultTests extends AbstractWireSerializingT
     }
 
     @Override
+    protected SearchProfileQueryPhaseResult mutateInstance(SearchProfileQueryPhaseResult instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Reader<SearchProfileQueryPhaseResult> instanceReader() {
         return SearchProfileQueryPhaseResult::new;
     }

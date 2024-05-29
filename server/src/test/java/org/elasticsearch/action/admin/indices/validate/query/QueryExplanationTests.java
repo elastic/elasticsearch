@@ -43,6 +43,11 @@ public class QueryExplanationTests extends AbstractXContentSerializingTestCase<Q
     }
 
     @Override
+    protected QueryExplanation mutateInstance(QueryExplanation instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Writeable.Reader<QueryExplanation> instanceReader() {
         return QueryExplanation::new;
     }

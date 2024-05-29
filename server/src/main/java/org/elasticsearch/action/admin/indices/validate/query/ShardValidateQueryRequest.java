@@ -8,7 +8,7 @@
 
 package org.elasticsearch.action.admin.indices.validate.query;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.support.broadcast.BroadcastShardRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -24,16 +24,16 @@ import java.util.Objects;
  */
 public class ShardValidateQueryRequest extends BroadcastShardRequest {
 
-    private QueryBuilder query;
-    private boolean explain;
-    private boolean rewrite;
-    private long nowInMillis;
-    private AliasFilter filteringAliases;
+    private final QueryBuilder query;
+    private final boolean explain;
+    private final boolean rewrite;
+    private final long nowInMillis;
+    private final AliasFilter filteringAliases;
 
     public ShardValidateQueryRequest(StreamInput in) throws IOException {
         super(in);
         query = in.readNamedWriteable(QueryBuilder.class);
-        if (in.getVersion().before(Version.V_8_0_0)) {
+        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             int typesSize = in.readVInt();
             if (typesSize > 0) {
                 for (int i = 0; i < typesSize; i++) {
@@ -80,7 +80,7 @@ public class ShardValidateQueryRequest extends BroadcastShardRequest {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeNamedWriteable(query);
-        if (out.getVersion().before(Version.V_8_0_0)) {
+        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             out.writeVInt(0);   // no types to filter
         }
         filteringAliases.writeTo(out);

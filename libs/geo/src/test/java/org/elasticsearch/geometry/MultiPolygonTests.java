@@ -78,4 +78,9 @@ public class MultiPolygonTests extends BaseGeometryTestCase<MultiPolygon> {
                 )
             );
     }
+
+    @Override
+    protected MultiPolygon mutateInstance(MultiPolygon instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
 }

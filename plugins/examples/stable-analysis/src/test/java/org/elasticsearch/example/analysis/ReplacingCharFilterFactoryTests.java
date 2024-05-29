@@ -9,7 +9,7 @@
 package org.elasticsearch.example.analysis;
 
 
-import org.elasticsearch.plugin.analysis.api.CharFilterFactory;
+import org.elasticsearch.plugin.analysis.CharFilterFactory;
 import org.junit.Test;
 import org.mockito.Mockito;
 

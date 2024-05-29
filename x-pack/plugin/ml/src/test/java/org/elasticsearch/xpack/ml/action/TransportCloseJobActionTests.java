@@ -23,6 +23,7 @@ import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.MlTasks;
@@ -337,10 +338,12 @@ public class TransportCloseJobActionTests extends ESTestCase {
     }
 
     private TransportCloseJobAction createAction() {
+        ThreadPool threadPool = mock(ThreadPool.class);
+        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
         return new TransportCloseJobAction(
-            mock(TransportService.class),
+            transportService,
             client,
-            mock(ThreadPool.class),
+            threadPool,
             mock(ActionFilters.class),
             clusterService,
             mock(AnomalyDetectionAuditor.class),

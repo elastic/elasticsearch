@@ -7,7 +7,8 @@
 
 package org.elasticsearch.xpack.core.analytics;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -45,8 +46,9 @@ public class AnalyticsFeatureSetUsage extends XPackFeatureSet.Usage {
         }
     }
 
-    public Version getMinimalSupportedVersion() {
-        return Version.V_7_4_0;
+    @Override
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.V_7_4_0;
     }
 
     @Override

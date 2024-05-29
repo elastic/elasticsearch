@@ -60,10 +60,10 @@ public class ExecuteWatchRequest extends ActionRequest {
         ignoreCondition = in.readBoolean();
         recordExecution = in.readBoolean();
         if (in.readBoolean()) {
-            alternativeInput = in.readMap();
+            alternativeInput = in.readGenericMap();
         }
         if (in.readBoolean()) {
-            triggerData = in.readMap();
+            triggerData = in.readGenericMap();
         }
         long actionModesCount = in.readLong();
         actionModes = new HashMap<>();

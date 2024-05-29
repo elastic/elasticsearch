@@ -1,10 +1,10 @@
 {
   "ml.update_trained_model_deployment":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-update-trained-model-deployment.html",
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/update-trained-model-deployment.html",
       "description":"Updates certain properties of trained model deployment."
     },
-    "stability":"beta",
+    "stability":"stable",
     "visibility":"public",
     "headers":{
       "accept": [ "application/json"],
@@ -26,9 +26,16 @@
         }
       ]
     },
+    "params":{
+      "number_of_allocations":{
+        "type":"int",
+        "required":false,
+        "description":"Update the model deployment to this number of allocations."
+      }
+    },
     "body":{
       "description":"The updated trained model deployment settings",
-      "required":true
+      "required":false
     }
   }
 }

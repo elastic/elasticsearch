@@ -7,7 +7,8 @@
 
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.NamedDiff;
@@ -125,8 +126,8 @@ public class LifecycleOperationMetadata implements Metadata.Custom {
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_8_7_0;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.V_8_7_0;
     }
 
     @Override
@@ -195,8 +196,8 @@ public class LifecycleOperationMetadata implements Metadata.Custom {
         }
 
         @Override
-        public Version getMinimalSupportedVersion() {
-            return Version.V_8_7_0;
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersions.V_8_7_0;
         }
     }
 }

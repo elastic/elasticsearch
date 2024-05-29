@@ -63,7 +63,7 @@ public class TooManyJobsIT extends BaseMlIntegTestCase {
             new GetJobsStatsAction.Request("close-failed-job-2")
         ).actionGet();
         assertEquals(statsResponse.getResponse().results().get(0).getState(), JobState.CLOSED);
-        ClusterState state = client().admin().cluster().prepareState().get().getState();
+        ClusterState state = clusterAdmin().prepareState().get().getState();
         List<PersistentTasksCustomMetadata.PersistentTask<?>> tasks = findTasks(state, MlTasks.JOB_TASK_NAME);
         assertEquals(1, tasks.size());
         // now just double check that the first job is still opened:
@@ -86,14 +86,7 @@ public class TooManyJobsIT extends BaseMlIntegTestCase {
         ensureTemplatesArePresent();
         logger.info("[{}] is [{}]", MachineLearning.MAX_LAZY_ML_NODES.getKey(), maxNumberOfLazyNodes);
         // Set our lazy node number
-        assertTrue(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(Settings.builder().put(MachineLearning.MAX_LAZY_ML_NODES.getKey(), maxNumberOfLazyNodes))
-                .get()
-                .isAcknowledged()
-        );
+        updateClusterSettings(Settings.builder().put(MachineLearning.MAX_LAZY_ML_NODES.getKey(), maxNumberOfLazyNodes));
         // create and open first job, which succeeds:
         Job.Builder job = createJob("lazy-node-validation-job-1", ByteSizeValue.ofMb(2));
         PutJobAction.Request putJobRequest = new PutJobAction.Request(job);

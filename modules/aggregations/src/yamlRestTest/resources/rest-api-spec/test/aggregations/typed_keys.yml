@@ -4,8 +4,6 @@ setup:
       indices.create:
           index: test
           body:
-            settings:
-              number_of_replicas: 0
             mappings:
               properties:
                 name:
@@ -205,8 +203,8 @@ setup:
 
 ---
 "Test typed keys parameter for date_histogram aggregation and max_bucket pipeline aggregation":
-  - skip:
-      version: " - 7.1.99"
+  - requires:
+      cluster_features: ["gte_v7.2.0"]
       reason:  "calendar_interval added in 7.2"
   - do:
       search:

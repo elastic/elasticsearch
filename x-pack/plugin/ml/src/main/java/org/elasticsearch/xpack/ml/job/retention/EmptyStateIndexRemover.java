@@ -42,20 +42,20 @@ public class EmptyStateIndexRemover implements MlDataRemover {
                 listener.onResponse(false);
                 return;
             }
-            getEmptyStateIndices(ActionListener.wrap(emptyStateIndices -> {
+            getEmptyStateIndices(listener.delegateFailureAndWrap((delegate, emptyStateIndices) -> {
                 if (emptyStateIndices.isEmpty()) {
-                    listener.onResponse(true);
+                    delegate.onResponse(true);
                     return;
                 }
-                getCurrentStateIndices(ActionListener.wrap(currentStateIndices -> {
+                getCurrentStateIndices(delegate.delegateFailureAndWrap((l, currentStateIndices) -> {
                     Set<String> stateIndicesToRemove = Sets.difference(emptyStateIndices, currentStateIndices);
                     if (stateIndicesToRemove.isEmpty()) {
-                        listener.onResponse(true);
+                        l.onResponse(true);
                         return;
                     }
-                    executeDeleteEmptyStateIndices(stateIndicesToRemove, listener);
-                }, listener::onFailure));
-            }, listener::onFailure));
+                    executeDeleteEmptyStateIndices(stateIndicesToRemove, l);
+                }));
+            }));
         } catch (Exception e) {
             listener.onFailure(e);
         }
@@ -64,15 +64,21 @@ public class EmptyStateIndexRemover implements MlDataRemover {
     private void getEmptyStateIndices(ActionListener<Set<String>> listener) {
         IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest().indices(AnomalyDetectorsIndex.jobStateIndexPattern());
         indicesStatsRequest.setParentTask(parentTaskId);
-        client.admin().indices().stats(indicesStatsRequest, ActionListener.wrap(indicesStatsResponse -> {
-            Set<String> emptyStateIndices = indicesStatsResponse.getIndices()
-                .values()
-                .stream()
-                .filter(stats -> stats.getTotal().getDocs().getCount() == 0)
-                .map(IndexStats::getIndex)
-                .collect(toSet());
-            listener.onResponse(emptyStateIndices);
-        }, listener::onFailure));
+        client.admin()
+            .indices()
+            .stats(
+                indicesStatsRequest,
+                listener.delegateFailureAndWrap(
+                    (l, indicesStatsResponse) -> l.onResponse(
+                        indicesStatsResponse.getIndices()
+                            .values()
+                            .stream()
+                            .filter(stats -> stats.getTotal().getDocs().getCount() == 0)
+                            .map(IndexStats::getIndex)
+                            .collect(toSet())
+                    )
+                )
+            );
     }
 
     private void getCurrentStateIndices(ActionListener<Set<String>> listener) {
@@ -82,7 +88,7 @@ public class EmptyStateIndexRemover implements MlDataRemover {
             .indices()
             .getIndex(
                 getIndexRequest,
-                ActionListener.wrap(getIndexResponse -> listener.onResponse(Set.of(getIndexResponse.getIndices())), listener::onFailure)
+                listener.delegateFailureAndWrap((l, getIndexResponse) -> l.onResponse(Set.of(getIndexResponse.getIndices())))
             );
     }
 
@@ -93,7 +99,7 @@ public class EmptyStateIndexRemover implements MlDataRemover {
             .indices()
             .delete(
                 deleteIndexRequest,
-                ActionListener.wrap(deleteResponse -> listener.onResponse(deleteResponse.isAcknowledged()), listener::onFailure)
+                listener.delegateFailureAndWrap((l, deleteResponse) -> l.onResponse(deleteResponse.isAcknowledged()))
             );
     }
 }

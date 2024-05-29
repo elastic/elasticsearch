@@ -26,6 +26,11 @@ public class SnapshotUpgradeTaskParamsTests extends AbstractXContentSerializingT
     }
 
     @Override
+    protected SnapshotUpgradeTaskParams mutateInstance(SnapshotUpgradeTaskParams instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Writeable.Reader<SnapshotUpgradeTaskParams> instanceReader() {
         return SnapshotUpgradeTaskParams::new;
     }

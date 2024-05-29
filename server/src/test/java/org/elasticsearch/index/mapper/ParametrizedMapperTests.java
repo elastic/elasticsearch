@@ -9,13 +9,16 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -23,14 +26,14 @@ import org.elasticsearch.index.mapper.FieldMapper.Parameter;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptCompiler;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.TransportVersionUtils;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
@@ -172,7 +175,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
 
         @Override
         public FieldMapper build(MapperBuilderContext context) {
-            return new TestMapper(name(), context.buildFullName(name), multiFieldsBuilder.build(this, context), copyTo.build(), this);
+            return new TestMapper(name(), context.buildFullName(name()), multiFieldsBuilder.build(this, context), copyTo, this);
         }
     }
 
@@ -238,9 +241,14 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         }
     }
 
-    private static TestMapper fromMapping(String mapping, Version version, boolean fromDynamicTemplate) {
+    private static TestMapper fromMapping(
+        String mapping,
+        IndexVersion version,
+        TransportVersion transportVersion,
+        boolean fromDynamicTemplate
+    ) {
         MapperService mapperService = mock(MapperService.class);
-        IndexAnalyzers indexAnalyzers = new IndexAnalyzers(
+        IndexAnalyzers indexAnalyzers = IndexAnalyzers.of(
             Map.of(
                 "_standard",
                 Lucene.STANDARD_ANALYZER,
@@ -248,9 +256,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
                 Lucene.KEYWORD_ANALYZER,
                 "default",
                 new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer())
-            ),
-            Collections.emptyMap(),
-            Collections.emptyMap()
+            )
         );
         when(mapperService.getIndexAnalyzers()).thenReturn(indexAnalyzers);
         IndexSettings indexSettings = createIndexSettings(version, Settings.EMPTY);
@@ -266,6 +272,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         },
             name -> null,
             version,
+            () -> transportVersion,
             () -> null,
             ScriptCompiler.NONE,
             mapperService.getIndexAnalyzers(),
@@ -276,15 +283,15 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
             pc = pc.createDynamicTemplateContext(null);
         }
         return (TestMapper) new TypeParser().parse("field", XContentHelper.convertToMap(JsonXContent.jsonXContent, mapping, true), pc)
-            .build(MapperBuilderContext.root(false));
+            .build(MapperBuilderContext.root(false, false));
     }
 
-    private static TestMapper fromMapping(String mapping, Version version) {
-        return fromMapping(mapping, version, false);
+    private static TestMapper fromMapping(String mapping, IndexVersion version, TransportVersion transportVersion) {
+        return fromMapping(mapping, version, transportVersion, false);
     }
 
     private static TestMapper fromMapping(String mapping) {
-        return fromMapping(mapping, Version.CURRENT);
+        return fromMapping(mapping, IndexVersion.current(), TransportVersion.current());
     }
 
     private String toStringWithDefaults(ToXContent value) throws IOException {
@@ -338,7 +345,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
             {"type":"test_mapper","fixed":true,"fixed2":true,"required":"value"}""");
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> mapper.merge(badMerge, MapperBuilderContext.root(false))
+            () -> mapper.merge(badMerge, MapperMergeContext.root(false, false, Long.MAX_VALUE))
         );
         String expectedError = """
             Mapper for [field] conflicts with existing mapper:
@@ -351,7 +358,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         // TODO: should we have to include 'fixed' here? Or should updates take as 'defaults' the existing values?
         TestMapper goodMerge = fromMapping("""
             {"type":"test_mapper","fixed":false,"variable":"updated","required":"value"}""");
-        TestMapper merged = (TestMapper) mapper.merge(goodMerge, MapperBuilderContext.root(false));
+        TestMapper merged = (TestMapper) mapper.merge(goodMerge, MapperMergeContext.root(false, false, Long.MAX_VALUE));
 
         assertEquals("{\"field\":" + mapping + "}", Strings.toString(mapper)); // original mapping is unaffected
         assertEquals("""
@@ -369,7 +376,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         String addSubField = """
             {"type":"test_mapper","variable":"foo","required":"value","fields":{"sub2":{"type":"keyword"}}}""";
         TestMapper toMerge = fromMapping(addSubField);
-        TestMapper merged = (TestMapper) mapper.merge(toMerge, MapperBuilderContext.root(false));
+        TestMapper merged = (TestMapper) mapper.merge(toMerge, MapperMergeContext.root(false, false, Long.MAX_VALUE));
         assertEquals(XContentHelper.stripWhitespace("""
             {
               "field": {
@@ -392,7 +399,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         TestMapper badToMerge = fromMapping(badSubField);
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> merged.merge(badToMerge, MapperBuilderContext.root(false))
+            () -> merged.merge(badToMerge, MapperMergeContext.root(false, false, Long.MAX_VALUE))
         );
         assertEquals("mapper [field.sub2] cannot be changed from type [keyword] to [binary]", e.getMessage());
     }
@@ -408,13 +415,13 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
 
         TestMapper toMerge = fromMapping("""
             {"type":"test_mapper","variable":"updated","required":"value","copy_to":["foo","bar"]}""");
-        TestMapper merged = (TestMapper) mapper.merge(toMerge, MapperBuilderContext.root(false));
+        TestMapper merged = (TestMapper) mapper.merge(toMerge, MapperMergeContext.root(false, false, Long.MAX_VALUE));
         assertEquals("""
             {"field":{"type":"test_mapper","variable":"updated","required":"value","copy_to":["foo","bar"]}}""", Strings.toString(merged));
 
         TestMapper removeCopyTo = fromMapping("""
             {"type":"test_mapper","variable":"updated","required":"value"}""");
-        TestMapper noCopyTo = (TestMapper) merged.merge(removeCopyTo, MapperBuilderContext.root(false));
+        TestMapper noCopyTo = (TestMapper) merged.merge(removeCopyTo, MapperMergeContext.root(false, false, Long.MAX_VALUE));
         assertEquals("""
             {"field":{"type":"test_mapper","variable":"updated","required":"value"}}""", Strings.toString(noCopyTo));
     }
@@ -480,7 +487,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         TestMapper toMerge = fromMapping(conflict);
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> mapper.merge(toMerge, MapperBuilderContext.root(false))
+            () -> mapper.merge(toMerge, MapperMergeContext.root(false, false, Long.MAX_VALUE))
         );
         assertEquals(
             "Mapper for [field] conflicts with existing mapper:\n"
@@ -523,7 +530,16 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
     public void testBWCunknownParametersfromDynamicTemplates() {
         String mapping = """
             {"type":"test_mapper","some_unknown_parameter":true,"required":"value"}""";
-        TestMapper mapper = fromMapping(mapping, VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0), true);
+        TestMapper mapper = fromMapping(
+            mapping,
+            IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersions.V_8_0_0),
+            TransportVersionUtils.randomVersionBetween(
+                random(),
+                TransportVersions.V_7_0_0,
+                TransportVersionUtils.getPreviousVersion(TransportVersions.V_8_0_0)
+            ),
+            true
+        );
         assertNotNull(mapper);
         assertWarnings(
             "Parameter [some_unknown_parameter] is used in a dynamic template mapping and has no effect on type [test_mapper]. "
@@ -532,7 +548,10 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         assertEquals("""
             {"field":{"type":"test_mapper","required":"value"}}""", Strings.toString(mapper));
 
-        MapperParsingException ex = expectThrows(MapperParsingException.class, () -> fromMapping(mapping, Version.V_8_0_0, true));
+        MapperParsingException ex = expectThrows(
+            MapperParsingException.class,
+            () -> fromMapping(mapping, IndexVersions.V_8_0_0, TransportVersions.V_8_0_0, true)
+        );
         assertEquals("unknown parameter [some_unknown_parameter] on mapper [field] of type [test_mapper]", ex.getMessage());
     }
 
@@ -557,7 +576,10 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
 
         TestMapper original = mapper;
         TestMapper toMerge = fromMapping(mapping);
-        e = expectThrows(IllegalArgumentException.class, () -> original.merge(toMerge, MapperBuilderContext.root(false)));
+        e = expectThrows(
+            IllegalArgumentException.class,
+            () -> original.merge(toMerge, MapperMergeContext.root(false, false, Long.MAX_VALUE))
+        );
         assertEquals(
             "Mapper for [field] conflicts with existing mapper:\n" + "\tCannot update parameter [analyzer] from [default] to [_standard]",
             e.getMessage()
@@ -568,13 +590,16 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         // 'index' is declared explicitly, 'store' is not, but is one of the previously always-accepted params
         String mapping = """
             {"type":"test_mapper","index":false,"store":true,"required":"value"}""";
-        TestMapper mapper = fromMapping(mapping, Version.V_7_8_0);
+        TestMapper mapper = fromMapping(mapping, IndexVersions.V_7_8_0, TransportVersions.V_7_8_0);
         assertWarnings("Parameter [store] has no effect on type [test_mapper] and will be removed in future");
         assertFalse(mapper.index);
         assertEquals("""
             {"field":{"type":"test_mapper","index":false,"required":"value"}}""", Strings.toString(mapper));
 
-        MapperParsingException e = expectThrows(MapperParsingException.class, () -> fromMapping(mapping, Version.V_8_0_0));
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> fromMapping(mapping, IndexVersions.V_8_0_0, TransportVersions.V_8_0_0)
+        );
         assertEquals("unknown parameter [store] on mapper [field] of type [test_mapper]", e.getMessage());
     }
 

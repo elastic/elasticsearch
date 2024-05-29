@@ -12,31 +12,20 @@ import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
-import java.security.KeyStore;
-import java.security.KeyStoreException;
-import java.security.SecureRandom;
-import java.security.cert.Certificate;
-import java.security.cert.CertificateFactory;
-import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collections;
-import java.util.Enumeration;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import javax.net.ssl.HttpsURLConnection;
-import javax.net.ssl.KeyManager;
 import javax.net.ssl.SSLContext;
-import javax.net.ssl.TrustManagerFactory;
 
 /**
  * A utility to wait for a specific HTTP resource to be available, optionally with customized TLS trusted CAs.
@@ -47,11 +36,10 @@ public class WaitForHttpResource {
 
     private static final Logger logger = Logging.getLogger(WaitForHttpResource.class);
 
+    private final SslTrustResolver trustResolver;
+    private final URL url;
+
     private Set<Integer> validResponseCodes = Collections.singleton(200);
-    private URL url;
-    private Set<File> certificateAuthorities;
-    private File trustStoreFile;
-    private String trustStorePassword;
     private String username;
     private String password;
 
@@ -61,6 +49,7 @@ public class WaitForHttpResource {
 
     public WaitForHttpResource(URL url) {
         this.url = url;
+        this.trustResolver = new SslTrustResolver();
     }
 
     public void setValidResponseCodes(int... validResponseCodes) {
@@ -71,15 +60,27 @@ public class WaitForHttpResource {
     }
 
     public void setCertificateAuthorities(File... certificateAuthorities) {
-        this.certificateAuthorities = new HashSet<>(Arrays.asList(certificateAuthorities));
+        trustResolver.setCertificateAuthorities(certificateAuthorities);
     }
 
     public void setTrustStoreFile(File trustStoreFile) {
-        this.trustStoreFile = trustStoreFile;
+        trustResolver.setTrustStoreFile(trustStoreFile);
     }
 
     public void setTrustStorePassword(String trustStorePassword) {
-        this.trustStorePassword = trustStorePassword;
+        trustResolver.setTrustStorePassword(trustStorePassword);
+    }
+
+    public void setServerCertificate(File serverCertificate) {
+        trustResolver.setServerCertificate(serverCertificate);
+    }
+
+    public void setServerKeystoreFile(File keyStoreFile) {
+        trustResolver.setServerKeystoreFile(keyStoreFile);
+    }
+
+    public void setServerKeystorePassword(String keyStorePassword) {
+        trustResolver.setServerKeystorePassword(keyStorePassword);
     }
 
     public void setUsername(String username) {
@@ -94,13 +95,7 @@ public class WaitForHttpResource {
         final long waitUntil = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(durationInMs);
         final long sleep = Long.max(durationInMs / 10, 100);
 
-        final SSLContext ssl;
-        final KeyStore trustStore = buildTrustStore();
-        if (trustStore != null) {
-            ssl = createSslContext(trustStore);
-        } else {
-            ssl = null;
-        }
+        final SSLContext ssl = trustResolver.getSslContext();
         IOException failure = null;
         while (true) {
             try {
@@ -158,62 +153,5 @@ public class WaitForHttpResource {
                 "Basic " + Base64.getEncoder().encodeToString((username + ":" + password).getBytes(StandardCharsets.UTF_8))
             );
         }
-    }
-
-    KeyStore buildTrustStore() throws GeneralSecurityException, IOException {
-        if (this.certificateAuthorities != null) {
-            if (trustStoreFile != null) {
-                throw new IllegalStateException("Cannot specify both truststore and CAs");
-            }
-            return buildTrustStoreFromCA();
-        } else if (trustStoreFile != null) {
-            return buildTrustStoreFromFile();
-        } else {
-            return null;
-        }
-    }
-
-    private KeyStore buildTrustStoreFromFile() throws GeneralSecurityException, IOException {
-        KeyStore keyStore = KeyStore.getInstance(trustStoreFile.getName().endsWith(".jks") ? "JKS" : "PKCS12");
-        try (InputStream input = new FileInputStream(trustStoreFile)) {
-            keyStore.load(input, trustStorePassword == null ? null : trustStorePassword.toCharArray());
-        }
-        return keyStore;
-    }
-
-    private KeyStore buildTrustStoreFromCA() throws GeneralSecurityException, IOException {
-        final KeyStore store = KeyStore.getInstance(KeyStore.getDefaultType());
-        store.load(null, null);
-        final CertificateFactory certFactory = CertificateFactory.getInstance("X.509");
-        int counter = 0;
-        for (File ca : certificateAuthorities) {
-            try (InputStream input = new FileInputStream(ca)) {
-                for (Certificate certificate : certFactory.generateCertificates(input)) {
-                    store.setCertificateEntry("cert-" + counter, certificate);
-                    counter++;
-                }
-            }
-        }
-        return store;
-    }
-
-    private SSLContext createSslContext(KeyStore trustStore) throws GeneralSecurityException {
-        checkForTrustEntry(trustStore);
-        TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
-        tmf.init(trustStore);
-        SSLContext sslContext = SSLContext.getInstance("TLSv1.2");
-        sslContext.init(new KeyManager[0], tmf.getTrustManagers(), new SecureRandom());
-        return sslContext;
-    }
-
-    private void checkForTrustEntry(KeyStore trustStore) throws KeyStoreException {
-        Enumeration<String> enumeration = trustStore.aliases();
-        while (enumeration.hasMoreElements()) {
-            if (trustStore.isCertificateEntry(enumeration.nextElement())) {
-                // found trusted cert entry
-                return;
-            }
-        }
-        throw new IllegalStateException("Trust-store does not contain any trusted certificate entries");
     }
 }

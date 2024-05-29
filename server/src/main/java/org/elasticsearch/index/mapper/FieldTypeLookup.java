@@ -14,6 +14,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -24,6 +25,7 @@ import java.util.stream.Collectors;
  */
 final class FieldTypeLookup {
     private final Map<String, MappedFieldType> fullNameToFieldType;
+    private final Map<String, String> fullSubfieldNameToParentPath;
     private final Map<String, DynamicFieldType> dynamicFieldTypes;
 
     /**
@@ -37,19 +39,26 @@ final class FieldTypeLookup {
 
     private final int maxParentPathDots;
 
+    FieldTypeLookup(Collection<FieldMapper> fieldMappers, Collection<FieldAliasMapper> fieldAliasMappers) {
+        this(fieldMappers, fieldAliasMappers, List.of(), List.of());
+    }
+
     FieldTypeLookup(
         Collection<FieldMapper> fieldMappers,
         Collection<FieldAliasMapper> fieldAliasMappers,
+        Collection<PassThroughObjectMapper> passThroughMappers,
         Collection<RuntimeField> runtimeFields
     ) {
 
         final Map<String, MappedFieldType> fullNameToFieldType = new HashMap<>();
+        final Map<String, String> fullSubfieldNameToParentPath = new HashMap<>();
         final Map<String, DynamicFieldType> dynamicFieldTypes = new HashMap<>();
         final Map<String, Set<String>> fieldToCopiedFields = new HashMap<>();
         for (FieldMapper fieldMapper : fieldMappers) {
             String fieldName = fieldMapper.name();
             MappedFieldType fieldType = fieldMapper.fieldType();
             fullNameToFieldType.put(fieldType.name(), fieldType);
+            fieldMapper.sourcePathUsedBy().forEachRemaining(mapper -> fullSubfieldNameToParentPath.put(mapper.name(), fieldName));
             if (fieldType instanceof DynamicFieldType) {
                 dynamicFieldTypes.put(fieldType.name(), (DynamicFieldType) fieldType);
             }
@@ -83,19 +92,49 @@ final class FieldTypeLookup {
             }
         }
 
+        // Pass-though subfields can be referenced without the prefix corresponding to the
+        // PassThroughObjectMapper name. This is achieved by adding a second reference to their
+        // MappedFieldType using the remaining suffix.
+        Map<String, PassThroughObjectMapper> passThroughFieldAliases = new HashMap<>();
+        for (PassThroughObjectMapper passThroughMapper : passThroughMappers) {
+            for (Mapper subfield : passThroughMapper.mappers.values()) {
+                if (subfield instanceof FieldMapper fieldMapper) {
+                    String name = fieldMapper.simpleName();
+                    // Check for conflict between PassThroughObjectMapper subfields.
+                    PassThroughObjectMapper conflict = passThroughFieldAliases.put(name, passThroughMapper);
+                    if (conflict != null) {
+                        if (conflict.priority() > passThroughMapper.priority()) {
+                            // Keep the conflicting field if it has higher priority.
+                            passThroughFieldAliases.put(name, conflict);
+                            continue;
+                        }
+                    } else if (fullNameToFieldType.containsKey(name)) {
+                        // There's an existing field or alias for the same field.
+                        continue;
+                    }
+                    MappedFieldType fieldType = fieldMapper.fieldType();
+                    fullNameToFieldType.put(name, fieldType);
+                    if (fieldType instanceof DynamicFieldType) {
+                        dynamicFieldTypes.put(name, (DynamicFieldType) fieldType);
+                    }
+                }
+            }
+        }
+
         for (MappedFieldType fieldType : RuntimeField.collectFieldTypes(runtimeFields).values()) {
             // this will override concrete fields with runtime fields that have the same name
             fullNameToFieldType.put(fieldType.name(), fieldType);
         }
         // make all fields into compact+fast immutable maps
         this.fullNameToFieldType = Map.copyOf(fullNameToFieldType);
+        this.fullSubfieldNameToParentPath = Map.copyOf(fullSubfieldNameToParentPath);
         this.dynamicFieldTypes = Map.copyOf(dynamicFieldTypes);
         // make values into more compact immutable sets to save memory
         fieldToCopiedFields.entrySet().forEach(e -> e.setValue(Set.copyOf(e.getValue())));
         this.fieldToCopiedFields = Map.copyOf(fieldToCopiedFields);
     }
 
-    private static int dotCount(String path) {
+    public static int dotCount(String path) {
         int dotCount = 0;
         for (int i = 0; i < path.length(); i++) {
             if (path.charAt(i) == '.') {
@@ -158,7 +197,7 @@ final class FieldTypeLookup {
      */
     Set<String> getMatchingFieldNames(String pattern) {
         if (Regex.isMatchAllPattern(pattern)) {
-            return Collections.unmodifiableSet(fullNameToFieldType.keySet());
+            return fullNameToFieldType.keySet();
         }
         if (Regex.isSimpleMatchPattern(pattern) == false) {
             // no wildcards
@@ -194,14 +233,24 @@ final class FieldTypeLookup {
         }
 
         String resolvedField = field;
-        int lastDotIndex = field.lastIndexOf('.');
-        if (lastDotIndex > 0) {
-            String parentField = field.substring(0, lastDotIndex);
-            if (fullNameToFieldType.containsKey(parentField)) {
-                resolvedField = parentField;
-            }
+        if (fullSubfieldNameToParentPath.containsKey(field)) {
+            resolvedField = fullSubfieldNameToParentPath.get(field);
         }
 
         return fieldToCopiedFields.containsKey(resolvedField) ? fieldToCopiedFields.get(resolvedField) : Set.of(resolvedField);
+    }
+
+    /**
+     * If field is a leaf multi-field return the path to the parent field. Otherwise, return null.
+     */
+    public String parentField(String field) {
+        return fullSubfieldNameToParentPath.get(field);
+    }
+
+    /**
+     * @return A map from field name to the MappedFieldType
+     */
+    public Map<String, MappedFieldType> getFullNameToFieldType() {
+        return fullNameToFieldType;
     }
 }

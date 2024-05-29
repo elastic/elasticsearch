@@ -35,6 +35,8 @@ class TimeBasedUUIDGenerator implements UUIDGenerator {
         assert SECURE_MUNGED_ADDRESS.length == 6;
     }
 
+    private static final Base64.Encoder BASE_64_NO_PADDING = Base64.getUrlEncoder().withoutPadding();
+
     // protected for testing
     protected long currentTimeMillis() {
         return System.currentTimeMillis();
@@ -48,22 +50,16 @@ class TimeBasedUUIDGenerator implements UUIDGenerator {
     @Override
     public String getBase64UUID() {
         final int sequenceId = sequenceNumber.incrementAndGet() & 0xffffff;
-        long currentTimeMillis = currentTimeMillis();
 
-        long timestamp = this.lastTimestamp.updateAndGet(lastTimestamp -> {
-            // Don't let timestamp go backwards, at least "on our watch" (while this JVM is running). We are
-            // still vulnerable if we are shut down, clock goes backwards, and we restart... for this we
-            // randomize the sequenceNumber on init to decrease chance of collision:
-            long nonBackwardsTimestamp = Math.max(lastTimestamp, currentTimeMillis);
-
-            if (sequenceId == 0) {
-                // Always force the clock to increment whenever sequence number is 0, in case we have a long
-                // time-slip backwards:
-                nonBackwardsTimestamp++;
-            }
-
-            return nonBackwardsTimestamp;
-        });
+        // Don't let timestamp go backwards, at least "on our watch" (while this JVM is running). We are
+        // still vulnerable if we are shut down, clock goes backwards, and we restart... for this we
+        // randomize the sequenceNumber on init to decrease chance of collision:
+        long timestamp = this.lastTimestamp.accumulateAndGet(
+            currentTimeMillis(),
+            // Always force the clock to increment whenever sequence number is 0, in case we have a long
+            // time-slip backwards:
+            sequenceId == 0 ? (lastTimestamp, currentTimeMillis) -> Math.max(lastTimestamp, currentTimeMillis) + 1 : Math::max
+        );
 
         final byte[] uuidBytes = new byte[15];
         int i = 0;
@@ -106,6 +102,6 @@ class TimeBasedUUIDGenerator implements UUIDGenerator {
 
         assert i == uuidBytes.length;
 
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(uuidBytes);
+        return BASE_64_NO_PADDING.encodeToString(uuidBytes);
     }
 }

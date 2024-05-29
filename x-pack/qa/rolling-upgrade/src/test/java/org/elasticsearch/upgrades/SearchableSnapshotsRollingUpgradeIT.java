@@ -11,10 +11,8 @@ import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
-import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
@@ -53,15 +51,11 @@ public class SearchableSnapshotsRollingUpgradeIT extends AbstractUpgradeTestCase
     }
 
     public void testMountFullCopyAndRecoversCorrectly() throws Exception {
-        final Storage storage = Storage.FULL_COPY;
-        assumeVersion(Version.V_7_10_0, storage);
-
-        executeMountAndRecoversCorrectlyTestCase(storage, 6789L);
+        executeMountAndRecoversCorrectlyTestCase(Storage.FULL_COPY, 6789L);
     }
 
     public void testMountPartialCopyAndRecoversCorrectly() throws Exception {
         final Storage storage = Storage.SHARED_CACHE;
-        assumeVersion(Version.V_7_12_0, Storage.SHARED_CACHE);
 
         if (CLUSTER_TYPE.equals(ClusterType.UPGRADED)) {
             assertBusy(() -> {
@@ -89,13 +83,7 @@ public class SearchableSnapshotsRollingUpgradeIT extends AbstractUpgradeTestCase
             registerRepository(repository, FsRepository.TYPE, true, repositorySettings(repository));
 
             final String originalIndex = "logs_" + suffix;
-            createIndex(
-                originalIndex,
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 3))
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                    .build()
-            );
+            createIndex(originalIndex, indexSettings(randomIntBetween(1, 3), 0).build());
             indexDocs(originalIndex, numberOfDocs);
             createSnapshot(repository, snapshot, originalIndex);
             deleteIndex(originalIndex);
@@ -123,15 +111,11 @@ public class SearchableSnapshotsRollingUpgradeIT extends AbstractUpgradeTestCase
     }
 
     public void testBlobStoreCacheWithFullCopyInMixedVersions() throws Exception {
-        final Storage storage = Storage.FULL_COPY;
-        assumeVersion(Version.V_7_10_0, storage);
-
-        executeBlobCacheCreationTestCase(storage, 9876L);
+        executeBlobCacheCreationTestCase(Storage.FULL_COPY, 9876L);
     }
 
     public void testBlobStoreCacheWithPartialCopyInMixedVersions() throws Exception {
         final Storage storage = Storage.SHARED_CACHE;
-        assumeVersion(Version.V_7_12_0, Storage.SHARED_CACHE);
 
         executeBlobCacheCreationTestCase(storage, 8765L);
     }
@@ -159,13 +143,7 @@ public class SearchableSnapshotsRollingUpgradeIT extends AbstractUpgradeTestCase
             // snapshots must be created from indices on the lowest version, otherwise we won't be able
             // to mount them again in the mixed version cluster (and we'll have IndexFormatTooNewException)
             for (int i = 0; i < numberOfSnapshots; i++) {
-                createIndex(
-                    indices[i],
-                    Settings.builder()
-                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 3))
-                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                        .build()
-                );
+                createIndex(indices[i], indexSettings(randomIntBetween(1, 3), 0).build());
                 indexDocs(indices[i], numberOfDocs * (i + 1L));
 
                 createSnapshot(repository, snapshots[i], indices[i]);
@@ -176,29 +154,28 @@ public class SearchableSnapshotsRollingUpgradeIT extends AbstractUpgradeTestCase
             final int numberOfNodes = 3;
             waitForNodes(numberOfNodes);
 
-            final Map<String, Version> nodesIdsAndVersions = nodesVersions();
+            final Map<String, String> nodesIdsAndVersions = nodesVersions();
             assertThat("Cluster should have 3 nodes", nodesIdsAndVersions.size(), equalTo(numberOfNodes));
 
-            final Version minVersion = nodesIdsAndVersions.values().stream().min(Version::compareTo).get();
-            final Version maxVersion = nodesIdsAndVersions.values().stream().max(Version::compareTo).get();
+            final var newVersionNodes = nodesIdsAndVersions.entrySet()
+                .stream()
+                .filter(node -> isOriginalCluster(node.getValue()) == false)
+                .map(Map.Entry::getKey)
+                .collect(Collectors.toSet());
 
-            final String nodeIdWithMinVersion = randomFrom(
-                nodesIdsAndVersions.entrySet()
-                    .stream()
-                    .filter(node -> minVersion.equals(node.getValue()))
-                    .map(Map.Entry::getKey)
-                    .collect(Collectors.toSet())
-            );
+            final var originalVersionNodes = nodesIdsAndVersions.entrySet()
+                .stream()
+                .filter(node -> isOriginalCluster(node.getValue()))
+                .map(Map.Entry::getKey)
+                .collect(Collectors.toSet());
 
-            final String nodeIdWithMaxVersion = randomValueOtherThan(
-                nodeIdWithMinVersion,
-                () -> randomFrom(
-                    nodesIdsAndVersions.entrySet()
-                        .stream()
-                        .filter(node -> maxVersion.equals(node.getValue()))
-                        .map(Map.Entry::getKey)
-                        .collect(Collectors.toSet())
-                )
+            final String nodeIdWithOriginalVersion = randomFrom(originalVersionNodes);
+
+            // We may not have upgraded nodes, if we are running these test on the same version (original == current)
+            final var upgradedVersionNodes = newVersionNodes.isEmpty() ? originalVersionNodes : newVersionNodes;
+            final String nodeIdWithUpgradedVersion = randomValueOtherThan(
+                nodeIdWithOriginalVersion,
+                () -> randomFrom(upgradedVersionNodes)
             );
 
             // The snapshot is mounted on the node with the min. version in order to force the node to populate the blob store cache index.
@@ -210,8 +187,8 @@ public class SearchableSnapshotsRollingUpgradeIT extends AbstractUpgradeTestCase
                 "mounting snapshot as index [{}] with storage [{}] on node [{}] with min. version [{}]",
                 index,
                 storage,
-                nodeIdWithMinVersion,
-                minVersion
+                nodeIdWithOriginalVersion,
+                UPGRADE_FROM_VERSION
             );
             mountSnapshot(
                 repository,
@@ -221,7 +198,7 @@ public class SearchableSnapshotsRollingUpgradeIT extends AbstractUpgradeTestCase
                 storage,
                 Settings.builder()
                     // we want a specific node version to create docs in the blob cache index
-                    .put("index.routing.allocation.include._id", nodeIdWithMinVersion)
+                    .put("index.routing.allocation.include._id", nodeIdWithOriginalVersion)
                     // prevent interferences with blob cache when full_copy is used
                     .put("index.store.snapshot.cache.prewarm.enabled", false)
                     .build()
@@ -235,8 +212,8 @@ public class SearchableSnapshotsRollingUpgradeIT extends AbstractUpgradeTestCase
                 "mounting the same snapshot of index [{}] with storage [{}], this time on node [{}] with higher version [{}]",
                 index,
                 storage,
-                nodeIdWithMaxVersion,
-                maxVersion
+                nodeIdWithUpgradedVersion,
+                nodesIdsAndVersions.get(nodeIdWithUpgradedVersion)
             );
             mountSnapshot(
                 repository,
@@ -246,8 +223,8 @@ public class SearchableSnapshotsRollingUpgradeIT extends AbstractUpgradeTestCase
                 storage,
                 Settings.builder()
                     // we want a specific node version to use the cached blobs created by the nodeIdWithMinVersion
-                    .put("index.routing.allocation.include._id", nodeIdWithMaxVersion)
-                    .put("index.routing.allocation.exclude._id", nodeIdWithMinVersion)
+                    .put("index.routing.allocation.include._id", nodeIdWithUpgradedVersion)
+                    .put("index.routing.allocation.exclude._id", nodeIdWithOriginalVersion)
                     // prevent interferences with blob cache when full_copy is used
                     .put("index.store.snapshot.cache.prewarm.enabled", false)
                     .build()
@@ -264,8 +241,8 @@ public class SearchableSnapshotsRollingUpgradeIT extends AbstractUpgradeTestCase
                 "mounting snapshot as index [{}] with storage [{}] on node [{}] with max. version [{}]",
                 index,
                 storage,
-                nodeIdWithMaxVersion,
-                maxVersion
+                nodeIdWithUpgradedVersion,
+                nodesIdsAndVersions.get(nodeIdWithUpgradedVersion)
             );
             mountSnapshot(
                 repository,
@@ -275,7 +252,7 @@ public class SearchableSnapshotsRollingUpgradeIT extends AbstractUpgradeTestCase
                 storage,
                 Settings.builder()
                     // we want a specific node version to create docs in the blob cache index
-                    .put("index.routing.allocation.include._id", nodeIdWithMaxVersion)
+                    .put("index.routing.allocation.include._id", nodeIdWithUpgradedVersion)
                     // prevent interferences with blob cache when full_copy is used
                     .put("index.store.snapshot.cache.prewarm.enabled", false)
                     .build()
@@ -289,8 +266,8 @@ public class SearchableSnapshotsRollingUpgradeIT extends AbstractUpgradeTestCase
                 "mounting the same snapshot of index [{}] with storage [{}], this time on node [{}] with lower version [{}]",
                 index,
                 storage,
-                nodeIdWithMinVersion,
-                minVersion
+                nodeIdWithOriginalVersion,
+                UPGRADE_FROM_VERSION
             );
             mountSnapshot(
                 repository,
@@ -300,8 +277,8 @@ public class SearchableSnapshotsRollingUpgradeIT extends AbstractUpgradeTestCase
                 storage,
                 Settings.builder()
                     // we want a specific node version to use the cached blobs created by the nodeIdWithMinVersion
-                    .put("index.routing.allocation.include._id", nodeIdWithMinVersion)
-                    .put("index.routing.allocation.exclude._id", nodeIdWithMaxVersion)
+                    .put("index.routing.allocation.include._id", nodeIdWithOriginalVersion)
+                    .put("index.routing.allocation.exclude._id", nodeIdWithUpgradedVersion)
                     // prevent interferences with blob cache when full_copy is used
                     .put("index.store.snapshot.cache.prewarm.enabled", false)
                     .build()
@@ -310,27 +287,22 @@ public class SearchableSnapshotsRollingUpgradeIT extends AbstractUpgradeTestCase
             assertHitCount(index, equalTo(numberOfDocs * 2L));
             deleteIndex(index);
 
-            if (UPGRADE_FROM_VERSION.onOrAfter(Version.V_7_13_0)) {
-                final Request request = new Request(
-                    "GET",
-                    "/.snapshot-blob-cache/_settings/index.routing.allocation.include._tier_preference"
-                );
-                request.setOptions(
-                    expectWarnings(
-                        "this request accesses system indices: [.snapshot-blob-cache], but in a future major "
-                            + "version, direct access to system indices will be prevented by default"
-                    )
-                );
-                request.addParameter("flat_settings", "true");
+            final Request request = new Request("GET", "/.snapshot-blob-cache/_settings/index.routing.allocation.include._tier_preference");
+            request.setOptions(
+                expectWarnings(
+                    "this request accesses system indices: [.snapshot-blob-cache], but in a future major "
+                        + "version, direct access to system indices will be prevented by default"
+                )
+            );
+            request.addParameter("flat_settings", "true");
 
-                final Map<String, ?> snapshotBlobCacheSettings = entityAsMap(adminClient().performRequest(request));
-                assertThat(snapshotBlobCacheSettings, notNullValue());
-                final String tierPreference = (String) extractValue(
-                    ".snapshot-blob-cache.settings.index.routing.allocation.include._tier_preference",
-                    snapshotBlobCacheSettings
-                );
-                assertThat(tierPreference, equalTo("data_content,data_hot"));
-            }
+            final Map<String, ?> snapshotBlobCacheSettings = entityAsMap(adminClient().performRequest(request));
+            assertThat(snapshotBlobCacheSettings, notNullValue());
+            final String tierPreference = (String) extractValue(
+                ".snapshot-blob-cache.settings.index.routing.allocation.include._tier_preference",
+                snapshotBlobCacheSettings
+            );
+            assertThat(tierPreference, equalTo("data_content,data_hot"));
 
         } else if (CLUSTER_TYPE.equals(ClusterType.UPGRADED)) {
             for (String snapshot : snapshots) {
@@ -338,13 +310,6 @@ public class SearchableSnapshotsRollingUpgradeIT extends AbstractUpgradeTestCase
             }
             deleteRepository(repository);
         }
-    }
-
-    private static void assumeVersion(Version minSupportedVersion, Storage storageType) {
-        assumeTrue(
-            "Searchable snapshots with storage type [" + storageType + "] is supported since version [" + minSupportedVersion + ']',
-            UPGRADE_FROM_VERSION.onOrAfter(minSupportedVersion)
-        );
     }
 
     private static void indexDocs(String indexName, long numberOfDocs) throws IOException {
@@ -377,14 +342,14 @@ public class SearchableSnapshotsRollingUpgradeIT extends AbstractUpgradeTestCase
     }
 
     @SuppressWarnings("unchecked")
-    private static Map<String, Version> nodesVersions() throws IOException {
+    private static Map<String, String> nodesVersions() throws IOException {
         final Response response = client().performRequest(new Request(HttpGet.METHOD_NAME, "_nodes/_all"));
         assertThat(response.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
         final Map<String, Object> nodes = (Map<String, Object>) extractValue(responseAsMap(response), "nodes");
         assertNotNull("Nodes info is null", nodes);
-        final Map<String, Version> nodesVersions = Maps.newMapWithExpectedSize(nodes.size());
+        final Map<String, String> nodesVersions = Maps.newMapWithExpectedSize(nodes.size());
         for (Map.Entry<String, Object> node : nodes.entrySet()) {
-            nodesVersions.put(node.getKey(), Version.fromString((String) extractValue((Map<?, ?>) node.getValue(), "version")));
+            nodesVersions.put(node.getKey(), (String) extractValue((Map<?, ?>) node.getValue(), "version"));
         }
         return nodesVersions;
     }
@@ -404,11 +369,7 @@ public class SearchableSnapshotsRollingUpgradeIT extends AbstractUpgradeTestCase
         Settings indexSettings
     ) throws IOException {
         final Request request = new Request(HttpPost.METHOD_NAME, "/_snapshot/" + repositoryName + '/' + snapshotName + "/_mount");
-        if (UPGRADE_FROM_VERSION.onOrAfter(Version.V_7_12_0)) {
-            request.addParameter("storage", storage.storageName());
-        } else {
-            assertThat("Parameter 'storage' was introduced in 7.12.0 with " + Storage.SHARED_CACHE, storage, equalTo(Storage.FULL_COPY));
-        }
+        request.addParameter("storage", storage.storageName());
         request.setJsonEntity(Strings.format("""
             {
               "index": "%s",

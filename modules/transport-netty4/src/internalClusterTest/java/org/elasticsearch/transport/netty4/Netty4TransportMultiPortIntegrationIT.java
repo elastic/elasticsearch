@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.transport.netty4;
 
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.ESNetty4IntegTestCase;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
@@ -31,14 +32,16 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 @ClusterScope(scope = Scope.SUITE, supportsDedicatedMasters = false, numDataNodes = 1, numClientNodes = 0)
 public class Netty4TransportMultiPortIntegrationIT extends ESNetty4IntegTestCase {
 
+    private static final int NUMBER_OF_CLIENT_PORTS = Constants.WINDOWS ? 300 : 10;
+
     private static int randomPort = -1;
     private static String randomPortRange;
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         if (randomPort == -1) {
-            randomPort = randomIntBetween(49152, 65525);
-            randomPortRange = Strings.format("%s-%s", randomPort, randomPort + 10);
+            randomPort = randomIntBetween(49152, 65535 - NUMBER_OF_CLIENT_PORTS);
+            randomPortRange = Strings.format("%s-%s", randomPort, randomPort + NUMBER_OF_CLIENT_PORTS);
         }
         Settings.Builder builder = Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
@@ -52,7 +55,7 @@ public class Netty4TransportMultiPortIntegrationIT extends ESNetty4IntegTestCase
 
     @Network
     public void testThatInfosAreExposed() throws Exception {
-        NodesInfoResponse response = client().admin().cluster().prepareNodesInfo().clear().setTransport(true).get();
+        NodesInfoResponse response = clusterAdmin().prepareNodesInfo().clear().setTransport(true).get();
         for (NodeInfo nodeInfo : response.getNodes()) {
             assertThat(nodeInfo.getInfo(TransportInfo.class).getProfileAddresses().keySet(), hasSize(1));
             assertThat(nodeInfo.getInfo(TransportInfo.class).getProfileAddresses(), hasKey("client1"));

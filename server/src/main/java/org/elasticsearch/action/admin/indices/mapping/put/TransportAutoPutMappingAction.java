@@ -10,6 +10,7 @@ package org.elasticsearch.action.admin.indices.mapping.put;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
@@ -20,6 +21,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataMappingService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.tasks.Task;
@@ -30,6 +32,7 @@ import static org.elasticsearch.action.admin.indices.mapping.put.TransportPutMap
 
 public class TransportAutoPutMappingAction extends AcknowledgedTransportMasterNodeAction<PutMappingRequest> {
 
+    public static final ActionType<AcknowledgedResponse> TYPE = new ActionType<>("indices:admin/mapping/auto_put");
     private static final Logger logger = LogManager.getLogger(TransportAutoPutMappingAction.class);
 
     private final MetadataMappingService metadataMappingService;
@@ -46,14 +49,14 @@ public class TransportAutoPutMappingAction extends AcknowledgedTransportMasterNo
         final SystemIndices systemIndices
     ) {
         super(
-            AutoPutMappingAction.NAME,
+            TYPE.name(),
             transportService,
             clusterService,
             threadPool,
             actionFilters,
             PutMappingRequest::new,
             indexNameExpressionResolver,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.metadataMappingService = metadataMappingService;
         this.systemIndices = systemIndices;
@@ -90,7 +93,7 @@ public class TransportAutoPutMappingAction extends AcknowledgedTransportMasterNo
             return;
         }
 
-        performMappingUpdate(concreteIndices, request, listener, metadataMappingService);
+        performMappingUpdate(concreteIndices, request, listener, metadataMappingService, true);
     }
 
 }

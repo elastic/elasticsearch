@@ -44,11 +44,11 @@ and indices, omit this parameter or use `*` or `_all`.
 [[cat-shards-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bytes]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=bytes]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=http-format]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=http-format]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-h]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=cat-h]
 +
 --
 If you do not specify which columns to include, the API returns the default
@@ -80,6 +80,9 @@ Valid columns are:
 `store`, `sto`::
 (Default) Disk space used by the shard, such as `5kb`.
 
+`dataset.size`::
+(Default) Disk space used by the shard's dataset, which may or may not be the size on disk, but includes space used by the shard on object storage. Reported as a size value such as `5kb`.
+
 `ip`::
 (Default) IP address of the node, such as `127.0.1.1`.
 
@@ -91,6 +94,9 @@ Valid columns are:
 
 `completion.size`, `cs`, `completionSize`::
 Size of completion, such as `0b`.
+
+`dense_vector.value_count`, `dvc`, `denseVectorCount`::
+Number of indexed dense vector.
 
 `fielddata.memory_size`, `fm`, `fielddataMemory`::
 Used fielddata cache memory, such as `0b`.
@@ -291,15 +297,15 @@ values include:
 
 --
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=help]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=help]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-s]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=cat-s]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=time]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=time]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-v]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=cat-v]
 
 
 [[cat-shards-api-example]]

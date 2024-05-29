@@ -7,9 +7,12 @@
 
 package org.elasticsearch.xpack.ml.inference.deployment;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskAwareRequest;
@@ -19,20 +22,30 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelPrefixStrings;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PassThroughConfig;
+import org.elasticsearch.xpack.ml.inference.nlp.NlpTask;
+import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.TokenizationResult;
+import org.elasticsearch.xpack.ml.inference.pytorch.process.PyTorchProcess;
 import org.elasticsearch.xpack.ml.inference.pytorch.process.PyTorchResultProcessor;
 import org.junit.After;
 import org.junit.Before;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mockito;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.xpack.ml.MachineLearning.UTILITY_THREAD_POOL_NAME;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -79,8 +92,10 @@ public class InferencePyTorchActionTests extends ESTestCase {
             processContext,
             new PassThroughConfig(null, null, null),
             NlpInferenceInput.fromText("foo"),
+            TrainedModelPrefixStrings.PrefixType.NONE,
             tp,
             null,
+            randomBoolean(),
             listener
         );
         action.init();
@@ -100,8 +115,10 @@ public class InferencePyTorchActionTests extends ESTestCase {
             processContext,
             new PassThroughConfig(null, null, null),
             NlpInferenceInput.fromText("foo"),
+            TrainedModelPrefixStrings.PrefixType.NONE,
             tp,
             null,
+            randomBoolean(),
             listener
         );
         action.init();
@@ -122,8 +139,10 @@ public class InferencePyTorchActionTests extends ESTestCase {
             processContext,
             new PassThroughConfig(null, null, null),
             NlpInferenceInput.fromText("foo"),
+            TrainedModelPrefixStrings.PrefixType.NONE,
             tp,
             null,
+            randomBoolean(),
             listener
         );
         action.init();
@@ -153,8 +172,10 @@ public class InferencePyTorchActionTests extends ESTestCase {
                 processContext,
                 new PassThroughConfig(null, null, null),
                 NlpInferenceInput.fromText("foo"),
+                TrainedModelPrefixStrings.PrefixType.NONE,
                 tp,
                 null,
+                randomBoolean(),
                 listener
             );
             action.init();
@@ -171,8 +192,10 @@ public class InferencePyTorchActionTests extends ESTestCase {
                 processContext,
                 new PassThroughConfig(null, null, null),
                 NlpInferenceInput.fromText("foo"),
+                TrainedModelPrefixStrings.PrefixType.NONE,
                 tp,
                 null,
+                randomBoolean(),
                 listener
             );
             action.init();
@@ -195,6 +218,9 @@ public class InferencePyTorchActionTests extends ESTestCase {
             public void setParentTask(TaskId taskId) {}
 
             @Override
+            public void setRequestId(long requestId) {}
+
+            @Override
             public TaskId getParentTask() {
                 return TaskId.EMPTY_TASK_ID;
             }
@@ -211,8 +237,10 @@ public class InferencePyTorchActionTests extends ESTestCase {
             processContext,
             new PassThroughConfig(null, null, null),
             NlpInferenceInput.fromText("foo"),
+            TrainedModelPrefixStrings.PrefixType.NONE,
             tp,
             cancellableTask,
+            randomBoolean(),
             listener
         );
         action.init();
@@ -222,6 +250,175 @@ public class InferencePyTorchActionTests extends ESTestCase {
         assertThat(listener.failureCounts, equalTo(1));
         assertThat(listener.responseCounts, equalTo(0));
         verify(resultProcessor, never()).registerRequest(anyString(), any());
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testPrefixStrings() throws Exception {
+        DeploymentManager.ProcessContext processContext = mock(DeploymentManager.ProcessContext.class);
+
+        TrainedModelPrefixStrings prefixStrings = new TrainedModelPrefixStrings("ingest_prefix: ", "search_prefix: ");
+        when(processContext.getPrefixStrings()).thenReturn(new SetOnce<>(prefixStrings));
+
+        TrainedModelInput modelInput = new TrainedModelInput(List.of("text_field"));
+        when(processContext.getModelInput()).thenReturn(new SetOnce<>(modelInput));
+
+        NlpTask.Processor nlpProcessor = mock(NlpTask.Processor.class);
+        NlpTask.RequestBuilder requestBuilder = mock(NlpTask.RequestBuilder.class);
+        when(nlpProcessor.getRequestBuilder(any())).thenReturn(requestBuilder);
+
+        NlpTask.Request builtRequest = new NlpTask.Request(mock(TokenizationResult.class), mock(BytesReference.class));
+        when(requestBuilder.buildRequest(anyList(), anyString(), any(), anyInt(), anyInt())).thenReturn(builtRequest);
+
+        when(processContext.getNlpTaskProcessor()).thenReturn(new SetOnce<>(nlpProcessor));
+        PyTorchResultProcessor resultProcessor = new PyTorchResultProcessor("1", threadSettings -> {});
+
+        PyTorchProcess pyTorchProcess = mock(PyTorchProcess.class);
+        when(processContext.getProcess()).thenReturn(new SetOnce<>(pyTorchProcess));
+
+        when(processContext.getResultProcessor()).thenReturn(resultProcessor);
+        AtomicInteger timeoutCount = new AtomicInteger();
+        when(processContext.getTimeoutCount()).thenReturn(timeoutCount);
+
+        TestListenerCounter listener = new TestListenerCounter();
+        {
+            // test for search prefix
+            InferencePyTorchAction action = new InferencePyTorchAction(
+                "test-model",
+                1,
+                TimeValue.MAX_VALUE,
+                processContext,
+                new PassThroughConfig(null, null, null),
+                NlpInferenceInput.fromText("foo"),
+                TrainedModelPrefixStrings.PrefixType.SEARCH,
+                tp,
+                null,
+                randomBoolean(),
+                listener
+            );
+            action.init();
+            action.doRun();
+
+            ArgumentCaptor<List<String>> inputsCapture = ArgumentCaptor.forClass(List.class);
+            verify(nlpProcessor).validateInputs(inputsCapture.capture());
+
+            assertThat(inputsCapture.getValue(), contains("search_prefix: foo"));
+        }
+        {
+            // Clear the previously verified invocations on this mock.
+            // Using this function is slightly controversal as it is
+            // not recommended by Mockito however, it does save a lot
+            // of code rebuilding the mocks for each test.
+            Mockito.clearInvocations(nlpProcessor);
+            // test for ingest prefix
+            InferencePyTorchAction action = new InferencePyTorchAction(
+                "test-model",
+                1,
+                TimeValue.MAX_VALUE,
+                processContext,
+                new PassThroughConfig(null, null, null),
+                NlpInferenceInput.fromText("foo"),
+                TrainedModelPrefixStrings.PrefixType.INGEST,
+                tp,
+                null,
+                randomBoolean(),
+                listener
+            );
+            action.init();
+            action.doRun();
+
+            ArgumentCaptor<List<String>> inputsCapture = ArgumentCaptor.forClass(List.class);
+            verify(nlpProcessor).validateInputs(inputsCapture.capture());
+
+            assertThat(inputsCapture.getValue(), contains("ingest_prefix: foo"));
+        }
+        {
+            Mockito.clearInvocations(nlpProcessor);
+            // test no prefix
+            InferencePyTorchAction action = new InferencePyTorchAction(
+                "test-model",
+                1,
+                TimeValue.MAX_VALUE,
+                processContext,
+                new PassThroughConfig(null, null, null),
+                NlpInferenceInput.fromText("foo"),
+                TrainedModelPrefixStrings.PrefixType.NONE,
+                tp,
+                null,
+                randomBoolean(),
+                listener
+            );
+            action.init();
+            action.doRun();
+
+            ArgumentCaptor<List<String>> inputsCapture = ArgumentCaptor.forClass(List.class);
+            verify(nlpProcessor).validateInputs(inputsCapture.capture());
+
+            assertThat(inputsCapture.getValue(), contains("foo"));
+        }
+        {
+            // test search only prefix
+            TrainedModelPrefixStrings searchOnlyPrefix = new TrainedModelPrefixStrings(null, "search_prefix: ");
+            when(processContext.getPrefixStrings()).thenReturn(new SetOnce<>(searchOnlyPrefix));
+            boolean isForSearch = randomBoolean();
+
+            Mockito.clearInvocations(nlpProcessor);
+            InferencePyTorchAction action = new InferencePyTorchAction(
+                "test-model",
+                1,
+                TimeValue.MAX_VALUE,
+                processContext,
+                new PassThroughConfig(null, null, null),
+                NlpInferenceInput.fromText("foo"),
+                isForSearch ? TrainedModelPrefixStrings.PrefixType.SEARCH : TrainedModelPrefixStrings.PrefixType.INGEST,
+                tp,
+                null,
+                randomBoolean(),
+                listener
+            );
+            action.init();
+            action.doRun();
+
+            ArgumentCaptor<List<String>> inputsCapture = ArgumentCaptor.forClass(List.class);
+            verify(nlpProcessor).validateInputs(inputsCapture.capture());
+
+            if (isForSearch) {
+                assertThat(inputsCapture.getValue(), contains("search_prefix: foo"));
+            } else {
+                assertThat(inputsCapture.getValue(), contains("foo"));
+            }
+        }
+        {
+            // test ingest only prefix
+            TrainedModelPrefixStrings ingestOnlyPrefix = new TrainedModelPrefixStrings("ingest_prefix: ", null);
+            when(processContext.getPrefixStrings()).thenReturn(new SetOnce<>(ingestOnlyPrefix));
+            boolean isForSearch = randomBoolean();
+
+            Mockito.clearInvocations(nlpProcessor);
+            InferencePyTorchAction action = new InferencePyTorchAction(
+                "test-model",
+                1,
+                TimeValue.MAX_VALUE,
+                processContext,
+                new PassThroughConfig(null, null, null),
+                NlpInferenceInput.fromText("foo"),
+                isForSearch ? TrainedModelPrefixStrings.PrefixType.SEARCH : TrainedModelPrefixStrings.PrefixType.INGEST,
+                tp,
+                null,
+                randomBoolean(),
+                listener
+            );
+            action.init();
+            action.doRun();
+
+            ArgumentCaptor<List<String>> inputsCapture = ArgumentCaptor.forClass(List.class);
+            verify(nlpProcessor).validateInputs(inputsCapture.capture());
+
+            if (isForSearch) {
+                assertThat(inputsCapture.getValue(), contains("foo"));
+            } else {
+                assertThat(inputsCapture.getValue(), contains("ingest_prefix: foo"));
+            }
+        }
     }
 
     static class TestListenerCounter implements ActionListener<InferenceResults> {

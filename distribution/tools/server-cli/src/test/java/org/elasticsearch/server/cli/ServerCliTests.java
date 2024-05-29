@@ -23,6 +23,7 @@ import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.cli.EnvironmentAwareCommand;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureSettings;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.monitor.jvm.JvmInfo;
@@ -32,7 +33,9 @@ import org.junit.Before;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -41,15 +44,21 @@ import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.emptyString;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.matchesRegex;
 import static org.hamcrest.Matchers.not;
 
 public class ServerCliTests extends CommandTestCase {
 
+    private SecureSettingsLoader mockSecureSettingsLoader;
+
     @Before
     public void setupMockConfig() throws IOException {
         Files.createFile(configDir.resolve("log4j2.properties"));
+        mockSecureSettingsLoader = null;
     }
 
     @Override
@@ -78,12 +87,12 @@ public class ServerCliTests extends CommandTestCase {
         final String expectedBuildOutput = String.format(
             Locale.ROOT,
             "Build: %s/%s/%s",
-            Build.CURRENT.type().displayName(),
-            Build.CURRENT.hash(),
-            Build.CURRENT.date()
+            Build.current().type().displayName(),
+            Build.current().hash(),
+            Build.current().date()
         );
         Matcher<String> versionOutput = allOf(
-            containsString("Version: " + Build.CURRENT.qualifiedVersion()),
+            containsString("Version: " + Build.current().qualifiedVersion()),
             containsString(expectedBuildOutput),
             containsString("JVM: " + JvmInfo.jvmInfo().version())
         );
@@ -278,7 +287,7 @@ public class ServerCliTests extends CommandTestCase {
             }
         }
         String expectedPassword = password == null ? "" : password;
-        argsValidator = args -> assertThat(args.keystorePassword().toString(), equalTo(expectedPassword));
+        argsValidator = args -> assertThat(((KeyStoreWrapper) args.secrets()).hasPassword(), equalTo(hasPassword));
         autoConfigCallback = (t, options, env, processInfo) -> {
             char[] gotPassword = t.readSecret("");
             assertThat(gotPassword, equalTo(expectedPassword.toCharArray()));
@@ -309,10 +318,84 @@ public class ServerCliTests extends CommandTestCase {
         assertThat(terminal.getErrorOutput(), not(containsString("null")));
     }
 
+    public void testOptionsBuildingInterrupted() throws IOException {
+        Command command = new TestServerCli() {
+            @Override
+            protected ServerProcess startServer(Terminal terminal, ProcessInfo processInfo, ServerArgs args) throws Exception {
+                throw new InterruptedException("interrupted while get jvm options");
+            }
+        };
+
+        int exitCode = command.main(new String[0], terminal, new ProcessInfo(sysprops, envVars, esHomeDir));
+        assertThat(exitCode, is(ExitCodes.CODE_ERROR));
+
+        String[] lines = terminal.getErrorOutput().split(System.lineSeparator());
+        assertThat(List.of(lines), hasSize(greaterThan(10))); // at least decent sized stacktrace
+        assertThat(lines[0], is("java.lang.InterruptedException: interrupted while get jvm options"));
+        assertThat(lines[1], matchesRegex("\\tat org.elasticsearch.server.cli.ServerCliTests.+startServer\\(ServerCliTests.java:\\d+\\)"));
+        assertThat(lines[lines.length - 1], matchesRegex("\tat java.base/java.lang.Thread.run\\(Thread.java:\\d+\\)"));
+
+        command.close();
+    }
+
     public void testServerExitsNonZero() throws Exception {
         mockServerExitCode = 140;
         int exitCode = executeMain();
         assertThat(exitCode, equalTo(140));
+    }
+
+    public void testSecureSettingsLoaderChoice() throws Exception {
+        var loader = loadWithMockSecureSettingsLoader();
+        assertTrue(loader.loaded);
+        // the mock loader doesn't support autoconfigure, no need to bootstrap a keystore
+        assertFalse(loader.bootstrapped);
+        // assert that we ran the code to verify the environment
+        assertTrue(loader.verifiedEnv);
+    }
+
+    public void testSecureSettingsLoaderWithPassword() throws Exception {
+        var loader = setupMockKeystoreLoader();
+        assertKeystorePassword("aaaaaaaaaaaaaaaaaa");
+        assertTrue(loader.loaded);
+        assertTrue(loader.bootstrapped);
+        // the password we read should match what we passed in
+        assertEquals("aaaaaaaaaaaaaaaaaa", loader.password);
+        // after the command the secrets password is closed
+        assertEquals(
+            "SecureString has already been closed",
+            expectThrows(IllegalStateException.class, () -> loader.secrets.password().get().getChars()).getMessage()
+        );
+    }
+
+    public void testSecureSettingsLoaderWithEmptyPassword() throws Exception {
+        var loader = setupMockKeystoreLoader();
+        assertKeystorePassword("");
+        assertTrue(loader.loaded);
+        assertTrue(loader.bootstrapped);
+        assertEquals("", loader.password);
+    }
+
+    public void testSecureSettingsLoaderWithNullPassword() throws Exception {
+        var loader = setupMockKeystoreLoader();
+        assertKeystorePassword(null); // no keystore exists
+        assertTrue(loader.loaded);
+        assertTrue(loader.bootstrapped);
+        assertEquals("", loader.password);
+    }
+
+    private MockSecureSettingsLoader loadWithMockSecureSettingsLoader() throws Exception {
+        var loader = new MockSecureSettingsLoader();
+        this.mockSecureSettingsLoader = loader;
+        Command command = newCommand();
+        command.main(new String[0], terminal, new ProcessInfo(sysprops, envVars, esHomeDir));
+        command.close();
+        return loader;
+    }
+
+    private KeystoreSecureSettingsLoader setupMockKeystoreLoader() {
+        var loader = new KeystoreSecureSettingsLoader();
+        this.mockSecureSettingsLoader = loader;
+        return loader;
     }
 
     interface AutoConfigMethod {
@@ -421,23 +504,60 @@ public class ServerCliTests extends CommandTestCase {
         }
     }
 
-    @Override
-    protected Command newCommand() {
-        return new ServerCli() {
-            @Override
-            protected Command loadTool(String toolname, String libs) {
-                if (toolname.equals("auto-configure-node")) {
-                    assertThat(libs, equalTo("modules/x-pack-core,modules/x-pack-security,lib/tools/security-cli"));
-                    return AUTO_CONFIG_CLI;
-                } else if (toolname.equals("sync-plugins")) {
-                    assertThat(libs, equalTo("lib/tools/plugin-cli"));
-                    return SYNC_PLUGINS_CLI;
-                }
-                throw new AssertionError("Unknown tool: " + toolname);
+    private class TestServerCli extends ServerCli {
+        @Override
+        protected Command loadTool(String toolname, String libs) {
+            if (toolname.equals("auto-configure-node")) {
+                assertThat(libs, equalTo("modules/x-pack-core,modules/x-pack-security,lib/tools/security-cli"));
+                return AUTO_CONFIG_CLI;
+            } else if (toolname.equals("sync-plugins")) {
+                assertThat(libs, equalTo("lib/tools/plugin-cli"));
+                return SYNC_PLUGINS_CLI;
+            }
+            throw new AssertionError("Unknown tool: " + toolname);
+        }
+
+        @Override
+        Environment autoConfigureSecurity(
+            Terminal terminal,
+            OptionSet options,
+            ProcessInfo processInfo,
+            Environment env,
+            SecureString keystorePassword
+        ) throws Exception {
+            if (mockSecureSettingsLoader != null && mockSecureSettingsLoader.supportsSecurityAutoConfiguration() == false) {
+                fail("We shouldn't be calling auto configure on loaders that don't support it");
+            }
+            return super.autoConfigureSecurity(terminal, options, processInfo, env, keystorePassword);
+        }
+
+        @Override
+        void syncPlugins(Terminal terminal, Environment env, ProcessInfo processInfo) throws Exception {
+            if (mockSecureSettingsLoader != null && mockSecureSettingsLoader instanceof MockSecureSettingsLoader mock) {
+                mock.verifiedEnv = true;
+                // equals as a pointer, environment shouldn't be changed if autoconfigure is not supported
+                assertFalse(mockSecureSettingsLoader.supportsSecurityAutoConfiguration());
+                assertTrue(mock.environment == env);
             }
 
+            super.syncPlugins(terminal, env, processInfo);
+        }
+
+        @Override
+        protected SecureSettingsLoader secureSettingsLoader(Environment env) {
+            if (mockSecureSettingsLoader != null) {
+                return mockSecureSettingsLoader;
+            }
+
+            return new KeystoreSecureSettingsLoader();
+        }
+    }
+
+    @Override
+    protected Command newCommand() {
+        return new TestServerCli() {
             @Override
-            protected ServerProcess startServer(Terminal terminal, ProcessInfo processInfo, ServerArgs args, SecureSettings secrets) {
+            protected ServerProcess startServer(Terminal terminal, ProcessInfo processInfo, ServerArgs args) {
                 if (argsValidator != null) {
                     argsValidator.accept(args);
                 }
@@ -445,5 +565,77 @@ public class ServerCliTests extends CommandTestCase {
                 return mockServer;
             }
         };
+    }
+
+    static class MockSecureSettingsLoader implements SecureSettingsLoader {
+        boolean loaded = false;
+        LoadedSecrets secrets = null;
+        String password = null;
+        boolean bootstrapped = false;
+        Environment environment = null;
+        boolean verifiedEnv = false;
+
+        @Override
+        public SecureSettingsLoader.LoadedSecrets load(Environment environment, Terminal terminal) throws IOException {
+            loaded = true;
+            // Stash the environment pointer, so we can compare it. Environment shouldn't be changed for
+            // loaders that don't autoconfigure.
+            this.environment = environment;
+
+            SecureString password = null;
+
+            if (terminal.getReader().ready() == false) {
+                this.password = null;
+            } else {
+                password = new SecureString(terminal.readSecret("Enter a password"));
+                this.password = password.toString();
+            }
+
+            secrets = new SecureSettingsLoader.LoadedSecrets(
+                KeyStoreWrapper.create(),
+                password == null ? Optional.empty() : Optional.of(password)
+            );
+
+            return secrets;
+        }
+
+        @Override
+        public SecureSettings bootstrap(Environment environment, SecureString password) throws Exception {
+            fail("Bootstrap shouldn't be called for loaders that cannot be auto-configured");
+            bootstrapped = true;
+            return KeyStoreWrapper.create();
+        }
+
+        @Override
+        public boolean supportsSecurityAutoConfiguration() {
+            return false;
+        }
+    }
+
+    static class KeystoreSecureSettingsLoader extends KeyStoreLoader {
+        boolean loaded = false;
+        LoadedSecrets secrets = null;
+        String password = null;
+        boolean bootstrapped = false;
+
+        @Override
+        public LoadedSecrets load(Environment environment, Terminal terminal) throws Exception {
+            var result = super.load(environment, terminal);
+            loaded = true;
+            secrets = result;
+            password = result.password().get().toString();
+
+            return result;
+        }
+
+        @Override
+        public SecureSettings bootstrap(Environment environment, SecureString password) throws Exception {
+            this.bootstrapped = true;
+            // make sure we don't fail in fips mode when we run with an empty password
+            if (inFipsJvm() && (password == null || password.isEmpty())) {
+                return KeyStoreWrapper.create();
+            }
+            return super.bootstrap(environment, password);
+        }
     }
 }

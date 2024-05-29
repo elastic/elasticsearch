@@ -8,7 +8,6 @@ setup:
         body:
           settings:
             index.number_of_shards: 2
-            index.number_of_replicas: 0
           mappings:
             properties:
               vector1:
@@ -32,7 +31,6 @@ setup:
         body:
           settings:
             index.number_of_shards: 2
-            index.number_of_replicas: 0
           mappings:
             properties:
               vector1:
@@ -43,8 +41,8 @@ setup:
 
 ---
 "Field mapping stats":
-  - skip:
-      version: " - 8.3.99"
+  - requires:
+      cluster_features: ["gte_v8.4.0"]
       reason: "Cluster mappings stats for indexed dense vector was added in 8.4"
   - do: { cluster.stats: { } }
   - length: { indices.mappings.field_types: 1 }

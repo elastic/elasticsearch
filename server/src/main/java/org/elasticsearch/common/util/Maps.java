@@ -18,6 +18,7 @@ import java.util.NavigableMap;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collector;
@@ -151,9 +152,29 @@ public class Maps {
         if (left == null || right == null || left.size() != right.size()) {
             return false;
         }
-        return left.entrySet()
-            .stream()
-            .allMatch(e -> right.containsKey(e.getKey()) && Objects.deepEquals(e.getValue(), right.get(e.getKey())));
+
+        for (Map.Entry<K, V> e : left.entrySet()) {
+            if (right.containsKey(e.getKey()) == false) {
+                return false;
+            }
+
+            V v1 = e.getValue();
+            V v2 = right.get(e.getKey());
+            if (v1 instanceof Map && v2 instanceof Map) {
+                // if the values are both maps, then recursively compare them with Maps.deepEquals
+                @SuppressWarnings("unchecked")
+                Map<Object, Object> m1 = (Map<Object, Object>) v1;
+                @SuppressWarnings("unchecked")
+                Map<Object, Object> m2 = (Map<Object, Object>) v2;
+                if (Maps.deepEquals(m1, m2) == false) {
+                    return false;
+                }
+            } else if (Objects.deepEquals(v1, v2) == false) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**
@@ -196,8 +217,7 @@ public class Maps {
             Object cur = list.get(i);
             if (cur instanceof Map) {
                 flatMap.putAll(flatten((Map<String, Object>) cur, true, ordered, prefix + i));
-            }
-            if (cur instanceof List) {
+            } else if (cur instanceof List) {
                 flatMap.putAll(flatten((List<Object>) cur, ordered, prefix + i));
             } else {
                 flatMap.put(prefix + i, cur);
@@ -217,15 +237,9 @@ public class Maps {
         Function<T, ? extends K> keyMapper,
         Function<T, ? extends V> valueMapper
     ) {
-        return Collectors.collectingAndThen(
-            Collectors.toMap(
-                keyMapper,
-                valueMapper,
-                (v1, v2) -> { throw new IllegalStateException("Duplicate key (attempted merging values " + v1 + "  and " + v2 + ")"); },
-                () -> new TreeMap<K, V>()
-            ),
-            Collections::unmodifiableNavigableMap
-        );
+        return Collectors.collectingAndThen(Collectors.toMap(keyMapper, valueMapper, (v1, v2) -> {
+            throw new IllegalStateException("Duplicate key (attempted merging values " + v1 + "  and " + v2 + ")");
+        }, () -> new TreeMap<K, V>()), Collections::unmodifiableNavigableMap);
     }
 
     /**
@@ -239,15 +253,9 @@ public class Maps {
         Function<T, ? extends K> keyMapper,
         Function<T, ? extends V> valueMapper
     ) {
-        return Collectors.collectingAndThen(
-            Collectors.toMap(
-                keyMapper,
-                valueMapper,
-                (v1, v2) -> { throw new IllegalStateException("Duplicate key (attempted merging values " + v1 + "  and " + v2 + ")"); },
-                (Supplier<LinkedHashMap<K, V>>) LinkedHashMap::new
-            ),
-            Collections::unmodifiableMap
-        );
+        return Collectors.collectingAndThen(Collectors.toMap(keyMapper, valueMapper, (v1, v2) -> {
+            throw new IllegalStateException("Duplicate key (attempted merging values " + v1 + "  and " + v2 + ")");
+        }, (Supplier<LinkedHashMap<K, V>>) LinkedHashMap::new), Collections::unmodifiableMap);
     }
 
     /**
@@ -272,6 +280,18 @@ public class Maps {
      */
     public static <K, V> Map<K, V> newHashMapWithExpectedSize(int expectedSize) {
         return new HashMap<>(capacity(expectedSize));
+    }
+
+    /**
+     * Returns a concurrent hash map with a capacity sufficient to keep expectedSize elements without being resized.
+     *
+     * @param expectedSize the expected amount of elements in the map
+     * @param <K> the key type
+     * @param <V> the value type
+     * @return a new pre-sized {@link HashMap}
+     */
+    public static <K, V> Map<K, V> newConcurrentHashMapWithExpectedSize(int expectedSize) {
+        return new ConcurrentHashMap<>(capacity(expectedSize));
     }
 
     /**
@@ -311,10 +331,9 @@ public class Maps {
 
     /**
      * An immutable implementation of {@link Map.Entry}.
-     * @param key key
-     * @param value value
+     * Unlike {@code Map.entry(...)} this implementation permits null key and value.
      */
-    public record ImmutableEntry<KType, VType> (KType key, VType value) implements Map.Entry<KType, VType> {
+    public record ImmutableEntry<KType, VType>(KType key, VType value) implements Map.Entry<KType, VType> {
 
         @Override
         public KType getKey() {

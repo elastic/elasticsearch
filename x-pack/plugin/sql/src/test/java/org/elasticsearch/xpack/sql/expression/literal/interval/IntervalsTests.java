@@ -276,11 +276,6 @@ public class IntervalsTests extends ESTestCase {
         assertEquals("line -1:0: Cannot determine datatype for combination [DAY] [YEAR]", pe.getMessage());
     }
 
-    private static int randomNonNegativeInt() {
-        int random = randomInt();
-        return random == Integer.MIN_VALUE ? 0 : Math.abs(random);
-    }
-
     private Object maybeNegate(String sign, TemporalAmount interval) {
         return "-".equals(sign) ? Intervals.negate(interval) : interval;
     }

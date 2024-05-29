@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search.builder;
 
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
@@ -27,10 +28,15 @@ public class PointInTimeBuilderTests extends AbstractXContentSerializingTestCase
 
     @Override
     protected PointInTimeBuilder createTestInstance() {
-        final PointInTimeBuilder pointInTime = new PointInTimeBuilder(randomAlphaOfLength(20));
+        final PointInTimeBuilder pointInTime = new PointInTimeBuilder(new BytesArray(randomAlphaOfLength(20)));
         if (randomBoolean()) {
             pointInTime.setKeepAlive(randomTimeValue());
         }
         return pointInTime;
+    }
+
+    @Override
+    protected PointInTimeBuilder mutateInstance(PointInTimeBuilder instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 }

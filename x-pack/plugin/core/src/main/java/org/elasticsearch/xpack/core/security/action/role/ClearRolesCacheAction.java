@@ -17,6 +17,6 @@ public class ClearRolesCacheAction extends ActionType<ClearRolesCacheResponse> {
     public static final String NAME = "cluster:admin/xpack/security/roles/cache/clear";
 
     protected ClearRolesCacheAction() {
-        super(NAME, ClearRolesCacheResponse::new);
+        super(NAME);
     }
 }

@@ -36,6 +36,51 @@ PUT _cluster/settings
 }
 --------------------------------------------------
 
+By default, the tracer logs a summary of each request and response which
+matches these filters. To record the body of each request and response too, set
+the system property `es.insecure_network_trace_enabled` to `true`, and then set
+the levels of both the `org.elasticsearch.http.HttpTracer` and
+`org.elasticsearch.http.HttpBodyTracer` loggers to `TRACE`:
+
+[source,console]
+--------------------------------------------------
+PUT _cluster/settings
+{
+   "persistent" : {
+      "logger.org.elasticsearch.http.HttpTracer" : "TRACE",
+      "logger.org.elasticsearch.http.HttpBodyTracer" : "TRACE"
+   }
+}
+--------------------------------------------------
+
+Each message body is compressed, encoded, and split into chunks to avoid
+truncation:
+
+[source,text]
+----
+[TRACE][o.e.h.HttpBodyTracer     ] [master] [276] response body [part 1]: H4sIAAAAAAAA/9...
+[TRACE][o.e.h.HttpBodyTracer     ] [master] [276] response body [part 2]: 2oJ93QyYLWWhcD...
+[TRACE][o.e.h.HttpBodyTracer     ] [master] [276] response body (gzip compressed, base64-encoded, and split into 2 parts on preceding log lines)
+----
+
+Each chunk is annotated with an internal request ID (`[276]` in this example)
+which you should use to correlate the chunks with the corresponding summary
+lines. To reconstruct the output, base64-decode the data and decompress it
+using `gzip`. For instance, on Unix-like systems:
+
+[source,sh]
+----
+cat httptrace.log | sed -e 's/.*://' | base64 --decode | gzip --decompress
+----
+
+WARNING: HTTP request and response bodies may contain sensitive information
+such as credentials and keys, so HTTP body tracing is disabled by default. You
+must explicitly enable it on each node by setting the system property
+`es.insecure_network_trace_enabled` to `true`. This feature is primarily
+intended for test systems which do not contain any sensitive information. If
+you set this property on a system which contains sensitive information, you
+must protect your logs from unauthorized access.
+
 [[transport-tracer]]
 ===== Transport tracer
 

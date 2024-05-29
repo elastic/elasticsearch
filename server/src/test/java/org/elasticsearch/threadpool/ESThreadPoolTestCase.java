@@ -20,20 +20,19 @@ public abstract class ESThreadPoolTestCase extends ESTestCase {
                 return info;
             }
         }
-        assert "same".equals(name);
-        return null;
+        return fail(null, "unknown threadpool name: " + name);
     }
 
     protected final ThreadPoolStats.Stats stats(final ThreadPool threadPool, final String name) {
         for (final ThreadPoolStats.Stats stats : threadPool.stats()) {
-            if (name.equals(stats.getName())) {
+            if (name.equals(stats.name())) {
                 return stats;
             }
         }
-        throw new IllegalArgumentException(name);
+        return fail(null, "unknown threadpool name: " + name);
     }
 
-    protected final void terminateThreadPoolIfNeeded(final ThreadPool threadPool) throws InterruptedException {
+    protected final void terminateThreadPoolIfNeeded(final ThreadPool threadPool) {
         if (threadPool != null) {
             terminate(threadPool);
         }

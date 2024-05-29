@@ -1,0 +1,6 @@
+pr: 106413
+summary: Consolidate permissions checks
+area: Transform
+type: bug
+issues:
+ - 105794

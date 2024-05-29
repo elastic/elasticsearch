@@ -25,6 +25,11 @@ public class ForecastTests extends AbstractXContentSerializingTestCase<Forecast>
         return createTestInstance("ForecastTest");
     }
 
+    @Override
+    protected Forecast mutateInstance(Forecast instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public Forecast createTestInstance(String jobId) {
         Forecast forecast = new Forecast(jobId, randomAlphaOfLength(20), randomDate(), randomNonNegativeLong(), randomInt());
 

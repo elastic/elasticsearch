@@ -32,15 +32,13 @@ public final class CartesianBoundsAggregator extends CartesianBoundsAggregatorBa
         ValuesSourceConfig valuesSourceConfig,
         Map<String, Object> metadata
     ) throws IOException {
-        super(name, context, parent, valuesSourceConfig.hasValues() == false, metadata);
-        this.valuesSource = isNoOp() ? null : (CartesianPointValuesSource) valuesSourceConfig.getValuesSource();
+        super(name, context, parent, metadata);
+        assert valuesSourceConfig.hasValues();
+        this.valuesSource = (CartesianPointValuesSource) valuesSourceConfig.getValuesSource();
     }
 
     @Override
     public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) {
-        if (isNoOp()) {
-            return LeafBucketCollector.NO_OP_COLLECTOR;
-        }
         final CartesianPointValuesSource.MultiCartesianPointValues values = valuesSource.pointValues(aggCtx.getLeafReaderContext());
         return new LeafBucketCollectorBase(sub, values) {
             @Override

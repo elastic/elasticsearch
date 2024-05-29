@@ -14,7 +14,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.appender.AbstractAppender;
 import org.apache.logging.log4j.core.filter.RegexFilter;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
@@ -64,11 +63,10 @@ public class MergeSchedulerSettingsTests extends ESTestCase {
         Loggers.addAppender(settingsLogger, mockAppender);
         Loggers.setLevel(settingsLogger, Level.TRACE);
         try {
-            Settings.Builder builder = Settings.builder()
-                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, "1")
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, "0")
-                .put(MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING.getKey(), "2")
+            Settings.Builder builder = indexSettings(IndexVersion.current(), 1, 0).put(
+                MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING.getKey(),
+                "2"
+            )
                 .put(MergePolicyConfig.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER_SETTING.getKey(), "2")
                 .put(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey(), "1")
                 .put(MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING.getKey(), "2")
@@ -95,11 +93,10 @@ public class MergeSchedulerSettingsTests extends ESTestCase {
         Loggers.addAppender(settingsLogger, mockAppender);
         Loggers.setLevel(settingsLogger, Level.TRACE);
         try {
-            Settings.Builder builder = Settings.builder()
-                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, "1")
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, "0")
-                .put(MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING.getKey(), "2")
+            Settings.Builder builder = indexSettings(IndexVersion.current(), 1, 0).put(
+                MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING.getKey(),
+                "2"
+            )
                 .put(MergePolicyConfig.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER_SETTING.getKey(), "2")
                 .put(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey(), "10000")
                 .put(MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING.getKey(), "10000");
@@ -120,7 +117,7 @@ public class MergeSchedulerSettingsTests extends ESTestCase {
     }
 
     private static IndexMetadata createMetadata(int maxThreadCount, int maxMergeCount, int numProc) {
-        Settings.Builder builder = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT);
+        Settings.Builder builder = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current());
         if (maxThreadCount != -1) {
             builder.put(MAX_THREAD_COUNT_SETTING.getKey(), maxThreadCount);
         }

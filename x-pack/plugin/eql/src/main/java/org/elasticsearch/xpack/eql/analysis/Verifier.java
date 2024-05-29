@@ -234,7 +234,7 @@ public class Verifier {
         return failures;
     }
 
-    private void checkJoinKeyTypes(LogicalPlan plan, Set<Failure> localFailures) {
+    private static void checkJoinKeyTypes(LogicalPlan plan, Set<Failure> localFailures) {
         if (plan instanceof Join join) {
             List<KeyedFilter> queries = join.queries();
             KeyedFilter until = join.until();

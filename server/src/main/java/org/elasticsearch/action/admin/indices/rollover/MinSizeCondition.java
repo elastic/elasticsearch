@@ -8,7 +8,8 @@
 
 package org.elasticsearch.action.admin.indices.rollover;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -63,7 +64,7 @@ public class MinSizeCondition extends Condition<ByteSizeValue> {
     }
 
     @Override
-    boolean includedInVersion(Version version) {
-        return version.onOrAfter(Version.V_8_4_0);
+    boolean includedInVersion(TransportVersion version) {
+        return version.onOrAfter(TransportVersions.V_8_4_0);
     }
 }

@@ -16,7 +16,12 @@ public class JobTaskStateTests extends AbstractXContentSerializingTestCase<JobTa
 
     @Override
     protected JobTaskState createTestInstance() {
-        return new JobTaskState(randomFrom(JobState.values()), randomLong(), randomAlphaOfLength(10));
+        return new JobTaskState(randomFrom(JobState.values()), randomLong(), randomAlphaOfLength(10), randomInstant());
+    }
+
+    @Override
+    protected JobTaskState mutateInstance(JobTaskState instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

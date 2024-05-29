@@ -95,6 +95,8 @@ import java.util.stream.Stream;
 
 import static java.util.Arrays.asList;
 import static org.elasticsearch.xpack.ql.expression.Literal.TRUE;
+import static org.elasticsearch.xpack.ql.querydsl.query.BoolQueryTests.left;
+import static org.elasticsearch.xpack.ql.querydsl.query.BoolQueryTests.right;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
 import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
@@ -111,6 +113,7 @@ import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -740,11 +743,11 @@ public class QueryTranslatorTests extends ESTestCase {
         assertTrue(query instanceof BoolQuery);
         BoolQuery bq = (BoolQuery) query;
         assertFalse(bq.isAnd());
-        assertTrue(bq.left() instanceof RangeQuery);
-        assertTrue(bq.right() instanceof RangeQuery);
+        assertTrue(left(bq) instanceof RangeQuery);
+        assertTrue(right(bq) instanceof RangeQuery);
         List<Tuple<String, RangeQuery>> tuples = asList(
-            new Tuple<>(dates[0], (RangeQuery) bq.left()),
-            new Tuple<>(dates[1], (RangeQuery) bq.right())
+            new Tuple<>(dates[0], (RangeQuery) left(bq)),
+            new Tuple<>(dates[1], (RangeQuery) right(bq))
         );
 
         for (Tuple<String, RangeQuery> t : tuples) {
@@ -834,12 +837,12 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals(BoolQuery.class, qt.query.getClass());
         BoolQuery bq = ((BoolQuery) qt.query);
         assertTrue(bq.isAnd());
-        assertTrue(bq.left() instanceof WildcardQuery);
-        assertTrue(bq.right() instanceof NotQuery);
+        assertTrue(left(bq) instanceof WildcardQuery);
+        assertTrue(right(bq) instanceof NotQuery);
 
-        NotQuery nq = (NotQuery) bq.right();
+        NotQuery nq = (NotQuery) right(bq);
         assertTrue(nq.child() instanceof WildcardQuery);
-        WildcardQuery lqsq = (WildcardQuery) bq.left();
+        WildcardQuery lqsq = (WildcardQuery) left(bq);
         WildcardQuery rqsq = (WildcardQuery) nq.child();
 
         assertEquals("X*", lqsq.query());
@@ -879,12 +882,12 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals(BoolQuery.class, qt.query.getClass());
         BoolQuery bq = ((BoolQuery) qt.query);
         assertTrue(bq.isAnd());
-        assertTrue(bq.left() instanceof RegexQuery);
-        assertTrue(bq.right() instanceof NotQuery);
+        assertTrue(left(bq) instanceof RegexQuery);
+        assertTrue(right(bq) instanceof NotQuery);
 
-        NotQuery nq = (NotQuery) bq.right();
+        NotQuery nq = (NotQuery) right(bq);
         assertTrue(nq.child() instanceof RegexQuery);
-        RegexQuery lqsq = (RegexQuery) bq.left();
+        RegexQuery lqsq = (RegexQuery) left(bq);
         RegexQuery rqsq = (RegexQuery) nq.child();
 
         assertEquals(firstPattern, lqsq.regex());
@@ -906,14 +909,14 @@ public class QueryTranslatorTests extends ESTestCase {
         BoolQuery bq = (BoolQuery) translation.query;
 
         assertFalse(bq.isAnd());
-        assertTrue(bq.left() instanceof PrefixQuery);
-        assertTrue(bq.right() instanceof PrefixQuery);
+        assertTrue(left(bq) instanceof PrefixQuery);
+        assertTrue(right(bq) instanceof PrefixQuery);
 
-        PrefixQuery pqr = (PrefixQuery) bq.right();
+        PrefixQuery pqr = (PrefixQuery) right(bq);
         assertEquals("keyword", pqr.field());
         assertEquals("y", pqr.query());
 
-        PrefixQuery pql = (PrefixQuery) bq.left();
+        PrefixQuery pql = (PrefixQuery) left(bq);
         assertEquals("keyword", pql.field());
         assertEquals("x", pql.query());
     }
@@ -934,20 +937,21 @@ public class QueryTranslatorTests extends ESTestCase {
         BoolQuery bq = (BoolQuery) translation.query;
 
         assertTrue(bq.isAnd());
-        assertTrue(bq.left() instanceof BoolQuery);
-        assertTrue(bq.right() instanceof ScriptQuery);
+        List<Query> queries = bq.queries();
+        assertThat(queries, hasSize(3));
+        assertTrue(queries.get(0) instanceof PrefixQuery);
+        assertTrue(queries.get(1) instanceof PrefixQuery);
+        assertTrue(queries.get(2) instanceof ScriptQuery);
 
-        BoolQuery bbq = (BoolQuery) bq.left();
-        assertTrue(bbq.isAnd());
-        PrefixQuery pqr = (PrefixQuery) bbq.right();
+        PrefixQuery pqr = (PrefixQuery) queries.get(0);
         assertEquals("keyword", pqr.field());
-        assertEquals("xy", pqr.query());
+        assertEquals("x", pqr.query());
 
-        PrefixQuery pql = (PrefixQuery) bbq.left();
+        PrefixQuery pql = (PrefixQuery) queries.get(1);
         assertEquals("keyword", pql.field());
-        assertEquals("x", pql.query());
+        assertEquals("xy", pql.query());
 
-        ScriptQuery sq = (ScriptQuery) bq.right();
+        ScriptQuery sq = (ScriptQuery) queries.get(2);
         assertEquals(
             "InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.startsWith("
                 + "InternalSqlScriptUtils.lcase(InternalQlScriptUtils.docValue(doc,params.v0)), "
@@ -1230,14 +1234,14 @@ public class QueryTranslatorTests extends ESTestCase {
             final int fieldCount = 5;
             final String sql = ("SELECT " +
             // 0-3: these all should fold into the same aggregation
-            "   PERCENTILE(int, 50, 'tdigest', 79.8 + 20.2), "
+                "   PERCENTILE(int, 50, 'tdigest', 79.8 + 20.2), "
                 + "   PERCENTILE(int, 40 + 10, 'tdigest', null), "
                 + "   PERCENTILE(int, 50, 'tdigest'), "
                 + "   PERCENTILE(int, 50), "
                 +
             // 4: this has a different method parameter
             // just to make sure we don't fold everything to default
-            "   PERCENTILE(int, 50, 'tdigest', 22) "
+                "   PERCENTILE(int, 50, 'tdigest', 22) "
                 + "FROM test").replaceAll("PERCENTILE", fnName);
 
             List<AbstractPercentilesAggregationBuilder> aggs = percentilesAggsByField(optimizeAndPlan(sql), fieldCount);
@@ -1264,13 +1268,13 @@ public class QueryTranslatorTests extends ESTestCase {
             final int fieldCount = 5;
             final String sql = ("SELECT " +
             // 0-1: fold into the same aggregation
-            "   PERCENTILE(int, 50, 'tdigest'), " + "   PERCENTILE(int, 60, 'tdigest'), " +
+                "   PERCENTILE(int, 50, 'tdigest'), " + "   PERCENTILE(int, 60, 'tdigest'), " +
 
             // 2-3: fold into one aggregation
-            "   PERCENTILE(int, 50, 'hdr'), " + "   PERCENTILE(int, 60, 'hdr', 3), " +
+                "   PERCENTILE(int, 50, 'hdr'), " + "   PERCENTILE(int, 60, 'hdr', 3), " +
 
             // 4: folds into a separate aggregation
-            "   PERCENTILE(int, 60, 'hdr', 4)" + "FROM test").replaceAll("PERCENTILE", fnName);
+                "   PERCENTILE(int, 60, 'hdr', 4)" + "FROM test").replaceAll("PERCENTILE", fnName);
 
             List<AbstractPercentilesAggregationBuilder> aggs = percentilesAggsByField(optimizeAndPlan(sql), fieldCount);
 

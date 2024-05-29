@@ -1,5 +1,5 @@
 [[discovery-gce]]
-=== GCE Discovery Plugin
+=== GCE Discovery plugin
 
 The Google Compute Engine Discovery plugin uses the GCE API to identify the
 addresses of seed hosts.
@@ -8,7 +8,7 @@ addresses of seed hosts.
 include::install_remove.asciidoc[]
 
 [[discovery-gce-usage]]
-==== GCE Virtual Machine Discovery
+==== GCE Virtual Machine discovery
 
 Google Compute Engine VM discovery allows to use the google APIs to perform
 automatic discovery of seed hosts. Here is a simple sample configuration:

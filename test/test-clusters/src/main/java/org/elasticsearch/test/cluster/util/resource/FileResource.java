@@ -8,25 +8,25 @@
 
 package org.elasticsearch.test.cluster.util.resource;
 
-import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.util.function.Supplier;
 
 public class FileResource implements Resource {
-    private final Path file;
+    private final Supplier<Path> file;
 
-    FileResource(File file) {
-        this.file = file.toPath();
+    FileResource(Supplier<Path> file) {
+        this.file = file;
     }
 
     @Override
     public InputStream asStream() {
         try {
-            return Files.newInputStream(file, StandardOpenOption.READ);
+            return Files.newInputStream(file.get(), StandardOpenOption.READ);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

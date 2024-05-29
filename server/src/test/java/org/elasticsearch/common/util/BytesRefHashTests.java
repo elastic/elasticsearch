@@ -11,9 +11,10 @@ package org.elasticsearch.common.util;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Releasables;
@@ -392,9 +393,9 @@ public class BytesRefHashTests extends ESTestCase {
             BytesRefArray refArrayCopy = copyInstance(
                 refArray,
                 writableRegistry(),
-                (out, value) -> value.writeTo(out),
+                StreamOutput::writeWriteable,
                 in -> new BytesRefArray(in, mockBigArrays()),
-                Version.CURRENT
+                TransportVersion.current()
             );
 
             BytesRefHash copy = new BytesRefHash(refArrayCopy, mockBigArrays());

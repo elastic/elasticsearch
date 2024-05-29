@@ -1,0 +1,5 @@
+pr: 107050
+summary: Fix support for infinite `?master_timeout`
+area: Cluster Coordination
+type: bug
+issues: []

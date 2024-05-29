@@ -29,6 +29,11 @@ public class MultiClusterYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         return true;
     }
 
+    @Override
+    protected boolean resetFeatureStates() {
+        return false;
+    }
+
     public MultiClusterYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }

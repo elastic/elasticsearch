@@ -54,6 +54,6 @@ class ProxyUtils {
      * @return whether the arguments describe a potentially valid proxy.
      */
     static boolean validateProxy(String hostname, String port) {
-        return Strings.isNullOrEmpty(hostname) == false && port != null && port.matches("^\\d+$") != false;
+        return Strings.isNullOrEmpty(hostname) == false && port != null && port.matches("^\\d+$");
     }
 }

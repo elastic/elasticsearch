@@ -70,7 +70,7 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
             DeprecationInfoAction.Request::new,
             indexNameExpressionResolver,
             DeprecationInfoAction.Response::new,
-            ThreadPool.Names.GENERIC
+            threadPool.executor(ThreadPool.Names.GENERIC)
         );
         this.client = client;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
@@ -105,7 +105,7 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
             ClientHelper.DEPRECATION_ORIGIN,
             NodesDeprecationCheckAction.INSTANCE,
             nodeDepReq,
-            ActionListener.wrap(response -> {
+            listener.delegateFailureAndWrap((delegate, response) -> {
                 if (response.hasFailures()) {
                     List<String> failedNodeIds = response.failures()
                         .stream()
@@ -126,10 +126,8 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
                     PLUGIN_CHECKERS,
                     components,
                     new ThreadedActionListener<>(
-                        logger,
-                        client.threadPool(),
-                        ThreadPool.Names.GENERIC,
-                        listener.map(
+                        client.threadPool().generic(),
+                        delegate.map(
                             deprecationIssues -> DeprecationInfoAction.Response.from(
                                 state,
                                 indexNameExpressionResolver,
@@ -140,12 +138,10 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
                                 deprecationIssues,
                                 skipTheseDeprecations
                             )
-                        ),
-                        false
+                        )
                     )
                 );
-
-            }, listener::onFailure)
+            })
         );
     }
 
@@ -154,23 +150,20 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
         DeprecationChecker.Components components,
         ActionListener<Map<String, List<DeprecationIssue>>> listener
     ) {
-        List<DeprecationChecker> enabledCheckers = checkers.stream()
-            .filter(c -> c.enabled(components.settings()))
-            .collect(Collectors.toList());
+        List<DeprecationChecker> enabledCheckers = checkers.stream().filter(c -> c.enabled(components.settings())).toList();
         if (enabledCheckers.isEmpty()) {
             listener.onResponse(Collections.emptyMap());
             return;
         }
         GroupedActionListener<DeprecationChecker.CheckResult> groupedActionListener = new GroupedActionListener<>(
             enabledCheckers.size(),
-            ActionListener.wrap(
-                checkResults -> listener.onResponse(
+            listener.delegateFailureAndWrap(
+                (l, checkResults) -> l.onResponse(
                     checkResults.stream()
                         .collect(
                             Collectors.toMap(DeprecationChecker.CheckResult::getCheckerName, DeprecationChecker.CheckResult::getIssues)
                         )
-                ),
-                listener::onFailure
+                )
             )
         );
         for (DeprecationChecker checker : checkers) {

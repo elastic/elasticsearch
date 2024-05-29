@@ -10,13 +10,14 @@ package org.elasticsearch.example.analysis;
 
 import org.apache.lucene.analysis.Tokenizer;
 import org.elasticsearch.example.analysis.lucene.CharSkippingTokenizer;
-import org.elasticsearch.plugin.api.Inject;
-import org.elasticsearch.plugin.api.NamedComponent;
+import org.elasticsearch.plugin.analysis.TokenizerFactory;
+import org.elasticsearch.plugin.Inject;
+import org.elasticsearch.plugin.NamedComponent;
 
 import java.util.List;
 
 @NamedComponent("example_tokenizer_factory")
-public class CharacterSkippingTokenizerFactory implements org.elasticsearch.plugin.analysis.api.TokenizerFactory {
+public class CharacterSkippingTokenizerFactory implements TokenizerFactory {
     private final List<String> tokenizerListOfChars;
 
     @Inject

@@ -14,7 +14,7 @@ import java.util.function.IntToDoubleFunction;
 import static org.elasticsearch.search.aggregations.PipelineAggregatorBuilders.statsBucket;
 import static org.hamcrest.Matchers.equalTo;
 
-public class StatsBucketIT extends BucketMetricsPipeLineAggregationTestCase<StatsBucket> {
+public class StatsBucketIT extends BucketMetricsPipeLineAggregationTestCase<InternalStatsBucket> {
 
     @Override
     protected StatsBucketPipelineAggregationBuilder BucketMetricsPipelineAgg(String name, String bucketsPath) {
@@ -26,7 +26,7 @@ public class StatsBucketIT extends BucketMetricsPipeLineAggregationTestCase<Stat
         IntToDoubleFunction bucketValues,
         Function<Integer, String> bucketKeys,
         int numBuckets,
-        StatsBucket pipelineBucket
+        InternalStatsBucket pipelineBucket
     ) {
         double sum = 0;
         int count = 0;
@@ -52,7 +52,7 @@ public class StatsBucketIT extends BucketMetricsPipeLineAggregationTestCase<Stat
     }
 
     @Override
-    protected double getNestedMetric(StatsBucket bucket) {
+    protected double getNestedMetric(InternalStatsBucket bucket) {
         return bucket.getAvg();
     }
 }

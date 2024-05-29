@@ -166,7 +166,7 @@ public class SourceOnlySnapshot {
         return new LiveDocs(reader.numDeletedDocs(), reader.getLiveDocs());
     }
 
-    private int apply(DocIdSetIterator iterator, FixedBitSet bits) throws IOException {
+    private static int apply(DocIdSetIterator iterator, FixedBitSet bits) throws IOException {
         int docID = -1;
         int newDeletes = 0;
         while ((docID = iterator.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
@@ -234,6 +234,7 @@ public class SourceOnlySnapshot {
                     si.name,
                     si.maxDoc(),
                     false,
+                    si.getHasBlocks(),
                     si.getCodec(),
                     si.getDiagnostics(),
                     si.getId(),
@@ -261,7 +262,8 @@ public class SourceOnlySnapshot {
                             0,
                             VectorEncoding.FLOAT32,
                             VectorSimilarityFunction.EUCLIDEAN,
-                            fieldInfo.isSoftDeletesField()
+                            fieldInfo.isSoftDeletesField(),
+                            fieldInfo.isParentField()
                         )
                     );
                 }
@@ -321,7 +323,7 @@ public class SourceOnlySnapshot {
         }
     }
 
-    private boolean assertLiveDocs(Bits liveDocs, int deletes) {
+    private static boolean assertLiveDocs(Bits liveDocs, int deletes) {
         int actualDeletes = 0;
         for (int i = 0; i < liveDocs.length(); i++) {
             if (liveDocs.get(i) == false) {

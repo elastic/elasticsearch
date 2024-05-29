@@ -9,9 +9,9 @@ package org.elasticsearch.xpack.ml.datafeed.extractor.scroll;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
-import org.elasticsearch.action.fieldcaps.FieldCapabilitiesAction;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
+import org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -19,11 +19,11 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
-import org.elasticsearch.xpack.core.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.MlStrings;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
+import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 
 import java.util.Map;
@@ -38,6 +38,7 @@ public class ScrollDataExtractorFactory implements DataExtractorFactory {
 
     private final Client client;
     private final DatafeedConfig datafeedConfig;
+    private final QueryBuilder extraFilters;
     private final Job job;
     private final TimeBasedExtractedFields extractedFields;
     private final NamedXContentRegistry xContentRegistry;
@@ -46,6 +47,7 @@ public class ScrollDataExtractorFactory implements DataExtractorFactory {
     private ScrollDataExtractorFactory(
         Client client,
         DatafeedConfig datafeedConfig,
+        QueryBuilder extraFilters,
         Job job,
         TimeBasedExtractedFields extractedFields,
         NamedXContentRegistry xContentRegistry,
@@ -53,6 +55,7 @@ public class ScrollDataExtractorFactory implements DataExtractorFactory {
     ) {
         this.client = Objects.requireNonNull(client);
         this.datafeedConfig = Objects.requireNonNull(datafeedConfig);
+        this.extraFilters = extraFilters;
         this.job = Objects.requireNonNull(job);
         this.extractedFields = Objects.requireNonNull(extractedFields);
         this.xContentRegistry = xContentRegistry;
@@ -61,19 +64,10 @@ public class ScrollDataExtractorFactory implements DataExtractorFactory {
 
     @Override
     public DataExtractor newExtractor(long start, long end) {
-        return buildExtractor(start, end, datafeedConfig.getParsedQuery(xContentRegistry));
-    }
-
-    @Override
-    public DataExtractor newExtractor(long start, long end, QueryBuilder queryBuilder) {
-        return buildExtractor(
-            start,
-            end,
-            QueryBuilders.boolQuery().filter(datafeedConfig.getParsedQuery(xContentRegistry)).filter(queryBuilder)
-        );
-    }
-
-    private DataExtractor buildExtractor(long start, long end, QueryBuilder queryBuilder) {
+        QueryBuilder queryBuilder = datafeedConfig.getParsedQuery(xContentRegistry);
+        if (extraFilters != null) {
+            queryBuilder = QueryBuilders.boolQuery().filter(queryBuilder).filter(extraFilters);
+        }
         ScrollDataExtractorContext dataExtractorContext = new ScrollDataExtractorContext(
             job.getId(),
             extractedFields,
@@ -93,6 +87,7 @@ public class ScrollDataExtractorFactory implements DataExtractorFactory {
     public static void create(
         Client client,
         DatafeedConfig datafeed,
+        QueryBuilder extraFilters,
         Job job,
         NamedXContentRegistry xContentRegistry,
         DatafeedTimingStatsReporter timingStatsReporter,
@@ -123,7 +118,9 @@ public class ScrollDataExtractorFactory implements DataExtractorFactory {
                 return;
             }
             TimeBasedExtractedFields fields = TimeBasedExtractedFields.build(job, datafeed, fieldCapabilitiesResponse);
-            listener.onResponse(new ScrollDataExtractorFactory(client, datafeed, job, fields, xContentRegistry, timingStatsReporter));
+            listener.onResponse(
+                new ScrollDataExtractorFactory(client, datafeed, extraFilters, job, fields, xContentRegistry, timingStatsReporter)
+            );
         }, e -> {
             Throwable cause = ExceptionsHelper.unwrapCause(e);
             if (cause instanceof IndexNotFoundException notFound) {
@@ -155,7 +152,7 @@ public class ScrollDataExtractorFactory implements DataExtractorFactory {
             .toArray(String[]::new);
         fieldCapabilitiesRequest.fields(requestFields);
         ClientHelper.<FieldCapabilitiesResponse>executeWithHeaders(datafeed.getHeaders(), ClientHelper.ML_ORIGIN, client, () -> {
-            client.execute(FieldCapabilitiesAction.INSTANCE, fieldCapabilitiesRequest, fieldCapabilitiesHandler);
+            client.execute(TransportFieldCapabilitiesAction.TYPE, fieldCapabilitiesRequest, fieldCapabilitiesHandler);
             // This response gets discarded - the listener handles the real response
             return null;
         });

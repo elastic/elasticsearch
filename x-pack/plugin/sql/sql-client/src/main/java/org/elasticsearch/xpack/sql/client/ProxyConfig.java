@@ -40,7 +40,7 @@ class ProxyConfig {
     }
 
     @SuppressForbidden(reason = "create the actual proxy")
-    private Proxy createProxy(Proxy.Type type, Object[] address) {
+    private static Proxy createProxy(Proxy.Type type, Object[] address) {
         return new Proxy(type, new InetSocketAddress((String) address[0], (int) address[1]));
     }
 

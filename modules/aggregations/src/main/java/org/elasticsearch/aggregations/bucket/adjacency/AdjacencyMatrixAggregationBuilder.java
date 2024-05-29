@@ -9,7 +9,8 @@
 package org.elasticsearch.aggregations.bucket.adjacency;
 
 import org.apache.lucene.search.IndexSearcher;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.aggregations.bucket.adjacency.AdjacencyMatrixAggregator.KeyedFilter;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -29,7 +30,6 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -151,14 +151,14 @@ public class AdjacencyMatrixAggregationBuilder extends AbstractAggregationBuilde
         }
         // internally we want to have a fixed order of filters, regardless of
         // the order of the filters in the request
-        Collections.sort(this.filters, Comparator.comparing(KeyedFilter::key));
+        this.filters.sort(Comparator.comparing(KeyedFilter::key));
     }
 
     private AdjacencyMatrixAggregationBuilder setFiltersAsList(List<KeyedFilter> filters) {
         this.filters = new ArrayList<>(filters);
         // internally we want to have a fixed order of filters, regardless of
         // the order of the filters in the request
-        Collections.sort(this.filters, Comparator.comparing(KeyedFilter::key));
+        this.filters.sort(Comparator.comparing(KeyedFilter::key));
         return this;
     }
 
@@ -171,13 +171,6 @@ public class AdjacencyMatrixAggregationBuilder extends AbstractAggregationBuilde
         }
         this.separator = separator;
         return this;
-    }
-
-    /**
-     * Get the separator used to join pairs of bucket keys
-     */
-    public String separator() {
-        return separator;
     }
 
     /**
@@ -261,7 +254,7 @@ public class AdjacencyMatrixAggregationBuilder extends AbstractAggregationBuilde
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_EMPTY;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.ZERO;
     }
 }

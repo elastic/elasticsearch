@@ -34,7 +34,6 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.repositories.azure.AzureFixtureHelper.assertValidBlockId;
 
@@ -77,7 +76,7 @@ public class AzureHttpHandler implements HttpHandler {
                 final List<String> blockIds = Arrays.stream(blockList.split("<Latest>"))
                     .filter(line -> line.contains("</Latest>"))
                     .map(line -> line.substring(0, line.indexOf("</Latest>")))
-                    .collect(Collectors.toList());
+                    .toList();
 
                 final ByteArrayOutputStream blob = new ByteArrayOutputStream();
                 for (String blockId : blockIds) {
@@ -130,15 +129,16 @@ public class AzureHttpHandler implements HttpHandler {
                     throw new AssertionError("Range header does not match expected format: " + range);
                 }
 
-                final int start = Integer.parseInt(matcher.group(1));
-                final int length = Integer.parseInt(matcher.group(2)) - start + 1;
+                final long start = Long.parseLong(matcher.group(1));
+                final long end = Long.parseLong(matcher.group(2));
+                var responseBlob = blob.slice(Math.toIntExact(start), Math.toIntExact(Math.min(end - start + 1, blob.length() - start)));
 
                 exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
-                exchange.getResponseHeaders().add("x-ms-blob-content-length", String.valueOf(length));
+                exchange.getResponseHeaders().add("x-ms-blob-content-length", String.valueOf(responseBlob.length()));
                 exchange.getResponseHeaders().add("x-ms-blob-type", "blockblob");
                 exchange.getResponseHeaders().add("ETag", "\"blockblob\"");
-                exchange.sendResponseHeaders(RestStatus.OK.getStatus(), length);
-                exchange.getResponseBody().write(blob.toBytesRef().bytes, start, length);
+                exchange.sendResponseHeaders(RestStatus.OK.getStatus(), responseBlob.length());
+                responseBlob.writeTo(exchange.getResponseBody());
 
             } else if (Regex.simpleMatch("DELETE /" + account + "/" + container + "/*", request)) {
                 // Delete Blob (https://docs.microsoft.com/en-us/rest/api/storageservices/delete-blob)

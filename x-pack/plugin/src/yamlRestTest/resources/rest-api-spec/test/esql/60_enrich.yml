@@ -1,0 +1,193 @@
+---
+setup:
+  - requires:
+      cluster_features: ["gte_v8.11.0"]
+      reason: "ESQL is available in 8.11+"
+      test_runner_features: allowed_warnings_regex
+  - do:
+      indices.create:
+        index: cities
+        body:
+          settings:
+            number_of_shards: 5
+          mappings:
+            properties:
+              city_code:
+                type: keyword
+              city:
+                type: text
+              country:
+                type: keyword
+
+  - do:
+      bulk:
+        index: cities
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "city_code": "nyc", "city": "New York", "country": "USA" }
+          - { "index": { } }
+          - { "city_code": "rom", "city": "Rome", "country": "Italy" }
+
+  - do:
+      enrich.put_policy:
+        name: city_codes_policy
+        body:
+          match:
+            indices: [ "cities" ]
+            match_field: "city_code"
+            enrich_fields: [ "city", "country" ]
+
+  - do:
+      enrich.put_policy:
+        name: city_names_policy
+        body:
+          match:
+            indices: [ "cities" ]
+            match_field: "city"
+            enrich_fields: [ "city_code", "country" ]
+
+  - do:
+      enrich.execute_policy:
+        name: city_codes_policy
+
+  - do:
+      enrich.execute_policy:
+        name: city_names_policy
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              name:
+                type: keyword
+              city_id:
+                type: keyword
+              city_name:
+                type: text
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "name": "Alice", "city_id": "nyc", "city_name": "New York" }
+          - { "index": { } }
+          - { "name": "Bob", "city_id": "nyc", "city_name": "New York" }
+          - { "index": { } }
+          - { "name": "Mario", "city_id": "rom", "city_name": "Rome" }
+          - { "index": { } }
+          - { "name": "Denise", "city_id": "sgn", "city_name": "Tan Son Nhat" }
+
+---
+teardown:
+  - do:
+      enrich.delete_policy:
+        name: city_codes_policy
+  - do:
+      enrich.delete_policy:
+        name: city_names_policy
+
+---
+"Enrich on keyword":
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
+      reason: "Enriching with text field in the enrich fields list involves reading text from source, not supported before 8.13.0"
+      test_runner_features: allowed_warnings_regex
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test | enrich city_codes_policy on city_id | keep name, city, country | sort name'
+
+  - match: { columns.0.name: "name" }
+  - match: { columns.0.type: "keyword" }
+  - match: { columns.1.name: "city" }
+  - match: { columns.1.type: "text" }
+  - match: { columns.2.name: "country" }
+  - match: { columns.2.type: "keyword" }
+
+  - length: { values: 4 }
+  - match: { values.0: [ "Alice", "New York", "USA" ] }
+  - match: { values.1: [ "Bob", "New York", "USA" ] }
+  - match: { values.2: [ "Denise", null, null ] }
+  - match: { values.3: [ "Mario", "Rome", "Italy" ] }
+
+
+---
+"Enrich on keyword with fields":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test | keep name, city_id | enrich city_codes_policy on city_id with country | sort name'
+
+  - match: { columns.0.name: "name" }
+  - match: { columns.0.type: "keyword" }
+  - match: { columns.1.name: "city_id" }
+  - match: { columns.1.type: "keyword" }
+  - match: { columns.2.name: "country" }
+  - match: { columns.2.type: "keyword" }
+
+  - length: { values: 4 }
+  - match: { values.0: [ "Alice", "nyc", "USA" ] }
+  - match: { values.1: [ "Bob", "nyc", "USA" ] }
+  - match: { values.2: [ "Denise", "sgn", null ] }
+  - match: { values.3: [ "Mario", "rom", "Italy" ] }
+
+
+---
+"Enrich on keyword with fields alias":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test | keep name, city_id | enrich city_codes_policy on city_id with country_name = country | sort name'
+
+  - match: { columns.0.name: "name" }
+  - match: { columns.0.type: "keyword" }
+  - match: { columns.1.name: "city_id" }
+  - match: { columns.1.type: "keyword" }
+  - match: { columns.2.name: "country_name" }
+  - match: { columns.2.type: "keyword" }
+
+  - length: { values: 4 }
+  - match: { values.0: [ "Alice", "nyc", "USA" ] }
+  - match: { values.1: [ "Bob", "nyc", "USA" ] }
+  - match: { values.2: [ "Denise", "sgn", null ] }
+  - match: { values.3: [ "Mario", "rom", "Italy" ] }
+
+
+---
+"Enrich on text":
+  - requires:
+      cluster_features: ["gte_v8.14.0"]
+      reason: "TEXT field ENRICH support was added in 8.14.0"
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test | keep name, city_name | enrich city_names_policy on city_name | sort name'
+
+  - match: { columns.0.name: "name" }
+  - match: { columns.0.type: "keyword" }
+  - match: { columns.1.name: "city_name" }
+  - match: { columns.1.type: "text" }
+  - match: { columns.2.name: "city_code" }
+  - match: { columns.2.type: "keyword" }
+  - match: { columns.3.name: "country" }
+  - match: { columns.3.type: "keyword" }
+
+  - length: { values: 4 }
+  - match: { values.0: [ "Alice", "New York", "nyc", "USA" ] }
+  - match: { values.1: [ "Bob", "New York", "nyc", "USA" ] }
+  - match: { values.2: [ "Denise", "Tan Son Nhat", null, null ] }
+  - match: { values.3: [ "Mario", "Rome", "rom", "Italy" ] }

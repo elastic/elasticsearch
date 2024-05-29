@@ -1,5 +1,5 @@
 [[mapper]]
-== Mapper Plugins
+== Mapper plugins
 
 Mapper plugins allow new field data types to be added to Elasticsearch.
 

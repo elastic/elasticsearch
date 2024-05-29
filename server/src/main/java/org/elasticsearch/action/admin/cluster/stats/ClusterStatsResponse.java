@@ -8,10 +8,11 @@
 
 package org.elasticsearch.action.admin.cluster.stats;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.FailedNodeException;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterSnapshotStats;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -28,28 +29,9 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
     final ClusterStatsNodes nodesStats;
     final ClusterStatsIndices indicesStats;
     final ClusterHealthStatus status;
+    final ClusterSnapshotStats clusterSnapshotStats;
     final long timestamp;
     final String clusterUUID;
-
-    public ClusterStatsResponse(StreamInput in) throws IOException {
-        super(in);
-        timestamp = in.readVLong();
-        // it may be that the master switched on us while doing the operation. In this case the status may be null.
-        status = in.readOptionalWriteable(ClusterHealthStatus::readFrom);
-
-        String clusterUUID = in.readOptionalString();
-        MappingStats mappingStats = in.readOptionalWriteable(MappingStats::new);
-        AnalysisStats analysisStats = in.readOptionalWriteable(AnalysisStats::new);
-        VersionStats versionStats = null;
-        if (in.getVersion().onOrAfter(Version.V_7_11_0)) {
-            versionStats = in.readOptionalWriteable(VersionStats::new);
-        }
-        this.clusterUUID = clusterUUID;
-
-        // built from nodes rather than from the stream directly
-        nodesStats = new ClusterStatsNodes(getNodes());
-        indicesStats = new ClusterStatsIndices(getNodes(), mappingStats, analysisStats, versionStats);
-    }
 
     public ClusterStatsResponse(
         long timestamp,
@@ -59,7 +41,8 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
         List<FailedNodeException> failures,
         MappingStats mappingStats,
         AnalysisStats analysisStats,
-        VersionStats versionStats
+        VersionStats versionStats,
+        ClusterSnapshotStats clusterSnapshotStats
     ) {
         super(clusterName, nodes, failures);
         this.clusterUUID = clusterUUID;
@@ -75,6 +58,7 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
             }
         }
         this.status = status;
+        this.clusterSnapshotStats = clusterSnapshotStats;
     }
 
     public String getClusterUUID() {
@@ -99,26 +83,17 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeVLong(timestamp);
-        out.writeOptionalWriteable(status);
-        out.writeOptionalString(clusterUUID);
-        out.writeOptionalWriteable(indicesStats.getMappings());
-        out.writeOptionalWriteable(indicesStats.getAnalysis());
-        if (out.getVersion().onOrAfter(Version.V_7_11_0)) {
-            out.writeOptionalWriteable(indicesStats.getVersions());
-        }
+        TransportAction.localOnly();
     }
 
     @Override
     protected List<ClusterStatsNodeResponse> readNodesFrom(StreamInput in) throws IOException {
-        return in.readList(ClusterStatsNodeResponse::readNodeResponse);
+        return TransportAction.localOnly();
     }
 
     @Override
     protected void writeNodesTo(StreamOutput out, List<ClusterStatsNodeResponse> nodes) throws IOException {
-        // nodeStats and indicesStats are rebuilt from nodes
-        out.writeList(nodes);
+        TransportAction.localOnly();
     }
 
     @Override
@@ -134,6 +109,10 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
         builder.startObject("nodes");
         nodesStats.toXContent(builder, params);
         builder.endObject();
+
+        builder.field("snapshots");
+        clusterSnapshotStats.toXContent(builder, params);
+
         return builder;
     }
 

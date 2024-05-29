@@ -27,6 +27,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -176,7 +177,7 @@ public final class ContextDocGenerator {
             PrintStream sharedIndexStream = new PrintStream(
                 Files.newOutputStream(sharedIndexPath, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE),
                 false,
-                StandardCharsets.UTF_8.name()
+                StandardCharsets.UTF_8
             )
         ) {
 
@@ -205,7 +206,7 @@ public final class ContextDocGenerator {
             PrintStream contextIndexStream = new PrintStream(
                 Files.newOutputStream(contextIndexPath, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE),
                 false,
-                StandardCharsets.UTF_8.name()
+                StandardCharsets.UTF_8
             )
         ) {
 
@@ -306,7 +307,7 @@ public final class ContextDocGenerator {
             PrintStream sharedPackagesStream = new PrintStream(
                 Files.newOutputStream(sharedClassesPath, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE),
                 false,
-                StandardCharsets.UTF_8.name()
+                StandardCharsets.UTF_8
             )
         ) {
 
@@ -329,7 +330,7 @@ public final class ContextDocGenerator {
             PrintStream contextPackagesStream = new PrintStream(
                 Files.newOutputStream(contextPackagesPath, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE),
                 false,
-                StandardCharsets.UTF_8.name()
+                StandardCharsets.UTF_8
             )
         ) {
 
@@ -413,7 +414,7 @@ public final class ContextDocGenerator {
             PrintStream rootIndexStream = new PrintStream(
                 Files.newOutputStream(rootIndexPath, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE),
                 false,
-                StandardCharsets.UTF_8.name()
+                StandardCharsets.UTF_8
             )
         ) {
 
@@ -598,18 +599,7 @@ public final class ContextDocGenerator {
         javaDocLink.append(constructorInfo.getDeclaring().replace('.', '/'));
         javaDocLink.append(".html#<init>(");
 
-        for (int parameterIndex = 0; parameterIndex < constructorInfo.getParameters().size(); ++parameterIndex) {
-
-            javaDocLink.append(getLinkType(constructorInfo.getParameters().get(parameterIndex)));
-
-            if (parameterIndex + 1 < constructorInfo.getParameters().size()) {
-                javaDocLink.append(",");
-            }
-        }
-
-        javaDocLink.append(")");
-
-        return javaDocLink.toString();
+        return collectParameters(javaDocLink, constructorInfo.getParameters());
     }
 
     private static String getMethodJavaDocLink(PainlessContextMethodInfo methodInfo) {
@@ -621,11 +611,15 @@ public final class ContextDocGenerator {
         javaDocLink.append(methodInfo.getName());
         javaDocLink.append("(");
 
-        for (int parameterIndex = 0; parameterIndex < methodInfo.getParameters().size(); ++parameterIndex) {
+        return collectParameters(javaDocLink, methodInfo.getParameters());
+    }
 
-            javaDocLink.append(getLinkType(methodInfo.getParameters().get(parameterIndex)));
+    private static String collectParameters(StringBuilder javaDocLink, List<String> parameters) {
+        for (int parameterIndex = 0; parameterIndex < parameters.size(); ++parameterIndex) {
 
-            if (parameterIndex + 1 < methodInfo.getParameters().size()) {
+            javaDocLink.append(getLinkType(parameters.get(parameterIndex)));
+
+            if (parameterIndex + 1 < parameters.size()) {
                 javaDocLink.append(",");
             }
         }
@@ -708,32 +702,19 @@ public final class ContextDocGenerator {
         staticInfos = new ArrayList<>(staticInfos);
         staticInfos.removeIf(staticExcludes::contains);
 
-        staticInfos.sort((si1, si2) -> {
-            String sv1;
-            String sv2;
-
-            if (si1 instanceof PainlessContextMethodInfo) {
-                sv1 = ((PainlessContextMethodInfo) si1).getSortValue();
-            } else if (si1 instanceof PainlessContextClassBindingInfo) {
-                sv1 = ((PainlessContextClassBindingInfo) si1).getSortValue();
-            } else if (si1 instanceof PainlessContextInstanceBindingInfo) {
-                sv1 = ((PainlessContextInstanceBindingInfo) si1).getSortValue();
+        staticInfos.sort(Comparator.comparing(si -> {
+            String sv;
+            if (si instanceof PainlessContextMethodInfo) {
+                sv = ((PainlessContextMethodInfo) si).getSortValue();
+            } else if (si instanceof PainlessContextClassBindingInfo) {
+                sv = ((PainlessContextClassBindingInfo) si).getSortValue();
+            } else if (si instanceof PainlessContextInstanceBindingInfo) {
+                sv = ((PainlessContextInstanceBindingInfo) si).getSortValue();
             } else {
                 throw new IllegalArgumentException("unexpected static info type");
             }
-
-            if (si2 instanceof PainlessContextMethodInfo) {
-                sv2 = ((PainlessContextMethodInfo) si2).getSortValue();
-            } else if (si2 instanceof PainlessContextClassBindingInfo) {
-                sv2 = ((PainlessContextClassBindingInfo) si2).getSortValue();
-            } else if (si2 instanceof PainlessContextInstanceBindingInfo) {
-                sv2 = ((PainlessContextInstanceBindingInfo) si2).getSortValue();
-            } else {
-                throw new IllegalArgumentException("unexpected static info type");
-            }
-
-            return sv1.compareTo(sv2);
-        });
+            return sv;
+        }));
 
         return staticInfos;
     }
@@ -742,48 +723,9 @@ public final class ContextDocGenerator {
         Set<PainlessContextClassInfo> classExcludes,
         List<PainlessContextClassInfo> classInfos
     ) {
-
         classInfos = new ArrayList<>(classInfos);
-        classInfos.removeIf(
-            v -> "void".equals(v.getName())
-                || "boolean".equals(v.getName())
-                || "byte".equals(v.getName())
-                || "short".equals(v.getName())
-                || "char".equals(v.getName())
-                || "int".equals(v.getName())
-                || "long".equals(v.getName())
-                || "float".equals(v.getName())
-                || "double".equals(v.getName())
-                || "org.elasticsearch.painless.lookup.def".equals(v.getName())
-                || isInternalClass(v.getName())
-                || classExcludes.contains(v)
-        );
-
-        classInfos.sort((c1, c2) -> {
-            String n1 = c1.getName();
-            String n2 = c2.getName();
-            boolean i1 = c1.isImported();
-            boolean i2 = c2.isImported();
-
-            String p1 = n1.substring(0, n1.lastIndexOf('.'));
-            String p2 = n2.substring(0, n2.lastIndexOf('.'));
-
-            int compare = p1.compareTo(p2);
-
-            if (compare == 0) {
-                if (i1 && i2) {
-                    compare = n1.substring(n1.lastIndexOf('.') + 1).compareTo(n2.substring(n2.lastIndexOf('.') + 1));
-                } else if (i1 == false && i2 == false) {
-                    compare = n1.compareTo(n2);
-                } else {
-                    compare = Boolean.compare(i1, i2) * -1;
-                }
-            }
-
-            return compare;
-        });
-
-        return classInfos;
+        classInfos.removeIf(v -> ContextGeneratorCommon.isExcludedClassInfo(v) || classExcludes.contains(v));
+        return ContextGeneratorCommon.sortFilteredClassInfos(classInfos);
     }
 
     private static Map<String, String> getDisplayNames(List<PainlessContextClassInfo> classInfos) {
@@ -802,19 +744,5 @@ public final class ContextDocGenerator {
         return javaNamesToDisplayNames;
     }
 
-    private static boolean isInternalClass(String javaName) {
-        return javaName.equals("org.elasticsearch.script.ScoreScript")
-            || javaName.equals("org.elasticsearch.xpack.sql.expression.function.scalar.geo.GeoShape")
-            || javaName.equals("org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.InternalSqlScriptUtils")
-            || javaName.equals("org.elasticsearch.xpack.sql.expression.literal.IntervalDayTime")
-            || javaName.equals("org.elasticsearch.xpack.sql.expression.literal.IntervalYearMonth")
-            || javaName.equals("org.elasticsearch.xpack.eql.expression.function.scalar.whitelist.InternalEqlScriptUtils")
-            || javaName.equals("org.elasticsearch.xpack.ql.expression.function.scalar.InternalQlScriptUtils")
-            || javaName.equals("org.elasticsearch.xpack.ql.expression.function.scalar.whitelist.InternalQlScriptUtils")
-            || javaName.equals("org.elasticsearch.script.ScoreScript$ExplanationHolder");
-    }
-
-    private ContextDocGenerator() {
-
-    }
+    private ContextDocGenerator() {}
 }

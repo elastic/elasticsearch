@@ -28,7 +28,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.instanceOf;
 
-public class RestMultiGetActionTests extends RestActionTestCase {
+public final class RestMultiGetActionTests extends RestActionTestCase {
     XContentType VND_TYPE = randomVendorType();
     List<String> contentTypeHeader = Collections.singletonList(compatibleMediaType(VND_TYPE, RestApiVersion.V_7));
 

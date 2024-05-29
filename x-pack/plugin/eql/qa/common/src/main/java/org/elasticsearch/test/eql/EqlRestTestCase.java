@@ -77,7 +77,7 @@ public abstract class EqlRestTestCase extends RemoteClusterAwareEqlRestTestCase 
         assertBadRequest("""
             {"query": "sample by event.category [any where true] [any where true]",
              "fetch_size": 1001}
-            """, "Fetch size cannot be greater than [1000]", 500);
+            """, "Fetch size cannot be greater than [1000]", 400);
 
         deleteIndexWithProvisioningClient(defaultValidationIndexName);
     }
@@ -185,7 +185,7 @@ public abstract class EqlRestTestCase extends RemoteClusterAwareEqlRestTestCase 
         deleteIndexWithProvisioningClient("test");
     }
 
-    private void bulkIndex(String bulk) throws IOException {
+    private static void bulkIndex(String bulk) throws IOException {
         Request bulkRequest = new Request("POST", "/_bulk");
         bulkRequest.setJsonEntity(bulk);
         bulkRequest.addParameter("refresh", "true");

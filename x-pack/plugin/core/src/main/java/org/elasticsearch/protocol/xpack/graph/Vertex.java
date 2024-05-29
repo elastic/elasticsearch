@@ -8,17 +8,12 @@ package org.elasticsearch.protocol.xpack.graph;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
-
-import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * A vertex in a graph response represents a single term (a field and value pair)
@@ -97,31 +92,6 @@ public class Vertex implements ToXContentFragment {
             builder.field(BG.getPreferredName(), bg);
         }
         return builder;
-    }
-
-    private static final ConstructingObjectParser<Vertex, Void> PARSER = new ConstructingObjectParser<>("VertexParser", true, args -> {
-        String field = (String) args[0];
-        String term = (String) args[1];
-        double weight = (Double) args[2];
-        int depth = (Integer) args[3];
-        Long optionalBg = (Long) args[4];
-        Long optionalFg = (Long) args[5];
-        long bg = optionalBg == null ? 0 : optionalBg;
-        long fg = optionalFg == null ? 0 : optionalFg;
-        return new Vertex(field, term, weight, depth, bg, fg);
-    });
-
-    static {
-        PARSER.declareString(constructorArg(), FIELD);
-        PARSER.declareString(constructorArg(), TERM);
-        PARSER.declareDouble(constructorArg(), WEIGHT);
-        PARSER.declareInt(constructorArg(), DEPTH);
-        PARSER.declareLong(optionalConstructorArg(), BG);
-        PARSER.declareLong(optionalConstructorArg(), FG);
-    }
-
-    static Vertex fromXContent(XContentParser parser) throws IOException {
-        return PARSER.apply(parser, null);
     }
 
     /**

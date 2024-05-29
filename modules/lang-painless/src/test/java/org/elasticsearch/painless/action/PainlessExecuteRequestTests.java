@@ -49,7 +49,7 @@ public class PainlessExecuteRequestTests extends AbstractWireSerializingTestCase
 
             try (XContentBuilder builder = XContentBuilder.builder(xContent)) {
                 builder.value(testInstance);
-                try (XContentParser parser = createParser(xContent, BytesReference.bytes(builder).streamInput())) {
+                try (XContentParser parser = createParser(xContent, BytesReference.bytes(builder))) {
                     PainlessExecuteAction.Request result = PainlessExecuteAction.Request.parse(parser);
                     assertThat(result, equalTo(testInstance));
                 }
@@ -73,6 +73,11 @@ public class PainlessExecuteRequestTests extends AbstractWireSerializingTestCase
         ScriptContext<?> context = randomBoolean() ? randomFrom(PainlessExecuteAction.Request.SUPPORTED_CONTEXTS.values()) : null;
         ContextSetup contextSetup = randomBoolean() ? randomContextSetup() : null;
         return new PainlessExecuteAction.Request(script, context != null ? context.name : null, contextSetup);
+    }
+
+    @Override
+    protected PainlessExecuteAction.Request mutateInstance(PainlessExecuteAction.Request instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

@@ -10,11 +10,14 @@ package org.elasticsearch.xpack.spatial.index.fielddata;
 import org.apache.lucene.geo.Component2D;
 import org.apache.lucene.geo.XYGeometry;
 import org.apache.lucene.geo.XYPoint;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.geometry.utils.GeometryValidator;
 import org.elasticsearch.geometry.utils.StandardValidator;
+import org.elasticsearch.lucene.spatial.CartesianShapeIndexer;
+import org.elasticsearch.lucene.spatial.CoordinateEncoder;
+import org.elasticsearch.lucene.spatial.GeometryDocValueReader;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.xpack.spatial.common.CartesianPoint;
-import org.elasticsearch.xpack.spatial.index.mapper.CartesianShapeIndexer;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.CartesianShapeValuesSourceType;
 
 import java.io.IOException;
@@ -66,6 +69,12 @@ public abstract class CartesianShapeValues extends ShapeValues<CartesianShapeVal
             super(CoordinateEncoder.CARTESIAN, CartesianPoint::new);
         }
 
+        @SuppressWarnings("this-escape")
+        public CartesianShapeValue(StreamInput in) throws IOException {
+            this();
+            this.reset(in);
+        }
+
         @Override
         protected Component2D centroidAsComponent2D() throws IOException {
             return XYGeometry.create(new XYPoint((float) getX(), (float) getY()));
@@ -79,6 +88,11 @@ public abstract class CartesianShapeValues extends ShapeValues<CartesianShapeVal
          */
         public GeoRelation relate(XYGeometry geometry) throws IOException {
             return relate(XYGeometry.create(geometry));
+        }
+
+        @Override
+        public String getWriteableName() {
+            return "CartesianShapeValue";
         }
     }
 }

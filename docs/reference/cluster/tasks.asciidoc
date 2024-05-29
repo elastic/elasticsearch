@@ -32,26 +32,30 @@ on one or more nodes in the cluster.
 [[tasks-api-path-params]]
 ==== {api-path-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=task-id]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=task-id]
 
 
 [[tasks-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=actions]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=actions]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=detailed]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=detailed]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=group-by]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=group-by]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=node-id-query-parm]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=nodes]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=parent-task-id]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=parent-task-id]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+`timeout`::
+(Optional, <<time-units, time units>>)
+Period to wait for each node to respond. If a node does not respond before its
+timeout expires, the response does not include its information. However, timed out
+nodes are included in the response's `node_failures` property. Defaults to `30s`.
 
 `wait_for_completion`::
-(Optional, Boolean) If `true`, the request blocks until the operation is complete.
+(Optional, Boolean) If `true`, the request blocks until all found tasks are complete.
 Defaults to `false`.
 
 [[tasks-api-response-codes]]
@@ -245,11 +249,16 @@ POST _tasks/_cancel?nodes=nodeId1,nodeId2&actions=*reindex
 --------------------------------------------------
 
 A task may continue to run for some time after it has been cancelled because it
-may not be able to safely stop its current activity straight away. The list
-tasks API will continue to list these cancelled tasks until they complete. The
-`cancelled` flag in the response to the list tasks API indicates that the
-cancellation command has been processed and the task will stop as soon as
-possible.
+may not be able to safely stop its current activity straight away, or because
+{es} must complete its work on other tasks before it can process the
+cancellation. The list tasks API will continue to list these cancelled tasks
+until they complete. The `cancelled` flag in the response to the list tasks API
+indicates that the cancellation command has been processed and the task will
+stop as soon as possible. To troubleshoot why a cancelled task does not
+complete promptly, use the list tasks API with the `?detailed` parameter to
+identify the other tasks the system is running and also use the
+<<cluster-nodes-hot-threads>> API to obtain detailed information about the work
+the system is doing instead of completing the cancelled task.
 
 ===== Task Grouping
 

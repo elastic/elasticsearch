@@ -29,6 +29,11 @@ public class StatsResponsesTests extends AbstractWireSerializingTestCase<FollowS
         return createStatsResponse();
     }
 
+    @Override
+    protected FollowStatsAction.StatsResponses mutateInstance(FollowStatsAction.StatsResponses instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     static FollowStatsAction.StatsResponses createStatsResponse() {
         int numResponses = randomIntBetween(0, 8);
         List<FollowStatsAction.StatsResponse> responses = new ArrayList<>(numResponses);

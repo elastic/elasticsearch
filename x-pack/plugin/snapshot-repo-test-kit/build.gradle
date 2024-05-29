@@ -8,7 +8,9 @@ esplugin {
   classname 'org.elasticsearch.repositories.blobstore.testkit.SnapshotRepositoryTestKit'
   extendedPlugins = ['x-pack-core']
 }
-archivesBaseName = 'x-pack-snapshot-repo-test-kit'
+base {
+  archivesName = 'x-pack-snapshot-repo-test-kit'
+}
 
 dependencies {
   compileOnly project(xpackModule('core'))

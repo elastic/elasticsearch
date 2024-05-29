@@ -6,12 +6,12 @@
  */
 package org.elasticsearch.xpack.monitoring;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -101,6 +101,6 @@ public abstract class BaseCollectorTestCase extends ESTestCase {
     }
 
     protected static DiscoveryNode localNode(final String uuid) {
-        return new DiscoveryNode(uuid, new TransportAddress(TransportAddress.META_ADDRESS, 9300), Version.CURRENT);
+        return DiscoveryNodeUtils.create(uuid, new TransportAddress(TransportAddress.META_ADDRESS, 9300));
     }
 }

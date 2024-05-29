@@ -26,12 +26,16 @@ public final class TranslogConfig {
 
     public static final ByteSizeValue DEFAULT_BUFFER_SIZE = new ByteSizeValue(1, ByteSizeUnit.MB);
     public static final ByteSizeValue EMPTY_TRANSLOG_BUFFER_SIZE = ByteSizeValue.ofBytes(10);
-    private final BigArrays bigArrays;
-    private final DiskIoBufferPool diskIoBufferPool;
-    private final IndexSettings indexSettings;
+    public static final OperationListener NOOP_OPERATION_LISTENER = (d, s, l) -> {};
+
     private final ShardId shardId;
     private final Path translogPath;
+    private final IndexSettings indexSettings;
+    private final BigArrays bigArrays;
     private final ByteSizeValue bufferSize;
+    private final DiskIoBufferPool diskIoBufferPool;
+    private final OperationListener operationListener;
+    private final boolean fsync;
 
     /**
      * Creates a new TranslogConfig instance
@@ -41,16 +45,39 @@ public final class TranslogConfig {
      * @param bigArrays a bigArrays instance used for temporarily allocating write operations
      */
     public TranslogConfig(ShardId shardId, Path translogPath, IndexSettings indexSettings, BigArrays bigArrays) {
-        this(shardId, translogPath, indexSettings, bigArrays, DEFAULT_BUFFER_SIZE, DiskIoBufferPool.INSTANCE);
+        this(
+            shardId,
+            translogPath,
+            indexSettings,
+            bigArrays,
+            DEFAULT_BUFFER_SIZE,
+            DiskIoBufferPool.INSTANCE,
+            NOOP_OPERATION_LISTENER,
+            true
+        );
     }
 
-    TranslogConfig(
+    public TranslogConfig(
         ShardId shardId,
         Path translogPath,
         IndexSettings indexSettings,
         BigArrays bigArrays,
         ByteSizeValue bufferSize,
-        DiskIoBufferPool diskIoBufferPool
+        DiskIoBufferPool diskIoBufferPool,
+        OperationListener operationListener
+    ) {
+        this(shardId, translogPath, indexSettings, bigArrays, bufferSize, diskIoBufferPool, operationListener, true);
+    }
+
+    public TranslogConfig(
+        ShardId shardId,
+        Path translogPath,
+        IndexSettings indexSettings,
+        BigArrays bigArrays,
+        ByteSizeValue bufferSize,
+        DiskIoBufferPool diskIoBufferPool,
+        OperationListener operationListener,
+        boolean fsync
     ) {
         this.bufferSize = bufferSize;
         this.indexSettings = indexSettings;
@@ -58,6 +85,8 @@ public final class TranslogConfig {
         this.translogPath = translogPath;
         this.bigArrays = bigArrays;
         this.diskIoBufferPool = diskIoBufferPool;
+        this.operationListener = operationListener;
+        this.fsync = fsync;
     }
 
     /**
@@ -101,5 +130,16 @@ public final class TranslogConfig {
      */
     public DiskIoBufferPool getDiskIoBufferPool() {
         return diskIoBufferPool;
+    }
+
+    public OperationListener getOperationListener() {
+        return operationListener;
+    }
+
+    /**
+     * @return true if translog writes need to be followed by fsync
+     */
+    public boolean fsync() {
+        return fsync;
     }
 }

@@ -72,7 +72,7 @@ public class WatchStatus implements ToXContentObject, Writeable {
             executionState = ExecutionState.resolve(in.readString());
         }
         if (in.readBoolean()) {
-            headers = in.readMap(StreamInput::readString, StreamInput::readString);
+            headers = in.readMap(StreamInput::readString);
         } else {
             headers = Collections.emptyMap();
         }
@@ -248,7 +248,7 @@ public class WatchStatus implements ToXContentObject, Writeable {
         boolean statusHasHeaders = headers != null && headers.isEmpty() == false;
         out.writeBoolean(statusHasHeaders);
         if (statusHasHeaders) {
-            out.writeMap(headers, StreamOutput::writeString, StreamOutput::writeString);
+            out.writeMap(headers, StreamOutput::writeString);
         }
     }
 

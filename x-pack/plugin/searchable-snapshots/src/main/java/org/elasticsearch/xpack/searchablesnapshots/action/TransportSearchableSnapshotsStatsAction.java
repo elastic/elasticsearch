@@ -48,7 +48,7 @@ public class TransportSearchableSnapshotsStatsAction extends AbstractTransportSe
             actionFilters,
             indexNameExpressionResolver,
             SearchableSnapshotsStatsRequest::new,
-            ThreadPool.Names.MANAGEMENT,
+            transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT),
             indicesService,
             licenseState
         );

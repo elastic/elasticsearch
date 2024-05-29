@@ -10,9 +10,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.UnsafePlainActionFuture;
 import org.elasticsearch.blobcache.common.ByteRange;
-import org.elasticsearch.blobcache.common.CacheFile;
-import org.elasticsearch.blobcache.common.CacheKey;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.cache.Cache;
@@ -34,6 +33,8 @@ import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheFile;
+import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheKey;
 import org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirectory;
 
 import java.io.FileNotFoundException;
@@ -347,7 +348,7 @@ public class CacheService extends AbstractLifecycleComponent {
             if (allowShardsEvictions) {
                 final ShardEviction shardEviction = new ShardEviction(snapshotUUID, snapshotIndexName, shardId);
                 pendingShardsEvictions.computeIfAbsent(shardEviction, shard -> {
-                    final PlainActionFuture<?> future = PlainActionFuture.newFuture();
+                    final PlainActionFuture<?> future = new UnsafePlainActionFuture<>(ThreadPool.Names.GENERIC);
                     threadPool.generic().execute(new AbstractRunnable() {
                         @Override
                         protected void doRun() {
@@ -636,7 +637,7 @@ public class CacheService extends AbstractLifecycleComponent {
     class CacheSynchronizationTask extends AbstractAsyncTask {
 
         CacheSynchronizationTask(ThreadPool threadPool, TimeValue interval) {
-            super(logger, Objects.requireNonNull(threadPool), Objects.requireNonNull(interval), true);
+            super(logger, Objects.requireNonNull(threadPool), threadPool.generic(), Objects.requireNonNull(interval), true);
         }
 
         @Override
@@ -647,11 +648,6 @@ public class CacheService extends AbstractLifecycleComponent {
         @Override
         public void runInternal() {
             synchronizeCache();
-        }
-
-        @Override
-        protected String getThreadPool() {
-            return ThreadPool.Names.GENERIC;
         }
 
         @Override

@@ -8,7 +8,8 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -30,7 +31,7 @@ public record DesiredNodeWithStatus(DesiredNode desiredNode, Status status)
         ToXContentObject,
         Comparable<DesiredNodeWithStatus> {
 
-    private static final Version STATUS_TRACKING_SUPPORT_VERSION = Version.V_8_4_0;
+    private static final TransportVersion STATUS_TRACKING_SUPPORT_VERSION = TransportVersions.V_8_4_0;
     private static final ParseField STATUS_FIELD = new ParseField("status");
 
     public static final ConstructingObjectParser<DesiredNodeWithStatus, Void> PARSER = new ConstructingObjectParser<>(
@@ -43,7 +44,7 @@ public record DesiredNodeWithStatus(DesiredNode desiredNode, Status status)
                 (DesiredNode.ProcessorsRange) args[2],
                 (ByteSizeValue) args[3],
                 (ByteSizeValue) args[4],
-                (Version) args[5]
+                (String) args[5]
             ),
             // An unknown status is expected during upgrades to versions >= STATUS_TRACKING_SUPPORT_VERSION
             // the desired node status would be populated when a node in the newer version is elected as
@@ -77,7 +78,7 @@ public record DesiredNodeWithStatus(DesiredNode desiredNode, Status status)
     public static DesiredNodeWithStatus readFrom(StreamInput in) throws IOException {
         final var desiredNode = DesiredNode.readFrom(in);
         final Status status;
-        if (in.getVersion().onOrAfter(STATUS_TRACKING_SUPPORT_VERSION)) {
+        if (in.getTransportVersion().onOrAfter(STATUS_TRACKING_SUPPORT_VERSION)) {
             status = Status.fromValue(in.readShort());
         } else {
             // During upgrades, we consider all desired nodes as PENDING
@@ -93,7 +94,7 @@ public record DesiredNodeWithStatus(DesiredNode desiredNode, Status status)
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         desiredNode.writeTo(out);
-        if (out.getVersion().onOrAfter(STATUS_TRACKING_SUPPORT_VERSION)) {
+        if (out.getTransportVersion().onOrAfter(STATUS_TRACKING_SUPPORT_VERSION)) {
             out.writeShort(status.value);
         }
     }

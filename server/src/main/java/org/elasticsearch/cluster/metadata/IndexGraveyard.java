@@ -8,7 +8,8 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -78,7 +79,7 @@ public final class IndexGraveyard implements Metadata.Custom {
     }
 
     public IndexGraveyard(final StreamInput in) throws IOException {
-        this.tombstones = in.readImmutableList(Tombstone::new);
+        this.tombstones = in.readCollectionAsImmutableList(Tombstone::new);
     }
 
     @Override
@@ -87,8 +88,8 @@ public final class IndexGraveyard implements Metadata.Custom {
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.CURRENT.minimumCompatibilityVersion();
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.MINIMUM_COMPATIBLE;
     }
 
     @Override
@@ -141,7 +142,7 @@ public final class IndexGraveyard implements Metadata.Custom {
 
     @Override
     public void writeTo(final StreamOutput out) throws IOException {
-        out.writeList(tombstones);
+        out.writeCollection(tombstones);
     }
 
     @Override
@@ -255,7 +256,7 @@ public final class IndexGraveyard implements Metadata.Custom {
         private final int removedCount;
 
         IndexGraveyardDiff(final StreamInput in) throws IOException {
-            added = in.readImmutableList(Tombstone::new);
+            added = in.readCollectionAsImmutableList(Tombstone::new);
             removedCount = in.readVInt();
         }
 
@@ -298,7 +299,7 @@ public final class IndexGraveyard implements Metadata.Custom {
 
         @Override
         public void writeTo(final StreamOutput out) throws IOException {
-            out.writeList(added);
+            out.writeCollection(added);
             out.writeVInt(removedCount);
         }
 
@@ -333,8 +334,8 @@ public final class IndexGraveyard implements Metadata.Custom {
         }
 
         @Override
-        public Version getMinimalSupportedVersion() {
-            return Version.CURRENT.minimumCompatibilityVersion();
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersions.MINIMUM_COMPATIBLE;
         }
     }
 

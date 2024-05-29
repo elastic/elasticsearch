@@ -8,10 +8,9 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
@@ -22,18 +21,21 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 import org.elasticsearch.persistent.PersistentTasksService;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.MlConfigIndex;
+import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.UpgradeJobModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.action.UpgradeJobModelSnapshotAction.Request;
@@ -46,6 +48,7 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapsho
 import org.elasticsearch.xpack.core.ml.job.results.Result;
 import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeTaskParams;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.ml.utils.TransportVersionUtils;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.snapshot.upgrader.SnapshotUpgradePredicate;
@@ -87,7 +90,7 @@ public class TransportUpgradeJobModelSnapshotAction extends TransportMasterNodeA
             Request::new,
             indexNameExpressionResolver,
             Response::new,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.licenseState = licenseState;
         this.persistentTasksService = persistentTasksService;
@@ -109,13 +112,12 @@ public class TransportUpgradeJobModelSnapshotAction extends TransportMasterNodeA
             return;
         }
 
-        if (state.nodes().getMaxNodeVersion().after(state.nodes().getMinNodeVersion())) {
+        if (TransportVersionUtils.isMinTransportVersionSameAsCurrent(state) == false) {
             listener.onFailure(
                 ExceptionsHelper.conflictStatusException(
-                    "Cannot upgrade job [{}] snapshot [{}] as not all nodes are on version {}. All nodes must be the same version",
+                    "Cannot upgrade job [{}] snapshot [{}] while cluster upgrade is in progress.",
                     request.getJobId(),
-                    request.getSnapshotId(),
-                    state.nodes().getMaxNodeVersion().toString()
+                    request.getSnapshotId()
                 )
             );
             return;
@@ -162,6 +164,7 @@ public class TransportUpgradeJobModelSnapshotAction extends TransportMasterNodeA
                 MlTasks.snapshotUpgradeTaskId(params.getJobId(), params.getSnapshotId()),
                 MlTasks.JOB_SNAPSHOT_UPGRADE_TASK_NAME,
                 params,
+                null,
                 waitForJobToStart
             );
         }, listener::onFailure);
@@ -174,7 +177,8 @@ public class TransportUpgradeJobModelSnapshotAction extends TransportMasterNodeA
                 client,
                 state,
                 request.masterNodeTimeout(),
-                configIndexMappingUpdaterListener
+                configIndexMappingUpdaterListener,
+                MlConfigIndex.CONFIG_INDEX_MAPPINGS_VERSION
             ),
             listener::onFailure
         );
@@ -190,13 +194,13 @@ public class TransportUpgradeJobModelSnapshotAction extends TransportMasterNodeA
                 );
                 return;
             }
-            if (Version.CURRENT.equals(response.result.getMinVersion())) {
+            if (MlConfigVersion.CURRENT.equals(response.result.getMinVersion())) {
                 listener.onFailure(
                     ExceptionsHelper.conflictStatusException(
                         "Cannot upgrade job [{}] snapshot [{}] as it is already compatible with current version {}",
                         request.getJobId(),
                         request.getSnapshotId(),
-                        Version.CURRENT
+                        MlConfigVersion.CURRENT
                     )
                 );
                 return;
@@ -220,6 +224,7 @@ public class TransportUpgradeJobModelSnapshotAction extends TransportMasterNodeA
             jobResultsProvider.getModelSnapshot(
                 request.getJobId(),
                 request.getSnapshotId(),
+                false,
                 getSnapshotHandler::onResponse,
                 getSnapshotHandler::onFailure
             );
@@ -268,8 +273,9 @@ public class TransportUpgradeJobModelSnapshotAction extends TransportMasterNodeA
                 @Override
                 public void onTimeout(TimeValue timeout) {
                     listener.onFailure(
-                        new ElasticsearchException(
+                        new ElasticsearchStatusException(
                             "snapshot upgrader request [{}] [{}] timed out after [{}]",
+                            RestStatus.REQUEST_TIMEOUT,
                             params.getJobId(),
                             params.getSnapshotId(),
                             timeout
@@ -285,18 +291,22 @@ public class TransportUpgradeJobModelSnapshotAction extends TransportMasterNodeA
         Exception exception,
         ActionListener<Response> listener
     ) {
-        persistentTasksService.sendRemoveRequest(persistentTask.getId(), ActionListener.wrap(t -> listener.onFailure(exception), e -> {
-            logger.error(
-                () -> format(
-                    "[%s] [%s] Failed to cancel persistent task that could not be assigned due to %s",
-                    persistentTask.getParams().getJobId(),
-                    persistentTask.getParams().getSnapshotId(),
-                    exception.getMessage()
-                ),
-                e
-            );
-            listener.onFailure(exception);
-        }));
+        persistentTasksService.sendRemoveRequest(
+            persistentTask.getId(),
+            null,
+            ActionListener.wrap(t -> listener.onFailure(exception), e -> {
+                logger.error(
+                    () -> format(
+                        "[%s] [%s] Failed to cancel persistent task that could not be assigned due to %s",
+                        persistentTask.getParams().getJobId(),
+                        persistentTask.getParams().getSnapshotId(),
+                        exception.getMessage()
+                    ),
+                    e
+                );
+                listener.onFailure(exception);
+            })
+        );
     }
 
 }

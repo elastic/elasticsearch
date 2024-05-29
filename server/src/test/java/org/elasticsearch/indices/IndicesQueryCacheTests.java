@@ -289,7 +289,7 @@ public class IndicesQueryCacheTests extends ESTestCase {
         w1.close();
         ShardId shard1 = new ShardId("index", "_na_", 0);
         r1 = ElasticsearchDirectoryReader.wrap(r1, shard1);
-        IndexSearcher s1 = new IndexSearcher(r1);
+        IndexSearcher s1 = newSearcher(r1, false);
         s1.setQueryCachingPolicy(TrivialQueryCachingPolicy.ALWAYS);
 
         Directory dir2 = newDirectory();
@@ -299,7 +299,7 @@ public class IndicesQueryCacheTests extends ESTestCase {
         w2.close();
         ShardId shard2 = new ShardId("index", "_na_", 1);
         r2 = ElasticsearchDirectoryReader.wrap(r2, shard2);
-        IndexSearcher s2 = new IndexSearcher(r2);
+        IndexSearcher s2 = newSearcher(r2, false);
         s2.setQueryCachingPolicy(TrivialQueryCachingPolicy.ALWAYS);
 
         Settings settings = Settings.builder()
@@ -374,7 +374,7 @@ public class IndicesQueryCacheTests extends ESTestCase {
         w.close();
         ShardId shard = new ShardId("index", "_na_", 0);
         r = ElasticsearchDirectoryReader.wrap(r, shard);
-        IndexSearcher s = new IndexSearcher(r);
+        IndexSearcher s = newSearcher(r, false);
         s.setQueryCachingPolicy(TrivialQueryCachingPolicy.NEVER);
 
         Settings settings = Settings.builder()

@@ -8,7 +8,7 @@
 
 package org.elasticsearch.action.get;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.RealtimeRequest;
 import org.elasticsearch.action.ValidateActions;
@@ -27,14 +27,12 @@ import java.io.IOException;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
- * A request to get a document (its source) from an index based on its id. Best created using
- * {@link org.elasticsearch.client.internal.Requests#getRequest(String)}.
+ * A request to get a document (its source) from an index based on its id.
  * <p>
  * The operation requires the {@link #index()} and {@link #id(String)}
  * to be set.
  *
  * @see org.elasticsearch.action.get.GetResponse
- * @see org.elasticsearch.client.internal.Requests#getRequest(String)
  * @see org.elasticsearch.client.internal.Client#get(GetRequest)
  */
 // It's not possible to suppress teh warning at #realtime(boolean) at a method-level.
@@ -66,9 +64,9 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
 
     public GetRequest() {}
 
-    GetRequest(StreamInput in) throws IOException {
+    public GetRequest(StreamInput in) throws IOException {
         super(in);
-        if (in.getVersion().before(Version.V_8_0_0)) {
+        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             in.readString();
         }
         id = in.readString();
@@ -81,7 +79,7 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
         this.versionType = VersionType.fromValue(in.readByte());
         this.version = in.readLong();
         fetchSourceContext = in.readOptionalWriteable(FetchSourceContext::readFrom);
-        if (in.getVersion().onOrAfter(Version.V_8_4_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
             forceSyntheticSource = in.readBoolean();
         } else {
             forceSyntheticSource = false;
@@ -91,7 +89,7 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getVersion().before(Version.V_8_0_0)) {
+        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             out.writeString(MapperService.SINGLE_MAPPING_NAME);
         }
         out.writeString(id);
@@ -104,7 +102,7 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
         out.writeByte(versionType.getValue());
         out.writeLong(version);
         out.writeOptionalWriteable(fetchSourceContext);
-        if (out.getVersion().onOrAfter(Version.V_8_4_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
             out.writeBoolean(forceSyntheticSource);
         } else {
             if (forceSyntheticSource) {

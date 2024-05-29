@@ -17,9 +17,6 @@ The following changes in {es} 8.5 might affect your applications and prevent
 them from operating normally. Before upgrading to 8.5, review these changes and
 take the described steps to mitigate the impact.
 
-// NOTE: The notable-breaking-changes tagged regions are re-used in the
-// Installation and Upgrade Guide
-// tag::notable-breaking-changes[]
 [discrete]
 [[breaking_85_rest_api_changes]]
 ==== REST API changes
@@ -50,7 +47,6 @@ send unrecognized actions to {es}.
 Ensure your application only sends items with type `create`, `update`, `index`
 or `delete` to the bulk API.
 ====
-// end::notable-breaking-changes[]
 
 [discrete]
 [[deprecated-8.5]]

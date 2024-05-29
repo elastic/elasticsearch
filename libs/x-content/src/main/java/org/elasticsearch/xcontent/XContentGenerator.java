@@ -76,6 +76,8 @@ public interface XContentGenerator extends Closeable, Flushable {
 
     void writeString(String value) throws IOException;
 
+    void writeStringArray(String[] array) throws IOException;
+
     void writeString(char[] text, int offset, int len) throws IOException;
 
     void writeUTF8String(byte[] value, int offset, int length) throws IOException;
@@ -102,6 +104,11 @@ public interface XContentGenerator extends Closeable, Flushable {
      * Writes a raw value taken from the bytes in the stream
      */
     void writeRawValue(InputStream value, XContentType xContentType) throws IOException;
+
+    /**
+     * Writes a raw value taken from a pre-rendered string representation
+     */
+    void writeRawValue(String value) throws IOException;
 
     void copyCurrentStructure(XContentParser parser) throws IOException;
 

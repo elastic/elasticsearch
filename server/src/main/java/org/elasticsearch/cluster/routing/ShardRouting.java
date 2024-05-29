@@ -8,7 +8,9 @@
 
 package org.elasticsearch.cluster.routing;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource.ExistingStoreRecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.PeerRecoverySource;
@@ -31,6 +33,8 @@ import java.util.Objects;
 /**
  * {@link ShardRouting} immutably encapsulates information about shard
  * indexRoutings like id, state, version, etc.
+ *
+ * Information about a particular shard instance.
  */
 public final class ShardRouting implements Writeable, ToXContentObject {
 
@@ -38,8 +42,8 @@ public final class ShardRouting implements Writeable, ToXContentObject {
      * Used if shard size is not available
      */
     public static final long UNAVAILABLE_EXPECTED_SHARD_SIZE = -1;
-    private static final Version EXPECTED_SHARD_SIZE_FOR_STARTED_VERSION = Version.V_8_5_0;
-    private static final Version RELOCATION_FAILURE_INFO_VERSION = Version.V_8_6_0;
+    private static final TransportVersion EXPECTED_SHARD_SIZE_FOR_STARTED_VERSION = TransportVersions.V_8_5_0;
+    private static final TransportVersion RELOCATION_FAILURE_INFO_VERSION = TransportVersions.V_8_6_0;
 
     private final ShardId shardId;
     private final String currentNodeId;
@@ -92,19 +96,44 @@ public final class ShardRouting implements Writeable, ToXContentObject {
         this.allocationId = allocationId;
         this.expectedShardSize = expectedShardSize;
         this.role = role;
-        assert role != null;
         this.targetRelocatingShard = initializeTargetRelocatingShard();
-        assert (state == ShardRoutingState.UNASSIGNED && unassignedInfo == null) == false : "unassigned shard must be created with meta";
+
+        assert assertConsistent();
+    }
+
+    private boolean assertConsistent() {
         assert relocationFailureInfo != null : "relocation failure info must be always set";
-        assert (state == ShardRoutingState.UNASSIGNED || state == ShardRoutingState.INITIALIZING) == (recoverySource != null)
-            : "recovery source only available on unassigned or initializing shard but was " + state;
-        assert recoverySource == null || recoverySource == PeerRecoverySource.INSTANCE || primary
-            : "replica shards always recover from primary";
-        assert (currentNodeId == null) == (state == ShardRoutingState.UNASSIGNED)
-            : "unassigned shard must not be assigned to a node " + this;
-        assert relocatingNodeId == null || state == ShardRoutingState.RELOCATING || state == ShardRoutingState.INITIALIZING
-            : state + " shard must not have relocating node " + this;
+        assert role != null : "role must be always set";
         assert primary == false || role.isPromotableToPrimary() : "shard with unpromotable role was promoted to primary: " + this;
+        switch (state) {
+            case UNASSIGNED -> {
+                assert currentNodeId == null : state + " shard must not be assigned to a node " + this;
+                assert relocatingNodeId == null : state + " shard must not be relocating to a node " + this;
+                assert unassignedInfo != null : state + " shard must be created with unassigned info " + this;
+                assert recoverySource != null : state + " shard must be created with a recovery source" + this;
+                assert primary ^ recoverySource == PeerRecoverySource.INSTANCE : "replica shards always recover from primary" + this;
+            }
+            case INITIALIZING -> {
+                assert currentNodeId != null : state + " shard must be assigned to a node " + this;
+                // relocatingNodeId is not set for initializing shard but set for relocating shard counterpart
+                // unassignedInfo is kept after starting unassigned shard but not present for relocating shard counterpart
+                assert recoverySource != null : state + "shard must be created with a recovery source" + this;
+                assert primary || recoverySource == PeerRecoverySource.INSTANCE : "replica shards always recover from primary" + this;
+            }
+            case STARTED -> {
+                assert currentNodeId != null : state + " shard must be assigned to a node " + this;
+                assert relocatingNodeId == null : state + " shard must not be relocating to a node " + this;
+                assert unassignedInfo == null : state + " shard must be created without unassigned info " + this;
+                assert recoverySource == null : state + " shard must be created without a recovery source" + this;
+            }
+            case RELOCATING -> {
+                assert currentNodeId != null : state + " shard must be assigned to a node " + this;
+                assert relocatingNodeId != null : state + " shard must be relocating to a node " + this;
+                assert unassignedInfo == null : state + " shard must be created without unassigned info " + this;
+                assert recoverySource == null : state + " shard must be created without a recovery source" + this;
+            }
+        }
+        return true;
     }
 
     @Nullable
@@ -314,7 +343,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
             recoverySource = null;
         }
         unassignedInfo = in.readOptionalWriteable(UnassignedInfo::new);
-        if (in.getVersion().onOrAfter(RELOCATION_FAILURE_INFO_VERSION)) {
+        if (in.getTransportVersion().onOrAfter(RELOCATION_FAILURE_INFO_VERSION)) {
             relocationFailureInfo = RelocationFailureInfo.readFrom(in);
         } else {
             relocationFailureInfo = RelocationFailureInfo.NO_FAILURES;
@@ -322,12 +351,12 @@ public final class ShardRouting implements Writeable, ToXContentObject {
         allocationId = in.readOptionalWriteable(AllocationId::new);
         if (state == ShardRoutingState.RELOCATING
             || state == ShardRoutingState.INITIALIZING
-            || (state == ShardRoutingState.STARTED && in.getVersion().onOrAfter(EXPECTED_SHARD_SIZE_FOR_STARTED_VERSION))) {
+            || (state == ShardRoutingState.STARTED && in.getTransportVersion().onOrAfter(EXPECTED_SHARD_SIZE_FOR_STARTED_VERSION))) {
             expectedShardSize = in.readLong();
         } else {
             expectedShardSize = UNAVAILABLE_EXPECTED_SHARD_SIZE;
         }
-        if (in.getVersion().onOrAfter(Version.V_8_7_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
             role = Role.readFrom(in);
         } else {
             role = Role.DEFAULT;
@@ -354,20 +383,22 @@ public final class ShardRouting implements Writeable, ToXContentObject {
             recoverySource.writeTo(out);
         }
         out.writeOptionalWriteable(unassignedInfo);
-        if (out.getVersion().onOrAfter(RELOCATION_FAILURE_INFO_VERSION)) {
+        if (out.getTransportVersion().onOrAfter(RELOCATION_FAILURE_INFO_VERSION)) {
             relocationFailureInfo.writeTo(out);
         }
         out.writeOptionalWriteable(allocationId);
         if (state == ShardRoutingState.RELOCATING
             || state == ShardRoutingState.INITIALIZING
-            || (state == ShardRoutingState.STARTED && out.getVersion().onOrAfter(EXPECTED_SHARD_SIZE_FOR_STARTED_VERSION))) {
+            || (state == ShardRoutingState.STARTED && out.getTransportVersion().onOrAfter(EXPECTED_SHARD_SIZE_FOR_STARTED_VERSION))) {
             out.writeLong(expectedShardSize);
         }
 
-        if (out.getVersion().onOrAfter(Version.V_8_7_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
             role.writeTo(out);
         } else if (role != Role.DEFAULT) {
-            throw new IllegalStateException(Strings.format("cannot send role [%s] to node of version [%s]", role, out.getVersion()));
+            throw new IllegalStateException(
+                Strings.format("cannot send role [%s] to node with version [%s]", role, out.getTransportVersion().toReleaseVersion())
+            );
         }
     }
 
@@ -902,6 +933,11 @@ public final class ShardRouting implements Writeable, ToXContentObject {
         return role.isPromotableToPrimary();
     }
 
+    /**
+     * Determine if role searchable. Consumers should prefer {@link OperationRouting#canSearchShard(ShardRouting, ClusterState)} to
+     * determine if a shard can be searched and {@link IndexRoutingTable#readyForSearch(ClusterState)} to determine if an index
+     * is ready to be searched.
+     */
     public boolean isSearchable() {
         return role.isSearchable();
     }

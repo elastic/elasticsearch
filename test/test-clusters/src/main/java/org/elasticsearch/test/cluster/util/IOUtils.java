@@ -92,11 +92,6 @@ public final class IOUtils {
         try (Stream<Path> stream = Files.walk(sourceRoot)) {
             stream.forEach(source -> {
                 Path relativeDestination = sourceRoot.relativize(source);
-                if (relativeDestination.getNameCount() <= 1) {
-                    return;
-                }
-                // Throw away the first name as the archives have everything in a single top level folder we are not interested in
-                relativeDestination = relativeDestination.subpath(1, relativeDestination.getNameCount());
 
                 Path destination = destinationRoot.resolve(relativeDestination);
                 if (Files.isDirectory(source)) {
@@ -115,7 +110,7 @@ public final class IOUtils {
                 }
             });
         } catch (UncheckedIOException e) {
-            if (e.getCause()instanceof NoSuchFileException cause) {
+            if (e.getCause() instanceof NoSuchFileException cause) {
                 // Ignore these files that are sometimes left behind by the JVM
                 if (cause.getFile() == null || cause.getFile().contains(".attach_pid") == false) {
                     throw new UncheckedIOException(cause);

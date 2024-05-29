@@ -14,19 +14,18 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.script.TemplateScript;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -321,6 +320,27 @@ public final class ConfigurationUtils {
     /**
      * Returns and removes the specified property of type list from the specified configuration map.
      *
+     * If the property value isn't of type list or string an {@link ElasticsearchParseException} is thrown.
+     */
+    public static List<String> readOptionalListOrString(
+        String processorType,
+        String processorTag,
+        Map<String, Object> configuration,
+        String propertyName
+    ) {
+        Object value = configuration.remove(propertyName);
+        if (value == null) {
+            return List.of();
+        }
+        if (value instanceof String) {
+            return List.of(readString(processorType, processorTag, propertyName, value));
+        }
+        return readList(processorType, processorTag, propertyName, value);
+    }
+
+    /**
+     * Returns and removes the specified property of type list from the specified configuration map.
+     *
      * If the property value isn't of type list an {@link ElasticsearchParseException} is thrown.
      * If the property is missing an {@link ElasticsearchParseException} is thrown
      */
@@ -601,7 +621,7 @@ public final class ConfigurationUtils {
                     );
                 }
                 if (onFailureProcessors.size() > 0 || ignoreFailure) {
-                    processor = new CompoundProcessor(ignoreFailure, List.of(processor), onFailureProcessors);
+                    processor = new OnFailureProcessor(ignoreFailure, processor, onFailureProcessors);
                 }
                 if (conditionalScript != null) {
                     processor = new ConditionalProcessor(tag, description, conditionalScript, scriptService, processor);
@@ -619,9 +639,11 @@ public final class ConfigurationUtils {
         if (scriptSource != null) {
             try (
                 XContentBuilder builder = XContentBuilder.builder(JsonXContent.jsonXContent).map(normalizeScript(scriptSource));
-                InputStream stream = BytesReference.bytes(builder).streamInput();
-                XContentParser parser = XContentType.JSON.xContent()
-                    .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)
+                XContentParser parser = XContentHelper.createParserNotCompressed(
+                    LoggingDeprecationHandler.XCONTENT_PARSER_CONFIG,
+                    BytesReference.bytes(builder),
+                    XContentType.JSON
+                )
             ) {
                 return Script.parse(parser);
             }

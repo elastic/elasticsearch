@@ -15,7 +15,8 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.termvectors.MultiTermVectorsItemResponse;
 import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
@@ -206,7 +207,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         @SuppressWarnings("unchecked")
         Item(StreamInput in) throws IOException {
             index = in.readOptionalString();
-            if (in.getVersion().before(Version.V_8_0_0)) {
+            if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
                 // types no longer relevant so ignore
                 String type = in.readOptionalString();
                 if (type != null) {
@@ -229,7 +230,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeOptionalString(index);
-            if (out.getVersion().before(Version.V_8_0_0)) {
+            if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
                 // types not supported so send an empty array to previous versions
                 out.writeOptionalString(null);
             }
@@ -515,9 +516,9 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeOptionalStringArray(fields);
         out.writeStringArray(likeTexts);
-        out.writeList(Arrays.asList(likeItems));
+        out.writeCollection(Arrays.asList(likeItems));
         out.writeStringArray(unlikeTexts);
-        out.writeList(Arrays.asList(unlikeItems));
+        out.writeCollection(Arrays.asList(unlikeItems));
         out.writeVInt(maxQueryTerms);
         out.writeVInt(minTermFreq);
         out.writeVInt(minDocFreq);
@@ -1185,7 +1186,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_EMPTY;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.ZERO;
     }
 }

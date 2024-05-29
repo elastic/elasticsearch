@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.security.action.role;
 
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -22,11 +23,6 @@ public class ClearRolesCacheRequest extends BaseNodesRequest<ClearRolesCacheRequ
 
     public ClearRolesCacheRequest() {
         super((String[]) null);
-    }
-
-    public ClearRolesCacheRequest(StreamInput in) throws IOException {
-        super(in);
-        names = in.readOptionalStringArray();
     }
 
     /**
@@ -48,8 +44,7 @@ public class ClearRolesCacheRequest extends BaseNodesRequest<ClearRolesCacheRequ
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeOptionalStringArray(names);
+        TransportAction.localOnly();
     }
 
     public static class Node extends TransportRequest {

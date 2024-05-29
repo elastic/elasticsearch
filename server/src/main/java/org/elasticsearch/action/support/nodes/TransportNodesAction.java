@@ -8,26 +8,31 @@
 
 package org.elasticsearch.action.support.nodes;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.action.support.NodeResponseTracker;
+import org.elasticsearch.action.support.CancellableFanOut;
+import org.elasticsearch.action.support.ChannelActionListener;
+import org.elasticsearch.action.support.ThreadedActionListener;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.tasks.TaskCancelledException;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportChannel;
-import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
-import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -35,130 +40,154 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.Executor;
+
+import static org.elasticsearch.core.Strings.format;
 
 public abstract class TransportNodesAction<
     NodesRequest extends BaseNodesRequest<NodesRequest>,
     NodesResponse extends BaseNodesResponse<?>,
     NodeRequest extends TransportRequest,
-    NodeResponse extends BaseNodeResponse> extends HandledTransportAction<NodesRequest, NodesResponse> {
+    NodeResponse extends BaseNodeResponse> extends TransportAction<NodesRequest, NodesResponse> {
 
-    protected final ThreadPool threadPool;
+    private static final Logger logger = LogManager.getLogger(TransportNodesAction.class);
+
     protected final ClusterService clusterService;
     protected final TransportService transportService;
-    protected final Class<NodeResponse> nodeResponseClass;
     protected final String transportNodeAction;
 
-    private final String finalExecutor;
+    private final Executor finalExecutor;
 
     /**
      * @param actionName        action name
-     * @param threadPool        thread-pool
      * @param clusterService    cluster service
      * @param transportService  transport service
      * @param actionFilters     action filters
-     * @param request           node request writer
      * @param nodeRequest       node request reader
-     * @param nodeExecutor      executor to execute node action on
-     * @param finalExecutor     executor to execute final collection of all responses on
-     * @param nodeResponseClass class of the node responses
+     * @param executor          executor to execute node action and final collection
      */
     protected TransportNodesAction(
         String actionName,
-        ThreadPool threadPool,
         ClusterService clusterService,
         TransportService transportService,
         ActionFilters actionFilters,
-        Writeable.Reader<NodesRequest> request,
         Writeable.Reader<NodeRequest> nodeRequest,
-        String nodeExecutor,
-        String finalExecutor,
-        Class<NodeResponse> nodeResponseClass
+        Executor executor
     ) {
-        super(actionName, transportService, actionFilters, request);
-        this.threadPool = threadPool;
+        super(actionName, actionFilters, transportService.getTaskManager());
+        assert executor.equals(EsExecutors.DIRECT_EXECUTOR_SERVICE) == false
+            : "TransportNodesAction must always fork off the transport thread";
         this.clusterService = Objects.requireNonNull(clusterService);
         this.transportService = Objects.requireNonNull(transportService);
-        this.nodeResponseClass = Objects.requireNonNull(nodeResponseClass);
-
+        this.finalExecutor = executor;
         this.transportNodeAction = actionName + "[n]";
-        this.finalExecutor = finalExecutor;
-        transportService.registerRequestHandler(transportNodeAction, nodeExecutor, nodeRequest, new NodeTransportHandler());
-    }
-
-    /**
-     * Same as {@link #TransportNodesAction(String, ThreadPool, ClusterService, TransportService, ActionFilters, Writeable.Reader,
-     * Writeable.Reader, String, String, Class)} but executes final response collection on the transport thread except for when the final
-     * node response is received from the local node, in which case {@code nodeExecutor} is used.
-     * This constructor should only be used for actions for which the creation of the final response is fast enough to be safely executed
-     * on a transport thread.
-     */
-    protected TransportNodesAction(
-        String actionName,
-        ThreadPool threadPool,
-        ClusterService clusterService,
-        TransportService transportService,
-        ActionFilters actionFilters,
-        Writeable.Reader<NodesRequest> request,
-        Writeable.Reader<NodeRequest> nodeRequest,
-        String nodeExecutor,
-        Class<NodeResponse> nodeResponseClass
-    ) {
-        this(
-            actionName,
-            threadPool,
-            clusterService,
-            transportService,
-            actionFilters,
-            request,
-            nodeRequest,
-            nodeExecutor,
-            ThreadPool.Names.SAME,
-            nodeResponseClass
-        );
+        transportService.registerRequestHandler(transportNodeAction, finalExecutor, nodeRequest, new NodeTransportHandler());
     }
 
     @Override
     protected void doExecute(Task task, NodesRequest request, ActionListener<NodesResponse> listener) {
-        new AsyncAction(task, request, listener).start();
-    }
-
-    /**
-     * Map the responses into {@code nodeResponseClass} responses and {@link FailedNodeException}s, convert to a {@link NodesResponse} and
-     * pass it to the listener. Fails the listener with a {@link NullPointerException} if {@code nodesResponses} is null.
-     *
-     * @param request The associated request.
-     * @param nodeResponseTracker All node-level responses collected so far
-     * @throws NodeResponseTracker.DiscardedResponsesException if {@code nodeResponseTracker} has already discarded the intermediate results
-     * @see #newResponseAsync(Task, BaseNodesRequest, List, List, ActionListener)
-     */
-    // exposed for tests
-    void newResponse(Task task, NodesRequest request, NodeResponseTracker nodeResponseTracker, ActionListener<NodesResponse> listener)
-        throws NodeResponseTracker.DiscardedResponsesException {
-
-        if (nodeResponseTracker == null) {
-            listener.onFailure(new NullPointerException("nodesResponses"));
-            return;
+        // coordination can run on SAME because it's only O(#nodes) work
+        if (request.concreteNodes() == null) {
+            resolveRequest(request, clusterService.state());
+            assert request.concreteNodes() != null;
         }
 
-        final List<NodeResponse> responses = new ArrayList<>();
-        final List<FailedNodeException> failures = new ArrayList<>();
+        new CancellableFanOut<DiscoveryNode, NodeResponse, CheckedConsumer<ActionListener<NodesResponse>, Exception>>() {
 
-        for (int i = 0; i < nodeResponseTracker.getExpectedResponseCount(); ++i) {
-            Object response = nodeResponseTracker.getResponse(i);
-            if (nodeResponseTracker.getResponse(i)instanceof FailedNodeException failedNodeException) {
-                failures.add(failedNodeException);
-            } else {
-                responses.add(nodeResponseClass.cast(response));
+            final ArrayList<NodeResponse> responses = new ArrayList<>(request.concreteNodes().length);
+            final ArrayList<FailedNodeException> exceptions = new ArrayList<>(0);
+
+            final TransportRequestOptions transportRequestOptions = TransportRequestOptions.timeout(request.timeout());
+
+            {
+                addReleaseOnCancellationListener();
             }
-        }
 
-        newResponseAsync(task, request, responses, failures, listener);
+            private void addReleaseOnCancellationListener() {
+                if (task instanceof CancellableTask cancellableTask) {
+                    cancellableTask.addListener(() -> {
+                        final List<NodeResponse> drainedResponses;
+                        synchronized (responses) {
+                            drainedResponses = List.copyOf(responses);
+                            responses.clear();
+                        }
+                        Releasables.wrap(Iterators.map(drainedResponses.iterator(), r -> r::decRef)).close();
+                    });
+                }
+            }
+
+            @Override
+            protected void sendItemRequest(DiscoveryNode discoveryNode, ActionListener<NodeResponse> listener) {
+                final var nodeRequest = newNodeRequest(request);
+                if (task != null) {
+                    nodeRequest.setParentTask(clusterService.localNode().getId(), task.getId());
+                }
+
+                try {
+                    transportService.sendRequest(
+                        discoveryNode,
+                        transportNodeAction,
+                        nodeRequest,
+                        transportRequestOptions,
+                        new ActionListenerResponseHandler<>(listener, nodeResponseReader(discoveryNode), finalExecutor)
+                    );
+                } finally {
+                    nodeRequest.decRef();
+                }
+            }
+
+            @Override
+            protected void onItemResponse(DiscoveryNode discoveryNode, NodeResponse nodeResponse) {
+                nodeResponse.mustIncRef();
+                synchronized (responses) {
+                    if ((task instanceof CancellableTask cancellableTask && cancellableTask.isCancelled()) == false) {
+                        responses.add(nodeResponse);
+                        return;
+                    }
+                }
+                nodeResponse.decRef();
+            }
+
+            @Override
+            protected void onItemFailure(DiscoveryNode discoveryNode, Exception e) {
+                logger.debug(() -> format("failed to execute [%s] on node [%s]", actionName, discoveryNode), e);
+                synchronized (exceptions) {
+                    exceptions.add(new FailedNodeException(discoveryNode.getId(), "Failed node [" + discoveryNode.getId() + "]", e));
+                }
+            }
+
+            @Override
+            protected CheckedConsumer<ActionListener<NodesResponse>, Exception> onCompletion() {
+                // ref releases all happen-before here so no need to be synchronized
+                return l -> {
+                    try (var ignored = Releasables.wrap(Iterators.map(responses.iterator(), r -> r::decRef))) {
+                        newResponseAsync(task, request, responses, exceptions, l);
+                    }
+                };
+            }
+
+            @Override
+            public String toString() {
+                return actionName;
+            }
+        }.run(
+            task,
+            Iterators.forArray(request.concreteNodes()),
+            new ThreadedActionListener<>(finalExecutor, listener.delegateFailureAndWrap((l, c) -> c.accept(l)))
+        );
+    }
+
+    private Writeable.Reader<NodeResponse> nodeResponseReader(DiscoveryNode discoveryNode) {
+        // not an inline lambda to avoid capturing CancellableFanOut.this.
+        return in -> TransportNodesAction.this.newNodeResponse(in, discoveryNode);
     }
 
     /**
-     * Create a new {@link NodesResponse} (multi-node response).
+     * Create a new {@link NodesResponse}. This method is executed on {@link #finalExecutor}.
      *
-     * @param request The associated request.
+     * @param request The request whose response we are constructing. {@link TransportNodesAction} may have already released all its
+     *                references to this object before calling this method, so it's up to individual implementations to retain their own
+     *                reference to the request if still needed here.
      * @param responses All successful node-level responses.
      * @param failures All node-level failures.
      * @return Never {@code null}.
@@ -168,7 +197,11 @@ public abstract class TransportNodesAction<
 
     /**
      * Create a new {@link NodesResponse}, possibly asynchronously. The default implementation is synchronous and calls
-     * {@link #newResponse(BaseNodesRequest, List, List)}
+     * {@link #newResponse(BaseNodesRequest, List, List)}. This method is executed on {@link #finalExecutor}.
+     *
+     * @param request The request whose response we are constructing. {@link TransportNodesAction} may have already released all its
+     *                references to this object before calling this method, so it's up to individual implementations to retain their own
+     *                reference to the request if still needed here.
      */
     protected void newResponseAsync(
         Task task,
@@ -177,160 +210,44 @@ public abstract class TransportNodesAction<
         List<FailedNodeException> failures,
         ActionListener<NodesResponse> listener
     ) {
-        ActionListener.completeWith(listener, () -> newResponse(request, responses, failures));
+        ActionListener.run(listener, l -> ActionListener.respondAndRelease(l, newResponse(request, responses, failures)));
     }
 
     protected abstract NodeRequest newNodeRequest(NodesRequest request);
 
     protected abstract NodeResponse newNodeResponse(StreamInput in, DiscoveryNode node) throws IOException;
 
+    /**
+     * Implements the request recipient logic.
+     * If access to the request listener is needed, override {@link #nodeOperationAsync(TransportRequest, Task, ActionListener)}.
+     */
     protected abstract NodeResponse nodeOperation(NodeRequest request, Task task);
 
     /**
-     * resolve node ids to concrete nodes of the incoming request
-     **/
+     * This method can be overridden if a subclass needs to access to a listener in order to asynchronously respond to the node request.
+     * The default implementation is to fall through to {@link #nodeOperation}.
+     */
+    protected void nodeOperationAsync(NodeRequest request, Task task, ActionListener<NodeResponse> listener) {
+        ActionListener.respondAndRelease(listener, nodeOperation(request, task));
+    }
+
+    /**
+     * Resolves node ids to concrete nodes of the incoming request.
+     * NB: if the request's nodeIds() returns nothing, then the request will be sent to ALL known nodes in the cluster.
+     */
     protected void resolveRequest(NodesRequest request, ClusterState clusterState) {
         assert request.concreteNodes() == null : "request concreteNodes shouldn't be set";
         String[] nodesIds = clusterState.nodes().resolveNodes(request.nodesIds());
         request.setConcreteNodes(Arrays.stream(nodesIds).map(clusterState.nodes()::get).toArray(DiscoveryNode[]::new));
     }
 
-    /**
-     * Get a backwards compatible transport action name
-     */
-    protected String getTransportNodeAction(DiscoveryNode node) {
-        return transportNodeAction;
-    }
-
-    class AsyncAction implements CancellableTask.CancellationListener {
-
-        private final NodesRequest request;
-        private final ActionListener<NodesResponse> listener;
-        private final NodeResponseTracker nodeResponseTracker;
-        private final Task task;
-
-        AsyncAction(Task task, NodesRequest request, ActionListener<NodesResponse> listener) {
-            this.task = task;
-            this.request = request;
-            this.listener = listener;
-            if (request.concreteNodes() == null) {
-                resolveRequest(request, clusterService.state());
-                assert request.concreteNodes() != null;
-            }
-            this.nodeResponseTracker = new NodeResponseTracker(request.concreteNodes().length);
-        }
-
-        void start() {
-            if (task instanceof CancellableTask cancellableTask) {
-                cancellableTask.addListener(this);
-            }
-            final DiscoveryNode[] nodes = request.concreteNodes();
-            if (nodes.length == 0) {
-                finishHim();
-                return;
-            }
-            final TransportRequestOptions transportRequestOptions = TransportRequestOptions.timeout(request.timeout());
-            for (int i = 0; i < nodes.length; i++) {
-                final int idx = i;
-                final DiscoveryNode node = nodes[i];
-                final String nodeId = node.getId();
-                try {
-                    TransportRequest nodeRequest = newNodeRequest(request);
-                    if (task != null) {
-                        nodeRequest.setParentTask(clusterService.localNode().getId(), task.getId());
-                    }
-
-                    transportService.sendRequest(
-                        node,
-                        getTransportNodeAction(node),
-                        nodeRequest,
-                        transportRequestOptions,
-                        new TransportResponseHandler<NodeResponse>() {
-                            @Override
-                            public NodeResponse read(StreamInput in) throws IOException {
-                                return newNodeResponse(in, node);
-                            }
-
-                            @Override
-                            public void handleResponse(NodeResponse response) {
-                                onOperation(idx, response);
-                            }
-
-                            @Override
-                            public void handleException(TransportException exp) {
-                                onFailure(idx, node.getId(), exp);
-                            }
-
-                            @Override
-                            public String toString() {
-                                return "AsyncActionNodeResponseHandler{node=" + node + ", action=" + AsyncAction.this + '}';
-                            }
-                        }
-                    );
-                } catch (Exception e) {
-                    onFailure(idx, nodeId, e);
-                }
-            }
-        }
-
-        // For testing purposes
-        NodeResponseTracker getNodeResponseTracker() {
-            return nodeResponseTracker;
-        }
-
-        private void onOperation(int idx, NodeResponse nodeResponse) {
-            if (nodeResponseTracker.trackResponseAndCheckIfLast(idx, nodeResponse)) {
-                finishHim();
-            }
-        }
-
-        private void onFailure(int idx, String nodeId, Throwable t) {
-            logger.debug(() -> "failed to execute on node [" + nodeId + "]", t);
-            if (nodeResponseTracker.trackResponseAndCheckIfLast(idx, new FailedNodeException(nodeId, "Failed node [" + nodeId + "]", t))) {
-                finishHim();
-            }
-        }
-
-        private void finishHim() {
-            if ((task instanceof CancellableTask t) && t.notifyIfCancelled(listener)) {
-                return;
-            }
-
-            final String executor = finalExecutor.equals(ThreadPool.Names.SAME) ? ThreadPool.Names.GENERIC : finalExecutor;
-            threadPool.executor(executor).execute(() -> {
-                try {
-                    newResponse(task, request, nodeResponseTracker, listener);
-                } catch (NodeResponseTracker.DiscardedResponsesException e) {
-                    // We propagate the reason that the results, in this case the task cancellation, in case the listener needs to take
-                    // follow-up actions
-                    listener.onFailure((Exception) e.getCause());
-                }
-            });
-        }
-
-        @Override
-        public void onCancelled() {
-            assert task instanceof CancellableTask : "task must be cancellable";
-            try {
-                ((CancellableTask) task).ensureNotCancelled();
-            } catch (TaskCancelledException e) {
-                nodeResponseTracker.discardIntermediateResponses(e);
-            }
-        }
-
-        @Override
-        public String toString() {
-            return "AsyncAction{request=" + request + ", listener=" + listener + '}';
-        }
-    }
-
     class NodeTransportHandler implements TransportRequestHandler<NodeRequest> {
         @Override
         public void messageReceived(NodeRequest request, TransportChannel channel, Task task) throws Exception {
-            if (task instanceof CancellableTask) {
-                ((CancellableTask) task).ensureNotCancelled();
-            }
-            channel.sendResponse(nodeOperation(request, task));
+            ActionListener.run(
+                new ChannelActionListener<NodeResponse>(channel),
+                channelListener -> nodeOperationAsync(request, task, channelListener)
+            );
         }
     }
 

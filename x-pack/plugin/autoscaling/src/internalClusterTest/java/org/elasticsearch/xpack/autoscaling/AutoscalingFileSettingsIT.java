@@ -15,7 +15,6 @@ import org.elasticsearch.cluster.metadata.ReservedStateErrorMetadata;
 import org.elasticsearch.cluster.metadata.ReservedStateHandlerMetadata;
 import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.reservedstate.service.FileSettingsService;
@@ -44,11 +43,6 @@ import static org.hamcrest.Matchers.notNullValue;
  * with the reserved policies.
  */
 public class AutoscalingFileSettingsIT extends AutoscalingIntegTestCase {
-
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        return applyWorkaroundForIssue92812(super.nodeSettings(nodeOrdinal, otherSettings));
-    }
 
     private static AtomicLong versionCounter = new AtomicLong(1);
 
@@ -103,14 +97,14 @@ public class AutoscalingFileSettingsIT extends AutoscalingIntegTestCase {
         FileSettingsService fileSettingsService = internalCluster().getInstance(FileSettingsService.class, node);
         assertTrue(fileSettingsService.watching());
 
-        Files.deleteIfExists(fileSettingsService.operatorSettingsFile());
+        Files.deleteIfExists(fileSettingsService.watchedFile());
 
-        Files.createDirectories(fileSettingsService.operatorSettingsDir());
+        Files.createDirectories(fileSettingsService.watchedFileDir());
         Path tempFilePath = createTempFile();
 
         logger.info("--> writing JSON config to node {} with path {}", node, tempFilePath);
         Files.write(tempFilePath, Strings.format(json, version).getBytes(StandardCharsets.UTF_8));
-        Files.move(tempFilePath, fileSettingsService.operatorSettingsFile(), StandardCopyOption.ATOMIC_MOVE);
+        Files.move(tempFilePath, fileSettingsService.watchedFile(), StandardCopyOption.ATOMIC_MOVE);
     }
 
     private Tuple<CountDownLatch, AtomicLong> setupClusterStateListener(String node) {
@@ -139,10 +133,9 @@ public class AutoscalingFileSettingsIT extends AutoscalingIntegTestCase {
         boolean awaitSuccessful = savedClusterState.await(20, TimeUnit.SECONDS);
         assertTrue(awaitSuccessful);
 
-        final ClusterStateResponse clusterStateResponse = client().admin()
-            .cluster()
-            .state(new ClusterStateRequest().waitForMetadataVersion(metadataVersion.get()))
-            .actionGet();
+        final ClusterStateResponse clusterStateResponse = clusterAdmin().state(
+            new ClusterStateRequest().waitForMetadataVersion(metadataVersion.get())
+        ).actionGet();
 
         ReservedStateMetadata reservedState = clusterStateResponse.getState()
             .metadata()
@@ -229,7 +222,16 @@ public class AutoscalingFileSettingsIT extends AutoscalingIntegTestCase {
             var bis = new ByteArrayInputStream(json.getBytes(StandardCharsets.UTF_8));
             var parser = JSON.xContent().createParser(XContentParserConfiguration.EMPTY, bis)
         ) {
-            return PutAutoscalingPolicyAction.Request.parse(parser, name);
+            return PutAutoscalingPolicyAction.Request.parse(
+                parser,
+                (roles, deciders) -> new PutAutoscalingPolicyAction.Request(
+                    TEST_REQUEST_TIMEOUT,
+                    TEST_REQUEST_TIMEOUT,
+                    name,
+                    roles,
+                    deciders
+                )
+            );
         }
     }
 }

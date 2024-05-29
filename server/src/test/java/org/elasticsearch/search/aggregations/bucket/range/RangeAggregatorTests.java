@@ -309,6 +309,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
                     Collections.emptyMap(),
                     null,
                     false,
+                    null,
                     null
                 )
             )
@@ -423,6 +424,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
             Collections.emptyMap(),
             null,
             false,
+            null,
             null
         );
 
@@ -496,14 +498,9 @@ public class RangeAggregatorTests extends AggregatorTestCase {
 
         MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("not_a_number");
 
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> testCase(
-                iw -> { iw.addDocument(singleton(new SortedSetDocValuesField("string", new BytesRef("foo")))); },
-                range -> fail("Should have thrown exception"),
-                new AggTestConfig(aggregationBuilder, fieldType)
-            )
-        );
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> testCase(iw -> {
+            iw.addDocument(singleton(new SortedSetDocValuesField("string", new BytesRef("foo"))));
+        }, range -> fail("Should have thrown exception"), new AggTestConfig(aggregationBuilder, fieldType)));
         assertEquals("Field [not_a_number] of type [keyword] is not supported for aggregation [range]", e.getMessage());
     }
 
@@ -708,6 +705,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
             Collections.emptyMap(),
             null,
             false,
+            null,
             null
         );
         RangeAggregationBuilder aggregationBuilder = new RangeAggregationBuilder("test_range_agg");

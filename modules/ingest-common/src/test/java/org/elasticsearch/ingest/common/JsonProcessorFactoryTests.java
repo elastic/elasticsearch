@@ -10,11 +10,13 @@ package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class JsonProcessorFactoryTests extends ESTestCase {
@@ -66,6 +68,29 @@ public class JsonProcessorFactoryTests extends ESTestCase {
             () -> FACTORY.create(null, processorTag, null, config)
         );
         assertThat(exception.getMessage(), equalTo("[field] required property is missing"));
+    }
+
+    public void testCreateWithStrictParsingParameter() throws Exception {
+        String fieldName = randomAlphaOfLength(10);
+        String processorTag = randomAlphaOfLength(10);
+        IngestDocument document = new IngestDocument("_index", "_id", 1, null, null, Map.of(fieldName, "123 \"foo\""));
+
+        {
+            Map<String, Object> strictConfig = new HashMap<>();
+            strictConfig.put("field", fieldName);
+            JsonProcessor strictProcessor = FACTORY.create(null, processorTag, null, strictConfig);
+            IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> strictProcessor.execute(document));
+            assertThat(exception.getMessage(), containsString("is not valid JSON and the strict_json_parsing parameter is true"));
+        }
+
+        {
+            Map<String, Object> lenientConfig = new HashMap<>();
+            lenientConfig.put("field", fieldName);
+            lenientConfig.put("strict_json_parsing", false);
+            JsonProcessor lenientProcessor = FACTORY.create(null, processorTag, null, lenientConfig);
+            IngestDocument result = lenientProcessor.execute(document);
+            assertThat(result.getSource().get(fieldName), equalTo(123));
+        }
     }
 
     public void testCreateWithBothTargetFieldAndAddToRoot() throws Exception {

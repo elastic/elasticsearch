@@ -19,7 +19,6 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.plugins.PluginTestUtil;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
 import org.junit.Before;
 
 import java.io.BufferedReader;
@@ -141,19 +140,6 @@ public class RemovePluginActionTests extends ESTestCase {
         assertRemoveCleaned(env);
     }
 
-    public void testRemoveOldVersion() throws Exception {
-        Version previous = VersionUtils.getPreviousVersion();
-        if (previous.before(Version.CURRENT.minimumIndexCompatibilityVersion())) {
-            // Can happen when bumping majors: 8.0 is only compat back to 7.0, but that's not released yet
-            // In this case, ignore what's released and just find that latest version before current
-            previous = VersionUtils.allVersions().stream().filter(v -> v.before(Version.CURRENT)).max(Version::compareTo).get();
-        }
-        createPlugin("fake", VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumIndexCompatibilityVersion(), previous));
-        removePlugin("fake", home, randomBoolean());
-        assertThat(Files.exists(env.pluginsFile().resolve("fake")), equalTo(false));
-        assertRemoveCleaned(env);
-    }
-
     public void testBin() throws Exception {
         createPlugin("fake");
         Path binDir = env.binFile().resolve("fake");
@@ -234,7 +220,7 @@ public class RemovePluginActionTests extends ESTestCase {
     public void testRemoveUninstalledPluginErrors() throws Exception {
         UserException e = expectThrows(UserException.class, () -> removePlugin("fake", home, randomBoolean()));
         assertEquals(ExitCodes.CONFIG, e.exitCode);
-        assertEquals("plugin [fake] not found; run 'elasticsearch-plugin list' to get list of installed plugins", e.getMessage());
+        assertThat(e.getMessage(), containsString("plugin [fake] not found"));
 
         MockTerminal terminal = MockTerminal.create();
 
@@ -245,10 +231,7 @@ public class RemovePluginActionTests extends ESTestCase {
             BufferedReader errorReader = new BufferedReader(new StringReader(terminal.getErrorOutput()))
         ) {
             assertThat(errorReader.readLine(), equalTo(""));
-            assertThat(
-                errorReader.readLine(),
-                equalTo("ERROR: plugin [fake] not found; run 'elasticsearch-plugin list' to get list of installed plugins")
-            );
+            assertThat(errorReader.readLine(), containsString("plugin [fake] not found"));
             assertThat(reader.readLine(), nullValue());
             assertThat(errorReader.readLine(), nullValue());
         }

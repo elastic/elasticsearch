@@ -10,6 +10,7 @@ package org.elasticsearch.search.aggregations.bucket.composite;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
+import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -36,7 +37,16 @@ class HistogramValuesSource extends ValuesSource.Numeric {
 
     @Override
     public SortedNumericDoubleValues doubleValues(LeafReaderContext context) throws IOException {
-        SortedNumericDoubleValues values = vs.doubleValues(context);
+        final SortedNumericDoubleValues values = vs.doubleValues(context);
+        final NumericDoubleValues singleton = org.elasticsearch.index.fielddata.FieldData.unwrapSingleton(values);
+        if (singleton != null) {
+            return org.elasticsearch.index.fielddata.FieldData.singleton(doubleSingleValues(singleton));
+        } else {
+            return doubleMultiValues(values);
+        }
+    }
+
+    private SortedNumericDoubleValues doubleMultiValues(SortedNumericDoubleValues values) {
         return new SortedNumericDoubleValues() {
             @Override
             public double nextValue() throws IOException {
@@ -46,6 +56,20 @@ class HistogramValuesSource extends ValuesSource.Numeric {
             @Override
             public int docValueCount() {
                 return values.docValueCount();
+            }
+
+            @Override
+            public boolean advanceExact(int target) throws IOException {
+                return values.advanceExact(target);
+            }
+        };
+    }
+
+    private NumericDoubleValues doubleSingleValues(NumericDoubleValues values) {
+        return new NumericDoubleValues() {
+            @Override
+            public double doubleValue() throws IOException {
+                return Math.floor(values.doubleValue() / interval) * interval;
             }
 
             @Override

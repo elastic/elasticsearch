@@ -56,4 +56,9 @@ public class PointTests extends BaseGeometryTestCase<Point> {
         );
         assertEquals("found Z value [100.0] but [ignore_z_value] parameter is [false]", ex.getMessage());
     }
+
+    @Override
+    protected Point mutateInstance(Point instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
 }

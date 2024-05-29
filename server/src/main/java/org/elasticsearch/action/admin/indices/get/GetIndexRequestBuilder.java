@@ -14,8 +14,8 @@ import org.elasticsearch.client.internal.ElasticsearchClient;
 
 public class GetIndexRequestBuilder extends ClusterInfoRequestBuilder<GetIndexRequest, GetIndexResponse, GetIndexRequestBuilder> {
 
-    public GetIndexRequestBuilder(ElasticsearchClient client, GetIndexAction action, String... indices) {
-        super(client, action, new GetIndexRequest().indices(indices));
+    public GetIndexRequestBuilder(ElasticsearchClient client, String... indices) {
+        super(client, GetIndexAction.INSTANCE, new GetIndexRequest().indices(indices));
     }
 
     public GetIndexRequestBuilder setFeatures(Feature... features) {

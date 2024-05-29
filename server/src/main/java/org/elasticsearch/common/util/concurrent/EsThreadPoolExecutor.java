@@ -125,7 +125,7 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
         StringBuilder b = new StringBuilder();
         b.append(getClass().getSimpleName()).append('[');
         b.append("name = ").append(name).append(", ");
-        if (getQueue()instanceof SizeBlockingQueue<?> queue) {
+        if (getQueue() instanceof SizeBlockingQueue<?> queue) {
             b.append("queue capacity = ").append(queue.capacity()).append(", ");
         }
         appendThreadPoolExecutorDetails(b);
@@ -135,6 +135,12 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
          */
         b.append(super.toString()).append(']');
         return b.toString();
+    }
+
+    @Override
+    public boolean remove(Runnable task) {
+        logger.trace(() -> "task is removed " + task);
+        return super.remove(task);
     }
 
     /**

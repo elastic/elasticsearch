@@ -94,6 +94,10 @@ Defaults to `false`.
 
 include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
+`include_defaults`::
+(Optional, Boolean) Functionality in preview:[]. If `true`, return all default settings in the response.
+Defaults to `false`.
+
 [role="child_attributes"]
 [[simulate-template-api-request-body]]
 ==== {api-request-body-title}
@@ -128,7 +132,7 @@ The settings, mappings, and aliases that would be applied to matching indices.
 (Optional, object of objects) Aliases for the index. If the index template
 includes `data_stream`, this parameter is not supported.
 +
-include::{es-repo-dir}/indices/create-index.asciidoc[tag=aliases-props]
+include::{es-ref-dir}/indices/create-index.asciidoc[tag=aliases-props]
 
 include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=mappings]
 

@@ -280,8 +280,8 @@ teardown:
 
 ---
 "Test adding circular references fails pipeline":
-  - skip:
-      version: " - 8.2.99"
+  - requires:
+      cluster_features: ["gte_v8.3.0"]
       reason: "Test causes fatal error prior to 8.3.0"
 
   - do:
@@ -313,7 +313,7 @@ teardown:
               "foo": "bar"
             }
           }
-  - match: { error.root_cause.0.reason: "Failed to generate the source document for ingest pipeline [my_pipeline]" }
+  - match: { error.root_cause.0.reason: "Failed to generate the source document for ingest pipeline [my_pipeline] for document [test/1]" }
 
 ---
 "Test metadata":
@@ -414,7 +414,7 @@ teardown:
           settings:
             index:
               number_of_shards: 1
-              number_of_replicas: 0
+              number_of_replicas: 1
           mappings:
             properties:
               append:
@@ -513,7 +513,7 @@ teardown:
         body:
           settings:
             number_of_shards: 1
-            number_of_replicas: 0
+            number_of_replicas: 1
             default_pipeline: nested_documents
           mappings:
             properties:

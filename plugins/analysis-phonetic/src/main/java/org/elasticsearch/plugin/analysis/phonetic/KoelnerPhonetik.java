@@ -46,6 +46,7 @@ public class KoelnerPhonetik implements StringEncoder {
     /**
      * Constructor for  Kölner Phonetik
      */
+    @SuppressWarnings("this-escape")
     public KoelnerPhonetik() {
         init();
     }
@@ -260,11 +261,11 @@ public class KoelnerPhonetik implements StringEncoder {
         return s;
     }
 
-    private String expandUmlauts(String str) {
-        return str.replaceAll("\u00C4", "AE").replaceAll("\u00D6", "OE").replaceAll("\u00DC", "UE");
+    private static String expandUmlauts(String str) {
+        return str.replace("\u00C4", "AE").replace("\u00D6", "OE").replace("\u00DC", "UE");
     }
 
-    private String removeSequences(String str) {
+    private static String removeSequences(String str) {
         if (str == null || str.length() == 0) {
             return "";
         }

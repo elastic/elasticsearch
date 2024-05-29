@@ -6,11 +6,13 @@
  * Side Public License, v 1.
  */
 
-apply plugin: 'elasticsearch.java'
+apply plugin: 'elasticsearch.build'
 
-archivesBaseName = "x-content-impl"
+base {
+  archivesName = "x-content-impl"
+}
 
-String jacksonVersion = "2.14.0"
+String jacksonVersion = "2.15.0"
 
 dependencies {
   compileOnly project(':libs:elasticsearch-core')

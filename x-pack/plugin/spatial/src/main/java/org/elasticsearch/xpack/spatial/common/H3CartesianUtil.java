@@ -11,8 +11,14 @@ import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.geo.GeoUtils;
 import org.apache.lucene.geo.LatLonGeometry;
 import org.apache.lucene.geo.Rectangle;
-import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.IntroSorter;
+import org.elasticsearch.common.geo.GeometryNormalizer;
+import org.elasticsearch.common.geo.Orientation;
+import org.elasticsearch.common.util.ArrayUtils;
+import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.LinearRing;
+import org.elasticsearch.geometry.MultiPolygon;
+import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.h3.CellBoundary;
 import org.elasticsearch.h3.H3;
 import org.elasticsearch.h3.LatLng;
@@ -75,13 +81,15 @@ public final class H3CartesianUtil {
     }
 
     private static double[][] getCoordinates(final long h3) {
-        final double[] xs = new double[MAX_ARRAY_SIZE];
-        final double[] ys = new double[MAX_ARRAY_SIZE];
-        final int numPoints = computePoints(h3, xs, ys);
-        return new double[][] { ArrayUtil.copyOfSubArray(xs, 0, numPoints), ArrayUtil.copyOfSubArray(ys, 0, numPoints), };
+        final CellBoundary boundary = H3.h3ToGeoBoundary(h3);
+        final int numPoint = numPoints(h3, boundary);
+        final double[] xs = new double[numPoint];
+        final double[] ys = new double[numPoint];
+        computePoints(h3, boundary, xs, ys);
+        return new double[][] { xs, ys };
     }
 
-    /** It stores the points for the given h3 in the provided arrays.The arrays
+    /** It stores the points for the given h3 in the provided arrays. The arrays
      * should be at least have the length of {@link #MAX_ARRAY_SIZE}. It returns the number of point added. */
     public static int computePoints(final long h3, final double[] xs, final double[] ys) {
         final double[][] cached = CACHED_H3.get(h3);
@@ -90,27 +98,36 @@ public final class H3CartesianUtil {
             System.arraycopy(cached[1], 0, ys, 0, cached[0].length);
             return cached[0].length;
         }
+        return computePoints(h3, H3.h3ToGeoBoundary(h3), xs, ys);
+    }
+
+    private static int numPoints(long h3, CellBoundary cellBoundary) {
         final int res = H3.getResolution(h3);
-        final double pole = H3.northPolarH3(res) == h3 ? GeoEncodingUtils.decodeLatitude(GeoEncodingUtils.encodeLatitude(90d))
-            : H3.southPolarH3(res) == h3 ? GeoEncodingUtils.decodeLatitude(GeoEncodingUtils.encodeLatitude(-90d))
-            : Double.NaN;
-        final CellBoundary cellBoundary = H3.h3ToGeoBoundary(h3);
-        final int numPoints;
-        if (Double.isNaN(pole)) {
-            numPoints = cellBoundary.numPoints() + 1;
+        if (h3 != H3.northPolarH3(res) && h3 != H3.southPolarH3(res)) {
+            return cellBoundary.numPoints() + 1;
         } else {
-            numPoints = cellBoundary.numPoints() + 5;
+            return cellBoundary.numPoints() + 5;
         }
+    }
+
+    private static int computePoints(final long h3, final CellBoundary cellBoundary, final double[] xs, final double[] ys) {
         for (int i = 0; i < cellBoundary.numPoints(); i++) {
             final LatLng latLng = cellBoundary.getLatLon(i);
             xs[i] = GeoEncodingUtils.decodeLongitude(GeoEncodingUtils.encodeLongitude(latLng.getLonDeg()));
             ys[i] = GeoEncodingUtils.decodeLatitude(GeoEncodingUtils.encodeLatitude(latLng.getLatDeg()));
         }
-        if (Double.isNaN(pole)) {
+        final int numPoints = numPoints(h3, cellBoundary);
+        final int res = H3.getResolution(h3);
+        if (H3.northPolarH3(res) == h3) {
+            closePolarComponent(xs, ys, cellBoundary.numPoints(), GeoEncodingUtils.decodeLatitude(GeoEncodingUtils.encodeLatitude(90d)));
+        } else if (H3.southPolarH3(res) == h3) {
+            closePolarComponent(xs, ys, cellBoundary.numPoints(), GeoEncodingUtils.decodeLatitude(GeoEncodingUtils.encodeLatitude(-90d)));
+            // reverse points as we are building closing the points in reverse order
+            ArrayUtils.reverseSubArray(xs, 0, numPoints);
+            ArrayUtils.reverseSubArray(ys, 0, numPoints);
+        } else {
             xs[cellBoundary.numPoints()] = xs[0];
             ys[cellBoundary.numPoints()] = ys[0];
-        } else {
-            closePolarComponent(xs, ys, cellBoundary.numPoints(), pole);
         }
         return numPoints;
     }
@@ -168,6 +185,34 @@ public final class H3CartesianUtil {
     /** Return the {@link LatLonGeometry} representing the provided H3 bin */
     public static LatLonGeometry getLatLonGeometry(long h3) {
         return new H3CartesianGeometry(h3);
+    }
+
+    /** Return the {@link Geometry} representing the provided H3 bin */
+    public static Geometry getNormalizeGeometry(long h3) {
+        final double[][] cached = CACHED_H3.get(h3);
+        final double[] xs;
+        final double[] ys;
+        if (cached != null) {
+            xs = cached[0].clone();
+            ys = cached[1].clone();
+        } else {
+            final CellBoundary boundary = H3.h3ToGeoBoundary(h3);
+            final int numPoints = numPoints(h3, boundary);
+            xs = new double[numPoints];
+            ys = new double[numPoints];
+            computePoints(h3, boundary, xs, ys);
+        }
+        final Polygon polygon = new Polygon(new LinearRing(xs, ys));
+        if (isPolar(h3) || GeometryNormalizer.needsNormalize(Orientation.CCW, polygon) == false) {
+            return polygon;
+        }
+        final Geometry geometry = GeometryNormalizer.apply(Orientation.CCW, polygon);
+        if (geometry instanceof MultiPolygon) {
+            return geometry;
+        }
+        // we shouldn't be here but one of the polygons crossing the dateline fails
+        // to normalise, so we need to normalise it this way
+        return GeometryNormalizer.apply(Orientation.CW, polygon);
     }
 
     /** Return the bounding box of the provided H3 bin */

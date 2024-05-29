@@ -1,14 +1,11 @@
 ---
 "Basic test for index blocks":
-  - skip:
-      version: " - 7.8.99"
+  - requires:
+      cluster_features: ["gte_v7.9.0"]
       reason:  "index block APIs have only been made available in 7.9.0"
   - do:
       indices.create:
         index: test_index
-        body:
-          settings:
-            number_of_replicas: 0
 
   - do:
       indices.add_block:

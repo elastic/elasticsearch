@@ -9,20 +9,23 @@
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionTestUtils;
+import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.junit.Assert;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -33,8 +36,8 @@ public class AllocationActionMultiListenerTests extends ESTestCase {
 
         var l1 = new AtomicInteger();
         var l2 = new AtomicInteger();
-        listener.delay(ActionListener.wrap(l1::set, exception -> { throw new AssertionError("Should not fail in test"); })).onResponse(1);
-        listener.delay(ActionListener.wrap(l2::set, exception -> { throw new AssertionError("Should not fail in test"); })).onResponse(2);
+        listener.delay(ActionTestUtils.assertNoFailureListener(l1::set)).onResponse(1);
+        listener.delay(ActionTestUtils.assertNoFailureListener(l2::set)).onResponse(2);
         if (randomBoolean()) {
             listener.reroute().onResponse(null);
         } else {
@@ -49,9 +52,7 @@ public class AllocationActionMultiListenerTests extends ESTestCase {
         var listener = new AllocationActionMultiListener<AcknowledgedResponse>(createEmptyThreadContext());
 
         var completed = new AtomicBoolean(false);
-        var delegate = listener.delay(
-            ActionListener.wrap(ignore -> completed.set(true), exception -> { throw new AssertionError("Should not fail in test"); })
-        );
+        var delegate = listener.delay(ActionTestUtils.assertNoFailureListener(ignore -> completed.set(true)));
 
         switch (randomInt(2)) {
             case 0 -> delegate.onResponse(AcknowledgedResponse.TRUE);
@@ -87,12 +88,8 @@ public class AllocationActionMultiListenerTests extends ESTestCase {
             start.countDown();
             awaitQuietly(start);
             for (int i = 0; i < count; i++) {
-                listener.delay(
-                    ActionListener.wrap(
-                        ignore -> completed.countDown(),
-                        exception -> { throw new AssertionError("Should not fail in test"); }
-                    )
-                ).onResponse(AcknowledgedResponse.TRUE);
+                listener.delay(ActionTestUtils.assertNoFailureListener(ignore -> completed.countDown()))
+                    .onResponse(AcknowledgedResponse.TRUE);
             }
         });
 
@@ -121,45 +118,60 @@ public class AllocationActionMultiListenerTests extends ESTestCase {
 
     public void testShouldExecuteWithCorrectContext() {
 
+        final var requestHeaderName = "header";
+        final var responseHeaderName = "responseHeader";
+
+        final var expectedRequestHeader = randomAlphaOfLength(10);
+        final var expectedResponseHeader = randomAlphaOfLength(10);
+
         var context = new ThreadContext(Settings.EMPTY);
-        var listener = new AllocationActionMultiListener<Integer>(context);
+        var listener = new AllocationActionMultiListener<>(context);
 
-        context.putHeader("header", "root");
-        var r1 = new AtomicReference<String>();
-        var r2 = new AtomicReference<String>();
-        var l1 = listener.delay(
-            ActionListener.wrap(
-                response -> r1.set(context.getHeader("header")),
-                exception -> { throw new AssertionError("Should not fail in test"); }
-            )
-        );
-        var l2 = listener.delay(
-            ActionListener.wrap(
-                response -> r2.set(context.getHeader("header")),
-                exception -> { throw new AssertionError("Should not fail in test"); }
-            )
-        );
+        context.putHeader(requestHeaderName, expectedRequestHeader);
+        context.addResponseHeader(responseHeaderName, expectedResponseHeader);
 
-        executeInRandomOrder(
-            context,
-            List.of(
-                new Tuple<>("clusterStateUpdate1", () -> l1.onResponse(1)),
-                new Tuple<>("clusterStateUpdate2", () -> l2.onResponse(2)),
-                new Tuple<>("reroute", () -> listener.reroute().onResponse(null))
-            )
-        );
+        var isComplete = new AtomicBoolean();
+        try (var refs = new RefCountingRunnable(() -> assertTrue(isComplete.compareAndSet(false, true)))) {
 
-        assertThat(r1.get(), equalTo("root"));
-        assertThat(r2.get(), equalTo("root"));
-    }
+            List<Runnable> actions = new ArrayList<>();
 
-    private static void executeInRandomOrder(ThreadContext context, List<Tuple<String, Runnable>> actions) {
-        for (var action : shuffledList(actions)) {
-            try (var ignored = context.stashContext()) {
-                context.putHeader("header", action.v1());
-                action.v2().run();
+            for (int i = between(0, 5); i > 0; i--) {
+                var expectedVal = new Object();
+                var delayedListener = listener.delay(
+                    ActionListener.releaseAfter(ActionListener.running(Assert::fail).delegateFailure((l, val) -> {
+                        assertSame(expectedVal, val);
+                        assertEquals(expectedRequestHeader, context.getHeader(requestHeaderName));
+                        assertEquals(List.of(expectedResponseHeader), context.getResponseHeaders().get(responseHeaderName));
+                        context.addResponseHeader(responseHeaderName, randomAlphaOfLength(10));
+                    }), refs.acquire())
+                );
+                actions.add(() -> delayedListener.onResponse(expectedVal));
             }
+
+            final var additionalResponseHeader = randomAlphaOfLength(10);
+            context.addResponseHeader(responseHeaderName, additionalResponseHeader);
+
+            actions.add(() -> listener.reroute().onResponse(null));
+
+            for (var action : shuffledList(actions)) {
+                try (var ignored = context.stashContext()) {
+                    final var localRequestHeader = randomAlphaOfLength(10);
+                    final var localResponseHeader = randomAlphaOfLength(10);
+                    context.putHeader(requestHeaderName, localRequestHeader);
+                    context.addResponseHeader(responseHeaderName, localResponseHeader);
+                    action.run();
+                    assertEquals(localRequestHeader, context.getHeader(requestHeaderName));
+                    assertEquals(List.of(localResponseHeader), context.getResponseHeaders().get(responseHeaderName));
+                }
+            }
+
+            assertEquals(
+                Set.of(expectedResponseHeader, additionalResponseHeader),
+                Set.copyOf(context.getResponseHeaders().get(responseHeaderName))
+            );
         }
+
+        assertTrue(isComplete.get());
     }
 
     private static ThreadContext createEmptyThreadContext() {

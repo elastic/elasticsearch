@@ -1,0 +1,5 @@
+pr: 104830
+summary: All new `shard_seed` parameter for `random_sampler` agg
+area: Aggregations
+type: enhancement
+issues: []

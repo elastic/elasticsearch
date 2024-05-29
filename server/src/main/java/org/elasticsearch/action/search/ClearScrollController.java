@@ -9,11 +9,11 @@ package org.elasticsearch.action.search;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportResponse;
 
@@ -95,32 +95,37 @@ public final class ClearScrollController implements Runnable {
     }
 
     void cleanScrollIds(List<SearchContextIdForNode> contextIds) {
-        SearchScrollAsyncAction.collectNodesAndRun(contextIds, nodes, searchTransportService, ActionListener.wrap(lookup -> {
-            try {
-                for (SearchContextIdForNode target : contextIds) {
-                    final DiscoveryNode node = lookup.apply(target.getClusterAlias(), target.getNode());
-                    if (node == null) {
-                        onFreedContext(false);
-                    } else {
-                        try {
-                            Transport.Connection connection = searchTransportService.getConnection(target.getClusterAlias(), node);
-                            searchTransportService.sendFreeContext(
-                                connection,
-                                target.getSearchContextId(),
-                                ActionListener.releaseAfter(
-                                    ActionListener.wrap(freed -> onFreedContext(freed.isFreed()), e -> onFailedFreedContext(e, node)),
-                                    refs.acquire()
-                                )
-                            );
-                        } catch (Exception e) {
-                            onFailedFreedContext(e, node);
+        SearchScrollAsyncAction.collectNodesAndRun(
+            contextIds,
+            nodes,
+            searchTransportService,
+            listener.delegateFailureAndWrap((l, lookup) -> {
+                try {
+                    for (SearchContextIdForNode target : contextIds) {
+                        final DiscoveryNode node = lookup.apply(target.getClusterAlias(), target.getNode());
+                        if (node == null) {
+                            onFreedContext(false);
+                        } else {
+                            try {
+                                Transport.Connection connection = searchTransportService.getConnection(target.getClusterAlias(), node);
+                                searchTransportService.sendFreeContext(
+                                    connection,
+                                    target.getSearchContextId(),
+                                    ActionListener.releaseAfter(
+                                        ActionListener.wrap(freed -> onFreedContext(freed.isFreed()), e -> onFailedFreedContext(e, node)),
+                                        refs.acquire()
+                                    )
+                                );
+                            } catch (Exception e) {
+                                onFailedFreedContext(e, node);
+                            }
                         }
                     }
+                } finally {
+                    refs.close();
                 }
-            } finally {
-                refs.close();
-            }
-        }, listener::onFailure));
+            })
+        );
     }
 
     private void onFreedContext(boolean freed) {
@@ -151,7 +156,7 @@ public final class ClearScrollController implements Runnable {
             .map(SearchContextIdForNode::getClusterAlias)
             .filter(clusterAlias -> Strings.isEmpty(clusterAlias) == false)
             .collect(Collectors.toSet());
-        final StepListener<BiFunction<String, String, DiscoveryNode>> lookupListener = new StepListener<>();
+        final ListenableFuture<BiFunction<String, String, DiscoveryNode>> lookupListener = new ListenableFuture<>();
         if (clusters.isEmpty()) {
             lookupListener.onResponse((cluster, nodeId) -> nodes.get(nodeId));
         } else {

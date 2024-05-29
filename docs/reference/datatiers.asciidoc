@@ -22,6 +22,10 @@ mounted indices>> of <<ilm-searchable-snapshot,{search-snaps}>> exclusively.
 This extends the storage capacity even further — by up to 20 times compared to
 the warm tier. 
 
+IMPORTANT: {es} generally expects nodes within a data tier to share the same 
+hardware profile. Variations not following this recommendation should be 
+carefully architected to avoid <<hotspotting,hot spotting>>.
+
 When you index documents directly to a specific index, they remain on content tier nodes indefinitely.
 
 When you index documents to a data stream, they initially reside on hot tier nodes.

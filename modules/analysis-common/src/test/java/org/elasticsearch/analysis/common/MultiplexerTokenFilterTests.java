@@ -8,12 +8,13 @@
 
 package org.elasticsearch.analysis.common;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.index.IndexService.IndexCreationContext;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.indices.analysis.AnalysisModule;
@@ -29,7 +30,7 @@ public class MultiplexerTokenFilterTests extends ESTokenStreamTestCase {
     public void testMultiplexingFilter() throws IOException {
         Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
         Settings indexSettings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put("index.analysis.filter.t.type", "truncate")
             .put("index.analysis.filter.t.length", "2")
             .put("index.analysis.filter.multiplexFilter.type", "multiplexer")
@@ -44,7 +45,7 @@ public class MultiplexerTokenFilterTests extends ESTokenStreamTestCase {
             TestEnvironment.newEnvironment(settings),
             Collections.singletonList(new CommonAnalysisPlugin()),
             new StablePluginsRegistry()
-        ).getAnalysisRegistry().build(idxSettings);
+        ).getAnalysisRegistry().build(IndexCreationContext.CREATE_INDEX, idxSettings);
 
         try (NamedAnalyzer analyzer = indexAnalyzers.get("myAnalyzer")) {
             assertNotNull(analyzer);
@@ -63,7 +64,7 @@ public class MultiplexerTokenFilterTests extends ESTokenStreamTestCase {
 
         Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
         Settings indexSettings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put("index.analysis.filter.t.type", "truncate")
             .put("index.analysis.filter.t.length", "2")
             .put("index.analysis.filter.multiplexFilter.type", "multiplexer")
@@ -79,7 +80,7 @@ public class MultiplexerTokenFilterTests extends ESTokenStreamTestCase {
             TestEnvironment.newEnvironment(settings),
             Collections.singletonList(new CommonAnalysisPlugin()),
             new StablePluginsRegistry()
-        ).getAnalysisRegistry().build(idxSettings);
+        ).getAnalysisRegistry().build(IndexCreationContext.CREATE_INDEX, idxSettings);
 
         try (NamedAnalyzer analyzer = indexAnalyzers.get("myAnalyzer")) {
             assertNotNull(analyzer);

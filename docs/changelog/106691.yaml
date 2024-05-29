@@ -1,0 +1,6 @@
+pr: 106691
+summary: Fix range queries for float/half_float fields when bounds are out of type's
+  range
+area: Search
+type: bug
+issues: []

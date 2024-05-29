@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.authc.support;
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.bootstrap.BootstrapContext;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.support.DnRoleMapperSettings;
 
@@ -51,4 +52,8 @@ public class RoleMappingFileBootstrapCheck implements BootstrapCheck {
         return null;
     }
 
+    @Override
+    public ReferenceDocs referenceDocs() {
+        return ReferenceDocs.BOOTSTRAP_CHECK_ROLE_MAPPINGS;
+    }
 }

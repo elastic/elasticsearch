@@ -8,7 +8,7 @@
 
 package org.elasticsearch.action.admin.indices.segments;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.support.broadcast.BroadcastRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -22,26 +22,44 @@ import java.util.Map;
 
 public class IndicesSegmentsRequest extends BroadcastRequest<IndicesSegmentsRequest> {
 
+    private boolean includeVectorFormatsInfo;
+
     public IndicesSegmentsRequest() {
         this(Strings.EMPTY_ARRAY);
     }
 
     public IndicesSegmentsRequest(StreamInput in) throws IOException {
         super(in);
-        if (in.getVersion().before(Version.V_8_0_0)) {
+        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             in.readBoolean();   // old 'verbose' option, since removed
+        }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.INDEX_SEGMENTS_VECTOR_FORMATS)) {
+            this.includeVectorFormatsInfo = in.readBoolean();
         }
     }
 
     public IndicesSegmentsRequest(String... indices) {
         super(indices);
+        this.includeVectorFormatsInfo = false;
+    }
+
+    public IndicesSegmentsRequest withVectorFormatsInfo(boolean includeVectorFormatsInfo) {
+        this.includeVectorFormatsInfo = includeVectorFormatsInfo;
+        return this;
+    }
+
+    public boolean isIncludeVectorFormatsInfo() {
+        return includeVectorFormatsInfo;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getVersion().before(Version.V_8_0_0)) {
+        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             out.writeBoolean(false);
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.INDEX_SEGMENTS_VECTOR_FORMATS)) {
+            out.writeBoolean(includeVectorFormatsInfo);
         }
     }
 

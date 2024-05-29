@@ -17,6 +17,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.gateway.GatewayAllocator;
 
 import java.util.List;
+import java.util.function.Predicate;
 
 /**
  * Searches for, and allocates, shards for which there is an existing on-disk copy somewhere in the cluster. The default implementation is
@@ -43,7 +44,7 @@ public interface ExistingShardsAllocator {
      * Called during a round of allocation after attempting to allocate all the primaries but before any replicas, allowing the allocator
      * to prepare for replica allocation.
      */
-    void afterPrimariesBeforeReplicas(RoutingAllocation allocation);
+    void afterPrimariesBeforeReplicas(RoutingAllocation allocation, Predicate<ShardRouting> isRelevantShardPredicate);
 
     /**
      * Allocate any unassigned shards in the given {@link RoutingAllocation} for which this {@link ExistingShardsAllocator} is responsible.

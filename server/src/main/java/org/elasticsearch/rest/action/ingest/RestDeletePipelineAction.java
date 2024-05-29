@@ -12,13 +12,18 @@ import org.elasticsearch.action.ingest.DeletePipelineRequest;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
+import static org.elasticsearch.rest.RestUtils.getAckTimeout;
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
+@ServerlessScope(Scope.PUBLIC)
 public class RestDeletePipelineAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
@@ -33,8 +38,8 @@ public class RestDeletePipelineAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         DeletePipelineRequest request = new DeletePipelineRequest(restRequest.param("id"));
-        request.masterNodeTimeout(restRequest.paramAsTime("master_timeout", request.masterNodeTimeout()));
-        request.timeout(restRequest.paramAsTime("timeout", request.timeout()));
+        request.masterNodeTimeout(getMasterNodeTimeout(restRequest));
+        request.ackTimeout(getAckTimeout(restRequest));
         return channel -> client.admin().cluster().deletePipeline(request, new RestToXContentListener<>(channel));
     }
 }

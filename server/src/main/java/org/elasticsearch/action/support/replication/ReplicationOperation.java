@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -132,6 +133,27 @@ public class ReplicationOperation<
             if (logger.isTraceEnabled()) {
                 logger.trace("[{}] op [{}] completed on primary for request [{}]", primary.routingEntry().shardId(), opType, request);
             }
+            final ReplicationGroup replicationGroup = primary.getReplicationGroup();
+
+            pendingActions.incrementAndGet();
+            replicasProxy.onPrimaryOperationComplete(
+                replicaRequest,
+                replicationGroup.getRoutingTable(),
+                ActionListener.wrap(ignored -> decPendingAndFinishIfNeeded(), exception -> {
+                    totalShards.incrementAndGet();
+                    shardReplicaFailures.add(
+                        new ReplicationResponse.ShardInfo.Failure(
+                            primary.routingEntry().shardId(),
+                            null,
+                            exception,
+                            ExceptionsHelper.status(exception),
+                            false
+                        )
+                    );
+                    decPendingAndFinishIfNeeded();
+                })
+            );
+
             // we have to get the replication group after successfully indexing into the primary in order to honour recovery semantics.
             // we have to make sure that every operation indexed into the primary after recovery start will also be replicated
             // to the recovery target. If we used an old replication group, we may miss a recovery that has started since then.
@@ -145,7 +167,6 @@ public class ReplicationOperation<
             // on.
             final long maxSeqNoOfUpdatesOrDeletes = primary.maxSeqNoOfUpdatesOrDeletes();
             assert maxSeqNoOfUpdatesOrDeletes != SequenceNumbers.UNASSIGNED_SEQ_NO : "seqno_of_updates still uninitialized";
-            final ReplicationGroup replicationGroup = primary.getReplicationGroup();
             final PendingReplicationActions pendingReplicationActions = primary.getPendingReplicationActions();
             markUnavailableShardsAsStale(replicaRequest, replicationGroup);
             performOnReplicas(replicaRequest, globalCheckpoint, maxSeqNoOfUpdatesOrDeletes, replicationGroup, pendingReplicationActions);
@@ -213,6 +234,7 @@ public class ReplicationOperation<
         final long maxSeqNoOfUpdatesOrDeletes,
         final PendingReplicationActions pendingReplicationActions
     ) {
+        assert shard.isPromotableToPrimary() : "only promotable shards should receive replication requests";
         if (logger.isTraceEnabled()) {
             logger.trace("[{}] sending op [{}] to replica {} for request [{}]", shard.shardId(), opType, shard, replicaRequest);
         }
@@ -272,7 +294,8 @@ public class ReplicationOperation<
             threadPool,
             initialRetryBackoffBound,
             retryTimeout,
-            replicationListener
+            replicationListener,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         ) {
 
             @Override
@@ -407,7 +430,8 @@ public class ReplicationOperation<
             return null;  // not waiting for any shards
         }
         final IndexShardRoutingTable shardRoutingTable = primary.getReplicationGroup().getRoutingTable();
-        if (waitForActiveShards.enoughShardsActive(shardRoutingTable)) {
+        ActiveShardCount.EnoughShards enoughShardsActive = waitForActiveShards.enoughShardsActive(shardRoutingTable);
+        if (enoughShardsActive.enoughShards()) {
             return null;
         } else {
             final String resolvedShards = waitForActiveShards == ActiveShardCount.ALL
@@ -418,7 +442,7 @@ public class ReplicationOperation<
                     + "request [{}]",
                 shardId,
                 waitForActiveShards,
-                shardRoutingTable.activeShards().size(),
+                enoughShardsActive.currentActiveShards(),
                 resolvedShards,
                 opType,
                 request
@@ -426,7 +450,7 @@ public class ReplicationOperation<
             return "Not enough active copies to meet shard count of ["
                 + waitForActiveShards
                 + "] (have "
-                + shardRoutingTable.activeShards().size()
+                + enoughShardsActive.currentActiveShards()
                 + ", needed "
                 + resolvedShards
                 + ").";
@@ -442,14 +466,13 @@ public class ReplicationOperation<
 
     private void finish() {
         if (finished.compareAndSet(false, true)) {
-            final ReplicationResponse.ShardInfo.Failure[] failuresArray;
-            if (shardReplicaFailures.isEmpty()) {
-                failuresArray = ReplicationResponse.EMPTY;
-            } else {
-                failuresArray = new ReplicationResponse.ShardInfo.Failure[shardReplicaFailures.size()];
-                shardReplicaFailures.toArray(failuresArray);
-            }
-            primaryResult.setShardInfo(new ReplicationResponse.ShardInfo(totalShards.get(), successfulShards.get(), failuresArray));
+            primaryResult.setShardInfo(
+                ReplicationResponse.ShardInfo.of(
+                    totalShards.get(),
+                    successfulShards.get(),
+                    shardReplicaFailures.toArray(ReplicationResponse.NO_FAILURES)
+                )
+            );
             resultListener.onResponse(primaryResult);
         }
     }
@@ -600,6 +623,21 @@ public class ReplicationOperation<
          * @param listener     a listener that will be notified when the failing shard has been removed from the in-sync set
          */
         void markShardCopyAsStaleIfNeeded(ShardId shardId, String allocationId, long primaryTerm, ActionListener<Void> listener);
+
+        /**
+         * Optional custom logic to execute when the primary operation is complete, before sending the replica requests.
+         *
+         * @param replicaRequest             the operation that will be performed on replicas
+         * @param indexShardRoutingTable     the replication's group index shard routing table
+         * @param listener                   callback for handling the response or failure
+         */
+        default void onPrimaryOperationComplete(
+            RequestT replicaRequest,
+            IndexShardRoutingTable indexShardRoutingTable,
+            ActionListener<Void> listener
+        ) {
+            listener.onResponse(null);
+        }
     }
 
     /**
@@ -623,8 +661,8 @@ public class ReplicationOperation<
 
     }
 
-    public static class RetryOnPrimaryException extends ElasticsearchException {
-        RetryOnPrimaryException(ShardId shardId, String msg) {
+    public static final class RetryOnPrimaryException extends ElasticsearchException {
+        public RetryOnPrimaryException(ShardId shardId, String msg) {
             this(shardId, msg, null);
         }
 
@@ -655,4 +693,5 @@ public class ReplicationOperation<
          * */
         void runPostReplicationActions(ActionListener<Void> listener);
     }
+
 }

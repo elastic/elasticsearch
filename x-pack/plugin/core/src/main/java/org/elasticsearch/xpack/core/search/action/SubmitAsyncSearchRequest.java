@@ -83,6 +83,25 @@ public class SubmitAsyncSearchRequest extends ActionRequest {
     }
 
     /**
+     * Returns whether network round-trips should be minimized when executing cross-cluster search requests.
+     * Defaults to <code>false</code>.
+     */
+    public boolean isCcsMinimizeRoundtrips() {
+        return request.isCcsMinimizeRoundtrips();
+    }
+
+    /**
+     * Sets whether network round-trips should be minimized when executing cross-cluster search requests.
+     * Defaults to <code>false</code>.
+     *
+     * <p>WARNING: The progress and partial responses of searches executed on remote clusters will not be
+     * available during the search if {@code ccsMinimizeRoundtrips} is enabled.</p>
+     */
+    public void setCcsMinimizeRoundtrips(boolean ccsMinimizeRoundtrips) {
+        request.setCcsMinimizeRoundtrips(ccsMinimizeRoundtrips);
+    }
+
+    /**
      * Sets the minimum time that the request should wait before returning a partial result (defaults to 1 second).
      */
     public SubmitAsyncSearchRequest setWaitForCompletionTimeout(TimeValue waitForCompletionTimeout) {
@@ -137,12 +156,6 @@ public class SubmitAsyncSearchRequest extends ActionRequest {
         if (keepAlive.getMillis() < MIN_KEEP_ALIVE) {
             validationException = addValidationError(
                 "[keep_alive] must be greater or equals than 1 second, got:" + keepAlive.toString(),
-                validationException
-            );
-        }
-        if (request.isCcsMinimizeRoundtrips()) {
-            validationException = addValidationError(
-                "[ccs_minimize_roundtrips] is not supported on async search queries",
                 validationException
             );
         }

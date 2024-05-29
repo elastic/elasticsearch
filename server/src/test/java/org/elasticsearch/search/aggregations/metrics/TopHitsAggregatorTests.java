@@ -11,7 +11,6 @@ import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Field.Store;
-import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
@@ -20,7 +19,6 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.queryparser.classic.QueryParser;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
@@ -31,7 +29,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.ProvidedIdFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.Aggregation;
@@ -127,10 +124,7 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
         iw.close();
 
         IndexReader indexReader = DirectoryReader.open(directory);
-        // We do not use LuceneTestCase.newSearcher because we need a DirectoryReader for "testInsideTerms"
-        IndexSearcher indexSearcher = new IndexSearcher(indexReader);
-
-        Aggregation result = searchAndReduce(indexSearcher, new AggTestConfig(builder, STRING_FIELD_TYPE).withQuery(query));
+        Aggregation result = searchAndReduce(indexReader, new AggTestConfig(builder, STRING_FIELD_TYPE).withQuery(query));
         indexReader.close();
         directory.close();
         return result;
@@ -138,10 +132,9 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
 
     private Document document(String id, String... stringValues) {
         Document document = new Document();
-        document.add(new Field(IdFieldMapper.NAME, Uid.encodeId(id), ProvidedIdFieldMapper.Defaults.FIELD_TYPE));
+        document.add(new StringField(IdFieldMapper.NAME, Uid.encodeId(id), Store.YES));
         for (String stringValue : stringValues) {
-            document.add(new Field("string", stringValue, KeywordFieldMapper.Defaults.FIELD_TYPE));
-            document.add(new SortedSetDocValuesField("string", new BytesRef(stringValue)));
+            document.add(new Field("string", new BytesRef(stringValue), KeywordFieldMapper.Defaults.FIELD_TYPE));
         }
         return document;
     }
@@ -180,12 +173,11 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
         IndexReader reader = DirectoryReader.open(w);
         w.close();
 
-        IndexSearcher searcher = new IndexSearcher(reader);
         Query query = new BooleanQuery.Builder().add(new TermQuery(new Term("string", "bar")), Occur.SHOULD)
             .add(new TermQuery(new Term("string", "baz")), Occur.SHOULD)
             .build();
         AggregationBuilder agg = AggregationBuilders.topHits("top_hits");
-        TopHits result = searchAndReduce(searcher, new AggTestConfig(agg, STRING_FIELD_TYPE).withQuery(query));
+        TopHits result = searchAndReduce(reader, new AggTestConfig(agg, STRING_FIELD_TYPE).withQuery(query));
         assertEquals(3, result.getHits().getTotalHits().value);
         reader.close();
         directory.close();

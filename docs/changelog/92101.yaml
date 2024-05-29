@@ -1,5 +1,0 @@
-pr: 92101
-summary: Add primary term supplier to Engine.IndexCommitListener
-area: Engine
-type: enhancement
-issues: []

@@ -107,6 +107,15 @@ final class TikaImpl {
             } else {
                 throw new AssertionError(cause);
             }
+        } catch (LinkageError e) {
+            if (e.getMessage().contains("bouncycastle")) {
+                /*
+                 * Elasticsearch does not ship with bouncycastle. It is only used for public-key-encrypted PDFs, which this module does
+                 * not support anyway.
+                 */
+                throw new RuntimeException("document is encrypted", e);
+            }
+            throw new RuntimeException(e);
         }
     }
 
@@ -130,7 +139,7 @@ final class TikaImpl {
             // classpath
             addReadPermissions(perms, JarHell.parseClassPath());
             // plugin jars
-            if (TikaImpl.class.getClassLoader()instanceof URLClassLoader urlClassLoader) {
+            if (TikaImpl.class.getClassLoader() instanceof URLClassLoader urlClassLoader) {
                 URL[] urls = urlClassLoader.getURLs();
                 Set<URL> set = new LinkedHashSet<>(Arrays.asList(urls));
                 if (set.size() != urls.length) {

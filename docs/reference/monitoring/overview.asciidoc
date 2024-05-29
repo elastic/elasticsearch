@@ -6,11 +6,11 @@
 ++++
 
 When you monitor a cluster, you collect data from the {es} nodes, {ls} nodes,
-{kib} instances, and Beats in your cluster. You can also
-<<configuring-filebeat,use {filebeat} to collect {es} logs>>. 
+{kib} instances, {ents}, APM Server, and Beats in your cluster. You can also
+collect logs.
 
 All of the monitoring metrics are stored in {es}, which enables you to easily
-visualize the data from {kib}. By default, the monitoring metrics are stored in
+visualize the data in {kib}. By default, the monitoring metrics are stored in
 local indices.
 
 TIP: In production, we strongly recommend using a separate monitoring cluster.
@@ -20,10 +20,12 @@ monitoring activities from impacting the performance of your production cluster.
 For the same reason, we also recommend using a separate {kib} instance for
 viewing the monitoring data.
 
-You can use {metricbeat} to collect and ship data about {es}, {kib}, {ls}, and
-Beats directly to your monitoring cluster rather than routing it through your
-production cluster. The following diagram illustrates a typical monitoring
-architecture with separate production and monitoring clusters:
+You can use {agent} or {metricbeat} to collect and ship data directly to your
+monitoring cluster rather than routing it through your production cluster.
+
+The following diagram illustrates a typical monitoring architecture with
+separate production and monitoring clusters. This example shows {metricbeat},
+but you can use {agent} instead.
 
 image::images/architecture.png[A typical monitoring environment]
 

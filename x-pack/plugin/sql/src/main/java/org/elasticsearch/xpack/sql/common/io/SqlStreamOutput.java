@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.sql.common.io;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -29,18 +29,18 @@ public class SqlStreamOutput extends OutputStreamStreamOutput {
 
     private final ByteArrayOutputStream bytes;
 
-    public static SqlStreamOutput create(Version version, ZoneId zoneId) throws IOException {
+    public static SqlStreamOutput create(TransportVersion version, ZoneId zoneId) throws IOException {
         ByteArrayOutputStream bytes = new ByteArrayOutputStream();
         StreamOutput uncompressedOut = new OutputStreamStreamOutput(Base64.getEncoder().wrap(bytes));
-        Version.writeVersion(version, uncompressedOut);
+        TransportVersion.writeVersion(version, uncompressedOut);
         OutputStream out = CompressorFactory.COMPRESSOR.threadLocalOutputStream(uncompressedOut);
         return new SqlStreamOutput(bytes, out, version, zoneId);
     }
 
-    private SqlStreamOutput(ByteArrayOutputStream bytes, OutputStream out, Version version, ZoneId zoneId) throws IOException {
+    private SqlStreamOutput(ByteArrayOutputStream bytes, OutputStream out, TransportVersion version, ZoneId zoneId) throws IOException {
         super(out);
         this.bytes = bytes;
-        super.setVersion(version);
+        super.setTransportVersion(version);
         this.writeZoneId(zoneId);
     }
 

@@ -7,7 +7,8 @@
 
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -96,30 +97,6 @@ public class PassThroughConfigUpdate extends NlpConfigUpdate implements NamedXCo
     }
 
     @Override
-    public InferenceConfig apply(InferenceConfig originalConfig) {
-        if ((resultsField == null || resultsField.equals(originalConfig.getResultsField())) && super.isNoop()) {
-            return originalConfig;
-        }
-
-        if (originalConfig instanceof PassThroughConfig == false) {
-            throw ExceptionsHelper.badRequestException(
-                "Inference config of type [{}] can not be updated with a inference request of type [{}]",
-                originalConfig.getName(),
-                getName()
-            );
-        }
-
-        PassThroughConfig passThroughConfig = (PassThroughConfig) originalConfig;
-        return new PassThroughConfig(
-            passThroughConfig.getVocabularyConfig(),
-            (tokenizationUpdate == null)
-                ? passThroughConfig.getTokenization()
-                : tokenizationUpdate.apply(passThroughConfig.getTokenization()),
-            resultsField == null ? originalConfig.getResultsField() : resultsField
-        );
-    }
-
-    @Override
     public boolean isSupported(InferenceConfig config) {
         return config instanceof PassThroughConfig;
     }
@@ -148,8 +125,8 @@ public class PassThroughConfigUpdate extends NlpConfigUpdate implements NamedXCo
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_8_0_0;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.V_8_0_0;
     }
 
     public static class Builder implements InferenceConfigUpdate.Builder<PassThroughConfigUpdate.Builder, PassThroughConfigUpdate> {

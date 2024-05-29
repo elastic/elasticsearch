@@ -13,14 +13,15 @@ import org.elasticsearch.xpack.core.transform.AbstractSerializingTransformTestCa
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Predicate;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static java.util.stream.Collectors.toMap;
+import static org.elasticsearch.xpack.core.transform.transforms.QueryConfigTests.randomQueryConfig;
 import static org.hamcrest.Matchers.anEmptyMap;
+import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
@@ -29,11 +30,7 @@ public class SourceConfigTests extends AbstractSerializingTransformTestCase<Sour
     private boolean lenient;
 
     public static SourceConfig randomSourceConfig() {
-        return new SourceConfig(
-            generateRandomStringArray(10, 10, false, false),
-            QueryConfigTests.randomQueryConfig(),
-            randomRuntimeMappings()
-        );
+        return new SourceConfig(generateRandomStringArray(10, 10, false, false), randomQueryConfig(), randomRuntimeMappings());
     }
 
     public static SourceConfig randomInvalidSourceConfig() {
@@ -67,6 +64,11 @@ public class SourceConfigTests extends AbstractSerializingTransformTestCase<Sour
     }
 
     @Override
+    protected SourceConfig mutateInstance(SourceConfig instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected boolean supportsUnknownFields() {
         return lenient;
     }
@@ -82,72 +84,117 @@ public class SourceConfigTests extends AbstractSerializingTransformTestCase<Sour
         return SourceConfig::new;
     }
 
-    public void testGetRuntimeMappings_EmptyRuntimeMappings() {
-        SourceConfig sourceConfig = new SourceConfig(
-            generateRandomStringArray(10, 10, false, false),
-            QueryConfigTests.randomQueryConfig(),
-            emptyMap()
+    public void testConstructor_NoIndices() {
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new SourceConfig(new String[] {}, randomQueryConfig(), randomRuntimeMappings())
         );
+        assertThat(e.getMessage(), is(equalTo("must specify at least one index")));
+    }
+
+    public void testConstructor_EmptyIndex() {
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new SourceConfig(new String[] { "" }, randomQueryConfig(), randomRuntimeMappings())
+        );
+        assertThat(e.getMessage(), is(equalTo("all indices need to be non-null and non-empty")));
+
+        e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new SourceConfig(new String[] { "index1", "" }, randomQueryConfig(), randomRuntimeMappings())
+        );
+        assertThat(e.getMessage(), is(equalTo("all indices need to be non-null and non-empty")));
+    }
+
+    public void testGetIndex() {
+        SourceConfig sourceConfig = new SourceConfig(new String[] { "index1" }, randomQueryConfig(), randomRuntimeMappings());
+        assertThat(sourceConfig.getIndex(), is(arrayContaining("index1")));
+
+        sourceConfig = new SourceConfig(new String[] { "index1", "index2", "index3" }, randomQueryConfig(), randomRuntimeMappings());
+        assertThat(sourceConfig.getIndex(), is(arrayContaining("index1", "index2", "index3")));
+
+        sourceConfig = new SourceConfig(new String[] { "index1,index2,index3" }, randomQueryConfig(), randomRuntimeMappings());
+        assertThat(sourceConfig.getIndex(), is(arrayContaining("index1", "index2", "index3")));
+
+        sourceConfig = new SourceConfig(new String[] { "index1", "index2,index3" }, randomQueryConfig(), randomRuntimeMappings());
+        assertThat(sourceConfig.getIndex(), is(arrayContaining("index1", "index2", "index3")));
+
+        sourceConfig = new SourceConfig(new String[] { "index1", "remote2:index2" }, randomQueryConfig(), randomRuntimeMappings());
+        assertThat(sourceConfig.getIndex(), is(arrayContaining("index1", "remote2:index2")));
+
+        sourceConfig = new SourceConfig(new String[] { "index1,remote2:index2" }, randomQueryConfig(), randomRuntimeMappings());
+        assertThat(sourceConfig.getIndex(), is(arrayContaining("index1", "remote2:index2")));
+
+        sourceConfig = new SourceConfig(new String[] { "remote1:index1", "index2" }, randomQueryConfig(), randomRuntimeMappings());
+        assertThat(sourceConfig.getIndex(), is(arrayContaining("remote1:index1", "index2")));
+
+        sourceConfig = new SourceConfig(new String[] { "remote1:index1,index2" }, randomQueryConfig(), randomRuntimeMappings());
+        assertThat(sourceConfig.getIndex(), is(arrayContaining("remote1:index1", "index2")));
+
+        sourceConfig = new SourceConfig(new String[] { "index*,remote2:index*" }, randomQueryConfig(), randomRuntimeMappings());
+        assertThat(sourceConfig.getIndex(), is(arrayContaining("index*", "remote2:index*")));
+
+        sourceConfig = new SourceConfig(new String[] { "remote1:index*,remote2:index*" }, randomQueryConfig(), randomRuntimeMappings());
+        assertThat(sourceConfig.getIndex(), is(arrayContaining("remote1:index*", "remote2:index*")));
+    }
+
+    public void testGetRuntimeMappings_EmptyRuntimeMappings() {
+        SourceConfig sourceConfig = new SourceConfig(generateRandomStringArray(10, 10, false, false), randomQueryConfig(), emptyMap());
         assertThat(sourceConfig.getRuntimeMappings(), is(anEmptyMap()));
         assertThat(sourceConfig.getScriptBasedRuntimeMappings(), is(anEmptyMap()));
     }
 
     public void testGetRuntimeMappings_NonEmptyRuntimeMappings() {
-        Map<String, Object> runtimeMappings = new HashMap<>() {
-            {
-                put("field-A", singletonMap("type", "keyword"));
-                put("field-B", singletonMap("script", "some script"));
-                put("field-C", singletonMap("script", "some other script"));
-            }
-        };
-        Map<String, Object> scriptBasedRuntimeMappings = new HashMap<>() {
-            {
-                put("field-B", singletonMap("script", "some script"));
-                put("field-C", singletonMap("script", "some other script"));
-            }
-        };
-        SourceConfig sourceConfig = new SourceConfig(
-            generateRandomStringArray(10, 10, false, false),
-            QueryConfigTests.randomQueryConfig(),
-            runtimeMappings
+        Map<String, Object> runtimeMappings = Map.of(
+            "field-A",
+            Map.of("type", "keyword"),
+            "field-B",
+            Map.of("script", "some script"),
+            "field-C",
+            Map.of("script", "some other script")
         );
+        Map<String, Object> scriptBasedRuntimeMappings = Map.of(
+            "field-B",
+            Map.of("script", "some script"),
+            "field-C",
+            Map.of("script", "some other script")
+        );
+        SourceConfig sourceConfig = new SourceConfig(generateRandomStringArray(10, 10, false, false), randomQueryConfig(), runtimeMappings);
         assertThat(sourceConfig.getRuntimeMappings(), is(equalTo(runtimeMappings)));
         assertThat(sourceConfig.getScriptBasedRuntimeMappings(), is(equalTo(scriptBasedRuntimeMappings)));
     }
 
     public void testRequiresRemoteCluster() {
         assertFalse(
-            new SourceConfig(new String[] { "index1", "index2", "index3" }, QueryConfigTests.randomQueryConfig(), randomRuntimeMappings())
+            new SourceConfig(new String[] { "index1", "index2", "index3" }, randomQueryConfig(), randomRuntimeMappings())
                 .requiresRemoteCluster()
         );
 
         assertTrue(
-            new SourceConfig(
-                new String[] { "index1", "remote2:index2", "index3" },
-                QueryConfigTests.randomQueryConfig(),
-                randomRuntimeMappings()
-            ).requiresRemoteCluster()
-        );
-
-        assertTrue(
-            new SourceConfig(
-                new String[] { "index1", "index2", "remote3:index3" },
-                QueryConfigTests.randomQueryConfig(),
-                randomRuntimeMappings()
-            ).requiresRemoteCluster()
-        );
-
-        assertTrue(
-            new SourceConfig(
-                new String[] { "index1", "remote2:index2", "remote3:index3" },
-                QueryConfigTests.randomQueryConfig(),
-                randomRuntimeMappings()
-            ).requiresRemoteCluster()
-        );
-
-        assertTrue(
-            new SourceConfig(new String[] { "remote1:index1" }, QueryConfigTests.randomQueryConfig(), randomRuntimeMappings())
+            new SourceConfig(new String[] { "index1", "remote2:index2", "index3" }, randomQueryConfig(), randomRuntimeMappings())
                 .requiresRemoteCluster()
+        );
+
+        assertTrue(
+            new SourceConfig(new String[] { "index1", "index2", "remote3:index3" }, randomQueryConfig(), randomRuntimeMappings())
+                .requiresRemoteCluster()
+        );
+
+        assertTrue(
+            new SourceConfig(new String[] { "index1", "remote2:index2", "remote3:index3" }, randomQueryConfig(), randomRuntimeMappings())
+                .requiresRemoteCluster()
+        );
+
+        assertTrue(
+            new SourceConfig(new String[] { "remote1:index1" }, randomQueryConfig(), randomRuntimeMappings()).requiresRemoteCluster()
+        );
+
+        assertFalse(
+            new SourceConfig(new String[] { "index1,index2" }, randomQueryConfig(), randomRuntimeMappings()).requiresRemoteCluster()
+        );
+
+        assertTrue(
+            new SourceConfig(new String[] { "index1,remote2:index2" }, randomQueryConfig(), randomRuntimeMappings()).requiresRemoteCluster()
         );
     }
 }

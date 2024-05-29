@@ -21,7 +21,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
-import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -75,7 +74,7 @@ public class IndicesStatsResponseTests extends ESTestCase {
                 Path path = createTempDir().resolve("indices").resolve(index.getUUID()).resolve(String.valueOf(shardId));
                 ShardPath shardPath = new ShardPath(false, path, path, shId);
                 ShardRouting routing = createShardRouting(shId, (shardId == 0));
-                shards.add(new ShardStats(routing, shardPath, null, null, null, null));
+                shards.add(new ShardStats(routing, shardPath, null, null, null, null, false, 0));
                 AtomicLong primaryShardsCounter = expectedIndexToPrimaryShardsCount.computeIfAbsent(
                     index.getName(),
                     k -> new AtomicLong(0L)
@@ -116,7 +115,7 @@ public class IndicesStatsResponseTests extends ESTestCase {
         }
     }
 
-    public void testChunkedEncodingPerIndex() throws IOException {
+    public void testChunkedEncodingPerIndex() {
         final int shards = randomIntBetween(1, 10);
         final List<ShardStats> stats = new ArrayList<>(shards);
         for (int i = 0; i < shards; i++) {
@@ -124,7 +123,7 @@ public class IndicesStatsResponseTests extends ESTestCase {
             Path path = createTempDir().resolve("indices").resolve(shId.getIndex().getUUID()).resolve(String.valueOf(shId.id()));
             ShardPath shardPath = new ShardPath(false, path, path, shId);
             ShardRouting routing = createShardRouting(shId, (shId.id() == 0));
-            stats.add(new ShardStats(routing, shardPath, new CommonStats(), null, null, null));
+            stats.add(new ShardStats(routing, shardPath, new CommonStats(), null, null, null, false, 0));
         }
         final IndicesStatsResponse indicesStatsResponse = new IndicesStatsResponse(
             stats.toArray(new ShardStats[0]),
@@ -143,7 +142,7 @@ public class IndicesStatsResponseTests extends ESTestCase {
         AbstractChunkedSerializingTestCase.assertChunkCount(
             indicesStatsResponse,
             new ToXContent.MapParams(Map.of("level", "indices")),
-            ignored -> 4 + shards
+            ignored -> 4 + 2 * shards
         );
     }
 

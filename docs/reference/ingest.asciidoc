@@ -307,13 +307,13 @@ matches these templates to your {fleet} data streams based on the
 {fleet-guide}/data-streams.html#data-streams-naming-scheme[stream's naming
 scheme].
 
-Each default integration pipeline calls a nonexistent, unversioned `@custom` ingest pipeline.
+Each default integration pipeline calls a nonexistent, unversioned `*@custom` ingest pipeline.
 If unaltered, this pipeline call has no effect on your data. However, you can modify this call to
 create custom pipelines for integrations that persist across upgrades.
 Refer to {fleet-guide}/data-streams-pipeline-tutorial.html[Tutorial: Transform data with custom ingest pipelines] to learn more.
 
 {fleet} doesn't provide a default ingest pipeline for the **Custom logs** integration,
-but you can specify a pipeline for this integration using an 
+but you can specify a pipeline for this integration using an
 <<pipeline-custom-logs-index-template,index template>> or a
 <<pipeline-custom-logs-configuration,custom configuration>>.
 
@@ -448,11 +448,11 @@ configuration. See {fleet-guide}/install-standalone-elastic-agent.html[Install s
 
 [discrete]
 [[pipelines-in-enterprise-search]]
-=== Pipelines in Enterprise Search
+=== Pipelines for search indices
 
-When you create Elasticsearch indices for {enterprise-search-ref}/index.html[Enterprise Search^] use cases, for example, using the {enterprise-search-ref}/crawler.html[web crawler^] or {enterprise-search-ref}/connectors.html[connectors^], these indices are automatically set up with specific ingest pipelines. 
+When you create Elasticsearch indices for search use cases, for example, using the {enterprise-search-ref}/crawler.html[web crawler^] or {enterprise-search-ref}/connectors.html[connectors^], these indices are automatically set up with specific ingest pipelines.
 These processors help optimize your content for search.
-Refer to the {enterprise-search-ref}/ingest-pipelines.html[Enterprise Search documentation^] for more information.
+See <<ingest-pipeline-search>> for more information.
 
 [discrete]
 [[access-source-fields]]
@@ -861,7 +861,7 @@ PUT _ingest/pipeline/my-pipeline
 }
 ----
 
-You can also specify a <<modules-scripting-stored-scripts,stored script>> as the
+You can also specify a <<script-stored-scripts,stored script>> as the
 `if` condition.
 
 [source,console]
@@ -990,3 +990,4 @@ GET _nodes/stats/ingest?filter_path=nodes.*.ingest
 include::ingest/common-log-format-example.asciidoc[]
 include::ingest/enrich.asciidoc[]
 include::ingest/processors.asciidoc[]
+include::ingest/search-ingest-pipelines.asciidoc[]

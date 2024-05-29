@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.watcher.notification.NotificationService;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
@@ -57,10 +56,9 @@ public class EmailService extends NotificationService<Account> {
         (key) -> Setting.simpleString(key, Property.Dynamic, Property.NodeScope)
     );
 
-    private static final Setting<List<String>> SETTING_DOMAIN_ALLOWLIST = Setting.listSetting(
+    private static final Setting<List<String>> SETTING_DOMAIN_ALLOWLIST = Setting.stringListSetting(
         "xpack.notification.email.account.domain_allowlist",
-        Collections.singletonList("*"),
-        String::toString,
+        List.of("*"),
         Property.Dynamic,
         Property.NodeScope
     );
@@ -170,6 +168,7 @@ public class EmailService extends NotificationService<Account> {
     private final SSLService sslService;
     private volatile Set<String> allowedDomains;
 
+    @SuppressWarnings("this-escape")
     public EmailService(Settings settings, @Nullable CryptoService cryptoService, SSLService sslService, ClusterSettings clusterSettings) {
         super("email", settings, clusterSettings, EmailService.getDynamicSettings(), EmailService.getSecureSettings());
         this.cryptoService = cryptoService;
@@ -249,7 +248,7 @@ public class EmailService extends NotificationService<Account> {
         )
             .map(InternetAddress::getAddress)
             // Pull out only the domain of the email address, so foo@bar.com -> bar.com
-            .map(emailAddress -> emailAddress.substring(emailAddress.lastIndexOf("@") + 1))
+            .map(emailAddress -> emailAddress.substring(emailAddress.lastIndexOf('@') + 1))
             .collect(Collectors.toSet());
     }
 
@@ -269,7 +268,7 @@ public class EmailService extends NotificationService<Account> {
         return domains.stream().allMatch(matchesAnyAllowedDomain);
     }
 
-    private EmailSent send(Email email, Authentication auth, Profile profile, Account account) throws MessagingException {
+    private static EmailSent send(Email email, Authentication auth, Profile profile, Account account) throws MessagingException {
         assert account != null;
         try {
             email = account.send(email, auth, profile);

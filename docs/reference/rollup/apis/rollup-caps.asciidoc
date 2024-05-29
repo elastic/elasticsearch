@@ -5,13 +5,10 @@
 <titleabbrev>Get rollup caps</titleabbrev>
 ++++
 
+deprecated::[8.11.0,"Rollups will be removed in a future version. Use <<downsampling,downsampling>> instead."]
+
 Returns the capabilities of any {rollup-jobs} that have been configured for a
 specific index or index pattern.
-
-experimental[]
-
-NOTE: For version 8.5 and above we recommend <<downsampling,downsampling>> over
-rollups as a way to reduce your storage costs for time series data.
 
 [[rollup-get-rollup-caps-request]]
 ==== {api-request-title}
@@ -43,7 +40,7 @@ can be performed, and where does the data live?
 ==== {api-path-parms-title}
 
 `<index>`::
-  (string) Index, indices or index-pattern to return rollup capabilities for. 
+  (string) Index, indices or index-pattern to return rollup capabilities for.
   `_all` may be used to fetch rollup capabilities from all jobs.
 
 

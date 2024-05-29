@@ -6,7 +6,8 @@
  */
 package org.elasticsearch.xpack.core;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.metrics.Counters;
@@ -76,7 +77,7 @@ public class HealthApiFeatureSetUsage extends XPackFeatureSet.Usage {
 
     public HealthApiFeatureSetUsage(StreamInput in) throws IOException {
         super(in);
-        usageStats = in.readMap();
+        usageStats = in.readGenericMap();
     }
 
     public HealthApiFeatureSetUsage(boolean available, boolean enabled, @Nullable Counters stats) {
@@ -120,8 +121,8 @@ public class HealthApiFeatureSetUsage extends XPackFeatureSet.Usage {
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_8_7_0;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.V_8_7_0;
     }
 
     public Map<String, Object> stats() {

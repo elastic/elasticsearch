@@ -17,17 +17,22 @@ import java.io.IOException;
 
 /** A {@link Scorer} that filters out documents that have a score that is
  *  lower than a configured constant. */
-final class MinScoreScorer extends Scorer {
+public final class MinScoreScorer extends Scorer {
 
     private final Scorer in;
     private final float minScore;
-
     private float curScore;
+    private final float boost;
 
-    MinScoreScorer(Weight weight, Scorer scorer, float minScore) {
+    public MinScoreScorer(Weight weight, Scorer scorer, float minScore) {
+        this(weight, scorer, minScore, 1f);
+    }
+
+    public MinScoreScorer(Weight weight, Scorer scorer, float minScore, float boost) {
         super(weight);
         this.in = scorer;
         this.minScore = minScore;
+        this.boost = boost;
     }
 
     @Override
@@ -37,7 +42,7 @@ final class MinScoreScorer extends Scorer {
 
     @Override
     public float score() {
-        return curScore;
+        return curScore * boost;
     }
 
     @Override

@@ -162,7 +162,7 @@ public class InternalSettingsPreparer {
     private static void ensureSpecialSettingsExist(Settings.Builder output, Supplier<String> defaultNodeName) {
         // put the cluster and node name if they aren't set
         if (output.get(ClusterName.CLUSTER_NAME_SETTING.getKey()) == null) {
-            output.put(ClusterName.CLUSTER_NAME_SETTING.getKey(), ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY).value());
+            output.put(ClusterName.CLUSTER_NAME_SETTING.getKey(), ClusterName.DEFAULT.value());
         }
         if (output.get(Node.NODE_NAME_SETTING.getKey()) == null) {
             output.put(Node.NODE_NAME_SETTING.getKey(), defaultNodeName.get());

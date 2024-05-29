@@ -13,11 +13,12 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.tasks.RemovedTaskListener;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskAwareRequest;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.tracing.Tracer;
 
 import java.util.Collection;
 import java.util.Set;
@@ -77,26 +78,23 @@ public class MockTaskManager extends TaskManager {
         return removedTask;
     }
 
-    @Override
-    public void waitForTaskCompletion(Task task, long untilInNanos) {
-        for (MockTaskManagerListener listener : listeners) {
-            try {
-                listener.waitForTaskCompletion(task);
-            } catch (Exception e) {
-                logger.warn(
-                    () -> format("failed to notify task manager listener about waitForTaskCompletion the task with id %s", task.getId()),
-                    e
-                );
-            }
-        }
-        super.waitForTaskCompletion(task, untilInNanos);
-    }
-
     public void addListener(MockTaskManagerListener listener) {
         listeners.add(listener);
     }
 
     public void removeListener(MockTaskManagerListener listener) {
         listeners.remove(listener);
+    }
+
+    @Override
+    public void registerRemovedTaskListener(RemovedTaskListener removedTaskListener) {
+        super.registerRemovedTaskListener(removedTaskListener);
+        for (MockTaskManagerListener listener : listeners) {
+            try {
+                listener.onRemovedTaskListenerRegistered(removedTaskListener);
+            } catch (Exception e) {
+                logger.warn("failed to notify task manager listener about a registered removed task listener", e);
+            }
+        }
     }
 }

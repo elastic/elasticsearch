@@ -10,6 +10,7 @@ package org.elasticsearch.index.translog;
 
 import org.apache.lucene.store.BufferedChecksum;
 import org.elasticsearch.common.Numbers;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.FilterStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
 
@@ -45,6 +46,11 @@ public final class BufferedChecksumStreamInput extends FilterStreamInput {
 
     public long getChecksum() {
         return this.digest.getValue();
+    }
+
+    @Override
+    public String readString() throws IOException {
+        return doReadString(readArraySize()); // always use the unoptimized slow path
     }
 
     @Override
@@ -101,7 +107,18 @@ public final class BufferedChecksumStreamInput extends FilterStreamInput {
 
     @Override
     public int read() throws IOException {
-        return readByte() & 0xFF;
+        int b = delegate.read();
+        if (b == -1) {
+            return b;
+        }
+        digest.update((byte) b);
+        return b;
+    }
+
+    @Override
+    public BytesReference readSlicedBytesReference() throws IOException {
+        // TODO: support slicing here as well
+        return readBytesReference();
     }
 
     @Override

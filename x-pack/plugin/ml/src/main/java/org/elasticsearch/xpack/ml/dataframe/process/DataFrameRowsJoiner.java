@@ -118,7 +118,7 @@ class DataFrameRowsJoiner implements AutoCloseable {
         );
     }
 
-    private void checkChecksumsMatch(DataFrameDataExtractor.Row row, RowResults result) {
+    private static void checkChecksumsMatch(DataFrameDataExtractor.Row row, RowResults result) {
         if (row.getChecksum() != result.getChecksum()) {
             String msg = "Detected checksum mismatch for document with id [" + row.getHit().getId() + "]; ";
             msg += "expected [" + row.getChecksum() + "] but result had [" + result.getChecksum() + "]; ";
@@ -186,7 +186,7 @@ class DataFrameRowsJoiner implements AutoCloseable {
             return row;
         }
 
-        private boolean hasNoMatch(DataFrameDataExtractor.Row row) {
+        private static boolean hasNoMatch(DataFrameDataExtractor.Row row) {
             return row == null || row.shouldSkip() || row.isTraining() == false;
         }
 

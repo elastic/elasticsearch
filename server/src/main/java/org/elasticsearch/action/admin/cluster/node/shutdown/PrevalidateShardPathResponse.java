@@ -9,6 +9,7 @@
 package org.elasticsearch.action.admin.cluster.node.shutdown;
 
 import org.elasticsearch.action.FailedNodeException;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -27,17 +28,13 @@ public class PrevalidateShardPathResponse extends BaseNodesResponse<NodePrevalid
         super(clusterName, nodes, failures);
     }
 
-    public PrevalidateShardPathResponse(StreamInput in) throws IOException {
-        super(in);
-    }
-
     @Override
     protected List<NodePrevalidateShardPathResponse> readNodesFrom(StreamInput in) throws IOException {
-        return in.readList(NodePrevalidateShardPathResponse::new);
+        return TransportAction.localOnly();
     }
 
     @Override
     protected void writeNodesTo(StreamOutput out, List<NodePrevalidateShardPathResponse> nodes) throws IOException {
-        out.writeList(nodes);
+        TransportAction.localOnly();
     }
 }

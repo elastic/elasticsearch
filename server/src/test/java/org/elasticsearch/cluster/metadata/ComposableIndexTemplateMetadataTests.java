@@ -11,7 +11,6 @@ package org.elasticsearch.cluster.metadata;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.test.AbstractNamedWriteableTestCase;
 
-import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -30,7 +29,7 @@ public class ComposableIndexTemplateMetadataTests extends AbstractNamedWriteable
     }
 
     @Override
-    protected ComposableIndexTemplateMetadata mutateInstance(ComposableIndexTemplateMetadata instance) throws IOException {
+    protected ComposableIndexTemplateMetadata mutateInstance(ComposableIndexTemplateMetadata instance) {
         return randomValueOtherThan(instance, this::createTestInstance);
     }
 

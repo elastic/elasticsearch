@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.sql.action;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
@@ -20,7 +19,6 @@ import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.RequestInfo;
 import org.junit.Before;
 
-import java.io.IOException;
 import java.util.function.Consumer;
 
 import static java.util.Collections.emptyList;
@@ -52,8 +50,8 @@ public class SqlTranslateRequestTests extends AbstractXContentSerializingTestCas
             randomRuntimeMappings(),
             randomZone(),
             between(1, Integer.MAX_VALUE),
-            randomTV(),
-            randomTV(),
+            randomTimeValue(),
+            randomTimeValue(),
             new RequestInfo(testMode)
         );
     }
@@ -61,10 +59,6 @@ public class SqlTranslateRequestTests extends AbstractXContentSerializingTestCas
     @Override
     protected Writeable.Reader<TestSqlTranslateRequest> instanceReader() {
         return TestSqlTranslateRequest::new;
-    }
-
-    private TimeValue randomTV() {
-        return TimeValue.parseTimeValue(randomTimeValue(), null, "test");
     }
 
     @Override
@@ -85,14 +79,14 @@ public class SqlTranslateRequestTests extends AbstractXContentSerializingTestCas
     }
 
     @Override
-    protected TestSqlTranslateRequest mutateInstance(TestSqlTranslateRequest instance) throws IOException {
+    protected TestSqlTranslateRequest mutateInstance(TestSqlTranslateRequest instance) {
         @SuppressWarnings("unchecked")
         Consumer<SqlTranslateRequest> mutator = randomFrom(
             request -> request.query(randomValueOtherThan(request.query(), () -> randomAlphaOfLength(5))),
             request -> request.zoneId(randomValueOtherThan(request.zoneId(), ESTestCase::randomZone)),
             request -> request.catalog(randomValueOtherThan(request.catalog(), () -> randomAlphaOfLength(10))),
             request -> request.fetchSize(randomValueOtherThan(request.fetchSize(), () -> between(1, Integer.MAX_VALUE))),
-            request -> request.requestTimeout(randomValueOtherThan(request.requestTimeout(), this::randomTV)),
+            request -> request.requestTimeout(randomValueOtherThan(request.requestTimeout(), ESTestCase::randomTimeValue)),
             request -> request.filter(
                 randomValueOtherThan(
                     request.filter(),

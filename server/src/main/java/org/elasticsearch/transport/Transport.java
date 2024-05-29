@@ -8,7 +8,7 @@
 
 package org.elasticsearch.transport;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.LifecycleComponent;
@@ -49,10 +49,19 @@ public interface Transport extends LifecycleComponent {
         return false;
     }
 
+    default TransportVersion getVersion() {
+        return TransportVersion.current();
+    }
+
     /**
      * The address the transport is bound on.
      */
     BoundTransportAddress boundAddress();
+
+    /**
+     * The address the Remote Access port is bound on, or <code>null</code> if it is not bound.
+     */
+    BoundTransportAddress boundRemoteIngressAddress();
 
     /**
      * Further profile bound addresses
@@ -97,7 +106,7 @@ public interface Transport extends LifecycleComponent {
 
         /**
          * Sends the request to the node this connection is associated with
-         * @param requestId see {@link ResponseHandlers#add(ResponseContext)} for details
+         * @param requestId see {@link ResponseHandlers#add(TransportResponseHandler, Connection, String)} for details
          * @param action the action to execute
          * @param request the request to send
          * @param options request options to apply
@@ -118,11 +127,9 @@ public interface Transport extends LifecycleComponent {
         boolean isClosed();
 
         /**
-         * Returns the version of the node this connection was established with.
+         * Returns the version of the data to communicate in this channel.
          */
-        default Version getVersion() {
-            return getNode().getVersion();
-        }
+        TransportVersion getTransportVersion();
 
         /**
          * Returns a key that this connection can be cached on. Delegating subclasses must delegate method call to
@@ -148,35 +155,15 @@ public interface Transport extends LifecycleComponent {
     }
 
     /**
-     * This class represents a response context that encapsulates the actual response handler, the action and the connection it was
-     * executed on.
+     * This class represents a response context that encapsulates the actual response handler, the action. the connection it was
+     * executed on, and the request ID.
      */
-    final class ResponseContext<T extends TransportResponse> {
-
-        private final TransportResponseHandler<T> handler;
-
-        private final Connection connection;
-
-        private final String action;
-
-        ResponseContext(TransportResponseHandler<T> handler, Connection connection, String action) {
-            this.handler = handler;
-            this.connection = connection;
-            this.action = action;
-        }
-
-        public TransportResponseHandler<T> handler() {
-            return handler;
-        }
-
-        public Connection connection() {
-            return this.connection;
-        }
-
-        public String action() {
-            return this.action;
-        }
-    }
+    record ResponseContext<T extends TransportResponse>(
+        TransportResponseHandler<T> handler,
+        Connection connection,
+        String action,
+        long requestId
+    ) {};
 
     /**
      * This class is a registry that allows
@@ -203,14 +190,19 @@ public interface Transport extends LifecycleComponent {
 
         /**
          * Adds a new response context and associates it with a new request ID.
-         * @return the new request ID
+         * @return the new response context
          * @see Connection#sendRequest(long, String, TransportRequest, TransportRequestOptions)
          */
-        public long add(ResponseContext<? extends TransportResponse> holder) {
+        public ResponseContext<? extends TransportResponse> add(
+            TransportResponseHandler<? extends TransportResponse> handler,
+            Connection connection,
+            String action
+        ) {
             long requestId = newRequestId();
+            ResponseContext<? extends TransportResponse> holder = new ResponseContext<>(handler, connection, action, requestId);
             ResponseContext<? extends TransportResponse> existing = handlers.put(requestId, holder);
             assert existing == null : "request ID already in use: " + requestId;
-            return requestId;
+            return holder;
         }
 
         /**
@@ -277,6 +269,13 @@ public interface Transport extends LifecycleComponent {
         @SuppressWarnings("unchecked")
         public <T extends TransportRequest> RequestHandlerRegistry<T> getHandler(String action) {
             return (RequestHandlerRegistry<T>) requestHandlers.get(action);
+        }
+
+        public Map<String, TransportActionStats> getStats() {
+            return requestHandlers.values()
+                .stream()
+                .filter(reg -> reg.getStats().requestCount() > 0 || reg.getStats().responseCount() > 0)
+                .collect(Maps.toUnmodifiableSortedMap(RequestHandlerRegistry::getAction, RequestHandlerRegistry::getStats));
         }
     }
 }

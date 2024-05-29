@@ -8,14 +8,13 @@ package org.elasticsearch.xpack.ml.utils.persistence;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -41,8 +40,6 @@ import org.elasticsearch.xpack.core.ml.MlMetadata;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
@@ -58,20 +55,16 @@ public class ResultsPersisterService {
     /**
      * List of rest statuses that we consider irrecoverable
      */
-    public static final Set<RestStatus> IRRECOVERABLE_REST_STATUSES = Collections.unmodifiableSet(
-        new HashSet<>(
-            Arrays.asList(
-                RestStatus.GONE,
-                RestStatus.NOT_IMPLEMENTED,
-                // Not found is returned when we require an alias but the index is NOT an alias.
-                RestStatus.NOT_FOUND,
-                RestStatus.BAD_REQUEST,
-                RestStatus.UNAUTHORIZED,
-                RestStatus.FORBIDDEN,
-                RestStatus.METHOD_NOT_ALLOWED,
-                RestStatus.NOT_ACCEPTABLE
-            )
-        )
+    public static final Set<RestStatus> IRRECOVERABLE_REST_STATUSES = Set.of(
+        RestStatus.GONE,
+        RestStatus.NOT_IMPLEMENTED,
+        // Not found is returned when we require an alias but the index is NOT an alias.
+        RestStatus.NOT_FOUND,
+        RestStatus.BAD_REQUEST,
+        RestStatus.UNAUTHORIZED,
+        RestStatus.FORBIDDEN,
+        RestStatus.METHOD_NOT_ALLOWED,
+        RestStatus.NOT_ACCEPTABLE
     );
 
     private static final Logger LOGGER = LogManager.getLogger(ResultsPersisterService.class);
@@ -161,6 +154,25 @@ public class ResultsPersisterService {
         return bulkIndexWithRetry(bulkRequest, jobId, shouldRetry, retryMsgHandler);
     }
 
+    public void indexWithRetry(
+        String jobId,
+        String indexName,
+        ToXContent object,
+        ToXContent.Params params,
+        WriteRequest.RefreshPolicy refreshPolicy,
+        String id,
+        boolean requireAlias,
+        Supplier<Boolean> shouldRetry,
+        Consumer<String> retryMsgHandler,
+        ActionListener<BulkResponse> finalListener
+    ) throws IOException {
+        BulkRequest bulkRequest = new BulkRequest().setRefreshPolicy(refreshPolicy);
+        try (XContentBuilder content = object.toXContent(XContentFactory.jsonBuilder(), params)) {
+            bulkRequest.add(new IndexRequest(indexName).id(id).source(content).setRequireAlias(requireAlias));
+        }
+        bulkIndexWithRetry(bulkRequest, jobId, shouldRetry, retryMsgHandler, finalListener);
+    }
+
     public BulkResponse bulkIndexWithRetry(
         BulkRequest bulkRequest,
         String jobId,
@@ -168,6 +180,26 @@ public class ResultsPersisterService {
         Consumer<String> retryMsgHandler
     ) {
         return bulkIndexWithRetry(bulkRequest, jobId, shouldRetry, retryMsgHandler, client::bulk);
+    }
+
+    public void bulkIndexWithRetry(
+        BulkRequest bulkRequest,
+        String jobId,
+        Supplier<Boolean> shouldRetry,
+        Consumer<String> retryMsgHandler,
+        ActionListener<BulkResponse> finalListener
+    ) {
+        if (isShutdown || isResetMode) {
+            finalListener.onFailure(
+                new ElasticsearchStatusException(
+                    "Bulk indexing has failed as {}",
+                    RestStatus.TOO_MANY_REQUESTS,
+                    isShutdown ? "node is shutting down." : "machine learning feature is being reset."
+                )
+            );
+            return;
+        }
+        bulkIndexWithRetry(bulkRequest, jobId, shouldRetry, retryMsgHandler, client::bulk, finalListener);
     }
 
     public BulkResponse bulkIndexWithHeadersWithRetry(
@@ -186,7 +218,7 @@ public class ResultsPersisterService {
                 headers,
                 ClientHelper.ML_ORIGIN,
                 client,
-                BulkAction.INSTANCE,
+                TransportBulkAction.TYPE,
                 providedBulkRequest,
                 listener
             )
@@ -201,15 +233,28 @@ public class ResultsPersisterService {
         BiConsumer<BulkRequest, ActionListener<BulkResponse>> actionExecutor
     ) {
         if (isShutdown || isResetMode) {
-            throw new ElasticsearchException(
+            throw new ElasticsearchStatusException(
                 "Bulk indexing has failed as {}",
+                RestStatus.TOO_MANY_REQUESTS,
                 isShutdown ? "node is shutting down." : "machine learning feature is being reset."
             );
         }
-        final PlainActionFuture<BulkResponse> getResponse = PlainActionFuture.newFuture();
+        final PlainActionFuture<BulkResponse> getResponseFuture = new PlainActionFuture<>();
+        bulkIndexWithRetry(bulkRequest, jobId, shouldRetry, retryMsgHandler, actionExecutor, getResponseFuture);
+        return getResponseFuture.actionGet();
+    }
+
+    private void bulkIndexWithRetry(
+        BulkRequest bulkRequest,
+        String jobId,
+        Supplier<Boolean> shouldRetry,
+        Consumer<String> retryMsgHandler,
+        BiConsumer<BulkRequest, ActionListener<BulkResponse>> actionExecutor,
+        ActionListener<BulkResponse> finalListener
+    ) {
         final Object key = new Object();
         final ActionListener<BulkResponse> removeListener = ActionListener.runBefore(
-            getResponse,
+            finalListener,
             () -> onGoingRetryableBulkActions.remove(key)
         );
         BulkRetryableAction bulkRetryableAction = new BulkRetryableAction(
@@ -229,7 +274,6 @@ public class ResultsPersisterService {
                 )
             );
         }
-        return getResponse.actionGet();
     }
 
     public SearchResponse searchWithRetry(
@@ -238,7 +282,7 @@ public class ResultsPersisterService {
         Supplier<Boolean> shouldRetry,
         Consumer<String> retryMsgHandler
     ) {
-        final PlainActionFuture<SearchResponse> getResponse = PlainActionFuture.newFuture();
+        final PlainActionFuture<SearchResponse> getResponse = new PlainActionFuture<>();
         final Object key = new Object();
         final ActionListener<SearchResponse> removeListener = ActionListener.runBefore(
             getResponse,
@@ -250,7 +294,10 @@ public class ResultsPersisterService {
             client,
             () -> (isShutdown == false) && shouldRetry.get(),
             retryMsgHandler,
-            removeListener
+            removeListener.delegateFailure((l, r) -> {
+                r.mustIncRef();
+                l.onResponse(r);
+            })
         );
         onGoingRetryableSearchActions.put(key, mlRetryableAction);
         mlRetryableAction.run();
@@ -426,7 +473,7 @@ public class ResultsPersisterService {
                 TimeValue.timeValueMillis(MIN_RETRY_SLEEP_MILLIS),
                 TimeValue.MAX_VALUE,
                 listener,
-                UTILITY_THREAD_POOL_NAME
+                threadPool.executor(UTILITY_THREAD_POOL_NAME)
             );
             this.jobId = jobId;
             this.shouldRetry = shouldRetry;

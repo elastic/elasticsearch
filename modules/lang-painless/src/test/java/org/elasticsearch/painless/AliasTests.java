@@ -24,7 +24,7 @@ public class AliasTests extends ScriptTestCase {
     @Override
     protected Map<ScriptContext<?>, List<Whitelist>> scriptContexts() {
         Map<ScriptContext<?>, List<Whitelist>> contexts = new HashMap<>();
-        List<Whitelist> whitelists = new ArrayList<>(PainlessPlugin.BASE_WHITELISTS);
+        List<Whitelist> whitelists = new ArrayList<>(PAINLESS_BASE_WHITELIST);
         whitelists.add(WhitelistLoader.loadFromResourceFiles(PainlessPlugin.class, "org.elasticsearch.painless.alias"));
         contexts.put(PainlessTestScript.CONTEXT, whitelists);
         return contexts;
@@ -34,7 +34,9 @@ public class AliasTests extends ScriptTestCase {
         IllegalArgumentException err = expectThrows(
             IllegalArgumentException.class,
             () -> PainlessLookupBuilder.buildFromWhitelists(
-                List.of(WhitelistLoader.loadFromResourceFiles(PainlessPlugin.class, "org.elasticsearch.painless.alias-shadow"))
+                List.of(WhitelistLoader.loadFromResourceFiles(PainlessPlugin.class, "org.elasticsearch.painless.alias-shadow")),
+                new HashMap<>(),
+                new HashMap<>()
             )
         );
         assertEquals(

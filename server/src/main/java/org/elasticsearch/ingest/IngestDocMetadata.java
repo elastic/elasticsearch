@@ -14,6 +14,7 @@ import org.elasticsearch.script.Metadata;
 
 import java.time.ZonedDateTime;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -79,7 +80,7 @@ class IngestDocMetadata extends Metadata {
 
     @Override
     public IngestDocMetadata clone() {
-        return new IngestDocMetadata(map, timestamp);
+        return new IngestDocMetadata(new HashMap<>(map), timestamp);
     }
 
     private static void versionTypeValidator(String key, String value) {

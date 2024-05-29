@@ -42,14 +42,11 @@ public class TransportClearRolesCacheAction extends TransportNodesAction<
     ) {
         super(
             ClearRolesCacheAction.NAME,
-            threadPool,
             clusterService,
             transportService,
             actionFilters,
-            ClearRolesCacheRequest::new,
             ClearRolesCacheRequest.Node::new,
-            ThreadPool.Names.MANAGEMENT,
-            ClearRolesCacheResponse.Node.class
+            threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
         this.rolesStore = rolesStore;
     }

@@ -36,7 +36,7 @@ public class RecoveriesCollectionTests extends ESIndexLevelReplicationTestCase {
         }
 
         @Override
-        public void onRecoveryFailure(RecoveryState state, RecoveryFailedException e, boolean sendShardFailure) {
+        public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
 
         }
     };
@@ -74,7 +74,7 @@ public class RecoveriesCollectionTests extends ESIndexLevelReplicationTestCase {
                     }
 
                     @Override
-                    public void onRecoveryFailure(RecoveryState state, RecoveryFailedException e, boolean sendShardFailure) {
+                    public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
                         failed.set(true);
                         latch.countDown();
                     }
@@ -146,11 +146,11 @@ public class RecoveriesCollectionTests extends ESIndexLevelReplicationTestCase {
         }
     }
 
-    long startRecovery(RecoveriesCollection collection, DiscoveryNode sourceNode, IndexShard shard) {
+    static long startRecovery(RecoveriesCollection collection, DiscoveryNode sourceNode, IndexShard shard) {
         return startRecovery(collection, sourceNode, shard, listener, TimeValue.timeValueMinutes(60));
     }
 
-    long startRecovery(
+    static long startRecovery(
         RecoveriesCollection collection,
         DiscoveryNode sourceNode,
         IndexShard indexShard,
@@ -160,6 +160,6 @@ public class RecoveriesCollectionTests extends ESIndexLevelReplicationTestCase {
         final DiscoveryNode rNode = getDiscoveryNode(indexShard.routingEntry().currentNodeId());
         indexShard.markAsRecovering("remote", new RecoveryState(indexShard.routingEntry(), sourceNode, rNode));
         indexShard.prepareForIndexRecovery();
-        return collection.startRecovery(indexShard, sourceNode, null, listener, timeValue, null);
+        return collection.startRecovery(indexShard, sourceNode, 0L, null, listener, timeValue, null);
     }
 }

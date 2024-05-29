@@ -6,14 +6,14 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.mockito.Mockito;
 import org.mockito.stubbing.Answer;
@@ -52,7 +52,7 @@ public class ShrinkSetAliasStepTests extends AbstractStepTestCase<ShrinkSetAlias
 
     public void testPerformAction() throws Exception {
         IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(randomAlphaOfLength(10))
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5));
         AliasMetadata.Builder aliasBuilder = AliasMetadata.builder(randomAlphaOfLengthBetween(3, 10));
@@ -90,8 +90,8 @@ public class ShrinkSetAliasStepTests extends AbstractStepTestCase<ShrinkSetAlias
             IndicesAliasesRequest request = (IndicesAliasesRequest) invocation.getArguments()[0];
             assertThat(request.getAliasActions(), equalTo(expectedAliasActions));
             @SuppressWarnings("unchecked")
-            ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocation.getArguments()[1];
-            listener.onResponse(AcknowledgedResponse.TRUE);
+            ActionListener<IndicesAliasesResponse> listener = (ActionListener<IndicesAliasesResponse>) invocation.getArguments()[1];
+            listener.onResponse(IndicesAliasesResponse.ACKNOWLEDGED_NO_ERRORS);
             return null;
         }).when(indicesClient).aliases(Mockito.any(), Mockito.any());
 
@@ -104,7 +104,7 @@ public class ShrinkSetAliasStepTests extends AbstractStepTestCase<ShrinkSetAlias
 
     public void testPerformActionFailure() {
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10))
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();
@@ -113,7 +113,7 @@ public class ShrinkSetAliasStepTests extends AbstractStepTestCase<ShrinkSetAlias
 
         Mockito.doAnswer((Answer<Void>) invocation -> {
             @SuppressWarnings("unchecked")
-            ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocation.getArguments()[1];
+            ActionListener<IndicesAliasesResponse> listener = (ActionListener<IndicesAliasesResponse>) invocation.getArguments()[1];
             listener.onFailure(exception);
             return null;
         }).when(indicesClient).aliases(Mockito.any(), Mockito.any());

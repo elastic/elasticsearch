@@ -20,7 +20,7 @@ import java.io.IOException;
  *
  *
  */
-public class BroadcastShardOperationFailedException extends ElasticsearchException implements ElasticsearchWrapperException {
+public final class BroadcastShardOperationFailedException extends ElasticsearchException implements ElasticsearchWrapperException {
 
     public BroadcastShardOperationFailedException(ShardId shardId, String msg) {
         this(shardId, msg, null);

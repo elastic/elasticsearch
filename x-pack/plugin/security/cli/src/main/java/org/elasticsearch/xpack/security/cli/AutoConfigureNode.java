@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.security.cli;
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 
-import org.apache.commons.io.FileUtils;
 import org.apache.lucene.util.SetOnce;
 import org.bouncycastle.asn1.x509.ExtendedKeyUsage;
 import org.bouncycastle.asn1.x509.GeneralName;
@@ -36,9 +35,9 @@ import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.SettingsBasedSeedHostsProvider;
 import org.elasticsearch.env.Environment;
@@ -62,6 +61,7 @@ import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
@@ -844,7 +844,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
         }
     }
 
-    private String initialMasterNodesSettingValue(Environment environment) {
+    private static String initialMasterNodesSettingValue(Environment environment) {
         if (NODE_NAME_SETTING.exists(environment.settings())) {
             return "[\"" + NODE_NAME_SETTING.get(environment.settings()) + "\"]";
         }
@@ -932,8 +932,13 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
         }
     }
 
-    private void notifyOfFailure(boolean inEnrollmentMode, Terminal terminal, Terminal.Verbosity verbosity, int exitCode, String message)
-        throws UserException {
+    private static void notifyOfFailure(
+        boolean inEnrollmentMode,
+        Terminal terminal,
+        Terminal.Verbosity verbosity,
+        int exitCode,
+        String message
+    ) throws UserException {
         if (inEnrollmentMode) {
             throw new UserException(exitCode, message);
         } else {
@@ -942,17 +947,19 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
         }
     }
 
-    @SuppressForbidden(reason = "Commons IO lib uses the File API")
-    private void deleteDirectory(Path directory) throws IOException {
-        FileUtils.deleteDirectory(directory.toFile());
+    private static void deleteDirectory(Path directory) throws IOException {
+        IOUtils.rm(directory);
     }
 
-    @SuppressForbidden(reason = "Commons IO lib uses the File API")
-    private void moveDirectory(Path srcDir, Path dstDir) throws IOException {
-        FileUtils.moveDirectory(srcDir.toFile(), dstDir.toFile());
+    private static void moveDirectory(Path srcDir, Path dstDir) throws IOException {
+        try {
+            Files.move(srcDir, dstDir, StandardCopyOption.ATOMIC_MOVE);
+        } catch (AtomicMoveNotSupportedException e) {
+            Files.move(srcDir, dstDir);
+        }
     }
 
-    private GeneralNames getSubjectAltNames(Settings settings) throws IOException {
+    private static GeneralNames getSubjectAltNames(Settings settings) throws IOException {
         Set<GeneralName> generalNameSet = new HashSet<>();
         for (InetAddress ip : NetworkUtils.getAllAddresses()) {
             String ipString = NetworkAddress.format(ip);
@@ -1077,7 +1084,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
     // Here we take a conservative approach: if any of the discovery or initial master nodes setting are set to a non-empty
     // value, we assume the admin intended a multi-node cluster configuration. There is only one exception: if the initial master
     // nodes setting contains just the current node name.
-    private boolean isInitialClusterNode(Settings settings) {
+    private static boolean isInitialClusterNode(Settings settings) {
         return DiscoveryModule.isSingleNodeDiscovery(settings)
             || (ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.get(settings).isEmpty()
                 && SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING.get(settings).isEmpty()
@@ -1146,7 +1153,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
         }
     }
 
-    private X509Certificate parseCertificateFromPem(String pemFormattedCert, Terminal terminal) throws Exception {
+    private static X509Certificate parseCertificateFromPem(String pemFormattedCert, Terminal terminal) throws Exception {
         try {
             final List<Certificate> certs = CertParsingUtils.readCertificates(
                 Base64.getDecoder().wrap(new ByteArrayInputStream(pemFormattedCert.getBytes(StandardCharsets.UTF_8)))
@@ -1172,7 +1179,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
         }
     }
 
-    private PrivateKey parseKeyFromPem(String pemFormattedKey, Terminal terminal) throws UserException {
+    private static PrivateKey parseKeyFromPem(String pemFormattedKey, Terminal terminal) throws UserException {
         try {
             return parsePKCS8PemString(pemFormattedKey);
         } catch (Exception e) {
@@ -1193,7 +1200,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
     }
 
     @SuppressWarnings("unchecked")
-    private List<String> getTransportAddresses(Map<String, Object> responseMap) {
+    private static List<String> getTransportAddresses(Map<String, Object> responseMap) {
         return (List<String>) responseMap.get("nodes_addresses");
     }
 
@@ -1252,7 +1259,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
         return existingConfigLines;
     }
 
-    private void removeAutoConfigurationFromKeystore(Environment env, Terminal terminal) throws UserException {
+    private static void removeAutoConfigurationFromKeystore(Environment env, Terminal terminal) throws UserException {
         if (Files.exists(KeyStoreWrapper.keystorePath(env.configFile()))) {
             try (
                 KeyStoreWrapper existingKeystore = KeyStoreWrapper.load(env.configFile());

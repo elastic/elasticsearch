@@ -224,10 +224,11 @@ public abstract class AbstractTermVectorsTestCase extends ESIntegTestCase {
                 if (randomBoolean()) {
                     selectedFields.add("Doesnt_exist"); // this will be ignored.
                 }
-                for (TestFieldSetting field : fieldSettings)
+                for (TestFieldSetting field : fieldSettings) {
                     if (randomBoolean()) {
                         selectedFields.add(field.name);
                     }
+                }
 
                 if (selectedFields.size() == 0) {
                     selectedFields = null; // 0 length set is not supported.
@@ -393,7 +394,7 @@ public abstract class AbstractTermVectorsTestCase extends ESIntegTestCase {
     }
 
     protected Fields getTermVectorsFromLucene(DirectoryReader directoryReader, TestDoc doc) throws IOException {
-        IndexSearcher searcher = new IndexSearcher(directoryReader);
+        IndexSearcher searcher = newSearcher(directoryReader);
         TopDocs search = searcher.search(new TermQuery(new Term("id", doc.id)), 1);
 
         ScoreDoc[] scoreDocs = search.scoreDocs;

@@ -68,6 +68,11 @@ public class RateAggregationBuilderTests extends AbstractXContentSerializingTest
     }
 
     @Override
+    protected RateAggregationBuilder mutateInstance(RateAggregationBuilder instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Writeable.Reader<RateAggregationBuilder> instanceReader() {
         return RateAggregationBuilder::new;
     }

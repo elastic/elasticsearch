@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.gradle.internal.precommit;
 
-import org.apache.tools.ant.taskdefs.condition.Os;
+import org.elasticsearch.gradle.OS;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;
 import org.gradle.api.file.FileCollection;
@@ -88,7 +88,7 @@ public abstract class FilePermissionsTask extends DefaultTask {
 
     @TaskAction
     public void checkInvalidPermissions() throws IOException {
-        if (Os.isFamily(Os.FAMILY_WINDOWS)) {
+        if (OS.current() == OS.WINDOWS) {
             throw new StopExecutionException();
         }
         List<String> failures = getFiles().getFiles()

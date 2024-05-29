@@ -8,9 +8,9 @@
 
 package org.elasticsearch.indices.recovery.plan;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetadata;
@@ -33,7 +33,7 @@ public class PeerOnlyRecoveryPlannerService implements RecoveryPlannerService {
         Store.MetadataSnapshot targetMetadata,
         long startingSeqNo,
         int translogOps,
-        Version targetVersion,
+        IndexVersion targetVersion,
         boolean useSnapshots,
         boolean primaryRelocation,
         ActionListener<ShardRecoveryPlan> listener

@@ -42,14 +42,14 @@ public class AdaptiveSelectionStats implements Writeable, ToXContentFragment {
     }
 
     public AdaptiveSelectionStats(StreamInput in) throws IOException {
-        this.clientOutgoingConnections = in.readMap(StreamInput::readString, StreamInput::readLong);
-        this.nodeComputedStats = in.readMap(StreamInput::readString, ResponseCollectorService.ComputedNodeStats::new);
+        this.clientOutgoingConnections = in.readMap(StreamInput::readLong);
+        this.nodeComputedStats = in.readMap(ResponseCollectorService.ComputedNodeStats::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(this.clientOutgoingConnections, StreamOutput::writeString, StreamOutput::writeLong);
-        out.writeMap(this.nodeComputedStats, StreamOutput::writeString, (stream, stats) -> stats.writeTo(stream));
+        out.writeMap(this.clientOutgoingConnections, StreamOutput::writeLong);
+        out.writeMap(this.nodeComputedStats, StreamOutput::writeWriteable);
     }
 
     @Override

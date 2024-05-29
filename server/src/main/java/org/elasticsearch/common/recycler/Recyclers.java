@@ -92,6 +92,10 @@ public enum Recyclers {
                 };
             }
 
+            @Override
+            public int pageSize() {
+                return getDelegate().pageSize();
+            }
         };
     }
 
@@ -134,6 +138,10 @@ public enum Recyclers {
                 return recyclers[slot()];
             }
 
+            @Override
+            public int pageSize() {
+                return recyclers[slot()].pageSize();
+            }
         };
     }
 

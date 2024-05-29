@@ -23,7 +23,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.xpack.core.ml.inference.results.InferenceResults.writeResult;
+import static org.elasticsearch.inference.InferenceResults.writeResult;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -133,6 +133,11 @@ public class ClassificationInferenceResultsTests extends InferenceResultsTestCas
     }
 
     @Override
+    protected ClassificationInferenceResults mutateInstance(ClassificationInferenceResults instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Writeable.Reader<ClassificationInferenceResults> instanceReader() {
         return ClassificationInferenceResults::new;
     }
@@ -204,8 +209,13 @@ public class ClassificationInferenceResultsTests extends InferenceResultsTestCas
     }
 
     @Override
-    void assertFieldValues(ClassificationInferenceResults createdInstance, IngestDocument document, String resultsField) {
-        String path = resultsField + "." + createdInstance.getResultsField();
+    void assertFieldValues(
+        ClassificationInferenceResults createdInstance,
+        IngestDocument document,
+        String parentField,
+        String resultsField
+    ) {
+        String path = parentField + resultsField;
         switch (createdInstance.getPredictionFieldType()) {
             case NUMBER -> assertThat(document.getFieldValue(path, Double.class), equalTo(createdInstance.predictedValue()));
             case STRING -> assertThat(document.getFieldValue(path, String.class), equalTo(createdInstance.predictedValue()));

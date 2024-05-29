@@ -54,7 +54,7 @@ public class GetDatafeedsStatsAction extends ActionType<GetDatafeedsStatsAction.
     private static final String RUNNING_STATE = "running_state";
 
     private GetDatafeedsStatsAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
     // This needs to be a MasterNodeReadRequest even though the corresponding transport
@@ -66,10 +66,11 @@ public class GetDatafeedsStatsAction extends ActionType<GetDatafeedsStatsAction.
 
         public static final String ALLOW_NO_MATCH = "allow_no_match";
 
-        private String datafeedId;
+        private final String datafeedId;
         private boolean allowNoMatch = true;
 
         public Request(String datafeedId) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
             this.datafeedId = ExceptionsHelper.requireNonNull(datafeedId, DatafeedConfig.ID.getPreferredName());
         }
 
@@ -184,6 +185,10 @@ public class GetDatafeedsStatsAction extends ActionType<GetDatafeedsStatsAction.
 
             public DatafeedTimingStats getTimingStats() {
                 return timingStats;
+            }
+
+            public RunningState getRunningState() {
+                return runningState;
             }
 
             @Override

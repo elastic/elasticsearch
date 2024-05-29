@@ -1,0 +1,6 @@
+pr: 106171
+summary: Do not log error on node restart when the transform is already failed
+area: Transform
+type: enhancement
+issues:
+ - 106168

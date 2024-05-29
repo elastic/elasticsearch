@@ -9,7 +9,7 @@
 package org.elasticsearch.http;
 
 import org.apache.http.client.methods.HttpGet;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Cancellable;
@@ -89,7 +89,7 @@ public class ClusterStateRestCancellationIT extends HttpSmokeTestCase {
         logger.info("--> checking cluster state task completed");
         assertBusy(() -> {
             updateClusterState(clusterService, s -> ClusterState.builder(s).build());
-            final List<TaskInfo> tasks = client().admin().cluster().prepareListTasks().get().getTasks();
+            final List<TaskInfo> tasks = clusterAdmin().prepareListTasks().get().getTasks();
             assertTrue(tasks.toString(), tasks.stream().noneMatch(t -> t.action().equals(ClusterStateAction.NAME)));
         });
 
@@ -107,8 +107,8 @@ public class ClusterStateRestCancellationIT extends HttpSmokeTestCase {
         }
 
         @Override
-        public Version getMinimalSupportedVersion() {
-            return Version.CURRENT;
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersion.current();
         }
 
         @Override

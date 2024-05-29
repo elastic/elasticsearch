@@ -11,7 +11,6 @@ package org.elasticsearch.gradle.internal;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Project;
 import org.gradle.testfixtures.ProjectBuilder;
-import org.junit.BeforeClass;
 import org.junit.Test;
 
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -19,12 +18,6 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.Assert.assertThrows;
 
 public class JdkDownloadPluginTests {
-    private static Project rootProject;
-
-    @BeforeClass
-    public static void setupRoot() {
-        rootProject = ProjectBuilder.builder().build();
-    }
 
     @Test
     public void testMissingVendor() {
@@ -134,7 +127,7 @@ public class JdkDownloadPluginTests {
     }
 
     private Project createProject() {
-        Project project = ProjectBuilder.builder().withParent(rootProject).build();
+        Project project = ProjectBuilder.builder().withParent(ProjectBuilder.builder().build()).build();
         project.getPlugins().apply("elasticsearch.jdk-download");
         return project;
     }

@@ -12,13 +12,14 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
-import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.RestStatusToXContentListener;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
+import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
@@ -36,6 +37,7 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
  * { "type1" : { "field1" : "value1" } }
  * </pre>
  */
+@ServerlessScope(Scope.PUBLIC)
 public class RestBulkAction extends BaseRestHandler {
     public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in bulk requests is deprecated.";
 
@@ -67,16 +69,18 @@ public class RestBulkAction extends BaseRestHandler {
         if (request.getRestApiVersion() == RestApiVersion.V_7 && request.hasParam("type")) {
             request.param("type");
         }
-        BulkRequest bulkRequest = Requests.bulkRequest();
+        BulkRequest bulkRequest = new BulkRequest();
         String defaultIndex = request.param("index");
         String defaultRouting = request.param("routing");
         FetchSourceContext defaultFetchSourceContext = FetchSourceContext.parseFromRestRequest(request);
         String defaultPipeline = request.param("pipeline");
+        boolean defaultListExecutedPipelines = request.paramAsBoolean("list_executed_pipelines", false);
         String waitForActiveShards = request.param("wait_for_active_shards");
         if (waitForActiveShards != null) {
             bulkRequest.waitForActiveShards(ActiveShardCount.parseString(waitForActiveShards));
         }
-        Boolean defaultRequireAlias = request.paramAsBoolean(DocWriteRequest.REQUIRE_ALIAS, null);
+        Boolean defaultRequireAlias = request.paramAsBoolean(DocWriteRequest.REQUIRE_ALIAS, false);
+        boolean defaultRequireDataStream = request.paramAsBoolean(DocWriteRequest.REQUIRE_DATA_STREAM, false);
         bulkRequest.timeout(request.paramAsTime("timeout", BulkShardRequest.DEFAULT_TIMEOUT));
         bulkRequest.setRefreshPolicy(request.param("refresh"));
         bulkRequest.add(
@@ -86,12 +90,14 @@ public class RestBulkAction extends BaseRestHandler {
             defaultFetchSourceContext,
             defaultPipeline,
             defaultRequireAlias,
+            defaultRequireDataStream,
+            defaultListExecutedPipelines,
             allowExplicitIndex,
             request.getXContentType(),
             request.getRestApiVersion()
         );
 
-        return channel -> client.bulk(bulkRequest, new RestStatusToXContentListener<>(channel));
+        return channel -> client.bulk(bulkRequest, new RestRefCountedChunkedToXContentListener<>(channel));
     }
 
     @Override

@@ -11,16 +11,18 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.RestStatusToXContentListener;
+import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.rest.RestUtils.getAckTimeout;
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 public class RestPostStartBasicLicense extends BaseRestHandler {
 
-    RestPostStartBasicLicense() {}
+    public RestPostStartBasicLicense() {}
 
     @Override
     public List<Route> routes() {
@@ -31,11 +33,13 @@ public class RestPostStartBasicLicense extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        PostStartBasicRequest startBasicRequest = new PostStartBasicRequest();
+        PostStartBasicRequest startBasicRequest = new PostStartBasicRequest(getMasterNodeTimeout(request), getAckTimeout(request));
         startBasicRequest.acknowledge(request.paramAsBoolean("acknowledge", false));
-        startBasicRequest.timeout(request.paramAsTime("timeout", startBasicRequest.timeout()));
-        startBasicRequest.masterNodeTimeout(request.paramAsTime("master_timeout", startBasicRequest.masterNodeTimeout()));
-        return channel -> client.execute(PostStartBasicAction.INSTANCE, startBasicRequest, new RestStatusToXContentListener<>(channel));
+        return channel -> client.execute(
+            PostStartBasicAction.INSTANCE,
+            startBasicRequest,
+            new RestToXContentListener<>(channel, PostStartBasicResponse::status)
+        );
     }
 
     @Override

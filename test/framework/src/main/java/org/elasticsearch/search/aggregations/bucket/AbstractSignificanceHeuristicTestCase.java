@@ -9,7 +9,7 @@
 package org.elasticsearch.search.aggregations.bucket;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
@@ -31,7 +31,7 @@ import org.elasticsearch.search.aggregations.bucket.terms.SignificantTermsAggreg
 import org.elasticsearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -70,19 +70,19 @@ public abstract class AbstractSignificanceHeuristicTestCase extends ESTestCase {
      */
     protected abstract SignificanceHeuristic getHeuristic();
 
-    protected Version randomVersion() {
-        return VersionUtils.randomVersion(random());
+    protected TransportVersion randomVersion() {
+        return TransportVersionUtils.randomVersion(random());
     }
 
     // test that stream output can actually be read - does not replace bwc test
     public void testStreamResponse() throws Exception {
-        Version version = randomVersion();
+        TransportVersion version = randomVersion();
         InternalMappedSignificantTerms<?, ?> sigTerms = getRandomSignificantTerms(getHeuristic());
 
         // write
         ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
         OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
-        out.setVersion(version);
+        out.setTransportVersion(version);
         out.writeNamedWriteable(sigTerms);
 
         // read
@@ -90,7 +90,7 @@ public abstract class AbstractSignificanceHeuristicTestCase extends ESTestCase {
         StreamInput in = new InputStreamStreamInput(inBuffer);
         // populates the registry through side effects
         in = new NamedWriteableAwareStreamInput(in, writableRegistry());
-        in.setVersion(version);
+        in.setTransportVersion(version);
         InternalMappedSignificantTerms<?, ?> read = (InternalMappedSignificantTerms<?, ?>) in.readNamedWriteable(InternalAggregation.class);
 
         assertEquals(sigTerms.getSignificanceHeuristic(), read.getSignificanceHeuristic());
@@ -134,7 +134,7 @@ public abstract class AbstractSignificanceHeuristicTestCase extends ESTestCase {
     public void testReduce() {
         List<InternalAggregation> aggs = createInternalAggregations();
         AggregationReduceContext context = InternalAggregationTestCase.emptyReduceContextBuilder().forFinalReduction();
-        SignificantTerms reducedAgg = (SignificantTerms) aggs.get(0).reduce(aggs, context);
+        SignificantTerms reducedAgg = (SignificantTerms) InternalAggregationTestCase.reduce(aggs, context);
         assertThat(reducedAgg.getBuckets().size(), equalTo(2));
         assertThat(reducedAgg.getBuckets().get(0).getSubsetDf(), equalTo(8L));
         assertThat(reducedAgg.getBuckets().get(0).getSubsetSize(), equalTo(16L));
@@ -197,8 +197,10 @@ public abstract class AbstractSignificanceHeuristicTestCase extends ESTestCase {
         stBuilder.significanceHeuristic(significanceHeuristic).field("text").minDocCount(200);
         XContentBuilder stXContentBuilder = XContentFactory.jsonBuilder();
         stBuilder.internalXContent(stXContentBuilder, null);
-        XContentParser stParser = createParser(JsonXContent.jsonXContent, Strings.toString(stXContentBuilder));
-        SignificanceHeuristic parsedHeuristic = parseSignificanceHeuristic(stParser);
+        SignificanceHeuristic parsedHeuristic;
+        try (XContentParser stParser = createParser(JsonXContent.jsonXContent, Strings.toString(stXContentBuilder))) {
+            parsedHeuristic = parseSignificanceHeuristic(stParser);
+        }
         assertThat(significanceHeuristic, equalTo(parsedHeuristic));
     }
 

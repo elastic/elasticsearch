@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.ccr.action;
 
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.broadcast.BroadcastRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
@@ -26,7 +25,7 @@ public class ForgetFollowerAction extends ActionType<BroadcastResponse> {
     public static final ForgetFollowerAction INSTANCE = new ForgetFollowerAction();
 
     private ForgetFollowerAction() {
-        super(NAME, BroadcastResponse::new);
+        super(NAME);
     }
 
     /**
@@ -150,11 +149,6 @@ public class ForgetFollowerAction extends ActionType<BroadcastResponse> {
             out.writeString(leaderRemoteCluster);
             out.writeString(followerIndex);
             out.writeString(followerIndexUUID);
-        }
-
-        @Override
-        public ActionRequestValidationException validate() {
-            return null;
         }
 
         @Override

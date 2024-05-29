@@ -42,6 +42,7 @@ public abstract class GeoGridAggregator<T extends InternalGeoGrid<?>> extends Bu
     protected final ValuesSource.Numeric valuesSource;
     protected final LongKeyedBucketOrds bucketOrds;
 
+    @SuppressWarnings("this-escape")
     protected GeoGridAggregator(
         String name,
         AggregatorFactories factories,
@@ -135,25 +136,26 @@ public abstract class GeoGridAggregator<T extends InternalGeoGrid<?>> extends Bu
         for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
             int size = (int) Math.min(bucketOrds.bucketsInOrd(owningBucketOrds[ordIdx]), shardSize);
 
-            BucketPriorityQueue<InternalGeoGridBucket> ordered = new BucketPriorityQueue<>(size);
-            InternalGeoGridBucket spare = null;
-            LongKeyedBucketOrds.BucketOrdsEnum ordsEnum = bucketOrds.ordsEnum(owningBucketOrds[ordIdx]);
-            while (ordsEnum.next()) {
-                if (spare == null) {
-                    spare = newEmptyBucket();
+            try (BucketPriorityQueue<InternalGeoGridBucket> ordered = new BucketPriorityQueue<>(size, bigArrays())) {
+                InternalGeoGridBucket spare = null;
+                LongKeyedBucketOrds.BucketOrdsEnum ordsEnum = bucketOrds.ordsEnum(owningBucketOrds[ordIdx]);
+                while (ordsEnum.next()) {
+                    if (spare == null) {
+                        spare = newEmptyBucket();
+                    }
+
+                    // need a special function to keep the source bucket
+                    // up-to-date so it can get the appropriate key
+                    spare.hashAsLong = ordsEnum.value();
+                    spare.docCount = bucketDocCount(ordsEnum.ord());
+                    spare.bucketOrd = ordsEnum.ord();
+                    spare = ordered.insertWithOverflow(spare);
                 }
 
-                // need a special function to keep the source bucket
-                // up-to-date so it can get the appropriate key
-                spare.hashAsLong = ordsEnum.value();
-                spare.docCount = bucketDocCount(ordsEnum.ord());
-                spare.bucketOrd = ordsEnum.ord();
-                spare = ordered.insertWithOverflow(spare);
-            }
-
-            topBucketsPerOrd[ordIdx] = new InternalGeoGridBucket[ordered.size()];
-            for (int i = ordered.size() - 1; i >= 0; --i) {
-                topBucketsPerOrd[ordIdx][i] = ordered.pop();
+                topBucketsPerOrd[ordIdx] = new InternalGeoGridBucket[(int) ordered.size()];
+                for (int i = (int) ordered.size() - 1; i >= 0; --i) {
+                    topBucketsPerOrd[ordIdx][i] = ordered.pop();
+                }
             }
         }
         buildSubAggsForAllBuckets(topBucketsPerOrd, b -> b.bucketOrd, (b, aggs) -> b.aggregations = aggs);

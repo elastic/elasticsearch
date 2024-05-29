@@ -16,7 +16,6 @@ import org.elasticsearch.license.RemoteClusterLicenseChecker;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
-import org.elasticsearch.xpack.core.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupIndexCapsAction;
@@ -29,16 +28,8 @@ import org.elasticsearch.xpack.ml.datafeed.extractor.chunked.ChunkedDataExtracto
 import org.elasticsearch.xpack.ml.datafeed.extractor.scroll.ScrollDataExtractorFactory;
 
 public interface DataExtractorFactory {
-    DataExtractor newExtractor(long start, long end);
 
-    /**
-     * Creates a new extractor with the additional filter
-     * @param start start time of the extractor
-     * @param end end time of the extractor
-     * @param queryBuilder An additional query filter to apply to the supplied datafeed query
-     * @return new extractor
-     */
-    DataExtractor newExtractor(long start, long end, QueryBuilder queryBuilder);
+    DataExtractor newExtractor(long start, long end);
 
     /**
      * Creates a {@code DataExtractorFactory} for the given datafeed-job combination.
@@ -51,15 +42,29 @@ public interface DataExtractorFactory {
         DatafeedTimingStatsReporter timingStatsReporter,
         ActionListener<DataExtractorFactory> listener
     ) {
+        create(client, datafeed, null, job, xContentRegistry, timingStatsReporter, listener);
+    }
+
+    /**
+     * Creates a {@code DataExtractorFactory} for the given datafeed-job combination.
+     */
+    static void create(
+        Client client,
+        DatafeedConfig datafeed,
+        QueryBuilder extraFilters,
+        Job job,
+        NamedXContentRegistry xContentRegistry,
+        DatafeedTimingStatsReporter timingStatsReporter,
+        ActionListener<DataExtractorFactory> listener
+    ) {
         final boolean hasAggs = datafeed.hasAggregations();
         final boolean isComposite = hasAggs && datafeed.hasCompositeAgg(xContentRegistry);
-        ActionListener<DataExtractorFactory> factoryHandler = ActionListener.wrap(
-            factory -> listener.onResponse(
+        ActionListener<DataExtractorFactory> factoryHandler = listener.delegateFailureAndWrap(
+            (l, factory) -> l.onResponse(
                 datafeed.getChunkingConfig().isEnabled()
-                    ? new ChunkedDataExtractorFactory(client, datafeed, job, xContentRegistry, factory, timingStatsReporter)
+                    ? new ChunkedDataExtractorFactory(datafeed, job, xContentRegistry, factory)
                     : factory
-            ),
-            listener::onFailure
+            )
         );
 
         ActionListener<GetRollupIndexCapsAction.Response> getRollupIndexCapsActionHandler = ActionListener.wrap(response -> {
@@ -69,14 +74,22 @@ public interface DataExtractorFactory {
                 return;
             }
             if (hasAggs == false) {
-                ScrollDataExtractorFactory.create(client, datafeed, job, xContentRegistry, timingStatsReporter, factoryHandler);
+                ScrollDataExtractorFactory.create(
+                    client,
+                    datafeed,
+                    extraFilters,
+                    job,
+                    xContentRegistry,
+                    timingStatsReporter,
+                    factoryHandler
+                );
                 return;
             }
             if (hasRollup && datafeed.getRuntimeMappings().isEmpty() == false) {
                 // TODO Rollup V2 will support runtime fields
                 listener.onFailure(
                     new IllegalArgumentException(
-                        "The datafeed has runtime_mappings defined, " + "runtime fields are not supported in rollup searches"
+                        "The datafeed has runtime_mappings defined, runtime fields are not supported in rollup searches"
                     )
                 );
                 return;
@@ -90,6 +103,7 @@ public interface DataExtractorFactory {
                 final DataExtractorFactory dataExtractorFactory = new CompositeAggregationDataExtractorFactory(
                     client,
                     datafeed,
+                    extraFilters,
                     job,
                     xContentRegistry,
                     timingStatsReporter,
@@ -107,6 +121,7 @@ public interface DataExtractorFactory {
                 RollupDataExtractorFactory.create(
                     client,
                     datafeed,
+                    extraFilters,
                     job,
                     response.getJobs(),
                     xContentRegistry,
@@ -115,7 +130,7 @@ public interface DataExtractorFactory {
                 );
             } else {
                 factoryHandler.onResponse(
-                    new AggregationDataExtractorFactory(client, datafeed, job, xContentRegistry, timingStatsReporter)
+                    new AggregationDataExtractorFactory(client, datafeed, extraFilters, job, xContentRegistry, timingStatsReporter)
                 );
             }
         }, e -> {

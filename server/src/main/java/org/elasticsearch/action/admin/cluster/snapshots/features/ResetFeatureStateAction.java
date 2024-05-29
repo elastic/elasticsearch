@@ -17,6 +17,6 @@ public class ResetFeatureStateAction extends ActionType<ResetFeatureStateRespons
     public static final String NAME = "cluster:admin/features/reset";
 
     private ResetFeatureStateAction() {
-        super(NAME, ResetFeatureStateResponse::new);
+        super(NAME);
     }
 }

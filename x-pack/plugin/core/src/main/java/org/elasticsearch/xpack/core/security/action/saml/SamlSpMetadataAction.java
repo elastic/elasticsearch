@@ -14,6 +14,6 @@ public class SamlSpMetadataAction extends ActionType<SamlSpMetadataResponse> {
     public static final SamlSpMetadataAction INSTANCE = new SamlSpMetadataAction();
 
     private SamlSpMetadataAction() {
-        super(NAME, SamlSpMetadataResponse::new);
+        super(NAME);
     }
 }

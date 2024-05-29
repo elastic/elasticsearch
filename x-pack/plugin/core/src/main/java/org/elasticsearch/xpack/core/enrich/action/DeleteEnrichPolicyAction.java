@@ -12,6 +12,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.TimeValue;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -22,14 +23,15 @@ public class DeleteEnrichPolicyAction extends ActionType<AcknowledgedResponse> {
     public static final String NAME = "cluster:admin/xpack/enrich/delete";
 
     private DeleteEnrichPolicyAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
+        super(NAME);
     }
 
     public static class Request extends MasterNodeRequest<DeleteEnrichPolicyAction.Request> {
 
         private final String name;
 
-        public Request(String name) {
+        public Request(TimeValue masterNodeTimeout, String name) {
+            super(masterNodeTimeout);
             this.name = Objects.requireNonNull(name, "name cannot be null");
         }
 

@@ -9,7 +9,6 @@ package org.elasticsearch.search.aggregations.bucket.geogrid;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.LatLonDocValuesField;
-import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.MatchAllDocsQuery;
@@ -75,7 +74,7 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
     /**
      * Return a random {@link GeoBoundingBox} within the bounds of the tile grid.
      */
-    protected abstract GeoBoundingBox randomBBox();
+    protected abstract GeoBoundingBox randomBBox(int precision);
 
     /**
      * Return the bounding tile as a {@link Rectangle} for a given point
@@ -112,7 +111,9 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
             randomPrecision(),
             null,
             geoGrid -> { assertEquals(0, geoGrid.getBuckets().size()); },
-            iw -> { iw.addDocument(Collections.singleton(new LatLonDocValuesField(FIELD_NAME, 10D, 10D))); }
+            iw -> {
+                iw.addDocument(Collections.singleton(new LatLonDocValuesField(FIELD_NAME, 10D, 10D)));
+            }
         );
     }
 
@@ -130,23 +131,24 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
     }
 
     public void testSingletonDocs() throws IOException {
-        testWithSeveralDocs(() -> true, null);
+        testWithSeveralDocs(() -> true, null, randomPrecision());
     }
 
     public void testBoundedSingletonDocs() throws IOException {
-        testWithSeveralDocs(() -> true, randomBBox());
+        int precision = randomPrecision();
+        testWithSeveralDocs(() -> true, randomBBox(precision), precision);
     }
 
     public void testMultiValuedDocs() throws IOException {
-        testWithSeveralDocs(LuceneTestCase::rarely, null);
+        testWithSeveralDocs(LuceneTestCase::rarely, null, randomPrecision());
     }
 
     public void testBoundedMultiValuedDocs() throws IOException {
-        testWithSeveralDocs(LuceneTestCase::rarely, randomBBox());
+        int precision = randomPrecision();
+        testWithSeveralDocs(LuceneTestCase::rarely, randomBBox(precision), precision);
     }
 
-    private void testWithSeveralDocs(BooleanSupplier supplier, GeoBoundingBox bbox) throws IOException {
-        int precision = randomPrecision();
+    private void testWithSeveralDocs(BooleanSupplier supplier, GeoBoundingBox bbox, int precision) throws IOException {
         int numPoints = randomIntBetween(8, 128);
         Map<String, Integer> expectedCountPerGeoHash = new HashMap<>();
         testCase(new MatchAllDocsQuery(), FIELD_NAME, precision, bbox, geoHashGrid -> {
@@ -184,23 +186,24 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
     }
 
     public void testSingletonDocsAsSubAgg() throws IOException {
-        testWithSeveralDocsAsSubAgg(() -> true, null);
+        testWithSeveralDocsAsSubAgg(() -> true, null, randomPrecision());
     }
 
     public void testBoundedSingletonDocsAsSubAgg() throws IOException {
-        testWithSeveralDocsAsSubAgg(() -> true, randomBBox());
+        int precision = randomPrecision();
+        testWithSeveralDocsAsSubAgg(() -> true, randomBBox(precision), precision);
     }
 
     public void testMultiValuedDocsAsSubAgg() throws IOException {
-        testWithSeveralDocsAsSubAgg(LuceneTestCase::rarely, null);
+        testWithSeveralDocsAsSubAgg(LuceneTestCase::rarely, null, randomPrecision());
     }
 
     public void testBoundedMultiValuedDocsAsSubAgg() throws IOException {
-        testWithSeveralDocsAsSubAgg(LuceneTestCase::rarely, randomBBox());
+        int precision = randomPrecision();
+        testWithSeveralDocsAsSubAgg(LuceneTestCase::rarely, randomBBox(precision), precision);
     }
 
-    private void testWithSeveralDocsAsSubAgg(BooleanSupplier supplier, GeoBoundingBox bbox) throws IOException {
-        int precision = randomPrecision();
+    private void testWithSeveralDocsAsSubAgg(BooleanSupplier supplier, GeoBoundingBox bbox, int precision) throws IOException {
         int numPoints = randomIntBetween(8, 128);
         Map<String, Map<String, Long>> expectedCountPerTPerGeoHash = new TreeMap<>();
         TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("t").field("t").size(numPoints);
@@ -225,7 +228,6 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
                     }
                 }
                 if (supplier.getAsBoolean()) {
-                    fields.add(new SortedSetDocValuesField("t", new BytesRef(t)));
                     fields.add(new Field("t", new BytesRef(t), KeywordFieldMapper.Defaults.FIELD_TYPE));
                     iw.addDocument(fields);
                     fields.clear();
@@ -234,7 +236,6 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
                 }
             }
             if (fields.size() != 0) {
-                fields.add(new SortedSetDocValuesField("t", new BytesRef(t)));
                 fields.add(new Field("t", new BytesRef(t), KeywordFieldMapper.Defaults.FIELD_TYPE));
                 iw.addDocument(fields);
             }
@@ -265,7 +266,7 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
         return new double[] { lat, lon };
     }
 
-    private boolean validPoint(double x, double y, GeoBoundingBox bbox) {
+    private static boolean validPoint(double x, double y, GeoBoundingBox bbox) {
         if (bbox == null) {
             return true;
         }
@@ -280,7 +281,7 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
         return false;
     }
 
-    private boolean intersectsBounds(Rectangle pointTile, GeoBoundingBox bbox) {
+    private static boolean intersectsBounds(Rectangle pointTile, GeoBoundingBox bbox) {
         if (bbox == null) {
             return true;
         }

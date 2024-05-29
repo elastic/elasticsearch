@@ -36,7 +36,7 @@ SELECT gender, PERCENTILE(emp_no, 92.45) p1 FROM FROZEN frozen_emp GROUP BY gend
 
 gender:s             | p1:d
 null                 |10018.745
-F                    |10098.0085
+F                    |10096.336
 M                    |10091.393
 ;
 

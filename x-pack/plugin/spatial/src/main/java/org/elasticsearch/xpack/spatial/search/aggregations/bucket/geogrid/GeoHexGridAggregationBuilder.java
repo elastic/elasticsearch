@@ -8,7 +8,8 @@
 package org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -28,7 +29,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Map;
 
-public class GeoHexGridAggregationBuilder extends GeoGridAggregationBuilder {
+public final class GeoHexGridAggregationBuilder extends GeoGridAggregationBuilder {
     public static final String NAME = "geohex_grid";
     private static final int DEFAULT_PRECISION = 5;
     private static final int DEFAULT_MAX_NUM_CELLS = 10000;
@@ -118,12 +119,7 @@ public class GeoHexGridAggregationBuilder extends GeoGridAggregationBuilder {
     }
 
     @Override
-    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
-        return REGISTRY_KEY;
-    }
-
-    @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_8_1_0;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.V_8_1_0;
     }
 }

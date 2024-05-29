@@ -20,7 +20,6 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 public final class InferenceHelpers {
@@ -68,7 +67,7 @@ public final class InferenceHelpers {
 
         List<String> labels = classificationLabels == null ?
         // If we don't have the labels we should return the top classification values anyways, they will just be numeric
-            IntStream.range(0, probabilities.length).boxed().map(String::valueOf).collect(Collectors.toList()) : classificationLabels;
+            IntStream.range(0, probabilities.length).mapToObj(String::valueOf).toList() : classificationLabels;
 
         int count = numToInclude < 0 ? probabilities.length : Math.min(numToInclude, probabilities.length);
         List<TopClassEntry> topClassEntries = new ArrayList<>(count);

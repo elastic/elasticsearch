@@ -106,8 +106,13 @@ public class RepositoryMetadata implements Writeable {
     /**
      * Returns the safe repository generation. {@link RepositoryData} for this generation is assumed to exist in the repository.
      * All operations on the repository must be based on the {@link RepositoryData} at this generation.
-     * See package level documentation for the blob store based repositories {@link org.elasticsearch.repositories.blobstore} for details
-     * on how this value is used during snapshots.
+     * <p>
+     * This value is always at most {@link #pendingGeneration()}, and will be equal to {@link #pendingGeneration()} iff there are no ongoing
+     * root-blob writes.
+     * <p>
+     * See the package level documentation for {@link org.elasticsearch.repositories.blobstore} for details on how this value is used during
+     * snapshots.
+
      * @return safe repository generation
      */
     public long generation() {
@@ -118,8 +123,12 @@ public class RepositoryMetadata implements Writeable {
      * Returns the pending repository generation. {@link RepositoryData} for this generation and all generations down to the safe
      * generation {@link #generation} may exist in the repository and should not be reused for writing new {@link RepositoryData} to the
      * repository.
-     * See package level documentation for the blob store based repositories {@link org.elasticsearch.repositories.blobstore} for details
-     * on how this value is used during snapshots.
+     * <p>
+     * This value is always at least {@link #generation()}, and will be equal to {@link #generation()} iff there are no ongoing root-blob
+     * writes.
+     * <p>
+     * See the package level documentation for {@link org.elasticsearch.repositories.blobstore} for details on how this value is used during
+     * snapshots.
      *
      * @return highest pending repository generation
      */
@@ -129,7 +138,7 @@ public class RepositoryMetadata implements Writeable {
 
     public RepositoryMetadata(StreamInput in) throws IOException {
         name = in.readString();
-        if (in.getVersion().onOrAfter(SnapshotsService.UUIDS_IN_REPO_DATA_VERSION)) {
+        if (in.getTransportVersion().onOrAfter(SnapshotsService.UUIDS_IN_REPO_DATA_TRANSPORT_VERSION)) {
             uuid = in.readString();
         } else {
             uuid = RepositoryData.MISSING_UUID;
@@ -148,7 +157,7 @@ public class RepositoryMetadata implements Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
-        if (out.getVersion().onOrAfter(SnapshotsService.UUIDS_IN_REPO_DATA_VERSION)) {
+        if (out.getTransportVersion().onOrAfter(SnapshotsService.UUIDS_IN_REPO_DATA_TRANSPORT_VERSION)) {
             out.writeString(uuid);
         }
         out.writeString(type);

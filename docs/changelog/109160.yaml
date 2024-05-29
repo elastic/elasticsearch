@@ -1,0 +1,5 @@
+pr: 109160
+summary: Disable `index.mapper.dynamic` index setting validation
+area: Mapping
+type: bug
+issues: []

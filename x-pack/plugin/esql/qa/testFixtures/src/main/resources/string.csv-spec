@@ -196,6 +196,7 @@ emp_no:integer | last_name:keyword | x:keyword | z:keyword
 ;
 
 substring empty string
+required_capability: fn_substring_empty_null
 row sub = substring("", 1, 3);
 
 sub:keyword

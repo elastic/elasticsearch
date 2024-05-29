@@ -101,7 +101,7 @@ public final class CsvTestUtils {
         Map<String, String> pairs = extractInstructions(testName);
         String versionRange = pairs.get("skip");
         if (versionRange != null) {
-            String[] skipVersions = versionRange.split("-");
+            String[] skipVersions = versionRange.split("-", Integer.MAX_VALUE);
             if (skipVersions.length != 2) {
                 throw new IllegalArgumentException("malformed version range : " + versionRange);
             }

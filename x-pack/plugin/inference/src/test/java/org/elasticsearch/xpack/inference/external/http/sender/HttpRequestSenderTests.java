@@ -79,7 +79,7 @@ public class HttpRequestSenderTests extends ESTestCase {
     public void testCreateSender_SendsRequestAndReceivesResponse() throws Exception {
         var senderFactory = createSenderFactory(clientManager, threadRef);
 
-        try (var sender = createSenderWithSingleRequestManager(senderFactory)) {
+        try (var sender = createSender(senderFactory)) {
             sender.start();
 
             String responseJson = """
@@ -239,7 +239,7 @@ public class HttpRequestSenderTests extends ESTestCase {
         );
     }
 
-    public static Sender createSenderWithSingleRequestManager(HttpRequestSender.Factory factory) {
+    public static Sender createSender(HttpRequestSender.Factory factory) {
         return factory.createSender();
     }
 }

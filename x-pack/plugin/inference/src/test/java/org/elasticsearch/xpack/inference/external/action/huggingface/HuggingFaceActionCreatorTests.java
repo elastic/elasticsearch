@@ -42,7 +42,7 @@ import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.external.http.retry.RetrySettingsTests.buildSettingsWithRetryFields;
-import static org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests.createSenderWithSingleRequestManager;
+import static org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests.createSender;
 import static org.elasticsearch.xpack.inference.logging.ThrottlerManagerTests.mockThrottlerManager;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.hamcrest.Matchers.contains;
@@ -76,7 +76,7 @@ public class HuggingFaceActionCreatorTests extends ESTestCase {
     public void testExecute_ReturnsSuccessfulResponse_ForElserAction() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var sender = createSenderWithSingleRequestManager(senderFactory)) {
+        try (var sender = createSender(senderFactory)) {
             sender.start();
 
             String responseJson = """
@@ -132,7 +132,7 @@ public class HuggingFaceActionCreatorTests extends ESTestCase {
         );
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager, settings);
 
-        try (var sender = createSenderWithSingleRequestManager(senderFactory)) {
+        try (var sender = createSender(senderFactory)) {
             sender.start();
 
             String responseJson = """
@@ -188,7 +188,7 @@ public class HuggingFaceActionCreatorTests extends ESTestCase {
     public void testExecute_ReturnsSuccessfulResponse_ForEmbeddingsAction() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var sender = createSenderWithSingleRequestManager(senderFactory)) {
+        try (var sender = createSender(senderFactory)) {
             sender.start();
 
             String responseJson = """
@@ -240,7 +240,7 @@ public class HuggingFaceActionCreatorTests extends ESTestCase {
         );
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager, settings);
 
-        try (var sender = createSenderWithSingleRequestManager(senderFactory)) {
+        try (var sender = createSender(senderFactory)) {
             sender.start();
 
             // this will fail because the only valid formats are {"embeddings": [[...]]} or [[...]]
@@ -293,7 +293,7 @@ public class HuggingFaceActionCreatorTests extends ESTestCase {
     public void testExecute_ReturnsSuccessfulResponse_AfterTruncating() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var sender = createSenderWithSingleRequestManager(senderFactory)) {
+        try (var sender = createSender(senderFactory)) {
             sender.start();
 
             String responseJsonContentTooLarge = """
@@ -358,7 +358,7 @@ public class HuggingFaceActionCreatorTests extends ESTestCase {
     public void testExecute_TruncatesInputBeforeSending() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var sender = createSenderWithSingleRequestManager(senderFactory)) {
+        try (var sender = createSender(senderFactory)) {
             sender.start();
 
             String responseJson = """

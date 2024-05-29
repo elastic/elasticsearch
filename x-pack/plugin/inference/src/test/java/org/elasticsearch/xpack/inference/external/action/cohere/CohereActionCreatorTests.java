@@ -42,7 +42,7 @@ import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
-import static org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests.createSenderWithSingleRequestManager;
+import static org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests.createSender;
 import static org.elasticsearch.xpack.inference.results.ChatCompletionResultsTests.buildExpectationCompletion;
 import static org.elasticsearch.xpack.inference.results.TextEmbeddingResultsTests.buildExpectationFloat;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
@@ -74,7 +74,7 @@ public class CohereActionCreatorTests extends ESTestCase {
     public void testCreate_CohereEmbeddingsModel() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var sender = createSenderWithSingleRequestManager(senderFactory)) {
+        try (var sender = createSender(senderFactory)) {
             sender.start();
 
             String responseJson = """
@@ -155,7 +155,7 @@ public class CohereActionCreatorTests extends ESTestCase {
     public void testCreate_CohereCompletionModel_WithModelSpecified() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var sender = createSenderWithSingleRequestManager(senderFactory)) {
+        try (var sender = createSender(senderFactory)) {
             sender.start();
 
             String responseJson = """
@@ -215,7 +215,7 @@ public class CohereActionCreatorTests extends ESTestCase {
     public void testCreate_CohereCompletionModel_WithoutModelSpecified() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var sender = createSenderWithSingleRequestManager(senderFactory)) {
+        try (var sender = createSender(senderFactory)) {
             sender.start();
 
             String responseJson = """

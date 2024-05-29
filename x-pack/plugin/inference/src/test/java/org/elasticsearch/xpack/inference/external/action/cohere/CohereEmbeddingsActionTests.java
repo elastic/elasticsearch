@@ -81,7 +81,7 @@ public class CohereEmbeddingsActionTests extends ESTestCase {
     public void testExecute_ReturnsSuccessfulResponse() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var sender = HttpRequestSenderTests.createSenderWithSingleRequestManager(senderFactory)) {
+        try (var sender = HttpRequestSenderTests.createSender(senderFactory)) {
             sender.start();
 
             String responseJson = """
@@ -162,7 +162,7 @@ public class CohereEmbeddingsActionTests extends ESTestCase {
     public void testExecute_ReturnsSuccessfulResponse_ForInt8ResponseType() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var sender = HttpRequestSenderTests.createSenderWithSingleRequestManager(senderFactory)) {
+        try (var sender = HttpRequestSenderTests.createSender(senderFactory)) {
             sender.start();
 
             String responseJson = """

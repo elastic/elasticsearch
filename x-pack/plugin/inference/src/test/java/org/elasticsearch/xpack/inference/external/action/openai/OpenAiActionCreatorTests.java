@@ -38,7 +38,7 @@ import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.external.http.retry.RetrySettingsTests.buildSettingsWithRetryFields;
-import static org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests.createSenderWithSingleRequestManager;
+import static org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests.createSender;
 import static org.elasticsearch.xpack.inference.external.request.openai.OpenAiUtils.ORGANIZATION_HEADER;
 import static org.elasticsearch.xpack.inference.results.ChatCompletionResultsTests.buildExpectationCompletion;
 import static org.elasticsearch.xpack.inference.results.TextEmbeddingResultsTests.buildExpectationFloat;
@@ -75,7 +75,7 @@ public class OpenAiActionCreatorTests extends ESTestCase {
     public void testCreate_OpenAiEmbeddingsModel() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var sender = createSenderWithSingleRequestManager(senderFactory)) {
+        try (var sender = createSender(senderFactory)) {
             sender.start();
 
             String responseJson = """
@@ -128,7 +128,7 @@ public class OpenAiActionCreatorTests extends ESTestCase {
     public void testCreate_OpenAiEmbeddingsModel_WithoutUser() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var sender = createSenderWithSingleRequestManager(senderFactory)) {
+        try (var sender = createSender(senderFactory)) {
             sender.start();
 
             String responseJson = """
@@ -180,7 +180,7 @@ public class OpenAiActionCreatorTests extends ESTestCase {
     public void testCreate_OpenAiEmbeddingsModel_WithoutOrganization() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var sender = createSenderWithSingleRequestManager(senderFactory)) {
+        try (var sender = createSender(senderFactory)) {
             sender.start();
 
             String responseJson = """
@@ -239,7 +239,7 @@ public class OpenAiActionCreatorTests extends ESTestCase {
         );
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager, settings);
 
-        try (var sender = createSenderWithSingleRequestManager(senderFactory)) {
+        try (var sender = createSender(senderFactory)) {
             sender.start();
 
             String responseJson = """
@@ -293,7 +293,7 @@ public class OpenAiActionCreatorTests extends ESTestCase {
     public void testCreate_OpenAiChatCompletionModel() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var sender = createSenderWithSingleRequestManager(senderFactory)) {
+        try (var sender = createSender(senderFactory)) {
             sender.start();
 
             String responseJson = """
@@ -356,7 +356,7 @@ public class OpenAiActionCreatorTests extends ESTestCase {
     public void testCreate_OpenAiChatCompletionModel_WithoutUser() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var sender = createSenderWithSingleRequestManager(senderFactory)) {
+        try (var sender = createSender(senderFactory)) {
             sender.start();
 
             String responseJson = """
@@ -418,7 +418,7 @@ public class OpenAiActionCreatorTests extends ESTestCase {
     public void testCreate_OpenAiChatCompletionModel_WithoutOrganization() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var sender = createSenderWithSingleRequestManager(senderFactory)) {
+        try (var sender = createSender(senderFactory)) {
             sender.start();
 
             String responseJson = """
@@ -487,7 +487,7 @@ public class OpenAiActionCreatorTests extends ESTestCase {
         );
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager, settings);
 
-        try (var sender = createSenderWithSingleRequestManager(senderFactory)) {
+        try (var sender = createSender(senderFactory)) {
             sender.start();
 
             String responseJson = """
@@ -553,7 +553,7 @@ public class OpenAiActionCreatorTests extends ESTestCase {
     public void testExecute_ReturnsSuccessfulResponse_AfterTruncating_From413StatusCode() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var sender = createSenderWithSingleRequestManager(senderFactory)) {
+        try (var sender = createSender(senderFactory)) {
             sender.start();
 
             var contentTooLargeErrorMessage =
@@ -636,7 +636,7 @@ public class OpenAiActionCreatorTests extends ESTestCase {
     public void testExecute_ReturnsSuccessfulResponse_AfterTruncating_From400StatusCode() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var sender = createSenderWithSingleRequestManager(senderFactory)) {
+        try (var sender = createSender(senderFactory)) {
             sender.start();
 
             var contentTooLargeErrorMessage =
@@ -719,7 +719,7 @@ public class OpenAiActionCreatorTests extends ESTestCase {
     public void testExecute_TruncatesInputBeforeSending() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var sender = createSenderWithSingleRequestManager(senderFactory)) {
+        try (var sender = createSender(senderFactory)) {
             sender.start();
 
             String responseJson = """

@@ -105,7 +105,7 @@ public final class ExpressionTranslators {
                 throw new QlIllegalArgumentException("Cannot translate query for " + e);
             }
 
-            return wrapIfNested(q, field);
+            return q;
         }
 
         private static Query translateField(RegexMatch e, String targetFieldName) {
@@ -182,10 +182,9 @@ public final class ExpressionTranslators {
         }
 
         public static Query doTranslate(Not not, TranslatorHandler handler) {
-            Expression e = not.field();
             Query wrappedQuery = handler.asQuery(not.field());
             Query q = wrappedQuery.negate(not.source());
-            return wrapIfNested(q, e);
+            return q;
         }
     }
 

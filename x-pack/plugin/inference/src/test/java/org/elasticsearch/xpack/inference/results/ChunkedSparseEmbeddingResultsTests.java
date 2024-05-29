@@ -11,7 +11,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.inference.results.ChunkedSparseEmbeddingResults;
-import org.elasticsearch.xpack.core.inference.results.SparseEmbedding;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.ChunkedNlpInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.ChunkedTextExpansionResults;
@@ -74,7 +73,7 @@ public class ChunkedSparseEmbeddingResultsTests extends AbstractWireSerializingT
     public void testToXContent_CreatesTheRightJsonForASingleChunk_FromSparseEmbeddingResults() {
         var entity = ChunkedSparseEmbeddingResults.of(
             List.of("text"),
-            new SparseEmbeddingResults(List.of(new SparseEmbedding(List.of(new SparseEmbedding.WeightedToken("token", 0.1f)), false)))
+            new SparseEmbeddingResults(List.of(new SparseEmbeddingResults.Embedding(List.of(new WeightedToken("token", 0.1f)), false)))
         );
 
         assertThat(entity.size(), is(1));
@@ -110,7 +109,7 @@ public class ChunkedSparseEmbeddingResultsTests extends AbstractWireSerializingT
             IllegalArgumentException.class,
             () -> ChunkedSparseEmbeddingResults.of(
                 List.of("text", "text2"),
-                new SparseEmbeddingResults(List.of(new SparseEmbedding(List.of(new SparseEmbedding.WeightedToken("token", 0.1f)), false)))
+                new SparseEmbeddingResults(List.of(new SparseEmbeddingResults.Embedding(List.of(new WeightedToken("token", 0.1f)), false)))
             )
         );
 

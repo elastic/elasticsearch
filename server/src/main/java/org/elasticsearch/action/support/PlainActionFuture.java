@@ -407,8 +407,7 @@ public class PlainActionFuture<T> implements ActionFuture<T>, ActionListener<T> 
 
     private boolean assertCompleteAllowed() {
         Thread waiter = sync.getFirstQueuedThread();
-        // todo: reenable assertion once downstream code is updated
-        assert true || waiter == null || allowedExecutors(waiter, Thread.currentThread())
+        assert waiter == null || allowedExecutors(waiter, Thread.currentThread())
             : "cannot complete future on thread "
                 + Thread.currentThread()
                 + " with waiter on thread "

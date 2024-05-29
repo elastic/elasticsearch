@@ -102,13 +102,14 @@ public class EnrichMultiNodeIT extends ESIntegTestCase {
                 MATCH_FIELD,
                 List.of(DECORATE_FIELDS)
             );
-            PutEnrichPolicyAction.Request request = new PutEnrichPolicyAction.Request(policyName, enrichPolicy);
+            PutEnrichPolicyAction.Request request = new PutEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, policyName, enrichPolicy);
             client().execute(PutEnrichPolicyAction.INSTANCE, request).actionGet();
-            client().execute(ExecuteEnrichPolicyAction.INSTANCE, new ExecuteEnrichPolicyAction.Request(policyName)).actionGet();
+            client().execute(ExecuteEnrichPolicyAction.INSTANCE, new ExecuteEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, policyName))
+                .actionGet();
 
             EnrichPolicy.NamedPolicy result = client().execute(
                 GetEnrichPolicyAction.INSTANCE,
-                new GetEnrichPolicyAction.Request(new String[] { policyName })
+                new GetEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, policyName)
             ).actionGet().getPolicies().get(0);
             assertThat(result, equalTo(new EnrichPolicy.NamedPolicy(policyName, enrichPolicy)));
             String enrichIndexPrefix = EnrichPolicy.getBaseName(policyName) + "*";
@@ -116,16 +117,19 @@ public class EnrichMultiNodeIT extends ESIntegTestCase {
             assertHitCount(client().search(new SearchRequest(enrichIndexPrefix)), numDocsInSourceIndex);
         }
 
-        GetEnrichPolicyAction.Response response = client().execute(GetEnrichPolicyAction.INSTANCE, new GetEnrichPolicyAction.Request())
-            .actionGet();
+        GetEnrichPolicyAction.Response response = client().execute(
+            GetEnrichPolicyAction.INSTANCE,
+            new GetEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT)
+        ).actionGet();
         assertThat(response.getPolicies().size(), equalTo(numPolicies));
 
         for (int i = 0; i < numPolicies; i++) {
             String policyName = POLICY_NAME + i;
-            client().execute(DeleteEnrichPolicyAction.INSTANCE, new DeleteEnrichPolicyAction.Request(policyName)).actionGet();
+            client().execute(DeleteEnrichPolicyAction.INSTANCE, new DeleteEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, policyName))
+                .actionGet();
         }
 
-        response = client().execute(GetEnrichPolicyAction.INSTANCE, new GetEnrichPolicyAction.Request()).actionGet();
+        response = client().execute(GetEnrichPolicyAction.INSTANCE, new GetEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT)).actionGet();
         assertThat(response.getPolicies().size(), equalTo(0));
     }
 
@@ -188,9 +192,9 @@ public class EnrichMultiNodeIT extends ESIntegTestCase {
             MATCH_FIELD,
             List.of(DECORATE_FIELDS)
         );
-        var putPolicyRequest = new PutEnrichPolicyAction.Request(POLICY_NAME, enrichPolicy);
+        var putPolicyRequest = new PutEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, POLICY_NAME, enrichPolicy);
         assertAcked(client().execute(PutEnrichPolicyAction.INSTANCE, putPolicyRequest).actionGet());
-        var executePolicyRequest = new ExecuteEnrichPolicyAction.Request(POLICY_NAME);
+        var executePolicyRequest = new ExecuteEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, POLICY_NAME);
         executePolicyRequest.setWaitForCompletion(false); // From tne returned taks id the node that executes the policy can be determined
         var executePolicyResponse = client().execute(ExecuteEnrichPolicyAction.INSTANCE, executePolicyRequest).actionGet();
         assertThat(executePolicyResponse.getStatus(), nullValue());
@@ -215,9 +219,9 @@ public class EnrichMultiNodeIT extends ESIntegTestCase {
             MATCH_FIELD,
             List.of(DECORATE_FIELDS)
         );
-        var putPolicyRequest = new PutEnrichPolicyAction.Request(POLICY_NAME, enrichPolicy);
+        var putPolicyRequest = new PutEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, POLICY_NAME, enrichPolicy);
         assertAcked(client().execute(PutEnrichPolicyAction.INSTANCE, putPolicyRequest).actionGet());
-        var executePolicyRequest = new ExecuteEnrichPolicyAction.Request(POLICY_NAME);
+        var executePolicyRequest = new ExecuteEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, POLICY_NAME);
         executePolicyRequest.setWaitForCompletion(false); // From tne returned taks id the node that executes the policy can be determined
         var executePolicyResponse = client().execute(ExecuteEnrichPolicyAction.INSTANCE, executePolicyRequest).actionGet();
         assertThat(executePolicyResponse.getStatus(), nullValue());
@@ -264,8 +268,10 @@ public class EnrichMultiNodeIT extends ESIntegTestCase {
             }
         }
 
-        EnrichStatsAction.Response statsResponse = client().execute(EnrichStatsAction.INSTANCE, new EnrichStatsAction.Request())
-            .actionGet();
+        EnrichStatsAction.Response statsResponse = client().execute(
+            EnrichStatsAction.INSTANCE,
+            new EnrichStatsAction.Request(TEST_REQUEST_TIMEOUT)
+        ).actionGet();
         assertThat(statsResponse.getCoordinatorStats().size(), equalTo(internalCluster().size()));
         String nodeId = getNodeId(coordinatingNode);
         CoordinatorStats stats = statsResponse.getCoordinatorStats().stream().filter(s -> s.nodeId().equals(nodeId)).findAny().get();
@@ -321,11 +327,11 @@ public class EnrichMultiNodeIT extends ESIntegTestCase {
             MATCH_FIELD,
             List.of(DECORATE_FIELDS)
         );
-        PutEnrichPolicyAction.Request request = new PutEnrichPolicyAction.Request(policyName, enrichPolicy);
+        PutEnrichPolicyAction.Request request = new PutEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, policyName, enrichPolicy);
         client().execute(PutEnrichPolicyAction.INSTANCE, request).actionGet();
         final ActionFuture<ExecuteEnrichPolicyAction.Response> policyExecuteFuture = client().execute(
             ExecuteEnrichPolicyAction.INSTANCE,
-            new ExecuteEnrichPolicyAction.Request(policyName)
+            new ExecuteEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, policyName)
         );
         // Make sure we can deserialize enrich policy execution task status
         final List<TaskInfo> tasks = clusterAdmin().prepareListTasks().setActions(EnrichPolicyExecutor.TASK_ACTION).get().getTasks();

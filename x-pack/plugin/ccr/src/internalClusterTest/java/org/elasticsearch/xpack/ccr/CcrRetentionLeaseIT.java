@@ -472,7 +472,12 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
 
             pauseFollow(followerIndex);
             assertAcked(followerClient().admin().indices().close(new CloseIndexRequest(followerIndex)).actionGet());
-            assertAcked(followerClient().execute(UnfollowAction.INSTANCE, new UnfollowAction.Request(followerIndex)).actionGet());
+            assertAcked(
+                followerClient().execute(
+                    UnfollowAction.INSTANCE,
+                    new UnfollowAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, followerIndex)
+                ).actionGet()
+            );
 
             final IndicesStatsResponse afterUnfollowStats = leaderClient().admin()
                 .indices()
@@ -541,7 +546,10 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
 
             final ElasticsearchException e = expectThrows(
                 ElasticsearchException.class,
-                () -> followerClient().execute(UnfollowAction.INSTANCE, new UnfollowAction.Request(followerIndex)).actionGet()
+                () -> followerClient().execute(
+                    UnfollowAction.INSTANCE,
+                    new UnfollowAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, followerIndex)
+                ).actionGet()
             );
 
             final ClusterStateResponse followerIndexClusterState = followerClient().admin()
@@ -993,7 +1001,12 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
 
             pauseFollow(followerIndex);
             assertAcked(followerClient().admin().indices().close(new CloseIndexRequest(followerIndex)).actionGet());
-            assertAcked(followerClient().execute(UnfollowAction.INSTANCE, new UnfollowAction.Request(followerIndex)).actionGet());
+            assertAcked(
+                followerClient().execute(
+                    UnfollowAction.INSTANCE,
+                    new UnfollowAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, followerIndex)
+                ).actionGet()
+            );
 
             unfollowLatch.countDown();
 

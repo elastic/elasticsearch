@@ -484,7 +484,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
 
     protected void pauseFollow(String... indices) throws Exception {
         for (String index : indices) {
-            final PauseFollowAction.Request unfollowRequest = new PauseFollowAction.Request(index);
+            final PauseFollowAction.Request unfollowRequest = new PauseFollowAction.Request(TEST_REQUEST_TIMEOUT, index);
             assertAcked(followerClient().execute(PauseFollowAction.INSTANCE, unfollowRequest).actionGet());
         }
         ensureNoCcrTasks();
@@ -492,8 +492,10 @@ public abstract class CcrIntegTestCase extends ESTestCase {
 
     protected void ensureNoCcrTasks() throws Exception {
         assertBusy(() -> {
-            CcrStatsAction.Response statsResponse = followerClient().execute(CcrStatsAction.INSTANCE, new CcrStatsAction.Request())
-                .actionGet();
+            CcrStatsAction.Response statsResponse = followerClient().execute(
+                CcrStatsAction.INSTANCE,
+                new CcrStatsAction.Request(TEST_REQUEST_TIMEOUT)
+            ).actionGet();
             assertThat(
                 "Follow stats not empty: " + Strings.toString(statsResponse.getFollowStats()),
                 statsResponse.getFollowStats().getStatsResponses(),
@@ -586,7 +588,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
     }
 
     public static PutFollowAction.Request putFollow(String leaderIndex, String followerIndex, ActiveShardCount waitForActiveShards) {
-        PutFollowAction.Request request = new PutFollowAction.Request();
+        PutFollowAction.Request request = new PutFollowAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
         request.setRemoteCluster("leader_cluster");
         request.setLeaderIndex(leaderIndex);
         request.setFollowerIndex(followerIndex);
@@ -602,7 +604,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
     }
 
     public static ResumeFollowAction.Request resumeFollow(String followerIndex) {
-        ResumeFollowAction.Request request = new ResumeFollowAction.Request();
+        ResumeFollowAction.Request request = new ResumeFollowAction.Request(TEST_REQUEST_TIMEOUT);
         request.setFollowerIndex(followerIndex);
         request.getParameters().setMaxRetryDelay(TimeValue.timeValueMillis(10));
         request.getParameters().setReadPollTimeout(TimeValue.timeValueMillis(10));

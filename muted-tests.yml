@@ -46,6 +46,9 @@ tests:
 - class: "org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT"
   issue: "https://github.com/elastic/elasticsearch/issues/109189"
   method: "test {p0=esql/70_locale/Date format with Italian locale}"
+- class: "org.elasticsearch.upgrades.SearchStatesIT"
+  issue: "https://github.com/elastic/elasticsearch/issues/109190"
+  method: "testBWCSearchStates"
 # Examples:
 #
 #  Mute a single test case in a YAML test suite:

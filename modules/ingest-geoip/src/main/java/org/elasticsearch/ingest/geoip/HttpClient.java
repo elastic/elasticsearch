@@ -32,11 +32,11 @@ import static java.net.HttpURLConnection.HTTP_SEE_OTHER;
 
 class HttpClient {
 
-    byte[] getBytes(String url) throws IOException {
+    byte[] getBytes(final String url) throws IOException {
         return get(url).readAllBytes();
     }
 
-    InputStream get(String urlToGet) throws IOException {
+    InputStream get(final String urlToGet) throws IOException {
         return doPrivileged(() -> {
             String url = urlToGet;
             HttpURLConnection conn = createConnection(url);
@@ -52,9 +52,11 @@ class HttpClient {
                         if (redirectsCount++ > 50) {
                             throw new IllegalStateException("too many redirects connection to [" + urlToGet + "]");
                         }
-                        String location = conn.getHeaderField("Location");
-                        URL base = new URL(url);
-                        URL next = new URL(base, location);  // Deal with relative URLs
+
+                        // deal with redirections (including relative urls)
+                        final String location = conn.getHeaderField("Location");
+                        final URL base = new URL(url);
+                        final URL next = new URL(base, location);
                         url = next.toExternalForm();
                         conn = createConnection(url);
                         break;
@@ -69,12 +71,12 @@ class HttpClient {
     }
 
     @SuppressForbidden(reason = "we need socket connection to download data from internet")
-    private static InputStream getInputStream(HttpURLConnection conn) throws IOException {
+    private static InputStream getInputStream(final HttpURLConnection conn) throws IOException {
         return conn.getInputStream();
     }
 
-    private static HttpURLConnection createConnection(String url) throws IOException {
-        HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
+    private static HttpURLConnection createConnection(final String url) throws IOException {
+        final HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
         conn.setConnectTimeout(10000);
         conn.setReadTimeout(10000);
         conn.setDoOutput(false);
@@ -82,7 +84,7 @@ class HttpClient {
         return conn;
     }
 
-    private static <R> R doPrivileged(CheckedSupplier<R, IOException> supplier) throws IOException {
+    private static <R> R doPrivileged(final CheckedSupplier<R, IOException> supplier) throws IOException {
         SpecialPermission.check();
         try {
             return AccessController.doPrivileged((PrivilegedExceptionAction<R>) supplier::get);

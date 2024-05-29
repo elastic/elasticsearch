@@ -27,8 +27,8 @@ import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRole
 
 import java.io.IOException;
 import java.util.EnumSet;
-import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -43,13 +43,14 @@ public final class RoleMappingMetadata extends AbstractNamedDiffable<Metadata.Cu
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<RoleMappingMetadata, Void> PARSER = new ConstructingObjectParser<>(
         TYPE,
-        args -> new RoleMappingMetadata(new HashSet<>((List<ExpressionRoleMapping>) args[0]))
+        args -> new RoleMappingMetadata(new LinkedHashSet<>((List<ExpressionRoleMapping>) args[0]))
     );
 
     static {
-        PARSER.declareObjectArrayOrNull(
+        PARSER.declareObjectArray(
             constructorArg(),
-            (p, c) -> ExpressionRoleMapping.parse("unknown_role_mapping_name_during_parsing", p),
+            // role mapping names are lost when the role mapping metadata is serialized
+            (p, c) -> ExpressionRoleMapping.parse("name_not_available_after_deserialization", p),
             new ParseField(TYPE)
         );
     }
@@ -93,6 +94,7 @@ public final class RoleMappingMetadata extends AbstractNamedDiffable<Metadata.Cu
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+        // role mappings are serialized without their names
         return Iterators.concat(ChunkedToXContentHelper.startArray(TYPE), roleMappings.iterator(), ChunkedToXContentHelper.endArray());
     }
 

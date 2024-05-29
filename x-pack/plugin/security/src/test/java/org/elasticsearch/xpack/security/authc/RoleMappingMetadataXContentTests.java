@@ -17,9 +17,11 @@ import org.elasticsearch.xpack.core.security.authz.RoleMappingMetadata;
 
 import java.io.IOException;
 import java.util.HashSet;
+import java.util.Objects;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.security.authc.support.mapper.ExpressionRoleMappingTests.randomRoleMapping;
+import static org.hamcrest.Matchers.equalTo;
 
 public class RoleMappingMetadataXContentTests extends AbstractXContentSerializingTestCase<RoleMappingMetadata> {
     @Override
@@ -54,5 +56,22 @@ public class RoleMappingMetadataXContentTests extends AbstractXContentSerializin
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         return new NamedWriteableRegistry(new XPackClientPlugin().getNamedWriteables());
+    }
+
+    @Override
+    protected void assertEqualInstances(RoleMappingMetadata expectedInstance, RoleMappingMetadata newInstance) {
+        assertThat(expectedInstance.getRoleMappings().size(), equalTo(newInstance.getRoleMappings().size()));
+        for (ExpressionRoleMapping expectedExpressionRoleMapping : expectedInstance.getRoleMappings()) {
+            boolean found = false;
+            for (ExpressionRoleMapping newExpressionRoleMapping : newInstance.getRoleMappings()) {
+                // everything equals except name
+                found |= newExpressionRoleMapping.isEnabled() == expectedExpressionRoleMapping.isEnabled()
+                    && Objects.equals(newExpressionRoleMapping.getExpression(), expectedExpressionRoleMapping.getExpression())
+                    && Objects.equals(newExpressionRoleMapping.getRoles(), expectedExpressionRoleMapping.getRoles())
+                    && Objects.equals(newExpressionRoleMapping.getRoleTemplates(), expectedExpressionRoleMapping.getRoleTemplates())
+                    && Objects.equals(newExpressionRoleMapping.getMetadata(), expectedExpressionRoleMapping.getMetadata());
+            }
+            assertTrue(found);
+        }
     }
 }

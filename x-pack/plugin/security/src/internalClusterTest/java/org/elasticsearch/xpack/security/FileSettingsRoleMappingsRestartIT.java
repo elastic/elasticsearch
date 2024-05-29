@@ -8,23 +8,24 @@
 package org.elasticsearch.xpack.security;
 
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.reservedstate.service.FileSettingsService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.SecurityIntegTestCase;
-import org.elasticsearch.xpack.core.security.action.rolemapping.GetRoleMappingsAction;
-import org.elasticsearch.xpack.core.security.action.rolemapping.GetRoleMappingsRequest;
+import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
+import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.FieldExpression;
+import org.elasticsearch.xpack.core.security.authz.RoleMappingMetadata;
 import org.elasticsearch.xpack.security.action.rolemapping.ReservedRoleMappingAction;
 
-import java.util.Arrays;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.integration.RoleMappingFileSettingsIT.setupClusterStateListener;
 import static org.elasticsearch.integration.RoleMappingFileSettingsIT.writeJSONFile;
-import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.hamcrest.Matchers.notNullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, autoManageMasterNodes = false)
 public class FileSettingsRoleMappingsRestartIT extends SecurityIntegTestCase {
@@ -49,11 +50,11 @@ public class FileSettingsRoleMappingsRestartIT extends SecurityIntegTestCase {
                           }
                        },
                        "everyone_fleet_alone": {
-                          "enabled": true,
+                          "enabled": false,
                           "roles": [ "fleet_user" ],
                           "rules": { "field": { "username": "*" } },
                           "metadata": {
-                             "uuid" : "b9a59ba9-6b92-4be3-bb8d-02bb270cb3a7",
+                             "uuid" : "b9a59ba9-6b92-4be2-bb8d-02bb270cb3a7",
                              "_foo": "something_else"
                           }
                        }
@@ -76,29 +77,70 @@ public class FileSettingsRoleMappingsRestartIT extends SecurityIntegTestCase {
         boolean awaitSuccessful = savedClusterState.v1().await(20, TimeUnit.SECONDS);
         assertTrue(awaitSuccessful);
 
+        var clusterState = clusterAdmin().state(new ClusterStateRequest()).actionGet().getState();
+        assertRoleMappingReservedMetadata(clusterState, "everyone_kibana_alone", "everyone_fleet_alone");
+        List<ExpressionRoleMapping> roleMappings = new ArrayList<>(RoleMappingMetadata.getFromClusterState(clusterState).getRoleMappings());
+        assertThat(
+            roleMappings,
+            containsInAnyOrder(
+                new ExpressionRoleMapping(
+                    "everyone_kibana_alone",
+                    new FieldExpression("username", List.of(new FieldExpression.FieldValue("*"))),
+                    List.of("kibana_user"),
+                    List.of(),
+                    Map.of("uuid", "b9a59ba9-6b92-4be2-bb8d-02bb270cb3a7", "_foo", "something"),
+                    true
+                ),
+                new ExpressionRoleMapping(
+                    "everyone_fleet_alone",
+                    new FieldExpression("username", List.of(new FieldExpression.FieldValue("*"))),
+                    List.of("fleet_user"),
+                    List.of(),
+                    Map.of("uuid", "b9a59ba9-6b92-4be2-bb8d-02bb270cb3a7", "_foo", "something_else"),
+                    false
+                )
+            )
+        );
+
         logger.info("--> restart master");
         internalCluster().restartNode(masterNode);
         ensureGreen();
 
-        var clusterStateResponse = clusterAdmin().state(new ClusterStateRequest()).actionGet();
+        clusterState = clusterAdmin().state(new ClusterStateRequest()).actionGet().getState();
+        assertRoleMappingReservedMetadata(clusterState, "everyone_kibana_alone", "everyone_fleet_alone");
+        roleMappings = new ArrayList<>(RoleMappingMetadata.getFromClusterState(clusterState).getRoleMappings());
         assertThat(
-            clusterStateResponse.getState()
-                .metadata()
+            roleMappings,
+            containsInAnyOrder(
+                new ExpressionRoleMapping(
+                    "name_not_available_after_deserialization",
+                    new FieldExpression("username", List.of(new FieldExpression.FieldValue("*"))),
+                    List.of("kibana_user"),
+                    List.of(),
+                    Map.of("uuid", "b9a59ba9-6b92-4be2-bb8d-02bb270cb3a7", "_foo", "something"),
+                    true
+                ),
+                new ExpressionRoleMapping(
+                    "name_not_available_after_deserialization",
+                    new FieldExpression("username", List.of(new FieldExpression.FieldValue("*"))),
+                    List.of("fleet_user"),
+                    List.of(),
+                    Map.of("uuid", "b9a59ba9-6b92-4be2-bb8d-02bb270cb3a7", "_foo", "something_else"),
+                    false
+                )
+            )
+        );
+    }
+
+    private void assertRoleMappingReservedMetadata(ClusterState clusterState, String... names) {
+        assertThat(
+            clusterState.metadata()
                 .reservedStateMetadata()
                 .get(FileSettingsService.NAMESPACE)
                 .handlers()
                 .get(ReservedRoleMappingAction.NAME)
                 .keys(),
-            containsInAnyOrder("everyone_fleet_alone", "everyone_kibana_alone")
-        );
-
-        var request = new GetRoleMappingsRequest();
-        request.setNames("everyone_kibana_alone", "everyone_fleet_alone");
-        var response = client().execute(GetRoleMappingsAction.INSTANCE, request).get();
-        assertTrue(response.hasMappings());
-        assertThat(
-            Arrays.stream(response.mappings()).map(r -> r.getName()).collect(Collectors.toSet()),
-            allOf(notNullValue(), containsInAnyOrder("everyone_kibana_alone", "everyone_fleet_alone"))
+            containsInAnyOrder(names)
         );
     }
 }

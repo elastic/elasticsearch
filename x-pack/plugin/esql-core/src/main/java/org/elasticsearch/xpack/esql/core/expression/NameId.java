@@ -6,6 +6,11 @@
  */
 package org.elasticsearch.xpack.esql.core.expression;
 
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
+
+import java.io.IOException;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -16,9 +21,12 @@ import java.util.concurrent.atomic.AtomicLong;
  * and that create reproducible values when run in subsequent
  * tests. They don't produce reproducible values in production, but
  * you rarely debug with them in production and commonly do so in
- * tests.
+ * tests.</p>
+ * <p>While this class is {@link Writeable}, to read if you'll need
+ * to call {@link PlanStreamInput#readNameId()} to keep a consistent
+ * mapping across all plans.</p>
  */
-public class NameId {
+public class NameId implements Writeable {
     private static final AtomicLong COUNTER = new AtomicLong();
     private final long id;
 
@@ -46,5 +54,10 @@ public class NameId {
     @Override
     public String toString() {
         return Long.toString(id);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeLong(id);
     }
 }

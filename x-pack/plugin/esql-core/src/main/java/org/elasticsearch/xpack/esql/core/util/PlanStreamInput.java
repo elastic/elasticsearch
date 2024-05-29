@@ -7,7 +7,10 @@
 
 package org.elasticsearch.xpack.esql.core.util;
 
+import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+
+import java.io.IOException;
 
 /**
  * Interface for streams that can serialize plan components. This exists so
@@ -23,4 +26,10 @@ public interface PlanStreamInput {
      */
     String sourceText();
 
+    /**
+     * Read a {@link NameId} from the stream. Name-id have to be consistently
+     * mapped during serialization but need to be globally unique. This handles
+     * that combination of constraints.
+     */
+    NameId readNameId() throws IOException;
 }

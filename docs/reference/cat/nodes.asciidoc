@@ -155,12 +155,6 @@ Node uptime, such as `17.3m`.
 `completion.size`, `cs`, `completionSize`::
 Size of completion, such as `0b`.
 
-`dense_vector.value_count`, `dvc`, `denseVectorCount`::
-Number of indexed dense vectors.
-
-`sparse_vector.value_count`, `svc`, `sparseVectorCount`::
-Number of indexed sparse vectors.
-
 `fielddata.memory_size`, `fm`, `fielddataMemory`::
 Used fielddata cache memory, such as `0b`.
 

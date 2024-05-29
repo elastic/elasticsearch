@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesIndexResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -1883,6 +1884,10 @@ public class AnalyzerTests extends ESTestCase {
             | RENAME languages AS int
             | LOOKUP int_number_names ON int
             """));
+        if (Build.current().isProductionRelease()) {
+            assertThat(e.getMessage(), containsString("line 3:4: LOOKUP is in preview and only available in SNAPSHOT build"));
+            return;
+        }
         assertThat(e.getMessage(), containsString("LOOKUP not yet supported"));
     }
 

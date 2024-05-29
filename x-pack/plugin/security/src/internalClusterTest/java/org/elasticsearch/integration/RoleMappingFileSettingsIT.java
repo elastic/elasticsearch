@@ -202,7 +202,7 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
         return new Tuple<>(savedClusterState, metadataVersion);
     }
 
-    private Tuple<CountDownLatch, AtomicLong> setupClusterStateListenerForCleanup(String node) {
+    public static Tuple<CountDownLatch, AtomicLong> setupClusterStateListenerForCleanup(String node) {
         ClusterService clusterService = internalCluster().clusterService(node);
         CountDownLatch savedClusterState = new CountDownLatch(1);
         AtomicLong metadataVersion = new AtomicLong(-1);

@@ -23,7 +23,7 @@ import java.util.Set;
 import static org.elasticsearch.xpack.security.authc.support.mapper.ExpressionRoleMappingTests.randomRoleMapping;
 import static org.hamcrest.Matchers.equalTo;
 
-public class RoleMappingMetadataXContentTests extends AbstractXContentSerializingTestCase<RoleMappingMetadata> {
+public class RoleMappingMetadataXContentSerializationTests extends AbstractXContentSerializingTestCase<RoleMappingMetadata> {
     @Override
     protected Writeable.Reader<RoleMappingMetadata> instanceReader() {
         return RoleMappingMetadata::new;
@@ -64,7 +64,7 @@ public class RoleMappingMetadataXContentTests extends AbstractXContentSerializin
         for (ExpressionRoleMapping expectedExpressionRoleMapping : expectedInstance.getRoleMappings()) {
             boolean found = false;
             for (ExpressionRoleMapping newExpressionRoleMapping : newInstance.getRoleMappings()) {
-                // everything equals except name
+                // everything equals except name, because the name is lost during deserialization of {@code RoleMappingMetadata}
                 found |= newExpressionRoleMapping.isEnabled() == expectedExpressionRoleMapping.isEnabled()
                     && Objects.equals(newExpressionRoleMapping.getExpression(), expectedExpressionRoleMapping.getExpression())
                     && Objects.equals(newExpressionRoleMapping.getRoles(), expectedExpressionRoleMapping.getRoles())

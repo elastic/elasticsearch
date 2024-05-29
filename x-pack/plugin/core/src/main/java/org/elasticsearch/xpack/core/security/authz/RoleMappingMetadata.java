@@ -43,6 +43,7 @@ public final class RoleMappingMetadata extends AbstractNamedDiffable<Metadata.Cu
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<RoleMappingMetadata, Void> PARSER = new ConstructingObjectParser<>(
         TYPE,
+        // serialization tests rely on the order of the ExpressionRoleMapping
         args -> new RoleMappingMetadata(new LinkedHashSet<>((List<ExpressionRoleMapping>) args[0]))
     );
 

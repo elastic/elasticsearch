@@ -32,8 +32,8 @@ import static org.elasticsearch.xpack.esql.core.type.DataTypes.OBJECT;
 import static org.elasticsearch.xpack.esql.core.type.DataTypes.SCALED_FLOAT;
 import static org.elasticsearch.xpack.esql.core.type.DataTypes.SHORT;
 import static org.elasticsearch.xpack.esql.core.type.DataTypes.SOURCE;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.TIME_DURATION;
 import static org.elasticsearch.xpack.esql.core.type.DataTypes.TEXT;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.TIME_DURATION;
 import static org.elasticsearch.xpack.esql.core.type.DataTypes.UNSUPPORTED;
 import static org.elasticsearch.xpack.esql.core.type.DataTypes.isNull;
 

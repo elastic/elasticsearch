@@ -303,8 +303,8 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
      * Remove license from the cluster state metadata
      */
     @Override
-    public void removeLicense(ActionListener<? extends AcknowledgedResponse> listener) {
-        final PostStartBasicRequest startBasicRequest = new PostStartBasicRequest().acknowledge(true);
+    public void removeLicense(TimeValue masterNodeTimeout, TimeValue ackTimeout, ActionListener<? extends AcknowledgedResponse> listener) {
+        final PostStartBasicRequest startBasicRequest = new PostStartBasicRequest(masterNodeTimeout, ackTimeout).acknowledge(true);
         @SuppressWarnings("unchecked")
         final StartBasicClusterTask task = new StartBasicClusterTask(
             logger,

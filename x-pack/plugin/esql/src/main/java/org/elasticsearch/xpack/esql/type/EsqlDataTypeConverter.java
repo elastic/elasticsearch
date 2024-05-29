@@ -16,6 +16,7 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.Converter;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -23,7 +24,6 @@ import org.elasticsearch.xpack.esql.core.type.DataTypeConverter;
 import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
-import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToBoolean;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCartesianPoint;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCartesianShape;
@@ -79,8 +79,10 @@ import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAs
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.UNSPECIFIED;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.CARTESIAN_POINT;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.CARTESIAN_SHAPE;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.DATE_PERIOD;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_POINT;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_SHAPE;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.TIME_DURATION;
 
 public class EsqlDataTypeConverter {
 
@@ -88,7 +90,7 @@ public class EsqlDataTypeConverter {
 
     public static final DateFormatter HOUR_MINUTE_SECOND = DateFormatter.forPattern("strict_hour_minute_second_fraction");
 
-    private static final Map<DataType, BiFunction<Source, Expression, AbstractConvertFunction>> TYPE_TO_CONVERTER_FUNCTION = Map.ofEntries(
+    private static final Map<DataType, BiFunction<Source, Expression, ?>> TYPE_TO_CONVERTER_FUNCTION = Map.ofEntries(
         entry(BOOLEAN, ToBoolean::new),
         entry(CARTESIAN_POINT, ToCartesianPoint::new),
         entry(CARTESIAN_SHAPE, ToCartesianShape::new),
@@ -104,7 +106,12 @@ public class EsqlDataTypeConverter {
         entry(KEYWORD, ToString::new),
         entry(TEXT, ToString::new),
         entry(UNSIGNED_LONG, ToUnsignedLong::new),
-        entry(VERSION, ToVersion::new)
+        entry(VERSION, ToVersion::new),
+        entry(DATE_PERIOD, (s, e) -> {
+            return EsqlDataTypeConverter.stringToDatePeriod(s, e);
+        }),
+        entry(TIME_DURATION, (s, e) -> { return EsqlDataTypeConverter.stringToTimeDuration(s, e); })
+
     );
 
     /**
@@ -158,6 +165,16 @@ public class EsqlDataTypeConverter {
             return converter;
         }
         return null;
+    }
+
+    private static Expression stringToTimeDuration(Source s, Expression e) {
+        TemporalAmount t = parseTemporalAmount(e.fold(), TIME_DURATION);
+        return new Literal(Source.EMPTY, t, TIME_DURATION);
+    }
+
+    private static Expression stringToDatePeriod(Source s, Expression e) {
+        TemporalAmount t = parseTemporalAmount(e.fold(), DATE_PERIOD);
+        return new Literal(s, t, DATE_PERIOD);
     }
 
     public static TemporalAmount parseTemporalAmount(Object val, DataType expectedType) {
@@ -473,7 +490,7 @@ public class EsqlDataTypeConverter {
         }
     }
 
-    public static BiFunction<Source, Expression, AbstractConvertFunction> converterFunctionFactory(DataType toType) {
+    public static BiFunction<Source, Expression, ?> converterFunctionFactory(DataType toType) {
         return TYPE_TO_CONVERTER_FUNCTION.get(toType);
     }
 }

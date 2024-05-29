@@ -547,7 +547,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
             throw new ParsingException(source, "Unsupported conversion to type [{}]", dataType);
         }
         Expression expr = expression(ctx.primaryExpression());
-        return converterToFactory.apply(source, expr);
+        return (Expression) converterToFactory.apply(source, expr);
     }
 
     @Override

@@ -35,6 +35,10 @@ tests:
 - class: "org.elasticsearch.upgrades.MlTrainedModelsUpgradeIT"
   issue: "https://github.com/elastic/elasticsearch/issues/108993"
   method: "testTrainedModelInference"
+- class: "org.elasticsearch.datastreams.DataStreamsClientYamlTestSuiteIT"
+  issue: "https://github.com/elastic/elasticsearch/issues/109154"
+  method: "test {p0=data_stream/200_rollover_failure_store/Lazily roll over a data\
+    \ stream's failure store after an ingest failure}"
 # Examples:
 #
 #  Mute a single test case in a YAML test suite:

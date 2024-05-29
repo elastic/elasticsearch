@@ -1,0 +1,52 @@
+
+
+
+//
+// Make sure that the new LOOKUP syntax doesn't clash with any existing things
+// named "lookup"
+//
+rowNamedLookup
+ROW lookup = "a"
+;
+
+lookup:keyword
+             a
+;
+
+rowNamedLOOKUP
+ROW LOOKUP = "a"
+;
+
+LOOKUP:keyword
+             a
+;
+
+evalNamedLookup
+ROW a = "a" | EVAL lookup = CONCAT(a, "1")
+;
+
+a:keyword | lookup:keyword
+        a |             a1
+;
+
+dissectNamedLookup
+row a = "foo bar" | dissect a "foo %{lookup}";
+
+a:keyword | lookup:keyword
+  foo bar |            bar
+;
+
+renameIntoLookup
+row a = "foo bar" | RENAME a AS lookup;
+
+lookup:keyword
+       foo bar
+;
+
+sortOnLookup
+ROW lookup = "a" | SORT lookup
+;
+
+lookup:keyword
+             a
+;

@@ -30,7 +30,6 @@ import org.elasticsearch.xpack.core.ml.inference.results.NlpClassificationInfere
 import org.elasticsearch.xpack.core.ml.inference.results.PyTorchPassThroughResults;
 import org.elasticsearch.xpack.core.ml.inference.results.QuestionAnsweringInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.RegressionInferenceResults;
-import org.elasticsearch.xpack.core.ml.inference.results.TextEmbeddingByteResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextSimilarityInferenceResults;
@@ -654,9 +653,6 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
         );
         namedWriteables.add(new NamedWriteableRegistry.Entry(InferenceResults.class, TextExpansionResults.NAME, TextExpansionResults::new));
         namedWriteables.add(new NamedWriteableRegistry.Entry(InferenceResults.class, TextEmbeddingResults.NAME, TextEmbeddingResults::new));
-        namedWriteables.add(
-            new NamedWriteableRegistry.Entry(InferenceResults.class, TextEmbeddingByteResults.NAME, TextEmbeddingByteResults::new)
-        );
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(
                 InferenceResults.class,

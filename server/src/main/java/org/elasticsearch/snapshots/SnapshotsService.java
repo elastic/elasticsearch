@@ -3354,6 +3354,11 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                     updatedState = updateSnapshotState.updatedState;
                 }
 
+                if (updatedState.state() == ShardState.PAUSED_FOR_NODE_REMOVAL) {
+                    // leave subsequent entries for this shard alone until this one is unpaused
+                    iterator.remove();
+                }
+
                 logger.trace("[{}] Updating shard [{}] with status [{}]", updateSnapshotState.snapshot, updatedShard, updatedState.state());
                 changedCount++;
                 newStates.get().put(updatedShard, updatedState);

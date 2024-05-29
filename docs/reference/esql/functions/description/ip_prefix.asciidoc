@@ -2,4 +2,4 @@
 
 *Description*
 
-Returns the original IP with all but the first N bits set to zero.
+Truncates an IP to a given prefix length.

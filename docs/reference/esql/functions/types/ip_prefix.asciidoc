@@ -6,5 +6,4 @@
 |===
 ip | prefixLengthV4 | prefixLengthV6 | result
 ip | integer | integer | ip
-ip | integer | | ip
 |===

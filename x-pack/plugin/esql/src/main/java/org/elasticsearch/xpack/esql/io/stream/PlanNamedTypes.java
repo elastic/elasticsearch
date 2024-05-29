@@ -217,14 +217,14 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 
 import static java.util.Map.entry;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.CARTESIAN_POINT;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.GEO_POINT;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.Entry.of;
 import static org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanReader.readerFromPlanReader;
 import static org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanWriter.writerFromPlanWriter;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToLong;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.CARTESIAN_POINT;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_POINT;
 
 /**
  * A utility class that consists solely of static methods that describe how to serialize and

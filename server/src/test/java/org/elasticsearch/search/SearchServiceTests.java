@@ -677,29 +677,12 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                                 public RankFeaturePhaseRankCoordinatorContext buildRankFeaturePhaseCoordinatorContext(int size, int from) {
                                     return new RankFeaturePhaseRankCoordinatorContext(size, from, DEFAULT_RANK_WINDOW_SIZE) {
                                         @Override
-                                        public void rankGlobalResults(
-                                            List<RankFeatureResult> rankSearchResults,
-                                            Consumer<ScoreDoc[]> onFinish
-                                        ) {
-                                            List<RankFeatureDoc> features = new ArrayList<>();
-                                            for (RankFeatureResult rankFeatureResult : rankSearchResults) {
-                                                RankFeatureShardResult shardResult = rankFeatureResult.shardResult();
-                                                features.addAll(Arrays.stream(shardResult.rankFeatureDocs).toList());
+                                        protected void computeScores(RankFeatureDoc[] featureDocs, ActionListener<float[]> scoreListener) {
+                                            float[] scores = new float[featureDocs.length];
+                                            for (int i = 0; i < featureDocs.length; i++) {
+                                                scores[i] = featureDocs[i].score;
                                             }
-                                            RankFeatureDoc[] featureDocs = features.toArray(new RankFeatureDoc[0]);
-                                            Arrays.sort(featureDocs, Comparator.comparing((RankFeatureDoc doc) -> doc.score).reversed());
-                                            featureDocs = Arrays.stream(featureDocs).limit(rankWindowSize).toArray(RankFeatureDoc[]::new);
-                                            RankFeatureDoc[] topResults = new RankFeatureDoc[Math.max(
-                                                0,
-                                                Math.min(size, featureDocs.length - from)
-                                            )];
-                                            // perform pagination
-                                            for (int rank = 0; rank < topResults.length; ++rank) {
-                                                RankFeatureDoc rfd = featureDocs[from + rank];
-                                                topResults[rank] = new RankFeatureDoc(rfd.doc, rfd.score, rfd.shardIndex);
-                                                topResults[rank].rank = from + rank + 1;
-                                            }
-                                            onFinish.accept(topResults);
+                                            scoreListener.onResponse(scores);
                                         }
                                     };
                                 }
@@ -834,10 +817,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                             public RankFeaturePhaseRankCoordinatorContext buildRankFeaturePhaseCoordinatorContext(int size, int from) {
                                 return new RankFeaturePhaseRankCoordinatorContext(size, from, DEFAULT_RANK_WINDOW_SIZE) {
                                     @Override
-                                    public void rankGlobalResults(
-                                        List<RankFeatureResult> rankSearchResults,
-                                        Consumer<ScoreDoc[]> onFinish
-                                    ) {
+                                    protected void computeScores(RankFeatureDoc[] featureDocs, ActionListener<float[]> scoreListener) {
                                         throw new IllegalStateException("should have failed earlier");
                                     }
                                 };
@@ -949,29 +929,12 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                                 public RankFeaturePhaseRankCoordinatorContext buildRankFeaturePhaseCoordinatorContext(int size, int from) {
                                     return new RankFeaturePhaseRankCoordinatorContext(size, from, DEFAULT_RANK_WINDOW_SIZE) {
                                         @Override
-                                        public void rankGlobalResults(
-                                            List<RankFeatureResult> rankSearchResults,
-                                            Consumer<ScoreDoc[]> onFinish
-                                        ) {
-                                            List<RankFeatureDoc> features = new ArrayList<>();
-                                            for (RankFeatureResult rankFeatureResult : rankSearchResults) {
-                                                RankFeatureShardResult shardResult = rankFeatureResult.shardResult();
-                                                features.addAll(Arrays.stream(shardResult.rankFeatureDocs).toList());
+                                        protected void computeScores(RankFeatureDoc[] featureDocs, ActionListener<float[]> scoreListener) {
+                                            float[] scores = new float[featureDocs.length];
+                                            for (int i = 0; i < featureDocs.length; i++) {
+                                                scores[i] = featureDocs[i].score;
                                             }
-                                            RankFeatureDoc[] featureDocs = features.toArray(new RankFeatureDoc[0]);
-                                            Arrays.sort(featureDocs, Comparator.comparing((RankFeatureDoc doc) -> doc.score).reversed());
-                                            featureDocs = Arrays.stream(featureDocs).limit(rankWindowSize).toArray(RankFeatureDoc[]::new);
-                                            RankFeatureDoc[] topResults = new RankFeatureDoc[Math.max(
-                                                0,
-                                                Math.min(size, featureDocs.length - from)
-                                            )];
-                                            // perform pagination
-                                            for (int rank = 0; rank < topResults.length; ++rank) {
-                                                RankFeatureDoc rfd = featureDocs[from + rank];
-                                                topResults[rank] = new RankFeatureDoc(rfd.doc, rfd.score, rfd.shardIndex);
-                                                topResults[rank].rank = from + rank + 1;
-                                            }
-                                            onFinish.accept(topResults);
+                                            scoreListener.onResponse(scores);
                                         }
                                     };
                                 }
@@ -1090,29 +1053,12 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                                 public RankFeaturePhaseRankCoordinatorContext buildRankFeaturePhaseCoordinatorContext(int size, int from) {
                                     return new RankFeaturePhaseRankCoordinatorContext(size, from, DEFAULT_RANK_WINDOW_SIZE) {
                                         @Override
-                                        public void rankGlobalResults(
-                                            List<RankFeatureResult> rankSearchResults,
-                                            Consumer<ScoreDoc[]> onFinish
-                                        ) {
-                                            List<RankFeatureDoc> features = new ArrayList<>();
-                                            for (RankFeatureResult rankFeatureResult : rankSearchResults) {
-                                                RankFeatureShardResult shardResult = rankFeatureResult.shardResult();
-                                                features.addAll(Arrays.stream(shardResult.rankFeatureDocs).toList());
+                                        protected void computeScores(RankFeatureDoc[] featureDocs, ActionListener<float[]> scoreListener) {
+                                            float[] scores = new float[featureDocs.length];
+                                            for (int i = 0; i < featureDocs.length; i++) {
+                                                scores[i] = featureDocs[i].score;
                                             }
-                                            RankFeatureDoc[] featureDocs = features.toArray(new RankFeatureDoc[0]);
-                                            Arrays.sort(featureDocs, Comparator.comparing((RankFeatureDoc doc) -> doc.score).reversed());
-                                            featureDocs = Arrays.stream(featureDocs).limit(rankWindowSize).toArray(RankFeatureDoc[]::new);
-                                            RankFeatureDoc[] topResults = new RankFeatureDoc[Math.max(
-                                                0,
-                                                Math.min(size, featureDocs.length - from)
-                                            )];
-                                            // perform pagination
-                                            for (int rank = 0; rank < topResults.length; ++rank) {
-                                                RankFeatureDoc rfd = featureDocs[from + rank];
-                                                topResults[rank] = new RankFeatureDoc(rfd.doc, rfd.score, rfd.shardIndex);
-                                                topResults[rank].rank = from + rank + 1;
-                                            }
-                                            onFinish.accept(topResults);
+                                            scoreListener.onResponse(scores);
                                         }
                                     };
                                 }

@@ -14,6 +14,7 @@ import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.tests.store.MockDirectoryWrapper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
@@ -52,7 +53,6 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Consumer;
 
 public class RankFeaturePhaseTests extends ESTestCase {
 
@@ -801,7 +801,7 @@ public class RankFeaturePhaseTests extends ESTestCase {
                                     rankFeatureResult,
                                     shard2Target,
                                     shard2Results,
-                                    shard2Docs
+                                    new ScoreDoc[] { shard2Docs[0] }
                                 );
                                 listener.onResponse(rankFeatureResult);
                             } else {
@@ -834,10 +834,7 @@ public class RankFeaturePhaseTests extends ESTestCase {
             assertShardResults(shard1Result, expectedShardResults);
 
             SearchPhaseResult shard2Result = rankPhaseResults.getAtomicArray().get(1);
-            List<ExpectedRankFeatureDoc> expectedShard2Results = List.of(
-                new ExpectedRankFeatureDoc(11, 1, 200.0F, "ranked_11"),
-                new ExpectedRankFeatureDoc(2, 2, 109F, "ranked_2")
-            );
+            List<ExpectedRankFeatureDoc> expectedShard2Results = List.of(new ExpectedRankFeatureDoc(11, 1, 200.0F, "ranked_11"));
             assertShardResults(shard2Result, expectedShard2Results);
 
             SearchPhaseResult shard3Result = rankPhaseResults.getAtomicArray().get(2);
@@ -858,8 +855,16 @@ public class RankFeaturePhaseTests extends ESTestCase {
 
     private RankFeaturePhaseRankCoordinatorContext defaultRankFeaturePhaseRankCoordinatorContext(int size, int from, int rankWindowSize) {
         return new RankFeaturePhaseRankCoordinatorContext(size, from, rankWindowSize) {
+
             @Override
-            public void rankGlobalResults(List<RankFeatureResult> rankSearchResults, Consumer<ScoreDoc[]> onFinish) {
+            protected void computeScores(RankFeatureDoc[] featureDocs, ActionListener<float[]> scoreListener) {
+                // no-op
+                // this one is handled directly in rankGlobalResults to create a RankFeatureDoc
+                // and avoid modifying in-place the ScoreDoc's rank
+            }
+
+            @Override
+            public void rankGlobalResults(List<RankFeatureResult> rankSearchResults, ActionListener<RankFeatureDoc[]> rankListener) {
                 List<RankFeatureDoc> features = new ArrayList<>();
                 for (RankFeatureResult rankFeatureResult : rankSearchResults) {
                     RankFeatureShardResult shardResult = rankFeatureResult.shardResult();
@@ -867,7 +872,6 @@ public class RankFeaturePhaseTests extends ESTestCase {
                 }
                 RankFeatureDoc[] featureDocs = features.toArray(new RankFeatureDoc[0]);
                 Arrays.sort(featureDocs, Comparator.comparing((RankFeatureDoc doc) -> doc.score).reversed());
-                featureDocs = Arrays.stream(featureDocs).limit(rankWindowSize).toArray(RankFeatureDoc[]::new);
                 RankFeatureDoc[] topResults = new RankFeatureDoc[Math.max(0, Math.min(size, featureDocs.length - from))];
                 // perform pagination
                 for (int rank = 0; rank < topResults.length; ++rank) {
@@ -875,7 +879,7 @@ public class RankFeaturePhaseTests extends ESTestCase {
                     topResults[rank] = new RankFeatureDoc(rfd.doc, rfd.score, rfd.shardIndex);
                     topResults[rank].rank = from + rank + 1;
                 }
-                onFinish.accept(topResults);
+                rankListener.onResponse(topResults);
             }
         };
     }

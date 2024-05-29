@@ -13,6 +13,7 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchPhaseController;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -30,7 +31,6 @@ import org.elasticsearch.search.rank.context.QueryPhaseRankShardContext;
 import org.elasticsearch.search.rank.context.RankFeaturePhaseRankCoordinatorContext;
 import org.elasticsearch.search.rank.context.RankFeaturePhaseRankShardContext;
 import org.elasticsearch.search.rank.feature.RankFeatureDoc;
-import org.elasticsearch.search.rank.feature.RankFeatureResult;
 import org.elasticsearch.search.rank.feature.RankFeatureShardResult;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -48,7 +48,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.Consumer;
 
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
@@ -430,28 +429,12 @@ public class FieldBasedRerankerIT extends ESIntegTestCase {
         public RankFeaturePhaseRankCoordinatorContext buildRankFeaturePhaseCoordinatorContext(int size, int from) {
             return new RankFeaturePhaseRankCoordinatorContext(size, from, rankWindowSize()) {
                 @Override
-                public void rankGlobalResults(List<RankFeatureResult> rankSearchResults, Consumer<ScoreDoc[]> onFinish) {
-                    RankFeatureDoc[] featureDocs = extractFeatures(rankSearchResults);
-                    for (RankFeatureDoc featureDoc : featureDocs) {
-                        featureDoc.score = Float.parseFloat(featureDoc.featureData);
+                protected void computeScores(RankFeatureDoc[] featureDocs, ActionListener<float[]> scoreListener) {
+                    float[] scores = new float[featureDocs.length];
+                    for (int i = 0; i < featureDocs.length; i++) {
+                        scores[i] = Float.parseFloat(featureDocs[i].featureData);
                     }
-                    Arrays.sort(featureDocs, Comparator.comparing((RankFeatureDoc doc) -> doc.score).reversed());
-                    RankFeatureDoc[] topResults = new RankFeatureDoc[Math.max(0, Math.min(size, featureDocs.length - from))];
-                    for (int rank = 0; rank < topResults.length; ++rank) {
-                        topResults[rank] = featureDocs[from + rank];
-                        topResults[rank].rank = from + rank + 1;
-                    }
-                    // and call the parent onFinish consumer with the final `ScoreDoc[]` results.
-                    onFinish.accept(topResults);
-                }
-
-                private RankFeatureDoc[] extractFeatures(List<RankFeatureResult> rankSearchResults) {
-                    List<RankFeatureDoc> docFeatures = new ArrayList<>();
-                    for (RankFeatureResult rankFeatureResult : rankSearchResults) {
-                        RankFeatureShardResult shardResult = rankFeatureResult.shardResult();
-                        docFeatures.addAll(Arrays.stream(shardResult.rankFeatureDocs).toList());
-                    }
-                    return docFeatures.toArray(new RankFeatureDoc[0]);
+                    scoreListener.onResponse(scores);
                 }
             };
         }
@@ -532,7 +515,7 @@ public class FieldBasedRerankerIT extends ESIntegTestCase {
             return List.of(
                 new NamedWriteableRegistry.Entry(RankBuilder.class, FIELD_BASED_RANK_BUILDER_NAME, FieldBasedRankBuilder::new),
                 new NamedWriteableRegistry.Entry(RankBuilder.class, THROWING_RANK_BUILDER_NAME, ThrowingRankBuilder::new),
-                new NamedWriteableRegistry.Entry(RankShardResult.class, "rank-feature-shard", RankFeatureShardResult::new)
+                new NamedWriteableRegistry.Entry(RankShardResult.class, "rank_feature_shard", RankFeatureShardResult::new)
             );
         }
 

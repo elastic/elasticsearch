@@ -176,7 +176,7 @@ public class RankFeatureShardPhaseTests extends ESTestCase {
 
             @Override
             public String getWriteableName() {
-                return "rank-builder-rank-feature-shard-phase-enabled";
+                return "rank_builder_rank_feature_shard_phase_enabled";
             }
 
             @Override

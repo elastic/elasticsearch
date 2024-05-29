@@ -35,7 +35,7 @@ public class RankFeatureShardResult implements RankShardResult {
 
     @Override
     public String getWriteableName() {
-        return "rank-feature-shard";
+        return "rank_feature_shard";
     }
 
     @Override

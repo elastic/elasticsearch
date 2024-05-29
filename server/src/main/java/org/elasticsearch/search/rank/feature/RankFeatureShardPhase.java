@@ -70,29 +70,23 @@ public final class RankFeatureShardPhase {
             ? searchContext.request().source().rankBuilder().buildRankFeaturePhaseShardContext()
             : null;
         if (rankFeaturePhaseRankShardContext != null) {
-            RankFeatureShardResult featureRankShardResult = null;
-            try {
-                // TODO: here we populate the profile part of the fetchResult as well
-                // we need to see what info we want to include on the overall profiling section. This is something that is per-shard
-                // so most likely we will still care about the `FetchFieldPhase` profiling info as we could potentially
-                // operate on `rank_window_size` instead of just `size` results, so this could be much more expensive.
-                FetchSearchResult fetchSearchResult = searchContext.fetchResult();
-                if (fetchSearchResult == null || fetchSearchResult.hits() == null) {
-                    return;
-                }
-                // this cannot be null; as we have either already checked for it, or we would have thrown in
-                // FetchSearchResult#shardResult()
-                SearchHits hits = fetchSearchResult.hits();
-                featureRankShardResult = (RankFeatureShardResult) rankFeaturePhaseRankShardContext.buildRankFeatureShardResult(
-                    hits,
-                    searchContext.shardTarget().getShardId().id()
-                );
-            } finally {
-                // save the result in the search context
-                // need to add profiling info as well available from fetch
-                if (featureRankShardResult != null) {
-                    searchContext.rankFeatureResult().shardResult(featureRankShardResult);
-                }
+            // TODO: here we populate the profile part of the fetchResult as well
+            // we need to see what info we want to include on the overall profiling section. This is something that is per-shard
+            // so most likely we will still care about the `FetchFieldPhase` profiling info as we could potentially
+            // operate on `rank_window_size` instead of just `size` results, so this could be much more expensive.
+            FetchSearchResult fetchSearchResult = searchContext.fetchResult();
+            if (fetchSearchResult == null || fetchSearchResult.hits() == null) {
+                return;
+            }
+            // this cannot be null; as we have either already checked for it, or we would have thrown in
+            // FetchSearchResult#shardResult()
+            SearchHits hits = fetchSearchResult.hits();
+            RankFeatureShardResult featureRankShardResult = (RankFeatureShardResult) rankFeaturePhaseRankShardContext
+                .buildRankFeatureShardResult(hits, searchContext.shardTarget().getShardId().id());
+            // save the result in the search context
+            // need to add profiling info as well available from fetch
+            if (featureRankShardResult != null) {
+                searchContext.rankFeatureResult().shardResult(featureRankShardResult);
             }
         }
     }

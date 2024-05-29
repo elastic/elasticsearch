@@ -10,6 +10,7 @@ package org.elasticsearch.action.search;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.ScoreDoc;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
@@ -17,6 +18,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.rank.context.RankFeaturePhaseRankCoordinatorContext;
+import org.elasticsearch.search.rank.feature.RankFeatureDoc;
 import org.elasticsearch.search.rank.feature.RankFeatureResult;
 import org.elasticsearch.search.rank.feature.RankFeatureShardRequest;
 
@@ -168,12 +170,21 @@ public class RankFeaturePhase extends SearchPhase {
         SearchPhaseController.ReducedQueryPhase reducedQueryPhase
     ) {
         assert rankFeaturePhaseRankCoordinatorContext != null;
-        rankFeaturePhaseRankCoordinatorContext.rankGlobalResults(
-            rankPhaseResults.getAtomicArray().asList().stream().map(SearchPhaseResult::rankFeatureResult).toList(),
-            (scoreDocs) -> {
+        ActionListener<RankFeatureDoc[]> rankResultListener = new ActionListener<>() {
+            @Override
+            public void onResponse(RankFeatureDoc[] scoreDocs) {
                 SearchPhaseController.ReducedQueryPhase reducedRankFeaturePhase = newReducedQueryPhaseResults(reducedQueryPhase, scoreDocs);
                 moveToNextPhase(rankPhaseResults, reducedRankFeaturePhase);
             }
+
+            @Override
+            public void onFailure(Exception e) {
+                context.onPhaseFailure(RankFeaturePhase.this, "Computing updated ranks for results failed", e);
+            }
+        };
+        rankFeaturePhaseRankCoordinatorContext.rankGlobalResults(
+            rankPhaseResults.getAtomicArray().asList().stream().map(SearchPhaseResult::rankFeatureResult).toList(),
+            rankResultListener
         );
     }
 

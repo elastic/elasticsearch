@@ -37,6 +37,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResp
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.matchesRegex;
 
 /**
  * Full integration test of the template query plugin.
@@ -441,10 +442,13 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
         );
         assertThat(primary.getMessage(), containsString("'search.check_ccs_compatibility' setting is enabled."));
 
-        String expectedCause = "[fail_before_current_version] was released first in version XXXXXXX, failed compatibility check trying to"
-            + " send it to node with version XXXXXXX";
-        String actualCause = underlying.getMessage().replaceAll("\\d{7,}", "XXXXXXX");
-        assertEquals(expectedCause, actualCause);
+        assertThat(
+            underlying.getMessage(),
+            matchesRegex(
+                "\\[fail_before_current_version] was released first in version .+,"
+                    + " failed compatibility check trying to send it to node with version .+"
+            )
+        );
     }
 
     public static void assertHitCount(SearchTemplateRequestBuilder requestBuilder, long expectedHitCount) {

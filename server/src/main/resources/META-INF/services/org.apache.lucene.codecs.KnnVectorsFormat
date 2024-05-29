@@ -1,2 +1,3 @@
 org.elasticsearch.index.codec.vectors.ES813FlatVectorFormat
 org.elasticsearch.index.codec.vectors.ES813Int8FlatVectorFormat
+org.elasticsearch.index.codec.vectors.ES814HnswScalarQuantizedVectorsFormat

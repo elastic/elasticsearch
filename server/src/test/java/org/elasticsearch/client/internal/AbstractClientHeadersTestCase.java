@@ -11,9 +11,9 @@ package org.elasticsearch.client.internal;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteAction;
-import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotAction;
-import org.elasticsearch.action.admin.cluster.stats.ClusterStatsAction;
+import org.elasticsearch.action.admin.cluster.reroute.TransportClusterRerouteAction;
+import org.elasticsearch.action.admin.cluster.snapshots.create.TransportCreateSnapshotAction;
+import org.elasticsearch.action.admin.cluster.stats.TransportClusterStatsAction;
 import org.elasticsearch.action.admin.cluster.storedscripts.TransportDeleteStoredScriptAction;
 import org.elasticsearch.action.admin.indices.cache.clear.TransportClearIndicesCacheAction;
 import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
@@ -55,9 +55,9 @@ public abstract class AbstractClientHeadersTestCase extends ESTestCase {
         TransportIndexAction.TYPE,
 
         // cluster admin actions
-        ClusterStatsAction.INSTANCE,
-        CreateSnapshotAction.INSTANCE,
-        ClusterRerouteAction.INSTANCE,
+        TransportClusterStatsAction.TYPE,
+        TransportCreateSnapshotAction.TYPE,
+        TransportClusterRerouteAction.TYPE,
 
         // indices admin actions
         TransportCreateIndexAction.TYPE,
@@ -110,12 +110,18 @@ public abstract class AbstractClientHeadersTestCase extends ESTestCase {
             .execute(new AssertingActionListener<>(TransportIndexAction.NAME, client.threadPool()));
 
         // choosing arbitrary cluster admin actions to test
-        client.admin().cluster().prepareClusterStats().execute(new AssertingActionListener<>(ClusterStatsAction.NAME, client.threadPool()));
+        client.admin()
+            .cluster()
+            .prepareClusterStats()
+            .execute(new AssertingActionListener<>(TransportClusterStatsAction.TYPE.name(), client.threadPool()));
         client.admin()
             .cluster()
             .prepareCreateSnapshot("repo", "bck")
-            .execute(new AssertingActionListener<>(CreateSnapshotAction.NAME, client.threadPool()));
-        client.admin().cluster().prepareReroute().execute(new AssertingActionListener<>(ClusterRerouteAction.NAME, client.threadPool()));
+            .execute(new AssertingActionListener<>(TransportCreateSnapshotAction.TYPE.name(), client.threadPool()));
+        client.admin()
+            .cluster()
+            .prepareReroute()
+            .execute(new AssertingActionListener<>(TransportClusterRerouteAction.TYPE.name(), client.threadPool()));
 
         // choosing arbitrary indices admin actions to test
         client.admin()
@@ -142,7 +148,7 @@ public abstract class AbstractClientHeadersTestCase extends ESTestCase {
         client.admin()
             .cluster()
             .prepareClusterStats()
-            .execute(new AssertingActionListener<>(ClusterStatsAction.NAME, expected, client.threadPool()));
+            .execute(new AssertingActionListener<>(TransportClusterStatsAction.TYPE.name(), expected, client.threadPool()));
 
         client.admin()
             .indices()

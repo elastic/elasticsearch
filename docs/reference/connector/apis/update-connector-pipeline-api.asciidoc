@@ -4,7 +4,7 @@
 <titleabbrev>Update connector pipeline</titleabbrev>
 ++++
 
-preview::[]
+beta::[]
 
 Updates the `pipeline` configuration of a connector.
 
@@ -18,7 +18,7 @@ When you create a new connector, the configuration of an <<ingest-pipeline-searc
 [[update-connector-pipeline-api-prereq]]
 ==== {api-prereq-title}
 
-* To sync data using connectors, it's essential to have the Elastic connectors service running.
+* To sync data using self-managed connectors, you need to deploy the {enterprise-search-ref}/build-connector.html[Elastic connector service] on your own infrastructure. This service runs automatically on Elastic Cloud for native connectors.
 * The `connector_id` parameter should reference an existing connector.
 
 [[update-connector-pipeline-api-path-params]]

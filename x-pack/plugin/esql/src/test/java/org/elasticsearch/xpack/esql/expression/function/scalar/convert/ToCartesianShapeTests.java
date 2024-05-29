@@ -12,20 +12,21 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.geo.GeometryTestUtils;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.FunctionName;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.CARTESIAN;
+import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
 
 @FunctionName("to_cartesianshape")
 public class ToCartesianShapeTests extends AbstractFunctionTestCase {
@@ -57,20 +58,22 @@ public class ToCartesianShapeTests extends AbstractFunctionTestCase {
             }
         );
         // strings that are cartesian_shape representations
-        TestCaseSupplier.unary(
-            suppliers,
-            evaluatorName.apply("FromString"),
-            List.of(
-                new TestCaseSupplier.TypedDataSupplier(
-                    "<cartesian_shape as string>",
-                    () -> new BytesRef(CARTESIAN.asWkt(GeometryTestUtils.randomGeometry(randomBoolean()))),
-                    DataTypes.KEYWORD
-                )
-            ),
-            EsqlDataTypes.CARTESIAN_SHAPE,
-            bytesRef -> CARTESIAN.wktToWkb(((BytesRef) bytesRef).utf8ToString()),
-            List.of()
-        );
+        for (DataType dt : List.of(DataTypes.KEYWORD, DataTypes.TEXT)) {
+            TestCaseSupplier.unary(
+                suppliers,
+                evaluatorName.apply("FromString"),
+                List.of(
+                    new TestCaseSupplier.TypedDataSupplier(
+                        "<cartesian_shape as string>",
+                        () -> new BytesRef(CARTESIAN.asWkt(GeometryTestUtils.randomGeometry(randomBoolean()))),
+                        dt
+                    )
+                ),
+                EsqlDataTypes.CARTESIAN_SHAPE,
+                bytesRef -> CARTESIAN.wktToWkb(((BytesRef) bytesRef).utf8ToString()),
+                List.of()
+            );
+        }
 
         return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers)));
     }

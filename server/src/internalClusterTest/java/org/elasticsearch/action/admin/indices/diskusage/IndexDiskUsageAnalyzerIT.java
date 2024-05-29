@@ -39,6 +39,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.index.shard.IndexShardTestCase.closeShardNoCheck;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
@@ -260,7 +261,7 @@ public class IndexDiskUsageAnalyzerIT extends ESIntegTestCase {
                                 IndexShard indexShard = indicesService.getShardOrNull(shardId);
                                 assertNotNull("No shard found for shard " + shardId, indexShard);
                                 logger.info("--> failing shard {} on node {}", shardRequest.shardId(), node);
-                                indexShard.close("test", randomBoolean());
+                                closeShardNoCheck(indexShard, randomBoolean());
                                 failedShards.incrementAndGet();
                             } else {
                                 successfulShards.incrementAndGet();

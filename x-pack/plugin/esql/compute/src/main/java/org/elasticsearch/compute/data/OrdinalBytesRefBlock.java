@@ -9,6 +9,8 @@ package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 
 import java.io.IOException;
@@ -55,6 +57,14 @@ public final class OrdinalBytesRefBlock extends AbstractNonThreadSafeRefCounted 
         return ordinals.getTotalValueCount() * 2 / 3 >= bytes.getPositionCount();
     }
 
+    public IntBlock getOrdinalsBlock() {
+        return ordinals;
+    }
+
+    public BytesRefVector getDictionaryVector() {
+        return bytes;
+    }
+
     @Override
     public BytesRef getBytesRef(int valueIndex, BytesRef dest) {
         return bytes.getBytesRef(ordinals.getInt(valueIndex), dest);
@@ -68,6 +78,11 @@ public final class OrdinalBytesRefBlock extends AbstractNonThreadSafeRefCounted 
         } else {
             return null;
         }
+    }
+
+    @Override
+    public OrdinalBytesRefBlock asOrdinals() {
+        return this;
     }
 
     @Override
@@ -108,6 +123,11 @@ public final class OrdinalBytesRefBlock extends AbstractNonThreadSafeRefCounted 
                 return builder.mvOrdering(mvOrdering()).build();
             }
         }
+    }
+
+    @Override
+    public ReleasableIterator<BytesRefBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
+        return new BytesRefLookup(this, positions, targetBlockSize);
     }
 
     @Override
@@ -154,11 +174,6 @@ public final class OrdinalBytesRefBlock extends AbstractNonThreadSafeRefCounted 
     @Override
     public boolean isNull(int position) {
         return ordinals.isNull(position);
-    }
-
-    @Override
-    public int nullValuesCount() {
-        return ordinals.nullValuesCount();
     }
 
     @Override

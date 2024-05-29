@@ -5,7 +5,7 @@
 <titleabbrev>Aggregate functions</titleabbrev>
 ++++
 
-The <<esql-stats-by>> function supports these aggregate functions:
+The <<esql-stats-by>> command supports these aggregate functions:
 
 // tag::agg_list[]
 * <<esql-agg-avg>>

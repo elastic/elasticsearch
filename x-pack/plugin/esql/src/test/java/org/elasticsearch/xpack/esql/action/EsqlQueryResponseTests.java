@@ -46,10 +46,10 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.TestBlockFactory;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.versionfield.Version;
 import org.junit.After;
 import org.junit.Before;
@@ -67,8 +67,8 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryResponse.DROP_NULL_COLUMNS_OPTION;
 import static org.elasticsearch.xpack.esql.action.ResponseValueUtils.valuesToPage;
-import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.CARTESIAN;
-import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.GEO;
+import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
+import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -143,9 +143,9 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
         return new Page(columns.stream().map(c -> {
             Block.Builder builder = PlannerUtils.toElementType(EsqlDataTypes.fromName(c.type())).newBlockBuilder(1, blockFactory);
             switch (c.type()) {
-                case "unsigned_long", "long" -> ((LongBlock.Builder) builder).appendLong(randomLong());
-                case "integer" -> ((IntBlock.Builder) builder).appendInt(randomInt());
-                case "double" -> ((DoubleBlock.Builder) builder).appendDouble(randomDouble());
+                case "unsigned_long", "long", "counter_long" -> ((LongBlock.Builder) builder).appendLong(randomLong());
+                case "integer", "counter_integer" -> ((IntBlock.Builder) builder).appendInt(randomInt());
+                case "double", "counter_double" -> ((DoubleBlock.Builder) builder).appendDouble(randomDouble());
                 case "keyword" -> ((BytesRefBlock.Builder) builder).appendBytesRef(new BytesRef(randomAlphaOfLength(10)));
                 case "text" -> ((BytesRefBlock.Builder) builder).appendBytesRef(new BytesRef(randomAlphaOfLength(10000)));
                 case "ip" -> ((BytesRefBlock.Builder) builder).appendBytesRef(

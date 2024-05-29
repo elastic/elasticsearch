@@ -26,7 +26,7 @@ Requires the `manage_ml` cluster privilege. This privilege is included in the
 
 `<model_id>`::
 (Required, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-id]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=model-id]
 
 `<part>`::
 (Required, number)

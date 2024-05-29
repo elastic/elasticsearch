@@ -72,7 +72,7 @@ public class ModelRegistryTests extends ESTestCase {
         registry.getModelWithSecrets("1", listener);
 
         ResourceNotFoundException exception = expectThrows(ResourceNotFoundException.class, () -> listener.actionGet(TIMEOUT));
-        assertThat(exception.getMessage(), is("Model not found [1]"));
+        assertThat(exception.getMessage(), is("Inference endpoint not found [1]"));
     }
 
     public void testGetUnparsedModelMap_ThrowsIllegalArgumentException_WhenInvalidIndexReceived() {
@@ -88,7 +88,7 @@ public class ModelRegistryTests extends ESTestCase {
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> listener.actionGet(TIMEOUT));
         assertThat(
             exception.getMessage(),
-            is("Invalid result while loading model [1] index: [unknown_index]. Try deleting and reinitializing the service")
+            is("Invalid result while loading inference endpoint [1] index: [unknown_index]. Try deleting and reinitializing the service")
         );
     }
 
@@ -105,7 +105,7 @@ public class ModelRegistryTests extends ESTestCase {
         IllegalStateException exception = expectThrows(IllegalStateException.class, () -> listener.actionGet(TIMEOUT));
         assertThat(
             exception.getMessage(),
-            is("Failed to load model, model [1] is in an invalid state. Try deleting and reinitializing the service")
+            is("Failed to load inference endpoint [1]. Endpoint is in an invalid state, try deleting and reinitializing the service")
         );
     }
 
@@ -122,7 +122,7 @@ public class ModelRegistryTests extends ESTestCase {
         IllegalStateException exception = expectThrows(IllegalStateException.class, () -> listener.actionGet(TIMEOUT));
         assertThat(
             exception.getMessage(),
-            is("Failed to load model, model [1] is in an invalid state. Try deleting and reinitializing the service")
+            is("Failed to load inference endpoint [1]. Endpoint is in an invalid state, try deleting and reinitializing the service")
         );
     }
 
@@ -229,7 +229,7 @@ public class ModelRegistryTests extends ESTestCase {
             exception.getMessage(),
             is(
                 format(
-                    "Failed to store inference model [%s], invalid bulk response received. Try reinitializing the service",
+                    "Failed to store inference endpoint [%s], invalid bulk response received. Try reinitializing the service",
                     model.getConfigurations().getInferenceEntityId()
                 )
             )
@@ -258,7 +258,7 @@ public class ModelRegistryTests extends ESTestCase {
         ResourceAlreadyExistsException exception = expectThrows(ResourceAlreadyExistsException.class, () -> listener.actionGet(TIMEOUT));
         assertThat(
             exception.getMessage(),
-            is(format("Inference model [%s] already exists", model.getConfigurations().getInferenceEntityId()))
+            is(format("Inference endpoint [%s] already exists", model.getConfigurations().getInferenceEntityId()))
         );
     }
 
@@ -284,7 +284,7 @@ public class ModelRegistryTests extends ESTestCase {
         ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
         assertThat(
             exception.getMessage(),
-            is(format("Failed to store inference model [%s]", model.getConfigurations().getInferenceEntityId()))
+            is(format("Failed to store inference endpoint [%s]", model.getConfigurations().getInferenceEntityId()))
         );
     }
 

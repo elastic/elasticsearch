@@ -15,62 +15,65 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.VerificationException;
-import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.core.analyzer.AnalyzerRules;
+import org.elasticsearch.xpack.esql.core.common.Failures;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
+import org.elasticsearch.xpack.esql.core.expression.EmptyAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.ExpressionSet;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.Order;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.expression.predicate.Predicates;
+import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Or;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RegexMatch;
+import org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules;
+import org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.ConstantFolding;
+import org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.LiteralsOnTheRight;
+import org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.PruneLiteralsInOrderBy;
+import org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.SetAsOptimized;
+import org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.SimplifyComparisonsArithmetics;
+import org.elasticsearch.xpack.esql.core.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.core.plan.logical.Limit;
+import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.core.plan.logical.OrderBy;
+import org.elasticsearch.xpack.esql.core.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.core.rule.ParameterizedRule;
+import org.elasticsearch.xpack.esql.core.rule.ParameterizedRuleExecutor;
+import org.elasticsearch.xpack.esql.core.rule.Rule;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
+import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesFunction;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
+import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
+import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.analyzer.AnalyzerRules;
-import org.elasticsearch.xpack.ql.common.Failures;
-import org.elasticsearch.xpack.ql.expression.Alias;
-import org.elasticsearch.xpack.ql.expression.Attribute;
-import org.elasticsearch.xpack.ql.expression.AttributeMap;
-import org.elasticsearch.xpack.ql.expression.AttributeSet;
-import org.elasticsearch.xpack.ql.expression.EmptyAttribute;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.ExpressionSet;
-import org.elasticsearch.xpack.ql.expression.Expressions;
-import org.elasticsearch.xpack.ql.expression.Literal;
-import org.elasticsearch.xpack.ql.expression.NamedExpression;
-import org.elasticsearch.xpack.ql.expression.Order;
-import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
-import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
-import org.elasticsearch.xpack.ql.expression.predicate.Predicates;
-import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
-import org.elasticsearch.xpack.ql.expression.predicate.regex.RegexMatch;
-import org.elasticsearch.xpack.ql.optimizer.OptimizerRules;
-import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.ConstantFolding;
-import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.LiteralsOnTheRight;
-import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PruneLiteralsInOrderBy;
-import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.SetAsOptimized;
-import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.SimplifyComparisonsArithmetics;
-import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
-import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
-import org.elasticsearch.xpack.ql.plan.logical.Filter;
-import org.elasticsearch.xpack.ql.plan.logical.Limit;
-import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
-import org.elasticsearch.xpack.ql.plan.logical.Project;
-import org.elasticsearch.xpack.ql.plan.logical.UnaryPlan;
-import org.elasticsearch.xpack.ql.rule.ParameterizedRule;
-import org.elasticsearch.xpack.ql.rule.ParameterizedRuleExecutor;
-import org.elasticsearch.xpack.ql.rule.Rule;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.elasticsearch.xpack.ql.util.CollectionUtils;
-import org.elasticsearch.xpack.ql.util.Holder;
-import org.elasticsearch.xpack.ql.util.StringUtils;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -83,11 +86,11 @@ import java.util.function.Predicate;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.singleton;
+import static org.elasticsearch.xpack.esql.core.expression.Expressions.asAttributes;
+import static org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.TransformDirection;
+import static org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.TransformDirection.DOWN;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputExpressions;
 import static org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer.SubstituteSurrogates.rawTemporaryName;
-import static org.elasticsearch.xpack.ql.expression.Expressions.asAttributes;
-import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.TransformDirection;
-import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.TransformDirection.DOWN;
 
 public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan, LogicalOptimizerContext> {
 
@@ -124,6 +127,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             // lastly replace surrogate functions
             new SubstituteSurrogates(),
             new ReplaceRegexMatch(),
+            new ReplaceTrivialTypeConversions(),
             new ReplaceAliasingEvalWithProject(),
             new SkipQueryOnEmptyMappings(),
             new SubstituteSpatialSurrogates(),
@@ -389,6 +393,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         }
 
         @Override
+        @SuppressWarnings("unchecked")
         protected LogicalPlan rule(UnaryPlan plan) {
             LogicalPlan child = plan.child();
 
@@ -419,7 +424,22 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             // Agg with underlying Project (group by on sub-queries)
             if (plan instanceof Aggregate a) {
                 if (child instanceof Project p) {
-                    plan = new Aggregate(a.source(), p.child(), a.groupings(), combineProjections(a.aggregates(), p.projections()));
+                    var groupings = a.groupings();
+                    List<Attribute> groupingAttrs = new ArrayList<>(a.groupings().size());
+                    for (Expression grouping : groupings) {
+                        if (grouping instanceof Attribute attribute) {
+                            groupingAttrs.add(attribute);
+                        } else {
+                            // After applying ReplaceStatsNestedExpressionWithEval, groupings can only contain attributes.
+                            throw new EsqlIllegalArgumentException("Expected an Attribute, got {}", grouping);
+                        }
+                    }
+                    plan = new Aggregate(
+                        a.source(),
+                        p.child(),
+                        combineUpperGroupingsAndLowerProjections(groupingAttrs, p.projections()),
+                        combineProjections(a.aggregates(), p.projections())
+                    );
                 }
             }
 
@@ -480,6 +500,26 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
                 replaced.add((NamedExpression) trimNonTopLevelAliases(replacedExp));
             }
             return replaced;
+        }
+
+        private static List<Expression> combineUpperGroupingsAndLowerProjections(
+            List<? extends Attribute> upperGroupings,
+            List<? extends NamedExpression> lowerProjections
+        ) {
+            // Collect the alias map for resolving the source (f1 = 1, f2 = f1, etc..)
+            AttributeMap<Attribute> aliases = new AttributeMap<>();
+            for (NamedExpression ne : lowerProjections) {
+                // Projections are just aliases for attributes, so casting is safe.
+                aliases.put(ne.toAttribute(), (Attribute) Alias.unwrap(ne));
+            }
+
+            // Replace any matching attribute directly with the aliased attribute from the projection.
+            AttributeSet replaced = new AttributeSet();
+            for (Attribute attr : upperGroupings) {
+                // All substitutions happen before; groupings must be attributes at this point.
+                replaced.add(aliases.resolve(attr, attr));
+            }
+            return new ArrayList<>(replaced);
         }
 
         /**
@@ -760,7 +800,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         }
     }
 
-    private static class BooleanSimplification extends org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanSimplification {
+    private static class BooleanSimplification extends org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.BooleanSimplification {
 
         BooleanSimplification() {
             super();
@@ -1272,6 +1312,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         protected LogicalPlan rule(Aggregate aggregate) {
             List<Alias> evals = new ArrayList<>();
             Map<String, Attribute> evalNames = new HashMap<>();
+            Map<GroupingFunction, Attribute> groupingAttributes = new HashMap<>();
             List<Expression> newGroupings = new ArrayList<>(aggregate.groupings());
             boolean groupingChanged = false;
 
@@ -1285,6 +1326,9 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
                     evals.add(as);
                     evalNames.put(as.name(), attr);
                     newGroupings.set(i, attr);
+                    if (as.child() instanceof GroupingFunction gf) {
+                        groupingAttributes.put(gf, attr);
+                    }
                 }
             }
 
@@ -1337,6 +1381,13 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
                             result = af.replaceChildren(newChildren);
                         }
                         return result;
+                    });
+                    // replace any grouping functions with their references pointing to the added synthetic eval
+                    replaced = replaced.transformDown(GroupingFunction.class, gf -> {
+                        aggsChanged.set(true);
+                        // should never return null, as it's verified.
+                        // but even if broken, the transform will fail safely; otoh, returning `gf` will fail later due to incorrect plan.
+                        return groupingAttributes.get(gf);
                     });
 
                     return as.replaceChild(replaced);
@@ -1568,6 +1619,23 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
     }
 
     /**
+     * Replace type converting eval with aliasing eval when type change does not occur.
+     * A following {@link ReplaceAliasingEvalWithProject} will effectively convert {@link ReferenceAttribute} into {@link FieldAttribute},
+     * something very useful in local physical planning.
+     */
+    static class ReplaceTrivialTypeConversions extends OptimizerRules.OptimizerRule<Eval> {
+        @Override
+        protected LogicalPlan rule(Eval eval) {
+            return eval.transformExpressionsOnly(AbstractConvertFunction.class, convert -> {
+                if (convert.field() instanceof FieldAttribute fa && fa.dataType() == convert.dataType()) {
+                    return fa;
+                }
+                return convert;
+            });
+        }
+    }
+
+    /**
      * Rule that removes Aggregate overrides in grouping, aggregates and across them inside.
      * The overrides appear when the same alias is used multiple times in aggregations and/or groupings:
      * STATS x = COUNT(*), x = MIN(a) BY x = b + 1, x = c + 10
@@ -1636,7 +1704,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
      * 1. replaces reference to field attributes with their source
      * 2. in case of Count, aligns the various forms (Count(1), Count(0), Count(), Count(*)) to Count(*)
      */
-    // TODO waiting on https://github.com/elastic/elasticsearch/issues/100634
+    // TODO still needed?
     static class NormalizeAggregate extends Rule<LogicalPlan, LogicalPlan> {
 
         @Override

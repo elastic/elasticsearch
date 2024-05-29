@@ -1,9 +1,9 @@
 ---
 "Explain backing index lifecycle":
-  - skip:
-      cluster_features: ["datastream_lifecycle", "data_stream.lifecycle.global_retention"]
-      reason: "Data stream lifecycle with effective retention was released in 8.14"
-      features: allowed_warnings
+  - requires:
+      cluster_features: [ "gte_v8.11.0" ]
+      reason: "Data stream lifecycle was released as tech preview in 8.11"
+      test_runner_features: allowed_warnings
   - do:
       allowed_warnings:
         - "index template [template-with-lifecycle] has index patterns [managed-data-stream] matching patterns from existing older templates [global] with patterns (global => [*]); this template [template-with-lifecycle] will take precedence during new index creation"
@@ -36,9 +36,7 @@
       indices.explain_data_lifecycle:
         index: $backing_index
   - match: { indices.$backing_index.managed_by_lifecycle: true }
-  - match: { indices.$backing_index.lifecycle.data_retention: "30d" }
-  - match: { indices.$backing_index.lifecycle.effective_retention: "30d"}
-  - match: { indices.$backing_index.lifecycle.retention_determined_by: "data_stream_configuration"}
+  - match: { indices.$backing_index.lifecycle.data_retention: '30d' }
   - match: { indices.$backing_index.lifecycle.enabled: true }
   - is_false: indices.$backing_index.lifecycle.rollover
 
@@ -48,9 +46,7 @@
         index: $backing_index
         include_defaults: true
   - match: { indices.$backing_index.managed_by_lifecycle: true }
-  - match: { indices.$backing_index.lifecycle.data_retention: "30d" }
-  - match: { indices.$backing_index.lifecycle.effective_retention: "30d"}
-  - match: { indices.$backing_index.lifecycle.retention_determined_by: "data_stream_configuration"}
+  - match: { indices.$backing_index.lifecycle.data_retention: '30d' }
   - is_true: indices.$backing_index.lifecycle.rollover
 
 

@@ -37,7 +37,6 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -622,17 +621,11 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
         backingIndices.add(writeIndexMetadata.getIndex());
         metadataBuilder.put(writeIndexMetadata, false);
 
-        final DataStream dataStream = new DataStream(
-            dataStreamName,
-            backingIndices,
-            backingIndices.size(),
-            Collections.emptyMap(),
-            false,
-            false,
-            false,
-            false,
-            IndexMode.STANDARD
-        );
+        final DataStream dataStream = DataStream.builder(dataStreamName, backingIndices)
+            .setGeneration(backingIndices.size())
+            .setMetadata(Map.of())
+            .setIndexMode(IndexMode.STANDARD)
+            .build();
 
         metadataBuilder.put(dataStream);
 
@@ -684,17 +677,11 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
         backingIndices.add(writeIndexMetadata.getIndex());
         metadataBuilder.put(writeIndexMetadata, false);
 
-        final DataStream dataStream = new DataStream(
-            dataStreamName,
-            backingIndices,
-            backingIndices.size(),
-            Collections.emptyMap(),
-            false,
-            false,
-            false,
-            false,
-            IndexMode.STANDARD
-        );
+        final DataStream dataStream = DataStream.builder(dataStreamName, backingIndices)
+            .setGeneration(backingIndices.size())
+            .setMetadata(Map.of())
+            .setIndexMode(IndexMode.STANDARD)
+            .build();
 
         metadataBuilder.put(dataStream);
 
@@ -781,22 +768,10 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
             builder.put(indexMetadata, false);
             backingIndices.add(indexMetadata.getIndex());
         }
-        return new DataStream(
+        return DataStream.builder(
             dataStreamName,
-            backingIndices,
-            backingIndicesCount,
-            null,
-            false,
-            false,
-            false,
-            false,
-            null,
-            null,
-            false,
-            List.of(),
-            false,
-            autoShardingEvent
-        );
+            DataStream.DataStreamIndices.backingIndicesBuilder(backingIndices).setAutoShardingEvent(autoShardingEvent).build()
+        ).setGeneration(backingIndicesCount).build();
     }
 
     private IndexMetadata createIndexMetadata(

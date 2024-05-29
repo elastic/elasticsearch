@@ -367,23 +367,7 @@ public class WildcardExpressionResolverTests extends ESTestCase {
 
         {
             // if data stream itself is hidden, backing indices should not be returned
-            boolean hidden = true;
-            var dataStream = new DataStream(
-                dataStreamName,
-                List.of(firstBackingIndexMetadata.getIndex()),
-                1,
-                null,
-                hidden,
-                false,
-                false,
-                false,
-                null,
-                null,
-                false,
-                List.of(),
-                false,
-                null
-            );
+            var dataStream = DataStream.builder(dataStreamName, List.of(firstBackingIndexMetadata.getIndex())).setHidden(true).build();
 
             Metadata.Builder mdBuilder = Metadata.builder().put(firstBackingIndexMetadata, true).put(dataStream);
 

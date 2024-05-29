@@ -103,11 +103,11 @@ public class TransportMlMemoryAction extends TransportMasterNodeAction<MlMemoryA
                 .clear()
                 .setOs(true)
                 .setJvm(true)
-                .setTimeout(request.timeout())
+                .setTimeout(request.ackTimeout())
                 .execute(delegate.delegateFailureAndWrap((delegate2, nodesStatsResponse) -> {
                     TrainedModelCacheInfoAction.Request trainedModelCacheInfoRequest = new TrainedModelCacheInfoAction.Request(
                         nodesStatsResponse.getNodes().stream().map(NodeStats::getNode).toArray(DiscoveryNode[]::new)
-                    ).timeout(request.timeout());
+                    ).timeout(request.ackTimeout());
 
                     parentTaskClient.execute(
                         TrainedModelCacheInfoAction.INSTANCE,

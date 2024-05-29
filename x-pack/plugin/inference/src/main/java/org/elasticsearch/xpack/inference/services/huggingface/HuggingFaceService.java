@@ -63,7 +63,8 @@ public class HuggingFaceService extends HuggingFaceBaseService {
             model.getServiceSettings().uri(),
             model.getServiceSettings().similarity(), // we don't know the similarity but use whatever the user specified
             embeddingSize,
-            model.getTokenLimit()
+            model.getTokenLimit(),
+            model.getServiceSettings().rateLimitSettings()
         );
 
         return new HuggingFaceEmbeddingsModel(model, serviceSettings);
@@ -76,6 +77,6 @@ public class HuggingFaceService extends HuggingFaceBaseService {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_L2_NORM_SIMILARITY_ADDED;
+        return TransportVersions.ML_INFERENCE_RATE_LIMIT_SETTINGS_ADDED;
     }
 }

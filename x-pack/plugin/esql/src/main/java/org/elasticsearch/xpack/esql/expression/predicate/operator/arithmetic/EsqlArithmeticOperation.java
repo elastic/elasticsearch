@@ -10,24 +10,24 @@ package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.predicate.operator.arithmetic.ArithmeticOperation;
+import org.elasticsearch.xpack.esql.core.expression.predicate.operator.arithmetic.BinaryArithmeticOperation;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cast;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.ArithmeticOperation;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.BinaryArithmeticOperation;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.io.IOException;
 import java.util.function.Function;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
-import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
-import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
-import static org.elasticsearch.xpack.ql.type.DataTypes.LONG;
-import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.UNSIGNED_LONG;
 
 public abstract class EsqlArithmeticOperation extends ArithmeticOperation implements EvaluatorMapper {
 
@@ -71,14 +71,15 @@ public abstract class EsqlArithmeticOperation extends ArithmeticOperation implem
     }
 
     /** Arithmetic (quad) function. */
-    interface ArithmeticEvaluator {
+    @FunctionalInterface
+    public interface BinaryEvaluator {
         ExpressionEvaluator.Factory apply(Source source, ExpressionEvaluator.Factory lhs, ExpressionEvaluator.Factory rhs);
     }
 
-    private final ArithmeticEvaluator ints;
-    private final ArithmeticEvaluator longs;
-    private final ArithmeticEvaluator ulongs;
-    private final ArithmeticEvaluator doubles;
+    private final BinaryEvaluator ints;
+    private final BinaryEvaluator longs;
+    private final BinaryEvaluator ulongs;
+    private final BinaryEvaluator doubles;
 
     private DataType dataType;
 
@@ -87,10 +88,10 @@ public abstract class EsqlArithmeticOperation extends ArithmeticOperation implem
         Expression left,
         Expression right,
         OperationSymbol op,
-        ArithmeticEvaluator ints,
-        ArithmeticEvaluator longs,
-        ArithmeticEvaluator ulongs,
-        ArithmeticEvaluator doubles
+        BinaryEvaluator ints,
+        BinaryEvaluator longs,
+        BinaryEvaluator ulongs,
+        BinaryEvaluator doubles
     ) {
         super(source, left, right, op);
         this.ints = ints;
@@ -139,7 +140,7 @@ public abstract class EsqlArithmeticOperation extends ArithmeticOperation implem
         return TypeResolution.TYPE_RESOLVED;
     }
 
-    static String formatIncompatibleTypesMessage(String symbol, DataType leftType, DataType rightType) {
+    public static String formatIncompatibleTypesMessage(String symbol, DataType leftType, DataType rightType) {
         return format(null, "[{}] has arguments with incompatible types [{}] and [{}]", symbol, leftType.typeName(), rightType.typeName());
     }
 
@@ -152,7 +153,7 @@ public abstract class EsqlArithmeticOperation extends ArithmeticOperation implem
             var lhs = Cast.cast(source(), left().dataType(), commonType, toEvaluator.apply(left()));
             var rhs = Cast.cast(source(), right().dataType(), commonType, toEvaluator.apply(right()));
 
-            ArithmeticEvaluator eval;
+            BinaryEvaluator eval;
             if (commonType == INTEGER) {
                 eval = ints;
             } else if (commonType == LONG) {

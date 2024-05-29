@@ -63,7 +63,7 @@ irreversible operation.
 [[ccr-post-unfollow-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
 [[ccr-post-unfollow-examples]]
 ==== {api-examples-title}

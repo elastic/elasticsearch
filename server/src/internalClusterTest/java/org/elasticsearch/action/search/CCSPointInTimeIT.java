@@ -9,6 +9,7 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
@@ -92,7 +93,7 @@ public class CCSPointInTimeIT extends AbstractMultiClustersTestCase {
             indices.add(randomFrom("*", "local_*", "local_test"));
         }
         indices.add(randomFrom("*:*", "remote_cluster:*", "remote_cluster:remote_test"));
-        String pitId = openPointInTime(indices.toArray(new String[0]), TimeValue.timeValueMinutes(2));
+        BytesReference pitId = openPointInTime(indices.toArray(new String[0]), TimeValue.timeValueMinutes(2));
         try {
             if (randomBoolean()) {
                 localClient.prepareIndex("local_test").setId("local_new").setSource().get();
@@ -162,7 +163,7 @@ public class CCSPointInTimeIT extends AbstractMultiClustersTestCase {
         request.keepAlive(TimeValue.timeValueMinutes(2));
         request.indexFilter(new RangeQueryBuilder("@timestamp").gte("2023-12-15"));
         final OpenPointInTimeResponse response = client().execute(TransportOpenPointInTimeAction.TYPE, request).actionGet();
-        String pitId = response.getPointInTimeId();
+        BytesReference pitId = response.getPointInTimeId();
 
         if (randomBoolean()) {
             localClient.prepareIndex("local_test").setId("local_new").setSource().get();
@@ -252,7 +253,7 @@ public class CCSPointInTimeIT extends AbstractMultiClustersTestCase {
             indices.add(randomFrom("*", "local_*", "local_test"));
         }
         indices.add(randomFrom("*:*", "remote_cluster:*", "remote_cluster:remote_test"));
-        String pitId = openPointInTime(indices.toArray(new String[0]), TimeValue.timeValueMinutes(2));
+        BytesReference pitId = openPointInTime(indices.toArray(new String[0]), TimeValue.timeValueMinutes(2));
         try {
             if (randomBoolean()) {
                 localClient.prepareIndex("local_test").setId("local_new").setSource().get();
@@ -308,13 +309,13 @@ public class CCSPointInTimeIT extends AbstractMultiClustersTestCase {
         assertFalse(cluster.isTimedOut());
     }
 
-    private String openPointInTime(String[] indices, TimeValue keepAlive) {
+    private BytesReference openPointInTime(String[] indices, TimeValue keepAlive) {
         OpenPointInTimeRequest request = new OpenPointInTimeRequest(indices).keepAlive(keepAlive);
         final OpenPointInTimeResponse response = client().execute(TransportOpenPointInTimeAction.TYPE, request).actionGet();
         return response.getPointInTimeId();
     }
 
-    private void closePointInTime(String readerId) {
+    private void closePointInTime(BytesReference readerId) {
         client().execute(TransportClosePointInTimeAction.TYPE, new ClosePointInTimeRequest(readerId)).actionGet();
     }
 }

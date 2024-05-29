@@ -13,19 +13,40 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
+import org.elasticsearch.xpack.esql.core.index.EsIndex;
+import org.elasticsearch.xpack.esql.core.index.IndexResolution;
+import org.elasticsearch.xpack.esql.core.plan.TableIdentifier;
+import org.elasticsearch.xpack.esql.core.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.core.plan.logical.Limit;
+import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.core.plan.logical.OrderBy;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.type.TypesTests;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
+import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.EsqlUnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
@@ -33,32 +54,15 @@ import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.session.EsqlIndexResolver;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
-import org.elasticsearch.xpack.ql.expression.Alias;
-import org.elasticsearch.xpack.ql.expression.Attribute;
-import org.elasticsearch.xpack.ql.expression.Expressions;
-import org.elasticsearch.xpack.ql.expression.FieldAttribute;
-import org.elasticsearch.xpack.ql.expression.Literal;
-import org.elasticsearch.xpack.ql.expression.NamedExpression;
-import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
-import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
-import org.elasticsearch.xpack.ql.index.EsIndex;
-import org.elasticsearch.xpack.ql.index.IndexResolution;
-import org.elasticsearch.xpack.ql.plan.TableIdentifier;
-import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
-import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
-import org.elasticsearch.xpack.ql.plan.logical.Filter;
-import org.elasticsearch.xpack.ql.plan.logical.Limit;
-import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.elasticsearch.xpack.ql.type.TypesTests;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
@@ -69,7 +73,8 @@ import static org.elasticsearch.xpack.esql.analysis.Analyzer.NO_FIELDS;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyze;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.loadMapping;
-import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.tsdbIndexResolution;
+import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -82,7 +87,8 @@ public class AnalyzerTests extends ESTestCase {
     private static final EsqlUnresolvedRelation UNRESOLVED_RELATION = new EsqlUnresolvedRelation(
         EMPTY,
         new TableIdentifier(EMPTY, null, "idx"),
-        List.of()
+        List.of(),
+        IndexMode.STANDARD
     );
 
     private static final int MAX_LIMIT = EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE.getDefault(Settings.EMPTY);
@@ -94,7 +100,7 @@ public class AnalyzerTests extends ESTestCase {
         var plan = analyzer.analyze(UNRESOLVED_RELATION);
         var limit = as(plan, Limit.class);
 
-        assertEquals(new EsRelation(EMPTY, idx, NO_FIELDS), limit.child());
+        assertEquals(new EsRelation(EMPTY, idx, NO_FIELDS, IndexMode.STANDARD), limit.child());
     }
 
     public void testFailOnUnresolvedIndex() {
@@ -112,7 +118,7 @@ public class AnalyzerTests extends ESTestCase {
         var plan = analyzer.analyze(UNRESOLVED_RELATION);
         var limit = as(plan, Limit.class);
 
-        assertEquals(new EsRelation(EMPTY, idx, NO_FIELDS), limit.child());
+        assertEquals(new EsRelation(EMPTY, idx, NO_FIELDS, IndexMode.STANDARD), limit.child());
     }
 
     public void testAttributeResolution() {
@@ -1051,11 +1057,15 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testCompareDateToStringFails() {
         for (String comparison : COMPARISONS) {
-            verifyUnsupported("""
-                from test
-                | where date COMPARISON "not-a-date"
-                | keep date
-                """.replace("COMPARISON", comparison), "Invalid date [not-a-date]", "mapping-multi-field-variation.json");
+            verifyUnsupported(
+                """
+                    from test
+                    | where date COMPARISON "not-a-date"
+                    | keep date
+                    """.replace("COMPARISON", comparison),
+                "Cannot convert string [not-a-date] to [DATETIME]",
+                "mapping-multi-field-variation.json"
+            );
         }
     }
 
@@ -1634,6 +1644,22 @@ public class AnalyzerTests extends ESTestCase {
         assertProjection(query + " | keep x*", IntStream.range(0, additionalEvals + 3).mapToObj(v -> "x" + v).toArray(String[]::new));
     }
 
+    public void testCounterTypes() {
+        var query = "FROM test | KEEP network.* | LIMIT 10";
+        Analyzer analyzer = analyzer(tsdbIndexResolution());
+        LogicalPlan plan = analyze(query, analyzer);
+        var limit = as(plan, Limit.class);
+        var attributes = limit.output().stream().collect(Collectors.toMap(NamedExpression::name, a -> a));
+        assertThat(
+            attributes.keySet(),
+            equalTo(Set.of("network.connections", "network.bytes_in", "network.bytes_out", "network.message_in"))
+        );
+        assertThat(attributes.get("network.connections").dataType(), equalTo(DataTypes.LONG));
+        assertThat(attributes.get("network.bytes_in").dataType(), equalTo(EsqlDataTypes.COUNTER_LONG));
+        assertThat(attributes.get("network.bytes_out").dataType(), equalTo(EsqlDataTypes.COUNTER_LONG));
+        assertThat(attributes.get("network.message_in").dataType(), equalTo(EsqlDataTypes.COUNTER_DOUBLE));
+    }
+
     public void testMissingAttributeException_InChainedEval() {
         var e = expectThrows(VerificationException.class, () -> analyze("""
             from test
@@ -1785,45 +1811,45 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testUnsupportedTypesInStats() {
-        verifyUnsupported(
-            """
-                  row x = to_unsigned_long(\"10\")
-                  | stats  avg(x), count_distinct(x), max(x), median(x), median_absolute_deviation(x), min(x), percentile(x, 10), sum(x)
-                """,
-            "Found 8 problems\n"
-                + "line 2:12: argument of [avg(x)] must be [numeric except unsigned_long], found value [x] type [unsigned_long]\n"
-                + "line 2:20: argument of [count_distinct(x)] must be [any exact type except unsigned_long], "
-                + "found value [x] type [unsigned_long]\n"
-                + "line 2:39: argument of [max(x)] must be [datetime or numeric except unsigned_long], "
-                + "found value [max(x)] type [unsigned_long]\n"
-                + "line 2:47: argument of [median(x)] must be [numeric except unsigned_long], found value [x] type [unsigned_long]\n"
-                + "line 2:58: argument of [median_absolute_deviation(x)] must be [numeric except unsigned_long], "
-                + "found value [x] type [unsigned_long]\n"
-                + "line 2:88: argument of [min(x)] must be [datetime or numeric except unsigned_long], "
-                + "found value [min(x)] type [unsigned_long]\n"
-                + "line 2:96: first argument of [percentile(x, 10)] must be [numeric except unsigned_long], "
-                + "found value [x] type [unsigned_long]\n"
-                + "line 2:115: argument of [sum(x)] must be [numeric except unsigned_long], found value [x] type [unsigned_long]"
-        );
+        verifyUnsupported("""
+              row x = to_unsigned_long(\"10\")
+              | stats  avg(x), count_distinct(x), max(x), median(x), median_absolute_deviation(x), min(x), percentile(x, 10), sum(x)
+            """, """
+            Found 8 problems
+            line 2:12: argument of [avg(x)] must be [numeric except unsigned_long or counter types],\
+             found value [x] type [unsigned_long]
+            line 2:20: argument of [count_distinct(x)] must be [any exact type except unsigned_long or counter types],\
+             found value [x] type [unsigned_long]
+            line 2:39: argument of [max(x)] must be [datetime or numeric except unsigned_long or counter types],\
+             found value [max(x)] type [unsigned_long]
+            line 2:47: argument of [median(x)] must be [numeric except unsigned_long or counter types],\
+             found value [x] type [unsigned_long]
+            line 2:58: argument of [median_absolute_deviation(x)] must be [numeric except unsigned_long or counter types],\
+             found value [x] type [unsigned_long]
+            line 2:88: argument of [min(x)] must be [datetime or numeric except unsigned_long or counter types],\
+             found value [min(x)] type [unsigned_long]
+            line 2:96: first argument of [percentile(x, 10)] must be [numeric except unsigned_long],\
+             found value [x] type [unsigned_long]
+            line 2:115: argument of [sum(x)] must be [numeric except unsigned_long or counter types],\
+             found value [x] type [unsigned_long]""");
 
-        verifyUnsupported(
-            """
-                row x = to_version("1.2")
-                | stats  avg(x), max(x), median(x), median_absolute_deviation(x), min(x), percentile(x, 10), sum(x)
-                """,
-            "Found 7 problems\n"
-                + "line 2:10: argument of [avg(x)] must be [numeric except unsigned_long], found value [x] type [version]\n"
-                + "line 2:18: argument of [max(x)] must be [datetime or numeric except unsigned_long], "
-                + "found value [max(x)] type [version]\n"
-                + "line 2:26: argument of [median(x)] must be [numeric except unsigned_long], found value [x] type [version]\n"
-                + "line 2:37: argument of [median_absolute_deviation(x)] must be [numeric except unsigned_long], "
-                + "found value [x] type [version]\n"
-                + "line 2:67: argument of [min(x)] must be [datetime or numeric except unsigned_long], "
-                + "found value [min(x)] type [version]\n"
-                + "line 2:75: first argument of [percentile(x, 10)] must be [numeric except unsigned_long], "
-                + "found value [x] type [version]\n"
-                + "line 2:94: argument of [sum(x)] must be [numeric except unsigned_long], found value [x] type [version]"
-        );
+        verifyUnsupported("""
+            row x = to_version("1.2")
+            | stats  avg(x), max(x), median(x), median_absolute_deviation(x), min(x), percentile(x, 10), sum(x)
+            """, """
+            Found 7 problems
+            line 2:10: argument of [avg(x)] must be [numeric except unsigned_long or counter types],\
+             found value [x] type [version]
+            line 2:18: argument of [max(x)] must be [datetime or numeric except unsigned_long or counter types],\
+             found value [max(x)] type [version]
+            line 2:26: argument of [median(x)] must be [numeric except unsigned_long or counter types],\
+             found value [x] type [version]
+            line 2:37: argument of [median_absolute_deviation(x)] must be [numeric except unsigned_long or counter types],\
+             found value [x] type [version]
+            line 2:67: argument of [min(x)] must be [datetime or numeric except unsigned_long or counter types],\
+             found value [min(x)] type [version]
+            line 2:75: first argument of [percentile(x, 10)] must be [numeric except unsigned_long], found value [x] type [version]
+            line 2:94: argument of [sum(x)] must be [numeric except unsigned_long or counter types], found value [x] type [version]""");
     }
 
     public void testInOnText() {
@@ -1850,6 +1876,15 @@ public class AnalyzerTests extends ESTestCase {
             | eval text not in (\"a\", \"b\", \"c\", text)
             | keep text
             """, "mapping-multi-field-variation.json", "text");
+    }
+
+    public void testLookup() {
+        var e = expectThrows(ParsingException.class, () -> analyze("""
+              FROM test
+            | RENAME languages AS int
+            | LOOKUP int_number_names ON int
+            """));
+        assertThat(e.getMessage(), containsString("LOOKUP not yet supported"));
     }
 
     private void verifyUnsupported(String query, String errorMessage) {

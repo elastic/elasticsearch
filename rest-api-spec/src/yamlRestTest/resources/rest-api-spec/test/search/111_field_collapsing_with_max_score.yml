@@ -1,8 +1,8 @@
 setup:
-  - skip:
-      version: " - 8.9.99"
+  - requires:
+      cluster_features: ["gte_v8.10.0"]
       reason: Collapse with max score was fixed in 8.10.0
-      features: close_to
+      test_runner_features: close_to
 
   - do:
       indices.create:

@@ -12,6 +12,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.TestBlockFactory;
+import org.hamcrest.Matcher;
 
 import java.util.Iterator;
 import java.util.List;
@@ -50,12 +51,12 @@ public class MvExpandOperatorTests extends OperatorTestCase {
     }
 
     @Override
-    protected String expectedDescriptionOfSimple() {
-        return "MvExpandOperator[channel=0]";
+    protected Matcher<String> expectedDescriptionOfSimple() {
+        return equalTo("MvExpandOperator[channel=0]");
     }
 
     @Override
-    protected String expectedToStringOfSimple() {
+    protected Matcher<String> expectedToStringOfSimple() {
         return expectedDescriptionOfSimple();
     }
 

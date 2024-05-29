@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.enrich;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasable;
@@ -21,13 +22,11 @@ import org.elasticsearch.core.Releasable;
 abstract class EnrichResultBuilder implements Releasable {
     protected final BlockFactory blockFactory;
     protected final int channel;
-    protected final int totalPositions;
     private long usedBytes;
 
-    EnrichResultBuilder(BlockFactory blockFactory, int channel, int totalPositions) {
+    EnrichResultBuilder(BlockFactory blockFactory, int channel) {
         this.blockFactory = blockFactory;
         this.channel = channel;
-        this.totalPositions = totalPositions;
     }
 
     /**
@@ -38,7 +37,7 @@ abstract class EnrichResultBuilder implements Releasable {
      */
     abstract void addInputPage(IntVector positions, Page page);
 
-    abstract Block build();
+    abstract Block build(IntBlock selected);
 
     final void adjustBreaker(long bytes) {
         blockFactory.breaker().addEstimateBytesAndMaybeBreak(bytes, "<<enrich-result>>");
@@ -50,21 +49,21 @@ abstract class EnrichResultBuilder implements Releasable {
         blockFactory.breaker().addWithoutBreaking(-usedBytes);
     }
 
-    static EnrichResultBuilder enrichResultBuilder(ElementType elementType, BlockFactory blockFactory, int channel, int totalPositions) {
+    static EnrichResultBuilder enrichResultBuilder(ElementType elementType, BlockFactory blockFactory, int channel) {
         return switch (elementType) {
-            case NULL -> new EnrichResultBuilderForNull(blockFactory, channel, totalPositions);
-            case INT -> new EnrichResultBuilderForInt(blockFactory, channel, totalPositions);
-            case LONG -> new EnrichResultBuilderForLong(blockFactory, channel, totalPositions);
-            case DOUBLE -> new EnrichResultBuilderForDouble(blockFactory, channel, totalPositions);
-            case BOOLEAN -> new EnrichResultBuilderForBoolean(blockFactory, channel, totalPositions);
-            case BYTES_REF -> new EnrichResultBuilderForBytesRef(blockFactory, channel, totalPositions);
+            case NULL -> new EnrichResultBuilderForNull(blockFactory, channel);
+            case INT -> new EnrichResultBuilderForInt(blockFactory, channel);
+            case LONG -> new EnrichResultBuilderForLong(blockFactory, channel);
+            case DOUBLE -> new EnrichResultBuilderForDouble(blockFactory, channel);
+            case BOOLEAN -> new EnrichResultBuilderForBoolean(blockFactory, channel);
+            case BYTES_REF -> new EnrichResultBuilderForBytesRef(blockFactory, channel);
             default -> throw new IllegalArgumentException("no enrich result builder for [" + elementType + "]");
         };
     }
 
     private static class EnrichResultBuilderForNull extends EnrichResultBuilder {
-        EnrichResultBuilderForNull(BlockFactory blockFactory, int channel, int totalPositions) {
-            super(blockFactory, channel, totalPositions);
+        EnrichResultBuilderForNull(BlockFactory blockFactory, int channel) {
+            super(blockFactory, channel);
         }
 
         @Override
@@ -73,8 +72,8 @@ abstract class EnrichResultBuilder implements Releasable {
         }
 
         @Override
-        Block build() {
-            return blockFactory.newConstantNullBlock(totalPositions);
+        Block build(IntBlock selected) {
+            return blockFactory.newConstantNullBlock(selected.getPositionCount());
         }
     }
 }

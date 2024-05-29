@@ -159,7 +159,7 @@ public class CrossClustersCancellationIT extends AbstractMultiClustersTestCase {
 
     public void testCancel() throws Exception {
         createRemoteIndex(between(10, 100));
-        EsqlQueryRequest request = new EsqlQueryRequest();
+        EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest();
         request.query("FROM *:test | STATS total=sum(const) | LIMIT 1");
         request.pragmas(randomPragmas());
         PlainActionFuture<EsqlQueryResponse> requestFuture = new PlainActionFuture<>();

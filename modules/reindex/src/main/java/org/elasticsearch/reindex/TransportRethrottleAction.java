@@ -44,7 +44,6 @@ public class TransportRethrottleAction extends TransportTasksAction<BulkByScroll
             transportService,
             actionFilters,
             RethrottleRequest::new,
-            ListTasksResponse::new,
             TaskInfo::from,
             transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT)
         );

@@ -8,7 +8,9 @@
 
 package org.elasticsearch.search.aggregations.bucket.composite;
 
+import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
@@ -54,7 +56,12 @@ class RoundingValuesSource extends ValuesSource.Numeric {
 
     @Override
     public SortedNumericDocValues longValues(LeafReaderContext context) throws IOException {
-        SortedNumericDocValues values = vs.longValues(context);
+        final SortedNumericDocValues values = vs.longValues(context);
+        final NumericDocValues singleton = DocValues.unwrapSingleton(values);
+        return singleton != null ? DocValues.singleton(longSingleValues(singleton)) : longMultiValues(values);
+    }
+
+    private SortedNumericDocValues longMultiValues(SortedNumericDocValues values) {
         return new SortedNumericDocValues() {
             @Override
             public long nextValue() throws IOException {
@@ -64,6 +71,40 @@ class RoundingValuesSource extends ValuesSource.Numeric {
             @Override
             public int docValueCount() {
                 return values.docValueCount();
+            }
+
+            @Override
+            public boolean advanceExact(int target) throws IOException {
+                return values.advanceExact(target);
+            }
+
+            @Override
+            public int docID() {
+                return values.docID();
+            }
+
+            @Override
+            public int nextDoc() throws IOException {
+                return values.nextDoc();
+            }
+
+            @Override
+            public int advance(int target) throws IOException {
+                return values.advance(target);
+            }
+
+            @Override
+            public long cost() {
+                return values.cost();
+            }
+        };
+    }
+
+    private NumericDocValues longSingleValues(NumericDocValues values) {
+        return new NumericDocValues() {
+            @Override
+            public long longValue() throws IOException {
+                return round(values.longValue());
             }
 
             @Override

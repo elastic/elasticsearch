@@ -19,6 +19,18 @@
             id="infer-api-requirements-openai">
       OpenAI
     </button>
+    <button role="tab"
+            aria-selected="false"
+            aria-controls="infer-api-requirements-azure-openai-tab"
+            id="infer-api-requirements-azure-openai">
+      Azure OpenAI
+    </button>
+    <button role="tab"
+            aria-selected="false"
+            aria-controls="infer-api-requirements-azure-ai-studio-tab"
+            id="infer-api-requirements-azure-ai-studio">
+      Azure AI Studio
+    </button>
   </div>
   <div tabindex="0"
        role="tabpanel"
@@ -49,6 +61,28 @@ include::infer-api-requirements.asciidoc[tag=hugging-face]
 ++++
 
 include::infer-api-requirements.asciidoc[tag=openai]
+
+++++
+  </div>
+  <div tabindex="0"
+       role="tabpanel"
+       id="infer-api-requirements-azure-openai-tab"
+       aria-labelledby="infer-api-requirements-azure-openai"
+       hidden="">
+++++
+
+include::infer-api-requirements.asciidoc[tag=azure-openai]
+
+++++
+  </div>
+  <div tabindex="0"
+       role="tabpanel"
+       id="infer-api-requirements-azure-ai-studio-tab"
+       aria-labelledby="infer-api-requirements-azure-ai-studio"
+       hidden="">
+++++
+
+include::infer-api-requirements.asciidoc[tag=azure-ai-studio]
 
 ++++
   </div>

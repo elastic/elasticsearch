@@ -4,7 +4,7 @@
 <titleabbrev>Get connector sync job</titleabbrev>
 ++++
 
-preview::[]
+beta::[]
 
 Retrieves the details about a connector sync job.
 
@@ -16,7 +16,7 @@ Retrieves the details about a connector sync job.
 [[get-connector-sync-job-api-prereq]]
 ==== {api-prereq-title}
 
-* To sync data using connectors, it's essential to have the Elastic connectors service running.
+* To sync data using self-managed connectors, you need to deploy the {enterprise-search-ref}/build-connector.html[Elastic connector service] on your own infrastructure. This service runs automatically on Elastic Cloud for native connectors.
 
 [[get-connector-sync-job-api-path-params]]
 ==== {api-path-parms-title}

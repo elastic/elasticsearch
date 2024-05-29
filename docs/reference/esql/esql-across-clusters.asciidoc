@@ -13,16 +13,16 @@ With {esql}, you can execute a single query across multiple clusters.
 
 ==== Prerequisites
 
-include::{es-repo-dir}/search/search-your-data/search-across-clusters.asciidoc[tag=ccs-prereqs]
+include::{es-ref-dir}/search/search-your-data/search-across-clusters.asciidoc[tag=ccs-prereqs]
 
-include::{es-repo-dir}/search/search-your-data/search-across-clusters.asciidoc[tag=ccs-gateway-seed-nodes]
+include::{es-ref-dir}/search/search-your-data/search-across-clusters.asciidoc[tag=ccs-gateway-seed-nodes]
 
-include::{es-repo-dir}/search/search-your-data/search-across-clusters.asciidoc[tag=ccs-proxy-mode]
+include::{es-ref-dir}/search/search-your-data/search-across-clusters.asciidoc[tag=ccs-proxy-mode]
 
 [discrete]
 [[ccq-remote-cluster-setup]]
 ==== Remote cluster setup
-include::{es-repo-dir}/search/search-your-data/search-across-clusters.asciidoc[tag=ccs-remote-cluster-setup]
+include::{es-ref-dir}/search/search-your-data/search-across-clusters.asciidoc[tag=ccs-remote-cluster-setup]
 
 <1> Since `skip_unavailable` was not set on `cluster_three`, it uses
 the default of `false`. See the <<ccq-skip-unavailable-clusters>>
@@ -221,4 +221,4 @@ in the response, such as execution time, selected target indices, and shards.
 [[ccq-during-upgrade]]
 ==== Query across clusters during an upgrade
 
-include::{es-repo-dir}/search/search-your-data/search-across-clusters.asciidoc[tag=ccs-during-upgrade]
+include::{es-ref-dir}/search/search-your-data/search-across-clusters.asciidoc[tag=ccs-during-upgrade]

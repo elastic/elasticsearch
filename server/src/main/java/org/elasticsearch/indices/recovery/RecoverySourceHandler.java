@@ -1287,7 +1287,12 @@ public class RecoverySourceHandler {
                 logger.trace("performing relocation hand-off");
                 cancellableThreads.execute(
                     // this acquires all IndexShard operation permits and will thus delay new recoveries until it is done
-                    () -> shard.relocated(request.targetAllocationId(), recoveryTarget::handoffPrimaryContext, finalStep)
+                    () -> shard.relocated(
+                        request.targetNode().getId(),
+                        request.targetAllocationId(),
+                        recoveryTarget::handoffPrimaryContext,
+                        finalStep
+                    )
                 );
                 /*
                  * if the recovery process fails after disabling primary mode on the source shard, both relocation source and

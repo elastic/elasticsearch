@@ -449,13 +449,6 @@ public class SearchableSnapshotsPrewarmingIntegTests extends ESSingleNodeTestCas
                 (metadata) -> new FsRepository(metadata, env, namedXContentRegistry, clusterService, bigArrays, recoverySettings) {
 
                     @Override
-                    protected void assertSnapshotOrStatelessPermittedThreadPool() {
-                        if (enabled.get()) {
-                            super.assertSnapshotOrStatelessPermittedThreadPool();
-                        }
-                    }
-
-                    @Override
                     protected BlobStore createBlobStore() throws Exception {
                         final BlobStore delegate = super.createBlobStore();
                         if (enabled.get()) {

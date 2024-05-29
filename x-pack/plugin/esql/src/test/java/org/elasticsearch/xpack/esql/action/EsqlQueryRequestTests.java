@@ -7,9 +7,16 @@
 
 package org.elasticsearch.xpack.esql.action;
 
-import org.elasticsearch.Build;
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -24,9 +31,9 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.esql.Column;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.parser.TypedParamValue;
-import org.elasticsearch.xpack.esql.version.EsqlVersion;
-import org.elasticsearch.xpack.esql.version.EsqlVersionTests;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -39,6 +46,7 @@ import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 
 public class EsqlQueryRequestTests extends ESTestCase {
 
@@ -47,23 +55,20 @@ public class EsqlQueryRequestTests extends ESTestCase {
         boolean columnar = randomBoolean();
         Locale locale = randomLocale(random());
         QueryBuilder filter = randomQueryBuilder();
-        EsqlVersion esqlVersion = randomFrom(EsqlVersion.values());
 
         List<TypedParamValue> params = randomParameters();
         boolean hasParams = params.isEmpty() == false;
         StringBuilder paramsString = paramsString(params, hasParams);
         String json = String.format(Locale.ROOT, """
             {
-                "version": "%s",
                 "query": "%s",
                 "columnar": %s,
                 "locale": "%s",
                 "filter": %s
-                %s""", esqlVersion, query, columnar, locale.toLanguageTag(), filter, paramsString);
+                %s""", query, columnar, locale.toLanguageTag(), filter, paramsString);
 
         EsqlQueryRequest request = parseEsqlQueryRequestSync(json);
 
-        assertEquals(esqlVersion.toString(), request.esqlVersion());
         assertEquals(query, request.query());
         assertEquals(columnar, request.columnar());
         assertEquals(locale.toLanguageTag(), request.locale().toLanguageTag());
@@ -81,19 +86,17 @@ public class EsqlQueryRequestTests extends ESTestCase {
         boolean columnar = randomBoolean();
         Locale locale = randomLocale(random());
         QueryBuilder filter = randomQueryBuilder();
-        EsqlVersion esqlVersion = randomFrom(EsqlVersion.values());
 
         List<TypedParamValue> params = randomParameters();
         boolean hasParams = params.isEmpty() == false;
         StringBuilder paramsString = paramsString(params, hasParams);
         boolean keepOnCompletion = randomBoolean();
-        TimeValue waitForCompletion = TimeValue.parseTimeValue(randomTimeValue(), "test");
-        TimeValue keepAlive = TimeValue.parseTimeValue(randomTimeValue(), "test");
+        TimeValue waitForCompletion = randomTimeValue();
+        TimeValue keepAlive = randomTimeValue();
         String json = String.format(
             Locale.ROOT,
             """
                 {
-                    "version": "%s",
                     "query": "%s",
                     "columnar": %s,
                     "locale": "%s",
@@ -102,7 +105,6 @@ public class EsqlQueryRequestTests extends ESTestCase {
                     "wait_for_completion_timeout": "%s",
                     "keep_alive": "%s"
                     %s""",
-            esqlVersion,
             query,
             columnar,
             locale.toLanguageTag(),
@@ -115,7 +117,6 @@ public class EsqlQueryRequestTests extends ESTestCase {
 
         EsqlQueryRequest request = parseEsqlQueryRequestAsync(json);
 
-        assertEquals(esqlVersion.toString(), request.esqlVersion());
         assertEquals(query, request.query());
         assertEquals(columnar, request.columnar());
         assertEquals(locale.toLanguageTag(), request.locale().toLanguageTag());
@@ -159,87 +160,24 @@ public class EsqlQueryRequestTests extends ESTestCase {
             }""", "unknown field [asdf]");
     }
 
-    public void testKnownStableVersionIsValid() throws IOException {
-        for (EsqlVersion version : EsqlVersion.values()) {
-            if (version == EsqlVersion.SNAPSHOT) {
-                // Not stable, skip. Also avoids breaking the CI as this is invalid for non-SNAPSHOT builds.
-                continue;
-            }
-
-            String validVersionString = randomBoolean() ? version.versionStringWithoutEmoji() : version.toString();
-
-            String json = String.format(Locale.ROOT, """
-                {
-                    "version": "%s",
-                    "query": "ROW x = 1"
-                }
-                """, validVersionString);
-
-            EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
-            assertNull(request.validate());
-
-            request = parseEsqlQueryRequestAsync(json);
-            assertNull(request.validate());
-        }
-    }
-
-    public void testUnknownVersionIsNotValid() throws IOException {
-        String invalidVersionString = EsqlVersionTests.randomInvalidVersionString();
+    public void testAnyVersionIsValid() throws IOException {
+        String validVersionString = randomAlphaOfLength(5);
 
         String json = String.format(Locale.ROOT, """
             {
                 "version": "%s",
                 "query": "ROW x = 1"
             }
-            """, invalidVersionString);
+            """, validVersionString);
 
         EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
-        assertNotNull(request.validate());
-        assertThat(
-            request.validate().getMessage(),
-            containsString(
-                "[version] has invalid value ["
-                    + invalidVersionString
-                    + "], latest available version is ["
-                    + EsqlVersion.latestReleased().versionStringWithoutEmoji()
-                    + "]"
-            )
-        );
-    }
-
-    public void testSnapshotVersionIsOnlyValidOnSnapshot() throws IOException {
-        String esqlVersion = randomBoolean() ? "snapshot" : "snapshot.📷";
-        String json = String.format(Locale.ROOT, """
-            {
-                "version": "%s",
-                "query": "ROW x = 1"
-            }
-            """, esqlVersion);
-        EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
-
-        String errorOnNonSnapshotBuilds = "[version] with value ["
-            + esqlVersion
-            + "] only allowed in snapshot builds, latest available version is ["
-            + EsqlVersion.latestReleased().versionStringWithoutEmoji()
-            + "]";
-
-        if (Build.current().isSnapshot()) {
-            assertNull(request.validate());
-        } else {
-            assertNotNull(request.validate());
-            assertThat(request.validate().getMessage(), containsString(errorOnNonSnapshotBuilds));
-        }
-
-        request.onSnapshotBuild(true);
         assertNull(request.validate());
 
-        request.onSnapshotBuild(false);
-        assertNotNull(request.validate());
-        assertThat(request.validate().getMessage(), containsString(errorOnNonSnapshotBuilds));
+        request = parseEsqlQueryRequestAsync(json);
+        assertNull(request.validate());
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/104890")
-    public void testMissingVersionIsNotValid() throws IOException {
+    public void testMissingVersionIsValid() throws IOException {
         String missingVersion = randomBoolean() ? "" : ", \"version\": \"\"";
         String json = String.format(Locale.ROOT, """
             {
@@ -249,13 +187,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
             }""", missingVersion);
 
         EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
-        assertNotNull(request.validate());
-        assertThat(
-            request.validate().getMessage(),
-            containsString(
-                "[version] is required, latest available version is [" + EsqlVersion.latestReleased().versionStringWithoutEmoji() + "]"
-            )
-        );
+        assertNull(request.validate());
     }
 
     public void testMissingQueryIsNotValid() throws IOException {
@@ -272,7 +204,6 @@ public class EsqlQueryRequestTests extends ESTestCase {
     public void testPragmasOnlyValidOnSnapshot() throws IOException {
         String json = """
             {
-                "version": "2024.04.01",
                 "query": "ROW x = 1",
                 "pragma": {"foo": "bar"}
             }
@@ -285,6 +216,138 @@ public class EsqlQueryRequestTests extends ESTestCase {
         request.onSnapshotBuild(false);
         assertNotNull(request.validate());
         assertThat(request.validate().getMessage(), containsString("[pragma] only allowed in snapshot builds"));
+    }
+
+    public void testTablesKeyword() throws IOException {
+        String json = """
+            {
+                "query": "ROW x = 1",
+                "tables": {"a": {"c:keyword": ["a", "b", null, 1, 2.0, ["c", "d"], false]}}
+            }
+            """;
+        EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
+        Column c = request.tables().get("a").get("c");
+        assertThat(c.type(), equalTo(DataTypes.KEYWORD));
+        try (
+            BytesRefBlock.Builder builder = new BlockFactory(
+                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                BigArrays.NON_RECYCLING_INSTANCE
+            ).newBytesRefBlockBuilder(10)
+        ) {
+            builder.appendBytesRef(new BytesRef("a"));
+            builder.appendBytesRef(new BytesRef("b"));
+            builder.appendNull();
+            builder.appendBytesRef(new BytesRef("1"));
+            builder.appendBytesRef(new BytesRef("2.0"));
+            builder.beginPositionEntry();
+            builder.appendBytesRef(new BytesRef("c"));
+            builder.appendBytesRef(new BytesRef("d"));
+            builder.endPositionEntry();
+            builder.appendBytesRef(new BytesRef("false"));
+            assertThat(c.values(), equalTo(builder.build()));
+        }
+        assertTablesOnlyValidOnSnapshot(request);
+    }
+
+    public void testTablesInteger() throws IOException {
+        String json = """
+            {
+                "query": "ROW x = 1",
+                "tables": {"a": {"c:integer": [1, 2, "3", null, [5, 6]]}}
+            }
+            """;
+
+        EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
+        Column c = request.tables().get("a").get("c");
+        assertThat(c.type(), equalTo(DataTypes.INTEGER));
+        try (
+            IntBlock.Builder builder = new BlockFactory(new NoopCircuitBreaker(CircuitBreaker.REQUEST), BigArrays.NON_RECYCLING_INSTANCE)
+                .newIntBlockBuilder(10)
+        ) {
+            builder.appendInt(1);
+            builder.appendInt(2);
+            builder.appendInt(3);
+            builder.appendNull();
+            builder.beginPositionEntry();
+            builder.appendInt(5);
+            builder.appendInt(6);
+            builder.endPositionEntry();
+            assertThat(c.values(), equalTo(builder.build()));
+        }
+        assertTablesOnlyValidOnSnapshot(request);
+    }
+
+    public void testTablesLong() throws IOException {
+        String json = """
+            {
+                "query": "ROW x = 1",
+                "tables": {"a": {"c:long": [1, 2, "3", null, [5, 6]]}}
+            }
+            """;
+
+        EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
+        Column c = request.tables().get("a").get("c");
+        assertThat(c.type(), equalTo(DataTypes.LONG));
+        try (
+            LongBlock.Builder builder = new BlockFactory(new NoopCircuitBreaker(CircuitBreaker.REQUEST), BigArrays.NON_RECYCLING_INSTANCE)
+                .newLongBlockBuilder(10)
+        ) {
+            builder.appendLong(1);
+            builder.appendLong(2);
+            builder.appendLong(3);
+            builder.appendNull();
+            builder.beginPositionEntry();
+            builder.appendLong(5);
+            builder.appendLong(6);
+            builder.endPositionEntry();
+            assertThat(c.values(), equalTo(builder.build()));
+        }
+        assertTablesOnlyValidOnSnapshot(request);
+    }
+
+    public void testManyTables() throws IOException {
+        String json = """
+            {
+                "query": "ROW x = 1",
+                "tables": {
+                    "t1": {
+                        "a:long": [1],
+                        "b:long": [1],
+                        "c:keyword": [1],
+                        "d:long": [1]
+                    },
+                    "t2": {
+                        "a:long": [1],
+                        "b:integer": [1],
+                        "c:long": [1],
+                        "d:long": [1]
+                    }
+                }
+            }
+            """;
+
+        EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
+        assertThat(request.tables().keySet(), hasSize(2));
+        Map<String, Column> t1 = request.tables().get("t1");
+        assertThat(t1.get("a").type(), equalTo(DataTypes.LONG));
+        assertThat(t1.get("b").type(), equalTo(DataTypes.LONG));
+        assertThat(t1.get("c").type(), equalTo(DataTypes.KEYWORD));
+        assertThat(t1.get("d").type(), equalTo(DataTypes.LONG));
+        Map<String, Column> t2 = request.tables().get("t2");
+        assertThat(t2.get("a").type(), equalTo(DataTypes.LONG));
+        assertThat(t2.get("b").type(), equalTo(DataTypes.INTEGER));
+        assertThat(t2.get("c").type(), equalTo(DataTypes.LONG));
+        assertThat(t2.get("d").type(), equalTo(DataTypes.LONG));
+        assertTablesOnlyValidOnSnapshot(request);
+    }
+
+    private void assertTablesOnlyValidOnSnapshot(EsqlQueryRequest request) {
+        request.onSnapshotBuild(true);
+        assertNull(request.validate());
+
+        request.onSnapshotBuild(false);
+        assertNotNull(request.validate());
+        assertThat(request.validate().getMessage(), containsString("[tables] only allowed in snapshot builds"));
     }
 
     public void testTask() throws IOException {

@@ -8,21 +8,22 @@
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
 import org.elasticsearch.compute.aggregation.QuantileStates;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Literal;
-import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMedian;
 
 import java.util.List;
 
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.DEFAULT;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
 public class Median extends AggregateFunction implements SurrogateExpression {
     // TODO: Add the compression parameter
@@ -42,7 +43,7 @@ public class Median extends AggregateFunction implements SurrogateExpression {
             dt -> dt.isNumeric() && dt != DataTypes.UNSIGNED_LONG,
             sourceText(),
             DEFAULT,
-            "numeric except unsigned_long"
+            "numeric except unsigned_long or counter types"
         );
     }
 
@@ -63,6 +64,11 @@ public class Median extends AggregateFunction implements SurrogateExpression {
 
     @Override
     public Expression surrogate() {
-        return new Percentile(source(), field(), new Literal(source(), (int) QuantileStates.MEDIAN, DataTypes.INTEGER));
+        var s = source();
+        var field = field();
+
+        return field.foldable()
+            ? new MvMedian(s, new ToDouble(s, field))
+            : new Percentile(source(), field(), new Literal(source(), (int) QuantileStates.MEDIAN, DataTypes.INTEGER));
     }
 }

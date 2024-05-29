@@ -395,6 +395,12 @@ public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
         private double round(double d) {
             long encoded = Math.round(d * scalingFactor);
             double decoded = encoded / scalingFactor;
+            // Special case due to rounding, see implementation.
+            if (Double.isInfinite(decoded)) {
+                var sign = decoded == Double.POSITIVE_INFINITY ? 1 : -1;
+                return sign * Double.MAX_VALUE;
+            }
+
             long reencoded = Math.round(decoded * scalingFactor);
             if (encoded != reencoded) {
                 if (encoded > reencoded) {
@@ -406,6 +412,11 @@ public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
         }
 
         private double roundDocValues(double d) {
+            // Special case due to rounding, see implementation.
+            if (Math.abs(d) == Double.MAX_VALUE) {
+                return d;
+            }
+
             long encoded = Math.round(d * scalingFactor);
             return encoded * (1 / scalingFactor);
         }
@@ -526,7 +537,7 @@ public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
     }
 
     /**
-     * Tests that numbers whose encoded value is {@code Long.MIN_VALUE} can be round
+     * Tests that numbers whose encoded value is {@code Long.MAX_VALUE} can be round
      * tripped through synthetic source.
      */
     public void testEncodeDecodeSaturatedHigh() {
@@ -578,6 +589,28 @@ public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
             ScaledFloatFieldMapper.encode(ScaledFloatFieldMapper.decodeForSyntheticSource(encoded, scalingFactor), scalingFactor),
             equalTo(encoded)
         );
+    }
+
+    /**
+     * Tests the case when decoded value is infinite due to rounding.
+     */
+    public void testDecodeHandlingInfinity() {
+        for (var sign : new long[] { 1, -1 }) {
+            long encoded = 101;
+            double encodedNoRounding = 100.5;
+            assertEquals(encoded, Math.round(encodedNoRounding));
+
+            var signedMax = sign * Double.MAX_VALUE;
+            // We need a scaling factor that will
+            // 1. make encoded long small resulting in significant loss of precision due to rounding
+            // 2. result in long value being rounded in correct direction.
+            //
+            // So we take a scaling factor that would put us right at MAX_VALUE
+            // without rounding and hence go beyond MAX_VALUE with rounding.
+            double scalingFactor = (encodedNoRounding / signedMax);
+
+            assertThat(ScaledFloatFieldMapper.decodeForSyntheticSource(encoded, scalingFactor), equalTo(signedMax));
+        }
     }
 
     private double encodeDecode(double value, double scalingFactor) {

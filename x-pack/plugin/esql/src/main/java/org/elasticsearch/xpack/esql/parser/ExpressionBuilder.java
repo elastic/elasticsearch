@@ -17,12 +17,30 @@ import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equals;
-import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThan;
-import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThanOrEqual;
-import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.InsensitiveEquals;
-import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.LessThan;
-import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.LessThanOrEqual;
+import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
+import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
+import org.elasticsearch.xpack.esql.core.expression.function.FunctionResolutionStrategy;
+import org.elasticsearch.xpack.esql.core.expression.function.UnresolvedFunction;
+import org.elasticsearch.xpack.esql.core.expression.predicate.logical.And;
+import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Not;
+import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Or;
+import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNull;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePattern;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RegexMatch;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.type.DateUtils;
+import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
@@ -34,33 +52,15 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mod
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Neg;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Sub;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InsensitiveEquals;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.InvalidArgumentException;
-import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
-import org.elasticsearch.xpack.ql.expression.Alias;
-import org.elasticsearch.xpack.ql.expression.Attribute;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Literal;
-import org.elasticsearch.xpack.ql.expression.NamedExpression;
-import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
-import org.elasticsearch.xpack.ql.expression.UnresolvedStar;
-import org.elasticsearch.xpack.ql.expression.function.FunctionResolutionStrategy;
-import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
-import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
-import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
-import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
-import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNotNull;
-import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNull;
-import org.elasticsearch.xpack.ql.expression.predicate.regex.RLikePattern;
-import org.elasticsearch.xpack.ql.expression.predicate.regex.RegexMatch;
-import org.elasticsearch.xpack.ql.expression.predicate.regex.WildcardPattern;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.elasticsearch.xpack.ql.type.DateUtils;
-import org.elasticsearch.xpack.ql.util.StringUtils;
 
 import java.math.BigInteger;
 import java.time.Duration;
@@ -71,21 +71,30 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 
+import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.xpack.esql.core.parser.ParserUtils.source;
+import static org.elasticsearch.xpack.esql.core.parser.ParserUtils.typedParsing;
+import static org.elasticsearch.xpack.esql.core.parser.ParserUtils.visitList;
+import static org.elasticsearch.xpack.esql.core.util.NumericUtils.asLongUnsigned;
+import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAsNumber;
+import static org.elasticsearch.xpack.esql.core.util.StringUtils.WILDCARD;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.bigIntegerToUnsignedLong;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.parseTemporalAmout;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToIntegral;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.DATE_PERIOD;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.TIME_DURATION;
-import static org.elasticsearch.xpack.ql.parser.ParserUtils.source;
-import static org.elasticsearch.xpack.ql.parser.ParserUtils.typedParsing;
-import static org.elasticsearch.xpack.ql.parser.ParserUtils.visitList;
-import static org.elasticsearch.xpack.ql.util.NumericUtils.asLongUnsigned;
-import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAsNumber;
-import static org.elasticsearch.xpack.ql.util.StringUtils.WILDCARD;
 
 public abstract class ExpressionBuilder extends IdentifierBuilder {
+
+    private int expressionDepth = 0;
+
+    /**
+     * Maximum depth for nested expressions
+     */
+    public static final int MAX_EXPRESSION_DEPTH = 500;
 
     private final Map<Token, TypedParamValue> params;
 
@@ -94,7 +103,19 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     }
 
     protected Expression expression(ParseTree ctx) {
-        return typedParsing(this, ctx, Expression.class);
+        expressionDepth++;
+        if (expressionDepth > MAX_EXPRESSION_DEPTH) {
+            throw new ParsingException(
+                "ESQL statement exceeded the maximum expression depth allowed ({}): [{}]",
+                MAX_EXPRESSION_DEPTH,
+                ctx.getParent().getText()
+            );
+        }
+        try {
+            return typedParsing(this, ctx, Expression.class);
+        } finally {
+            expressionDepth--;
+        }
     }
 
     protected List<Expression> expressions(List<? extends ParserRuleContext> contexts) {
@@ -221,6 +242,37 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
 
         List<String> strings = visitList(this, ctx.identifier(), String.class);
         return new UnresolvedAttribute(source(ctx), Strings.collectionToDelimitedString(strings, "."));
+    }
+
+    @Override
+    public List<NamedExpression> visitQualifiedNamePatterns(EsqlBaseParser.QualifiedNamePatternsContext ctx) {
+        return visitQualifiedNamePatterns(ctx, ne -> {});
+    }
+
+    protected List<NamedExpression> visitQualifiedNamePatterns(
+        EsqlBaseParser.QualifiedNamePatternsContext ctx,
+        Consumer<NamedExpression> checker
+    ) {
+        if (ctx == null) {
+            return emptyList();
+        }
+        List<EsqlBaseParser.QualifiedNamePatternContext> identifiers = ctx.qualifiedNamePattern();
+        List<NamedExpression> names = new ArrayList<>(identifiers.size());
+
+        for (EsqlBaseParser.QualifiedNamePatternContext patternContext : identifiers) {
+            names.add(visitQualifiedNamePattern(patternContext, checker));
+        }
+
+        return names;
+    }
+
+    protected NamedExpression visitQualifiedNamePattern(
+        EsqlBaseParser.QualifiedNamePatternContext patternContext,
+        Consumer<NamedExpression> checker
+    ) {
+        NamedExpression ne = visitQualifiedNamePattern(patternContext);
+        checker.accept(ne);
+        return ne;
     }
 
     @Override
@@ -487,6 +539,28 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     }
 
     @Override
+    public Expression visitInlineCast(EsqlBaseParser.InlineCastContext ctx) {
+        Source source = source(ctx);
+        DataType dataType = typedParsing(this, ctx.dataType(), DataType.class);
+        var converterToFactory = EsqlDataTypeConverter.converterFunctionFactory(dataType);
+        if (converterToFactory == null) {
+            throw new ParsingException(source, "Unsupported conversion to type [{}]", dataType);
+        }
+        Expression expr = expression(ctx.primaryExpression());
+        return converterToFactory.apply(source, expr);
+    }
+
+    @Override
+    public DataType visitToDataType(EsqlBaseParser.ToDataTypeContext ctx) {
+        String typeName = visitIdentifier(ctx.identifier());
+        DataType dataType = EsqlDataTypes.fromNameOrAlias(typeName);
+        if (dataType == DataTypes.UNSUPPORTED) {
+            throw new ParsingException(source(ctx), "Unknown data type named [{}]", typeName);
+        }
+        return dataType;
+    }
+
+    @Override
     public Expression visitLogicalBinary(EsqlBaseParser.LogicalBinaryContext ctx) {
         int type = ctx.operator.getType();
         Source source = source(ctx);
@@ -545,7 +619,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         NamedExpression newName = visitQualifiedNamePattern(ctx.newName);
         NamedExpression oldName = visitQualifiedNamePattern(ctx.oldName);
         if (newName instanceof UnresolvedNamePattern || oldName instanceof UnresolvedNamePattern) {
-            throw new ParsingException(src, "Using wildcards (*) in RENAME is not allowed [{}]", src.text());
+            throw new ParsingException(src, "Using wildcards [*] in RENAME is not allowed [{}]", src.text());
         }
 
         return new Alias(src, newName.name(), oldName);
@@ -560,11 +634,12 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     }
 
     private NamedExpression enrichFieldName(EsqlBaseParser.QualifiedNamePatternContext ctx) {
-        var name = visitQualifiedNamePattern(ctx);
-        if (name instanceof UnresolvedNamePattern up) {
-            throw new ParsingException(source(ctx), "Using wildcards (*) in ENRICH WITH projections is not allowed [{}]", up.pattern());
-        }
-        return name;
+        return visitQualifiedNamePattern(ctx, ne -> {
+            if (ne instanceof UnresolvedNamePattern up) {
+                var src = ne.source();
+                throw new ParsingException(src, "Using wildcards [*] in ENRICH WITH projections is not allowed [{}]", up.pattern());
+            }
+        });
     }
 
     @Override

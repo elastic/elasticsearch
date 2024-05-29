@@ -174,13 +174,6 @@ public class AdjacencyMatrixAggregationBuilder extends AbstractAggregationBuilde
     }
 
     /**
-     * Get the separator used to join pairs of bucket keys
-     */
-    public String separator() {
-        return separator;
-    }
-
-    /**
      * Get the filters. This will be an unmodifiable map
      */
     public Map<String, QueryBuilder> filters() {

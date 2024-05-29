@@ -441,7 +441,7 @@ public class DesiredBalanceReconciler {
         private void moveShards() {
             // Iterate over all started shards and check if they can remain. In the presence of throttling shard movements,
             // the goal of this iteration order is to achieve a fairer movement of shards from the nodes that are offloading the shards.
-            for (final var iterator = OrderedShardsIterator.create(routingNodes, moveOrdering); iterator.hasNext();) {
+            for (final var iterator = OrderedShardsIterator.createForNecessaryMoves(allocation, moveOrdering); iterator.hasNext();) {
                 final var shardRouting = iterator.next();
 
                 if (shardRouting.started() == false) {
@@ -480,6 +480,7 @@ public class DesiredBalanceReconciler {
                         shardRouting,
                         moveTarget.getId(),
                         allocation.clusterInfo().getShardSize(shardRouting, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE),
+                        "move",
                         allocation.changes()
                     );
                     iterator.dePrioritizeNode(shardRouting.currentNodeId());
@@ -500,7 +501,7 @@ public class DesiredBalanceReconciler {
             // Iterate over all started shards and try to move any which are on undesired nodes. In the presence of throttling shard
             // movements, the goal of this iteration order is to achieve a fairer movement of shards from the nodes that are offloading the
             // shards.
-            for (final var iterator = OrderedShardsIterator.create(routingNodes, moveOrdering); iterator.hasNext();) {
+            for (final var iterator = OrderedShardsIterator.createForBalancing(allocation, moveOrdering); iterator.hasNext();) {
                 final var shardRouting = iterator.next();
 
                 totalAllocations++;
@@ -546,6 +547,7 @@ public class DesiredBalanceReconciler {
                         shardRouting,
                         rebalanceTarget.getId(),
                         allocation.clusterInfo().getShardSize(shardRouting, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE),
+                        "rebalance",
                         allocation.changes()
                     );
                     iterator.dePrioritizeNode(shardRouting.currentNodeId());

@@ -1,0 +1,5 @@
+pr: 107551
+summary: Avoid attempting to load the same empty field twice in fetch phase
+area: Search
+type: bug
+issues: []

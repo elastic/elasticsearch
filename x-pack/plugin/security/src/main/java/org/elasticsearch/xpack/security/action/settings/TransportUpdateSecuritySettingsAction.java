@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.security.action.settings;
 
-import org.apache.log4j.LogManager;
-import org.apache.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsClusterStateUpdateRequest;
 import org.elasticsearch.action.support.ActionFilters;
@@ -46,7 +44,6 @@ import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SEC
 public class TransportUpdateSecuritySettingsAction extends TransportMasterNodeAction<
     UpdateSecuritySettingsAction.Request,
     AcknowledgedResponse> {
-    private static final Logger logger = LogManager.getLogger(TransportUpdateSecuritySettingsAction.class);
 
     private final MetadataUpdateSettingsService updateSettingsService;
 
@@ -85,21 +82,21 @@ public class TransportUpdateSecuritySettingsAction extends TransportMasterNodeAc
             createUpdateSettingsRequest(
                 SECURITY_MAIN_ALIAS,
                 Settings.builder().loadFromMap(request.mainIndexSettings()).build(),
-                request.timeout(),
+                request.ackTimeout(),
                 request.masterNodeTimeout(),
                 state
             ),
             createUpdateSettingsRequest(
                 SECURITY_TOKENS_ALIAS,
                 Settings.builder().loadFromMap(request.tokensIndexSettings()).build(),
-                request.timeout(),
+                request.ackTimeout(),
                 request.masterNodeTimeout(),
                 state
             ),
             createUpdateSettingsRequest(
                 SECURITY_PROFILE_ALIAS,
                 Settings.builder().loadFromMap(request.profilesIndexSettings()).build(),
-                request.timeout(),
+                request.ackTimeout(),
                 request.masterNodeTimeout(),
                 state
             )

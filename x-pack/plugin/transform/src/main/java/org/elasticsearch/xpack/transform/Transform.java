@@ -255,14 +255,12 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
             getTransformExtension().getMinFrequency()
         );
         scheduler.start();
+        var clusterStateListener = new TransformClusterStateListener(clusterService, client);
+        var transformNode = new TransformNode(clusterStateListener);
 
-        transformServices.set(new TransformServices(configManager, checkpointService, auditor, scheduler));
+        transformServices.set(new TransformServices(configManager, checkpointService, auditor, scheduler, transformNode));
 
-        return List.of(
-            transformServices.get(),
-            new TransformClusterStateListener(clusterService, client),
-            new TransformExtensionHolder(getTransformExtension())
-        );
+        return List.of(transformServices.get(), clusterStateListener, new TransformExtensionHolder(getTransformExtension()));
     }
 
     @Override
@@ -323,7 +321,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
     @Override
     public void close() {
         if (transformServices.get() != null) {
-            transformServices.get().getScheduler().stop();
+            transformServices.get().scheduler().stop();
         }
     }
 

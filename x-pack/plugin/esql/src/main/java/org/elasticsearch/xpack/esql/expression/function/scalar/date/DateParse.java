@@ -12,41 +12,53 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.function.OptionalArgument;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.InvalidArgumentException;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.function.OptionalArgument;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.time.ZoneId;
 import java.util.List;
 import java.util.function.Function;
 
 import static org.elasticsearch.common.time.DateFormatter.forPattern;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
+import static org.elasticsearch.xpack.esql.core.util.DateUtils.UTC;
 import static org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions.isStringAndExact;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_TIME_FORMATTER;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToLong;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isString;
-import static org.elasticsearch.xpack.ql.util.DateUtils.UTC;
 
 public class DateParse extends EsqlScalarFunction implements OptionalArgument {
 
     private final Expression field;
     private final Expression format;
 
-    @FunctionInfo(returnType = "date", description = "Parses a string into a date value")
+    @FunctionInfo(
+        returnType = "date",
+        description = "Returns a date by parsing the second argument using the format specified in the first argument.",
+        examples = @Example(file = "docs", tag = "dateParse")
+    )
     public DateParse(
         Source source,
-        @Param(name = "datePattern", type = { "keyword", "text" }, description = "A valid date pattern", optional = true) Expression first,
-        @Param(name = "dateString", type = { "keyword", "text" }, description = "A string representing a date") Expression second
+        @Param(name = "datePattern", type = { "keyword", "text" }, description = """
+            The date format. Refer to the
+            https://docs.oracle.com/en/java/javase/14/docs/api/java.base/java/time/format/DateTimeFormatter.html[`DateTimeFormatter`
+            documentation] for the syntax. If `null`, the function returns `null`.""", optional = true) Expression first,
+        @Param(
+            name = "dateString",
+            type = { "keyword", "text" },
+            description = "Date expression as a string. If `null` or an empty string, the function returns `null`."
+        ) Expression second
     ) {
         super(source, second != null ? List.of(first, second) : List.of(first));
         this.field = second != null ? second : first;
@@ -64,15 +76,17 @@ public class DateParse extends EsqlScalarFunction implements OptionalArgument {
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution resolution = isString(field, sourceText(), format != null ? SECOND : FIRST);
-        if (resolution.unresolved()) {
-            return resolution;
-        }
+        TypeResolution resolution;
         if (format != null) {
             resolution = isStringAndExact(format, sourceText(), FIRST);
             if (resolution.unresolved()) {
                 return resolution;
             }
+        }
+
+        resolution = isString(field, sourceText(), format != null ? SECOND : FIRST);
+        if (resolution.unresolved()) {
+            return resolution;
         }
 
         return TypeResolution.TYPE_RESOLVED;

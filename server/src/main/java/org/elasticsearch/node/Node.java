@@ -155,7 +155,7 @@ public class Node implements Closeable {
 
     public static final Setting<TimeValue> MAXIMUM_SHUTDOWN_TIMEOUT_SETTING = Setting.positiveTimeSetting(
         "node.maximum_shutdown_grace_period",
-        TimeValue.timeValueMillis(0),
+        TimeValue.ZERO,
         Setting.Property.NodeScope
     );
 
@@ -617,7 +617,7 @@ public class Node implements Closeable {
         CompletableFuture<Void> allStoppers = CompletableFuture.allOf(futures.values().toArray(new CompletableFuture[stoppers.size()]));
 
         try {
-            if (maxTimeout.millis() == 0) {
+            if (TimeValue.ZERO.equals(maxTimeout)) {
                 FutureUtils.get(allStoppers);
             } else {
                 FutureUtils.get(allStoppers, maxTimeout.millis(), TimeUnit.MILLISECONDS);
@@ -652,7 +652,7 @@ public class Node implements Closeable {
                 // be spending on finishing those searches.
                 final TimeValue pollPeriod = TimeValue.timeValueMillis(500);
                 millisWaited += pollPeriod.millis();
-                if (millisWaited >= asyncSearchTimeout.millis()) {
+                if (TimeValue.ZERO.equals(asyncSearchTimeout) == false && millisWaited >= asyncSearchTimeout.millis()) {
                     logger.warn(
                         format(
                             "timed out after waiting [%s] for [%d] search tasks to finish",

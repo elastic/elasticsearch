@@ -77,7 +77,11 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         "internal:admin/ccr/restore/session/clear",
         "indices:internal/admin/ccr/restore/session/clear",
         "internal:admin/ccr/restore/file_chunk/get",
-        "indices:internal/admin/ccr/restore/file_chunk/get"
+        "indices:internal/admin/ccr/restore/file_chunk/get",
+        "internal:data/read/esql/open_exchange",
+        "cluster:internal:data/read/esql/open_exchange",
+        "internal:data/read/esql/exchange",
+        "cluster:internal:data/read/esql/exchange"
     );
 
     private final AuthenticationService authcService;
@@ -314,7 +318,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                         "Settings for remote cluster ["
                             + remoteClusterAlias
                             + "] indicate cross cluster access headers should be sent but target cluster version ["
-                            + connection.getTransportVersion()
+                            + connection.getTransportVersion().toReleaseVersion()
                             + "] does not support receiving them"
                     );
                 }
@@ -374,6 +378,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                     assert false == action.startsWith("internal:") : "internal action must be sent with system user";
                     authzService.getRoleDescriptorsIntersectionForRemoteCluster(
                         remoteClusterAlias,
+                        connection.getTransportVersion(),
                         authentication.getEffectiveSubject(),
                         ActionListener.wrap(roleDescriptorsIntersection -> {
                             logger.trace(

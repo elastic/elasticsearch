@@ -25,6 +25,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.similarity.SimilarityService;
@@ -43,12 +44,14 @@ import static org.hamcrest.Matchers.instanceOf;
 public class CodecTests extends ESTestCase {
 
     public void testResolveDefaultCodecs() throws Exception {
+        assumeTrue("Only when zstd_stored_fields feature flag is enabled", CodecService.ZSTD_STORED_FIELDS_FEATURE_FLAG.isEnabled());
         CodecService codecService = createCodecService();
         assertThat(codecService.codec("default"), instanceOf(PerFieldMapperCodec.class));
         assertThat(codecService.codec("default"), instanceOf(Elasticsearch814Codec.class));
     }
 
     public void testDefault() throws Exception {
+        assumeTrue("Only when zstd_stored_fields feature flag is enabled", CodecService.ZSTD_STORED_FIELDS_FEATURE_FLAG.isEnabled());
         Codec codec = createCodecService().codec("default");
         assertEquals(
             "Zstd814StoredFieldsFormat(compressionMode=ZSTD(level=0), chunkSize=14336, maxDocsPerChunk=128, blockShift=10)",
@@ -57,6 +60,7 @@ public class CodecTests extends ESTestCase {
     }
 
     public void testBestCompression() throws Exception {
+        assumeTrue("Only when zstd_stored_fields feature flag is enabled", CodecService.ZSTD_STORED_FIELDS_FEATURE_FLAG.isEnabled());
         Codec codec = createCodecService().codec("best_compression");
         assertEquals(
             "Zstd814StoredFieldsFormat(compressionMode=ZSTD(level=3), chunkSize=245760, maxDocsPerChunk=2048, blockShift=10)",
@@ -112,7 +116,8 @@ public class CodecTests extends ESTestCase {
             mapperRegistry,
             () -> null,
             settings.getMode().idFieldMapperWithoutFieldData(),
-            ScriptCompiler.NONE
+            ScriptCompiler.NONE,
+            MapperMetrics.NOOP
         );
         return new CodecService(service, BigArrays.NON_RECYCLING_INSTANCE);
     }

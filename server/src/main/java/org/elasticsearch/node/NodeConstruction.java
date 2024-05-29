@@ -40,6 +40,8 @@ import org.elasticsearch.cluster.coordination.CoordinationDiagnosticsService;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.coordination.MasterHistoryService;
 import org.elasticsearch.cluster.coordination.StableMasterHealthIndicatorService;
+import org.elasticsearch.cluster.metadata.DataStreamFactoryRetention;
+import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionResolver;
 import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService;
@@ -109,6 +111,8 @@ import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.index.mapper.MapperMetrics;
+import org.elasticsearch.index.mapper.SourceFieldMetrics;
 import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.IndicesService;
@@ -255,7 +259,7 @@ class NodeConstruction {
             ThreadPool threadPool = constructor.createThreadPool(settings, telemetryProvider.getMeterRegistry());
             SettingsModule settingsModule = constructor.validateSettings(initialEnvironment.settings(), settings, threadPool);
 
-            SearchModule searchModule = constructor.createSearchModule(settingsModule.getSettings(), threadPool);
+            SearchModule searchModule = constructor.createSearchModule(settingsModule.getSettings(), threadPool, telemetryProvider);
             constructor.createClientAndRegistries(settingsModule.getSettings(), threadPool, searchModule);
             DocumentParsingProvider documentParsingProvider = constructor.getDocumentParsingProvider();
 
@@ -523,9 +527,9 @@ class NodeConstruction {
         return settingsModule;
     }
 
-    private SearchModule createSearchModule(Settings settings, ThreadPool threadPool) {
+    private SearchModule createSearchModule(Settings settings, ThreadPool threadPool, TelemetryProvider telemetryProvider) {
         IndexSearcher.setMaxClauseCount(SearchUtils.calculateMaxClauseValue(threadPool));
-        return new SearchModule(settings, pluginsService.filterPlugins(SearchPlugin.class).toList());
+        return new SearchModule(settings, pluginsService.filterPlugins(SearchPlugin.class).toList(), telemetryProvider);
     }
 
     /**
@@ -582,6 +586,27 @@ class NodeConstruction {
         modules.add(b -> { b.bind(ScriptService.class).toInstance(scriptService); });
 
         return scriptService;
+    }
+
+    private DataStreamGlobalRetentionResolver createDataStreamServicesAndGlobalRetentionResolver(
+        ThreadPool threadPool,
+        ClusterService clusterService,
+        IndicesService indicesService,
+        MetadataCreateIndexService metadataCreateIndexService
+    ) {
+        DataStreamGlobalRetentionResolver dataStreamGlobalRetentionResolver = new DataStreamGlobalRetentionResolver(
+            DataStreamFactoryRetention.load(pluginsService, clusterService.getClusterSettings())
+        );
+        modules.bindToInstance(DataStreamGlobalRetentionResolver.class, dataStreamGlobalRetentionResolver);
+        modules.bindToInstance(
+            MetadataCreateDataStreamService.class,
+            new MetadataCreateDataStreamService(threadPool, clusterService, metadataCreateIndexService)
+        );
+        modules.bindToInstance(
+            MetadataDataStreamsService.class,
+            new MetadataDataStreamsService(clusterService, indicesService, dataStreamGlobalRetentionResolver)
+        );
+        return dataStreamGlobalRetentionResolver;
     }
 
     private UpdateHelper createUpdateHelper(DocumentParsingProvider documentParsingProvider, ScriptService scriptService) {
@@ -717,6 +742,12 @@ class NodeConstruction {
             );
         }
 
+        SourceFieldMetrics sourceFieldMetrics = new SourceFieldMetrics(
+            telemetryProvider.getMeterRegistry(),
+            threadPool::relativeTimeInMillis
+        );
+        MapperMetrics mapperMetrics = new MapperMetrics(sourceFieldMetrics);
+
         IndicesService indicesService = new IndicesServiceBuilder().settings(settings)
             .pluginsService(pluginsService)
             .nodeEnvironment(nodeEnvironment)
@@ -736,6 +767,7 @@ class NodeConstruction {
             .metaStateService(metaStateService)
             .valuesSourceRegistry(searchModule.getValuesSourceRegistry())
             .requestCacheKeyDifferentiator(searchModule.getRequestCacheKeyDifferentiator())
+            .mapperMetrics(mapperMetrics)
             .build();
 
         final var parameters = new IndexSettingProvider.Parameters(indicesService::createIndexMapperServiceForValidation);
@@ -744,6 +776,7 @@ class NodeConstruction {
         );
 
         final ShardLimitValidator shardLimitValidator = new ShardLimitValidator(settings, clusterService);
+
         final MetadataCreateIndexService metadataCreateIndexService = new MetadataCreateIndexService(
             settings,
             clusterService,
@@ -759,12 +792,6 @@ class NodeConstruction {
             indexSettingProviders
         );
 
-        modules.bindToInstance(
-            MetadataCreateDataStreamService.class,
-            new MetadataCreateDataStreamService(threadPool, clusterService, metadataCreateIndexService)
-        );
-        modules.bindToInstance(MetadataDataStreamsService.class, new MetadataDataStreamsService(clusterService, indicesService));
-
         final MetadataUpdateSettingsService metadataUpdateSettingsService = new MetadataUpdateSettingsService(
             clusterService,
             clusterModule.getAllocationService(),
@@ -772,6 +799,13 @@ class NodeConstruction {
             indicesService,
             shardLimitValidator,
             threadPool
+        );
+
+        final DataStreamGlobalRetentionResolver dataStreamGlobalRetentionResolver = createDataStreamServicesAndGlobalRetentionResolver(
+            threadPool,
+            clusterService,
+            indicesService,
+            metadataCreateIndexService
         );
 
         record PluginServiceInstances(
@@ -791,7 +825,9 @@ class NodeConstruction {
             AllocationService allocationService,
             IndicesService indicesService,
             FeatureService featureService,
-            SystemIndices systemIndices
+            SystemIndices systemIndices,
+            DataStreamGlobalRetentionResolver dataStreamGlobalRetentionResolver,
+            DocumentParsingProvider documentParsingProvider
         ) implements Plugin.PluginServices {}
         PluginServiceInstances pluginServices = new PluginServiceInstances(
             client,
@@ -810,7 +846,9 @@ class NodeConstruction {
             clusterModule.getAllocationService(),
             indicesService,
             featureService,
-            systemIndices
+            systemIndices,
+            dataStreamGlobalRetentionResolver,
+            documentParsingProvider
         );
 
         Collection<?> pluginComponents = pluginsService.flatMap(p -> p.createComponents(pluginServices)).toList();
@@ -842,7 +880,8 @@ class NodeConstruction {
                 indicesService,
                 systemIndices,
                 indexSettingProviders,
-                metadataCreateIndexService
+                metadataCreateIndexService,
+                dataStreamGlobalRetentionResolver
             ),
             pluginsService.loadSingletonServiceProvider(RestExtension.class, RestExtension::allowAll)
         );
@@ -879,7 +918,8 @@ class NodeConstruction {
             xContentRegistry,
             indicesModule.getMapperRegistry(),
             settingsModule.getIndexScopedSettings(),
-            scriptService
+            scriptService,
+            mapperMetrics
         );
         if (DiscoveryNode.isMasterNode(settings)) {
             clusterService.addListener(new SystemIndexMetadataUpgradeService(systemIndices, clusterService));
@@ -1417,7 +1457,8 @@ class NodeConstruction {
         IndicesService indicesService,
         SystemIndices systemIndices,
         IndexSettingProviders indexSettingProviders,
-        MetadataCreateIndexService metadataCreateIndexService
+        MetadataCreateIndexService metadataCreateIndexService,
+        DataStreamGlobalRetentionResolver globalRetentionResolver
     ) {
         List<ReservedClusterStateHandler<?>> reservedStateHandlers = new ArrayList<>();
 
@@ -1431,7 +1472,8 @@ class NodeConstruction {
             settingsModule.getIndexScopedSettings(),
             xContentRegistry,
             systemIndices,
-            indexSettingProviders
+            indexSettingProviders,
+            globalRetentionResolver
         );
         reservedStateHandlers.add(new ReservedComposableIndexTemplateAction(templateService, settingsModule.getIndexScopedSettings()));
 

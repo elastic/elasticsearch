@@ -189,13 +189,17 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         }
     }
 
+    /**
+     * This is a safety limit that should only be exceeded in very rare and special cases. The assumption is that
+     * 99% of the users have less than 1024 shards per index. We also make it a hard check that requires restart of nodes
+     * if a cluster should allow to create more than 1024 shards per index. NOTE: this does not limit the number of shards
+     * per cluster. this also prevents creating stuff like a new index with millions of shards by accident which essentially
+     * kills the entire cluster with OOM on the spot.
+     */
+    public static final String PER_INDEX_MAX_NUMBER_OF_SHARDS = "1024";
+
     static Setting<Integer> buildNumberOfShardsSetting() {
-        /* This is a safety limit that should only be exceeded in very rare and special cases. The assumption is that
-         * 99% of the users have less than 1024 shards per index. We also make it a hard check that requires restart of nodes
-         * if a cluster should allow to create more than 1024 shards per index. NOTE: this does not limit the number of shards
-         * per cluster. this also prevents creating stuff like a new index with millions of shards by accident which essentially
-         * kills the entire cluster with OOM on the spot.*/
-        final int maxNumShards = Integer.parseInt(System.getProperty("es.index.max_number_of_shards", "1024"));
+        final int maxNumShards = Integer.parseInt(System.getProperty("es.index.max_number_of_shards", PER_INDEX_MAX_NUMBER_OF_SHARDS));
         if (maxNumShards < 1) {
             throw new IllegalArgumentException("es.index.max_number_of_shards must be > 0");
         }
@@ -383,11 +387,11 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                     throw new IllegalArgumentException(
                         SETTING_VERSION_COMPATIBILITY
                             + " ["
-                            + compatibilityVersion
+                            + compatibilityVersion.toReleaseVersion()
                             + "] must be >= "
                             + SETTING_VERSION_CREATED
                             + " ["
-                            + createdVersion
+                            + createdVersion.toReleaseVersion()
                             + "]"
                     );
                 }
@@ -2629,7 +2633,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                             throw new IllegalStateException(
                                 "this method should only be used to parse older incompatible index metadata versions "
                                     + "but got "
-                                    + SETTING_INDEX_VERSION_COMPATIBILITY.get(settings)
+                                    + SETTING_INDEX_VERSION_COMPATIBILITY.get(settings).toReleaseVersion()
                             );
                         }
                         builder.settings(settings);
@@ -2752,7 +2756,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         Settings.Builder builder = Settings.builder().put(settings);
         IndexVersion version = SETTING_INDEX_VERSION_CREATED.get(settings);
         if (version.equals(IndexVersions.ZERO) == false) {
-            builder.put(SETTING_VERSION_CREATED_STRING, version.toString());
+            builder.put(SETTING_VERSION_CREATED_STRING, version.toReleaseVersion());
         }
         Long creationDate = settings.getAsLong(SETTING_CREATION_DATE, null);
         if (creationDate != null) {

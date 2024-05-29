@@ -4,7 +4,7 @@
 <titleabbrev>Update connector name and description</titleabbrev>
 ++++
 
-preview::[]
+beta::[]
 
 
 Updates the `name` and `description` fields of a connector.
@@ -17,7 +17,7 @@ Updates the `name` and `description` fields of a connector.
 [[update-connector-name-description-api-prereq]]
 ==== {api-prereq-title}
 
-* To sync data using connectors, it's essential to have the Elastic connectors service running.
+* To sync data using self-managed connectors, you need to deploy the {enterprise-search-ref}/build-connector.html[Elastic connector service] on your own infrastructure. This service runs automatically on Elastic Cloud for native connectors.
 * The `connector_id` parameter should reference an existing connector.
 
 [[update-connector-name-description-api-path-params]]

@@ -1,0 +1,5 @@
+pr: 107447
+summary: "Fix regression in get index settings (human=true) where the version was not displayed in human-readable format"
+area: Infra/Core
+type: bug
+issues: []

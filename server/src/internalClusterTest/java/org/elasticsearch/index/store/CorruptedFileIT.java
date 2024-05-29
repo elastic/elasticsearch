@@ -180,7 +180,9 @@ public class CorruptedFileIT extends ESIntegTestCase {
         setReplicaCount(2, "test");
         ClusterHealthResponse health = clusterAdmin().health(
             new ClusterHealthRequest("test").waitForGreenStatus()
-                .timeout("5m") // sometimes due to cluster rebalacing and random settings default timeout is just not enough.
+                // sometimes due to cluster rebalancing and random settings default timeout is just not enough.
+                .masterNodeTimeout(TimeValue.timeValueMinutes(5))
+                .timeout(TimeValue.timeValueMinutes(5))
                 .waitForNoRelocatingShards(true)
         ).actionGet();
         if (health.isTimedOut()) {

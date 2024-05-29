@@ -200,11 +200,11 @@ metric type. You can't update this parameter for existing fields.
 .Valid `time_series_metric` values for numeric fields
 [%collapsible%open]
 ====
-include::{es-repo-dir}/data-streams/tsds.asciidoc[tag=time-series-metric-counter]
+include::{es-ref-dir}/data-streams/tsds.asciidoc[tag=time-series-metric-counter]
 
-include::{es-repo-dir}/data-streams/tsds.asciidoc[tag=time-series-metric-gauge]
+include::{es-ref-dir}/data-streams/tsds.asciidoc[tag=time-series-metric-gauge]
 
-include::{es-repo-dir}/data-streams/tsds.asciidoc[tag=time-series-metric-null]
+include::{es-ref-dir}/data-streams/tsds.asciidoc[tag=time-series-metric-null]
 ====
 +
 For a numeric time series metric, the `doc_values` parameter must be `true`. A
@@ -226,6 +226,18 @@ numeric field can't be both a time series dimension and a time series metric.
     sorting) will behave as if the document had a value of +2.3+. High values
     of `scaling_factor` improve accuracy but also increase space requirements.
     This parameter is required.
+
+[[scaled-float-saturation]]
+==== `scaled_float` saturation
+
+`scaled_float` is stored as a single `long` value, which is the product of multiplying the original value by the scaling factor. If the multiplication
+results in a value that is outside the range of a `long`, the value is saturated
+to the minimum or maximum value of a `long`. For example, if the scaling factor
+is +100+ and the value is +92233720368547758.08+, the expected value is +9223372036854775808+.
+However, the value that is stored is +9223372036854775807+, the maximum value for a `long`.
+
+This can lead to unexpected results with <<query-dsl-range-query,range queries>>
+when the scaling factor or provided `float` value are exceptionally large.
 
 [[numeric-synthetic-source]]
 ==== Synthetic `_source`

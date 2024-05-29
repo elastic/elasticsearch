@@ -16,6 +16,7 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.INSTANCE;
 import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request;
 
@@ -47,7 +48,7 @@ public class RestResumeFollowAction extends BaseRestHandler {
             request = new Request();
             request.setFollowerIndex(restRequest.param("index"));
         }
-        request.masterNodeTimeout(restRequest.paramAsTime("master_timeout", request.masterNodeTimeout()));
+        request.masterNodeTimeout(getMasterNodeTimeout(restRequest));
         return request;
     }
 }

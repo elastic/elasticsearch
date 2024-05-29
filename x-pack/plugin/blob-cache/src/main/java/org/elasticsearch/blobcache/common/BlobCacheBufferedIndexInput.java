@@ -16,6 +16,7 @@ import org.elasticsearch.core.Nullable;
 
 import java.io.EOFException;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
@@ -42,6 +43,8 @@ public abstract class BlobCacheBufferedIndexInput extends IndexInput implements 
     // LUCENE-888 for details.
     public static final int MERGE_BUFFER_SIZE = 4096;
 
+    private final long length;
+
     private final int bufferSize;
 
     protected ByteBuffer buffer = EMPTY_BYTEBUFFER;
@@ -56,15 +59,22 @@ public abstract class BlobCacheBufferedIndexInput extends IndexInput implements 
         return buffer.get();
     }
 
-    public BlobCacheBufferedIndexInput(String resourceDesc, IOContext context) {
-        this(resourceDesc, bufferSize(context));
+    public BlobCacheBufferedIndexInput(String resourceDesc, IOContext context, long length) {
+        this(resourceDesc, bufferSize(context), length);
     }
 
     /** Inits BufferedIndexInput with a specific bufferSize */
-    public BlobCacheBufferedIndexInput(String resourceDesc, int bufferSize) {
+    public BlobCacheBufferedIndexInput(String resourceDesc, int bufferSize, long length) {
         super(resourceDesc);
-        checkBufferSize(bufferSize);
-        this.bufferSize = bufferSize;
+        int bufSize = Math.max(MIN_BUFFER_SIZE, (int) Math.min(bufferSize, length));
+        checkBufferSize(bufSize);
+        this.bufferSize = bufSize;
+        this.length = length;
+    }
+
+    @Override
+    public final long length() {
+        return length;
     }
 
     public int getBufferSize() {
@@ -334,11 +344,28 @@ public abstract class BlobCacheBufferedIndexInput extends IndexInput implements 
      * @return a byte array backed index input if slicing directly from the buffer worked or {@code null} otherwise
      */
     @Nullable
-    protected final IndexInput trySliceBuffer(String name, long sliceOffset, long sliceLength) {
+    protected final ByteArrayIndexInput trySliceBuffer(String name, long sliceOffset, long sliceLength) {
         if (ByteRange.of(bufferStart, bufferStart + buffer.limit()).contains(sliceOffset, sliceOffset + sliceLength)) {
             final byte[] bytes = new byte[(int) sliceLength];
             buffer.get(Math.toIntExact(sliceOffset - bufferStart), bytes, 0, bytes.length);
             return new ByteArrayIndexInput(name, bytes);
+        }
+        return null;
+    }
+
+    @Nullable
+    protected final IndexInput tryCloneBuffer() {
+        if (buffer.limit() == length && bufferStart == 0) {
+            var clone = trySliceBuffer(super.toString(), 0, length);
+            if (clone != null) {
+                try {
+                    clone.seek(buffer.position());
+                } catch (IOException ioe) {
+                    assert false : ioe;
+                    throw new UncheckedIOException(ioe);
+                }
+                return clone;
+            }
         }
         return null;
     }
@@ -352,7 +379,7 @@ public abstract class BlobCacheBufferedIndexInput extends IndexInput implements 
     protected abstract void seekInternal(long pos) throws IOException;
 
     @Override
-    public BlobCacheBufferedIndexInput clone() {
+    public IndexInput clone() {
         BlobCacheBufferedIndexInput clone = (BlobCacheBufferedIndexInput) super.clone();
 
         clone.buffer = EMPTY_BYTEBUFFER;

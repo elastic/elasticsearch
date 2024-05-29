@@ -17,7 +17,7 @@ import static org.mockito.Mockito.when;
 
 public class SingleRequestManagerTests extends ESTestCase {
     public void testExecute_DoesNotCallRequestCreatorCreate_WhenInputIsNull() {
-        var requestCreator = mock(ExecutableRequestCreator.class);
+        var requestCreator = mock(RequestManager.class);
         var request = mock(InferenceRequest.class);
         when(request.getRequestCreator()).thenReturn(requestCreator);
 

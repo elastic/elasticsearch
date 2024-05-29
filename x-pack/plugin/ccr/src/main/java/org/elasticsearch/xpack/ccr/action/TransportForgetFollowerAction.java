@@ -47,7 +47,6 @@ public class TransportForgetFollowerAction extends TransportBroadcastByNodeActio
     BroadcastResponse,
     TransportBroadcastByNodeAction.EmptyResult> {
 
-    private final ClusterService clusterService;
     private final IndicesService indicesService;
 
     @Inject
@@ -67,7 +66,6 @@ public class TransportForgetFollowerAction extends TransportBroadcastByNodeActio
             ForgetFollowerAction.Request::new,
             transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT)
         );
-        this.clusterService = clusterService;
         this.indicesService = Objects.requireNonNull(indicesService);
     }
 

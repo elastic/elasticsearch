@@ -628,7 +628,7 @@ public class NodeStatsTests extends ESTestCase {
 
         indicesCommonStats.getMerge().add(mergeStats);
         indicesCommonStats.getRefresh().add(new RefreshStats(++iota, ++iota, ++iota, ++iota, ++iota));
-        indicesCommonStats.getFlush().add(new FlushStats(++iota, ++iota, ++iota));
+        indicesCommonStats.getFlush().add(new FlushStats(++iota, ++iota, ++iota, ++iota));
         indicesCommonStats.getWarmer().add(new WarmerStats(++iota, ++iota, ++iota));
         indicesCommonStats.getCompletion().add(new CompletionStats(++iota, null));
         indicesCommonStats.getTranslog().add(new TranslogStats(++iota, ++iota, ++iota, ++iota, ++iota));
@@ -971,7 +971,8 @@ public class NodeStatsTests extends ESTestCase {
                             randomLongBetween(0, maxStatValue),
                             randomLongBetween(0, maxStatValue),
                             randomLongBetween(0, maxStatValue)
-                        )
+                        ),
+                        new IngestStats.ByteStats(randomLongBetween(0, maxStatValue), randomLongBetween(0, maxStatValue))
                     )
                 );
 
@@ -1021,6 +1022,7 @@ public class NodeStatsTests extends ESTestCase {
         if (frequently()) {
             long maxStatValue = Long.MAX_VALUE / 5;
             indexingPressureStats = new IndexingPressureStats(
+                randomLongBetween(0, maxStatValue),
                 randomLongBetween(0, maxStatValue),
                 randomLongBetween(0, maxStatValue),
                 randomLongBetween(0, maxStatValue),

@@ -1,0 +1,5 @@
+pr: 107272
+summary: "ESQL: extend BUCKET with spans"
+area: ES|QL
+type: enhancement
+issues: []

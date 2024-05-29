@@ -28,6 +28,7 @@ public class GeoIpStatsActionNodeResponseTests extends ESTestCase {
         GeoIpStatsAction.NodeResponse nodeResponse = new GeoIpStatsAction.NodeResponse(
             node,
             GeoIpDownloaderStatsSerializingTests.createRandomInstance(),
+            randomBoolean() ? null : CacheStatsSerializingTests.createRandomInstance(),
             databases,
             files,
             configDatabases

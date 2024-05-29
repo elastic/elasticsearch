@@ -1062,8 +1062,8 @@ end::stats[]
 
 tag::stored_fields[]
 `stored_fields`::
-(Optional, Boolean) If `true`, retrieves the document fields stored in the
-index rather than the document `_source`. Defaults to `false`.
+(Optional, string)
+A comma-separated list of <<mapping-store,`stored fields`>> to include in the response.
 end::stored_fields[]
 
 tag::sync[]
@@ -1180,7 +1180,7 @@ tag::target-index[]
 (Required, string)
 Name of the target index to create.
 
-include::{es-repo-dir}/indices/create-index.asciidoc[tag=index-name-reqs]
+include::{es-ref-dir}/indices/create-index.asciidoc[tag=index-name-reqs]
 --
 end::target-index[]
 
@@ -1223,13 +1223,23 @@ the timeout expires, the request fails and returns an error. Defaults to `30s`.
 Can also be set to `-1` to indicate that the request should never timeout.
 end::master-timeout[]
 
-tag::timeout[]
 `timeout`::
 (Optional, <<time-units, time units>>)
-Period to wait for a response. If no response is received before the timeout
-expires, the request fails and returns an error. Defaults to `30s`.
-end::timeout[]
+Period to wait for a response from all relevant nodes in the cluster after
+updating the cluster metadata. If no response is received before the timeout
+expires, the cluster metadata update still applies but the response will
+indicate that it was not completely acknowledged. Defaults to `30s`.
+Can also be set to `-1` to indicate that the request should never timeout.
 end::timeoutparms[]
+
+tag::timeout-nodes-request[]
+`timeout`::
+(Optional, <<time-units, time units>>)
+Period to wait for each node to respond. If a node does not respond before its
+timeout expires, the response does not include its information. However, timed out
+nodes are included in the response's `_nodes.failed` property. Defaults to no
+timeout.
+end::timeout-nodes-request[]
 
 tag::transform-id[]
 Identifier for the {transform}.

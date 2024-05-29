@@ -12,9 +12,9 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.TransportCancelTasksAction;
 import org.elasticsearch.action.admin.cluster.remote.RemoteClusterNodesAction;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesAction;
-import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotAction;
-import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsAction;
-import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusAction;
+import org.elasticsearch.action.admin.cluster.snapshots.create.TransportCreateSnapshotAction;
+import org.elasticsearch.action.admin.cluster.snapshots.get.TransportGetSnapshotsAction;
+import org.elasticsearch.action.admin.cluster.snapshots.status.TransportSnapshotsStatusAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.indices.template.get.GetComponentTemplateAction;
 import org.elasticsearch.action.admin.indices.template.get.GetComposableIndexTemplateAction;
@@ -53,6 +53,7 @@ import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.ProfileHasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.support.Automatons;
+import org.elasticsearch.xpack.core.slm.action.GetSLMStatusAction;
 import org.elasticsearch.xpack.core.slm.action.GetSnapshotLifecycleAction;
 
 import java.util.Collection;
@@ -144,16 +145,16 @@ public class ClusterPrivilegeResolver {
         HasPrivilegesAction.NAME
     );
     private static final Set<String> CREATE_SNAPSHOT_PATTERN = Set.of(
-        CreateSnapshotAction.NAME,
-        SnapshotsStatusAction.NAME + "*",
-        GetSnapshotsAction.NAME,
-        SnapshotsStatusAction.NAME,
+        TransportCreateSnapshotAction.TYPE.name(),
+        TransportSnapshotsStatusAction.TYPE.name() + "*",
+        TransportGetSnapshotsAction.TYPE.name(),
+        TransportSnapshotsStatusAction.TYPE.name(),
         GetRepositoriesAction.NAME
     );
     private static final Set<String> MONITOR_SNAPSHOT_PATTERN = Set.of(
-        SnapshotsStatusAction.NAME + "*",
-        GetSnapshotsAction.NAME,
-        SnapshotsStatusAction.NAME,
+        TransportSnapshotsStatusAction.TYPE.name() + "*",
+        TransportGetSnapshotsAction.TYPE.name(),
+        TransportSnapshotsStatusAction.TYPE.name(),
         GetRepositoriesAction.NAME
     );
     private static final Set<String> READ_CCR_PATTERN = Set.of(ClusterStateAction.NAME, HasPrivilegesAction.NAME);
@@ -165,7 +166,11 @@ public class ClusterPrivilegeResolver {
         ILMActions.STOP.name(),
         GetStatusAction.NAME
     );
-    private static final Set<String> READ_SLM_PATTERN = Set.of(GetSnapshotLifecycleAction.NAME, GetStatusAction.NAME);
+    private static final Set<String> READ_SLM_PATTERN = Set.of(
+        GetSLMStatusAction.NAME,
+        GetSnapshotLifecycleAction.NAME,
+        GetStatusAction.NAME
+    );
 
     private static final Set<String> MANAGE_SEARCH_APPLICATION_PATTERN = Set.of("cluster:admin/xpack/application/search_application/*");
     private static final Set<String> MANAGE_SEARCH_QUERY_RULES_PATTERN = Set.of("cluster:admin/xpack/query_rules/*");
@@ -180,7 +185,9 @@ public class ClusterPrivilegeResolver {
         RemoteClusterNodesAction.TYPE.name(),
         XPackInfoAction.NAME,
         // esql enrich
-        "cluster:monitor/xpack/enrich/esql/resolve_policy"
+        "cluster:monitor/xpack/enrich/esql/resolve_policy",
+        "cluster:internal:data/read/esql/open_exchange",
+        "cluster:internal:data/read/esql/exchange"
     );
     private static final Set<String> CROSS_CLUSTER_REPLICATION_PATTERN = Set.of(
         RemoteClusterService.REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME,

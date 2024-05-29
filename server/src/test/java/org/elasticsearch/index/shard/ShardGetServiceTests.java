@@ -264,7 +264,7 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         InternalEngine engine = (InternalEngine) primary.getEngineOrNull();
 
         // Initially there hasn't been any switches from unsafe to safe maps in the live version map
-        assertEquals(engine.getLastUnsafeSegmentGenerationForGets(), -1);
+        assertEquals(engine.getLastUnsafeSegmentGenerationForGets(), engine.getLastCommittedSegmentInfos().getGeneration());
         var map = engine.getLiveVersionMap();
         assertFalse(LiveVersionMapTestUtils.isSafeAccessRequired(map));
         assertFalse(LiveVersionMapTestUtils.isUnsafe(map));

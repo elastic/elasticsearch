@@ -47,6 +47,11 @@ final class $Type$VectorFixedBuilder implements $Type$Vector.FixedBuilder {
     }
 
     @Override
+    public long estimatedBytes() {
+        return ramBytesUsed(values.length);
+    }
+
+    @Override
     public $Type$Vector build() {
         if (nextIndex < 0) {
             throw new IllegalStateException("already closed");

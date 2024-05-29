@@ -1,8 +1,8 @@
 ---
 "Store stats":
-  - skip:
-      features: [arbitrary_key]
-      version: " - 7.12.99"
+  - requires:
+      test_runner_features: [arbitrary_key]
+      cluster_features: ["gte_v7.13.0"]
       reason:  "total_data_set_size added in 7.13"
 
   - do:

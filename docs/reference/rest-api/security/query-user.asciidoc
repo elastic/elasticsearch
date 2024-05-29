@@ -70,7 +70,7 @@ Specifies whether the user is enabled.
 (Optional, boolean) Determines whether to retrieve the <<user-profile,user profile>> `uid`,
 if exists, for the users. Defaults to `false`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=from]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=from]
 +
 By default, you cannot page through more than 10,000 hits using the `from` and
 `size` parameters. To page through more hits, use the

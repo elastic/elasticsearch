@@ -56,7 +56,7 @@ For more information about creating and updating the {es} keystore, see
 {ref}/secure-settings.html[Secure settings].
 
 For example, if you want to use specific credentials to access S3 then run the
-following commands to add these credentials to the keystore:
+following commands to add these credentials to the keystore.
 
 [source,sh]
 ----
@@ -80,8 +80,12 @@ bin/elasticsearch-keystore remove s3.client.default.session_token
 ----
 
 *All* client secure settings of this repository type are
-{ref}/secure-settings.html#reloadable-secure-settings[reloadable]. After you
-reload the settings, the internal `s3` clients, used to transfer the snapshot
+{ref}/secure-settings.html#reloadable-secure-settings[reloadable].
+You can define these settings before the node is started,
+or call the <<cluster-nodes-reload-secure-settings,Nodes reload secure settings API>>
+after the settings are defined to apply them to a running node.
+
+After you reload the settings, the internal `s3` clients, used to transfer the snapshot
 contents, will utilize the latest settings from the keystore. Any existing `s3`
 repositories, as well as any newly created ones, will pick up the new values
 stored in the keystore.
@@ -154,6 +158,10 @@ settings belong in the `elasticsearch.yml` file.
     (<<time-units,time value>>) The maximum time {es} will wait to receive the next byte
     of data over an established, open connection to the repository before it closes the
     connection. The default value is 50 seconds.
+
+`max_connections`::
+
+    The maximum number of concurrent connections to S3. The default value is `50`.
 
 `max_retries`::
 
@@ -300,6 +308,14 @@ include::repository-shared-settings.asciidoc[]
     be `standard`, `reduced_redundancy`, `standard_ia`, `onezone_ia` and
     `intelligent_tiering`. Defaults to `standard`. See
     <<repository-s3-storage-classes>> for more information.
+
+`delete_objects_max_size`::
+
+    (<<number,numeric>>) Sets the maxmimum batch size, betewen 1 and 1000, used
+    for `DeleteObjects` requests. Defaults to 1000 which is the maximum number
+    supported by the
+    https://docs.aws.amazon.com/AmazonS3/latest/API/API_DeleteObjects.html[AWS
+    DeleteObjects API].
 
 NOTE: The option of defining client settings in the repository settings as
 documented below is considered deprecated, and will be removed in a future

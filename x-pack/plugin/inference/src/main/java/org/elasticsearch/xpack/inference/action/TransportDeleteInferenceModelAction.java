@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.inference.action;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -28,11 +26,10 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.inference.action.DeleteInferenceModelAction;
+import org.elasticsearch.xpack.inference.common.InferenceExceptions;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 
 public class TransportDeleteInferenceModelAction extends AcknowledgedTransportMasterNodeAction<DeleteInferenceModelAction.Request> {
-
-    private static final Logger logger = LogManager.getLogger(TransportDeleteInferenceModelAction.class);
 
     private final ModelRegistry modelRegistry;
     private final InferenceServiceRegistry serviceRegistry;
@@ -74,14 +71,7 @@ public class TransportDeleteInferenceModelAction extends AcknowledgedTransportMa
 
             if (request.getTaskType().isAnyOrSame(unparsedModel.taskType()) == false) {
                 // specific task type in request does not match the models
-                l1.onFailure(
-                    new ElasticsearchStatusException(
-                        "Requested task type [{}] does not match the model's task type [{}]",
-                        RestStatus.BAD_REQUEST,
-                        request.getTaskType(),
-                        unparsedModel.taskType()
-                    )
-                );
+                l1.onFailure(InferenceExceptions.mismatchedTaskTypeException(request.getTaskType(), unparsedModel.taskType()));
                 return;
             }
             var service = serviceRegistry.getService(unparsedModel.service());

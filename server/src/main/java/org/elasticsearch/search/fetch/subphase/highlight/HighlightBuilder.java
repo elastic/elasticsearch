@@ -10,6 +10,7 @@ package org.elasticsearch.search.fetch.subphase.highlight;
 
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.vectorhighlight.SimpleBoundaryScanner;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -21,7 +22,6 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.fetch.subphase.highlight.SearchHighlightContext.FieldOptions;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ObjectParser.NamedObjectParser;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -104,8 +104,6 @@ public final class HighlightBuilder extends AbstractHighlighterBuilder<Highlight
 
     private final List<Field> fields;
 
-    private String encoder;
-
     private boolean useExplicitFieldOrder = false;
 
     public HighlightBuilder() {
@@ -114,7 +112,6 @@ public final class HighlightBuilder extends AbstractHighlighterBuilder<Highlight
 
     public HighlightBuilder(HighlightBuilder template, QueryBuilder highlightQuery, List<Field> fields) {
         super(template, highlightQuery);
-        this.encoder = template.encoder;
         this.useExplicitFieldOrder = template.useExplicitFieldOrder;
         this.fields = fields;
     }
@@ -124,7 +121,9 @@ public final class HighlightBuilder extends AbstractHighlighterBuilder<Highlight
      */
     public HighlightBuilder(StreamInput in) throws IOException {
         super(in);
-        encoder(in.readOptionalString());
+        if (in.getTransportVersion().before(TransportVersions.HIGHLIGHTERS_TAGS_ON_FIELD_LEVEL)) {
+            encoder(in.readOptionalString());
+        }
         useExplicitFieldOrder(in.readBoolean());
         this.fields = in.readCollectionAsList(Field::new);
         assert this.equals(new HighlightBuilder(this, highlightQuery, fields)) : "copy constructor is broken";
@@ -132,7 +131,9 @@ public final class HighlightBuilder extends AbstractHighlighterBuilder<Highlight
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeOptionalString(encoder);
+        if (out.getTransportVersion().before(TransportVersions.HIGHLIGHTERS_TAGS_ON_FIELD_LEVEL)) {
+            out.writeOptionalString(encoder);
+        }
         out.writeBoolean(useExplicitFieldOrder);
         out.writeCollection(fields);
     }
@@ -186,45 +187,6 @@ public final class HighlightBuilder extends AbstractHighlighterBuilder<Highlight
     }
 
     /**
-     * Set a tag scheme that encapsulates a built in pre and post tags. The allowed schemes
-     * are {@code styled} and {@code default}.
-     *
-     * @param schemaName The tag scheme name
-     */
-    public HighlightBuilder tagsSchema(String schemaName) {
-        switch (schemaName) {
-            case "default" -> {
-                preTags(DEFAULT_PRE_TAGS);
-                postTags(DEFAULT_POST_TAGS);
-            }
-            case "styled" -> {
-                preTags(DEFAULT_STYLED_PRE_TAG);
-                postTags(DEFAULT_STYLED_POST_TAGS);
-            }
-            default -> throw new IllegalArgumentException("Unknown tag schema [" + schemaName + "]");
-        }
-        return this;
-    }
-
-    /**
-     * Set encoder for the highlighting
-     * are {@code html} and {@code default}.
-     *
-     * @param encoder name
-     */
-    public HighlightBuilder encoder(String encoder) {
-        this.encoder = encoder;
-        return this;
-    }
-
-    /**
-     * Getter for {@link #encoder(String)}
-     */
-    public String encoder() {
-        return this.encoder;
-    }
-
-    /**
      * Send the fields to be highlighted using a syntax that is specific about the order in which they should be highlighted.
      * @return this for chaining
      */
@@ -251,8 +213,6 @@ public final class HighlightBuilder extends AbstractHighlighterBuilder<Highlight
     private static final BiFunction<XContentParser, HighlightBuilder, HighlightBuilder> PARSER;
     static {
         ObjectParser<HighlightBuilder, Void> parser = new ObjectParser<>("highlight");
-        parser.declareString(HighlightBuilder::tagsSchema, new ParseField("tags_schema"));
-        parser.declareString(HighlightBuilder::encoder, ENCODER_FIELD);
         parser.declareNamedObjects(
             HighlightBuilder::fields,
             Field.PARSER,
@@ -269,7 +229,7 @@ public final class HighlightBuilder extends AbstractHighlighterBuilder<Highlight
     public SearchHighlightContext build(SearchExecutionContext context) throws IOException {
         // create template global options that are later merged with any partial field options
         final SearchHighlightContext.FieldOptions.Builder globalOptionsBuilder = new SearchHighlightContext.FieldOptions.Builder();
-        globalOptionsBuilder.encoder(this.encoder);
+
         transferOptions(this, globalOptionsBuilder, context);
 
         // overwrite unset global options by default values
@@ -325,6 +285,9 @@ public final class HighlightBuilder extends AbstractHighlighterBuilder<Highlight
         if (highlighterBuilder.numOfFragments != null) {
             targetOptionsBuilder.numberOfFragments(highlighterBuilder.numOfFragments);
         }
+        if (highlighterBuilder.encoder != null) {
+            targetOptionsBuilder.encoder(highlighterBuilder.encoder);
+        }
         if (highlighterBuilder.requireFieldMatch != null) {
             targetOptionsBuilder.requireFieldMatch(highlighterBuilder.requireFieldMatch);
         }
@@ -379,9 +342,6 @@ public final class HighlightBuilder extends AbstractHighlighterBuilder<Highlight
         // first write common options
         commonOptionsToXContent(builder);
         // special options for top-level highlighter
-        if (encoder != null) {
-            builder.field(ENCODER_FIELD.getPreferredName(), encoder);
-        }
         if (fields.size() > 0) {
             if (useExplicitFieldOrder) {
                 builder.startArray(FIELDS_FIELD.getPreferredName());
@@ -407,14 +367,12 @@ public final class HighlightBuilder extends AbstractHighlighterBuilder<Highlight
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(encoder, useExplicitFieldOrder, fields);
+        return Objects.hash(useExplicitFieldOrder, fields);
     }
 
     @Override
     protected boolean doEquals(HighlightBuilder other) {
-        return Objects.equals(encoder, other.encoder)
-            && Objects.equals(useExplicitFieldOrder, other.useExplicitFieldOrder)
-            && Objects.equals(fields, other.fields);
+        return Objects.equals(useExplicitFieldOrder, other.useExplicitFieldOrder) && Objects.equals(fields, other.fields);
     }
 
     @Override

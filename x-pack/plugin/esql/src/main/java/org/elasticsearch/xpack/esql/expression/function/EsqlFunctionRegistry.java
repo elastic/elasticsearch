@@ -7,6 +7,12 @@
 
 package org.elasticsearch.xpack.esql.expression.function;
 
+import org.elasticsearch.xpack.esql.core.expression.function.Function;
+import org.elasticsearch.xpack.esql.core.expression.function.FunctionDefinition;
+import org.elasticsearch.xpack.esql.core.expression.function.FunctionRegistry;
+import org.elasticsearch.xpack.esql.core.session.Configuration;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Avg;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountDistinct;
@@ -18,9 +24,12 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Percentile;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroid;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
+import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Greatest;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Least;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.FromBase64;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToBase64;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToBoolean;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCartesianPoint;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCartesianShape;
@@ -48,7 +57,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Acos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Asin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Atan;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Atan2;
-import org.elasticsearch.xpack.esql.expression.function.scalar.math.Bucket;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cbrt;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Ceil;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cosh;
@@ -102,12 +111,6 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToLower;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToUpper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Trim;
 import org.elasticsearch.xpack.esql.plan.logical.meta.MetaFunctions;
-import org.elasticsearch.xpack.ql.expression.function.Function;
-import org.elasticsearch.xpack.ql.expression.function.FunctionDefinition;
-import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
-import org.elasticsearch.xpack.ql.session.Configuration;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.lang.reflect.Constructor;
 import java.util.ArrayList;
@@ -119,21 +122,21 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.BOOLEAN;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.IP;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.TEXT;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.UNSUPPORTED;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.VERSION;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.CARTESIAN_POINT;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.CARTESIAN_SHAPE;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_POINT;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_SHAPE;
-import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
-import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
-import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
-import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
-import static org.elasticsearch.xpack.ql.type.DataTypes.IP;
-import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
-import static org.elasticsearch.xpack.ql.type.DataTypes.LONG;
-import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
-import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
-import static org.elasticsearch.xpack.ql.type.DataTypes.UNSUPPORTED;
-import static org.elasticsearch.xpack.ql.type.DataTypes.VERSION;
 
 public final class EsqlFunctionRegistry extends FunctionRegistry {
 
@@ -174,6 +177,8 @@ public final class EsqlFunctionRegistry extends FunctionRegistry {
 
     private FunctionDefinition[][] functions() {
         return new FunctionDefinition[][] {
+            // grouping functions
+            new FunctionDefinition[] { def(Bucket.class, Bucket::new, "bucket", "bin"), },
             // aggregate functions
             new FunctionDefinition[] {
                 def(Avg.class, Avg::new, "avg"),
@@ -193,7 +198,7 @@ public final class EsqlFunctionRegistry extends FunctionRegistry {
                 def(Asin.class, Asin::new, "asin"),
                 def(Atan.class, Atan::new, "atan"),
                 def(Atan2.class, Atan2::new, "atan2"),
-                def(Bucket.class, Bucket::new, "bucket"),
+                def(Cbrt.class, Cbrt::new, "cbrt"),
                 def(Ceil.class, Ceil::new, "ceil"),
                 def(Cos.class, Cos::new, "cos"),
                 def(Cosh.class, Cosh::new, "cosh"),
@@ -254,6 +259,8 @@ public final class EsqlFunctionRegistry extends FunctionRegistry {
             new FunctionDefinition[] { def(CIDRMatch.class, CIDRMatch::new, "cidr_match") },
             // conversion functions
             new FunctionDefinition[] {
+                def(FromBase64.class, FromBase64::new, "from_base64"),
+                def(ToBase64.class, ToBase64::new, "to_base64"),
                 def(ToBoolean.class, ToBoolean::new, "to_boolean", "to_bool"),
                 def(ToCartesianPoint.class, ToCartesianPoint::new, "to_cartesianpoint"),
                 def(ToCartesianShape.class, ToCartesianShape::new, "to_cartesianshape"),

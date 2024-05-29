@@ -213,8 +213,8 @@ l:long
 281
 ;
 
-sumOfDouble
-from employees | stats h = sum(height);
+sumOfDouble#[skip:-8.12.99,reason:expressions in aggs added in 8.13]
+from employees | stats h = round(sum(height), 10);
 
 h:double
 176.82
@@ -235,7 +235,7 @@ h:double
 ;
 
 sumOfScaledFloat
-from employees | stats h = sum(height.scaled_float);
+from employees | stats h = sum(height.scaled_float) | eval h = round(h, 10);
 
 h:double
 176.82
@@ -694,14 +694,13 @@ ca:l|gender:s
 0   |null
 ;
 
-
-countFieldVsAll
+countFieldVsAll#[skip:-8.13.99, reason:Fixed count(null) in 8.14]
 from employees | stats ca = count(), cn = count(null), cf = count(gender) by gender | sort gender;
 
 ca:l|cn:l|cf:l|gender:s
-33  |33  |33  |F
-57  |57  |57  |M
-10  |10  |0   |null
+33  |0   |33  |F
+57  |0   |57  |M
+10  |0   |0   |null
 ;
 
 countMultiValue
@@ -1456,103 +1455,175 @@ rows:l
 6
 ;
 
-sumOfConst#[skip:-8.13.99,reason:supported in 8.14]
+countOfConst#[skip:-8.13.99,reason:supported in 8.14]
 FROM employees
-| STATS s1 = sum(1), s2point1 = sum(2.1), s_mv = sum([-1, 0, 3]) * 3, s_null = sum(null), rows = count(*)
+| STATS s1 = count(1), s2point1 = count(2.1), s_mv = count([-1, 0, 3]) * 3, s_null = count(null), s_expr = count(1+1), s_expr_null = count(1+null), rows = count(*)
 ;
 
-s1:l | s2point1:d | s_mv:l | s_null:d | rows:l
-100  | 210.0      | 600    | null     | 100
+s1:l | s2point1:l | s_mv:l | s_null:l | s_expr:l | s_expr_null:l | rows:l
+100  | 100        | 900    | 0        | 100      | 0             | 100
+;
+
+countOfConstGrouped#[skip:-8.13.99,reason:supported in 8.14]
+FROM employees
+| STATS s2point1 = count("two point one"), s_mv = count([-1, 0, 3]), s_null = count(null), s_expr = count(1+1), s_expr_null = count(1+null), rows = count(*) by languages
+| SORT languages
+;
+
+s2point1:l | s_mv:l | s_null:l | s_expr:l | s_expr_null:l | rows:l | languages:i 
+15         | 45     | 0        | 15       | 0             | 15     | 1
+19         | 57     | 0        | 19       | 0             | 19     | 2
+17         | 51     | 0        | 17       | 0             | 17     | 3
+18         | 54     | 0        | 18       | 0             | 18     | 4
+21         | 63     | 0        | 21       | 0             | 21     | 5
+10         | 30     | 0        | 10       | 0             | 10     | null
+;
+
+sumOfConst#[skip:-8.13.99,reason:supported in 8.14]
+FROM employees
+| STATS s1 = sum(1), s2point1 = sum(2.1), s_mv = sum([-1, 0, 3]) * 3, s_null = sum(null), s_expr = sum(1+1), s_expr_null = sum(1+null), rows = count(*)
+;
+
+s1:l | s2point1:d | s_mv:l | s_null:d | s_expr:l | s_expr_null:l | rows:l
+100  | 210.0      | 600    | null     | 200      | null          | 100
 ;
 
 sumOfConstGrouped#[skip:-8.13.99,reason:supported in 8.14]
 FROM employees
-| STATS s2point1 = round(sum(2.1), 1), s_mv = sum([-1, 0, 3]), rows = count(*) by languages
+| STATS s2point1 = round(sum(2.1), 1), s_mv = sum([-1, 0, 3]), s_expr = sum(1+1), s_expr_null = sum(1+null), rows = count(*) by languages
 | SORT languages
 ;
 
-s2point1:d | s_mv:l | rows:l | languages:i
-31.5       | 30     | 15     | 1
-39.9       | 38     | 19     | 2
-35.7       | 34     | 17     | 3
-37.8       | 36     | 18     | 4
-44.1       | 42     | 21     | 5
-21.0       | 20     | 10     | null
+s2point1:d | s_mv:l | s_expr:l | s_expr_null:l | rows:l | languages:i
+31.5       | 30     | 30       | null          | 15     | 1
+39.9       | 38     | 38       | null          | 19     | 2
+35.7       | 34     | 34       | null          | 17     | 3
+37.8       | 36     | 36       | null          | 18     | 4
+44.1       | 42     | 42       | null          | 21     | 5
+21.0       | 20     | 20       | null          | 10     | null
 ;
 
 avgOfConst#[skip:-8.13.99,reason:supported in 8.14]
 FROM employees
-| STATS s1 = avg(1), s_mv = avg([-1, 0, 3]) * 3, s_null = avg(null)
+| STATS s1 = avg(1), s_mv = avg([-1, 0, 3]) * 3, s_null = avg(null), s_expr = avg(1+1), s_expr_null = avg(1+null)
 ;
 
-s1:d | s_mv:d | s_null:d
-1.0  | 2.0    | null
+s1:d | s_mv:d | s_null:d | s_expr:d | s_expr_null:d
+1.0  | 2.0    | null     | 2.0      | null
 ;
 
 avgOfConstGrouped#[skip:-8.13.99,reason:supported in 8.14]
 FROM employees
-| STATS s2point1 = avg(2.1), s_mv = avg([-1, 0, 3]) * 3 by languages
+| STATS s2point1 = avg(2.1), s_mv = avg([-1, 0, 3]) * 3, s_expr = avg(1+1), s_expr_null = avg(1+null) by languages
 | SORT languages
 ;
 
-s2point1:d | s_mv:d | languages:i
-2.1        | 2.0    | 1
-2.1        | 2.0    | 2
-2.1        | 2.0    | 3
-2.1        | 2.0    | 4
-2.1        | 2.0    | 5
-2.1        | 2.0    | null
+s2point1:d | s_mv:d | s_expr:d | s_expr_null:d | languages:i
+2.1        | 2.0    | 2.0      | null          | 1
+2.1        | 2.0    | 2.0      | null          | 2
+2.1        | 2.0    | 2.0      | null          | 3
+2.1        | 2.0    | 2.0      | null          | 4
+2.1        | 2.0    | 2.0      | null          | 5
+2.1        | 2.0    | 2.0      | null          | null
 ;
 
 minOfConst#[skip:-8.13.99,reason:supported in 8.14]
 FROM employees
-| STATS s1 = min(1), s_mv = min([-1, 0, 3]), s_null = min(null)
+| STATS s1 = min(1), s_mv = min([-1, 0, 3]), s_null = min(null), s_expr = min(1+1), s_expr_null = min(1+null)
 ;
 
-s1:i | s_mv:i | s_null:null
-1    | -1     | null
+s1:i | s_mv:i | s_null:null | s_expr:i | s_expr_null:i
+1    | -1     | null        | 2        | null
 ;
 
 minOfConstGrouped#[skip:-8.13.99,reason:supported in 8.14]
 FROM employees
-| STATS s2point1 = min(2.1), s_mv = min([-1, 0, 3]) by languages
+| STATS s2point1 = min(2.1), s_mv = min([-1, 0, 3]), s_expr = min(1+1), s_expr_null = min(1+null) by languages
 | SORT languages
 ;
 
-s2point1:d | s_mv:i | languages:i
-2.1        | -1     | 1
-2.1        | -1     | 2
-2.1        | -1     | 3
-2.1        | -1     | 4
-2.1        | -1     | 5
-2.1        | -1     | null
+s2point1:d | s_mv:i | s_expr:i | s_expr_null:i | languages:i
+2.1        | -1     | 2        | null          | 1
+2.1        | -1     | 2        | null          | 2
+2.1        | -1     | 2        | null          | 3
+2.1        | -1     | 2        | null          | 4
+2.1        | -1     | 2        | null          | 5
+2.1        | -1     | 2        | null          | null
 ;
 
 maxOfConst#[skip:-8.13.99,reason:supported in 8.14]
 FROM employees
-| STATS s1 = max(1), s_mv = max([-1, 0, 3]), s_null = max(null)
+| STATS s1 = max(1), s_mv = max([-1, 0, 3]), s_null = max(null), s_expr = max(1+1), s_expr_null = max(1+null)
 ;
 
-s1:i | s_mv:i | s_null:null
-1    | 3      | null
+s1:i | s_mv:i | s_null:null | s_expr:i | s_expr_null:i
+1    | 3      | null        | 2        | null
 ;
 
 maxOfConstGrouped#[skip:-8.13.99,reason:supported in 8.14]
 FROM employees
-| STATS s2point1 = max(2.1), s_mv = max([-1, 0, 3]) by languages
+| STATS s2point1 = max(2.1), s_mv = max([-1, 0, 3]), s_expr = max(1+1), s_expr_null = max(1+null) by languages
 | SORT languages
 ;
 
-s2point1:d | s_mv:i | languages:i
-2.1        | 3      | 1
-2.1        | 3      | 2
-2.1        | 3      | 3
-2.1        | 3      | 4
-2.1        | 3      | 5
-2.1        | 3      | null
+s2point1:d | s_mv:i | s_expr:i | s_expr_null:i | languages:i
+2.1        | 3      | 2        | null          | 1
+2.1        | 3      | 2        | null          | 2
+2.1        | 3      | 2        | null          | 3
+2.1        | 3      | 2        | null          | 4
+2.1        | 3      | 2        | null          | 5
+2.1        | 3      | 2        | null          | null
 ;
 
-evalOverridingKey
+medianOfConst#[skip:-8.13.99,reason:supported in 8.14]
+FROM employees
+| STATS s1 = median(1), s_mv = median([-1, 0, 1, 3]), s_null = median(null), s_expr = median(1+1), s_expr_null = median(1+null)
+;
+
+s1:d | s_mv:d | s_null:d | s_expr:d | s_expr_null:d
+1.0  | 0.5    | null     | 2.0      | null
+;
+
+medianOfConstGrouped#[skip:-8.13.99,reason:supported in 8.14]
+FROM employees
+| STATS s2point1 = median(2.1), s_mv = median([-1, 0, 1, 3]), s_expr = median(1+1), s_expr_null = median(1+null) by languages
+| SORT languages
+;
+
+s2point1:d | s_mv:d | s_expr:d | s_expr_null:d | languages:i
+2.1        | 0.5    | 2.0      | null          | 1
+2.1        | 0.5    | 2.0      | null          | 2
+2.1        | 0.5    | 2.0      | null          | 3
+2.1        | 0.5    | 2.0      | null          | 4
+2.1        | 0.5    | 2.0      | null          | 5
+2.1        | 0.5    | 2.0      | null          | null
+;
+
+countDistinctOfConst#[skip:-8.13.99,reason:supported in 8.14]
+FROM employees
+| STATS s1 = count_distinct(1), s_mv = count_distinct([-1, 0, 3, 1, -1, 3]), s_null = count_distinct(null), s_param = count_distinct([-1, 0, 3, 1, -1, 3], 5), s_expr = count_distinct(1+1), s_expr_null = count_distinct(1+null)
+;
+
+s1:l | s_mv:l | s_null:l | s_param:l | s_expr:l | s_expr_null:l
+1    | 4      | 0        | 4         | 1        | 0
+;
+
+countDistinctOfConstGrouped#[skip:-8.13.99,reason:supported in 8.14]
+FROM employees
+| STATS s2point1 = count_distinct("two point one"), s_mv = count_distinct([-1, 0, 3, 1, -1, 3]), s_param = count_distinct([-1, 0, 3, 1, -1, 3], 8000), s_expr = count_distinct(1+1), s_expr_null = count_distinct(1+null) by languages
+| SORT languages
+;
+
+s2point1:l | s_mv:l | s_param:l | s_expr:l | s_expr_null:l | languages:i
+1          | 4      | 4         | 1        | 0             | 1
+1          | 4      | 4         | 1        | 0             | 2
+1          | 4      | 4         | 1        | 0             | 3
+1          | 4      | 4         | 1        | 0             | 4
+1          | 4      | 4         | 1        | 0             | 5
+1          | 4      | 4         | 1        | 0             | null
+;
+
+evalOverridingKey#[skip:-8.13.1,reason:fixed in 8.13.2]
 FROM employees
 | EVAL k = languages
 | STATS c = COUNT() BY languages, k
@@ -1584,6 +1655,23 @@ c:l | k1:i | languages:i
 18  | 4    | 4
 21  | 5    | 5
 10  | null | null
+;
+
+evalMultipleOverridingKeysWithAggregateExpr#[skip:-8.13.99,reason:supported in 8.14]
+FROM employees
+| EVAL k = languages, k1 = k
+| STATS c = 3*COUNT() BY languages, k, k1, languages
+| DROP k
+| SORT languages
+;
+
+c:l | k1:i | languages:i
+45  | 1    | 1
+57  | 2    | 2
+51  | 3    | 3
+54  | 4    | 4
+63  | 5    | 5
+30  | null | null
 ;
 
 minWithSortExpression1#[skip:-8.13.99,reason:supported in 8.14]

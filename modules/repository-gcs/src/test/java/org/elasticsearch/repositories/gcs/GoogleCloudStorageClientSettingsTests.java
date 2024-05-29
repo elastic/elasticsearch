@@ -318,7 +318,7 @@ public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
     }
 
     private static TimeValue randomTimeout() {
-        return randomFrom(TimeValue.MINUS_ONE, TimeValue.ZERO, TimeValue.parseTimeValue(randomPositiveTimeValue(), "test"));
+        return randomFrom(TimeValue.MINUS_ONE, TimeValue.ZERO, randomPositiveTimeValue());
     }
 
     private static void assertGoogleCredential(ServiceAccountCredentials expected, ServiceAccountCredentials actual) {

@@ -8,13 +8,11 @@
 package org.elasticsearch.xpack.shutdown;
 
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainResponse;
-import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNodesHelper;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -456,28 +454,27 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
             );
     }
 
-    private String getNodeId(String nodeName) {
-        NodesInfoResponse nodes = clusterAdmin().prepareNodesInfo().clear().get();
-        return nodes.getNodes()
-            .stream()
-            .map(NodeInfo::getNode)
-            .filter(node -> node.getName().equals(nodeName))
-            .map(DiscoveryNode::getId)
-            .findFirst()
-            .orElseThrow();
-    }
-
     private void putNodeShutdown(String nodeId, SingleNodeShutdownMetadata.Type type, String nodeReplacementName) throws Exception {
         assertAcked(
             client().execute(
                 PutShutdownNodeAction.INSTANCE,
-                new PutShutdownNodeAction.Request(nodeId, type, this.getTestName(), null, nodeReplacementName, null)
+                new PutShutdownNodeAction.Request(
+                    TEST_REQUEST_TIMEOUT,
+                    TEST_REQUEST_TIMEOUT,
+                    nodeId,
+                    type,
+                    this.getTestName(),
+                    null,
+                    nodeReplacementName,
+                    null
+                )
             )
         );
     }
 
     private void assertNodeShutdownStatus(String nodeId, SingleNodeShutdownMetadata.Status status) throws Exception {
-        var response = client().execute(GetShutdownStatusAction.INSTANCE, new GetShutdownStatusAction.Request(nodeId)).get();
+        var response = client().execute(GetShutdownStatusAction.INSTANCE, new GetShutdownStatusAction.Request(TEST_REQUEST_TIMEOUT, nodeId))
+            .get();
         assertThat(response.getShutdownStatuses().get(0).migrationStatus().getStatus(), equalTo(status));
     }
 

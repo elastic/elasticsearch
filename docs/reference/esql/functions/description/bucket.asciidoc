@@ -2,4 +2,4 @@
 
 *Description*
 
-Creates human-friendly buckets and returns a datetime value for each row that corresponds to the resulting bucket the row falls into.
+Creates groups of values - buckets - out of a datetime or numeric input. The size of the buckets can either be provided directly, or chosen based on a recommended count and values range.

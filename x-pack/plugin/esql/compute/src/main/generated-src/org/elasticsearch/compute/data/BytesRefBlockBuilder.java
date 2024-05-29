@@ -21,10 +21,6 @@ final class BytesRefBlockBuilder extends AbstractBlockBuilder implements BytesRe
 
     private BytesRefArray values;
 
-    BytesRefBlockBuilder(int estimatedSize, BlockFactory blockFactory) {
-        this(estimatedSize, BigArrays.NON_RECYCLING_INSTANCE, blockFactory);
-    }
-
     BytesRefBlockBuilder(int estimatedSize, BigArrays bigArrays, BlockFactory blockFactory) {
         super(blockFactory);
         values = new BytesRefArray(Math.max(estimatedSize, 2), bigArrays);
@@ -138,6 +134,11 @@ final class BytesRefBlockBuilder extends AbstractBlockBuilder implements BytesRe
     public BytesRefBlockBuilder mvOrdering(Block.MvOrdering mvOrdering) {
         this.mvOrdering = mvOrdering;
         return this;
+    }
+
+    @Override
+    public long estimatedBytes() {
+        return super.estimatedBytes() + BytesRefArrayBlock.BASE_RAM_BYTES_USED + values.ramBytesUsed();
     }
 
     private BytesRefBlock buildFromBytesArray() {

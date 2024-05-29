@@ -16,7 +16,9 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.datastreams.GetDataStreamAction;
 import org.elasticsearch.action.datastreams.GetDataStreamAction.Response.ManagedBy;
+import org.elasticsearch.action.datastreams.lifecycle.ExplainDataStreamLifecycleAction;
 import org.elasticsearch.action.datastreams.lifecycle.ExplainIndexDataStreamLifecycle;
+import org.elasticsearch.action.datastreams.lifecycle.PutDataStreamLifecycleAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -28,8 +30,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
-import org.elasticsearch.datastreams.lifecycle.action.ExplainDataStreamLifecycleAction;
-import org.elasticsearch.datastreams.lifecycle.action.PutDataStreamLifecycleAction;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -107,7 +107,7 @@ public class DataStreamAndIndexLifecycleMixingTests extends ESIntegTestCase {
         RolloverAction rolloverIlmAction = new RolloverAction(RolloverConditions.newBuilder().addMaxIndexDocsCondition(2L).build());
         Phase hotPhase = new Phase("hot", TimeValue.ZERO, Map.of(rolloverIlmAction.getWriteableName(), rolloverIlmAction));
         LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policy, Map.of("hot", hotPhase));
-        PutLifecycleRequest putLifecycleRequest = new PutLifecycleRequest(lifecyclePolicy);
+        PutLifecycleRequest putLifecycleRequest = new PutLifecycleRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, lifecyclePolicy);
         assertAcked(client().execute(ILMActions.PUT, putLifecycleRequest).get());
 
         putComposableIndexTemplate(
@@ -289,7 +289,7 @@ public class DataStreamAndIndexLifecycleMixingTests extends ESIntegTestCase {
         RolloverAction rolloverIlmAction = new RolloverAction(RolloverConditions.newBuilder().addMaxIndexDocsCondition(2L).build());
         Phase hotPhase = new Phase("hot", TimeValue.ZERO, Map.of(rolloverIlmAction.getWriteableName(), rolloverIlmAction));
         LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policy, Map.of("hot", hotPhase));
-        PutLifecycleRequest putLifecycleRequest = new PutLifecycleRequest(lifecyclePolicy);
+        PutLifecycleRequest putLifecycleRequest = new PutLifecycleRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, lifecyclePolicy);
         assertAcked(client().execute(ILMActions.PUT, putLifecycleRequest).get());
 
         putComposableIndexTemplate(
@@ -464,7 +464,7 @@ public class DataStreamAndIndexLifecycleMixingTests extends ESIntegTestCase {
         RolloverAction rolloverIlmAction = new RolloverAction(RolloverConditions.newBuilder().addMaxIndexDocsCondition(2L).build());
         Phase hotPhase = new Phase("hot", TimeValue.ZERO, Map.of(rolloverIlmAction.getWriteableName(), rolloverIlmAction));
         LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policy, Map.of("hot", hotPhase));
-        PutLifecycleRequest putLifecycleRequest = new PutLifecycleRequest(lifecyclePolicy);
+        PutLifecycleRequest putLifecycleRequest = new PutLifecycleRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, lifecyclePolicy);
         assertAcked(client().execute(ILMActions.PUT, putLifecycleRequest).get());
 
         putComposableIndexTemplate(
@@ -718,7 +718,7 @@ public class DataStreamAndIndexLifecycleMixingTests extends ESIntegTestCase {
         RolloverAction rolloverIlmAction = new RolloverAction(RolloverConditions.newBuilder().addMaxIndexDocsCondition(2L).build());
         Phase hotPhase = new Phase("hot", TimeValue.ZERO, Map.of(rolloverIlmAction.getWriteableName(), rolloverIlmAction));
         LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policy, Map.of("hot", hotPhase));
-        PutLifecycleRequest putLifecycleRequest = new PutLifecycleRequest(lifecyclePolicy);
+        PutLifecycleRequest putLifecycleRequest = new PutLifecycleRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, lifecyclePolicy);
         assertAcked(client().execute(ILMActions.PUT, putLifecycleRequest).get());
 
         // let's update the index template to remove the data stream lifecycle configuration and replace it with an ILM configuration
@@ -813,7 +813,7 @@ public class DataStreamAndIndexLifecycleMixingTests extends ESIntegTestCase {
         RolloverAction rolloverIlmAction = new RolloverAction(RolloverConditions.newBuilder().addMaxIndexDocsCondition(2L).build());
         Phase hotPhase = new Phase("hot", TimeValue.ZERO, Map.of(rolloverIlmAction.getWriteableName(), rolloverIlmAction));
         LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policy, Map.of("hot", hotPhase));
-        PutLifecycleRequest putLifecycleRequest = new PutLifecycleRequest(lifecyclePolicy);
+        PutLifecycleRequest putLifecycleRequest = new PutLifecycleRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, lifecyclePolicy);
         assertAcked(client().execute(ILMActions.PUT, putLifecycleRequest).get());
 
         putComposableIndexTemplate(

@@ -186,8 +186,8 @@ teardown:
 
 ---
 "Update with pipeline":
-  - skip:
-      version: " - 7.17.4"
+  - requires:
+      cluster_features: ["gte_v7.17.5"]
       reason: "fixed in 7.17.5"
 
   - do:

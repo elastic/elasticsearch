@@ -125,6 +125,14 @@ public class RestTestLegacyFeatures implements FeatureSpecification {
     @UpdateForV9
     public static final NodeFeature ML_NLP_SUPPORTED = new NodeFeature("ml.nlp_supported");
 
+    /*
+     * Starting with 8.11, cluster state has minimum system index mappings versions (#99307) and the system index mappings upgrade service
+     * started using them to determine when to update mappings for system indices. See https://github.com/elastic/elasticsearch/pull/99668
+     */
+    public static final NodeFeature MAPPINGS_UPGRADE_SERVICE_USES_MAPPINGS_VERSION = new NodeFeature(
+        "mappings.upgrade_service_uses_mappings_version"
+    );
+
     // YAML
     public static final NodeFeature REST_ELASTIC_PRODUCT_HEADER_PRESENT = new NodeFeature("action.rest.product_header_present");
 
@@ -174,7 +182,8 @@ public class RestTestLegacyFeatures implements FeatureSpecification {
             entry(DATA_STREAMS_SUPPORTED, Version.V_7_9_0),
             entry(NEW_DATA_STREAMS_INDEX_NAME_FORMAT, Version.V_7_11_0),
             entry(DISABLE_FIELD_NAMES_FIELD_REMOVED, Version.V_8_0_0),
-            entry(ML_NLP_SUPPORTED, Version.V_8_0_0)
+            entry(ML_NLP_SUPPORTED, Version.V_8_0_0),
+            entry(MAPPINGS_UPGRADE_SERVICE_USES_MAPPINGS_VERSION, Version.V_8_11_0)
         );
     }
 }

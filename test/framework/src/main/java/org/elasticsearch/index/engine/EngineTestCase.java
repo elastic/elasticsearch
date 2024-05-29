@@ -100,6 +100,7 @@ import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.index.translog.TranslogDeletionPolicy;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.plugins.internal.DocumentSizeObserver;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
@@ -417,7 +418,17 @@ public abstract class EngineTestCase extends ESTestCase {
         } else {
             document.add(new StoredField(SourceFieldMapper.NAME, ref.bytes, ref.offset, ref.length));
         }
-        return new ParsedDocument(versionField, seqID, id, routing, Arrays.asList(document), source, XContentType.JSON, mappingUpdate);
+        return new ParsedDocument(
+            versionField,
+            seqID,
+            id,
+            routing,
+            Arrays.asList(document),
+            source,
+            XContentType.JSON,
+            mappingUpdate,
+            DocumentSizeObserver.EMPTY_INSTANCE
+        );
     }
 
     public static CheckedBiFunction<String, Integer, ParsedDocument, IOException> nestedParsedDocFactory() throws Exception {
@@ -1444,10 +1455,10 @@ public abstract class EngineTestCase extends ESTestCase {
         assertBusy(() -> assertThat(engine.getLocalCheckpointTracker().getProcessedCheckpoint(), greaterThanOrEqualTo(seqNo)));
     }
 
-    public static boolean hasSnapshottedCommits(Engine engine) {
+    public static boolean hasAcquiredIndexCommits(Engine engine) {
         assert engine instanceof InternalEngine : "only InternalEngines have snapshotted commits, got: " + engine.getClass();
         InternalEngine internalEngine = (InternalEngine) engine;
-        return internalEngine.hasSnapshottedCommits();
+        return internalEngine.hasAcquiredIndexCommits();
     }
 
     public static final class PrimaryTermSupplier implements LongSupplier {
@@ -1644,5 +1655,9 @@ public abstract class EngineTestCase extends ESTestCase {
         } catch (Exception e) {
             fail(e);
         }
+    }
+
+    public static void ensureOpen(Engine engine) {
+        engine.ensureOpen();
     }
 }

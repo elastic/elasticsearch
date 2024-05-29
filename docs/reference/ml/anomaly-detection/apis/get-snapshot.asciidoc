@@ -26,11 +26,11 @@ Requires the `monitor_ml` cluster privilege. This privilege is included in the
 
 `<job_id>`::
 (Required, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 
 `<snapshot_id>`::
 (Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=snapshot-id]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=snapshot-id]
 +
 --
 You can get information for multiple snapshots by using a comma-separated list
@@ -122,7 +122,7 @@ independently. The `min_version` value represents the new version number.
 ====
 `assignment_memory_basis`:::
 (string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=assignment-memory-basis]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=assignment-memory-basis]
 
 `bucket_allocation_failures_count`:::
 (long) The number of buckets for which entities were not processed due to memory
@@ -155,7 +155,7 @@ side effect of the way categorization has no prior training.)
 
 `failed_category_count`:::
 (long)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=failed-category-count]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=failed-category-count]
 
 `frequent_category_count`:::
 (long) The number of categories that match more than 1% of categorized
@@ -163,7 +163,7 @@ documents.
 
 `job_id`:::
 (string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 
 `log_time`:::
 (date) The timestamp that the `model_size_stats` were recorded, according to
@@ -223,7 +223,7 @@ separately for each detector and partition.
 
 `retain`::
 (Boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=retain]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=retain]
 
 `snapshot_id`::
 (string) A numerical character string that uniquely identifies the model

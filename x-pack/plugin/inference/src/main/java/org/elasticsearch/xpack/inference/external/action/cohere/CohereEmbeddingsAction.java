@@ -11,8 +11,9 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
-import org.elasticsearch.xpack.inference.external.http.sender.CohereEmbeddingsExecutableRequestCreator;
+import org.elasticsearch.xpack.inference.external.http.sender.CohereEmbeddingsRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsModel;
@@ -26,16 +27,16 @@ import static org.elasticsearch.xpack.inference.external.action.ActionUtils.wrap
 public class CohereEmbeddingsAction implements ExecutableAction {
     private final String failedToSendRequestErrorMessage;
     private final Sender sender;
-    private final CohereEmbeddingsExecutableRequestCreator requestCreator;
+    private final CohereEmbeddingsRequestManager requestCreator;
 
-    public CohereEmbeddingsAction(Sender sender, CohereEmbeddingsModel model) {
+    public CohereEmbeddingsAction(Sender sender, CohereEmbeddingsModel model, ThreadPool threadPool) {
         Objects.requireNonNull(model);
         this.sender = Objects.requireNonNull(sender);
         this.failedToSendRequestErrorMessage = constructFailedToSendRequestMessage(
             model.getServiceSettings().getCommonSettings().uri(),
             "Cohere embeddings"
         );
-        requestCreator = new CohereEmbeddingsExecutableRequestCreator(model);
+        requestCreator = CohereEmbeddingsRequestManager.of(model, threadPool);
     }
 
     @Override

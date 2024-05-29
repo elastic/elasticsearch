@@ -24,7 +24,7 @@ import java.util.Map;
 import static org.elasticsearch.rest.action.search.RestSearchAction.TOTAL_HITS_AS_INT_PARAM;
 import static org.hamcrest.Matchers.is;
 
-public class UpgradeWithOldIndexSettingsIT extends ParameterizedRollingUpgradeTestCase {
+public class UpgradeWithOldIndexSettingsIT extends AbstractRollingUpgradeTestCase {
 
     public UpgradeWithOldIndexSettingsIT(@Name("upgradedNodes") int upgradedNodes) {
         super(upgradedNodes);

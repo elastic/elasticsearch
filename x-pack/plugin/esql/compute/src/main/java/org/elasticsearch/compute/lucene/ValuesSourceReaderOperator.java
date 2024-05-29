@@ -580,7 +580,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
 
         @Override
         public BlockLoader.BooleanBuilder booleansFromDocValues(int expectedCount) {
-            return factory.newBooleanBlockBuilder(expectedCount).mvOrdering(Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING);
+            return factory.newBooleanBlockBuilder(expectedCount).mvOrdering(Block.MvOrdering.SORTED_ASCENDING);
         }
 
         @Override
@@ -600,7 +600,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
 
         @Override
         public BlockLoader.DoubleBuilder doublesFromDocValues(int expectedCount) {
-            return factory.newDoubleBlockBuilder(expectedCount).mvOrdering(Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING);
+            return factory.newDoubleBlockBuilder(expectedCount).mvOrdering(Block.MvOrdering.SORTED_ASCENDING);
         }
 
         @Override
@@ -610,7 +610,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
 
         @Override
         public BlockLoader.IntBuilder intsFromDocValues(int expectedCount) {
-            return factory.newIntBlockBuilder(expectedCount).mvOrdering(Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING);
+            return factory.newIntBlockBuilder(expectedCount).mvOrdering(Block.MvOrdering.SORTED_ASCENDING);
         }
 
         @Override
@@ -620,7 +620,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
 
         @Override
         public BlockLoader.LongBuilder longsFromDocValues(int expectedCount) {
-            return factory.newLongBlockBuilder(expectedCount).mvOrdering(Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING);
+            return factory.newLongBlockBuilder(expectedCount).mvOrdering(Block.MvOrdering.SORTED_ASCENDING);
         }
 
         @Override

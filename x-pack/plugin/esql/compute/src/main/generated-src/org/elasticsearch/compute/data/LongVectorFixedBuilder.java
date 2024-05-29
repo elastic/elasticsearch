@@ -47,6 +47,11 @@ final class LongVectorFixedBuilder implements LongVector.FixedBuilder {
     }
 
     @Override
+    public long estimatedBytes() {
+        return ramBytesUsed(values.length);
+    }
+
+    @Override
     public LongVector build() {
         if (nextIndex < 0) {
             throw new IllegalStateException("already closed");

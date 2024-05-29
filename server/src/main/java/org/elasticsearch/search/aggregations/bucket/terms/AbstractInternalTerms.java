@@ -221,6 +221,7 @@ public abstract class AbstractInternalTerms<A extends AbstractInternalTerms<A, B
     private class TermsAggregationReducer implements AggregatorReducer {
         private final List<List<B>> bucketsList;
         private final AggregationReduceContext reduceContext;
+        private final int size;
 
         private long sumDocCountError = 0;
         private final long[] otherDocCount = new long[] { 0 };
@@ -236,6 +237,7 @@ public abstract class AbstractInternalTerms<A extends AbstractInternalTerms<A, B
         private TermsAggregationReducer(AggregationReduceContext reduceContext, int size) {
             bucketsList = new ArrayList<>(size);
             this.reduceContext = reduceContext;
+            this.size = size;
         }
 
         @Override
@@ -326,7 +328,7 @@ public abstract class AbstractInternalTerms<A extends AbstractInternalTerms<A, B
             if (sumDocCountError == -1) {
                 docCountError = -1;
             } else {
-                docCountError = bucketsList.size() == 1 ? 0 : sumDocCountError;
+                docCountError = size == 1 ? 0 : sumDocCountError;
             }
             return create(name, result, reduceContext.isFinalReduce() ? getOrder() : thisReduceOrder, docCountError, otherDocCount[0]);
         }

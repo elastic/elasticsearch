@@ -31,7 +31,6 @@ import java.util.List;
 
 public class GeoIpStatsTransportAction extends TransportNodesAction<Request, Response, NodeRequest, NodeResponse> {
 
-    private final TransportService transportService;
     private final DatabaseNodeService registry;
     private final GeoIpDownloaderTaskExecutor geoIpDownloaderTaskExecutor;
 
@@ -52,7 +51,6 @@ public class GeoIpStatsTransportAction extends TransportNodesAction<Request, Res
             NodeRequest::new,
             threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
-        this.transportService = transportService;
         this.registry = registry;
         this.geoIpDownloaderTaskExecutor = geoIpDownloaderTaskExecutor;
     }
@@ -76,9 +74,11 @@ public class GeoIpStatsTransportAction extends TransportNodesAction<Request, Res
     protected NodeResponse nodeOperation(NodeRequest request, Task task) {
         GeoIpDownloader geoIpTask = geoIpDownloaderTaskExecutor.getCurrentTask();
         GeoIpDownloaderStats downloaderStats = geoIpTask == null || geoIpTask.getStatus() == null ? null : geoIpTask.getStatus();
+        CacheStats cacheStats = registry.getCacheStats();
         return new NodeResponse(
             transportService.getLocalNode(),
             downloaderStats,
+            cacheStats,
             registry.getAvailableDatabases(),
             registry.getFilesInTemp(),
             registry.getConfigDatabases()

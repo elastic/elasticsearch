@@ -207,7 +207,7 @@ public final class TimeSeriesRestDriver {
                 null
             )
         );
-        warmActions.put(ShrinkAction.NAME, new ShrinkAction(1, null));
+        warmActions.put(ShrinkAction.NAME, new ShrinkAction(1, null, false));
         Map<String, LifecycleAction> coldActions = new HashMap<>();
         coldActions.put(SetPriorityAction.NAME, new SetPriorityAction(0));
         coldActions.put(

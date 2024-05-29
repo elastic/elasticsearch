@@ -349,7 +349,7 @@ public class RelocationIT extends ESIntegTestCase {
                 clusterAdmin().prepareHealth()
                     .setWaitForNoRelocatingShards(true)
                     .setWaitForEvents(Priority.LANGUID)
-                    .setTimeout("30s")
+                    .setTimeout(TimeValue.timeValueSeconds(30))
                     .get()
                     .isTimedOut()
             );

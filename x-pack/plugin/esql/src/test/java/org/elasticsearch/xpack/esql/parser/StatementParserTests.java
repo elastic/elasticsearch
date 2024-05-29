@@ -7,19 +7,40 @@
 
 package org.elasticsearch.xpack.esql.parser;
 
-import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.common.Randomness;
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Build;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.VerificationException;
-import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equals;
-import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThan;
-import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThanOrEqual;
-import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.LessThan;
-import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.LessThanOrEqual;
+import org.elasticsearch.xpack.esql.core.capabilities.UnresolvedException;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.EmptyAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.Order;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
+import org.elasticsearch.xpack.esql.core.expression.function.UnresolvedFunction;
+import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Not;
+import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
+import org.elasticsearch.xpack.esql.core.plan.TableIdentifier;
+import org.elasticsearch.xpack.esql.core.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.core.plan.logical.Limit;
+import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.core.plan.logical.OrderBy;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsqlAggregate;
@@ -29,26 +50,8 @@ import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
+import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
-import org.elasticsearch.xpack.ql.capabilities.UnresolvedException;
-import org.elasticsearch.xpack.ql.expression.Alias;
-import org.elasticsearch.xpack.ql.expression.EmptyAttribute;
-import org.elasticsearch.xpack.ql.expression.Expressions;
-import org.elasticsearch.xpack.ql.expression.Literal;
-import org.elasticsearch.xpack.ql.expression.NamedExpression;
-import org.elasticsearch.xpack.ql.expression.Order;
-import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
-import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
-import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
-import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
-import org.elasticsearch.xpack.ql.plan.logical.Filter;
-import org.elasticsearch.xpack.ql.plan.logical.Limit;
-import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
-import org.elasticsearch.xpack.ql.plan.logical.Project;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.versionfield.Version;
 
 import java.math.BigInteger;
@@ -61,13 +64,13 @@ import java.util.Map;
 import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
+import static org.elasticsearch.xpack.esql.core.expression.Literal.FALSE;
+import static org.elasticsearch.xpack.esql.core.expression.Literal.TRUE;
+import static org.elasticsearch.xpack.esql.core.expression.function.FunctionResolutionStrategy.DEFAULT;
+import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.util.NumericUtils.asLongUnsigned;
 import static org.elasticsearch.xpack.esql.parser.ExpressionBuilder.breakIntoFragments;
-import static org.elasticsearch.xpack.ql.expression.Literal.FALSE;
-import static org.elasticsearch.xpack.ql.expression.Literal.TRUE;
-import static org.elasticsearch.xpack.ql.expression.function.FunctionResolutionStrategy.DEFAULT;
-import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
-import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
-import static org.elasticsearch.xpack.ql.util.NumericUtils.asLongUnsigned;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
@@ -336,17 +339,17 @@ public class StatementParserTests extends ESTestCase {
     }
 
     public void testIdentifiersAsIndexPattern() {
-        assertIdentifierAsIndexPattern("foo", "from `foo`");
-        assertIdentifierAsIndexPattern("foo,test-*", "from `foo`,`test-*`");
+        // assertIdentifierAsIndexPattern("foo", "from `foo`");
+        // assertIdentifierAsIndexPattern("foo,test-*", "from `foo`,`test-*`");
         assertIdentifierAsIndexPattern("foo,test-*", "from foo,test-*");
         assertIdentifierAsIndexPattern("123-test@foo_bar+baz1", "from 123-test@foo_bar+baz1");
-        assertIdentifierAsIndexPattern("foo,test-*,abc", "from `foo`,`test-*`,abc");
-        assertIdentifierAsIndexPattern("foo,     test-*, abc, xyz", "from `foo,     test-*, abc, xyz`");
-        assertIdentifierAsIndexPattern("foo,     test-*, abc, xyz,test123", "from `foo,     test-*, abc, xyz`,     test123");
+        // assertIdentifierAsIndexPattern("foo,test-*,abc", "from `foo`,`test-*`,abc");
+        // assertIdentifierAsIndexPattern("foo, test-*, abc, xyz", "from `foo, test-*, abc, xyz`");
+        // assertIdentifierAsIndexPattern("foo, test-*, abc, xyz,test123", "from `foo, test-*, abc, xyz`, test123");
         assertIdentifierAsIndexPattern("foo,test,xyz", "from foo,   test,xyz");
         assertIdentifierAsIndexPattern(
-            "<logstash-{now/M{yyyy.MM}}>,<logstash-{now/d{yyyy.MM.dd|+12:00}}>",
-            "from <logstash-{now/M{yyyy.MM}}>, `<logstash-{now/d{yyyy.MM.dd|+12:00}}>`"
+            "<logstash-{now/M{yyyy.MM}}>", // ,<logstash-{now/d{yyyy.MM.dd|+12:00}}>
+            "from <logstash-{now/M{yyyy.MM}}>" // , `<logstash-{now/d{yyyy.MM.dd|+12:00}}>`
         );
     }
 
@@ -590,7 +593,7 @@ public class StatementParserTests extends ESTestCase {
         expectError("show info metadata _index", "line 1:11: token recognition error at: 'm'");
         expectError(
             "explain [from foo] metadata _index",
-            "line 1:20: mismatched input 'metadata' expecting {'|', ',', OPENING_BRACKET, ']', 'options', 'metadata'}"
+            "line 1:20: mismatched input 'metadata' expecting {'|', ',', OPENING_BRACKET, ']', 'metadata'}"
         );
     }
 
@@ -612,106 +615,6 @@ public class StatementParserTests extends ESTestCase {
 
     public void testMetadataFieldNotFoundNormalField() {
         expectError("from test metadata emp_no", "line 1:21: unsupported metadata field [emp_no]");
-    }
-
-    public void testFromOptionsUnknownName() {
-        expectError(FROM + " options \"foo\"=\"oof\",\"bar\"=\"rab\"", "line 1:20: invalid options provided: unknown option named [foo]");
-    }
-
-    public void testFromOptionsPartialInvalid() {
-        expectError(
-            FROM + " options \"allow_no_indices\"=\"true\",\"bar\"=\"rab\"",
-            "line 1:46: invalid options provided: unknown option named [bar]"
-        );
-    }
-
-    public void testFromOptionsInvalidIndicesOptionValue() {
-        expectError(
-            FROM + " options \"allow_no_indices\"=\"foo\"",
-            "line 1:20: invalid options provided: Could not convert [allow_no_indices] to boolean"
-        );
-    }
-
-    public void testFromOptionsEmptyIndicesOptionName() {
-        expectError(FROM + " options \"\"=\"true\"", "line 1:20: invalid options provided: unknown option named []");
-    }
-
-    public void testFromOptionsEmptyIndicesOptionValue() {
-        expectError(
-            FROM + " options \"allow_no_indices\"=\"\"",
-            "line 1:20: invalid options provided: Could not convert [allow_no_indices] to boolean. "
-                + "Failed to parse value [] as only [true] or [false] are allowed."
-        );
-        expectError(
-            FROM + " options \"ignore_unavailable\"=\"TRUE\"",
-            "line 1:20: invalid options provided: Could not convert [ignore_unavailable] to boolean. "
-                + "Failed to parse value [TRUE] as only [true] or [false] are allowed."
-        );
-        expectError(FROM + " options \"preference\"=\"\"", "line 1:20: invalid options provided: no Preference for []");
-    }
-
-    public void testFromOptionsSuggestedOptionName() {
-        expectError(
-            FROM + " options \"allow_indices\"=\"true\"",
-            "line 1:20: invalid options provided: unknown option named [allow_indices], did you mean [allow_no_indices]?"
-        );
-    }
-
-    public void testFromOptionsInvalidPreferValue() {
-        expectError(FROM + " options \"preference\"=\"_foo\"", "line 1:20: invalid options provided: no Preference for [_foo]");
-    }
-
-    public void testFromOptionsUnquotedName() {
-        expectError(FROM + " options allow_no_indices=\"oof\"", "line 1:19: mismatched input 'allow_no_indices' expecting QUOTED_STRING");
-    }
-
-    public void testFromOptionsUnquotedValue() {
-        expectError(FROM + " options \"allow_no_indices\"=oof", "line 1:38: mismatched input 'oof' expecting QUOTED_STRING");
-    }
-
-    public void testFromOptionsDuplicates() {
-        for (var name : List.of("allow_no_indices", "ignore_unavailable", "preference")) {
-            String options = '"' + name + "\"=\"false\"";
-            options += ',' + options;
-            expectError(FROM + " options " + options, "invalid options provided: option [" + name + "] has already been provided");
-        }
-    }
-
-    public void testFromOptionsValues() {
-        boolean allowNoIndices = randomBoolean();
-        boolean ignoreUnavailable = randomBoolean();
-        String idsList = String.join(",", randomList(1, 5, () -> randomAlphaOfLengthBetween(1, 25)));
-        String preference = randomFrom(
-            "_only_local",
-            "_local",
-            "_only_nodes:" + idsList,
-            "_prefer_nodes:" + idsList,
-            "_shards:" + idsList,
-            randomAlphaOfLengthBetween(1, 25)
-        );
-        List<String> options = new ArrayList<>(3);
-        options.add("\"allow_no_indices\"=\"" + allowNoIndices + "\"");
-        options.add("\"ignore_unavailable\"=\"" + ignoreUnavailable + "\"");
-        options.add("\"preference\"=\"" + preference + "\"");
-        Randomness.shuffle(options);
-        String optionsList = String.join(",", options);
-
-        var plan = statement(FROM + " OPTIONS " + optionsList);
-        var unresolved = as(plan, EsqlUnresolvedRelation.class);
-        assertNotNull(unresolved.esSourceOptions());
-        var indicesOptions = unresolved.esSourceOptions().indicesOptions(SearchRequest.DEFAULT_INDICES_OPTIONS);
-        assertThat(indicesOptions.allowNoIndices(), is(allowNoIndices));
-        assertThat(indicesOptions.ignoreUnavailable(), is(ignoreUnavailable));
-        assertThat(unresolved.esSourceOptions().preference(), is(preference));
-    }
-
-    public void testFromOptionsWithMetadata() {
-        var plan = statement(FROM + " METADATA _id OPTIONS \"preference\"=\"foo\"");
-        var unresolved = as(plan, EsqlUnresolvedRelation.class);
-        assertNotNull(unresolved.esSourceOptions());
-        assertThat(unresolved.esSourceOptions().preference(), is("foo"));
-        assertFalse(unresolved.metadataFields().isEmpty());
-        assertThat(unresolved.metadataFields().get(0).qualifiedName(), is("_id"));
     }
 
     public void testDissectPattern() {
@@ -825,15 +728,15 @@ public class StatementParserTests extends ESTestCase {
             processingCommand("enrich _" + mode.name() + ":countries ON country_code")
         );
 
-        expectError("from a | enrich countries on foo* ", "Using wildcards (*) in ENRICH WITH projections is not allowed [foo*]");
-        expectError("from a | enrich countries on foo with bar*", "Using wildcards (*) in ENRICH WITH projections is not allowed [bar*]");
+        expectError("from a | enrich countries on foo* ", "Using wildcards [*] in ENRICH WITH projections is not allowed [foo*]");
+        expectError("from a | enrich countries on foo with bar*", "Using wildcards [*] in ENRICH WITH projections is not allowed [bar*]");
         expectError(
             "from a | enrich countries on foo with x = bar* ",
-            "Using wildcards (*) in ENRICH WITH projections is not allowed [bar*]"
+            "Using wildcards [*] in ENRICH WITH projections is not allowed [bar*]"
         );
         expectError(
             "from a | enrich countries on foo with x* = bar ",
-            "Using wildcards (*) in ENRICH WITH projections is not allowed [x*]"
+            "Using wildcards [*] in ENRICH WITH projections is not allowed [x*]"
         );
         expectError(
             "from a | enrich typo:countries on foo",
@@ -867,18 +770,19 @@ public class StatementParserTests extends ESTestCase {
 
     public void testInputParams() {
         LogicalPlan stm = statement(
-            "row x = ?, y = ?, a = ?, b = ?, c = ?",
+            "row x = ?, y = ?, a = ?, b = ?, c = ?, d = ?",
             List.of(
                 new TypedParamValue("integer", 1),
                 new TypedParamValue("keyword", "2"),
                 new TypedParamValue("date_period", "2 days"),
                 new TypedParamValue("time_duration", "4 hours"),
-                new TypedParamValue("version", "1.2.3")
+                new TypedParamValue("version", "1.2.3"),
+                new TypedParamValue("ip", "127.0.0.1")
             )
         );
         assertThat(stm, instanceOf(Row.class));
         Row row = (Row) stm;
-        assertThat(row.fields().size(), is(5));
+        assertThat(row.fields().size(), is(6));
 
         NamedExpression field = row.fields().get(0);
         assertThat(field.name(), is("x"));
@@ -908,8 +812,15 @@ public class StatementParserTests extends ESTestCase {
         assertThat(field.name(), is("c"));
         assertThat(field, instanceOf(Alias.class));
         alias = (Alias) field;
-        assertThat(alias.child().fold().getClass(), is(Version.class));
-        assertThat(alias.child().fold().toString(), is("1.2.3"));
+        assertThat(alias.child().fold().getClass(), is(BytesRef.class));
+        assertThat(alias.child().fold().toString(), is(new Version("1.2.3").toBytesRef().toString()));
+
+        field = row.fields().get(5);
+        assertThat(field.name(), is("d"));
+        assertThat(field, instanceOf(Alias.class));
+        alias = (Alias) field;
+        assertThat(alias.child().fold().getClass(), is(BytesRef.class));
+        assertThat(alias.child().fold().toString(), is(StringUtils.parseIP("127.0.0.1").toString()));
     }
 
     public void testWrongIntervalParams() {
@@ -1025,6 +936,174 @@ public class StatementParserTests extends ESTestCase {
         assertThat(lists, hasSize(1));
         var ua = as(lists.get(0), UnresolvedAttribute.class);
         assertThat(ua.name(), is("`name`* = language_name"));
+    }
+
+    public void testInlineConvertWithNonexistentType() {
+        expectError("ROW 1::doesnotexist", "line 1:9: Unknown data type named [doesnotexist]");
+        expectError("ROW \"1\"::doesnotexist", "line 1:11: Unknown data type named [doesnotexist]");
+        expectError("ROW false::doesnotexist", "line 1:13: Unknown data type named [doesnotexist]");
+        expectError("ROW abs(1)::doesnotexist", "line 1:14: Unknown data type named [doesnotexist]");
+        expectError("ROW (1+2)::doesnotexist", "line 1:13: Unknown data type named [doesnotexist]");
+    }
+
+    public void testInlineConvertUnsupportedType() {
+        expectError("ROW 3::BYTE", "line 1:6: Unsupported conversion to type [BYTE]");
+    }
+
+    public void testMetricsWithoutStats() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+
+        assertStatement(
+            "METRICS foo",
+            new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo"), List.of(), IndexMode.TIME_SERIES)
+        );
+        assertStatement(
+            "METRICS foo,bar",
+            new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo,bar"), List.of(), IndexMode.TIME_SERIES)
+        );
+        assertStatement(
+            "METRICS foo*,bar",
+            new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo*,bar"), List.of(), IndexMode.TIME_SERIES)
+        );
+        assertStatement(
+            "METRICS foo-*,bar",
+            new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo-*,bar"), List.of(), IndexMode.TIME_SERIES)
+        );
+        assertStatement(
+            "METRICS foo-*,bar+*",
+            new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo-*,bar+*"), List.of(), IndexMode.TIME_SERIES)
+        );
+    }
+
+    public void testMetricsIdentifiers() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        Map<String, String> patterns = Map.of(
+            "metrics foo,test-*",
+            "foo,test-*",
+            "metrics 123-test@foo_bar+baz1",
+            "123-test@foo_bar+baz1",
+            "metrics foo,   test,xyz",
+            "foo,test,xyz",
+            "metrics <logstash-{now/M{yyyy.MM}}>>",
+            "<logstash-{now/M{yyyy.MM}}>>"
+        );
+        for (Map.Entry<String, String> e : patterns.entrySet()) {
+            assertStatement(
+                e.getKey(),
+                new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, e.getValue()), List.of(), IndexMode.TIME_SERIES)
+            );
+        }
+    }
+
+    public void testSimpleMetricsWithStats() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        assertStatement(
+            "METRICS foo load=avg(cpu) BY ts",
+            new EsqlAggregate(
+                EMPTY,
+                new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo"), List.of(), IndexMode.TIME_SERIES),
+                List.of(attribute("ts")),
+                List.of(new Alias(EMPTY, "load", new UnresolvedFunction(EMPTY, "avg", DEFAULT, List.of(attribute("cpu")))), attribute("ts"))
+            )
+        );
+        assertStatement(
+            "METRICS foo,bar load=avg(cpu) BY ts",
+            new EsqlAggregate(
+                EMPTY,
+                new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo,bar"), List.of(), IndexMode.TIME_SERIES),
+                List.of(attribute("ts")),
+                List.of(new Alias(EMPTY, "load", new UnresolvedFunction(EMPTY, "avg", DEFAULT, List.of(attribute("cpu")))), attribute("ts"))
+            )
+        );
+        assertStatement(
+            "METRICS foo,bar load=avg(cpu),max(rate(requests)) BY ts",
+            new EsqlAggregate(
+                EMPTY,
+                new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo,bar"), List.of(), IndexMode.TIME_SERIES),
+                List.of(attribute("ts")),
+                List.of(
+                    new Alias(EMPTY, "load", new UnresolvedFunction(EMPTY, "avg", DEFAULT, List.of(attribute("cpu")))),
+                    new Alias(
+                        EMPTY,
+                        "max(rate(requests))",
+                        new UnresolvedFunction(
+                            EMPTY,
+                            "max",
+                            DEFAULT,
+                            List.of(new UnresolvedFunction(EMPTY, "rate", DEFAULT, List.of(attribute("requests"))))
+                        )
+                    ),
+                    attribute("ts")
+                )
+            )
+        );
+        assertStatement(
+            "METRICS foo* count(errors)",
+            new EsqlAggregate(
+                EMPTY,
+                new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo*"), List.of(), IndexMode.TIME_SERIES),
+                List.of(),
+                List.of(new Alias(EMPTY, "count(errors)", new UnresolvedFunction(EMPTY, "count", DEFAULT, List.of(attribute("errors")))))
+            )
+        );
+        assertStatement(
+            "METRICS foo* a(b)",
+            new EsqlAggregate(
+                EMPTY,
+                new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo*"), List.of(), IndexMode.TIME_SERIES),
+                List.of(),
+                List.of(new Alias(EMPTY, "a(b)", new UnresolvedFunction(EMPTY, "a", DEFAULT, List.of(attribute("b")))))
+            )
+        );
+        assertStatement(
+            "METRICS foo* a(b)",
+            new EsqlAggregate(
+                EMPTY,
+                new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo*"), List.of(), IndexMode.TIME_SERIES),
+                List.of(),
+                List.of(new Alias(EMPTY, "a(b)", new UnresolvedFunction(EMPTY, "a", DEFAULT, List.of(attribute("b")))))
+            )
+        );
+        assertStatement(
+            "METRICS foo* a1(b2)",
+            new EsqlAggregate(
+                EMPTY,
+                new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo*"), List.of(), IndexMode.TIME_SERIES),
+                List.of(),
+                List.of(new Alias(EMPTY, "a1(b2)", new UnresolvedFunction(EMPTY, "a1", DEFAULT, List.of(attribute("b2")))))
+            )
+        );
+        assertStatement(
+            "METRICS foo*,bar* b = min(a) by c, d.e",
+            new EsqlAggregate(
+                EMPTY,
+                new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo*,bar*"), List.of(), IndexMode.TIME_SERIES),
+                List.of(attribute("c"), attribute("d.e")),
+                List.of(
+                    new Alias(EMPTY, "b", new UnresolvedFunction(EMPTY, "min", DEFAULT, List.of(attribute("a")))),
+                    attribute("c"),
+                    attribute("d.e")
+                )
+            )
+        );
+    }
+
+    public void testMetricWithGroupKeyAsAgg() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        var queries = List.of("METRICS foo a BY a");
+        for (String query : queries) {
+            expectVerificationError(query, "grouping key [a] already specified in the STATS BY clause");
+        }
+    }
+
+    private void assertStatement(String statement, LogicalPlan expected) {
+        final LogicalPlan actual;
+        try {
+            actual = statement(statement);
+        } catch (Exception e) {
+            throw new AssertionError("parsing error for [" + statement + "]", e);
+        }
+        assertThat(statement, actual, equalTo(expected));
     }
 
     private LogicalPlan statement(String e) {

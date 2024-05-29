@@ -97,7 +97,7 @@ public class ChunkedTextEmbeddingResultsTests extends AbstractWireSerializingTes
     public void testToXContent_CreatesTheRightJsonForASingleChunk_FromTextEmbeddingResults() {
         var entity = ChunkedTextEmbeddingResults.of(
             List.of("text"),
-            new TextEmbeddingResults(List.of(new TextEmbeddingResults.Embedding(List.of(0.1f, 0.2f))))
+            new TextEmbeddingResults(List.of(new TextEmbeddingResults.Embedding(new float[] { 0.1f, 0.2f })))
         );
 
         assertThat(entity.size(), is(1));
@@ -140,7 +140,7 @@ public class ChunkedTextEmbeddingResultsTests extends AbstractWireSerializingTes
             IllegalArgumentException.class,
             () -> ChunkedTextEmbeddingResults.of(
                 List.of("text", "text2"),
-                new TextEmbeddingResults(List.of(new TextEmbeddingResults.Embedding(List.of(0.1f, 0.2f))))
+                new TextEmbeddingResults(List.of(new TextEmbeddingResults.Embedding(new float[] { 0.1f, 0.2f })))
             )
         );
 
@@ -159,6 +159,6 @@ public class ChunkedTextEmbeddingResultsTests extends AbstractWireSerializingTes
 
     @Override
     protected ChunkedTextEmbeddingResults mutateInstance(ChunkedTextEmbeddingResults instance) throws IOException {
-        return null;
+        return randomValueOtherThan(instance, ChunkedTextEmbeddingResultsTests::createRandomResults);
     }
 }

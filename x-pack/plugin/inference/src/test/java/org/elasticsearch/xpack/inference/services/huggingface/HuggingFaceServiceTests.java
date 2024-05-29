@@ -61,7 +61,7 @@ import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.results.ChunkedTextEmbeddingResultsTests.asMapWithListsInsteadOfArrays;
-import static org.elasticsearch.xpack.inference.results.TextEmbeddingResultsTests.buildExpectation;
+import static org.elasticsearch.xpack.inference.results.TextEmbeddingResultsTests.buildExpectationFloat;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceServiceSettingsTests.getServiceSettingsMap;
 import static org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettingsTests.getSecretSettingsMap;
@@ -448,7 +448,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
 
             var result = listener.actionGet(TIMEOUT);
 
-            assertThat(result.asMap(), Matchers.is(buildExpectation(List.of(List.of(-0.0123F, 0.0123F)))));
+            assertThat(result.asMap(), Matchers.is(buildExpectationFloat(List.of(new float[] { -0.0123F, 0.0123F }))));
             assertThat(webServer.requests(), hasSize(1));
             assertNull(webServer.requests().get(0).getUri().getQuery());
             assertThat(
@@ -494,7 +494,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
             assertThat(
                 result.asMap(),
                 Matchers.is(
-                    SparseEmbeddingResultsTests.buildExpectation(
+                    SparseEmbeddingResultsTests.buildExpectationSparseEmbeddings(
                         List.of(new SparseEmbeddingResultsTests.EmbeddingExpectation(Map.of(".", 0.13315596f), false))
                     )
                 )

@@ -88,7 +88,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_PROFILE_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.TRANSFORM_ORIGIN;
 import static org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo.CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY;
-import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests.randomUniquelyNamedRoleDescriptors;
+import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTestHelper.randomUniquelyNamedRoleDescriptors;
 import static org.elasticsearch.xpack.security.authc.CrossClusterAccessHeaders.CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -735,7 +735,8 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         // We capture the listener so that we can complete the full flow, by calling onResponse further down
         @SuppressWarnings("unchecked")
         final ArgumentCaptor<ActionListener<RoleDescriptorsIntersection>> listenerCaptor = ArgumentCaptor.forClass(ActionListener.class);
-        doAnswer(i -> null).when(authzService).getRoleDescriptorsIntersectionForRemoteCluster(any(), any(), listenerCaptor.capture());
+        doAnswer(i -> null).when(authzService)
+            .getRoleDescriptorsIntersectionForRemoteCluster(any(), any(), any(), listenerCaptor.capture());
 
         final SecurityServerTransportInterceptor interceptor = new SecurityServerTransportInterceptor(
             settings,
@@ -822,6 +823,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             );
             verify(authzService, never()).getRoleDescriptorsIntersectionForRemoteCluster(
                 eq(remoteClusterAlias),
+                eq(TransportVersion.current()),
                 eq(authentication.getEffectiveSubject()),
                 anyActionListener()
             );
@@ -833,6 +835,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             listenerCaptor.getValue().onResponse(expectedRoleDescriptorsIntersection);
             verify(authzService, times(1)).getRoleDescriptorsIntersectionForRemoteCluster(
                 eq(remoteClusterAlias),
+                eq(TransportVersion.current()),
                 eq(authentication.getEffectiveSubject()),
                 anyActionListener()
             );
@@ -917,7 +920,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         sender.sendRequest(connection, "action", mock(TransportRequest.class), null, null);
         assertTrue(calledWrappedSender.get());
         assertThat(sentAuthentication.get(), equalTo(authentication));
-        verify(authzService, never()).getRoleDescriptorsIntersectionForRemoteCluster(any(), any(), anyActionListener());
+        verify(authzService, never()).getRoleDescriptorsIntersectionForRemoteCluster(any(), any(), any(), anyActionListener());
         assertThat(securityContext.getThreadContext().getHeader(CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY), nullValue());
         assertThat(securityContext.getThreadContext().getHeader(CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY), nullValue());
     }
@@ -1005,7 +1008,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 "Settings for remote cluster ["
                     + remoteClusterAlias
                     + "] indicate cross cluster access headers should be sent but target cluster version ["
-                    + connection.getTransportVersion()
+                    + connection.getTransportVersion().toReleaseVersion()
                     + "] does not support receiving them"
             )
         );
@@ -1026,10 +1029,10 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
 
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
-            final var listener = (ActionListener<RoleDescriptorsIntersection>) invocation.getArgument(2);
+            final var listener = (ActionListener<RoleDescriptorsIntersection>) invocation.getArgument(3);
             listener.onResponse(RoleDescriptorsIntersection.EMPTY);
             return null;
-        }).when(authzService).getRoleDescriptorsIntersectionForRemoteCluster(any(), any(), anyActionListener());
+        }).when(authzService).getRoleDescriptorsIntersectionForRemoteCluster(any(), any(), any(), anyActionListener());
 
         final SecurityServerTransportInterceptor interceptor = new SecurityServerTransportInterceptor(
             settings,

@@ -46,16 +46,16 @@ import java.util.Objects;
 final class MergePositionsOperator implements Operator {
     private boolean finished = false;
     private final int positionChannel;
-
     private final EnrichResultBuilder[] builders;
+    private final IntBlock selectedPositions;
 
     private Page outputPage;
 
     MergePositionsOperator(
-        int positionCount,
         int positionChannel,
         int[] mergingChannels,
         ElementType[] mergingTypes,
+        IntBlock selectedPositions,
         BlockFactory blockFactory
     ) {
         if (mergingChannels.length != mergingTypes.length) {
@@ -70,13 +70,15 @@ final class MergePositionsOperator implements Operator {
         this.builders = new EnrichResultBuilder[mergingTypes.length];
         try {
             for (int i = 0; i < mergingTypes.length; i++) {
-                builders[i] = EnrichResultBuilder.enrichResultBuilder(mergingTypes[i], blockFactory, mergingChannels[i], positionCount);
+                builders[i] = EnrichResultBuilder.enrichResultBuilder(mergingTypes[i], blockFactory, mergingChannels[i]);
             }
         } finally {
             if (builders[builders.length - 1] == null) {
-                Releasables.close(builders);
+                Releasables.close(Releasables.wrap(builders));
             }
         }
+        selectedPositions.mustIncRef();
+        this.selectedPositions = selectedPositions;
     }
 
     @Override
@@ -102,7 +104,7 @@ final class MergePositionsOperator implements Operator {
         final Block[] blocks = new Block[builders.length];
         try {
             for (int i = 0; i < builders.length; i++) {
-                blocks[i] = builders[i].build();
+                blocks[i] = builders[i].build(selectedPositions);
             }
             outputPage = new Page(blocks);
         } finally {
@@ -127,7 +129,7 @@ final class MergePositionsOperator implements Operator {
 
     @Override
     public void close() {
-        Releasables.close(Releasables.wrap(builders), () -> {
+        Releasables.close(Releasables.wrap(builders), selectedPositions, () -> {
             if (outputPage != null) {
                 outputPage.releaseBlocks();
             }

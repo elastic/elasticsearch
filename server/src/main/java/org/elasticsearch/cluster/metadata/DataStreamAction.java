@@ -142,7 +142,7 @@ public class DataStreamAction implements Writeable, ToXContentObject {
         builder.startObject(type.fieldName);
         builder.field(DATA_STREAM.getPreferredName(), dataStream);
         builder.field(INDEX.getPreferredName(), index);
-        if (DataStream.isFailureStoreEnabled() && failureStore) {
+        if (DataStream.isFailureStoreFeatureFlagEnabled() && failureStore) {
             builder.field(FAILURE_STORE.getPreferredName(), failureStore);
         }
         builder.endObject();
@@ -180,7 +180,7 @@ public class DataStreamAction implements Writeable, ToXContentObject {
             ObjectParser.ValueType.STRING
         );
         ADD_BACKING_INDEX_PARSER.declareField(DataStreamAction::setIndex, XContentParser::text, INDEX, ObjectParser.ValueType.STRING);
-        if (DataStream.isFailureStoreEnabled()) {
+        if (DataStream.isFailureStoreFeatureFlagEnabled()) {
             ADD_BACKING_INDEX_PARSER.declareField(
                 DataStreamAction::setFailureStore,
                 XContentParser::booleanValue,
@@ -195,7 +195,7 @@ public class DataStreamAction implements Writeable, ToXContentObject {
             ObjectParser.ValueType.STRING
         );
         REMOVE_BACKING_INDEX_PARSER.declareField(DataStreamAction::setIndex, XContentParser::text, INDEX, ObjectParser.ValueType.STRING);
-        if (DataStream.isFailureStoreEnabled()) {
+        if (DataStream.isFailureStoreFeatureFlagEnabled()) {
             REMOVE_BACKING_INDEX_PARSER.declareField(
                 DataStreamAction::setFailureStore,
                 XContentParser::booleanValue,

@@ -22,6 +22,7 @@ import org.elasticsearch.rest.action.RestResponseListener;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 /**
  * Cat API class to display information about snapshot repositories
@@ -38,7 +39,7 @@ public class RestRepositoriesAction extends AbstractCatAction {
     protected RestChannelConsumer doCatRequest(RestRequest request, NodeClient client) {
         GetRepositoriesRequest getRepositoriesRequest = new GetRepositoriesRequest();
         getRepositoriesRequest.local(request.paramAsBoolean("local", getRepositoriesRequest.local()));
-        getRepositoriesRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getRepositoriesRequest.masterNodeTimeout()));
+        getRepositoriesRequest.masterNodeTimeout(getMasterNodeTimeout(request));
 
         return channel -> client.admin()
             .cluster()

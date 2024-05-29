@@ -26,13 +26,13 @@ import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_P
 class RequestTask implements RejectableTask {
 
     private final AtomicBoolean finished = new AtomicBoolean();
-    private final ExecutableRequestCreator requestCreator;
+    private final RequestManager requestCreator;
     private final String query;
     private final List<String> input;
     private final ActionListener<InferenceServiceResults> listener;
 
     RequestTask(
-        ExecutableRequestCreator requestCreator,
+        RequestManager requestCreator,
         InferenceInputs inferenceInputs,
         @Nullable TimeValue timeout,
         ThreadPool threadPool,
@@ -111,7 +111,7 @@ class RequestTask implements RejectableTask {
     }
 
     @Override
-    public ExecutableRequestCreator getRequestCreator() {
+    public RequestManager getRequestCreator() {
         return requestCreator;
     }
 }

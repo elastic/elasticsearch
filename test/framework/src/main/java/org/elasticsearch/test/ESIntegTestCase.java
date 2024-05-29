@@ -958,7 +958,8 @@ public abstract class ESIntegTestCase extends ESTestCase {
         String color = clusterHealthStatus.name().toLowerCase(Locale.ROOT);
         String method = "ensure" + Strings.capitalize(color);
 
-        ClusterHealthRequest healthRequest = new ClusterHealthRequest(indices).timeout(timeout)
+        ClusterHealthRequest healthRequest = new ClusterHealthRequest(indices).masterNodeTimeout(timeout)
+            .timeout(timeout)
             .waitForStatus(clusterHealthStatus)
             .waitForEvents(Priority.LANGUID)
             .waitForNoRelocatingShards(true)
@@ -1091,6 +1092,10 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
     public static void awaitClusterState(Logger logger, String viaNode, Predicate<ClusterState> statePredicate) throws Exception {
         ClusterServiceUtils.awaitClusterState(logger, statePredicate, internalCluster().getInstance(ClusterService.class, viaNode));
+    }
+
+    public static String getNodeId(String nodeName) {
+        return internalCluster().getInstance(ClusterService.class, nodeName).localNode().getId();
     }
 
     /**

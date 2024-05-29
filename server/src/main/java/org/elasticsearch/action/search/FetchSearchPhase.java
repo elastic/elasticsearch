@@ -33,15 +33,21 @@ final class FetchSearchPhase extends SearchPhase {
     private final BiFunction<SearchResponseSections, AtomicArray<SearchPhaseResult>, SearchPhase> nextPhaseFactory;
     private final SearchPhaseContext context;
     private final Logger logger;
-    private final SearchPhaseResults<SearchPhaseResult> resultConsumer;
     private final SearchProgressListener progressListener;
     private final AggregatedDfs aggregatedDfs;
+    private final SearchPhaseController.ReducedQueryPhase reducedQueryPhase;
 
-    FetchSearchPhase(SearchPhaseResults<SearchPhaseResult> resultConsumer, AggregatedDfs aggregatedDfs, SearchPhaseContext context) {
+    FetchSearchPhase(
+        SearchPhaseResults<SearchPhaseResult> resultConsumer,
+        AggregatedDfs aggregatedDfs,
+        SearchPhaseContext context,
+        SearchPhaseController.ReducedQueryPhase reducedQueryPhase
+    ) {
         this(
             resultConsumer,
             aggregatedDfs,
             context,
+            reducedQueryPhase,
             (response, queryPhaseResults) -> new ExpandSearchPhase(
                 context,
                 response.hits,
@@ -54,6 +60,7 @@ final class FetchSearchPhase extends SearchPhase {
         SearchPhaseResults<SearchPhaseResult> resultConsumer,
         AggregatedDfs aggregatedDfs,
         SearchPhaseContext context,
+        SearchPhaseController.ReducedQueryPhase reducedQueryPhase,
         BiFunction<SearchResponseSections, AtomicArray<SearchPhaseResult>, SearchPhase> nextPhaseFactory
     ) {
         super("fetch");
@@ -72,18 +79,16 @@ final class FetchSearchPhase extends SearchPhase {
         this.nextPhaseFactory = nextPhaseFactory;
         this.context = context;
         this.logger = context.getLogger();
-        this.resultConsumer = resultConsumer;
         this.progressListener = context.getTask().getProgressListener();
+        this.reducedQueryPhase = reducedQueryPhase;
     }
 
     @Override
     public void run() {
         context.execute(new AbstractRunnable() {
+
             @Override
-            protected void doRun() throws Exception {
-                // we do the heavy lifting in this inner run method where we reduce aggs etc. that's why we fork this phase
-                // off immediately instead of forking when we send back the response to the user since there we only need
-                // to merge together the fetched results which is a linear operation.
+            protected void doRun() {
                 innerRun();
             }
 
@@ -94,9 +99,8 @@ final class FetchSearchPhase extends SearchPhase {
         });
     }
 
-    private void innerRun() throws Exception {
+    private void innerRun() {
         final int numShards = context.getNumShards();
-        final SearchPhaseController.ReducedQueryPhase reducedQueryPhase = resultConsumer.reduce();
         // Usually when there is a single shard, we force the search type QUERY_THEN_FETCH. But when there's kNN, we might
         // still use DFS_QUERY_THEN_FETCH, which does not perform the "query and fetch" optimization during the query phase.
         final boolean queryAndFetchOptimization = queryResults.length() == 1
@@ -105,14 +109,14 @@ final class FetchSearchPhase extends SearchPhase {
         if (queryAndFetchOptimization) {
             assert assertConsistentWithQueryAndFetchOptimization();
             // query AND fetch optimization
-            moveToNextPhase(reducedQueryPhase, queryResults);
+            moveToNextPhase(queryResults);
         } else {
             ScoreDoc[] scoreDocs = reducedQueryPhase.sortedTopDocs().scoreDocs();
             // no docs to fetch -- sidestep everything and return
             if (scoreDocs.length == 0) {
                 // we have to release contexts here to free up resources
                 queryResults.asList().stream().map(SearchPhaseResult::queryResult).forEach(this::releaseIrrelevantSearchContext);
-                moveToNextPhase(reducedQueryPhase, fetchResults.getAtomicArray());
+                moveToNextPhase(fetchResults.getAtomicArray());
             } else {
                 final ScoreDoc[] lastEmittedDocPerShard = context.getRequest().scroll() != null
                     ? SearchPhaseController.getLastEmittedDocPerShard(reducedQueryPhase, numShards)
@@ -121,7 +125,7 @@ final class FetchSearchPhase extends SearchPhase {
                 final CountedCollector<FetchSearchResult> counter = new CountedCollector<>(
                     fetchResults,
                     docIdsToLoad.length, // we count down every shard in the result no matter if we got any results or not
-                    () -> moveToNextPhase(reducedQueryPhase, fetchResults.getAtomicArray()),
+                    () -> moveToNextPhase(fetchResults.getAtomicArray()),
                     context
                 );
                 for (int i = 0; i < docIdsToLoad.length; i++) {
@@ -220,15 +224,12 @@ final class FetchSearchPhase extends SearchPhase {
                     context.getOriginalIndices(queryResult.getShardIndex())
                 );
             } catch (Exception e) {
-                context.getLogger().trace("failed to release context", e);
+                logger.trace("failed to release context", e);
             }
         }
     }
 
-    private void moveToNextPhase(
-        SearchPhaseController.ReducedQueryPhase reducedQueryPhase,
-        AtomicArray<? extends SearchPhaseResult> fetchResultsArr
-    ) {
+    private void moveToNextPhase(AtomicArray<? extends SearchPhaseResult> fetchResultsArr) {
         var resp = SearchPhaseController.merge(context.getRequest().scroll() != null, reducedQueryPhase, fetchResultsArr);
         context.addReleasable(resp::decRef);
         fetchResults.close();

@@ -64,7 +64,7 @@ important each is.
 After you decide which model you want to use for implementing semantic search, 
 you need to deploy the model in {es}.
 
-include::{es-repo-dir}/tab-widgets/semantic-search/deploy-nlp-model-widget.asciidoc[]
+include::{es-ref-dir}/tab-widgets/semantic-search/deploy-nlp-model-widget.asciidoc[]
 
 [discrete]
 [[semantic-search-field-mappings]]
@@ -74,7 +74,7 @@ Before you start using the deployed model to generate embeddings based on your
 input text, you need to prepare your index mapping first. The mapping of the 
 index depends on the type of model.
 
-include::{es-repo-dir}/tab-widgets/semantic-search/field-mappings-widget.asciidoc[]
+include::{es-ref-dir}/tab-widgets/semantic-search/field-mappings-widget.asciidoc[]
 
 [discrete]
 [[semantic-search-generate-embeddings]]
@@ -89,7 +89,7 @@ infer against the data ingested through the pipeline. After you created the
 ingest pipeline with the inference processor, you can ingest your data through 
 it to generate the model output.
 
-include::{es-repo-dir}/tab-widgets/semantic-search/generate-embeddings-widget.asciidoc[]
+include::{es-ref-dir}/tab-widgets/semantic-search/generate-embeddings-widget.asciidoc[]
 
 Now it is time to perform semantic search!
 
@@ -100,7 +100,7 @@ Now it is time to perform semantic search!
 Depending on the type of model you have deployed, you can query rank features 
 with a text expansion query, or dense vectors with a kNN search.
 
-include::{es-repo-dir}/tab-widgets/semantic-search/search-widget.asciidoc[]
+include::{es-ref-dir}/tab-widgets/semantic-search/search-widget.asciidoc[]
 
 [discrete]
 [[semantic-search-hybrid-search]]
@@ -114,7 +114,7 @@ Combining semantic and lexical search into one hybrid search request using
 but hybrid search using reciprocal rank fusion {blog-ref}improving-information-retrieval-elastic-stack-hybrid[has been shown to perform better
 in general].
 
-include::{es-repo-dir}/tab-widgets/semantic-search/hybrid-search-widget.asciidoc[]
+include::{es-ref-dir}/tab-widgets/semantic-search/hybrid-search-widget.asciidoc[]
 
 [discrete]
 [[semantic-search-read-more]]
@@ -136,3 +136,4 @@ include::{es-repo-dir}/tab-widgets/semantic-search/hybrid-search-widget.asciidoc
 
 include::semantic-search-elser.asciidoc[]
 include::semantic-search-inference.asciidoc[]
+include::cohere-es.asciidoc[]

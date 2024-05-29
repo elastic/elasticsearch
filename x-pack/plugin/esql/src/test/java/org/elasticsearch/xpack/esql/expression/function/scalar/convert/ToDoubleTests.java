@@ -11,13 +11,15 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
-import org.elasticsearch.xpack.ql.InvalidArgumentException;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
@@ -110,6 +112,31 @@ public class ToDoubleTests extends AbstractFunctionTestCase {
                 .toList(),
             DataTypes.DOUBLE,
             bytesRef -> Double.valueOf(((BytesRef) bytesRef).utf8ToString()),
+            List.of()
+        );
+
+        TestCaseSupplier.unary(
+            suppliers,
+            "Attribute[channel=0]",
+            List.of(new TestCaseSupplier.TypedDataSupplier("counter", ESTestCase::randomDouble, EsqlDataTypes.COUNTER_DOUBLE)),
+            DataTypes.DOUBLE,
+            l -> l,
+            List.of()
+        );
+        TestCaseSupplier.unary(
+            suppliers,
+            evaluatorName.apply("Integer"),
+            List.of(new TestCaseSupplier.TypedDataSupplier("counter", () -> randomInt(1000), EsqlDataTypes.COUNTER_INTEGER)),
+            DataTypes.DOUBLE,
+            l -> ((Integer) l).doubleValue(),
+            List.of()
+        );
+        TestCaseSupplier.unary(
+            suppliers,
+            evaluatorName.apply("Long"),
+            List.of(new TestCaseSupplier.TypedDataSupplier("counter", () -> randomLongBetween(1, 1000), EsqlDataTypes.COUNTER_LONG)),
+            DataTypes.DOUBLE,
+            l -> ((Long) l).doubleValue(),
             List.of()
         );
 

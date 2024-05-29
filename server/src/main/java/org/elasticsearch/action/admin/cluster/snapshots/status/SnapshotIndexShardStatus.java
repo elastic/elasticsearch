@@ -32,9 +32,9 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 
 public class SnapshotIndexShardStatus extends BroadcastShardResponse implements ToXContentFragment {
 
-    private SnapshotIndexShardStage stage = SnapshotIndexShardStage.INIT;
+    private final SnapshotIndexShardStage stage;
 
-    private SnapshotStats stats;
+    private final SnapshotStats stats;
 
     private String nodeId;
 

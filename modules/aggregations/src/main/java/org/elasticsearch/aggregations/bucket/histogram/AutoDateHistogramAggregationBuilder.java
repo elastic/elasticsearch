@@ -188,10 +188,6 @@ public class AutoDateHistogramAggregationBuilder extends ValuesSourceAggregation
         return this;
     }
 
-    public int getNumBuckets() {
-        return numBuckets;
-    }
-
     @Override
     public BucketCardinality bucketCardinality() {
         return BucketCardinality.MANY;
@@ -236,8 +232,7 @@ public class AutoDateHistogramAggregationBuilder extends ValuesSourceAggregation
         if (timeZone != null) {
             tzRoundingBuilder.timeZone(timeZone);
         }
-        Rounding rounding = tzRoundingBuilder.build();
-        return rounding;
+        return tzRoundingBuilder.build();
     }
 
     @Override

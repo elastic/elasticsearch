@@ -223,6 +223,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
                 new BytesArray("{\"match_all\": {}}"),
                 randomBoolean()
             )
+            .description(randomAlphaOfLengthBetween(5, 20))
             .metadata(metadata)
             .get();
         logger.error("--> waiting for .security index");
@@ -245,6 +246,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
                 new BytesArray("{\"match_all\": {}}"),
                 randomBoolean()
             )
+            .description(randomAlphaOfLengthBetween(5, 20))
             .get();
         preparePutRole("test_role3").cluster("all", "none")
             .runAs("root", "nobody")
@@ -256,6 +258,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
                 new BytesArray("{\"match_all\": {}}"),
                 randomBoolean()
             )
+            .description(randomAlphaOfLengthBetween(5, 20))
             .get();
 
         logger.info("--> retrieving all roles");

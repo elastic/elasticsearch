@@ -508,7 +508,7 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
                     ResetJobAction.Request request = new ResetJobAction.Request(jobTask.getJobId());
                     request.setSkipJobStateValidation(true);
                     request.masterNodeTimeout(PERSISTENT_TASK_MASTER_NODE_TIMEOUT);
-                    request.timeout(PERSISTENT_TASK_MASTER_NODE_TIMEOUT);
+                    request.ackTimeout(PERSISTENT_TASK_MASTER_NODE_TIMEOUT);
                     executeAsyncWithOrigin(
                         client,
                         ML_ORIGIN,
@@ -525,7 +525,7 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
                     request.setForce(true);
                     request.setDeleteInterveningResults(true);
                     request.masterNodeTimeout(PERSISTENT_TASK_MASTER_NODE_TIMEOUT);
-                    request.timeout(PERSISTENT_TASK_MASTER_NODE_TIMEOUT);
+                    request.ackTimeout(PERSISTENT_TASK_MASTER_NODE_TIMEOUT);
                     executeAsyncWithOrigin(
                         client,
                         ML_ORIGIN,

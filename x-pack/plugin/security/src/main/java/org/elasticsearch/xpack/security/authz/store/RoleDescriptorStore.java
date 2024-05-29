@@ -17,6 +17,7 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.common.IteratingActionListener;
+import org.elasticsearch.xpack.core.security.action.apikey.CrossClusterApiKeyRoleDescriptorBuilder;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReference;
@@ -107,6 +108,19 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
             || (apiKeyRoleReference.getRoleType() == RoleReference.ApiKeyRoleType.LIMITED_BY
                 && rolesRetrievalResult.getRoleDescriptors().stream().noneMatch(RoleDescriptor::hasRestriction))
             : "there should be zero limited-by role descriptors with restriction and no more than one assigned";
+        // TODO we need unit tests for edge-cases here, for instance, we need to test the REST API keys are never checked for invalid legacy
+        // role descriptors
+        if (apiKeyRoleReference.checkForInvalidLegacyRoleDescriptorsForCrossClusterAccess()) {
+            try {
+                CrossClusterApiKeyRoleDescriptorBuilder.checkForInvalidLegacyRoleDescriptors(
+                    apiKeyRoleReference.getApiKeyId(),
+                    roleDescriptors
+                );
+            } catch (IllegalArgumentException e) {
+                listener.onFailure(e);
+                return;
+            }
+        }
         listener.onResponse(rolesRetrievalResult);
     }
 
@@ -144,8 +158,8 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
     ) {
         final Set<RoleDescriptor> roleDescriptors = crossClusterAccessRoleReference.getRoleDescriptorsBytes().toRoleDescriptors();
         for (RoleDescriptor roleDescriptor : roleDescriptors) {
-            if (roleDescriptor.hasPrivilegesOtherThanIndex()) {
-                final String message = "Role descriptor for cross cluster access can only contain index privileges "
+            if (roleDescriptor.hasUnsupportedPrivilegesInsideAPIKeyConnectedRemoteCluster()) {
+                final String message = "Role descriptor for cross cluster access can only contain index and cluster privileges "
                     + "but other privileges found for subject ["
                     + crossClusterAccessRoleReference.getUserPrincipal()
                     + "]";

@@ -478,17 +478,10 @@ public class ProfilingDataStreamManagerTests extends ESTestCase {
         for (ProfilingDataStreamManager.ProfilingDataStream existingDataStream : existingDataStreams) {
             String writeIndexName = String.format(Locale.ROOT, ".ds-%s", existingDataStream.getName());
             Index writeIndex = new Index(writeIndexName, writeIndexName);
-            DataStream ds = new DataStream(
-                existingDataStream.getName(),
-                List.of(writeIndex),
-                1,
-                Map.of(),
-                false,
-                false,
-                false,
-                false,
-                IndexMode.STANDARD
-            );
+            DataStream ds = DataStream.builder(existingDataStream.getName(), List.of(writeIndex))
+                .setMetadata(Map.of())
+                .setIndexMode(IndexMode.STANDARD)
+                .build();
             metadataBuilder.put(ds);
             IndexMetadata.Builder builder = new IndexMetadata.Builder(writeIndexName);
             builder.state(state);

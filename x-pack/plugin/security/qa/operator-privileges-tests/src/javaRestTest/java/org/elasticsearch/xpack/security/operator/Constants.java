@@ -134,6 +134,8 @@ public class Constants {
         "indices:data/write/xpack/connector/update_configuration",
         "indices:data/write/xpack/connector/update_error",
         "indices:data/write/xpack/connector/update_filtering",
+        "indices:data/write/xpack/connector/update_filtering/activate",
+        "indices:data/write/xpack/connector/update_filtering/draft_validation",
         "indices:data/write/xpack/connector/update_index_name",
         "indices:data/write/xpack/connector/update_last_seen",
         "indices:data/write/xpack/connector/update_last_sync_stats",
@@ -199,6 +201,7 @@ public class Constants {
         "cluster:admin/xpack/ml/inference/put",
         "cluster:admin/xpack/ml/inference/model_aliases/put",
         "cluster:admin/xpack/ml/inference/model_aliases/delete",
+        "cluster:admin/xpack/ml/inference/clear_model_cache",
         "cluster:admin/xpack/ml/job/close",
         "cluster:admin/xpack/ml/job/data/post",
         "cluster:admin/xpack/ml/job/delete",
@@ -338,6 +341,7 @@ public class Constants {
         "cluster:monitor/update/health/info",
         "cluster:monitor/ingest/geoip/stats",
         "cluster:monitor/main",
+        "cluster:monitor/nodes/capabilities",
         "cluster:monitor/nodes/data_tier_usage",
         "cluster:monitor/nodes/hot_threads",
         "cluster:monitor/nodes/info",
@@ -365,6 +369,7 @@ public class Constants {
         "cluster:monitor/xpack/esql/stats/dist",
         "cluster:monitor/xpack/inference",
         "cluster:monitor/xpack/inference/get",
+        "cluster:monitor/xpack/inference/diagnostics/get",
         "cluster:monitor/xpack/info",
         "cluster:monitor/xpack/info/aggregate_metric",
         "cluster:monitor/xpack/info/analytics",
@@ -603,6 +608,7 @@ public class Constants {
         "internal:cluster/coordination_diagnostics/info",
         "internal:cluster/formation/info",
         "internal:gateway/local/started_shards",
-        "internal:admin/indices/prevalidate_shard_path"
+        "internal:admin/indices/prevalidate_shard_path",
+        "internal:index/metadata/migration_version/update"
     ).filter(Objects::nonNull).collect(Collectors.toUnmodifiableSet());
 }

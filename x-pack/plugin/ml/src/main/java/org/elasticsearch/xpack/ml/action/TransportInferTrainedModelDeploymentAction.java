@@ -50,7 +50,6 @@ public class TransportInferTrainedModelDeploymentAction extends TransportTasksAc
             actionFilters,
             InferTrainedModelDeploymentAction.Request::new,
             InferTrainedModelDeploymentAction.Response::new,
-            InferTrainedModelDeploymentAction.Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
     }

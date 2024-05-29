@@ -7,9 +7,10 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.Source;
 
 import java.util.List;
 
@@ -18,7 +19,11 @@ import java.util.List;
  */
 public class Pi extends DoubleConstantFunction {
 
-    @FunctionInfo(returnType = "double", description = "The ratio of a circle’s circumference to its diameter.")
+    @FunctionInfo(
+        returnType = "double",
+        description = "Returns {wikipedia}/Pi[Pi], the ratio of a circle's circumference to its diameter.",
+        examples = @Example(file = "math", tag = "pi")
+    )
     public Pi(Source source) {
         super(source);
     }

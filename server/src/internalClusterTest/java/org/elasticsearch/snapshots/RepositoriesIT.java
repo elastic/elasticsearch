@@ -29,6 +29,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.RepositoryConflictException;
@@ -171,7 +172,7 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
                     .put("compress", randomBoolean())
                     .put("chunk_size", randomIntBetween(5, 100), ByteSizeUnit.BYTES)
             )
-            .setTimeout("0s")
+            .setTimeout(TimeValue.ZERO)
             .get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(false));
 
@@ -188,7 +189,9 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
 
         logger.info("-->  deleting repository test-repo-2 with 0s timeout - shouldn't ack");
-        AcknowledgedResponse deleteRepositoryResponse = clusterAdmin().prepareDeleteRepository("test-repo-2").setTimeout("0s").get();
+        AcknowledgedResponse deleteRepositoryResponse = clusterAdmin().prepareDeleteRepository("test-repo-2")
+            .setTimeout(TimeValue.ZERO)
+            .get();
         assertThat(deleteRepositoryResponse.isAcknowledged(), equalTo(false));
 
         logger.info("-->  deleting repository test-repo-1 with standard timeout - should ack");

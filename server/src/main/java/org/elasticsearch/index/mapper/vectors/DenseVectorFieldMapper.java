@@ -11,7 +11,6 @@ package org.elasticsearch.index.mapper.vectors;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.KnnVectorsWriter;
-import org.apache.lucene.codecs.lucene99.Lucene99HnswScalarQuantizedVectorsFormat;
 import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Field;
@@ -49,6 +48,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.codec.vectors.ES813FlatVectorFormat;
 import org.elasticsearch.index.codec.vectors.ES813Int8FlatVectorFormat;
+import org.elasticsearch.index.codec.vectors.ES814HnswScalarQuantizedVectorsFormat;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.ArraySourceValueFetcher;
@@ -228,6 +228,16 @@ public class DenseVectorFieldMapper extends FieldMapper {
         @Override
         protected Parameter<?>[] getParameters() {
             return new Parameter<?>[] { elementType, dims, indexed, similarity, indexOptions, meta };
+        }
+
+        public Builder similarity(VectorSimilarity vectorSimilarity) {
+            similarity.setValue(vectorSimilarity);
+            return this;
+        }
+
+        public Builder dimensions(int dimensions) {
+            this.dims.setValue(dimensions);
+            return this;
         }
 
         @Override
@@ -754,7 +764,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         ElementType.FLOAT
     );
 
-    enum VectorSimilarity {
+    public enum VectorSimilarity {
         L2_NORM {
             @Override
             float score(float similarity, ElementType elementType, int dim) {
@@ -996,7 +1006,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         @Override
         public KnnVectorsFormat getVectorsFormat() {
-            return new Lucene99HnswScalarQuantizedVectorsFormat(m, efConstruction, 1, confidenceInterval, null);
+            return new ES814HnswScalarQuantizedVectorsFormat(m, efConstruction, 1, confidenceInterval, null);
         }
 
         @Override
@@ -1414,7 +1424,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     + name()
                     + "] of type ["
                     + typeName()
-                    + "] doesn't not support indexing multiple values for the same field in the same document"
+                    + "] doesn't support indexing multiple values for the same field in the same document"
             );
         }
         if (Token.VALUE_NULL == context.parser().currentToken()) {
@@ -1575,6 +1585,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected SyntheticSourceMode syntheticSourceMode() {
+        return SyntheticSourceMode.NATIVE;
+    }
+
+    @Override
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
         if (copyTo.copyToFields().isEmpty() != true) {
             throw new IllegalArgumentException(
@@ -1661,6 +1676,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
             b.endArray();
         }
+
+        @Override
+        public String fieldName() {
+            return name();
+        }
     }
 
     private class DocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFieldLoader {
@@ -1710,6 +1730,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 fieldType().elementType.readAndWriteValue(byteBuffer, b);
             }
             b.endArray();
+        }
+
+        @Override
+        public String fieldName() {
+            return name();
         }
     }
 }

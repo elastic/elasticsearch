@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentClusterService;
 import org.elasticsearch.xpack.ml.inference.deployment.TrainedModelDeploymentTask;
 import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
+import org.elasticsearch.xpack.ml.utils.InferenceProcessorInfoExtractor;
 
 import java.util.List;
 import java.util.Objects;
@@ -47,7 +48,6 @@ import java.util.Set;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.ml.action.TransportDeleteTrainedModelAction.getModelAliases;
-import static org.elasticsearch.xpack.ml.action.TransportDeleteTrainedModelAction.getReferencedModelKeys;
 
 /**
  * Class for transporting stop trained model deployment requests.
@@ -82,7 +82,6 @@ public class TransportStopTrainedModelDeploymentAction extends TransportTasksAct
             transportService,
             actionFilters,
             StopTrainedModelDeploymentAction.Request::new,
-            StopTrainedModelDeploymentAction.Response::new,
             StopTrainedModelDeploymentAction.Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
@@ -124,7 +123,7 @@ public class TransportStopTrainedModelDeploymentAction extends TransportTasksAct
         }
 
         IngestMetadata currentIngestMetadata = state.metadata().custom(IngestMetadata.TYPE);
-        Set<String> referencedModels = getReferencedModelKeys(currentIngestMetadata, ingestService);
+        Set<String> referencedModels = InferenceProcessorInfoExtractor.getModelIdsFromInferenceProcessors(currentIngestMetadata);
 
         if (request.isForce() == false) {
             if (referencedModels.contains(request.getId())) {

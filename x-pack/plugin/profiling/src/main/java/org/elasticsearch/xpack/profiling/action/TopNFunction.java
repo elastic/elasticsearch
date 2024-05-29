@@ -11,11 +11,9 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Objects;
 
-final class TopNFunction implements Cloneable, ToXContentObject, Comparable<TopNFunction> {
+final class TopNFunction implements ToXContentObject, Comparable<TopNFunction> {
     private final String id;
     private int rank;
     private final int frameType;
@@ -31,7 +29,7 @@ final class TopNFunction implements Cloneable, ToXContentObject, Comparable<TopN
     private double totalAnnualCO2Tons;
     private double selfAnnualCostsUSD;
     private double totalAnnualCostsUSD;
-    private final Map<String, Long> subGroups;
+    private SubGroup subGroups;
 
     TopNFunction(
         String id,
@@ -59,7 +57,7 @@ final class TopNFunction implements Cloneable, ToXContentObject, Comparable<TopN
             0.0d,
             0.0d,
             0.0d,
-            new HashMap<>()
+            null
         );
     }
 
@@ -79,7 +77,7 @@ final class TopNFunction implements Cloneable, ToXContentObject, Comparable<TopN
         double totalAnnualCO2Tons,
         double selfAnnualCostsUSD,
         double totalAnnualCostsUSD,
-        Map<String, Long> subGroups
+        SubGroup subGroups
     ) {
         this.id = id;
         this.rank = rank;
@@ -123,12 +121,20 @@ final class TopNFunction implements Cloneable, ToXContentObject, Comparable<TopN
         this.totalCount += totalCount;
     }
 
+    public double getSelfAnnualCO2Tons() {
+        return selfAnnualCO2Tons;
+    }
+
     public void addSelfAnnualCO2Tons(double co2Tons) {
         this.selfAnnualCO2Tons += co2Tons;
     }
 
     public void addTotalAnnualCO2Tons(double co2Tons) {
         this.totalAnnualCO2Tons += co2Tons;
+    }
+
+    public double getSelfAnnualCostsUSD() {
+        return selfAnnualCostsUSD;
     }
 
     public void addSelfAnnualCostsUSD(double costs) {
@@ -139,15 +145,15 @@ final class TopNFunction implements Cloneable, ToXContentObject, Comparable<TopN
         this.totalAnnualCostsUSD += costs;
     }
 
-    public void addSubGroups(Map<String, Long> subGroups) {
-        for (Map.Entry<String, Long> subGroup : subGroups.entrySet()) {
-            long count = this.subGroups.getOrDefault(subGroup.getKey(), 0L);
-            this.subGroups.put(subGroup.getKey(), count + subGroup.getValue());
+    public void addSubGroups(SubGroup subGroups) {
+        if (this.subGroups == null) {
+            this.subGroups = subGroups.copy();
+        } else {
+            this.subGroups.merge(subGroups);
         }
     }
 
-    @Override
-    protected TopNFunction clone() {
+    public TopNFunction copy() {
         return new TopNFunction(
             id,
             rank,
@@ -164,7 +170,7 @@ final class TopNFunction implements Cloneable, ToXContentObject, Comparable<TopN
             totalAnnualCO2Tons,
             selfAnnualCostsUSD,
             totalAnnualCostsUSD,
-            new HashMap<>(subGroups)
+            subGroups.copy()
         );
     }
 
@@ -182,7 +188,11 @@ final class TopNFunction implements Cloneable, ToXContentObject, Comparable<TopN
         builder.field("line_number", this.sourceLine);
         builder.field("executable_file_name", this.exeFilename);
         builder.endObject();
-        builder.field("sub_groups", subGroups);
+        if (subGroups != null) {
+            builder.startObject("sub_groups");
+            subGroups.toXContent(builder, params);
+            builder.endObject();
+        }
         builder.field("self_count", this.selfCount);
         builder.field("total_count", this.totalCount);
         builder.field("self_annual_co2_tons").rawValue(NumberUtils.doubleToString(selfAnnualCO2Tons));

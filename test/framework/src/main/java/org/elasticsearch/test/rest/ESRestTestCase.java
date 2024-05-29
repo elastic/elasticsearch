@@ -105,6 +105,7 @@ import java.security.cert.CertificateException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -129,6 +130,7 @@ import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.client.RestClient.IGNORE_RESPONSE_CODES_PARAM;
 import static org.elasticsearch.cluster.ClusterState.VERSION_INTRODUCING_TRANSPORT_VERSIONS;
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.test.rest.TestFeatureService.ALL_FEATURES;
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
@@ -240,20 +242,6 @@ public abstract class ESRestTestCase extends ESTestCase {
     private static EnumSet<ProductFeature> availableFeatures;
     private static Set<String> nodesVersions;
 
-    private static final TestFeatureService ALL_FEATURES = new TestFeatureService() {
-        @Override
-        public boolean clusterHasFeature(String featureId) {
-            return true;
-        }
-
-        @Override
-        public Set<String> getAllSupportedFeatures() {
-            throw new UnsupportedOperationException(
-                "Only available to properly initialized TestFeatureService. See ESRestTestCase#createTestFeatureService"
-            );
-        }
-    };
-
     protected static TestFeatureService testFeatureService = ALL_FEATURES;
 
     protected static Set<String> getCachedNodesVersions() {
@@ -272,6 +260,50 @@ public abstract class ESRestTestCase extends ESTestCase {
         return nodes.entrySet()
             .stream()
             .collect(Collectors.toUnmodifiableMap(entry -> entry.getKey().toString(), entry -> (Map<?, ?>) entry.getValue()));
+    }
+
+    /**
+     * Does the cluster being tested support the set of capabilities
+     * for specified path and method.
+     */
+    protected static Optional<Boolean> clusterHasCapability(
+        String method,
+        String path,
+        Collection<String> parameters,
+        Collection<String> capabilities
+    ) throws IOException {
+        return clusterHasCapability(adminClient, method, path, parameters, capabilities);
+    }
+
+    /**
+     * Does the cluster on the other side of {@code client} support the set
+     * of capabilities for specified path and method.
+     */
+    protected static Optional<Boolean> clusterHasCapability(
+        RestClient client,
+        String method,
+        String path,
+        Collection<String> parameters,
+        Collection<String> capabilities
+    ) throws IOException {
+        Request request = new Request("GET", "_capabilities");
+        request.addParameter("method", method);
+        request.addParameter("path", path);
+        if (parameters.isEmpty() == false) {
+            request.addParameter("parameters", String.join(",", parameters));
+        }
+        if (capabilities.isEmpty() == false) {
+            request.addParameter("capabilities", String.join(",", capabilities));
+        }
+        try {
+            Map<String, Object> response = entityAsMap(client.performRequest(request).getEntity());
+            return Optional.ofNullable((Boolean) response.get("supported"));
+        } catch (ResponseException responseException) {
+            if (responseException.getResponse().getStatusLine().getStatusCode() / 100 == 4) {
+                return Optional.empty(); // we don't know, the capabilities API is unsupported
+            }
+            throw responseException;
+        }
     }
 
     protected static boolean clusterHasFeature(String featureId) {
@@ -363,7 +395,13 @@ public abstract class ESRestTestCase extends ESTestCase {
         assert nodesVersions != null;
     }
 
-    protected List<FeatureSpecification> createAdditionalFeatureSpecifications() {
+    /**
+     * Override to provide additional test-only historical features.
+     *
+     * Note: This extension point cannot be used to add cluster features. The provided {@link FeatureSpecification}s
+     * must contain only historical features, otherwise an assertion error is thrown.
+     */
+    protected List<FeatureSpecification> additionalTestOnlyHistoricalFeatures() {
         return List.of();
     }
 
@@ -381,7 +419,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             );
         }
         return new ESRestTestFeatureService(
-            createAdditionalFeatureSpecifications(),
+            additionalTestOnlyHistoricalFeatures(),
             semanticNodeVersions,
             ClusterFeatures.calculateAllNodeFeatures(clusterStateFeatures.values())
         );
@@ -1465,7 +1503,11 @@ public abstract class ESRestTestCase extends ESTestCase {
             String username = System.getProperty("tests.rest.cluster.username");
             String password = System.getProperty("tests.rest.cluster.password");
             String token = basicAuthHeaderValue(username, new SecureString(password.toCharArray()));
-            return builder.put(ThreadContext.PREFIX + ".Authorization", token).build();
+            builder.put(ThreadContext.PREFIX + ".Authorization", token);
+        }
+        if (System.getProperty("tests.rest.project.id") != null) {
+            final var projectId = System.getProperty("tests.rest.project.id");
+            builder.put(ThreadContext.PREFIX + ".X-Elastic-Project-Id", projectId);
         }
         return builder.build();
     }
@@ -1753,6 +1795,10 @@ public abstract class ESRestTestCase extends ESTestCase {
 
     protected static CreateIndexResponse createIndex(RestClient client, String name, Settings settings) throws IOException {
         return createIndex(client, name, settings, null, null);
+    }
+
+    protected static CreateIndexResponse createIndex(RestClient client, String name, Settings settings, String mapping) throws IOException {
+        return createIndex(client, name, settings, mapping, null);
     }
 
     protected static CreateIndexResponse createIndex(String name, Settings settings, String mapping) throws IOException {

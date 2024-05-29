@@ -75,7 +75,7 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
         private final List<Map<String, Object>> docs;
         private final InferenceConfigUpdate update;
         private final TimeValue inferenceTimeout;
-        private boolean highPriority = false;
+        private boolean highPriority;
         // textInput added for uses that accept a query string
         // and do know which field the model expects to find its
         // input and so cannot construct a document.
@@ -89,7 +89,6 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
                 update,
                 ExceptionsHelper.requireNonNull(Collections.unmodifiableList(docs), DOCS),
                 null,
-                false,
                 inferenceTimeout
             );
         }
@@ -100,7 +99,6 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
                 update,
                 List.of(),
                 ExceptionsHelper.requireNonNull(textInput, "inference text input"),
-                false,
                 inferenceTimeout
             );
         }
@@ -111,7 +109,6 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             InferenceConfigUpdate update,
             List<Map<String, Object>> docs,
             List<String> textInput,
-            boolean highPriority,
             TimeValue inferenceTimeout
         ) {
             this.id = ExceptionsHelper.requireNonNull(id, InferModelAction.Request.DEPLOYMENT_ID);
@@ -119,7 +116,7 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             this.textInput = textInput;
             this.update = update;
             this.inferenceTimeout = inferenceTimeout;
-            this.highPriority = highPriority;
+            this.highPriority = false;
         }
 
         public Request(StreamInput in) throws IOException {
@@ -141,7 +138,7 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             } else {
                 prefixType = TrainedModelPrefixStrings.PrefixType.NONE;
             }
-            if (in.getTransportVersion().onOrAfter(TransportVersions.NLP_DOCUMENT_CHUNKING_ADDED)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
                 chunkResults = in.readBoolean();
             } else {
                 chunkResults = false;
@@ -235,7 +232,7 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
                 out.writeEnum(prefixType);
             }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.NLP_DOCUMENT_CHUNKING_ADDED)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
                 out.writeBoolean(chunkResults);
             }
         }
@@ -270,55 +267,6 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             return new CancellableTask(id, type, action, format("infer_trained_model_deployment[%s]", this.id), parentTaskId, headers);
         }
 
-        public static class Builder {
-
-            private String id;
-            private List<Map<String, Object>> docs;
-            private TimeValue timeout;
-            private InferenceConfigUpdate update;
-            private boolean skipQueue = false;
-            private List<String> textInput;
-
-            private Builder() {}
-
-            public Builder setId(String id) {
-                this.id = ExceptionsHelper.requireNonNull(id, InferModelAction.Request.DEPLOYMENT_ID);
-                return this;
-            }
-
-            public Builder setDocs(List<Map<String, Object>> docs) {
-                this.docs = ExceptionsHelper.requireNonNull(docs, DOCS);
-                return this;
-            }
-
-            public Builder setInferenceTimeout(TimeValue inferenceTimeout) {
-                this.timeout = inferenceTimeout;
-                return this;
-            }
-
-            public Builder setUpdate(InferenceConfigUpdate update) {
-                this.update = update;
-                return this;
-            }
-
-            private Builder setInferenceTimeout(String inferenceTimeout) {
-                return setInferenceTimeout(TimeValue.parseTimeValue(inferenceTimeout, TIMEOUT.getPreferredName()));
-            }
-
-            public Builder setTextInput(List<String> textInput) {
-                this.textInput = textInput;
-                return this;
-            }
-
-            public Builder setSkipQueue(boolean skipQueue) {
-                this.skipQueue = skipQueue;
-                return this;
-            }
-
-            public Request build() {
-                return new Request(id, update, docs, textInput, skipQueue, timeout);
-            }
-        }
     }
 
     public static class Response extends BaseTasksResponse implements Writeable, ToXContentObject {

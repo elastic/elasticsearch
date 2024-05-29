@@ -8,12 +8,28 @@
 package org.elasticsearch.xpack.esql;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
+import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.type.DateUtils;
+import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.type.TypesTests;
+import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
@@ -23,21 +39,13 @@ import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import org.elasticsearch.xpack.esql.stats.Metrics;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
-import org.elasticsearch.xpack.ql.expression.Attribute;
-import org.elasticsearch.xpack.ql.expression.Literal;
-import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DateUtils;
-import org.elasticsearch.xpack.ql.type.EsField;
-import org.elasticsearch.xpack.ql.type.TypesTests;
-import org.elasticsearch.xpack.ql.util.StringUtils;
 import org.junit.Assert;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
@@ -46,17 +54,16 @@ import java.util.Set;
 import java.util.regex.Pattern;
 
 import static java.util.Collections.emptyList;
+import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
-import static org.elasticsearch.xpack.ql.TestUtils.of;
+import static org.elasticsearch.xpack.esql.core.TestUtils.of;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.Assert.assertTrue;
 
 public final class EsqlTestUtils {
-
     public static class TestSearchStats extends SearchStats {
-
         public TestSearchStats() {
             super(emptyList());
         }
@@ -104,6 +111,8 @@ public final class EsqlTestUtils {
 
     public static final TestSearchStats TEST_SEARCH_STATS = new TestSearchStats();
 
+    private static final Map<String, Map<String, Column>> TABLES = tables();
+
     public static final EsqlConfiguration TEST_CFG = configuration(new QueryPragmas(Settings.EMPTY));
 
     public static final Verifier TEST_VERIFIER = new Verifier(new Metrics());
@@ -120,7 +129,8 @@ public final class EsqlTestUtils {
             EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE.getDefault(Settings.EMPTY),
             EsqlPlugin.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(Settings.EMPTY),
             query,
-            false
+            false,
+            TABLES
         );
     }
 
@@ -257,5 +267,46 @@ public final class EsqlTestUtils {
                 assertTrue("Unexpected warning: " + warning, allowedWarningsRegex.stream().anyMatch(x -> x.matcher(warning).matches()));
             }
         }
+    }
+
+    static Map<String, Map<String, Column>> tables() {
+        BlockFactory factory = new BlockFactory(new NoopCircuitBreaker(CircuitBreaker.REQUEST), BigArrays.NON_RECYCLING_INSTANCE);
+        Map<String, Map<String, Column>> tables = new HashMap<>();
+        try (
+            IntBlock.Builder ints = factory.newIntBlockBuilder(10);
+            LongBlock.Builder longs = factory.newLongBlockBuilder(10);
+            BytesRefBlock.Builder names = factory.newBytesRefBlockBuilder(10);
+        ) {
+            for (int i = 0; i < 10; i++) {
+                ints.appendInt(i);
+                longs.appendLong(i);
+                names.appendBytesRef(new BytesRef(switch (i) {
+                    case 0 -> "zero";
+                    case 1 -> "one";
+                    case 2 -> "two";
+                    case 3 -> "three";
+                    case 4 -> "four";
+                    case 5 -> "five";
+                    case 6 -> "six";
+                    case 7 -> "seven";
+                    case 8 -> "eight";
+                    case 9 -> "nine";
+                    default -> throw new IllegalArgumentException();
+                }));
+            }
+
+            IntBlock intsBlock = ints.build();
+            LongBlock longsBlock = longs.build();
+            BytesRefBlock namesBlock = names.build();
+            tables.put(
+                "int_number_names",
+                Map.of("int", new Column(DataTypes.INTEGER, intsBlock), "name", new Column(DataTypes.KEYWORD, namesBlock))
+            );
+            tables.put(
+                "long_number_names",
+                Map.of("long", new Column(DataTypes.LONG, longsBlock), "name", new Column(DataTypes.KEYWORD, namesBlock))
+            );
+        }
+        return unmodifiableMap(tables);
     }
 }

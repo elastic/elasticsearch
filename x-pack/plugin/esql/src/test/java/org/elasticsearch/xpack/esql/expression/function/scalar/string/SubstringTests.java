@@ -13,13 +13,12 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Literal;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.hamcrest.Matcher;
 
 import java.util.List;
@@ -30,72 +29,60 @@ import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public class SubstringTests extends AbstractScalarFunctionTestCase {
+public class SubstringTests extends AbstractFunctionTestCase {
     public SubstringTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        return parameterSuppliersFromTypedData(List.of(new TestCaseSupplier("Substring basic test", () -> {
-            int start = between(1, 8);
-            int length = between(1, 10 - start);
-            String text = randomAlphaOfLength(10);
-            return new TestCaseSupplier.TestCase(
-                List.of(
-                    new TestCaseSupplier.TypedData(new BytesRef(text), DataTypes.KEYWORD, "str"),
-                    new TestCaseSupplier.TypedData(start, DataTypes.INTEGER, "start"),
-                    new TestCaseSupplier.TypedData(length, DataTypes.INTEGER, "end")
-                ),
-                "SubstringEvaluator[str=Attribute[channel=0], start=Attribute[channel=1], length=Attribute[channel=2]]",
-                DataTypes.KEYWORD,
-                equalTo(new BytesRef(text.substring(start - 1, start + length - 1)))
-            );
-        }), new TestCaseSupplier("Substring basic test with text input", () -> {
-            int start = between(1, 8);
-            int length = between(1, 10 - start);
-            String text = randomAlphaOfLength(10);
-            return new TestCaseSupplier.TestCase(
-                List.of(
-                    new TestCaseSupplier.TypedData(new BytesRef(text), DataTypes.TEXT, "str"),
-                    new TestCaseSupplier.TypedData(start, DataTypes.INTEGER, "start"),
-                    new TestCaseSupplier.TypedData(length, DataTypes.INTEGER, "end")
-                ),
-                "SubstringEvaluator[str=Attribute[channel=0], start=Attribute[channel=1], length=Attribute[channel=2]]",
-                DataTypes.KEYWORD,
-                equalTo(new BytesRef(text.substring(start - 1, start + length - 1)))
-            );
-        }),
-            new TestCaseSupplier(
-                "Substring basic test with start long",
-                List.of(DataTypes.KEYWORD, DataTypes.LONG, DataTypes.INTEGER),
-                () -> TestCaseSupplier.TestCase.typeError(
+        return parameterSuppliersFromTypedData(
+            errorsForCasesWithoutExamples(
+                anyNullIsNull(
+                    true,
                     List.of(
-                        new TestCaseSupplier.TypedData(new BytesRef("text"), DataTypes.KEYWORD, "str"),
-                        new TestCaseSupplier.TypedData(1L, DataTypes.LONG, "start"),
-                        new TestCaseSupplier.TypedData(2, DataTypes.INTEGER, "length")
-                    ),
-                    "second argument of [] must be [integer], found value [start] type [long]"
-                )
-            ),
-            new TestCaseSupplier(
-                "Substring basic test with length double",
-                List.of(DataTypes.KEYWORD, DataTypes.INTEGER, DataTypes.DOUBLE),
-                () -> TestCaseSupplier.TestCase.typeError(
-                    List.of(
-                        new TestCaseSupplier.TypedData(new BytesRef("text"), DataTypes.KEYWORD, "str"),
-                        new TestCaseSupplier.TypedData(1L, DataTypes.INTEGER, "start"),
-                        new TestCaseSupplier.TypedData(2.0, DataTypes.DOUBLE, "length")
-                    ),
-                    "third argument of [] must be [integer], found value [length] type [double]"
+                        new TestCaseSupplier(
+                            "Substring basic test",
+                            List.of(DataTypes.KEYWORD, DataTypes.INTEGER, DataTypes.INTEGER),
+                            () -> {
+                                int start = between(1, 8);
+                                int length = between(1, 10 - start);
+                                String text = randomAlphaOfLength(10);
+                                return new TestCaseSupplier.TestCase(
+                                    List.of(
+                                        new TestCaseSupplier.TypedData(new BytesRef(text), DataTypes.KEYWORD, "str"),
+                                        new TestCaseSupplier.TypedData(start, DataTypes.INTEGER, "start"),
+                                        new TestCaseSupplier.TypedData(length, DataTypes.INTEGER, "end")
+                                    ),
+                                    "SubstringEvaluator[str=Attribute[channel=0], start=Attribute[channel=1], length=Attribute[channel=2]]",
+                                    DataTypes.KEYWORD,
+                                    equalTo(new BytesRef(text.substring(start - 1, start + length - 1)))
+                                );
+                            }
+                        ),
+                        new TestCaseSupplier(
+                            "Substring basic test with text input",
+                            List.of(DataTypes.TEXT, DataTypes.INTEGER, DataTypes.INTEGER),
+                            () -> {
+                                int start = between(1, 8);
+                                int length = between(1, 10 - start);
+                                String text = randomAlphaOfLength(10);
+                                return new TestCaseSupplier.TestCase(
+                                    List.of(
+                                        new TestCaseSupplier.TypedData(new BytesRef(text), DataTypes.TEXT, "str"),
+                                        new TestCaseSupplier.TypedData(start, DataTypes.INTEGER, "start"),
+                                        new TestCaseSupplier.TypedData(length, DataTypes.INTEGER, "end")
+                                    ),
+                                    "SubstringEvaluator[str=Attribute[channel=0], start=Attribute[channel=1], length=Attribute[channel=2]]",
+                                    DataTypes.KEYWORD,
+                                    equalTo(new BytesRef(text.substring(start - 1, start + length - 1)))
+                                );
+                            }
+                        )
+                    )
                 )
             )
-        ));
-    }
-
-    @Override
-    protected DataType expectedType(List<DataType> argTypes) {
-        return DataTypes.KEYWORD;
+        );
     }
 
     public Matcher<Object> resultsMatcher(List<TestCaseSupplier.TypedData> typedData) {
@@ -112,11 +99,6 @@ public class SubstringTests extends AbstractScalarFunctionTestCase {
             ).toString(),
             equalTo("SubstringNoLengthEvaluator[str=Attribute[channel=0], start=Attribute[channel=1]]")
         );
-    }
-
-    @Override
-    protected List<AbstractScalarFunctionTestCase.ArgumentSpec> argSpec() {
-        return List.of(required(strings()), required(DataTypes.INTEGER), optional(DataTypes.INTEGER));
     }
 
     @Override

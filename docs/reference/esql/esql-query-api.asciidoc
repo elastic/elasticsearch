@@ -76,7 +76,7 @@ For syntax, refer to <<esql-locale-param>>.
 <<esql-rest-params>>.
 
 `query`::
-(Required, object) {esql} query to run. For syntax, refer to <<esql-syntax>>.
+(Required, string) {esql} query to run. For syntax, refer to <<esql-syntax>>.
 
 [discrete]
 [role="child_attributes"]

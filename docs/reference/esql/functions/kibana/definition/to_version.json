@@ -10,7 +10,7 @@
           "name" : "field",
           "type" : "keyword",
           "optional" : false,
-          "description" : ""
+          "description" : "Input value. The input can be a single- or multi-valued column or an expression."
         }
       ],
       "variadic" : false,
@@ -22,7 +22,7 @@
           "name" : "field",
           "type" : "text",
           "optional" : false,
-          "description" : ""
+          "description" : "Input value. The input can be a single- or multi-valued column or an expression."
         }
       ],
       "variadic" : false,
@@ -34,11 +34,14 @@
           "name" : "field",
           "type" : "version",
           "optional" : false,
-          "description" : ""
+          "description" : "Input value. The input can be a single- or multi-valued column or an expression."
         }
       ],
       "variadic" : false,
       "returnType" : "version"
     }
+  ],
+  "examples" : [
+    "ROW v = TO_VERSION(\"1.2.3\")"
   ]
 }

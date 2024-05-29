@@ -24,6 +24,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongSupplier;
@@ -222,7 +223,7 @@ public class StagnatingIndicesFinderTests extends ESTestCase {
     }
 
     private static TimeValue randomTimeValueInDays() {
-        return TimeValue.parseTimeValue(randomTimeValue(1, 1000, "d"), "some.name");
+        return randomTimeValue(1, 1000, TimeUnit.DAYS);
     }
 
     private static IndexMetadata indexMetadataUnmanaged(String indexName) {

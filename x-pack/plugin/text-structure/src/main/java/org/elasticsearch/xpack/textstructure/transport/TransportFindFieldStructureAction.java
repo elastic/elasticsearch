@@ -30,10 +30,8 @@ import org.elasticsearch.xpack.textstructure.structurefinder.TextStructureOverri
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.RejectedExecutionException;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.common.util.concurrent.EsExecutors.DIRECT_EXECUTOR_SERVICE;
 import static org.elasticsearch.threadpool.ThreadPool.Names.GENERIC;
 
 public class TransportFindFieldStructureAction extends HandledTransportAction<FindFieldStructureAction.Request, FindStructureResponse> {
@@ -47,18 +45,9 @@ public class TransportFindFieldStructureAction extends HandledTransportAction<Fi
         TransportService transportService,
         ActionFilters actionFilters,
         Client client,
-        ThreadPool threadPool,
-        TextStructExecutor executor
+        ThreadPool threadPool
     ) {
-        super(
-            FindFieldStructureAction.NAME,
-            transportService,
-            actionFilters,
-            FindFieldStructureAction.Request::new,
-            // workaround for https://github.com/elastic/elasticsearch/issues/97916
-            // TODO when the above issue is fixed, change this back to threadPool.generic()
-            DIRECT_EXECUTOR_SERVICE
-        );
+        super(FindFieldStructureAction.NAME, transportService, actionFilters, FindFieldStructureAction.Request::new, threadPool.generic());
         this.client = client;
         this.transportService = transportService;
         this.threadPool = threadPool;
@@ -72,26 +61,18 @@ public class TransportFindFieldStructureAction extends HandledTransportAction<Fi
             .setFetchSource(true)
             .setQuery(QueryBuilders.existsQuery(request.getField()))
             .setFetchSource(new String[] { request.getField() }, null)
-            .execute(ActionListener.wrap(searchResponse -> {
-                long hitCount = searchResponse.getHits().getHits().length;
+            .execute(listener.delegateFailureAndWrap((delegate, searchResponse) -> {
+                var hitCount = searchResponse.getHits().getHits().length;
                 if (hitCount < AbstractFindStructureRequest.MIN_SAMPLE_LINE_COUNT) {
-                    listener.onFailure(
+                    delegate.onFailure(
                         new IllegalArgumentException("Input contained too few lines [" + hitCount + "] to obtain a meaningful sample")
                     );
                     return;
                 }
-
+                var messages = getMessages(searchResponse, request.getField());
                 // As matching a regular expression might take a while, we run in a different thread to avoid blocking the network thread.
-                var runnable = ActionRunnable.supply(listener, () -> {
-                    var messages = getMessages(searchResponse, request.getField());
-                    return buildTextStructureResponse(messages, request);
-                });
-                try {
-                    threadPool.generic().execute(runnable);
-                } catch (RejectedExecutionException e) {
-                    runnable.onRejection(e);
-                }
-            }, listener::onFailure));
+                threadPool.generic().execute(ActionRunnable.supply(delegate, () -> buildTextStructureResponse(messages, request)));
+            }));
     }
 
     private List<String> getMessages(SearchResponse searchResponse, String field) {

@@ -27,7 +27,7 @@ PUT my-index-000001
         "properties": {
             "inference_field": { 
                 "type": "semantic_text",
-                "inference_id": "my-elser-model"
+                "inference_id": "my-elser-endpoint"
 	     }
         }
     }
@@ -62,7 +62,7 @@ When the first document is indexed, the `inference_id` will be used to generate 
 To allow for large amounts of text to be used in semantic search, `semantic_text` automatically generates smaller passages if needed called _chunks_.
 
 Each chunk will include the text subpassage and its corresponding embedding generated from it.
-When querying, the individual passages will be automatically searched for each document, and the most relevant passage will be retrieved as a result.
+When querying, the individual passages will be automatically searched for each document, and the most relevant passage will be used to compute a score.
 
 
 [discrete]
@@ -76,7 +76,7 @@ Once a document is ingested, a `semantic_text` field will have the following str
 "inference_field": {
   "text": "these are not the droids you're looking for", <1>
   "inference": {
-    "inference_id": "my-elser-model", <2>
+    "inference_id": "my-elser-endpoint", <2>
     "model_settings": { <3>
       "task_type": "sparse_embedding"
     },
@@ -119,7 +119,7 @@ types and create an ingest pipeline with an
 <<inference-processor, {infer} processor>> to generate the embeddings.
 <<semantic-search-inference,This tutorial>> walks you through the process.
 
-NOTE: Update that uses a script is not supported when the index contains a `semantic_text` field.
+NOTE: Updates that use scripts are not supported when the index contains a `semantic_text` field.
 
 
 [discrete]
@@ -129,7 +129,7 @@ NOTE: Update that uses a script is not supported when the index contains a `sema
 The `semantic_text` field type can be the target of
 <<copy-to,`copy_to` fields>>. This means you can use a single `semantic_text`
 field to collect the values of other fields for semantic search. Each value has
-its embeddings calculated separately; each field value is a separate chunk in
+its embeddings calculated separately; each field value is a separate set of chunk(s) in
 the resulting embeddings.
 
 This imposes restrictions on updating documents with `semantic_text`:

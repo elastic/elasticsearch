@@ -146,7 +146,7 @@ You can customize the `sparse_vector` query to include specific settings, like p
 
 [discrete]
 [[search-text-inferece]]
-==== Search with text_embedding inference
+==== Search with `text_embedding` inference
 
 When the {infer} endpoint uses a `text_embedding` model, you can use a <<query-dsl-knn-query,`knn`query>> on a `semantic_text` field in the following way:
 
@@ -163,13 +163,13 @@ GET test-index/_search
           "query_vector_builder": {
             "text_embedding": {
               "model_id": "my_inference_id",
-	            "model_text": "mountain lake"
-	          }
-	        }
-	      }
-	    }
-	  }
-	}
+	      "model_text": "mountain lake"
+            }
+          }
+        }
+      }
+    }
+  }
 }
 ------------------------------------------------------------
 // TEST[skip:TBD]

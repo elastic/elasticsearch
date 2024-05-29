@@ -141,7 +141,7 @@ GET test-index/_search
 ------------------------------------------------------------
 // TEST[skip:TBD]
 
-You can customize the `sparse_vector` query to include <<sparse-vector-field-params,specific settings>>, like pruning configuration.
+You can customize the `sparse_vector` query to include specific settings, like <<sparse-vector-query-with-pruning-config-and-rescore-example,pruning configuration>>.
 
 
 [discrete]

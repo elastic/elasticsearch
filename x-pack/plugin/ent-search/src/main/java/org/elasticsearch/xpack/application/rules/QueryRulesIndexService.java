@@ -276,7 +276,6 @@ public class QueryRulesIndexService {
                     .filter(rule -> rule.id().equals(queryRule.id()) == false)
                     .collect(Collectors.toList());
                 rules.add(queryRule);
-                rules.sort(Comparator.comparingInt(QueryRule::priority));
                 putQueryRuleset(new QueryRuleset(queryRulesetId, rules), listener);
             }
 

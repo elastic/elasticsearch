@@ -23,6 +23,7 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 
@@ -51,7 +52,7 @@ public class QueryRuleset implements Writeable, ToXContentObject {
         if (rules.isEmpty()) {
             throw new IllegalArgumentException("rules cannot be empty");
         }
-        this.rules = rules;
+        this.rules = rules.stream().sorted(Comparator.comparingInt(QueryRule::priority)).toList();
     }
 
     public QueryRuleset(StreamInput in) throws IOException {

@@ -3,8 +3,22 @@ setup:
       cluster_features: [ "gte_v8.15.0" ]
       reason: Introduced in 8.15.0
 
+
 ---
-'Create query rule with existing ruleset':
+teardown:
+  - do:
+      query_ruleset.delete:
+        ruleset_id: test-ruleset
+        ignore: 404
+
+  - do:
+      query_ruleset.delete:
+        ruleset_id: test-query-rule-recreating
+        ignore: 404
+
+---
+'Create query rule with existing ruleset respecting priority order':
+  # Start with 2 rules, one that specifies priority and one that does not (should go at the end)
   - do:
       query_ruleset.put:
         ruleset_id: test-ruleset
@@ -27,15 +41,43 @@ setup:
                   metadata: query_string
                   values: [ kibana ]
               actions:
-                docs:
-                  - '_index': 'test-index1'
-                    '_id': 'id3'
-                  - '_index': 'test-index2'
-                    '_id': 'id4'
+                ids:
+                  - 'id3'
+                  - 'id4'
               priority: 1
 
   - match: { result: 'created' }
 
+  - do:
+      query_ruleset.get:
+        ruleset_id: test-ruleset
+
+  - match: { ruleset_id: test-ruleset }
+  - match:
+      rules:
+        - rule_id: query-rule-id2
+          type: pinned
+          criteria:
+            - type: exact
+              metadata: query_string
+              values: [ kibana ]
+          actions:
+            ids:
+              - 'id3'
+              - 'id4'
+          priority: 1
+        - rule_id: query-rule-id1
+          type: pinned
+          criteria:
+            - type: exact
+              metadata: query_string
+              values: [ elastic ]
+          actions:
+            ids:
+              - 'id1'
+              - 'id2'
+
+  # Next, add a rule with a priority 2 - this should go in the middle
   - do:
       query_rule.put:
         ruleset_id: test-ruleset
@@ -52,6 +94,111 @@ setup:
           priority: 2
 
   - match: { result: 'updated' }
+
+  - do:
+      query_ruleset.get:
+        ruleset_id: test-ruleset
+
+  - match: { ruleset_id: test-ruleset }
+  - match:
+      rules:
+        - rule_id: query-rule-id2
+          type: pinned
+          criteria:
+            - type: exact
+              metadata: query_string
+              values: [ kibana ]
+          actions:
+            ids:
+              - 'id3'
+              - 'id4'
+          priority: 1
+        - rule_id: query-rule-id3
+          type: pinned
+          criteria:
+            - type: exact
+              metadata: query_string
+              values: [ logstash ]
+          actions:
+            ids:
+              - 'id1'
+          priority: 2
+        - rule_id: query-rule-id1
+          type: pinned
+          criteria:
+            - type: exact
+              metadata: query_string
+              values: [ elastic ]
+          actions:
+            ids:
+              - 'id1'
+              - 'id2'
+
+  # Finally, add another single rule with no priority. This should be appended to the ruleset.
+  - do:
+      query_rule.put:
+        ruleset_id: test-ruleset
+        rule_id: query-rule-id4
+        body:
+          type: 'pinned'
+          criteria:
+            type: 'exact'
+            metadata: 'query_string'
+            values: [ 'search' ]
+          actions:
+            ids:
+              - 'id2'
+
+  - match: { result: 'updated' }
+
+  - do:
+      query_ruleset.get:
+        ruleset_id: test-ruleset
+
+  - match: { ruleset_id: test-ruleset }
+  - match:
+      rules:
+        - rule_id: query-rule-id2
+          type: pinned
+          criteria:
+            - type: exact
+              metadata: query_string
+              values: [ kibana ]
+          actions:
+            ids:
+              - 'id3'
+              - 'id4'
+          priority: 1
+        - rule_id: query-rule-id3
+          type: pinned
+          criteria:
+            - type: exact
+              metadata: query_string
+              values: [ logstash ]
+          actions:
+            ids:
+              - 'id1'
+          priority: 2
+        - rule_id: query-rule-id1
+          type: pinned
+          criteria:
+            - type: exact
+              metadata: query_string
+              values: [ elastic ]
+          actions:
+            ids:
+              - 'id1'
+              - 'id2'
+        - rule_id: query-rule-id4
+          type: pinned
+          criteria:
+            - type: exact
+              metadata: query_string
+              values: [ search ]
+          actions:
+            ids:
+              - 'id2'
+
 
 ---
 'Create Query Rule - Resource already exists':

@@ -123,8 +123,12 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.esql.core.type.DataTypes.BOOLEAN;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.CARTESIAN_POINT;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.CARTESIAN_SHAPE;
 import static org.elasticsearch.xpack.esql.core.type.DataTypes.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataTypes.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.GEO_POINT;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.GEO_SHAPE;
 import static org.elasticsearch.xpack.esql.core.type.DataTypes.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataTypes.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataTypes.KEYWORD;
@@ -133,10 +137,6 @@ import static org.elasticsearch.xpack.esql.core.type.DataTypes.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataTypes.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataTypes.UNSUPPORTED;
 import static org.elasticsearch.xpack.esql.core.type.DataTypes.VERSION;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.CARTESIAN_POINT;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.CARTESIAN_SHAPE;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_POINT;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_SHAPE;
 
 public final class EsqlFunctionRegistry extends FunctionRegistry {
 

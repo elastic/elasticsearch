@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
 import java.math.BigInteger;
 import java.time.Instant;
@@ -215,7 +214,7 @@ public class ToLongTests extends AbstractFunctionTestCase {
         TestCaseSupplier.unary(
             suppliers,
             "Attribute[channel=0]",
-            List.of(new TestCaseSupplier.TypedDataSupplier("counter", ESTestCase::randomNonNegativeLong, EsqlDataTypes.COUNTER_LONG)),
+            List.of(new TestCaseSupplier.TypedDataSupplier("counter", ESTestCase::randomNonNegativeLong, DataTypes.COUNTER_LONG)),
             DataTypes.LONG,
             l -> l,
             List.of()
@@ -223,7 +222,7 @@ public class ToLongTests extends AbstractFunctionTestCase {
         TestCaseSupplier.unary(
             suppliers,
             evaluatorName.apply("Integer"),
-            List.of(new TestCaseSupplier.TypedDataSupplier("counter", ESTestCase::randomInt, EsqlDataTypes.COUNTER_INTEGER)),
+            List.of(new TestCaseSupplier.TypedDataSupplier("counter", ESTestCase::randomInt, DataTypes.COUNTER_INTEGER)),
             DataTypes.LONG,
             l -> ((Integer) l).longValue(),
             List.of()

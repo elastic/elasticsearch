@@ -54,7 +54,6 @@ import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.session.EsqlIndexResolver;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -1655,9 +1654,9 @@ public class AnalyzerTests extends ESTestCase {
             equalTo(Set.of("network.connections", "network.bytes_in", "network.bytes_out", "network.message_in"))
         );
         assertThat(attributes.get("network.connections").dataType(), equalTo(DataTypes.LONG));
-        assertThat(attributes.get("network.bytes_in").dataType(), equalTo(EsqlDataTypes.COUNTER_LONG));
-        assertThat(attributes.get("network.bytes_out").dataType(), equalTo(EsqlDataTypes.COUNTER_LONG));
-        assertThat(attributes.get("network.message_in").dataType(), equalTo(EsqlDataTypes.COUNTER_DOUBLE));
+        assertThat(attributes.get("network.bytes_in").dataType(), equalTo(DataTypes.COUNTER_LONG));
+        assertThat(attributes.get("network.bytes_out").dataType(), equalTo(DataTypes.COUNTER_LONG));
+        assertThat(attributes.get("network.message_in").dataType(), equalTo(DataTypes.COUNTER_DOUBLE));
     }
 
     public void testMissingAttributeException_InChainedEval() {

@@ -80,26 +80,26 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
      * All integer types (long, int, short, byte). For passing to {@link #required} or {@link #optional}.
      */
     protected static DataType[] integers() {
-        return EsqlDataTypes.types().stream().filter(DataType::isInteger).toArray(DataType[]::new);
+        return DataTypes.types().stream().filter(DataType::isInteger).toArray(DataType[]::new);
     }
 
     /**
      * All rational types (double, float, whatever). For passing to {@link #required} or {@link #optional}.
      */
     protected static DataType[] rationals() {
-        return EsqlDataTypes.types().stream().filter(DataType::isRational).toArray(DataType[]::new);
+        return DataTypes.types().stream().filter(DataType::isRational).toArray(DataType[]::new);
     }
 
     /**
      * All numeric types (integers and rationals.) For passing to {@link #required} or {@link #optional}.
      */
     protected static DataType[] numerics() {
-        return EsqlDataTypes.types().stream().filter(DataType::isNumeric).toArray(DataType[]::new);
+        return DataTypes.types().stream().filter(DataType::isNumeric).toArray(DataType[]::new);
     }
 
     protected final DataType[] representableNumerics() {
         // TODO numeric should only include representable numbers but that is a change for a followup
-        return EsqlDataTypes.types().stream().filter(DataType::isNumeric).filter(EsqlDataTypes::isRepresentable).toArray(DataType[]::new);
+        return DataTypes.types().stream().filter(DataType::isNumeric).filter(EsqlDataTypes::isRepresentable).toArray(DataType[]::new);
     }
 
     protected record ArgumentSpec(boolean optional, Set<DataType> validTypes) {}
@@ -107,7 +107,7 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
     public final void testResolveType() {
         List<ArgumentSpec> specs = argSpec();
         for (int mutArg = 0; mutArg < specs.size(); mutArg++) {
-            for (DataType mutArgType : EsqlDataTypes.types()) {
+            for (DataType mutArgType : DataTypes.types()) {
                 List<Expression> args = new ArrayList<>(specs.size());
                 for (int arg = 0; arg < specs.size(); arg++) {
                     if (mutArg == arg) {
@@ -180,7 +180,7 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
         if (withoutNull.equals(List.of(DataTypes.IP))) {
             return "ip";
         }
-        List<DataType> negations = Stream.concat(Stream.of(numerics()), Stream.of(EsqlDataTypes.DATE_PERIOD, EsqlDataTypes.TIME_DURATION))
+        List<DataType> negations = Stream.concat(Stream.of(numerics()), Stream.of(DataTypes.DATE_PERIOD, DataTypes.TIME_DURATION))
             .sorted(Comparator.comparing(DataType::name))
             .toList();
         if (withoutNull.equals(negations)) {

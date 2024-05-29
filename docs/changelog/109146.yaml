@@ -1,0 +1,5 @@
+pr: 109146
+summary: Count number of documents with at least one ignored field
+area: Logs
+type: feature
+issues: []

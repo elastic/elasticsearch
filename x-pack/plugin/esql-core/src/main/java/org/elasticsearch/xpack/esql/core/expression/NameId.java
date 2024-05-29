@@ -22,7 +22,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * tests. They don't produce reproducible values in production, but
  * you rarely debug with them in production and commonly do so in
  * tests.</p>
- * <p>While this class is {@link Writeable}, to read if you'll need
+ * <p>While this class is {@link Writeable}, to read it you'll need
  * to call {@link PlanStreamInput#readNameId()} to keep a consistent
  * mapping across all plans.</p>
  */

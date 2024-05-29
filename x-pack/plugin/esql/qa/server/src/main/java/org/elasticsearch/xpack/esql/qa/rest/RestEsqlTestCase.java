@@ -479,6 +479,50 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         );
     }
 
+    public void testErrorMessageForInvalidParamNames() throws IOException {
+        ResponseException re = expectThrows(
+            ResponseException.class,
+            () -> runEsqlSync(requestObjectBuilder().query("row a = 1 | eval x = ?").params("[{\"1\": \"v1\"}]"))
+        );
+        assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("1 is not a valid parameter name."));
+
+        re = expectThrows(
+            ResponseException.class,
+            () -> runEsqlSync(requestObjectBuilder().query("from test | where x = ?").params("[{\"1x\": \"v1\"}]"))
+        );
+        assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("1x is not a valid parameter name."));
+
+        re = expectThrows(
+            ResponseException.class,
+            () -> runEsqlSync(requestObjectBuilder().query("row a = ?").params("[{\"_a\": \"v1\"}]"))
+        );
+        assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("_a is not a valid parameter name."));
+
+        re = expectThrows(
+            ResponseException.class,
+            () -> runEsqlSync(requestObjectBuilder().query("row a = ?").params("[{\"@-#\": \"v1\"}]"))
+        );
+        assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("@-# is not a valid parameter name."));
+
+        re = expectThrows(
+            ResponseException.class,
+            () -> runEsqlSync(requestObjectBuilder().query("row a = ?0").params("[{\"n1\": \"v1\"}]"))
+        );
+        assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("No parameter is defined for position ?0"));
+
+        re = expectThrows(
+            ResponseException.class,
+            () -> runEsqlSync(requestObjectBuilder().query("row a = ?2").params("[{\"n1\": \"v1\"}]"))
+        );
+        assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("No parameter is defined for position ?2"));
+
+        re = expectThrows(
+            ResponseException.class,
+            () -> runEsqlSync(requestObjectBuilder().query("row a = ?n0").params("[{\"n1\": \"v1\"}]"))
+        );
+        assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("No parameter is defined for name ?n0"));
+    }
+
     public void testErrorMessageForLiteralDateMathOverflow() throws IOException {
         List<String> dateMathOverflowExpressions = List.of(
             "2147483647 day + 1 day",

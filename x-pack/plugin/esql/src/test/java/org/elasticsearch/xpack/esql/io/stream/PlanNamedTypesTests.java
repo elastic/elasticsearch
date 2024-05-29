@@ -234,7 +234,7 @@ public class PlanNamedTypesTests extends ESTestCase {
         var in = planStreamInput(bso);
         var deser = PlanNamedTypes.readUnsupportedAttr(in);
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(orig, unused -> deser);
-        assertThat(deser.id(), equalTo(in.nameIdFromLongValue(Long.parseLong(orig.id().toString()))));
+        assertThat(deser.id(), equalTo(in.mapNameId(Long.parseLong(orig.id().toString()))));
     }
 
     public void testUnsupportedAttribute() {
@@ -259,7 +259,7 @@ public class PlanNamedTypesTests extends ESTestCase {
         var in = planStreamInput(bso);
         var deser = PlanNamedTypes.readFieldAttribute(in);
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(orig, unused -> deser);
-        assertThat(deser.id(), equalTo(in.nameIdFromLongValue(Long.parseLong(orig.id().toString()))));
+        assertThat(deser.id(), equalTo(in.mapNameId(Long.parseLong(orig.id().toString()))));
     }
 
     public void testFieldAttribute() {
@@ -413,7 +413,7 @@ public class PlanNamedTypesTests extends ESTestCase {
         var in = planStreamInput(bso);
         var deser = PlanNamedTypes.readAlias(in);
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(orig, unused -> deser);
-        assertThat(deser.id(), equalTo(in.nameIdFromLongValue(Long.parseLong(orig.id().toString()))));
+        assertThat(deser.id(), equalTo(in.mapNameId(Long.parseLong(orig.id().toString()))));
     }
 
     public void testLiteralSimple() throws IOException {

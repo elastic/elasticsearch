@@ -18,10 +18,10 @@
  *
  * <b>Routing Table</b>
  *
- * <p>The routing table provide a view of global cluster state from index
+ * <p>The routing table provide a view of global cluster state from an index
  * perspective. It's a mapping from indices to shards and shards to nodes, where
- * relationship between shard and node may not exists if a shard allocation is
- * not possible.
+ * the relationship between shard and node may not exist if a shard
+ * allocation is not possible.
  *
  * <p>{@link org.elasticsearch.cluster.routing.RoutingTable} is the access
  * point to the routing information. RoutingTable is a part of the
@@ -32,8 +32,8 @@
  * {@link org.elasticsearch.cluster.routing.IndexShardRoutingTable}. Each
  * shard has one or more instances: a primary and replicas. An
  * IndexShardRoutingTable contains information about all shard instances for
- * specific shard, {@link org.elasticsearch.cluster.routing.ShardRouting}.
- * The ShardRouting is a state of a shard instance in a cluster. There are
+ * a specific shard, {@link org.elasticsearch.cluster.routing.ShardRouting}.
+ * The ShardRouting is the state of a shard instance in a cluster. There are
  * several states of ShardRouting: unassigned, initializing, relocating,
  * started.</p>
  *
@@ -59,7 +59,7 @@
  *
  * <b>Routing Nodes</b>
  *
- * <p>{@link org.elasticsearch.cluster.routing.RoutingNode} provides a view to
+ * <p>{@link org.elasticsearch.cluster.routing.RoutingNode} provides a view
  * from node to shard routing. There is a RoutingNode for every
  * {@link org.elasticsearch.cluster.node.DiscoveryNode}. It contains
  * information about  all shards and their state on this node.

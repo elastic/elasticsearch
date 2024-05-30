@@ -1,8 +1,8 @@
 ---
 "Help":
   - requires:
-      cluster_features: [ "gte_v8.11.0" ]
-      reason: dataset size was added in 8.11.0
+      cluster_features: [ "gte_v8.15.0" ]
+      reason: sparse vector was added in 8.15.0
   - do:
       cat.shards:
         help: true

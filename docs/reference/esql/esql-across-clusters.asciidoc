@@ -59,27 +59,30 @@ The following example API call creates a role that can query remote indices usin
 ----
 POST /_security/role/remote1
 {
+  "cluster": ["cross_cluster_search"], <2>
   "indices": [
     { 
-      "names" : [""], <2>
+      "names" : [""], <3>
       "privileges": ["read"]
     }
   ], 
-  "remote_indices": [ <3>
+  "remote_indices": [ <4>
     {
       "names": [ "logs-*" ],
       "privileges": [ "read","read_cross_cluster" ], <1>
-      "clusters" : ["my_remote_cluster"] <4>
+      "clusters" : ["my_remote_cluster"] <5>
     }
   ]
 }
 ----
 
 <1> The `read_cross_cluster` privilege is always required when using {esql} across clusters with the API key based security model.
-<2> Typically, users will have permissions to read both local and remote indices. However, for cases where the role is intended to ONLY search the remote cluster, the `read` permission is still required for the local cluster. To provide read access to the local cluster, but disallow reading any indices in the local cluster, the `names` field may be an empty string.
-<3> The indices allowed read access to the remote cluster. The configured <<security-api-create-cross-cluster-api-key,cross-cluster API key>> must also allow this index to be read.
-<4> The remote clusters to which these privileges apply. This remote cluster must be configured with a <<security-api-create-cross-cluster-api-key,cross-cluster API key>> and connected to the remote cluster before the remote index can be queried. 
+<2> The `cross_cluster_search` cluster privilege is also required.
+<3> Typically, users will have permissions to read both local and remote indices. However, for cases where the role is intended to ONLY search the remote cluster, the `read` permission is still required for the local cluster. To provide read access to the local cluster, but disallow reading any indices in the local cluster, the `names` field may be an empty string.
+<4> The indices allowed read access to the remote cluster. The configured <<security-api-create-cross-cluster-api-key,cross-cluster API key>> must also allow this index to be read.
+<5> The remote clusters to which these privileges apply. This remote cluster must be configured with a <<security-api-create-cross-cluster-api-key,cross-cluster API key>> and connected to the remote cluster before the remote index can be queried. 
 Verify connection using the <<cluster-remote-info, Remote cluster info>> API.
+
 
 [discrete]
 [[ccq-remote-cluster-setup]]

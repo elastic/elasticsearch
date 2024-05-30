@@ -231,8 +231,16 @@ public abstract class Engine implements Closeable {
             } catch (IOException e) {
                 logger.trace(() -> "failed to get size for [" + info.info.name + "]", e);
             }
-            docsWithIgnoredFields = tryGetValueOrZero(() -> (long) readerContext.reader().getDocCount(IgnoredFieldMapper.NAME));
-            ignoredFieldTermsSumDocFreq = tryGetValueOrZero(() -> readerContext.reader().getSumDocFreq(IgnoredFieldMapper.NAME));
+            docsWithIgnoredFields = tryGetValueOrZero(
+                () -> (long) readerContext.reader().getDocCount(IgnoredFieldMapper.NAME),
+                "IO error while reading documents with ignored fields",
+                "Getting number of documents with ignored fields unsupported"
+            );
+            ignoredFieldTermsSumDocFreq = tryGetValueOrZero(
+                () -> readerContext.reader().getSumDocFreq(IgnoredFieldMapper.NAME),
+                "IO error while reading frequency of ignored terms",
+                "Getting frequency of ignored terms unsupported"
+            );
 
         }
         return new DocsStats(numDocs, numDeletedDocs, sizeInBytes, docsWithIgnoredFields, ignoredFieldTermsSumDocFreq);
@@ -243,16 +251,20 @@ public abstract class Engine implements Closeable {
         T get() throws IOException, UnsupportedOperationException;
     }
 
-    private long tryGetValueOrZero(final ThrowingSupplier<Long> throwingSupplier) {
+    private long tryGetValueOrZero(
+        final ThrowingSupplier<Long> throwingSupplier,
+        final String ioErrorMessage,
+        final String unsupportedOperationErrorMessage
+    ) {
         try {
             return throwingSupplier.get();
         } catch (IOException e) {
-            logger.trace(() -> "IO error while getting the number of documents with ignored fields", e);
+            logger.trace(() -> ioErrorMessage, e);
         } catch (UnsupportedOperationException e) {
             // NOTE: `source only snapshots` include only _source, stored fields and metadata while inverted index
             // and doc values are missing. As a result we cannot count the number of documents with ignored fields
             // on an index restored out of a `source only snapshot`.
-            logger.trace(() -> "Getting number of documents with ignored fields is not supported", e);
+            logger.trace(() -> unsupportedOperationErrorMessage, e);
         }
         return 0L;
     }

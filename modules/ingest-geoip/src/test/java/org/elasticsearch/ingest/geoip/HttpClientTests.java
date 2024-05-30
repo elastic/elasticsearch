@@ -8,8 +8,10 @@
 
 package org.elasticsearch.ingest.geoip;
 
+import com.sun.net.httpserver.BasicAuthenticator;
 import com.sun.net.httpserver.HttpServer;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
@@ -19,6 +21,7 @@ import org.junit.BeforeClass;
 import java.io.OutputStream;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.net.PasswordAuthentication;
 import java.nio.charset.StandardCharsets;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -47,6 +50,22 @@ public class HttpClientTests extends ESTestCase {
                 exchange.sendResponseHeaders(404, 0);
             } catch (Exception e) {
                 fail(e);
+            }
+        });
+        server.createContext("/auth/", exchange -> {
+            try {
+                String response = "super secret hello world";
+                exchange.sendResponseHeaders(200, response.length());
+                try (OutputStream os = exchange.getResponseBody()) {
+                    os.write(response.getBytes());
+                }
+            } catch (Exception e) {
+                fail(e);
+            }
+        }).setAuthenticator(new BasicAuthenticator("some realm") {
+            @Override
+            public boolean checkCredentials(String username, String password) {
+                return "user".equals(username) && "pass".equals(password);
             }
         });
         server.createContext("/redirect", exchange -> {
@@ -146,5 +165,46 @@ public class HttpClientTests extends ESTestCase {
         String u = url("/redirect/100/hello/");
         Exception e = expectThrows(IllegalStateException.class, () -> client.getBytes(u));
         assertThat(e.getMessage(), equalTo("too many redirects connection to [" + u + "]"));
+    }
+
+    public void testGetBytes401() {
+        HttpClient client = new HttpClient();
+        String u = url("/auth/");
+        {
+            Exception e = expectThrows(ElasticsearchStatusException.class, () -> client.getBytes(u));
+            assertThat(e.getMessage(), equalTo("error during downloading " + u));
+        }
+        {
+            PasswordAuthentication auth = client.auth("bad", "credentials");
+            Exception e = expectThrows(ElasticsearchStatusException.class, () -> client.getBytes(auth, u));
+            assertThat(e.getMessage(), equalTo("error during downloading " + u));
+        }
+    }
+
+    public void testGetBytesWithAuth() throws Exception {
+        HttpClient client = new HttpClient();
+        String u = url("/auth/");
+        PasswordAuthentication auth = client.auth("user", "pass");
+        String response = bytesToString(client.getBytes(auth, u));
+        assertThat(response, equalTo("super secret hello world"));
+    }
+
+    public void testRedirectToAuth() throws Exception {
+        HttpClient client = new HttpClient();
+        String u = url("/redirect/3/auth/");
+        {
+            Exception e = expectThrows(ElasticsearchStatusException.class, () -> client.getBytes(u));
+            assertThat(e.getMessage(), equalTo("error during downloading " + u));
+        }
+        {
+            PasswordAuthentication auth = client.auth("bad", "credentials");
+            Exception e = expectThrows(ElasticsearchStatusException.class, () -> client.getBytes(auth, u));
+            assertThat(e.getMessage(), equalTo("error during downloading " + u));
+        }
+        {
+            PasswordAuthentication auth = client.auth("user", "pass");
+            String response = bytesToString(client.getBytes(auth, u));
+            assertThat(response, equalTo("super secret hello world"));
+        }
     }
 }

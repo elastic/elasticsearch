@@ -24,7 +24,7 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.core.type.DataTypeConverter.convert;
 import static org.elasticsearch.xpack.esql.core.type.DataTypeConverter.toUnsignedLong;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.fromTypeName;
+import static org.elasticsearch.xpack.esql.core.type.DataType.fromTypeName;
 
 public class InternalQlScriptUtils {
 

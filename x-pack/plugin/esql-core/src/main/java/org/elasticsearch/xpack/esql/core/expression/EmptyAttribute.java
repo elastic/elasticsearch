@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.core.expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 
 /**
@@ -48,7 +47,7 @@ public class EmptyAttribute extends Attribute {
 
     @Override
     public DataType dataType() {
-        return DataTypes.NULL;
+        return DataType.NULL;
     }
 
     @Override

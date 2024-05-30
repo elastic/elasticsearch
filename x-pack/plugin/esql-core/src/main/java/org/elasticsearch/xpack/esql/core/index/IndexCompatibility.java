@@ -15,7 +15,7 @@ import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.core.index.VersionCompatibilityChecks.isTypeSupportedInVersion;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.isPrimitive;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isPrimitive;
 import static org.elasticsearch.xpack.esql.core.type.Types.propagateUnsupportedType;
 
 public final class IndexCompatibility {

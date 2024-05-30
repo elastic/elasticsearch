@@ -23,14 +23,14 @@ the embedding generation, indexing, and query to use.
 ------------------------------------------------------------
 PUT my-index-000001
 {
-    "mappings": {
-        "properties": {
-            "inference_field": { 
-                "type": "semantic_text",
-                "inference_id": "my-elser-endpoint"
-	     }
-        }
+  "mappings": {
+    "properties": {
+      "inference_field": { 
+        "type": "semantic_text",
+        "inference_id": "my-elser-endpoint"
+      }
     }
+  }
 }
 ------------------------------------------------------------
 // TEST[skip:TBD]

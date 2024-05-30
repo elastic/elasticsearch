@@ -123,7 +123,7 @@ For "real-time" endpoints which are billed per hour of usage, specify `realtime`
 This helps to minimize the number of rate limit errors returned from Azure AI Studio.
 To modify this, set the `requests_per_minute` setting of this object in your service settings:
 +
-[source]
+[source,text]
 ----
 "rate_limit": {
     "requests_per_minute": <<number_of_requests>>
@@ -166,7 +166,7 @@ For `completion` it is set to `120`.
 This helps to minimize the number of rate limit errors returned from Azure.
 To modify this, set the `requests_per_minute` setting of this object in your service settings:
 +
-[source]
+[source,text]
 ----
 "rate_limit": {
     "requests_per_minute": <<number_of_requests>>
@@ -214,7 +214,7 @@ This value is the same for all task types.
 This helps to minimize the number of rate limit errors returned from Cohere.
 To modify this, set the `requests_per_minute` setting of this object in your service settings:
 +
-[source]
+[source,text]
 ----
 "rate_limit": {
     "requests_per_minute": <<number_of_requests>>
@@ -273,7 +273,7 @@ This helps to minimize the number of rate limit errors returned from Google AI S
 To modify this, set the `requests_per_minute` setting of this object in your service settings:
 +
 --
-[source]
+[source,text]
 ----
 "rate_limit": {
     "requests_per_minute": <<number_of_requests>>
@@ -305,7 +305,7 @@ If you want to use a different API key, delete the {infer} model and recreate it
 This helps to minimize the number of rate limit errors returned from Hugging Face.
 To modify this, set the `requests_per_minute` setting of this object in your service settings:
 +
-[source]
+[source,text]
 ----
 "rate_limit": {
     "requests_per_minute": <<number_of_requests>>
@@ -351,7 +351,7 @@ For `completion` it is set to `500`.
 This helps to minimize the number of rate limit errors returned from Azure.
 To modify this, set the `requests_per_minute` setting of this object in your service settings:
 +
-[source]
+[source,text]
 ----
 "rate_limit": {
     "requests_per_minute": <<number_of_requests>>

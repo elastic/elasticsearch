@@ -22,7 +22,6 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
-import org.elasticsearch.index.query.support.NestedScope;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -69,24 +68,21 @@ public class NestedObjectMapper extends ObjectMapper {
         @Override
         public NestedObjectMapper build(MapperBuilderContext context) {
             boolean parentIncludedInRoot = this.includeInRoot.value();
+            final Query parentNestedTypeFilter;
             if (context instanceof NestedMapperBuilderContext nc) {
                 // we're already inside a nested mapper, so adjust our includes
                 if (nc.parentIncludedInRoot && this.includeInParent.value()) {
                     this.includeInRoot = Explicit.IMPLICIT_FALSE;
                 }
+                parentNestedTypeFilter = nc.nestedTypeFilter;
             } else {
                 // this is a top-level nested mapper, so include_in_parent = include_in_root
                 parentIncludedInRoot |= this.includeInParent.value();
                 if (this.includeInParent.value()) {
                     this.includeInRoot = Explicit.IMPLICIT_FALSE;
                 }
+                parentNestedTypeFilter = Queries.newNonNestedFilter(indexCreatedVersion);
             }
-            NestedMapperBuilderContext nestedContext = new NestedMapperBuilderContext(
-                context.buildFullName(name()),
-                parentIncludedInRoot,
-                context.getDynamic(dynamic),
-                context.getMergeReason()
-            );
             final String fullPath = context.buildFullName(name());
             final String nestedTypePath;
             if (indexCreatedVersion.before(IndexVersions.V_8_0_0)) {
@@ -94,6 +90,14 @@ public class NestedObjectMapper extends ObjectMapper {
             } else {
                 nestedTypePath = fullPath;
             }
+            final Query nestedTypeFilter = NestedPathFieldMapper.filter(indexCreatedVersion, nestedTypePath);
+            NestedMapperBuilderContext nestedContext = new NestedMapperBuilderContext(
+                context.buildFullName(name()),
+                nestedTypeFilter,
+                parentIncludedInRoot,
+                context.getDynamic(dynamic),
+                context.getMergeReason()
+            );
             return new NestedObjectMapper(
                 name(),
                 fullPath,
@@ -103,9 +107,9 @@ public class NestedObjectMapper extends ObjectMapper {
                 includeInParent,
                 includeInRoot,
                 nestedTypePath,
-                NestedPathFieldMapper.filter(indexCreatedVersion, nestedTypePath),
-                bitSetProducer,
-                indexCreatedVersion
+                nestedTypeFilter,
+                parentNestedTypeFilter,
+                bitSetProducer
             );
         }
     }
@@ -146,15 +150,29 @@ public class NestedObjectMapper extends ObjectMapper {
     private static class NestedMapperBuilderContext extends MapperBuilderContext {
 
         final boolean parentIncludedInRoot;
+        final Query nestedTypeFilter;
 
-        NestedMapperBuilderContext(String path, boolean parentIncludedInRoot, Dynamic dynamic, MapperService.MergeReason mergeReason) {
+        NestedMapperBuilderContext(
+            String path,
+            Query nestedTypeFilter,
+            boolean parentIncludedInRoot,
+            Dynamic dynamic,
+            MapperService.MergeReason mergeReason
+        ) {
             super(path, false, false, false, dynamic, mergeReason);
             this.parentIncludedInRoot = parentIncludedInRoot;
+            this.nestedTypeFilter = nestedTypeFilter;
         }
 
         @Override
         public MapperBuilderContext createChildContext(String name, Dynamic dynamic) {
-            return new NestedMapperBuilderContext(buildFullName(name), parentIncludedInRoot, getDynamic(dynamic), getMergeReason());
+            return new NestedMapperBuilderContext(
+                buildFullName(name),
+                nestedTypeFilter,
+                parentIncludedInRoot,
+                getDynamic(dynamic),
+                getMergeReason()
+            );
         }
     }
 
@@ -162,8 +180,8 @@ public class NestedObjectMapper extends ObjectMapper {
     private final Explicit<Boolean> includeInParent;
     private final String nestedTypePath;
     private final Query nestedTypeFilter;
+    private final Query parentNestedTypeFilter;
     private final Function<Query, BitSetProducer> bitSetProducer;
-    private final IndexVersion indexVersionCreated;
 
     NestedObjectMapper(
         String name,
@@ -175,16 +193,16 @@ public class NestedObjectMapper extends ObjectMapper {
         Explicit<Boolean> includeInRoot,
         String nestedTypePath,
         Query nestedTypeFilter,
-        Function<Query, BitSetProducer> bitSetProducer,
-        IndexVersion indexVersionCreated
+        Query parentNestedTypeFilter,
+        Function<Query, BitSetProducer> bitSetProducer
     ) {
         super(name, fullPath, enabled, Explicit.IMPLICIT_TRUE, Explicit.IMPLICIT_FALSE, dynamic, mappers);
         this.nestedTypePath = nestedTypePath;
         this.nestedTypeFilter = nestedTypeFilter;
+        this.parentNestedTypeFilter = parentNestedTypeFilter;
         this.includeInParent = includeInParent;
         this.includeInRoot = includeInRoot;
         this.bitSetProducer = bitSetProducer;
-        this.indexVersionCreated = indexVersionCreated;
     }
 
     public Query nestedTypeFilter() {
@@ -234,8 +252,8 @@ public class NestedObjectMapper extends ObjectMapper {
             includeInRoot,
             nestedTypePath,
             nestedTypeFilter,
-            bitSetProducer,
-            indexVersionCreated
+            parentNestedTypeFilter,
+            bitSetProducer
         );
     }
 
@@ -305,8 +323,8 @@ public class NestedObjectMapper extends ObjectMapper {
             incInRoot,
             nestedTypePath,
             nestedTypeFilter,
-            bitSetProducer,
-            indexVersionCreated
+            parentNestedTypeFilter,
+            bitSetProducer
         );
     }
 
@@ -320,6 +338,7 @@ public class NestedObjectMapper extends ObjectMapper {
         return mapperMergeContext.createChildContext(
             new NestedMapperBuilderContext(
                 mapperBuilderContext.buildFullName(name),
+                nestedTypeFilter,
                 parentIncludedInRoot,
                 mapperBuilderContext.getDynamic(dynamic),
                 mapperBuilderContext.getMergeReason()
@@ -328,21 +347,15 @@ public class NestedObjectMapper extends ObjectMapper {
     }
 
     @Override
-    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader(NestedScope nestedScope) {
-        final NestedObjectMapper mapper = this;
-        SourceLoader sourceLoader = new SourceLoader.Synthetic(() -> {
-            nestedScope.nextLevel(mapper);
-            try {
-                return super.syntheticFieldLoader(nestedScope, mappers.values().stream(), true);
-            } finally {
-                nestedScope.previousLevel();
-            }
-        }, NOOP);
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
+        SourceLoader sourceLoader = new SourceLoader.Synthetic(() -> super.syntheticFieldLoader(mappers.values().stream(), true), NOOP);
         var storedFieldsLoader = StoredFieldLoader.create(false, sourceLoader.requiredStoredFields());
-        var parentFilter = nestedScope.getObjectMapper() == null
-            ? Queries.newNonNestedFilter(indexVersionCreated)
-            : nestedScope.getObjectMapper().nestedTypeFilter();
-        return new NestedFieldLoader(storedFieldsLoader, sourceLoader, () -> bitSetProducer.apply(parentFilter), nestedTypeFilter);
+        return new NestedFieldLoader(
+            storedFieldsLoader,
+            sourceLoader,
+            () -> bitSetProducer.apply(parentNestedTypeFilter),
+            nestedTypeFilter
+        );
     }
 
     private class NestedFieldLoader implements SourceLoader.SyntheticFieldLoader {
@@ -382,9 +395,24 @@ public class NestedObjectMapper extends ObjectMapper {
             var childScorer = searcher.createWeight(childFilter, ScoreMode.COMPLETE_NO_SCORES, 1f).scorer(leafReader.getContext());
             var parentDocs = parentBitSetProducer.get().getBitSet(leafReader.getContext());
             return parentDoc -> {
-                this.children = childScorer != null ? getChildren(parentDoc, parentDocs, childScorer.iterator()) : List.of();
+                this.children = childScorer != null ? collectChildren(parentDoc, parentDocs, childScorer.iterator()) : List.of();
                 return children.size() > 0;
             };
+        }
+
+        private List<Integer> collectChildren(int parentDoc, BitSet parentDocs, DocIdSetIterator childIt) throws IOException {
+            assert parentDocs.get(parentDoc) : "wrong context, doc " + parentDoc + " is not a parent of " + nestedTypePath;
+            final int prevParentDoc = parentDocs.prevSetBit(parentDoc - 1);
+            int childDocId = childIt.docID();
+            if (childDocId <= prevParentDoc) {
+                childDocId = childIt.advance(prevParentDoc + 1);
+            }
+
+            List<Integer> res = new ArrayList<>();
+            for (; childDocId < parentDoc; childDocId = childIt.nextDoc()) {
+                res.add(childDocId);
+            }
+            return res;
         }
 
         @Override
@@ -420,19 +448,5 @@ public class NestedObjectMapper extends ObjectMapper {
         public String fieldName() {
             return name();
         }
-    }
-
-    private static List<Integer> getChildren(int parentDoc, BitSet parentDocs, DocIdSetIterator childIt) throws IOException {
-        final int prevParentDoc = parentDocs.prevSetBit(parentDoc - 1);
-        int childDocId = childIt.docID();
-        if (childDocId <= prevParentDoc) {
-            childDocId = childIt.advance(prevParentDoc + 1);
-        }
-
-        List<Integer> res = new ArrayList<>();
-        for (; childDocId < parentDoc; childDocId = childIt.nextDoc()) {
-            res.add(childDocId);
-        }
-        return res;
     }
 }

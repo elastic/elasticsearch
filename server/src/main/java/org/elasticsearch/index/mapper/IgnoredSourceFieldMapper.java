@@ -13,7 +13,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.index.query.support.NestedScope;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -149,7 +148,7 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
     // This mapper doesn't contribute to source directly as it has no access to the object structure. Instead, its contents
     // are loaded by SourceLoader and passed to object mappers that, in turn, write their ignore fields at the appropriate level.
     @Override
-    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader(NestedScope nestedScope) {
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
         return SourceLoader.SyntheticFieldLoader.NOTHING;
     }
 

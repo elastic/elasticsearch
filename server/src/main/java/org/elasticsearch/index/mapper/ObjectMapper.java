@@ -19,7 +19,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
-import org.elasticsearch.index.query.support.NestedScope;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -757,21 +756,21 @@ public class ObjectMapper extends Mapper {
 
     }
 
-    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader(NestedScope nestedScope, Stream<Mapper> mappers) {
-        return syntheticFieldLoader(nestedScope, mappers, false);
+    SourceLoader.SyntheticFieldLoader syntheticFieldLoader(Stream<Mapper> mappers) {
+        return syntheticFieldLoader(mappers, false);
     }
 
-    protected SourceLoader.SyntheticFieldLoader syntheticFieldLoader(NestedScope nestedScope, Stream<Mapper> mappers, boolean isFragment) {
+    protected SourceLoader.SyntheticFieldLoader syntheticFieldLoader(Stream<Mapper> mappers, boolean isFragment) {
         var fields = mappers.sorted(Comparator.comparing(Mapper::name))
-            .map(mapper -> mapper.syntheticFieldLoader(nestedScope))
+            .map(Mapper::syntheticFieldLoader)
             .filter(l -> l != SourceLoader.SyntheticFieldLoader.NOTHING)
             .toList();
         return new SyntheticSourceFieldLoader(fields, isFragment);
     }
 
     @Override
-    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader(NestedScope nestedScope) {
-        return syntheticFieldLoader(nestedScope, mappers.values().stream());
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
+        return syntheticFieldLoader(mappers.values().stream());
     }
 
     private class SyntheticSourceFieldLoader implements SourceLoader.SyntheticFieldLoader {

@@ -652,7 +652,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             var newData = testCase.getData().stream().map(typedData -> {
                 if (typedData.data() instanceof BytesRef bytesRef) {
                     var offset = randomIntBetween(0, 10);
-                    var newBytesArray = new byte[bytesRef.length + offset];
+                    var extraLength = randomIntBetween(0, 10);
+                    var newBytesArray = randomByteArrayOfLength(bytesRef.length + offset + extraLength);
 
                     System.arraycopy(bytesRef.bytes, bytesRef.offset, newBytesArray, offset, bytesRef.length);
 

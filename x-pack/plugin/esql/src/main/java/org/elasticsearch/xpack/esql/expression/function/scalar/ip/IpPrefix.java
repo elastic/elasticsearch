@@ -136,7 +136,14 @@ public class IpPrefix extends EsqlScalarFunction implements OptionalArgument {
             throw new IllegalArgumentException("Prefix length v6 must be in range [0, 128], found " + prefixLengthV6);
         }
 
-        boolean isIpv4 = Arrays.compareUnsigned(ip.bytes, 0, IPV4_PREFIX.length, IPV4_PREFIX, 0, IPV4_PREFIX.length) == 0;
+        boolean isIpv4 = Arrays.compareUnsigned(
+            ip.bytes,
+            ip.offset,
+            ip.offset + IPV4_PREFIX.length,
+            IPV4_PREFIX,
+            0,
+            IPV4_PREFIX.length
+        ) == 0;
 
         if (isIpv4) {
             makePrefix(ip, scratch, 12 + prefixLengthV4 / 8, prefixLengthV4 % 8);

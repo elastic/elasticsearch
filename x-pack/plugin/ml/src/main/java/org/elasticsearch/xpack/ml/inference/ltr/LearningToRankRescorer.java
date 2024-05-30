@@ -58,7 +58,7 @@ public class LearningToRankRescorer implements Rescorer {
 
         LocalModel definition = ltrRescoreContext.regressionModelDefinition;
 
-        // Because scores of the first-paass query and the LTR model are not comparable, there is no way to combine the results.
+        // Because scores of the first-pass query and the LTR model are not comparable, there is no way to combine the results.
         // We will truncate the {@link TopDocs} to the window size so rescoring will be done on the full topDocs.
         topDocs = topN(topDocs, rescoreContext.getWindowSize());
 

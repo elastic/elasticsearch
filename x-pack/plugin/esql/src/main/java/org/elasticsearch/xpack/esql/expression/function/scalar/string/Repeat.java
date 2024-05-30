@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.Function;
@@ -83,8 +84,16 @@ public class Repeat extends EsqlScalarFunction implements OptionalArgument {
             throw new IllegalArgumentException("Number parameter cannot be negative, found [" + number + "]");
         }
 
-        String utf8ToString = str.utf8ToString();
-        String repeated = utf8ToString.repeat(number);
+        if (number == 0) {
+            return new BytesRef(0);
+        }
+
+        int repeatedLen = str.length * number;
+        byte[] repeated = new byte[repeatedLen];
+        for (int offset = 0; offset < repeatedLen; offset += str.length) {
+            System.arraycopy(str.bytes, 0, repeated, offset, str.length);
+        }
+
         return new BytesRef(repeated);
     }
 

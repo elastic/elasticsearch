@@ -18,7 +18,9 @@ import org.elasticsearch.rest.RestStatus;
 import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.Authenticator;
 import java.net.HttpURLConnection;
+import java.net.PasswordAuthentication;
 import java.net.URL;
 import java.security.AccessController;
 import java.security.PrivilegedActionException;
@@ -33,16 +35,36 @@ import static java.net.HttpURLConnection.HTTP_SEE_OTHER;
 
 class HttpClient {
 
+    // a private sentinel value for representing the idea that there's no auth for some request.
+    // this allows us to have a not-null requirement on the methods that do accept an auth.
+    // if you don't want auth, then don't use those methods. ;)
+    private static final PasswordAuthentication NO_AUTH = new PasswordAuthentication("no_auth", "no_auth_unused".toCharArray());
+
+    PasswordAuthentication auth(final String username, final String password) {
+        return new PasswordAuthentication(username, password.toCharArray());
+    }
+
     byte[] getBytes(final String url) throws IOException {
-        return get(url).readAllBytes();
+        return getBytes(NO_AUTH, url);
+    }
+
+    byte[] getBytes(final PasswordAuthentication auth, final String url) throws IOException {
+        return get(auth, url).readAllBytes();
     }
 
     InputStream get(final String url) throws IOException {
+        return get(NO_AUTH, url);
+    }
+
+    InputStream get(final PasswordAuthentication auth, final String url) throws IOException {
+        Objects.requireNonNull(auth);
         Objects.requireNonNull(url);
+
+        final String originalAuthority = new URL(url).getAuthority();
 
         return doPrivileged(() -> {
             String innerUrl = url;
-            HttpURLConnection conn = createConnection(innerUrl);
+            HttpURLConnection conn = createConnection(auth, innerUrl);
 
             int redirectsCount = 0;
             while (true) {
@@ -61,7 +83,16 @@ class HttpClient {
                         final URL base = new URL(innerUrl);
                         final URL next = new URL(base, location);
                         innerUrl = next.toExternalForm();
-                        conn = createConnection(innerUrl);
+
+                        // compare the *original* authority and the next authority to determine whether to include auth details.
+                        // this means that the host and port (if it is provided explicitly) are considered. it also means that if we
+                        // were to ping-pong back to the original authority, then we'd start including the auth details again.
+                        final String nextAuthority = next.getAuthority();
+                        if (originalAuthority.equals(nextAuthority)) {
+                            conn = createConnection(auth, innerUrl);
+                        } else {
+                            conn = createConnection(NO_AUTH, innerUrl);
+                        }
                         break;
                     case HTTP_NOT_FOUND:
                         throw new ResourceNotFoundException("{} not found", url);
@@ -78,8 +109,15 @@ class HttpClient {
         return conn.getInputStream();
     }
 
-    private static HttpURLConnection createConnection(final String url) throws IOException {
+    private static HttpURLConnection createConnection(final PasswordAuthentication auth, final String url) throws IOException {
         final HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
+        if (auth != NO_AUTH) {
+            conn.setAuthenticator(new Authenticator() {
+                protected PasswordAuthentication getPasswordAuthentication() {
+                    return auth;
+                }
+            });
+        }
         conn.setConnectTimeout(10000);
         conn.setReadTimeout(10000);
         conn.setDoOutput(false);

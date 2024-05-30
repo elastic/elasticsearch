@@ -13,7 +13,6 @@ import com.sun.net.httpserver.HttpServer;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -26,7 +25,6 @@ import java.nio.charset.StandardCharsets;
 
 import static org.hamcrest.Matchers.equalTo;
 
-@SuppressForbidden(reason = "uses httpserver by design")
 public class HttpClientTests extends ESTestCase {
 
     private static HttpServer server;
@@ -39,7 +37,7 @@ public class HttpClientTests extends ESTestCase {
                 String response = "hello world";
                 exchange.sendResponseHeaders(200, response.length());
                 try (OutputStream os = exchange.getResponseBody()) {
-                    os.write(response.getBytes());
+                    os.write(response.getBytes(StandardCharsets.UTF_8));
                 }
             } catch (Exception e) {
                 fail(e);
@@ -57,7 +55,7 @@ public class HttpClientTests extends ESTestCase {
                 String response = "super secret hello world";
                 exchange.sendResponseHeaders(200, response.length());
                 try (OutputStream os = exchange.getResponseBody()) {
-                    os.write(response.getBytes());
+                    os.write(response.getBytes(StandardCharsets.UTF_8));
                 }
             } catch (Exception e) {
                 fail(e);

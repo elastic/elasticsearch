@@ -395,10 +395,6 @@
             g: 7.0
             h: 8.0
             i: 9.0
-          another_vector:
-            j: 10.0
-            k: 11.0
-            l: 12.0
 
   - do:
       indices.refresh: { }
@@ -407,5 +403,5 @@
 
   - match: { indices.docs.count: 4 }
   - match: { indices.docs.deleted: 0 }
-  - match: { indices.sparse_vector.value_count: 8 }
+  - match: { indices.sparse_vector.value_count: 7 }
 

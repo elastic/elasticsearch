@@ -763,7 +763,7 @@ For each section, name and number of times it's been used is reported.
 `sparse_vector`::
 (object) Contains statistics about indexed sparse vector used in selected nodes.
 +
-.Properties of `dense_vector`
+.Properties of `sparse_vector`
 [%collapsible%open]
 =====
 
@@ -1418,6 +1418,9 @@ The API returns the following response:
         }
       ],
       "dense_vector": {
+          "value_count": 0
+      },
+      "sparse_vector": {
           "value_count": 0
       }
    },

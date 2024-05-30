@@ -52,6 +52,7 @@ types:
 ** <<flattened-synthetic-source, `flattened`>>
 ** <<numeric-synthetic-source,`float`>>
 ** <<geo-point-synthetic-source,`geo_point`>>
+** <<geo-shape-synthetic-source,`geo_shape`>>
 ** <<numeric-synthetic-source,`half_float`>>
 ** <<histogram-synthetic-source,`histogram`>>
 ** <<numeric-synthetic-source,`integer`>>
@@ -63,6 +64,7 @@ types:
 ** <<search-as-you-type-synthetic-source,`search_as_you_type`>>
 ** <<numeric-synthetic-source,`short`>>
 ** <<text-synthetic-source,`text`>>
+** <<token-count-synthetic-source,`token_count`>>
 ** <<version-synthetic-source,`version`>>
 ** <<wildcard-synthetic-source,`wildcard`>>
 

@@ -34,6 +34,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xpack.application.connector.ConnectorTemplateRegistry.ACCESS_CONTROL_INDEX_PREFIX;
 
 /**
  * Represents a Connector in the Elasticsearch ecosystem. Connectors are used for integrating
@@ -269,6 +270,10 @@ public class Connector implements NamedWriteable, ToXContentObject {
         }
     );
 
+    public String getAccessControlIndexName() {
+        return ACCESS_CONTROL_INDEX_PREFIX + this.indexName;
+    }
+
     static {
         PARSER.declareStringOrNull(optionalConstructorArg(), API_KEY_ID_FIELD);
         PARSER.declareStringOrNull(optionalConstructorArg(), API_KEY_SECRET_ID_FIELD);
@@ -312,14 +317,14 @@ public class Connector implements NamedWriteable, ToXContentObject {
             ConnectorSyncInfo.LAST_ACCESS_CONTROL_SYNC_STATUS_FIELD,
             ObjectParser.ValueType.STRING_OR_NULL
         );
-        PARSER.declareLong(optionalConstructorArg(), ConnectorSyncInfo.LAST_DELETED_DOCUMENT_COUNT_FIELD);
+        PARSER.declareLongOrNull(optionalConstructorArg(), 0L, ConnectorSyncInfo.LAST_DELETED_DOCUMENT_COUNT_FIELD);
         PARSER.declareField(
             optionalConstructorArg(),
             (p, c) -> ConnectorUtils.parseNullableInstant(p, ConnectorSyncInfo.LAST_INCREMENTAL_SYNC_SCHEDULED_AT_FIELD.getPreferredName()),
             ConnectorSyncInfo.LAST_INCREMENTAL_SYNC_SCHEDULED_AT_FIELD,
             ObjectParser.ValueType.STRING_OR_NULL
         );
-        PARSER.declareLong(optionalConstructorArg(), ConnectorSyncInfo.LAST_INDEXED_DOCUMENT_COUNT_FIELD);
+        PARSER.declareLongOrNull(optionalConstructorArg(), 0L, ConnectorSyncInfo.LAST_INDEXED_DOCUMENT_COUNT_FIELD);
         PARSER.declareStringOrNull(optionalConstructorArg(), ConnectorSyncInfo.LAST_SYNC_ERROR_FIELD);
         PARSER.declareField(
             optionalConstructorArg(),

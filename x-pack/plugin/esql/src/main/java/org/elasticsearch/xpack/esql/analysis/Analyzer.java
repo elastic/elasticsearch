@@ -98,6 +98,8 @@ import static org.elasticsearch.xpack.esql.core.type.DataTypes.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataTypes.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataTypes.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataTypes.FLOAT;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.GEO_POINT;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.GEO_SHAPE;
 import static org.elasticsearch.xpack.esql.core.type.DataTypes.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataTypes.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataTypes.KEYWORD;
@@ -106,8 +108,6 @@ import static org.elasticsearch.xpack.esql.core.type.DataTypes.NESTED;
 import static org.elasticsearch.xpack.esql.core.type.DataTypes.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataTypes.VERSION;
 import static org.elasticsearch.xpack.esql.stats.FeatureMetric.LIMIT;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_POINT;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_SHAPE;
 
 public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerContext> {
     // marker list of attributes for plans that do not have any concrete fields to return, but have other computed columns to return
@@ -118,16 +118,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     private static final Iterable<RuleExecutor.Batch<LogicalPlan>> rules;
 
     static {
-        var resolution = new Batch<>(
-            "Resolution",
-            new ResolveTable(),
-            new ResolveEnrich(),
-            new ResolveFunctions(),
-            new ResolveRefs(),
-            new ImplicitCasting()
-        );
+        var init = new Batch<>("Initialize", Limiter.ONCE, new ResolveTable(), new ResolveEnrich(), new ResolveFunctions());
+        var resolution = new Batch<>("Resolution", new ResolveRefs(), new ImplicitCasting());
         var finish = new Batch<>("Finish Analysis", Limiter.ONCE, new AddImplicitLimit());
-        rules = List.of(resolution, finish);
+        rules = List.of(init, resolution, finish);
     }
 
     private final Verifier verifier;
@@ -162,7 +156,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             if (context.indexResolution().isValid() == false) {
                 return plan.unresolvedMessage().equals(context.indexResolution().toString())
                     ? plan
-                    : new EsqlUnresolvedRelation(plan.source(), plan.table(), plan.metadataFields(), context.indexResolution().toString());
+                    : new EsqlUnresolvedRelation(
+                        plan.source(),
+                        plan.table(),
+                        plan.metadataFields(),
+                        plan.indexMode(),
+                        context.indexResolution().toString()
+                    );
             }
             TableIdentifier table = plan.table();
             if (context.indexResolution().matches(table.index()) == false) {
@@ -171,6 +171,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     plan.source(),
                     plan.table(),
                     plan.metadataFields(),
+                    plan.indexMode(),
                     "invalid [" + table + "] resolution to [" + context.indexResolution() + "]"
                 );
             }
@@ -178,7 +179,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             EsIndex esIndex = context.indexResolution().get();
             var attributes = mappingAsAttributes(plan.source(), esIndex.mapping());
             attributes.addAll(plan.metadataFields());
-            return new EsRelation(plan.source(), esIndex, attributes.isEmpty() ? NO_FIELDS : attributes);
+            return new EsRelation(plan.source(), esIndex, attributes.isEmpty() ? NO_FIELDS : attributes, plan.indexMode());
         }
 
     }

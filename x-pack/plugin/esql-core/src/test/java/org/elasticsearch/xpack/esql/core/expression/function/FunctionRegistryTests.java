@@ -12,7 +12,6 @@ import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.ConfigurationFunction;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.ScalarFunction;
-import org.elasticsearch.xpack.esql.core.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.esql.core.session.Configuration;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -200,11 +199,6 @@ public class FunctionRegistryTests extends ESTestCase {
 
         @Override
         public DataType dataType() {
-            return null;
-        }
-
-        @Override
-        protected Pipe makePipe() {
             return null;
         }
     }

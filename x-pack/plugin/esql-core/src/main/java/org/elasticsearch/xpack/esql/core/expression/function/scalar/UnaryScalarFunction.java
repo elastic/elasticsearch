@@ -7,9 +7,6 @@
 package org.elasticsearch.xpack.esql.core.expression.function.scalar;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.Expressions;
-import org.elasticsearch.xpack.esql.core.expression.gen.pipeline.Pipe;
-import org.elasticsearch.xpack.esql.core.expression.gen.pipeline.UnaryPipe;
 import org.elasticsearch.xpack.esql.core.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
@@ -40,11 +37,6 @@ public abstract class UnaryScalarFunction extends ScalarFunction {
 
     public Expression field() {
         return field;
-    }
-
-    @Override
-    public final Pipe makePipe() {
-        return new UnaryPipe(source(), this, Expressions.pipe(field()), makeProcessor());
     }
 
     protected abstract Processor makeProcessor();

@@ -39,7 +39,6 @@ import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.search.sort.NestedSortBuilder;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -81,21 +80,6 @@ public class SingleValueQuery extends Query {
         super(next.source());
         this.next = next;
         this.field = field;
-    }
-
-    @Override
-    public boolean containsNestedField(String path, String field) {
-        return next.containsNestedField(path, field);
-    }
-
-    @Override
-    public Query addNestedField(String path, String field, String format, boolean hasDocValues) {
-        return next.addNestedField(path, field, format, hasDocValues);
-    }
-
-    @Override
-    public void enrichNestedSort(NestedSortBuilder sort) {
-        next.enrichNestedSort(sort);
     }
 
     @Override

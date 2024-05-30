@@ -8,6 +8,8 @@
 
 package org.elasticsearch.nativeaccess.lib;
 
+import org.elasticsearch.nativeaccess.WindowsFunctions.ConsoleCtrlHandler;
+
 public non-sealed interface Kernel32Library extends NativeLibrary {
     interface Handle {}
 
@@ -78,4 +80,25 @@ public non-sealed interface Kernel32Library extends NativeLibrary {
      * @see <a href="https://msdn.microsoft.com/en-us/library/windows/desktop/ms686234%28v=vs.85%29.aspx">SetProcessWorkingSetSize docs</a>
      */
     boolean SetProcessWorkingSetSize(Handle handle, long minSize, long maxSize);
+
+    /**
+     * Retrieves the short path form of the specified path.
+     *
+     * @param lpszLongPath  the path string
+     * @param lpszShortPath a buffer to receive the short name
+     * @param cchBuffer     the size of the buffer
+     * @return the length of the string copied into {@code lpszShortPath}, otherwise zero for failure
+     * @see <a href="https://msdn.microsoft.com/en-us/library/windows/desktop/aa364989.aspx">GetShortPathName docs</a>
+     */
+    int GetShortPathNameW(String lpszLongPath, char[] lpszShortPath, int cchBuffer);
+
+    /**
+     * Native call to the Kernel32 API to set a new Console Ctrl Handler.
+     *
+     * @param handler A callback to handle control events
+     * @param add     True if the handler should be added, false if it should replace existing handlers
+     * @return true if the handler is correctly set
+     * @see <a href="https://learn.microsoft.com/en-us/windows/console/setconsolectrlhandler">SetConsoleCtrlHandler docs</a>
+     */
+    boolean SetConsoleCtrlHandler(ConsoleCtrlHandler handler, boolean add);
 }

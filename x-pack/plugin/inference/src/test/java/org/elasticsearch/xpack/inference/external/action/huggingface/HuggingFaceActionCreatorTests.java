@@ -99,7 +99,7 @@ public class HuggingFaceActionCreatorTests extends ESTestCase {
             assertThat(
                 result.asMap(),
                 is(
-                    SparseEmbeddingResultsTests.buildExpectation(
+                    SparseEmbeddingResultsTests.buildExpectationSparseEmbeddings(
                         List.of(new SparseEmbeddingResultsTests.EmbeddingExpectation(Map.of(".", 0.13315596f), false))
                     )
                 )

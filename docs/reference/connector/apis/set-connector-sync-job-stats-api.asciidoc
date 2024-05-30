@@ -8,6 +8,8 @@ preview::[]
 
 Sets connector sync job stats.
 
+To get started with Connector APIs, check out the {enterprise-search-ref}/connectors-tutorial-api.html[tutorial^].
+
 [[set-connector-sync-job-stats-api-request]]
 ==== {api-request-title}
 `PUT _connector/_sync_job/<connector_sync_job_id>/_stats`

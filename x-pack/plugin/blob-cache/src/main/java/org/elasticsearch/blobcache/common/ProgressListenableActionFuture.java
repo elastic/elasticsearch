@@ -10,7 +10,6 @@ package org.elasticsearch.blobcache.common;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.core.Tuple;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -25,11 +24,13 @@ import java.util.function.Supplier;
  */
 class ProgressListenableActionFuture extends PlainActionFuture<Long> {
 
+    private record PositionAndListener(long position, ActionListener<Long> listener) {}
+
     protected final long start;
     protected final long end;
 
     // modified under 'this' mutex
-    private volatile List<Tuple<Long, ActionListener<Long>>> listeners;
+    private volatile List<PositionAndListener> listeners;
     protected volatile long progress;
     private volatile boolean completed;
 
@@ -55,7 +56,7 @@ class ProgressListenableActionFuture extends PlainActionFuture<Long> {
             assert completed == false || listeners == null;
             assert start <= progress : start + " <= " + progress;
             assert progress <= end : progress + " <= " + end;
-            assert listeners == null || listeners.stream().allMatch(listener -> progress < listener.v1());
+            assert listeners == null || listeners.stream().allMatch(listener -> progress < listener.position());
         }
         return true;
     }
@@ -78,17 +79,20 @@ class ProgressListenableActionFuture extends PlainActionFuture<Long> {
             assert false : end + " < " + progressValue;
             throw new IllegalArgumentException("Cannot update progress with a value greater than [end=" + end + ']');
         }
+        if (progressValue == end) {
+            return; // reached the end of the range, listeners will be completed by {@link #onResponse(Long)}
+        }
 
         List<ActionListener<Long>> listenersToExecute = null;
         synchronized (this) {
             assert this.progress < progressValue : this.progress + " < " + progressValue;
             this.progress = progressValue;
 
-            final List<Tuple<Long, ActionListener<Long>>> listenersCopy = this.listeners;
+            final List<PositionAndListener> listenersCopy = this.listeners;
             if (listenersCopy != null) {
-                List<Tuple<Long, ActionListener<Long>>> listenersToKeep = null;
-                for (Tuple<Long, ActionListener<Long>> listener : listenersCopy) {
-                    if (progressValue < listener.v1()) {
+                List<PositionAndListener> listenersToKeep = null;
+                for (PositionAndListener listener : listenersCopy) {
+                    if (progressValue < listener.position()) {
                         if (listenersToKeep == null) {
                             listenersToKeep = new ArrayList<>();
                         }
@@ -97,7 +101,7 @@ class ProgressListenableActionFuture extends PlainActionFuture<Long> {
                         if (listenersToExecute == null) {
                             listenersToExecute = new ArrayList<>();
                         }
-                        listenersToExecute.add(listener.v2());
+                        listenersToExecute.add(listener.listener());
                     }
                 }
                 this.listeners = listenersToKeep;
@@ -134,7 +138,8 @@ class ProgressListenableActionFuture extends PlainActionFuture<Long> {
     @Override
     protected void done(boolean success) {
         super.done(success);
-        final List<Tuple<Long, ActionListener<Long>>> listenersToExecute;
+        final List<PositionAndListener> listenersToExecute;
+        assert invariant();
         synchronized (this) {
             assert completed == false;
             completed = true;
@@ -142,7 +147,7 @@ class ProgressListenableActionFuture extends PlainActionFuture<Long> {
             listeners = null;
         }
         if (listenersToExecute != null) {
-            listenersToExecute.stream().map(Tuple::v2).forEach(listener -> executeListener(listener, this::actionResult));
+            listenersToExecute.forEach(listener -> executeListener(listener.listener(), this::actionResult));
         }
         assert invariant();
     }
@@ -162,11 +167,11 @@ class ProgressListenableActionFuture extends PlainActionFuture<Long> {
             if (completed || value <= progressValue) {
                 executeImmediate = true;
             } else {
-                List<Tuple<Long, ActionListener<Long>>> listenersCopy = this.listeners;
+                List<PositionAndListener> listenersCopy = this.listeners;
                 if (listenersCopy == null) {
                     listenersCopy = new ArrayList<>();
                 }
-                listenersCopy.add(Tuple.tuple(value, listener));
+                listenersCopy.add(new PositionAndListener(value, listener));
                 this.listeners = listenersCopy;
             }
         }

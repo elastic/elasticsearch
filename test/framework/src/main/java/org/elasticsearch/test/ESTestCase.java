@@ -173,6 +173,7 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -260,7 +261,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         // TODO: consolidate logging initialization for tests so it all occurs in logconfigurator
         LogConfigurator.loadLog4jPlugins();
         LogConfigurator.configureESLogging();
-        MockLogAppender.init();
+        MockLog.init();
 
         final List<Appender> testAppenders = new ArrayList<>(3);
         for (String leakLoggerName : Arrays.asList("io.netty.util.ResourceLeakDetector", LeakTracker.class.getName())) {
@@ -373,6 +374,15 @@ public abstract class ESTestCase extends LuceneTestCase {
         // We have to disable setting the number of available processors as tests in the same JVM randomize processors and will step on each
         // other if we allow them to set the number of available processors as it's set-once in Netty.
         System.setProperty("es.set.netty.runtime.available.processors", "false");
+
+        // sometimes use the java.time date formatters
+        // we can't use randomBoolean here, the random context isn't set properly
+        // so read it directly from the test seed in an unfortunately hacky way
+        String testSeed = System.getProperty("tests.seed", "0");
+        boolean firstBit = (Integer.parseInt(testSeed.substring(testSeed.length() - 1), 16) & 1) == 1;
+        if (firstBit) {
+            System.setProperty("es.datetime.java_time_parsers", "true");
+        }
     }
 
     protected final Logger logger = LogManager.getLogger(getClass());
@@ -2102,6 +2112,13 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /**
+     * Various timeouts in various REST APIs default to 30s, and many tests do not care about such timeouts, but must specify some value
+     * anyway when constructing the corresponding transport/action request instance since we would prefer to avoid having implicit defaults
+     * in these requests. This constant can be used as a slightly more meaningful way to refer to the 30s default value in tests.
+     */
+    public static final TimeValue TEST_REQUEST_TIMEOUT = TimeValue.THIRTY_SECONDS;
+
+    /**
      * The timeout used for the various "safe" wait methods such as {@link #safeAwait} and {@link #safeAcquire}. In tests we generally want
      * these things to complete almost immediately, but sometimes the CI runner executes things rather slowly so we use {@code 10s} as a
      * fairly relaxed definition of "immediately".
@@ -2154,16 +2171,24 @@ public abstract class ESTestCase extends LuceneTestCase {
     public static <T> T safeAwait(SubscribableListener<T> listener) {
         final var future = new PlainActionFuture<T>();
         listener.addListener(future);
+        return safeGet(future);
+    }
+
+    public static <T> T safeGet(Future<T> future) {
         try {
             return future.get(SAFE_AWAIT_TIMEOUT.millis(), TimeUnit.MILLISECONDS);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new AssertionError("safeAwait: interrupted waiting for SubscribableListener", e);
+            throw new AssertionError("safeGet: interrupted waiting for SubscribableListener", e);
         } catch (ExecutionException e) {
-            throw new AssertionError("safeAwait: listener was completed exceptionally", e);
+            throw new AssertionError("safeGet: listener was completed exceptionally", e);
         } catch (TimeoutException e) {
-            throw new AssertionError("safeAwait: listener was not completed within the timeout", e);
+            throw new AssertionError("safeGet: listener was not completed within the timeout", e);
         }
+    }
+
+    public static void safeSleep(TimeValue timeValue) {
+        safeSleep(timeValue.millis());
     }
 
     public static void safeSleep(long millis) {

@@ -55,6 +55,6 @@ public class AzureAiStudioEmbeddingsResponseEntityTests extends ESTestCase {
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
 
-        assertThat(parsedResults.embeddings(), is(List.of(new TextEmbeddingResults.Embedding(List.of(0.014539449F, -0.015288644F)))));
+        assertThat(parsedResults.embeddings(), is(List.of(TextEmbeddingResults.Embedding.of(List.of(0.014539449F, -0.015288644F)))));
     }
 }

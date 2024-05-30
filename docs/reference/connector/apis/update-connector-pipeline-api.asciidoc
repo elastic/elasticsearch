@@ -10,6 +10,8 @@ Updates the `pipeline` configuration of a connector.
 
 When you create a new connector, the configuration of an <<ingest-pipeline-search-details-generic-reference, ingest pipeline>> is populated with default settings.
 
+To get started with Connector APIs, check out the {enterprise-search-ref}/connectors-tutorial-api.html[tutorial^].
+
 [[update-connector-pipeline-api-request]]
 ==== {api-request-title}
 

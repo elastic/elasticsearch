@@ -3,35 +3,24 @@
 === Binary operators
 
 [[esql-binary-operators-equality]]
-==== Equality `==`
 include::layout/equals.asciidoc[]
 
-==== Inequality `!=`
 include::layout/not_equals.asciidoc[]
 
-==== Less than `<`
 include::layout/less_than.asciidoc[]
 
-==== Less than or equal to `<=`
 include::layout/less_than_or_equal.asciidoc[]
 
-==== Greater than `>`
 include::layout/greater_than.asciidoc[]
 
-==== Greater than or equal to `>=`
 include::layout/greater_than_or_equal.asciidoc[]
 
-==== Add `+`
 include::layout/add.asciidoc[]
 
-==== Subtract `-`
 include::layout/sub.asciidoc[]
 
-==== Multiply `*`
 include::layout/mul.asciidoc[]
 
-==== Divide `/`
 include::layout/div.asciidoc[]
 
-==== Modulus `%`
 include::layout/mod.asciidoc[]

@@ -19,10 +19,10 @@ import org.elasticsearch.xpack.core.ml.inference.results.ChunkedNlpInferenceResu
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
+import java.util.Objects;
 
 import static org.elasticsearch.xpack.core.inference.results.TextEmbeddingUtils.validateInputSizeAgainstEmbeddings;
 
@@ -47,7 +47,7 @@ public record ChunkedTextEmbeddingByteResults(List<EmbeddingChunk> chunks, boole
         return results;
     }
 
-    public static ChunkedTextEmbeddingByteResults of(String input, List<Byte> byteEmbeddings) {
+    public static ChunkedTextEmbeddingByteResults of(String input, byte[] byteEmbeddings) {
         return new ChunkedTextEmbeddingByteResults(List.of(new EmbeddingChunk(input, byteEmbeddings)), false);
     }
 
@@ -84,7 +84,7 @@ public record ChunkedTextEmbeddingByteResults(List<EmbeddingChunk> chunks, boole
 
     @Override
     public Map<String, Object> asMap() {
-        return Map.of(FIELD_NAME, chunks.stream().map(EmbeddingChunk::asMap).collect(Collectors.toList()));
+        return Map.of(FIELD_NAME, chunks);
     }
 
     @Override
@@ -96,16 +96,29 @@ public record ChunkedTextEmbeddingByteResults(List<EmbeddingChunk> chunks, boole
         return chunks;
     }
 
-    public record EmbeddingChunk(String matchedText, List<Byte> embedding) implements Writeable, ToXContentObject {
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        ChunkedTextEmbeddingByteResults that = (ChunkedTextEmbeddingByteResults) o;
+        return isTruncated == that.isTruncated && Objects.equals(chunks, that.chunks);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(chunks, isTruncated);
+    }
+
+    public record EmbeddingChunk(String matchedText, byte[] embedding) implements Writeable, ToXContentObject {
 
         public EmbeddingChunk(StreamInput in) throws IOException {
-            this(in.readString(), in.readCollectionAsImmutableList(StreamInput::readByte));
+            this(in.readString(), in.readByteArray());
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(matchedText);
-            out.writeCollection(embedding, StreamOutput::writeByte);
+            out.writeByteArray(embedding);
         }
 
         @Override
@@ -114,7 +127,7 @@ public record ChunkedTextEmbeddingByteResults(List<EmbeddingChunk> chunks, boole
             builder.field(ChunkedNlpInferenceResults.TEXT, matchedText);
 
             builder.startArray(ChunkedNlpInferenceResults.INFERENCE);
-            for (Byte value : embedding) {
+            for (byte value : embedding) {
                 builder.value(value);
             }
             builder.endArray();
@@ -123,16 +136,24 @@ public record ChunkedTextEmbeddingByteResults(List<EmbeddingChunk> chunks, boole
             return builder;
         }
 
-        public Map<String, Object> asMap() {
-            var map = new HashMap<String, Object>();
-            map.put(ChunkedNlpInferenceResults.TEXT, matchedText);
-            map.put(ChunkedNlpInferenceResults.INFERENCE, embedding);
-            return map;
-        }
-
         @Override
         public String toString() {
             return Strings.toString(this);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            EmbeddingChunk that = (EmbeddingChunk) o;
+            return Objects.equals(matchedText, that.matchedText) && Arrays.equals(embedding, that.embedding);
+        }
+
+        @Override
+        public int hashCode() {
+            int result = Objects.hash(matchedText);
+            result = 31 * result + Arrays.hashCode(embedding);
+            return result;
         }
     }
 }

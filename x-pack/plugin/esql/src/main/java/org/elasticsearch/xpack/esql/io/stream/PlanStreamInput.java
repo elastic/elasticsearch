@@ -24,21 +24,17 @@ import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.LongBigArrayBlock;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.Column;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.NameId;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanNamedReader;
 import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanReader;
-import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.expression.Attribute;
-import org.elasticsearch.xpack.ql.expression.AttributeSet;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.NameId;
-import org.elasticsearch.xpack.ql.expression.NamedExpression;
-import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.EsField;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -46,15 +42,14 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.function.LongFunction;
-import java.util.function.Supplier;
-
-import static org.elasticsearch.xpack.ql.util.SourceUtils.readSourceWithText;
 
 /**
  * A customized stream input used to deserialize ESQL physical plan fragments. Complements stream
  * input with methods that read plan nodes, Attributes, Expressions, etc.
  */
-public final class PlanStreamInput extends NamedWriteableAwareStreamInput {
+public final class PlanStreamInput extends NamedWriteableAwareStreamInput
+    implements
+        org.elasticsearch.xpack.esql.core.util.PlanStreamInput {
 
     /**
      * A Mapper of stream named id, represented as a primitive long value, to NameId instance.
@@ -70,8 +65,6 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput {
             return seen.computeIfAbsent(streamNameId, k -> new NameId());
         }
     }
-
-    private static final Supplier<LongFunction<NameId>> DEFAULT_NAME_ID_FUNC = NameIdMapper::new;
 
     private final Map<Integer, Block> cachedBlocks = new HashMap<>();
 
@@ -91,24 +84,7 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput {
         super(streamInput, namedWriteableRegistry);
         this.registry = registry;
         this.configuration = configuration;
-        this.nameIdFunction = DEFAULT_NAME_ID_FUNC.get();
-    }
-
-    NameId nameIdFromLongValue(long value) {
-        return nameIdFunction.apply(value);
-    }
-
-    DataType dataTypeFromTypeName(String typeName) throws IOException {
-        DataType dataType;
-        if (typeName.equalsIgnoreCase(EsQueryExec.DOC_DATA_TYPE.name())) {
-            dataType = EsQueryExec.DOC_DATA_TYPE;
-        } else {
-            dataType = EsqlDataTypes.fromTypeName(typeName);
-        }
-        if (dataType == null) {
-            throw new IOException("Unknown DataType for type name: " + typeName);
-        }
-        return dataType;
+        this.nameIdFunction = new NameIdMapper();
     }
 
     public LogicalPlan readLogicalPlanNode() throws IOException {
@@ -121,11 +97,6 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput {
 
     public PhysicalPlan readOptionalPhysicalPlanNode() throws IOException {
         return readOptionalNamed(PhysicalPlan.class);
-    }
-
-    public Source readSource() throws IOException {
-        boolean hasSource = readBoolean();
-        return hasSource ? readSourceWithText(this, configuration.query()) : Source.EMPTY;
     }
 
     public Expression readExpression() throws IOException {
@@ -268,6 +239,11 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput {
         }
     }
 
+    @Override
+    public String sourceText() {
+        return configuration.query();
+    }
+
     static void throwOnNullOptionalRead(Class<?> type) throws IOException {
         final IOException e = new IOException("read optional named returned null which is not allowed, type:" + type);
         assert false : e;
@@ -278,5 +254,10 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput {
         final IOException e = new IOException("read optional named returned null which is not allowed, reader:" + reader);
         assert false : e;
         throw e;
+    }
+
+    @Override
+    public NameId mapNameId(long l) {
+        return nameIdFunction.apply(l);
     }
 }

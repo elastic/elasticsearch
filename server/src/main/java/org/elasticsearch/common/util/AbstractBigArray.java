@@ -103,6 +103,7 @@ abstract class AbstractBigArray extends AbstractArray {
 
     protected final void releasePage(int page) {
         if (recycler != null) {
+            assert cache[page] != null;
             cache[page].close();
             cache[page] = null;
         }

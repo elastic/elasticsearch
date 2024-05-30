@@ -45,12 +45,12 @@ public class Iso8601ParserTests extends ESTestCase {
         return new Iso8601Parser(Set.of(), true, Map.of());
     }
 
-    private static Matcher<Iso8601Parser.Result> hasResult(DateTime dateTime) {
-        return transformedMatch(Iso8601Parser.Result::result, equalTo(dateTime));
+    private static Matcher<ParseResult> hasResult(DateTime dateTime) {
+        return transformedMatch(ParseResult::result, equalTo(dateTime));
     }
 
-    private static Matcher<Iso8601Parser.Result> hasError(int parseError) {
-        return transformedMatch(Iso8601Parser.Result::errorIndex, equalTo(parseError));
+    private static Matcher<ParseResult> hasError(int parseError) {
+        return transformedMatch(ParseResult::errorIndex, equalTo(parseError));
     }
 
     public void testStrangeParses() {
@@ -188,7 +188,7 @@ public class Iso8601ParserTests extends ESTestCase {
         assertThat(defaultParser().tryParse("2023-01-01T12:00:00.0000000005", null), hasError(29));
     }
 
-    private static Matcher<Iso8601Parser.Result> hasTimezone(ZoneId offset) {
+    private static Matcher<ParseResult> hasTimezone(ZoneId offset) {
         return transformedMatch(r -> r.result().query(TemporalQueries.zone()), equalTo(offset));
     }
 

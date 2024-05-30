@@ -72,7 +72,7 @@ required_capability: convert_warn
 
 row d = 123.4 | eval ul = to_ul(d), overflow = to_ul(1e20);
 warningRegex:Line 1:48: evaluation of \[to_ul\(1e20\)\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:Line 1:48: org.elasticsearch.xpack.ql.(Invalid|QlIllegal)ArgumentException: \[1.0E20\] out of \[unsigned_long\] range
+warningRegex:Line 1:48: org.elasticsearch.xpack.(esql.core|ql).(Invalid|QlIllegal)ArgumentException: \[1.0E20\] out of \[unsigned_long\] range
 
 d:double       |ul:ul      |overflow:ul
 123.4          |123        |null
@@ -131,7 +131,7 @@ required_capability: convert_warn
 
 row ul = [9223372036854775807, 9223372036854775808] | eval long = to_long(ul);
 warningRegex:Line 1:67: evaluation of \[to_long\(ul\)\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:Line 1:67: org.elasticsearch.xpack.ql.(Invalid|QlIllegal)ArgumentException: \[9223372036854775808\] out of \[long\] range
+warningRegex:Line 1:67: org.elasticsearch.xpack.(esql.core|ql).(Invalid|QlIllegal)ArgumentException: \[9223372036854775808\] out of \[long\] range
 
                     ul:ul                 |       long:long
 [9223372036854775807, 9223372036854775808]|9223372036854775807
@@ -159,8 +159,8 @@ ROW str1 = "2147483648", str2 = "2147483648.2", str3 = "foo"
 | EVAL long1 = TO_LONG(str1), long2 = TO_LONG(str2), long3 = TO_LONG(str3)
 // end::to_long-str[]
 ;
-warning:Line 2:62: evaluation of [TO_LONG(str3)] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 2:62: org.elasticsearch.xpack.ql.InvalidArgumentException: Cannot parse number [foo]
+warningRegex:Line 2:62: evaluation of \[TO_LONG\(str3\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:Line 2:62: org.elasticsearch.xpack.(esql.core|ql).InvalidArgumentException: Cannot parse number \[foo\]
 
 
 // tag::to_long-str-result[]
@@ -174,7 +174,7 @@ required_capability: convert_warn
 
 row d = 123.4 | eval d2l = to_long(d), overflow = to_long(1e19);
 warningRegex:Line 1:51: evaluation of \[to_long\(1e19\)\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:Line 1:51: org.elasticsearch.xpack.ql.(Invalid|QlIllegal)ArgumentException: \[1.0E19\] out of \[long\] range
+warningRegex:Line 1:51: org.elasticsearch.xpack.(esql.core|ql).(Invalid|QlIllegal)ArgumentException: \[1.0E19\] out of \[long\] range
 
 d:double       |d2l:long      |overflow:long     
 123.4          |123           |null    
@@ -198,7 +198,7 @@ ROW long = [5013792, 2147483647, 501379200000]
 // end::to_int-long[]
 ;
 warningRegex:Line 2:14: evaluation of \[TO_INTEGER\(long\)\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:Line 2:14: org.elasticsearch.xpack.ql.(Invalid|QlIllegal)ArgumentException: \[501379200000\] out of \[integer\] range
+warningRegex:Line 2:14: org.elasticsearch.xpack.(esql.core|ql).(Invalid|QlIllegal)ArgumentException: \[501379200000\] out of \[integer\] range
 
 // tag::to_int-long-result[]
 long:long                           |int:integer
@@ -211,7 +211,7 @@ required_capability: convert_warn
 
 row ul = [2147483647, 9223372036854775808] | eval int = to_int(ul);
 warningRegex:Line 1:57: evaluation of \[to_int\(ul\)\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:Line 1:57: org.elasticsearch.xpack.ql.(Invalid|QlIllegal)ArgumentException: \[9223372036854775808\] out of \[integer\] range
+warningRegex:Line 1:57: org.elasticsearch.xpack.(esql.core|ql).(Invalid|QlIllegal)ArgumentException: \[9223372036854775808\] out of \[integer\] range
 
                     ul:ul        |int:integer
 [2147483647, 9223372036854775808]|2147483647
@@ -242,12 +242,12 @@ convertStringToIntFail#[skip:-8.13.99, reason:warning changed in 8.14]
 required_capability: mv_warn
 
 row str1 = "2147483647.2", str2 = "2147483648", non = "no number" | eval i1 = to_integer(str1), i2 = to_integer(str2), noi = to_integer(non);
-warning:Line 1:79: evaluation of [to_integer(str1)] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 1:79: org.elasticsearch.xpack.ql.InvalidArgumentException: Cannot parse number [2147483647.2]
-warning:Line 1:102: evaluation of [to_integer(str2)] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 1:102: org.elasticsearch.xpack.ql.InvalidArgumentException: Cannot parse number [2147483648]
-warning:Line 1:126: evaluation of [to_integer(non)] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 1:126: org.elasticsearch.xpack.ql.InvalidArgumentException: Cannot parse number [no number]
+warningRegex:Line 1:79: evaluation of \[to_integer\(str1\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:Line 1:79: org.elasticsearch.xpack.(esql.core|ql).InvalidArgumentException: Cannot parse number \[2147483647.2\]
+warningRegex:Line 1:102: evaluation of \[to_integer\(str2\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:Line 1:102: org.elasticsearch.xpack.(esql.core|ql).InvalidArgumentException: Cannot parse number \[2147483648\]
+warningRegex:Line 1:126: evaluation of \[to_integer\(non\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:Line 1:126: org.elasticsearch.xpack.(esql.core|ql).InvalidArgumentException: Cannot parse number \[no number\]
 
 str1:keyword   |str2:keyword   |non:keyword    |i1:integer     |i2:integer     |noi:integer
 2147483647.2   |2147483648     |no number      |null           |null           |null
@@ -258,7 +258,7 @@ required_capability: convert_warn
 
 row d = 123.4 | eval d2i = to_integer(d), overflow = to_integer(1e19);
 warningRegex:Line 1:54: evaluation of \[to_integer\(1e19\)\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:Line 1:54: org.elasticsearch.xpack.ql.(Invalid|QlIllegal)ArgumentException: \[1.0E19\] out of \[integer\] range
+warningRegex:Line 1:54: org.elasticsearch.xpack.(esql.core|ql).(Invalid|QlIllegal)ArgumentException: \[1.0E19\] out of \[integer\] range
 
 d:double       |d2i:integer   |overflow:integer
 123.4          |123           |null    
@@ -734,7 +734,7 @@ ROW deg = [90, 180, 270]
 warningWithFromSource
 from employees | sort emp_no | limit 1 | eval x = to_long(emp_no) * 10000000 | eval y = to_int(x) > 1 | keep y;
 warningRegex:Line 1:89: evaluation of \[to_int\(x\)\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:Line 1:89: org.elasticsearch.xpack.ql.(Invalid|QlIllegal)ArgumentException: \[10\d+0000000\] out of \[integer\] range
+warningRegex:Line 1:89: org.elasticsearch.xpack.(esql.core|ql).(Invalid|QlIllegal)ArgumentException: \[10\d+0000000\] out of \[integer\] range
 
 y:boolean
 null
@@ -744,7 +744,7 @@ null
 multipleWarnings
 from employees | sort emp_no | eval x = to_long(emp_no) * 10000000 | where to_int(x) > 1 | keep x | limit 1;
 warningRegex:Line 1:76: evaluation of \[to_int\(x\)\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:Line 1:76: org.elasticsearch.xpack.ql.(Invalid|QlIllegal)ArgumentException: \[10\d+0000000\] out of \[integer\] range
+warningRegex:Line 1:76: org.elasticsearch.xpack.(esql.core|ql).(Invalid|QlIllegal)ArgumentException: \[10\d+0000000\] out of \[integer\] range
 
 x:long
 ;

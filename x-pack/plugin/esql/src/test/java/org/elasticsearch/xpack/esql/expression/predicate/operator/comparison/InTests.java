@@ -13,26 +13,67 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geo.ShapeTestUtils;
+import org.elasticsearch.xpack.esql.core.TestUtils;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.CARTESIAN;
-import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.GEO;
+import static org.elasticsearch.xpack.esql.core.expression.Literal.NULL;
+import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.CARTESIAN_POINT;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.CARTESIAN_SHAPE;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.GEO_POINT;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.GEO_SHAPE;
+import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
+import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.matchesPattern;
 
 public class InTests extends AbstractFunctionTestCase {
     public InTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
+    }
+
+    private static final Literal ONE = L(1);
+    private static final Literal TWO = L(2);
+    private static final Literal THREE = L(3);
+
+    public void testInWithContainedValue() {
+        In in = new In(EMPTY, TWO, Arrays.asList(ONE, TWO, THREE));
+        assertTrue(in.fold());
+    }
+
+    public void testInWithNotContainedValue() {
+        In in = new In(EMPTY, THREE, Arrays.asList(ONE, TWO));
+        assertFalse(in.fold());
+    }
+
+    public void testHandleNullOnLeftValue() {
+        In in = new In(EMPTY, NULL, Arrays.asList(ONE, TWO, THREE));
+        assertNull(in.fold());
+        in = new In(EMPTY, NULL, Arrays.asList(ONE, NULL, THREE));
+        assertNull(in.fold());
+
+    }
+
+    public void testHandleNullsOnRightValue() {
+        In in = new In(EMPTY, THREE, Arrays.asList(ONE, NULL, THREE));
+        assertTrue(in.fold());
+        in = new In(EMPTY, ONE, Arrays.asList(TWO, NULL, THREE));
+        assertNull(in.fold());
+    }
+
+    private static Literal L(Object value) {
+        return TestUtils.of(EMPTY, value);
     }
 
     @ParametersFactory
@@ -199,14 +240,14 @@ public class InTests extends AbstractFunctionTestCase {
             );
         }));
 
-        suppliers.add(new TestCaseSupplier("geo_point", List.of(EsqlDataTypes.GEO_POINT, EsqlDataTypes.GEO_POINT), () -> {
+        suppliers.add(new TestCaseSupplier("geo_point", List.of(GEO_POINT, GEO_POINT), () -> {
             List<Object> inlist = randomList(items, items, () -> new BytesRef(GEO.asWkt(GeometryTestUtils.randomPoint())));
             Object field = inlist.get(0);
             List<TestCaseSupplier.TypedData> args = new ArrayList<>(inlist.size() + 1);
             for (Object i : inlist) {
-                args.add(new TestCaseSupplier.TypedData(i, EsqlDataTypes.GEO_POINT, "inlist" + i));
+                args.add(new TestCaseSupplier.TypedData(i, GEO_POINT, "inlist" + i));
             }
-            args.add(new TestCaseSupplier.TypedData(field, EsqlDataTypes.GEO_POINT, "field"));
+            args.add(new TestCaseSupplier.TypedData(field, GEO_POINT, "field"));
             return new TestCaseSupplier.TestCase(
                 args,
                 matchesPattern("InExpressionEvaluator\\[EqualsGeometriesEvaluator.*\\]"),
@@ -215,7 +256,7 @@ public class InTests extends AbstractFunctionTestCase {
             );
         }));
 
-        suppliers.add(new TestCaseSupplier("geo_shape", List.of(EsqlDataTypes.GEO_SHAPE, EsqlDataTypes.GEO_SHAPE), () -> {
+        suppliers.add(new TestCaseSupplier("geo_shape", List.of(GEO_SHAPE, GEO_SHAPE), () -> {
             List<Object> inlist = randomList(
                 items,
                 items,
@@ -224,9 +265,9 @@ public class InTests extends AbstractFunctionTestCase {
             Object field = inlist.get(inlist.size() - 1);
             List<TestCaseSupplier.TypedData> args = new ArrayList<>(inlist.size() + 1);
             for (Object i : inlist) {
-                args.add(new TestCaseSupplier.TypedData(i, EsqlDataTypes.GEO_SHAPE, "inlist" + i));
+                args.add(new TestCaseSupplier.TypedData(i, GEO_SHAPE, "inlist" + i));
             }
-            args.add(new TestCaseSupplier.TypedData(field, EsqlDataTypes.GEO_SHAPE, "field"));
+            args.add(new TestCaseSupplier.TypedData(field, GEO_SHAPE, "field"));
             return new TestCaseSupplier.TestCase(
                 args,
                 matchesPattern("InExpressionEvaluator\\[EqualsGeometriesEvaluator.*\\]"),
@@ -235,14 +276,14 @@ public class InTests extends AbstractFunctionTestCase {
             );
         }));
 
-        suppliers.add(new TestCaseSupplier("cartesian_point", List.of(EsqlDataTypes.CARTESIAN_POINT, EsqlDataTypes.CARTESIAN_POINT), () -> {
+        suppliers.add(new TestCaseSupplier("cartesian_point", List.of(CARTESIAN_POINT, CARTESIAN_POINT), () -> {
             List<Object> inlist = randomList(items, items, () -> new BytesRef(CARTESIAN.asWkt(ShapeTestUtils.randomPoint())));
             Object field = new BytesRef(CARTESIAN.asWkt(ShapeTestUtils.randomPoint()));
             List<TestCaseSupplier.TypedData> args = new ArrayList<>(inlist.size() + 1);
             for (Object i : inlist) {
-                args.add(new TestCaseSupplier.TypedData(i, EsqlDataTypes.CARTESIAN_POINT, "inlist" + i));
+                args.add(new TestCaseSupplier.TypedData(i, CARTESIAN_POINT, "inlist" + i));
             }
-            args.add(new TestCaseSupplier.TypedData(field, EsqlDataTypes.CARTESIAN_POINT, "field"));
+            args.add(new TestCaseSupplier.TypedData(field, CARTESIAN_POINT, "field"));
             return new TestCaseSupplier.TestCase(
                 args,
                 matchesPattern("InExpressionEvaluator\\[EqualsGeometriesEvaluator.*\\]"),
@@ -251,7 +292,7 @@ public class InTests extends AbstractFunctionTestCase {
             );
         }));
 
-        suppliers.add(new TestCaseSupplier("cartesian_shape", List.of(EsqlDataTypes.CARTESIAN_SHAPE, EsqlDataTypes.CARTESIAN_SHAPE), () -> {
+        suppliers.add(new TestCaseSupplier("cartesian_shape", List.of(CARTESIAN_SHAPE, CARTESIAN_SHAPE), () -> {
             List<Object> inlist = randomList(
                 items,
                 items,
@@ -260,9 +301,9 @@ public class InTests extends AbstractFunctionTestCase {
             Object field = new BytesRef(CARTESIAN.asWkt(ShapeTestUtils.randomGeometry(randomBoolean())));
             List<TestCaseSupplier.TypedData> args = new ArrayList<>(inlist.size() + 1);
             for (Object i : inlist) {
-                args.add(new TestCaseSupplier.TypedData(i, EsqlDataTypes.CARTESIAN_SHAPE, "inlist" + i));
+                args.add(new TestCaseSupplier.TypedData(i, CARTESIAN_SHAPE, "inlist" + i));
             }
-            args.add(new TestCaseSupplier.TypedData(field, EsqlDataTypes.CARTESIAN_SHAPE, "field"));
+            args.add(new TestCaseSupplier.TypedData(field, CARTESIAN_SHAPE, "field"));
             return new TestCaseSupplier.TestCase(
                 args,
                 matchesPattern("InExpressionEvaluator\\[EqualsGeometriesEvaluator.*\\]"),

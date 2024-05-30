@@ -331,7 +331,22 @@ public abstract class RangeFieldMapperTests extends MapperTestCase {
             var fromKey = includeFrom ? "gte" : "gt";
             var toKey = includeTo ? "lte" : "lt";
 
-            return (ToXContent) (builder, params) -> builder.startObject().field(fromKey, from).field(toKey, to).endObject();
+            return (ToXContent) (builder, params) -> {
+                builder.startObject();
+                if (includeFrom && from == null && randomBoolean()) {
+                    // skip field entirely since it is equivalent to a default value
+                } else {
+                    builder.field(fromKey, from);
+                }
+
+                if (includeTo && to == null && randomBoolean()) {
+                    // skip field entirely since it is equivalent to a default value
+                } else {
+                    builder.field(toKey, to);
+                }
+
+                return builder.endObject();
+            };
         }
 
         Object toExpectedSyntheticSource() {
@@ -339,17 +354,25 @@ public abstract class RangeFieldMapperTests extends MapperTestCase {
             // Also, "to" field always comes first.
             Map<String, Object> output = new LinkedHashMap<>();
 
-            var fromWithDefaults = from != null ? from : rangeType().minValue();
             if (includeFrom) {
-                output.put("gte", fromWithDefaults);
+                if (from == null || from == rangeType().minValue()) {
+                    output.put("gte", null);
+                } else {
+                    output.put("gte", from);
+                }
             } else {
+                var fromWithDefaults = from != null ? from : rangeType().minValue();
                 output.put("gte", type.nextUp(fromWithDefaults));
             }
 
-            var toWithDefaults = to != null ? to : rangeType().maxValue();
             if (includeTo) {
-                output.put("lte", toWithDefaults);
+                if (to == null || to == rangeType().maxValue()) {
+                    output.put("lte", null);
+                } else {
+                    output.put("lte", to);
+                }
             } else {
+                var toWithDefaults = to != null ? to : rangeType().maxValue();
                 output.put("lte", type.nextDown(toWithDefaults));
             }
 

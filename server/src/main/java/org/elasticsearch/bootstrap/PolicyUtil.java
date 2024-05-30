@@ -8,6 +8,7 @@
 
 package org.elasticsearch.bootstrap;
 
+import org.elasticsearch.SecuredFileAccessPermission;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
@@ -50,6 +51,7 @@ import java.util.PropertyPermission;
 import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.management.MBeanPermission;
 import javax.management.MBeanServerPermission;
@@ -59,6 +61,8 @@ import javax.security.auth.AuthPermission;
 import javax.security.auth.PrivateCredentialPermission;
 import javax.security.auth.kerberos.DelegationPermission;
 import javax.security.auth.kerberos.ServicePermission;
+
+import static java.util.Map.entry;
 
 public class PolicyUtil {
 
@@ -158,20 +162,15 @@ public class PolicyUtil {
         // is used to mean names are accepted. We do not use this model for all permissions because many permission
         // classes have their own meaning for some form of wildcard matching of the name, which we want to delegate
         // to those permissions if possible.
-        Map<String, List<String>> classPermissions = Map.of(
-            URLPermission.class,
-            ALLOW_ALL_NAMES,
-            DelegationPermission.class,
-            ALLOW_ALL_NAMES,
-            ServicePermission.class,
-            ALLOW_ALL_NAMES,
-            PrivateCredentialPermission.class,
-            ALLOW_ALL_NAMES,
-            SQLPermission.class,
-            List.of("callAbort", "setNetworkTimeout"),
-            ClassPermission.class,
-            ALLOW_ALL_NAMES
-        ).entrySet().stream().collect(Collectors.toMap(e -> e.getKey().getCanonicalName(), Map.Entry::getValue));
+        Map<String, List<String>> classPermissions = Stream.of(
+            entry(URLPermission.class, ALLOW_ALL_NAMES),
+            entry(DelegationPermission.class, ALLOW_ALL_NAMES),
+            entry(ServicePermission.class, ALLOW_ALL_NAMES),
+            entry(PrivateCredentialPermission.class, ALLOW_ALL_NAMES),
+            entry(SQLPermission.class, List.of("callAbort", "setNetworkTimeout")),
+            entry(ClassPermission.class, ALLOW_ALL_NAMES),
+            entry(SecuredFileAccessPermission.class, ALLOW_ALL_NAMES)
+        ).collect(Collectors.toMap(e -> e.getKey().getCanonicalName(), Map.Entry::getValue));
         PermissionCollection pluginPermissionCollection = new Permissions();
         namedPermissions.forEach(pluginPermissionCollection::add);
         pluginPermissionCollection.setReadOnly();

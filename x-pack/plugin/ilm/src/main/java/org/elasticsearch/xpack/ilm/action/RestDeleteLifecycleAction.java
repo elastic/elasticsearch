@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.core.ilm.action.DeleteLifecycleAction;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
+import static org.elasticsearch.rest.RestUtils.getAckTimeout;
 import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 public class RestDeleteLifecycleAction extends BaseRestHandler {
@@ -33,9 +34,11 @@ public class RestDeleteLifecycleAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) {
         String lifecycleName = restRequest.param("name");
-        DeleteLifecycleAction.Request deleteLifecycleRequest = new DeleteLifecycleAction.Request(lifecycleName);
-        deleteLifecycleRequest.ackTimeout(restRequest.paramAsTime("timeout", deleteLifecycleRequest.ackTimeout()));
-        deleteLifecycleRequest.masterNodeTimeout(getMasterNodeTimeout(restRequest));
+        DeleteLifecycleAction.Request deleteLifecycleRequest = new DeleteLifecycleAction.Request(
+            getMasterNodeTimeout(restRequest),
+            getAckTimeout(restRequest),
+            lifecycleName
+        );
 
         return channel -> client.execute(DeleteLifecycleAction.INSTANCE, deleteLifecycleRequest, new RestToXContentListener<>(channel));
     }

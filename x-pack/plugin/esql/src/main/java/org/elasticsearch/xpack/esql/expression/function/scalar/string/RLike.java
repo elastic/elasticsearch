@@ -8,21 +8,21 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePattern;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.predicate.regex.RLikePattern;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
 
 import java.util.function.Function;
 
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.DEFAULT;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isString;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 
-public class RLike extends org.elasticsearch.xpack.ql.expression.predicate.regex.RLike implements EvaluatorMapper {
+public class RLike extends org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLike implements EvaluatorMapper {
 
     @FunctionInfo(returnType = "boolean", description = """
         Use `RLIKE` to filter data based on string patterns using using
@@ -47,7 +47,7 @@ public class RLike extends org.elasticsearch.xpack.ql.expression.predicate.regex
     }
 
     @Override
-    protected NodeInfo<org.elasticsearch.xpack.ql.expression.predicate.regex.RLike> info() {
+    protected NodeInfo<org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLike> info() {
         return NodeInfo.create(this, RLike::new, field(), pattern(), caseInsensitive());
     }
 

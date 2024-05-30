@@ -28,9 +28,11 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
+import static org.elasticsearch.rest.RestUtils.getAckTimeout;
 import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 @ServerlessScope(Scope.PUBLIC)
@@ -77,7 +79,7 @@ public class RestCreateIndexAction extends BaseRestHandler {
             createIndexRequest.source(sourceAsMap, LoggingDeprecationHandler.INSTANCE);
         }
 
-        createIndexRequest.ackTimeout(request.paramAsTime("timeout", createIndexRequest.ackTimeout()));
+        createIndexRequest.ackTimeout(getAckTimeout(request));
         createIndexRequest.masterNodeTimeout(getMasterNodeTimeout(request));
         createIndexRequest.waitForActiveShards(ActiveShardCount.parseString(request.param("wait_for_active_shards")));
         return createIndexRequest;
@@ -116,7 +118,7 @@ public class RestCreateIndexAction extends BaseRestHandler {
             createIndexRequest.source(sourceAsMap, LoggingDeprecationHandler.INSTANCE);
         }
 
-        createIndexRequest.ackTimeout(request.paramAsTime("timeout", createIndexRequest.ackTimeout()));
+        createIndexRequest.ackTimeout(getAckTimeout(request));
         createIndexRequest.masterNodeTimeout(getMasterNodeTimeout(request));
         createIndexRequest.waitForActiveShards(ActiveShardCount.parseString(request.param("wait_for_active_shards")));
 
@@ -143,5 +145,10 @@ public class RestCreateIndexAction extends BaseRestHandler {
 
         newSource.put("mappings", singletonMap(MapperService.SINGLE_MAPPING_NAME, mappings));
         return newSource;
+    }
+
+    @Override
+    public Set<String> supportedCapabilities() {
+        return CreateIndexCapabilities.CAPABILITIES;
     }
 }

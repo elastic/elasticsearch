@@ -14,7 +14,6 @@ import java.time.temporal.ChronoField;
 import java.time.temporal.TemporalAccessor;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 
 class Iso8601DateTimeParser implements DateTimeParser {
@@ -72,7 +71,7 @@ class Iso8601DateTimeParser implements DateTimeParser {
     }
 
     @Override
-    public Optional<TemporalAccessor> tryParse(CharSequence str) {
-        return Optional.ofNullable(parser.tryParse(str, timezone).result());
+    public ParseResult tryParse(CharSequence str) {
+        return parser.tryParse(str, timezone);
     }
 }

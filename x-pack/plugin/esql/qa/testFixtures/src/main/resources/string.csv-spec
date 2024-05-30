@@ -1419,5 +1419,17 @@ a:keyword | repeated:keyword
 cheese | ""
 ;
 
+repeatVariableNumber
+required_capability: repeat 
+from employees 
+| sort emp_no 
+| limit 4 
+| eval first_repeated = repeat(first_name, emp_no - 10001) 
+| keep emp_no, first_name, first_repeated
 
+emp_no:integer | first_name:keyword  | first_repeated:keyword
+10001 | Georgi    | ""
+10002 | Bezalel   | Bezalel   
+10003 | Parto     | PartoParto 
+10004 | Chirstian | ChirstianChirstianChirstian   
 

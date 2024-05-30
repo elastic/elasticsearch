@@ -17,20 +17,28 @@ import java.io.IOException;
 public class RiskInput implements ToXContentObject {
     private final String id;
     private final String index;
-    private final String time;
+    private final String timestamp;
     private final String ruleName;
     private final String category;
-    private final double score;
-    private final double contribution;
+    private final double riskScore;
+    private final double contributionScore;
 
-    public RiskInput(String id, String index, String time, String ruleName, String category, double score, double contribution) {
+    public RiskInput(
+        String id,
+        String index,
+        String timestamp,
+        String ruleName,
+        String category,
+        double riskScore,
+        double contributionScore
+    ) {
         this.id = id;
         this.index = index;
-        this.time = time;
+        this.timestamp = timestamp;
         this.ruleName = ruleName;
         this.category = category;
-        this.score = score;
-        this.contribution = contribution;
+        this.riskScore = riskScore;
+        this.contributionScore = contributionScore;
     }
 
     public static RiskInput fromAlertHit(SearchHit alert, double contribution) {
@@ -50,11 +58,11 @@ public class RiskInput implements ToXContentObject {
         builder.startObject();
         builder.field("id", id);
         builder.field("index", index);
-        builder.field("time", time);
+        builder.field("timestamp", timestamp);
         builder.field("rule_name", ruleName);
         builder.field("category", category);
-        builder.field("score", score);
-        builder.field("contribution", contribution);
+        builder.field("risk_score", riskScore);
+        builder.field("contribution_score", contributionScore);
         builder.endObject();
         return builder;
     }

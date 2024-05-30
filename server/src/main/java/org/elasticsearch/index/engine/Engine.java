@@ -231,12 +231,12 @@ public abstract class Engine implements Closeable {
             } catch (IOException e) {
                 logger.trace(() -> "failed to get size for [" + info.info.name + "]", e);
             }
-            docsWithIgnoredFields = tryGetValueOrZero(
+            docsWithIgnoredFields = getValueOrZero(
                 () -> (long) readerContext.reader().getDocCount(IgnoredFieldMapper.NAME),
                 "IO error while reading documents with ignored fields",
                 "Getting number of documents with ignored fields unsupported"
             );
-            ignoredFieldTermsSumDocFreq = tryGetValueOrZero(
+            ignoredFieldTermsSumDocFreq = getValueOrZero(
                 () -> readerContext.reader().getSumDocFreq(IgnoredFieldMapper.NAME),
                 "IO error while reading frequency of ignored terms",
                 "Getting frequency of ignored terms unsupported"
@@ -251,7 +251,7 @@ public abstract class Engine implements Closeable {
         T get() throws IOException, UnsupportedOperationException;
     }
 
-    private long tryGetValueOrZero(
+    private long getValueOrZero(
         final ThrowingSupplier<Long> throwingSupplier,
         final String ioErrorMessage,
         final String unsupportedOperationErrorMessage

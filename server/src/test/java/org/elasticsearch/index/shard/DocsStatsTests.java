@@ -18,20 +18,21 @@ import static org.hamcrest.Matchers.equalTo;
 public class DocsStatsTests extends ESTestCase {
 
     public void testUninitialisedShards() {
-        DocsStats stats = new DocsStats(0, 0, -1, 0);
+        DocsStats stats = new DocsStats(0, 0, -1, 0, 0);
         assertThat(stats.getTotalSizeInBytes(), equalTo(-1L));
-        stats.add(new DocsStats(0, 0, -1, 0));
+        stats.add(new DocsStats(0, 0, -1, 0, 0));
         assertThat(stats.getTotalSizeInBytes(), equalTo(-1L));
-        stats.add(new DocsStats(1, 0, 10, 0));
+        stats.add(new DocsStats(1, 0, 10, 0, 0));
         assertThat(stats.getTotalSizeInBytes(), equalTo(10L));
-        stats.add(new DocsStats(0, 0, -1, 0));
+        stats.add(new DocsStats(0, 0, -1, 0, 0));
         assertThat(stats.getTotalSizeInBytes(), equalTo(10L));
-        stats.add(new DocsStats(1, 0, 20, 0));
+        stats.add(new DocsStats(1, 0, 20, 0, 0));
         assertThat(stats.getTotalSizeInBytes(), equalTo(30L));
     }
 
     public void testSerialize() throws Exception {
         DocsStats originalStats = new DocsStats(
+            randomNonNegativeLong(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),

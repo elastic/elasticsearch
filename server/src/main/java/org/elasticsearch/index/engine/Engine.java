@@ -217,6 +217,7 @@ public abstract class Engine implements Closeable {
         long numDeletedDocs = 0;
         long sizeInBytes = 0;
         long docsWithIgnoredFields = 0;
+        long ignoredFieldTermsSumDocFreq = 0;
         // we don't wait for a pending refreshes here since it's a stats call instead we mark it as accessed only which will cause
         // the next scheduled refresh to go through and refresh the stats as well
         for (LeafReaderContext readerContext : indexReader.leaves()) {
@@ -230,14 +231,16 @@ public abstract class Engine implements Closeable {
             } catch (IOException e) {
                 logger.trace(() -> "failed to get size for [" + info.info.name + "]", e);
             }
-            docsWithIgnoredFields = tryGetNumberOfDocumentsWithIgnoredFields(readerContext);
+            docsWithIgnoredFields = tryGetIgnoredFieldsDocCount(readerContext);
+            ignoredFieldTermsSumDocFreq = tryGetIgnoredFieldTermsSumDocFreq(readerContext);
+
         }
-        return new DocsStats(numDocs, numDeletedDocs, sizeInBytes, docsWithIgnoredFields);
+        return new DocsStats(numDocs, numDeletedDocs, sizeInBytes, docsWithIgnoredFields, ignoredFieldTermsSumDocFreq);
     }
 
-    private long tryGetNumberOfDocumentsWithIgnoredFields(final LeafReaderContext readerContext) {
+    private long tryGetIgnoredFieldsDocCount(final LeafReaderContext readerContext) {
         try {
-            return readerContext.reader().getSumDocFreq(IgnoredFieldMapper.NAME);
+            return readerContext.reader().getDocCount(IgnoredFieldMapper.NAME);
         } catch (IOException e) {
             logger.trace(() -> "IO error while getting the number of documents with ignored fields", e);
         } catch (UnsupportedOperationException e) {
@@ -245,6 +248,20 @@ public abstract class Engine implements Closeable {
             // and doc values are missing. As a result we cannot count the number of documents with ignored fields
             // on an index restored out of a `source only snapshot`.
             logger.trace(() -> "Getting number of documents with ignored fields is not supported", e);
+        }
+        return 0;
+    }
+
+    private long tryGetIgnoredFieldTermsSumDocFreq(final LeafReaderContext readerContext) {
+        try {
+            return readerContext.reader().getSumDocFreq(IgnoredFieldMapper.NAME);
+        } catch (IOException e) {
+            logger.trace(() -> "IO error while getting frequency of terms for ignored field", e);
+        } catch (UnsupportedOperationException e) {
+            // NOTE: `source only snapshots` include only _source, stored fields and metadata while inverted index
+            // and doc values are missing. As a result we cannot count the number of documents with ignored fields
+            // on an index restored out of a `source only snapshot`.
+            logger.trace(() -> "Getting frequency of terms for the ignored field is not supported", e);
         }
         return 0;
     }

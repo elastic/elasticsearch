@@ -580,10 +580,16 @@ public class TransportRolloverActionTests extends ESTestCase {
 
     private IndicesStatsResponse createIndicesStatResponse(String indexName, long totalDocs, long primariesDocs) {
         final CommonStats primaryStats = mock(CommonStats.class);
-        when(primaryStats.getDocs()).thenReturn(new DocsStats(primariesDocs, 0, between(1, 10000), randomLongBetween(0, primariesDocs)));
+        long docsPrimaries = randomLongBetween(0, primariesDocs);
+        when(primaryStats.getDocs()).thenReturn(
+            new DocsStats(primariesDocs, 0, between(1, 10000), docsPrimaries, docsPrimaries + randomLongBetween(0, 100))
+        );
 
         final CommonStats totalStats = mock(CommonStats.class);
-        when(totalStats.getDocs()).thenReturn(new DocsStats(totalDocs, 0, between(1, 10000), randomLongBetween(0, totalDocs)));
+        long docsTotal = randomLongBetween(0, totalDocs);
+        when(totalStats.getDocs()).thenReturn(
+            new DocsStats(totalDocs, 0, between(1, 10000), docsTotal, docsTotal + randomLongBetween(0, 100))
+        );
 
         final IndicesStatsResponse response = mock(IndicesStatsResponse.class);
         when(response.getPrimaries()).thenReturn(primaryStats);
@@ -612,10 +618,16 @@ public class TransportRolloverActionTests extends ESTestCase {
 
     private IndexStats createIndexStats(long primaries, long total) {
         final CommonStats primariesCommonStats = mock(CommonStats.class);
-        when(primariesCommonStats.getDocs()).thenReturn(new DocsStats(primaries, 0, between(1, 10000), randomLongBetween(0, primaries)));
+        long docsPrimaries = randomLongBetween(0, primaries);
+        when(primariesCommonStats.getDocs()).thenReturn(
+            new DocsStats(primaries, 0, between(1, 10000), docsPrimaries, docsPrimaries + randomLongBetween(0, 100))
+        );
 
         final CommonStats totalCommonStats = mock(CommonStats.class);
-        when(totalCommonStats.getDocs()).thenReturn(new DocsStats(total, 0, between(1, 10000), randomLongBetween(0, total)));
+        long docsTotal = randomLongBetween(0, total);
+        when(totalCommonStats.getDocs()).thenReturn(
+            new DocsStats(total, 0, between(1, 10000), docsTotal, docsTotal + randomLongBetween(0, 100))
+        );
 
         IndexStats indexStats = mock(IndexStats.class);
         when(indexStats.getPrimaries()).thenReturn(primariesCommonStats);

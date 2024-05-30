@@ -8,15 +8,26 @@
 package org.elasticsearch.xpack.esql.expression;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 
 /**
  * Interface signaling to the planner that the declaring expression
- * has to be replaced by a different form: e.g. avg = sum / count
+ * has to be replaced by a different form: e.g. .
+ * Implement this on {@link AggregateFunction}s when either:
+ * <ul>
+ *     <li>The aggregation doesn't have a "native" implementation and instead
+ *     should be replaced with a combination of aggregations and then
+ *     "put back together" on output. Like {@code AVG = SUM / COUNT}.</li>
+ *     <li>The aggregation can be folded if it receives constant
+ *     input. Like {@code MIN(1) == 1}. This is optional, if the aggregation
+ *     doesn't implement this method it won't be constant folded which
+ *     is slower but will work without error.</li>
+ * </ul>
  */
 public interface SurrogateExpression {
-
     /**
-     * Returns the expression to be replaced by or {@code null} if this cannot be replaced.
+     * Returns the expression to be replaced by or {@code null} if this cannot
+     * be replaced.
      */
     Expression surrogate();
 }

@@ -78,6 +78,24 @@ public class SubstringTests extends AbstractFunctionTestCase {
                                     equalTo(new BytesRef(text.substring(start - 1, start + length - 1)))
                                 );
                             }
+                        ),
+                        new TestCaseSupplier(
+                            "Substring empty string",
+                            List.of(DataTypes.TEXT, DataTypes.INTEGER, DataTypes.INTEGER),
+                            () -> {
+                                int start = between(1, 8);
+                                int length = between(1, 10 - start);
+                                return new TestCaseSupplier.TestCase(
+                                    List.of(
+                                        new TestCaseSupplier.TypedData(new BytesRef(""), DataTypes.TEXT, "str"),
+                                        new TestCaseSupplier.TypedData(start, DataTypes.INTEGER, "start"),
+                                        new TestCaseSupplier.TypedData(length, DataTypes.INTEGER, "end")
+                                    ),
+                                    "SubstringEvaluator[str=Attribute[channel=0], start=Attribute[channel=1], length=Attribute[channel=2]]",
+                                    DataTypes.KEYWORD,
+                                    equalTo(new BytesRef(""))
+                                );
+                            }
                         )
                     )
                 )
@@ -109,10 +127,6 @@ public class SubstringTests extends AbstractFunctionTestCase {
     public void testWholeString() {
         assertThat(process("a tiger", 0, null), equalTo("a tiger"));
         assertThat(process("a tiger", 1, null), equalTo("a tiger"));
-    }
-
-    public void testEmptyString() {
-        assertThat(process("", 1, 3), equalTo(""));
     }
 
     public void testPositiveStartNoLength() {

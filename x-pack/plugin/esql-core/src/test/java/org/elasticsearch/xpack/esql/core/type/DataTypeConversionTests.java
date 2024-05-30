@@ -17,8 +17,6 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.time.ZonedDateTime;
 
-import static org.elasticsearch.xpack.esql.core.type.DataTypeConverter.commonType;
-import static org.elasticsearch.xpack.esql.core.type.DataTypeConverter.converterFor;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BYTE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
@@ -34,6 +32,8 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
+import static org.elasticsearch.xpack.esql.core.type.DataTypeConverter.commonType;
+import static org.elasticsearch.xpack.esql.core.type.DataTypeConverter.converterFor;
 import static org.elasticsearch.xpack.esql.core.type.DateUtils.asDateTime;
 
 public class DataTypeConversionTests extends ESTestCase {

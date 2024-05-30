@@ -233,6 +233,7 @@ public enum DataType {
                 || (isDateTime(left) && isDateTime(right));
         }
     }
+
     public String nameUpper() {
         return name;
     }
@@ -268,7 +269,9 @@ public enum DataType {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(typeName);
     }
+
     public static DataType readFrom(StreamInput in) throws IOException {
+        // TODO: Use our normal enum serialization pattern
         String name = in.readString();
         if (name.equalsIgnoreCase(DataType.DOC_DATA_TYPE.nameUpper())) {
             return DataType.DOC_DATA_TYPE;
@@ -279,6 +282,5 @@ public enum DataType {
         }
         return dataType;
     }
-
 
 }

@@ -183,9 +183,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                 source,
                 mapNumbers(
                     numbers,
-                    (no, dt) -> dt == DataType.UNSIGNED_LONG
-                        ? no.longValue()
-                        : bigIntegerToUnsignedLong(BigInteger.valueOf(no.longValue()))
+                    (no, dt) -> dt == DataType.UNSIGNED_LONG ? no.longValue() : bigIntegerToUnsignedLong(BigInteger.valueOf(no.longValue()))
                 ),
                 DataType.UNSIGNED_LONG
             );

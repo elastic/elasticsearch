@@ -25,8 +25,8 @@ import java.util.List;
 import java.util.Locale;
 
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
-import static org.elasticsearch.xpack.esql.core.type.DataTypeConverter.commonType;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isNull;
+import static org.elasticsearch.xpack.esql.core.type.DataTypeConverter.commonType;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isRepresentable;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;

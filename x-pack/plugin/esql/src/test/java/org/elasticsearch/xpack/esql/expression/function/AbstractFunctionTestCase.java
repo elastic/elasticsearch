@@ -657,7 +657,6 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                     System.arraycopy(bytesRef.bytes, bytesRef.offset, newBytesArray, offset, bytesRef.length);
 
                     var newBytesRef = new BytesRef(newBytesArray, offset, bytesRef.length);
-
                     var newTypedData = new TestCaseSupplier.TypedData(newBytesRef, typedData.type(), typedData.name());
 
                     if (typedData.isForceLiteral()) {

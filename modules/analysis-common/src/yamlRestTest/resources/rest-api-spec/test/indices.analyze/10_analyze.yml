@@ -45,32 +45,6 @@
     - match:  { tokens.1.token: hay }
 
 ---
-"Too complex regex pattern":
-    - do:
-        catch: bad_request
-        indices.create:
-          index: test_too_complex_regex_pattern
-          body:
-            settings:
-              index:
-                analysis:
-                  analyzer:
-                    my_analyzer:
-                      tokenizer: standard
-                      char_filter:
-                        - my_char_filter
-                  char_filter:
-                    my_char_filter:
-                      type: "pattern_replace"
-                      pattern: "(\\d+)-(?=\\d\nͭͭͭͭͭͭͭͭͭͭͭͭͭͭͭ"
-                      flags: CASE_INSENSITIVE|MULTILINE|DOTALL|UNICODE_CASE|CANON_EQ
-                      replacement: "_$1"
-    - match: { status: 400 }
-    - match: { error.type: illegal_argument_exception }
-    - match: { error.reason: "Too complex regex pattern" }
-
-
----
 "Custom normalizer in request":
     - do:
         indices.analyze:

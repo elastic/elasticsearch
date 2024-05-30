@@ -20,52 +20,33 @@ import java.util.stream.Stream;
 import static java.util.stream.Collectors.toMap;
 import static java.util.stream.Collectors.toUnmodifiableMap;
 
-public final class DataTypes {
-
-    // tag::noformat
-    public static final DataType UNSUPPORTED      = new DataType("UNSUPPORTED", null, 0,                 false, false, false);
-
-    public static final DataType NULL             = new DataType("null",              0,                 false, false, false);
-
-    public static final DataType BOOLEAN          = new DataType("boolean",           1,                 false, false, false);
-    // integer numeric
-    public static final DataType BYTE             = new DataType("byte",              Byte.BYTES,        true, false, true);
-    public static final DataType SHORT            = new DataType("short",             Short.BYTES,       true, false, true);
-    public static final DataType INTEGER          = new DataType("integer",           Integer.BYTES,     true, false, true);
-    public static final DataType LONG             = new DataType("long",              Long.BYTES,        true, false, true);
-    public static final DataType UNSIGNED_LONG    = new DataType("unsigned_long",     Long.BYTES,        true, false, true);
-    // decimal numeric
-    public static final DataType DOUBLE           = new DataType("double",            Double.BYTES,      false, true, true);
-    public static final DataType FLOAT            = new DataType("float",             Float.BYTES,       false, true, true);
-    public static final DataType HALF_FLOAT       = new DataType("half_float",        Float.BYTES,       false, true, true);
-    public static final DataType SCALED_FLOAT     = new DataType("scaled_float",      Long.BYTES,        false, true, true);
-    // string
-    public static final DataType KEYWORD          = new DataType("keyword",           Integer.MAX_VALUE, false, false, true);
-    public static final DataType TEXT             = new DataType("text",              Integer.MAX_VALUE, false, false, false);
-    // date
-    public static final DataType DATETIME         = new DataType("DATETIME", "date",        Long.BYTES,  false, false, true);
-    // ip
-    public static final DataType IP               = new DataType("ip",                45,                false, false, true);
-    // version
-    public static final DataType VERSION          = new DataType("version",           Integer.MAX_VALUE, false, false, true);
-    // complex types
-    public static final DataType OBJECT           = new DataType("object",            0,                 false, false, false);
-    public static final DataType NESTED           = new DataType("nested",            0,                 false, false, false);
-    //end::noformat
-    public static final DataType SOURCE = new DataType(
-        SourceFieldMapper.NAME,
-        SourceFieldMapper.NAME,
-        Integer.MAX_VALUE,
-        false,
-        false,
-        false
-    );
-    public static final DataType DATE_PERIOD = new DataType("DATE_PERIOD", null, 3 * Integer.BYTES, false, false, false);
-    public static final DataType TIME_DURATION = new DataType("TIME_DURATION", null, Integer.BYTES + Long.BYTES, false, false, false);
-    public static final DataType GEO_POINT = new DataType("geo_point", Double.BYTES * 2, false, false, true);
-    public static final DataType CARTESIAN_POINT = new DataType("cartesian_point", Double.BYTES * 2, false, false, true);
-    public static final DataType GEO_SHAPE = new DataType("geo_shape", Integer.MAX_VALUE, false, false, true);
-    public static final DataType CARTESIAN_SHAPE = new DataType("cartesian_shape", Integer.MAX_VALUE, false, false, true);
+public enum DataTypes {
+    UNSUPPORTED("UNSUPPORTED", null, 0, false, false, false),
+    NULL("null", 0, false, false, false),
+    BOOLEAN("boolean", 1, false, false, false),
+    BYTE("byte", Byte.BYTES, true, false, true),
+    SHORT("short", Short.BYTES, true, false, true),
+    INTEGER("integer", Integer.BYTES, true, false, true),
+    LONG("long", Long.BYTES, true, false, true),
+    UNSIGNED_LONG("unsigned_long", Long.BYTES, true, false, true),
+    DOUBLE("double", Double.BYTES, false, true, true),
+    FLOAT("float", Float.BYTES, false, true, true),
+    HALF_FLOAT("half_float", Float.BYTES, false, true, true),
+    SCALED_FLOAT("scaled_float", Long.BYTES, false, true, true),
+    KEYWORD("keyword", Integer.MAX_VALUE, false, false, true),
+    TEXT("text", Integer.MAX_VALUE, false, false, false),
+    DATETIME("DATETIME", "date", Long.BYTES, false, false, true),
+    IP("ip", 45, false, false, true),
+    VERSION("version", Integer.MAX_VALUE, false, false, true),
+    OBJECT("object", 0, false, false, false),
+    NESTED("nested", 0, false, false, false),
+    SOURCE(SourceFieldMapper.NAME, SourceFieldMapper.NAME, Integer.MAX_VALUE, false, false, false),
+    DATE_PERIOD("DATE_PERIOD", null, 3 * Integer.BYTES, false, false, false),
+    TIME_DURATION("TIME_DURATION", null, Integer.BYTES + Long.BYTES, false, false, false),
+    GEO_POINT("geo_point", Double.BYTES * 2, false, false, true),
+    CARTESIAN_POINT("cartesian_point", Double.BYTES * 2, false, false, true),
+    CARTESIAN_SHAPE("cartesian_shape", Integer.MAX_VALUE, false, false, true),
+    GEO_SHAPE("geo_shape", Integer.MAX_VALUE, false, false, true),
 
     /**
      * These are numeric fields labeled as metric counters in time-series indices. Although stored
@@ -74,12 +55,49 @@ public final class DataTypes {
      * These fields are strictly for use in retrieval from indices, rate aggregation, and casting to their
      * parent numeric type.
      */
-    public static final DataType COUNTER_LONG = new DataType("counter_long", Long.BYTES, false, false, true);
-    public static final DataType COUNTER_INTEGER = new DataType("counter_integer", Integer.BYTES, false, false, true);
-    public static final DataType COUNTER_DOUBLE = new DataType("counter_double", Double.BYTES, false, false, true);
+    COUNTER_LONG("counter_long", Long.BYTES, false, false, true),
+    COUNTER_INTEGER("counter_integer", Integer.BYTES, false, false, true),
+    COUNTER_DOUBLE("counter_double", Double.BYTES, false, false, true),
+    DOC_DATA_TYPE("_doc", Integer.BYTES * 3, false, false, false),
+    TSID_DATA_TYPE("_tsid", Integer.MAX_VALUE, false, false, true);
 
-    public static final DataType DOC_DATA_TYPE = new DataType("_doc", Integer.BYTES * 3, false, false, false);
-    public static final DataType TSID_DATA_TYPE = new DataType("_tsid", Integer.MAX_VALUE, false, false, true);
+    private final String typeName;
+
+    private final String name;
+
+    private final String esType;
+
+    private final int size;
+
+    /**
+     * True if the type represents an integer number
+     */
+    private final boolean isInteger;
+
+    /**
+     * True if the type represents a rational number
+     */
+    private final boolean isRational;
+
+    /**
+     * True if the type supports doc values by default
+     */
+    private final boolean docValues;
+
+    DataTypes(String esName, int size, boolean isInteger, boolean isRational, boolean hasDocValues) {
+        this(null, esName, size, isInteger, isRational, hasDocValues);
+    }
+
+    DataTypes(String typeName, String esType, int size, boolean isInteger, boolean isRational, boolean hasDocValues) {
+        String typeString = typeName != null ? typeName : esType;
+        this.typeName = typeString.toLowerCase(Locale.ROOT);
+        this.name = typeString.toUpperCase(Locale.ROOT);
+        this.esType = esType;
+        this.size = size;
+        this.isInteger = isInteger;
+        this.isRational = isRational;
+        this.docValues = hasDocValues;
+    }
 
     private static final Collection<DataType> TYPES = Stream.of(
         UNSUPPORTED,

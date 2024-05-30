@@ -33,11 +33,11 @@ public class MvConcatTests extends AbstractFunctionTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
-        for (DataType fieldType : EsqlDataTypes.types()) {
+        for (DataType fieldType : DataTypes.types()) {
             if (EsqlDataTypes.isString(fieldType) == false) {
                 continue;
             }
-            for (DataType delimType : EsqlDataTypes.types()) {
+            for (DataType delimType : DataTypes.types()) {
                 if (EsqlDataTypes.isString(delimType) == false) {
                     continue;
                 }

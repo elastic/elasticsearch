@@ -43,7 +43,7 @@ public record ResolvedEnrichPolicy(
         out.writeMap(mapping, ResolvedEnrichPolicy::writeEsField);
     }
 
-    // TODO: we should have made EsField and DataTypes Writable, but write it as NamedWritable in PlanStreamInput
+    // TODO: we should have made EsField and DataType Writable, but write it as NamedWritable in PlanStreamInput
     private static void writeEsField(StreamOutput out, EsField field) throws IOException {
         out.writeString(field.getName());
         out.writeString(field.getDataType().typeName());

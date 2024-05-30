@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.esql.core.expression.predicate.fulltext;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.util.List;
 import java.util.Map;
@@ -63,8 +63,8 @@ public abstract class FullTextPredicate extends Expression {
     }
 
     @Override
-    public DataTypes dataType() {
-        return DataTypes.BOOLEAN;
+    public DataType dataType() {
+        return DataType.BOOLEAN;
     }
 
     @Override

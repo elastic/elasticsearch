@@ -22,7 +22,7 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.BinaryScalarFunction;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
@@ -39,9 +39,9 @@ import static org.apache.lucene.document.ShapeField.QueryRelation.DISJOINT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.GEO_POINT;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.GEO_SHAPE;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.isNull;
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isNull;
 import static org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions.isSpatial;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.asGeometryDocValueReader;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.asLuceneComponent2D;
@@ -63,8 +63,8 @@ public abstract class SpatialRelatesFunction extends BinaryScalarFunction
     public abstract ShapeField.QueryRelation queryRelation();
 
     @Override
-    public DataTypes dataType() {
-        return DataTypes.BOOLEAN;
+    public DataType dataType() {
+        return DataType.BOOLEAN;
     }
 
     @Override
@@ -119,12 +119,12 @@ public abstract class SpatialRelatesFunction extends BinaryScalarFunction
         return TypeResolution.TYPE_RESOLVED;
     }
 
-    protected void setCrsType(DataTypes dataType) {
+    protected void setCrsType(DataType dataType) {
         crsType = SpatialCrsType.fromDataType(dataType);
     }
 
     public static TypeResolution isSameSpatialType(
-        DataTypes spatialDataType,
+        DataType spatialDataType,
         Expression expression,
         String operationName,
         TypeResolutions.ParamOrdinal paramOrd
@@ -141,12 +141,12 @@ public abstract class SpatialRelatesFunction extends BinaryScalarFunction
     private static final String[] GEO_TYPE_NAMES = new String[] { GEO_POINT.typeName(), GEO_SHAPE.typeName() };
     private static final String[] CARTESIAN_TYPE_NAMES = new String[] { GEO_POINT.typeName(), GEO_SHAPE.typeName() };
 
-    private static boolean spatialCRSCompatible(DataTypes spatialDataType, DataTypes otherDataType) {
+    private static boolean spatialCRSCompatible(DataType spatialDataType, DataType otherDataType) {
         return EsqlDataTypes.isSpatialGeo(spatialDataType) && EsqlDataTypes.isSpatialGeo(otherDataType)
             || EsqlDataTypes.isSpatialGeo(spatialDataType) == false && EsqlDataTypes.isSpatialGeo(otherDataType) == false;
     }
 
-    static String[] compatibleTypeNames(DataTypes spatialDataType) {
+    static String[] compatibleTypeNames(DataType spatialDataType) {
         return EsqlDataTypes.isSpatialGeo(spatialDataType) ? GEO_TYPE_NAMES : CARTESIAN_TYPE_NAMES;
     }
 
@@ -241,7 +241,7 @@ public abstract class SpatialRelatesFunction extends BinaryScalarFunction
         CARTESIAN,
         UNSPECIFIED;
 
-        public static SpatialCrsType fromDataType(DataTypes dataType) {
+        public static SpatialCrsType fromDataType(DataType dataType) {
             return EsqlDataTypes.isSpatialGeo(dataType) ? SpatialCrsType.GEO
                 : EsqlDataTypes.isSpatial(dataType) ? SpatialCrsType.CARTESIAN
                 : SpatialCrsType.UNSPECIFIED;

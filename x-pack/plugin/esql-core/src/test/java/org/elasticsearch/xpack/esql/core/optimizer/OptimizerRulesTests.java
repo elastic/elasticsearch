@@ -55,7 +55,7 @@ import org.elasticsearch.xpack.esql.core.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 
 import java.time.ZoneId;
@@ -82,10 +82,10 @@ import static org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.Combine
 import static org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.PropagateNullable;
 import static org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.ReplaceRegexMatch;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.BOOLEAN;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.DOUBLE;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.INTEGER;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.hamcrest.Matchers.contains;
 
 public class OptimizerRulesTests extends ESTestCase {
@@ -124,7 +124,7 @@ public class OptimizerRulesTests extends ESTestCase {
         }
 
         @Override
-        public DataTypes dataType() {
+        public DataType dataType() {
             return BOOLEAN;
         }
 
@@ -1398,7 +1398,7 @@ public class OptimizerRulesTests extends ESTestCase {
 
     // a == 1 AND a == 2 -> nop for date/time fields
     public void testPropagateEquals_ignoreDateTimeFields() {
-        FieldAttribute fa = TestUtils.getFieldAttribute("a", DataTypes.DATETIME);
+        FieldAttribute fa = TestUtils.getFieldAttribute("a", DataType.DATETIME);
         Equals eq1 = equalsOf(fa, ONE);
         Equals eq2 = equalsOf(fa, TWO);
         And and = new And(EMPTY, eq1, eq2);
@@ -1755,7 +1755,7 @@ public class OptimizerRulesTests extends ESTestCase {
         return new IsNull(EMPTY, field);
     }
 
-    private Literal nullOf(DataTypes dataType) {
+    private Literal nullOf(DataType dataType) {
         return new Literal(Source.EMPTY, null, dataType);
     }
 

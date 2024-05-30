@@ -10,7 +10,7 @@ import org.elasticsearch.xpack.esql.core.capabilities.Unresolvable;
 import org.elasticsearch.xpack.esql.core.capabilities.UnresolvedException;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 
 import java.util.List;
@@ -72,7 +72,7 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
     protected Attribute clone(
         Source source,
         String name,
-        DataTypes dataType,
+        DataType dataType,
         String qualifier,
         Nullability nullability,
         NameId id,
@@ -86,7 +86,7 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
     }
 
     @Override
-    public DataTypes dataType() {
+    public DataType dataType() {
         throw new UnresolvedException("dataType", this);
     }
 

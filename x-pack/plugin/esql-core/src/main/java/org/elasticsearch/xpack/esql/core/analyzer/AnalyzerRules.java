@@ -23,7 +23,7 @@ import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.core.rule.ParameterizedRule;
 import org.elasticsearch.xpack.esql.core.rule.Rule;
 import org.elasticsearch.xpack.esql.core.session.Configuration;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 
@@ -36,7 +36,7 @@ import java.util.function.Supplier;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.singletonList;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.BOOLEAN;
+import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 
 public final class AnalyzerRules {
 
@@ -228,7 +228,7 @@ public final class AnalyzerRules {
                 named = u.withUnresolvedMessage("Cannot use field [" + fa.name() + "] due to ambiguities being " + imf.errorMessage());
             }
             // unsupported types
-            else if (DataTypes.isUnsupported(fa.dataType())) {
+            else if (DataType.isUnsupported(fa.dataType())) {
                 UnsupportedEsField unsupportedField = (UnsupportedEsField) fa.field();
                 if (unsupportedField.hasInherited()) {
                     named = u.withUnresolvedMessage(
@@ -247,7 +247,7 @@ public final class AnalyzerRules {
                 }
             }
             // compound fields
-            else if (allowCompound == false && DataTypes.isPrimitive(fa.dataType()) == false) {
+            else if (allowCompound == false && DataType.isPrimitive(fa.dataType()) == false) {
                 named = u.withUnresolvedMessage(
                     "Cannot use field [" + fa.name() + "] type [" + fa.dataType().typeName() + "] only its subfields"
                 );

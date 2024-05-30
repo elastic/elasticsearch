@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.arithmetic.ArithmeticOperation;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.arithmetic.BinaryArithmeticOperation;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cast;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
@@ -23,10 +23,10 @@ import java.io.IOException;
 import java.util.function.Function;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.DOUBLE;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.INTEGER;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.LONG;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 
 public abstract class EsqlArithmeticOperation extends ArithmeticOperation implements EvaluatorMapper {
 
@@ -80,7 +80,7 @@ public abstract class EsqlArithmeticOperation extends ArithmeticOperation implem
     private final BinaryEvaluator ulongs;
     private final BinaryEvaluator doubles;
 
-    private DataTypes dataType;
+    private DataType dataType;
 
     EsqlArithmeticOperation(
         Source source,
@@ -104,7 +104,7 @@ public abstract class EsqlArithmeticOperation extends ArithmeticOperation implem
         return EvaluatorMapper.super.fold();
     }
 
-    public DataTypes dataType() {
+    public DataType dataType() {
         if (dataType == null) {
             dataType = EsqlDataTypeRegistry.INSTANCE.commonType(left().dataType(), right().dataType());
         }
@@ -128,10 +128,10 @@ public abstract class EsqlArithmeticOperation extends ArithmeticOperation implem
      */
     protected TypeResolution checkCompatibility() {
         // This checks that unsigned longs should only be compatible with other unsigned longs
-        DataTypes leftType = left().dataType();
-        DataTypes rightType = right().dataType();
-        if ((rightType == UNSIGNED_LONG && (false == (leftType == UNSIGNED_LONG || leftType == DataTypes.NULL)))
-            || (leftType == UNSIGNED_LONG && (false == (rightType == UNSIGNED_LONG || rightType == DataTypes.NULL)))) {
+        DataType leftType = left().dataType();
+        DataType rightType = right().dataType();
+        if ((rightType == UNSIGNED_LONG && (false == (leftType == UNSIGNED_LONG || leftType == DataType.NULL)))
+            || (leftType == UNSIGNED_LONG && (false == (rightType == UNSIGNED_LONG || rightType == DataType.NULL)))) {
             return new TypeResolution(formatIncompatibleTypesMessage(symbol(), leftType, rightType));
         }
 
@@ -139,7 +139,7 @@ public abstract class EsqlArithmeticOperation extends ArithmeticOperation implem
         return TypeResolution.TYPE_RESOLVED;
     }
 
-    public static String formatIncompatibleTypesMessage(String symbol, DataTypes leftType, DataTypes rightType) {
+    public static String formatIncompatibleTypesMessage(String symbol, DataType leftType, DataType rightType) {
         return format(null, "[{}] has arguments with incompatible types [{}] and [{}]", symbol, leftType.typeName(), rightType.typeName());
     }
 

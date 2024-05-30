@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.esql.core.expression;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 
@@ -54,7 +54,7 @@ public class FieldAttribute extends TypedAttribute {
         Source source,
         FieldAttribute parent,
         String name,
-        DataTypes type,
+        DataType type,
         EsField field,
         String qualifier,
         Nullability nullability,
@@ -105,7 +105,7 @@ public class FieldAttribute extends TypedAttribute {
     protected Attribute clone(
         Source source,
         String name,
-        DataTypes type,
+        DataType type,
         String qualifier,
         Nullability nullability,
         NameId id,

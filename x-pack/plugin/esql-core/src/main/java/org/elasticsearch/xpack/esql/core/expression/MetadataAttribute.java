@@ -13,7 +13,7 @@ import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.util.Map;
 
@@ -21,17 +21,17 @@ import static org.elasticsearch.core.Tuple.tuple;
 
 public class MetadataAttribute extends TypedAttribute {
 
-    private static final Map<String, Tuple<DataTypes, Boolean>> ATTRIBUTES_MAP = Map.of(
+    private static final Map<String, Tuple<DataType, Boolean>> ATTRIBUTES_MAP = Map.of(
         "_version",
-        tuple(DataTypes.LONG, false), // _version field is not searchable
+        tuple(DataType.LONG, false), // _version field is not searchable
         "_index",
-        tuple(DataTypes.KEYWORD, true),
+        tuple(DataType.KEYWORD, true),
         IdFieldMapper.NAME,
-        tuple(DataTypes.KEYWORD, false), // actually searchable, but fielddata access on the _id field is disallowed by default
+        tuple(DataType.KEYWORD, false), // actually searchable, but fielddata access on the _id field is disallowed by default
         IgnoredFieldMapper.NAME,
-        tuple(DataTypes.KEYWORD, true),
+        tuple(DataType.KEYWORD, true),
         SourceFieldMapper.NAME,
-        tuple(DataTypes.SOURCE, false)
+        tuple(DataType.SOURCE, false)
     );
 
     private final boolean searchable;
@@ -39,7 +39,7 @@ public class MetadataAttribute extends TypedAttribute {
     public MetadataAttribute(
         Source source,
         String name,
-        DataTypes dataType,
+        DataType dataType,
         String qualifier,
         Nullability nullability,
         NameId id,
@@ -50,7 +50,7 @@ public class MetadataAttribute extends TypedAttribute {
         this.searchable = searchable;
     }
 
-    public MetadataAttribute(Source source, String name, DataTypes dataType, boolean searchable) {
+    public MetadataAttribute(Source source, String name, DataType dataType, boolean searchable) {
         this(source, name, dataType, null, Nullability.TRUE, null, false, searchable);
     }
 
@@ -58,7 +58,7 @@ public class MetadataAttribute extends TypedAttribute {
     protected MetadataAttribute clone(
         Source source,
         String name,
-        DataTypes type,
+        DataType type,
         String qualifier,
         Nullability nullability,
         NameId id,
@@ -90,7 +90,7 @@ public class MetadataAttribute extends TypedAttribute {
         return t != null ? new MetadataAttribute(source, name, t.v1(), t.v2()) : null;
     }
 
-    public static DataTypes dataType(String name) {
+    public static DataType dataType(String name) {
         var t = ATTRIBUTES_MAP.get(name);
         return t != null ? t.v1() : null;
     }

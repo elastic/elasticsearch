@@ -12,7 +12,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
 
@@ -49,8 +49,8 @@ public class PowTests extends AbstractScalarFunctionTestCase {
                 // 143^143 is still representable, but 144^144 is infinite
                 TestCaseSupplier.castToDoubleSuppliersFromRange(Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY),
                 List.of(
-                    new TestCaseSupplier.TypedDataSupplier("<0 double>", () -> 0d, DataTypes.DOUBLE),
-                    new TestCaseSupplier.TypedDataSupplier("<-0 double>", () -> -0d, DataTypes.DOUBLE)
+                    new TestCaseSupplier.TypedDataSupplier("<0 double>", () -> 0d, DataType.DOUBLE),
+                    new TestCaseSupplier.TypedDataSupplier("<-0 double>", () -> -0d, DataType.DOUBLE)
                 ),
                 List.of()
             )
@@ -81,8 +81,8 @@ public class PowTests extends AbstractScalarFunctionTestCase {
     }
 
     @Override
-    protected DataTypes expectedType(List<DataTypes> argTypes) {
-        return DataTypes.DOUBLE;
+    protected DataType expectedType(List<DataType> argTypes) {
+        return DataType.DOUBLE;
     }
 
     @Override

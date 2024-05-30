@@ -12,27 +12,27 @@ import org.elasticsearch.index.mapper.TimeSeriesParams;
 import java.util.Collection;
 
 /**
- * Central class for {@link DataTypes} creation and conversion.
+ * Central class for {@link DataType} creation and conversion.
  */
 public interface DataTypeRegistry {
 
     //
     // Discovery
     //
-    Collection<DataTypes> dataTypes();
+    Collection<DataType> dataTypes();
 
-    DataTypes fromEs(String typeName, TimeSeriesParams.MetricType metricType);
+    DataType fromEs(String typeName, TimeSeriesParams.MetricType metricType);
 
-    DataTypes fromJava(Object value);
+    DataType fromJava(Object value);
 
-    boolean isUnsupported(DataTypes type);
+    boolean isUnsupported(DataType type);
 
     //
     // Conversion methods
     //
-    boolean canConvert(DataTypes from, DataTypes to);
+    boolean canConvert(DataType from, DataType to);
 
-    Object convert(Object value, DataTypes type);
+    Object convert(Object value, DataType type);
 
-    DataTypes commonType(DataTypes left, DataTypes right);
+    DataType commonType(DataType left, DataType right);
 }

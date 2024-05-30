@@ -15,7 +15,7 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.mapper.ExpressionMapper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cast;
 import org.elasticsearch.xpack.esql.planner.Layout;
@@ -30,12 +30,12 @@ public class InsensitiveEqualsMapper extends ExpressionMapper<InsensitiveEquals>
 
     @Override
     public final ExpressionEvaluator.Factory map(InsensitiveEquals bc, Layout layout) {
-        DataTypes leftType = bc.left().dataType();
-        DataTypes rightType = bc.right().dataType();
+        DataType leftType = bc.left().dataType();
+        DataType rightType = bc.right().dataType();
 
         var leftEval = toEvaluator(bc.left(), layout);
         var rightEval = toEvaluator(bc.right(), layout);
-        if (leftType == DataTypes.KEYWORD || leftType == DataTypes.TEXT) {
+        if (leftType == DataType.KEYWORD || leftType == DataType.TEXT) {
             if (bc.right().foldable() && EsqlDataTypes.isString(rightType)) {
                 BytesRef rightVal = BytesRefs.toBytesRef(bc.right().fold());
                 Automaton automaton = InsensitiveEquals.automaton(rightVal);
@@ -54,7 +54,7 @@ public class InsensitiveEqualsMapper extends ExpressionMapper<InsensitiveEquals>
     public static ExpressionEvaluator.Factory castToEvaluator(
         InsensitiveEquals op,
         Layout layout,
-        DataTypes required,
+        DataType required,
         TriFunction<Source, ExpressionEvaluator.Factory, ExpressionEvaluator.Factory, ExpressionEvaluator.Factory> factory
     ) {
         var lhs = Cast.cast(op.source(), op.left().dataType(), required, toEvaluator(op.left(), layout));

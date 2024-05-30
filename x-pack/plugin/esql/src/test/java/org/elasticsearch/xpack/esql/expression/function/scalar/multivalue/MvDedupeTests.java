@@ -12,7 +12,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
@@ -53,7 +53,7 @@ public class MvDedupeTests extends AbstractMultivalueFunctionTestCase {
     }
 
     @Override
-    protected DataTypes[] supportedTypes() {
+    protected DataType[] supportedTypes() {
         return representableTypes();
     }
 

@@ -13,7 +13,7 @@ import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.esql.core.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.util.Objects;
 
@@ -40,8 +40,8 @@ public abstract class RegexMatch<T extends StringPattern> extends UnaryScalarFun
     }
 
     @Override
-    public DataTypes dataType() {
-        return DataTypes.BOOLEAN;
+    public DataType dataType() {
+        return DataType.BOOLEAN;
     }
 
     @Override

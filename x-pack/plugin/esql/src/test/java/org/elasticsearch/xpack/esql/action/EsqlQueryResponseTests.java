@@ -46,7 +46,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.TestBlockFactory;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.versionfield.Version;
@@ -123,9 +123,9 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
     }
 
     private ColumnInfo randomColumnInfo() {
-        DataTypes type = randomValueOtherThanMany(
-            t -> false == DataTypes.isPrimitive(t) || t == DataTypes.DATE_PERIOD || t == DataTypes.TIME_DURATION,
-            () -> randomFrom(DataTypes.types())
+        DataType type = randomValueOtherThanMany(
+            t -> false == DataType.isPrimitive(t) || t == DataType.DATE_PERIOD || t == DataType.TIME_DURATION,
+            () -> randomFrom(DataType.types())
         );
         type = EsqlDataTypes.widenSmallNumericTypes(type);
         return new ColumnInfo(randomAlphaOfLength(10), type.esType());

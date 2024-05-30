@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.esql.expression.predicate.operator.comparison;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.BinaryScalarFunction;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 
 public abstract class InsensitiveBinaryComparison extends BinaryScalarFunction {
 
@@ -18,8 +18,8 @@ public abstract class InsensitiveBinaryComparison extends BinaryScalarFunction {
     }
 
     @Override
-    public DataTypes dataType() {
-        return DataTypes.BOOLEAN;
+    public DataType dataType() {
+        return DataType.BOOLEAN;
     }
 
 }

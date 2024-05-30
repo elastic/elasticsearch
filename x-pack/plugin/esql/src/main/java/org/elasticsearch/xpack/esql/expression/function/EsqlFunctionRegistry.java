@@ -11,7 +11,7 @@ import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.core.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.esql.core.session.Configuration;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Avg;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountDistinct;
@@ -122,30 +122,30 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.BOOLEAN;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.CARTESIAN_POINT;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.CARTESIAN_SHAPE;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.DATETIME;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.DOUBLE;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.GEO_POINT;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.GEO_SHAPE;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.INTEGER;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.IP;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.KEYWORD;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.LONG;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.TEXT;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.UNSIGNED_LONG;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.UNSUPPORTED;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.VERSION;
+import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
+import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_SHAPE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
+import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
+import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
 
 public final class EsqlFunctionRegistry extends FunctionRegistry {
 
-    private static final Map<Class<? extends Function>, List<DataTypes>> dataTypesForStringLiteralConversion = new LinkedHashMap<>();
+    private static final Map<Class<? extends Function>, List<DataType>> dataTypesForStringLiteralConversion = new LinkedHashMap<>();
 
-    private static final Map<DataTypes, Integer> dataTypeCastingPriority;
+    private static final Map<DataType, Integer> dataTypeCastingPriority;
 
     static {
-        List<DataTypes> typePriorityList = Arrays.asList(
+        List<DataType> typePriorityList = Arrays.asList(
             DATETIME,
             DOUBLE,
             LONG,
@@ -304,7 +304,7 @@ public final class EsqlFunctionRegistry extends FunctionRegistry {
         return name.toLowerCase(Locale.ROOT);
     }
 
-    public record ArgSignature(String name, String[] type, String description, boolean optional, DataTypes targetDataType) {
+    public record ArgSignature(String name, String[] type, String description, boolean optional, DataType targetDataType) {
         @Override
         public String toString() {
             return "ArgSignature{"
@@ -370,10 +370,10 @@ public final class EsqlFunctionRegistry extends FunctionRegistry {
         }
     }
 
-    public static DataTypes getTargetType(String[] names) {
-        List<DataTypes> types = new ArrayList<>();
+    public static DataType getTargetType(String[] names) {
+        List<DataType> types = new ArrayList<>();
         for (String name : names) {
-            types.add(DataTypes.fromEs(name));
+            types.add(DataType.fromEs(name));
         }
         if (types.contains(KEYWORD) || types.contains(TEXT)) {
             return UNSUPPORTED;
@@ -406,7 +406,7 @@ public final class EsqlFunctionRegistry extends FunctionRegistry {
                 String[] type = paramInfo == null ? new String[] { "?" } : paramInfo.type();
                 String desc = paramInfo == null ? "" : paramInfo.description().replace('\n', ' ');
                 boolean optional = paramInfo == null ? false : paramInfo.optional();
-                DataTypes targetDataType = getTargetType(type);
+                DataType targetDataType = getTargetType(type);
                 args.add(new EsqlFunctionRegistry.ArgSignature(name, type, desc, optional, targetDataType));
             }
         }
@@ -434,7 +434,7 @@ public final class EsqlFunctionRegistry extends FunctionRegistry {
         }
     }
 
-    public List<DataTypes> getDataTypeForStringLiteralConversion(Class<? extends Function> clazz) {
+    public List<DataType> getDataTypeForStringLiteralConversion(Class<? extends Function> clazz) {
         return dataTypesForStringLiteralConversion.get(clazz);
     }
 }

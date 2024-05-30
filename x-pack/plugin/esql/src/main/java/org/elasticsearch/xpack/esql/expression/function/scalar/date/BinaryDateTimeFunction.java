@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.date;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.BinaryScalarFunction;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.time.ZoneId;
 import java.time.ZoneOffset;
@@ -28,8 +28,8 @@ public abstract class BinaryDateTimeFunction extends BinaryScalarFunction {
     }
 
     @Override
-    public DataTypes dataType() {
-        return DataTypes.DATETIME;
+    public DataType dataType() {
+        return DataType.DATETIME;
     }
 
     public Expression timestampField() {

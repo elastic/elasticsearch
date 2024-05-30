@@ -13,7 +13,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.versionfield.Version;
@@ -35,7 +35,7 @@ public class ToVersionTests extends AbstractFunctionTestCase {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
 
         // Converting and IP to an IP doesn't change anything. Everything should succeed.
-        TestCaseSupplier.forUnaryVersion(suppliers, read, DataTypes.VERSION, Version::toBytesRef, List.of());
+        TestCaseSupplier.forUnaryVersion(suppliers, read, DataType.VERSION, Version::toBytesRef, List.of());
 
         // None of the random strings ever look like versions so they should all become "invalid" versions:
         // https://github.com/elastic/elasticsearch/issues/98989
@@ -43,18 +43,18 @@ public class ToVersionTests extends AbstractFunctionTestCase {
         TestCaseSupplier.forUnaryStrings(
             suppliers,
             stringEvaluator,
-            DataTypes.VERSION,
+            DataType.VERSION,
             bytesRef -> new Version(bytesRef.utf8ToString()).toBytesRef(),
             List.of()
         );
 
         // But strings that are shaped like versions do parse to valid versions
-        for (DataTypes inputType : AbstractConvertFunction.STRING_TYPES) {
+        for (DataType inputType : AbstractConvertFunction.STRING_TYPES) {
             TestCaseSupplier.unary(
                 suppliers,
                 read,
                 TestCaseSupplier.versionCases(inputType.typeName() + " "),
-                DataTypes.VERSION,
+                DataType.VERSION,
                 bytesRef -> new Version((BytesRef) bytesRef).toBytesRef(),
                 List.of()
             );

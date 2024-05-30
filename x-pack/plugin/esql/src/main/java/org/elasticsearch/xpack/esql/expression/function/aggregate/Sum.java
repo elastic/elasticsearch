@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
@@ -24,9 +24,9 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul
 
 import java.util.List;
 
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.DOUBLE;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.LONG;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 
 /**
  * Sum all values of a field in matching documents.
@@ -49,8 +49,8 @@ public class Sum extends NumericAggregate implements SurrogateExpression {
     }
 
     @Override
-    public DataTypes dataType() {
-        DataTypes dt = field().dataType();
+    public DataType dataType() {
+        DataType dt = field().dataType();
         return dt.isInteger() == false || dt == UNSIGNED_LONG ? DOUBLE : LONG;
     }
 
@@ -76,7 +76,7 @@ public class Sum extends NumericAggregate implements SurrogateExpression {
 
         // SUM(const) is equivalent to MV_SUM(const)*COUNT(*).
         return field.foldable()
-            ? new Mul(s, new MvSum(s, field), new Count(s, new Literal(s, StringUtils.WILDCARD, DataTypes.KEYWORD)))
+            ? new Mul(s, new MvSum(s, field), new Count(s, new Literal(s, StringUtils.WILDCARD, DataType.KEYWORD)))
             : null;
     }
 }

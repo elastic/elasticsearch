@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.Negatable;
 import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.CheckNullProcessor.CheckNullOperation;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 
 public class IsNotNull extends UnaryScalarFunction implements Negatable<UnaryScalarFunction> {
 
@@ -34,7 +34,7 @@ public class IsNotNull extends UnaryScalarFunction implements Negatable<UnarySca
 
     @Override
     public Object fold() {
-        return field().fold() != null && DataTypes.isNull(field().dataType()) == false;
+        return field().fold() != null && DataType.isNull(field().dataType()) == false;
     }
 
     @Override
@@ -48,8 +48,8 @@ public class IsNotNull extends UnaryScalarFunction implements Negatable<UnarySca
     }
 
     @Override
-    public DataTypes dataType() {
-        return DataTypes.BOOLEAN;
+    public DataType dataType() {
+        return DataType.BOOLEAN;
     }
 
     @Override

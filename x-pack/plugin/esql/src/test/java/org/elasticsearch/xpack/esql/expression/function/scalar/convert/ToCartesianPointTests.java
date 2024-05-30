@@ -14,7 +14,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.FunctionName;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
@@ -39,12 +39,12 @@ public class ToCartesianPointTests extends AbstractFunctionTestCase {
         final Function<String, String> evaluatorName = s -> "ToCartesianPoint" + s + "Evaluator[field=" + attribute + "]";
         final List<TestCaseSupplier> suppliers = new ArrayList<>();
 
-        TestCaseSupplier.forUnaryCartesianPoint(suppliers, attribute, DataTypes.CARTESIAN_POINT, v -> v, List.of());
+        TestCaseSupplier.forUnaryCartesianPoint(suppliers, attribute, DataType.CARTESIAN_POINT, v -> v, List.of());
         // random strings that don't look like a cartesian point
         TestCaseSupplier.forUnaryStrings(
             suppliers,
             evaluatorName.apply("FromString"),
-            DataTypes.CARTESIAN_POINT,
+            DataType.CARTESIAN_POINT,
             bytesRef -> null,
             bytesRef -> {
                 var exception = expectThrows(Exception.class, () -> CARTESIAN.wktToWkb(bytesRef.utf8ToString()));
@@ -55,7 +55,7 @@ public class ToCartesianPointTests extends AbstractFunctionTestCase {
             }
         );
         // strings that are cartesian point representations
-        for (DataTypes dt : List.of(DataTypes.KEYWORD, DataTypes.TEXT)) {
+        for (DataType dt : List.of(DataType.KEYWORD, DataType.TEXT)) {
             TestCaseSupplier.unary(
                 suppliers,
                 evaluatorName.apply("FromString"),
@@ -66,7 +66,7 @@ public class ToCartesianPointTests extends AbstractFunctionTestCase {
                         dt
                     )
                 ),
-                DataTypes.CARTESIAN_POINT,
+                DataType.CARTESIAN_POINT,
                 bytesRef -> CARTESIAN.wktToWkb(((BytesRef) bytesRef).utf8ToString()),
                 List.of()
             );

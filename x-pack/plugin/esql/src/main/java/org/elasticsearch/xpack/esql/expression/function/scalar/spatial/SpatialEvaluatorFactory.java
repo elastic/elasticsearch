@@ -12,7 +12,7 @@ import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.util.Map;
 import java.util.function.Function;
@@ -206,7 +206,7 @@ abstract class SpatialEvaluatorFactory<V, T> {
         }
     }
 
-    protected record SpatialEvaluatorFieldKey(DataTypes dataType, boolean isConstant) {}
+    protected record SpatialEvaluatorFieldKey(DataType dataType, boolean isConstant) {}
 
     record SpatialEvaluatorKey(
         SpatialRelatesFunction.SpatialCrsType crsType,
@@ -227,7 +227,7 @@ abstract class SpatialEvaluatorFactory<V, T> {
             return new SpatialEvaluatorKey(crsType, rightDocValues, leftDocValues, right, left);
         }
 
-        static SpatialEvaluatorKey fromSourceAndConstant(DataTypes left, DataTypes right) {
+        static SpatialEvaluatorKey fromSourceAndConstant(DataType left, DataType right) {
             return new SpatialEvaluatorKey(
                 SpatialRelatesFunction.SpatialCrsType.fromDataType(left),
                 new SpatialEvaluatorFieldKey(left, false),
@@ -235,7 +235,7 @@ abstract class SpatialEvaluatorFactory<V, T> {
             );
         }
 
-        static SpatialEvaluatorKey fromSources(DataTypes left, DataTypes right) {
+        static SpatialEvaluatorKey fromSources(DataType left, DataType right) {
             return new SpatialEvaluatorKey(
                 SpatialRelatesFunction.SpatialCrsType.fromDataType(left),
                 new SpatialEvaluatorFieldKey(left, false),

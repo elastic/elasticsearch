@@ -11,7 +11,7 @@ import joptsimple.internal.Strings;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
@@ -53,10 +53,10 @@ public abstract class SpatialRelatesFunctionTestCase extends AbstractFunctionTes
         }
     }
 
-    protected static void addSpatialCombinations(List<TestCaseSupplier> suppliers, DataTypes[] dataTypes) {
-        for (DataTypes leftType : dataTypes) {
+    protected static void addSpatialCombinations(List<TestCaseSupplier> suppliers, DataType[] dataTypes) {
+        for (DataType leftType : dataTypes) {
             TestCaseSupplier.TypedDataSupplier leftDataSupplier = testCaseSupplier(leftType);
-            for (DataTypes rightType : dataTypes) {
+            for (DataType rightType : dataTypes) {
                 if (typeCompatible(leftType, rightType)) {
                     TestCaseSupplier.TypedDataSupplier rightDataSupplier = testCaseSupplier(rightType);
                     suppliers.add(
@@ -64,7 +64,7 @@ public abstract class SpatialRelatesFunctionTestCase extends AbstractFunctionTes
                             leftDataSupplier,
                             rightDataSupplier,
                             SpatialRelatesFunctionTestCase::spatialEvaluatorString,
-                            DataTypes.BOOLEAN,
+                            DataType.BOOLEAN,
                             (l, r) -> expected(l, leftType, r, rightType)
                         )
                     );
@@ -76,7 +76,7 @@ public abstract class SpatialRelatesFunctionTestCase extends AbstractFunctionTes
     /**
      * Build the expected error message for an invalid type signature.
      */
-    protected static String typeErrorMessage(boolean includeOrdinal, List<Set<DataTypes>> validPerPosition, List<DataTypes> types) {
+    protected static String typeErrorMessage(boolean includeOrdinal, List<Set<DataType>> validPerPosition, List<DataType> types) {
         List<Integer> badArgPositions = new ArrayList<>();
         for (int i = 0; i < types.size(); i++) {
             if (validPerPosition.get(i).contains(types.get(i)) == false) {
@@ -98,7 +98,7 @@ public abstract class SpatialRelatesFunctionTestCase extends AbstractFunctionTes
         }
     }
 
-    private static String oneInvalid(int badArgPosition, int goodArgPosition, boolean includeOrdinal, List<DataTypes> types) {
+    private static String oneInvalid(int badArgPosition, int goodArgPosition, boolean includeOrdinal, List<DataType> types) {
         String ordinal = includeOrdinal ? TypeResolutions.ParamOrdinal.fromIndex(badArgPosition).name().toLowerCase(Locale.ROOT) + " " : "";
         String expectedType = goodArgPosition >= 0
             ? compatibleTypes(types.get(goodArgPosition))
@@ -107,11 +107,11 @@ public abstract class SpatialRelatesFunctionTestCase extends AbstractFunctionTes
         return ordinal + "argument of [] must be [" + expectedType + "], found value [" + name + "] type [" + name + "]";
     }
 
-    private static String compatibleTypes(DataTypes spatialDataType) {
+    private static String compatibleTypes(DataType spatialDataType) {
         return Strings.join(compatibleTypeNames(spatialDataType), " or ");
     }
 
-    public static TestCaseSupplier.TypedDataSupplier testCaseSupplier(DataTypes dataType) {
+    public static TestCaseSupplier.TypedDataSupplier testCaseSupplier(DataType dataType) {
         return switch (dataType.esType()) {
             case "geo_point" -> TestCaseSupplier.geoPointCases(() -> false).get(0);
             case "geo_shape" -> TestCaseSupplier.geoShapeCases(() -> false).get(0);
@@ -121,7 +121,7 @@ public abstract class SpatialRelatesFunctionTestCase extends AbstractFunctionTes
         };
     }
 
-    private static Object expected(Object left, DataTypes leftType, Object right, DataTypes rightType) {
+    private static Object expected(Object left, DataType leftType, Object right, DataType rightType) {
         if (typeCompatible(leftType, rightType) == false) {
             return null;
         }
@@ -138,9 +138,9 @@ public abstract class SpatialRelatesFunctionTestCase extends AbstractFunctionTes
 
     private static SpatialRelatesFunction.SpatialRelations spatialRelations(
         Object left,
-        DataTypes leftType,
+        DataType leftType,
         Object right,
-        DataTypes rightType
+        DataType rightType
     ) {
         if (isSpatialGeo(leftType) || isSpatialGeo(rightType)) {
             return getRelationsField("GEO");
@@ -161,7 +161,7 @@ public abstract class SpatialRelatesFunctionTestCase extends AbstractFunctionTes
         }
     }
 
-    private static BytesRef asGeometryWKB(Object object, DataTypes dataType) {
+    private static BytesRef asGeometryWKB(Object object, DataType dataType) {
         if (isString(dataType)) {
             return SpatialCoordinateTypes.UNSPECIFIED.wktToWkb(object.toString());
         } else if (object instanceof BytesRef wkb) {
@@ -171,7 +171,7 @@ public abstract class SpatialRelatesFunctionTestCase extends AbstractFunctionTes
         }
     }
 
-    private static boolean typeCompatible(DataTypes leftType, DataTypes rightType) {
+    private static boolean typeCompatible(DataType leftType, DataType rightType) {
         if (isSpatial(leftType) && isSpatial(rightType)) {
             // Both must be GEO_* or both must be CARTESIAN_*
             return countGeo(leftType, rightType) != 1;
@@ -179,7 +179,7 @@ public abstract class SpatialRelatesFunctionTestCase extends AbstractFunctionTes
         return true;
     }
 
-    private static DataTypes pickSpatialType(DataTypes leftType, DataTypes rightType) {
+    private static DataType pickSpatialType(DataType leftType, DataType rightType) {
         if (isSpatial(leftType)) {
             return leftType;
         } else if (isSpatial(rightType)) {
@@ -189,16 +189,16 @@ public abstract class SpatialRelatesFunctionTestCase extends AbstractFunctionTes
         }
     }
 
-    public static Matcher<String> spatialEvaluatorString(DataTypes leftType, DataTypes rightType) {
+    public static Matcher<String> spatialEvaluatorString(DataType leftType, DataType rightType) {
         String crsType = isSpatialGeo(pickSpatialType(leftType, rightType)) ? "Geo" : "Cartesian";
         return equalTo(
             getFunctionClassName() + crsType + "SourceAndSourceEvaluator[leftValue=Attribute[channel=0], rightValue=Attribute[channel=1]]"
         );
     }
 
-    private static int countGeo(DataTypes... types) {
+    private static int countGeo(DataType... types) {
         int count = 0;
-        for (DataTypes type : types) {
+        for (DataType type : types) {
             if (isSpatialGeo(type)) {
                 count++;
             }

@@ -12,7 +12,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
 
@@ -27,39 +27,39 @@ public class AbsTests extends AbstractScalarFunctionTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
-        suppliers.add(new TestCaseSupplier(List.of(DataTypes.INTEGER), () -> {
+        suppliers.add(new TestCaseSupplier(List.of(DataType.INTEGER), () -> {
             int arg = randomInt();
             return new TestCaseSupplier.TestCase(
-                List.of(new TestCaseSupplier.TypedData(arg, DataTypes.INTEGER, "arg")),
+                List.of(new TestCaseSupplier.TypedData(arg, DataType.INTEGER, "arg")),
                 "AbsIntEvaluator[fieldVal=Attribute[channel=0]]",
-                DataTypes.INTEGER,
+                DataType.INTEGER,
                 equalTo(Math.abs(arg))
             );
         }));
         TestCaseSupplier.forUnaryUnsignedLong(
             suppliers,
             "Attribute[channel=0]",
-            DataTypes.UNSIGNED_LONG,
+            DataType.UNSIGNED_LONG,
             (n) -> n,
             BigInteger.ZERO,
             UNSIGNED_LONG_MAX,
             List.of()
         );
-        suppliers.add(new TestCaseSupplier(List.of(DataTypes.LONG), () -> {
+        suppliers.add(new TestCaseSupplier(List.of(DataType.LONG), () -> {
             long arg = randomLong();
             return new TestCaseSupplier.TestCase(
-                List.of(new TestCaseSupplier.TypedData(arg, DataTypes.LONG, "arg")),
+                List.of(new TestCaseSupplier.TypedData(arg, DataType.LONG, "arg")),
                 "AbsLongEvaluator[fieldVal=Attribute[channel=0]]",
-                DataTypes.LONG,
+                DataType.LONG,
                 equalTo(Math.abs(arg))
             );
         }));
-        suppliers.add(new TestCaseSupplier(List.of(DataTypes.DOUBLE), () -> {
+        suppliers.add(new TestCaseSupplier(List.of(DataType.DOUBLE), () -> {
             double arg = randomDouble();
             return new TestCaseSupplier.TestCase(
-                List.of(new TestCaseSupplier.TypedData(arg, DataTypes.DOUBLE, "arg")),
+                List.of(new TestCaseSupplier.TypedData(arg, DataType.DOUBLE, "arg")),
                 "AbsDoubleEvaluator[fieldVal=Attribute[channel=0]]",
-                DataTypes.DOUBLE,
+                DataType.DOUBLE,
                 equalTo(Math.abs(arg))
             );
         }));
@@ -81,7 +81,7 @@ public class AbsTests extends AbstractScalarFunctionTestCase {
     }
 
     @Override
-    protected DataTypes expectedType(List<DataTypes> argTypes) {
+    protected DataType expectedType(List<DataType> argTypes) {
         return argTypes.get(0);
     }
 }

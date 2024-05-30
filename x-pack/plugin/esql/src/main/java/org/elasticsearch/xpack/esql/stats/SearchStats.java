@@ -28,7 +28,7 @@ import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.io.IOException;
 import java.util.LinkedHashMap;
@@ -144,7 +144,7 @@ public class SearchStats {
         return stat.hasIdenticalDelegate;
     }
 
-    public byte[] min(String field, DataTypes dataType) {
+    public byte[] min(String field, DataType dataType) {
         var stat = cache.computeIfAbsent(field, s -> new FieldStat());
         if (stat.min == null) {
             var min = new byte[][] { null };
@@ -166,7 +166,7 @@ public class SearchStats {
         return null;
     }
 
-    public byte[] max(String field, DataTypes dataType) {
+    public byte[] max(String field, DataType dataType) {
         var stat = cache.computeIfAbsent(field, s -> new FieldStat());
         if (stat.max == null) {
             var max = new byte[][] { null };

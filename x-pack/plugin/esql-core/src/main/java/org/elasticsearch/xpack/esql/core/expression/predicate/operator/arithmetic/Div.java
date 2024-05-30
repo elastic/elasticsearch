@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.esql.core.expression.predicate.operator.arithmet
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DataTypeConverter;
 
 /**
@@ -17,13 +17,13 @@ import org.elasticsearch.xpack.esql.core.type.DataTypeConverter;
  */
 public class Div extends ArithmeticOperation implements BinaryComparisonInversible {
 
-    private DataTypes dataType;
+    private DataType dataType;
 
     public Div(Source source, Expression left, Expression right) {
         this(source, left, right, null);
     }
 
-    public Div(Source source, Expression left, Expression right, DataTypes dataType) {
+    public Div(Source source, Expression left, Expression right, DataType dataType) {
         super(source, left, right, DefaultBinaryArithmeticOperation.DIV);
         this.dataType = dataType;
     }
@@ -39,7 +39,7 @@ public class Div extends ArithmeticOperation implements BinaryComparisonInversib
     }
 
     @Override
-    public DataTypes dataType() {
+    public DataType dataType() {
         if (dataType == null) {
             dataType = DataTypeConverter.commonType(left().dataType(), right().dataType());
         }

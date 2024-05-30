@@ -21,7 +21,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Warnings;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
@@ -42,8 +42,8 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
 public abstract class AbstractConvertFunction extends UnaryScalarFunction {
 
     // the numeric types convert functions need to handle; the other numeric types are converted upstream to one of these
-    private static final List<DataTypes> NUMERIC_TYPES = List.of(DataTypes.INTEGER, DataTypes.LONG, DataTypes.UNSIGNED_LONG, DataTypes.DOUBLE);
-    public static final List<DataTypes> STRING_TYPES = DataTypes.types().stream().filter(EsqlDataTypes::isString).toList();
+    private static final List<DataType> NUMERIC_TYPES = List.of(DataType.INTEGER, DataType.LONG, DataType.UNSIGNED_LONG, DataType.DOUBLE);
+    public static final List<DataType> STRING_TYPES = DataType.types().stream().filter(EsqlDataTypes::isString).toList();
 
     protected AbstractConvertFunction(Source source, Expression field) {
         super(source, field);
@@ -53,7 +53,7 @@ public abstract class AbstractConvertFunction extends UnaryScalarFunction {
      * Build the evaluator given the evaluator a multivalued field.
      */
     protected ExpressionEvaluator.Factory evaluator(ExpressionEvaluator.Factory fieldEval) {
-        DataTypes sourceType = field().dataType();
+        DataType sourceType = field().dataType();
         var factory = factories().get(sourceType);
         if (factory == null) {
             throw EsqlIllegalArgumentException.illegalDataType(sourceType);
@@ -69,9 +69,9 @@ public abstract class AbstractConvertFunction extends UnaryScalarFunction {
         return isType(field(), factories()::containsKey, sourceText(), null, supportedTypesNames(factories().keySet()));
     }
 
-    public static String supportedTypesNames(Set<DataTypes> types) {
+    public static String supportedTypesNames(Set<DataType> types) {
         List<String> supportedTypesNames = new ArrayList<>(types.size());
-        HashSet<DataTypes> supportTypes = new HashSet<>(types);
+        HashSet<DataType> supportTypes = new HashSet<>(types);
         if (supportTypes.containsAll(NUMERIC_TYPES)) {
             supportedTypesNames.add("numeric");
             NUMERIC_TYPES.forEach(supportTypes::remove);
@@ -92,7 +92,7 @@ public abstract class AbstractConvertFunction extends UnaryScalarFunction {
         ExpressionEvaluator.Factory build(ExpressionEvaluator.Factory field, Source source);
     }
 
-    protected abstract Map<DataTypes, BuildFactory> factories();
+    protected abstract Map<DataType, BuildFactory> factories();
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {

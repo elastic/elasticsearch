@@ -10,14 +10,14 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal;
 import org.elasticsearch.xpack.esql.core.expression.predicate.BinaryOperator;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DataTypeConverter;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNumeric;
 
 public abstract class ArithmeticOperation extends BinaryOperator<Object, Object, Object, BinaryArithmeticOperation> {
 
-    private DataTypes dataType;
+    private DataType dataType;
 
     protected ArithmeticOperation(Source source, Expression left, Expression right, BinaryArithmeticOperation operation) {
         super(source, left, right, operation);
@@ -34,7 +34,7 @@ public abstract class ArithmeticOperation extends BinaryOperator<Object, Object,
     }
 
     @Override
-    public DataTypes dataType() {
+    public DataType dataType() {
         if (dataType == null) {
             dataType = DataTypeConverter.commonType(left().dataType(), right().dataType());
         }

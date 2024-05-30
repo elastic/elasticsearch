@@ -32,7 +32,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -56,7 +56,7 @@ import static org.elasticsearch.xpack.esql.expression.Validations.isFoldable;
 public class MvSort extends EsqlScalarFunction implements OptionalArgument, Validatable {
     private final Expression field, order;
 
-    private static final Literal ASC = new Literal(Source.EMPTY, "ASC", DataTypes.KEYWORD);
+    private static final Literal ASC = new Literal(Source.EMPTY, "ASC", DataType.KEYWORD);
 
     @FunctionInfo(
         returnType = { "boolean", "date", "double", "integer", "ip", "keyword", "long", "text", "version" },
@@ -169,7 +169,7 @@ public class MvSort extends EsqlScalarFunction implements OptionalArgument, Vali
     }
 
     @Override
-    public DataTypes dataType() {
+    public DataType dataType() {
         return field.dataType();
     }
 

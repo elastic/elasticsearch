@@ -22,7 +22,7 @@ public class InvalidMappedField extends EsField {
     private final String errorMessage;
 
     public InvalidMappedField(String name, String errorMessage, Map<String, EsField> properties) {
-        super(name, DataTypes.UNSUPPORTED, properties, false);
+        super(name, DataType.UNSUPPORTED, properties, false);
         this.errorMessage = errorMessage;
     }
 

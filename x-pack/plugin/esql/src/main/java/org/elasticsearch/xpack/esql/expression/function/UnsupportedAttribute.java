@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 
 import java.util.Objects;
@@ -67,7 +67,7 @@ public final class UnsupportedAttribute extends FieldAttribute implements Unreso
     protected Attribute clone(
         Source source,
         String name,
-        DataTypes type,
+        DataType type,
         String qualifier,
         Nullability nullability,
         NameId id,

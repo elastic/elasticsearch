@@ -27,7 +27,7 @@ import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.core.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.core.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.core.util.Queries;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
@@ -216,10 +216,10 @@ public class PlannerUtils {
     }
 
     /**
-     * Map QL's {@link DataTypes} to the compute engine's {@link ElementType}, for sortable types only.
+     * Map QL's {@link DataType} to the compute engine's {@link ElementType}, for sortable types only.
      * This specifically excludes spatial data types, which are not themselves sortable.
      */
-    public static ElementType toSortableElementType(DataTypes dataType) {
+    public static ElementType toSortableElementType(DataType dataType) {
         if (EsqlDataTypes.isSpatial(dataType)) {
             return ElementType.UNKNOWN;
         }
@@ -227,49 +227,49 @@ public class PlannerUtils {
     }
 
     /**
-     * Map QL's {@link DataTypes} to the compute engine's {@link ElementType}.
+     * Map QL's {@link DataType} to the compute engine's {@link ElementType}.
      */
-    public static ElementType toElementType(DataTypes dataType) {
+    public static ElementType toElementType(DataType dataType) {
         return toElementType(dataType, MappedFieldType.FieldExtractPreference.NONE);
     }
 
     /**
-     * Map QL's {@link DataTypes} to the compute engine's {@link ElementType}.
+     * Map QL's {@link DataType} to the compute engine's {@link ElementType}.
      * Under some situations, the same data type might be extracted into a different element type.
      * For example, spatial types can be extracted into doc-values under specific conditions, otherwise they extract as BytesRef.
      */
-    public static ElementType toElementType(DataTypes dataType, MappedFieldType.FieldExtractPreference fieldExtractPreference) {
-        if (dataType == DataTypes.LONG
-            || dataType == DataTypes.DATETIME
-            || dataType == DataTypes.UNSIGNED_LONG
-            || dataType == DataTypes.COUNTER_LONG) {
+    public static ElementType toElementType(DataType dataType, MappedFieldType.FieldExtractPreference fieldExtractPreference) {
+        if (dataType == DataType.LONG
+            || dataType == DataType.DATETIME
+            || dataType == DataType.UNSIGNED_LONG
+            || dataType == DataType.COUNTER_LONG) {
             return ElementType.LONG;
         }
-        if (dataType == DataTypes.INTEGER || dataType == DataTypes.COUNTER_INTEGER) {
+        if (dataType == DataType.INTEGER || dataType == DataType.COUNTER_INTEGER) {
             return ElementType.INT;
         }
-        if (dataType == DataTypes.DOUBLE || dataType == DataTypes.COUNTER_DOUBLE) {
+        if (dataType == DataType.DOUBLE || dataType == DataType.COUNTER_DOUBLE) {
             return ElementType.DOUBLE;
         }
         // unsupported fields are passed through as a BytesRef
-        if (dataType == DataTypes.KEYWORD
-            || dataType == DataTypes.TEXT
-            || dataType == DataTypes.IP
-            || dataType == DataTypes.SOURCE
-            || dataType == DataTypes.VERSION
-            || dataType == DataTypes.UNSUPPORTED) {
+        if (dataType == DataType.KEYWORD
+            || dataType == DataType.TEXT
+            || dataType == DataType.IP
+            || dataType == DataType.SOURCE
+            || dataType == DataType.VERSION
+            || dataType == DataType.UNSUPPORTED) {
             return ElementType.BYTES_REF;
         }
-        if (dataType == DataTypes.NULL) {
+        if (dataType == DataType.NULL) {
             return ElementType.NULL;
         }
-        if (dataType == DataTypes.BOOLEAN) {
+        if (dataType == DataType.BOOLEAN) {
             return ElementType.BOOLEAN;
         }
-        if (dataType == DataTypes.DOC_DATA_TYPE) {
+        if (dataType == DataType.DOC_DATA_TYPE) {
             return ElementType.DOC;
         }
-        if (dataType == DataTypes.TSID_DATA_TYPE) {
+        if (dataType == DataType.TSID_DATA_TYPE) {
             return ElementType.BYTES_REF;
         }
         if (EsqlDataTypes.isSpatialPoint(dataType)) {

@@ -76,7 +76,7 @@ import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
@@ -149,7 +149,7 @@ public class EnrichLookupService {
         String sessionId,
         CancellableTask parentTask,
         String index,
-        DataTypes inputDataType,
+        DataType inputDataType,
         String matchType,
         String matchField,
         List<NamedExpression> extractFields,
@@ -242,7 +242,7 @@ public class EnrichLookupService {
         String sessionId,
         CancellableTask task,
         ShardId shardId,
-        DataTypes inputDataType,
+        DataType inputDataType,
         String matchType,
         String matchField,
         Page inputPage,
@@ -417,7 +417,7 @@ public class EnrichLookupService {
     private static class LookupRequest extends TransportRequest implements IndicesRequest {
         private final String sessionId;
         private final ShardId shardId;
-        private final DataTypes inputDataType;
+        private final DataType inputDataType;
         private final String matchType;
         private final String matchField;
         private final Page inputPage;
@@ -429,7 +429,7 @@ public class EnrichLookupService {
         LookupRequest(
             String sessionId,
             ShardId shardId,
-            DataTypes inputDataType,
+            DataType inputDataType,
             String matchType,
             String matchField,
             Page inputPage,
@@ -536,7 +536,7 @@ public class EnrichLookupService {
     private static String lookupDescription(
         String sessionId,
         ShardId shardId,
-        DataTypes inputDataType,
+        DataType inputDataType,
         String matchType,
         String matchField,
         List<NamedExpression> extractFields,

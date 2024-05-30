@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.esql.core.expression;
 
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.util.List;
 import java.util.Objects;
@@ -62,7 +62,7 @@ public class Order extends Expression {
     }
 
     @Override
-    public DataTypes dataType() {
+    public DataType dataType() {
         return child.dataType();
     }
 

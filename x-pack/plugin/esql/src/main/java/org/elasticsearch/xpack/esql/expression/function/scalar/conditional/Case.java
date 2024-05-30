@@ -22,7 +22,7 @@ import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -36,14 +36,14 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.NULL;
+import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 
 public final class Case extends EsqlScalarFunction {
     record Condition(Expression condition, Expression value) {}
 
     private final List<Condition> conditions;
     private final Expression elseValue;
-    private DataTypes dataType;
+    private DataType dataType;
 
     @FunctionInfo(
         returnType = {
@@ -115,7 +115,7 @@ public final class Case extends EsqlScalarFunction {
     }
 
     @Override
-    public DataTypes dataType() {
+    public DataType dataType() {
         if (dataType == null) {
             resolveType();
         }

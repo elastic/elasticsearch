@@ -32,7 +32,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.TestBlockFactory;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
@@ -161,10 +161,10 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
         private Page lastPage;
         boolean finished;
         String columnName;
-        private final DataTypes dataType;
+        private final DataType dataType;
         private final MappedFieldType.FieldExtractPreference extractPreference;
 
-        TestFieldExtractOperator(String columnName, DataTypes dataType, MappedFieldType.FieldExtractPreference extractPreference) {
+        TestFieldExtractOperator(String columnName, DataType dataType, MappedFieldType.FieldExtractPreference extractPreference) {
             this.columnName = columnName;
             this.dataType = dataType;
             this.extractPreference = extractPreference;
@@ -299,7 +299,7 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
     private Block extractBlockForColumn(
         Page page,
         String columnName,
-        DataTypes dataType,
+        DataType dataType,
         MappedFieldType.FieldExtractPreference extractPreference
     ) {
         var columnIndex = -1;
@@ -321,7 +321,7 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
         return blockCopier.copyBlock(originalData);
     }
 
-    private boolean shouldMapToDocValues(DataTypes dataType, MappedFieldType.FieldExtractPreference extractPreference) {
+    private boolean shouldMapToDocValues(DataType dataType, MappedFieldType.FieldExtractPreference extractPreference) {
         return extractPreference == DOC_VALUES && EsqlDataTypes.isSpatialPoint(dataType);
     }
 
@@ -381,7 +381,7 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
             }
         }
 
-        private static TestSpatialPointStatsBlockCopier create(IntVector docIndices, DataTypes dataType) {
+        private static TestSpatialPointStatsBlockCopier create(IntVector docIndices, DataType dataType) {
             Function<BytesRef, Long> encoder = switch (dataType.esType()) {
                 case "geo_point" -> SpatialCoordinateTypes.GEO::wkbAsLong;
                 case "cartesian_point" -> SpatialCoordinateTypes.CARTESIAN::wkbAsLong;

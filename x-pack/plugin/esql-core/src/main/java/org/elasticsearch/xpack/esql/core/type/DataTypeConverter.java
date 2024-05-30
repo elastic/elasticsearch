@@ -22,23 +22,23 @@ import java.util.Locale;
 import java.util.function.DoubleFunction;
 import java.util.function.Function;
 
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.BOOLEAN;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.BYTE;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.DATETIME;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.DOUBLE;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.FLOAT;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.INTEGER;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.IP;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.KEYWORD;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.LONG;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.NULL;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.SHORT;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.TEXT;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.UNSIGNED_LONG;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.VERSION;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.isDateTime;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.isPrimitive;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.isString;
+import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
+import static org.elasticsearch.xpack.esql.core.type.DataType.BYTE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
+import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
+import static org.elasticsearch.xpack.esql.core.type.DataType.SHORT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isDateTime;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isPrimitive;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isString;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.UNSIGNED_LONG_MAX;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.inUnsignedLongRange;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.isUnsignedLong;
@@ -57,7 +57,7 @@ public final class DataTypeConverter {
      * If both types are numeric - returns type with the highest precision int &lt; long &lt; float &lt; double
      * If one of the types is string and another numeric - returns numeric
      */
-    public static DataTypes commonType(DataTypes left, DataTypes right) {
+    public static DataType commonType(DataType left, DataType right) {
         if (left == right) {
             return left;
         }
@@ -118,7 +118,7 @@ public final class DataTypeConverter {
     /**
      * Returns true if the from type can be converted to the to type, false - otherwise
      */
-    public static boolean canConvert(DataTypes from, DataTypes to) {
+    public static boolean canConvert(DataType from, DataType to) {
         // Special handling for nulls and if conversion is not requires
         if (from == to || from == NULL) {
             return true;
@@ -130,7 +130,7 @@ public final class DataTypeConverter {
     /**
      * Get the conversion from one type to another.
      */
-    public static Converter converterFor(DataTypes from, DataTypes to) {
+    public static Converter converterFor(DataType from, DataType to) {
         // Special handling for nulls and if conversion is not requires
         if (from == to || (isDateTime(from) && isDateTime(to))) {
             return DefaultConverter.IDENTITY;
@@ -178,28 +178,28 @@ public final class DataTypeConverter {
         return null;
     }
 
-    private static Converter conversionToString(DataTypes from) {
+    private static Converter conversionToString(DataType from) {
         if (isDateTime(from)) {
             return DefaultConverter.DATETIME_TO_STRING;
         }
         return DefaultConverter.OTHER_TO_STRING;
     }
 
-    private static Converter conversionToIp(DataTypes from) {
+    private static Converter conversionToIp(DataType from) {
         if (isString(from)) {
             return DefaultConverter.STRING_TO_IP;
         }
         return null;
     }
 
-    private static Converter conversionToVersion(DataTypes from) {
+    private static Converter conversionToVersion(DataType from) {
         if (isString(from)) {
             return DefaultConverter.STRING_TO_VERSION;
         }
         return null;
     }
 
-    private static Converter conversionToUnsignedLong(DataTypes from) {
+    private static Converter conversionToUnsignedLong(DataType from) {
         if (from.isRational()) {
             return DefaultConverter.RATIONAL_TO_UNSIGNED_LONG;
         }
@@ -218,7 +218,7 @@ public final class DataTypeConverter {
         return null;
     }
 
-    private static Converter conversionToLong(DataTypes from) {
+    private static Converter conversionToLong(DataType from) {
         if (from.isRational()) {
             return DefaultConverter.RATIONAL_TO_LONG;
         }
@@ -237,7 +237,7 @@ public final class DataTypeConverter {
         return null;
     }
 
-    private static Converter conversionToInt(DataTypes from) {
+    private static Converter conversionToInt(DataType from) {
         if (from.isRational()) {
             return DefaultConverter.RATIONAL_TO_INT;
         }
@@ -256,7 +256,7 @@ public final class DataTypeConverter {
         return null;
     }
 
-    private static Converter conversionToShort(DataTypes from) {
+    private static Converter conversionToShort(DataType from) {
         if (from.isRational()) {
             return DefaultConverter.RATIONAL_TO_SHORT;
         }
@@ -275,7 +275,7 @@ public final class DataTypeConverter {
         return null;
     }
 
-    private static Converter conversionToByte(DataTypes from) {
+    private static Converter conversionToByte(DataType from) {
         if (from.isRational()) {
             return DefaultConverter.RATIONAL_TO_BYTE;
         }
@@ -294,7 +294,7 @@ public final class DataTypeConverter {
         return null;
     }
 
-    private static DefaultConverter conversionToFloat(DataTypes from) {
+    private static DefaultConverter conversionToFloat(DataType from) {
         if (from.isRational()) {
             return DefaultConverter.RATIONAL_TO_FLOAT;
         }
@@ -313,7 +313,7 @@ public final class DataTypeConverter {
         return null;
     }
 
-    private static DefaultConverter conversionToDouble(DataTypes from) {
+    private static DefaultConverter conversionToDouble(DataType from) {
         if (from.isRational()) {
             return DefaultConverter.RATIONAL_TO_DOUBLE;
         }
@@ -332,7 +332,7 @@ public final class DataTypeConverter {
         return null;
     }
 
-    private static DefaultConverter conversionToDateTime(DataTypes from) {
+    private static DefaultConverter conversionToDateTime(DataType from) {
         if (from.isRational()) {
             return DefaultConverter.RATIONAL_TO_DATETIME;
         }
@@ -348,7 +348,7 @@ public final class DataTypeConverter {
         return null;
     }
 
-    private static DefaultConverter conversionToBoolean(DataTypes from) {
+    private static DefaultConverter conversionToBoolean(DataType from) {
         if (from.isNumeric()) {
             return DefaultConverter.NUMERIC_TO_BOOLEAN;
         }
@@ -441,7 +441,7 @@ public final class DataTypeConverter {
         return bi.signum() < 0 ? bi.and(UNSIGNED_LONG_MAX) : bi;
     }
 
-    public static Number toInteger(double x, DataTypes dataType) {
+    public static Number toInteger(double x, DataType dataType) {
         long l = safeDoubleToLong(x);
 
         if (dataType == BYTE) {
@@ -469,8 +469,8 @@ public final class DataTypeConverter {
      * <p>
      * Throws InvalidArgumentException if such conversion is not possible
      */
-    public static Object convert(Object value, DataTypes dataType) {
-        DataTypes detectedType = DataTypes.fromJava(value);
+    public static Object convert(Object value, DataType dataType) {
+        DataType detectedType = DataType.fromJava(value);
         if (detectedType == dataType || value == null) {
             return value;
         }
@@ -623,7 +623,7 @@ public final class DataTypeConverter {
         }
     }
 
-    public static DataTypes asInteger(DataTypes dataType) {
+    public static DataType asInteger(DataType dataType) {
         if (dataType.isNumeric() == false) {
             return dataType;
         }

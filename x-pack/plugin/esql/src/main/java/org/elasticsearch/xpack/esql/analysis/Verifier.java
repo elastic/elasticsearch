@@ -24,7 +24,7 @@ import org.elasticsearch.xpack.esql.core.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.core.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.core.plan.logical.UnaryPlan;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
@@ -285,7 +285,7 @@ public class Verifier {
     private static void checkRegexExtractOnlyOnStrings(LogicalPlan p, Set<Failure> failures) {
         if (p instanceof RegexExtract re) {
             Expression expr = re.input();
-            DataTypes type = expr.dataType();
+            DataType type = expr.dataType();
             if (EsqlDataTypes.isString(type) == false) {
                 failures.add(
                     fail(
@@ -314,7 +314,7 @@ public class Verifier {
         if (p instanceof Eval eval) {
             eval.fields().forEach(field -> {
                 // check supported types
-                DataTypes dataType = field.dataType();
+                DataType dataType = field.dataType();
                 if (EsqlDataTypes.isRepresentable(dataType) == false) {
                     failures.add(
                         fail(field, "EVAL does not support type [{}] in expression [{}]", dataType.typeName(), field.child().sourceText())
@@ -376,30 +376,30 @@ public class Verifier {
             return null;
         }
 
-        List<DataTypes> allowed = new ArrayList<>();
-        allowed.add(DataTypes.KEYWORD);
-        allowed.add(DataTypes.TEXT);
-        allowed.add(DataTypes.IP);
-        allowed.add(DataTypes.DATETIME);
-        allowed.add(DataTypes.VERSION);
-        allowed.add(DataTypes.GEO_POINT);
-        allowed.add(DataTypes.GEO_SHAPE);
-        allowed.add(DataTypes.CARTESIAN_POINT);
-        allowed.add(DataTypes.CARTESIAN_SHAPE);
+        List<DataType> allowed = new ArrayList<>();
+        allowed.add(DataType.KEYWORD);
+        allowed.add(DataType.TEXT);
+        allowed.add(DataType.IP);
+        allowed.add(DataType.DATETIME);
+        allowed.add(DataType.VERSION);
+        allowed.add(DataType.GEO_POINT);
+        allowed.add(DataType.GEO_SHAPE);
+        allowed.add(DataType.CARTESIAN_POINT);
+        allowed.add(DataType.CARTESIAN_SHAPE);
         if (bc instanceof Equals || bc instanceof NotEquals) {
-            allowed.add(DataTypes.BOOLEAN);
+            allowed.add(DataType.BOOLEAN);
         }
         Expression.TypeResolution r = TypeResolutions.isType(
             bc.left(),
             allowed::contains,
             bc.sourceText(),
             FIRST,
-            Stream.concat(Stream.of("numeric"), allowed.stream().map(DataTypes::typeName)).toArray(String[]::new)
+            Stream.concat(Stream.of("numeric"), allowed.stream().map(DataType::typeName)).toArray(String[]::new)
         );
         if (false == r.resolved()) {
             return fail(bc, r.message());
         }
-        if (DataTypes.isString(bc.left().dataType()) && DataTypes.isString(bc.right().dataType())) {
+        if (DataType.isString(bc.left().dataType()) && DataType.isString(bc.right().dataType())) {
             return null;
         }
         if (bc.left().dataType() != bc.right().dataType()) {
@@ -424,17 +424,17 @@ public class Verifier {
      *  Let the user handle the operation explicitly.
      */
     public static Failure validateUnsignedLongOperator(BinaryOperator<?, ?, ?, ?> bo) {
-        DataTypes leftType = bo.left().dataType();
-        DataTypes rightType = bo.right().dataType();
-        if ((leftType == DataTypes.UNSIGNED_LONG || rightType == DataTypes.UNSIGNED_LONG) && leftType != rightType) {
+        DataType leftType = bo.left().dataType();
+        DataType rightType = bo.right().dataType();
+        if ((leftType == DataType.UNSIGNED_LONG || rightType == DataType.UNSIGNED_LONG) && leftType != rightType) {
             return fail(
                 bo,
                 "first argument of [{}] is [{}] and second is [{}]. [{}] can only be operated on together with another [{}]",
                 bo.sourceText(),
                 leftType.typeName(),
                 rightType.typeName(),
-                DataTypes.UNSIGNED_LONG.typeName(),
-                DataTypes.UNSIGNED_LONG.typeName()
+                DataType.UNSIGNED_LONG.typeName(),
+                DataType.UNSIGNED_LONG.typeName()
             );
         }
         return null;
@@ -444,8 +444,8 @@ public class Verifier {
      * Negating an unsigned long is invalid.
      */
     private static Failure validateUnsignedLongNegation(Neg neg) {
-        DataTypes childExpressionType = neg.field().dataType();
-        if (childExpressionType.equals(DataTypes.UNSIGNED_LONG)) {
+        DataType childExpressionType = neg.field().dataType();
+        if (childExpressionType.equals(DataType.UNSIGNED_LONG)) {
             return fail(
                 neg,
                 "negation unsupported for arguments of type [{}] in expression [{}]",
@@ -462,7 +462,7 @@ public class Verifier {
     private static void checkForSortOnSpatialTypes(LogicalPlan p, Set<Failure> localFailures) {
         if (p instanceof OrderBy ob) {
             ob.forEachExpression(Attribute.class, attr -> {
-                DataTypes dataType = attr.dataType();
+                DataType dataType = attr.dataType();
                 if (EsqlDataTypes.isSpatial(dataType)) {
                     localFailures.add(fail(attr, "cannot sort on " + dataType.typeName()));
                 }

@@ -24,7 +24,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.esql.Column;
 import org.elasticsearch.xpack.esql.action.ParseTables;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
@@ -108,7 +108,7 @@ public class EsqlConfigurationSerializationTests extends AbstractWireSerializing
         try {
             for (int i = 0; i < count; i++) {
                 String name = randomAlphaOfLength(i + 1);
-                DataTypes dataType = randomFrom(ParseTables.SUPPORTED_TYPES);
+                DataType dataType = randomFrom(ParseTables.SUPPORTED_TYPES);
                 ElementType type = PlannerUtils.toElementType(dataType);
                 try (
                     Block.Builder builder = type.newBlockBuilder(

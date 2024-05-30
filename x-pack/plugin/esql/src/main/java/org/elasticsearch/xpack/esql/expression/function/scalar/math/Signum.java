@@ -13,7 +13,7 @@ import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
@@ -48,16 +48,16 @@ public class Signum extends UnaryScalarFunction {
         var field = toEvaluator.apply(field());
         var fieldType = field().dataType();
 
-        if (fieldType == DataTypes.DOUBLE) {
+        if (fieldType == DataType.DOUBLE) {
             return new SignumDoubleEvaluator.Factory(source(), field);
         }
-        if (fieldType == DataTypes.INTEGER) {
+        if (fieldType == DataType.INTEGER) {
             return new SignumIntEvaluator.Factory(source(), field);
         }
-        if (fieldType == DataTypes.LONG) {
+        if (fieldType == DataType.LONG) {
             return new SignumLongEvaluator.Factory(source(), field);
         }
-        if (fieldType == DataTypes.UNSIGNED_LONG) {
+        if (fieldType == DataType.UNSIGNED_LONG) {
             return new SignumUnsignedLongEvaluator.Factory(source(), field);
         }
 
@@ -75,8 +75,8 @@ public class Signum extends UnaryScalarFunction {
     }
 
     @Override
-    public DataTypes dataType() {
-        return DataTypes.DOUBLE;
+    public DataType dataType() {
+        return DataType.DOUBLE;
     }
 
     @Evaluator(extraName = "Double")

@@ -12,7 +12,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.util.function.Supplier;
 
@@ -34,5 +34,5 @@ public interface TranslatorHandler {
 
     String nameOf(Expression e);
 
-    Object convert(Object value, DataTypes dataType);
+    Object convert(Object value, DataType dataType);
 }

@@ -22,7 +22,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
@@ -34,10 +34,10 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.CARTESIAN_POINT;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.CARTESIAN_SHAPE;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.GEO_POINT;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.GEO_SHAPE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_SHAPE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.asGeometryDocValueReader;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.asLuceneComponent2D;
 
@@ -140,8 +140,8 @@ public class SpatialDisjoint extends SpatialRelatesFunction {
 
     static {
         // Support geo_point and geo_shape from source and constant combinations
-        for (DataTypes spatialType : new DataTypes[] { GEO_POINT, GEO_SHAPE }) {
-            for (DataTypes otherType : new DataTypes[] { GEO_POINT, GEO_SHAPE }) {
+        for (DataType spatialType : new DataType[] { GEO_POINT, GEO_SHAPE }) {
+            for (DataType otherType : new DataType[] { GEO_POINT, GEO_SHAPE }) {
                 evaluatorMap.put(
                     SpatialEvaluatorFactory.SpatialEvaluatorKey.fromSources(spatialType, otherType),
                     new SpatialEvaluatorFactory.SpatialEvaluatorFactoryWithFields(SpatialDisjointGeoSourceAndSourceEvaluator.Factory::new)
@@ -170,8 +170,8 @@ public class SpatialDisjoint extends SpatialRelatesFunction {
         }
 
         // Support cartesian_point and cartesian_shape from source and constant combinations
-        for (DataTypes spatialType : new DataTypes[] { CARTESIAN_POINT, CARTESIAN_SHAPE }) {
-            for (DataTypes otherType : new DataTypes[] { CARTESIAN_POINT, CARTESIAN_SHAPE }) {
+        for (DataType spatialType : new DataType[] { CARTESIAN_POINT, CARTESIAN_SHAPE }) {
+            for (DataType otherType : new DataType[] { CARTESIAN_POINT, CARTESIAN_SHAPE }) {
                 evaluatorMap.put(
                     SpatialEvaluatorFactory.SpatialEvaluatorKey.fromSources(spatialType, otherType),
                     new SpatialEvaluatorFactory.SpatialEvaluatorFactoryWithFields(

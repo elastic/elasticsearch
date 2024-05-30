@@ -11,7 +11,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 
 /**
  * Function that emits constants, like Euler's number.
@@ -27,8 +27,8 @@ public abstract class DoubleConstantFunction extends ScalarFunction {
     }
 
     @Override
-    public final DataTypes dataType() {
-        return DataTypes.DOUBLE;
+    public final DataType dataType() {
+        return DataType.DOUBLE;
     }
 
     @Override

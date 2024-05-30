@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 
 import org.elasticsearch.xpack.esql.core.expression.predicate.BinaryOperator;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.hamcrest.Matcher;
 
@@ -18,8 +18,8 @@ import java.time.temporal.TemporalAmount;
 import java.util.List;
 import java.util.Locale;
 
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.isDateTime;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.isNull;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isDateTime;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isNull;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isNullOrTemporalAmount;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isTemporalAmount;
 import static org.hamcrest.Matchers.equalTo;
@@ -27,7 +27,7 @@ import static org.hamcrest.Matchers.equalTo;
 public abstract class AbstractDateTimeArithmeticTestCase extends AbstractArithmeticTestCase {
 
     @Override
-    protected Matcher<Object> resultMatcher(List<Object> data, DataTypes dataType) {
+    protected Matcher<Object> resultMatcher(List<Object> data, DataType dataType) {
         Object lhs = data.get(0);
         Object rhs = data.get(1);
         if (lhs instanceof TemporalAmount || rhs instanceof TemporalAmount) {
@@ -56,12 +56,12 @@ public abstract class AbstractDateTimeArithmeticTestCase extends AbstractArithme
     protected abstract Duration expectedValue(Duration lhs, Duration rhs);
 
     @Override
-    protected final boolean supportsType(DataTypes type) {
+    protected final boolean supportsType(DataType type) {
         return EsqlDataTypes.isDateTimeOrTemporal(type) || super.supportsType(type);
     }
 
     @Override
-    protected void validateType(BinaryOperator<?, ?, ?, ?> op, DataTypes lhsType, DataTypes rhsType) {
+    protected void validateType(BinaryOperator<?, ?, ?, ?> op, DataType lhsType, DataType rhsType) {
         if (isDateTime(lhsType) || isDateTime(rhsType)) {
             String failureMessage = null;
             if (isDateTime(lhsType) && isDateTime(rhsType)
@@ -94,7 +94,7 @@ public abstract class AbstractDateTimeArithmeticTestCase extends AbstractArithme
         }
     }
 
-    private void assertTypeResolution(String failureMessage, BinaryOperator<?, ?, ?, ?> op, DataTypes lhsType, DataTypes rhsType) {
+    private void assertTypeResolution(String failureMessage, BinaryOperator<?, ?, ?, ?> op, DataType lhsType, DataType rhsType) {
         if (failureMessage != null) {
             assertFalse(op.toString(), op.typeResolved().resolved());
             assertThat(op.toString(), op.typeResolved().message(), equalTo(failureMessage));
@@ -105,9 +105,9 @@ public abstract class AbstractDateTimeArithmeticTestCase extends AbstractArithme
     }
 
     @Override
-    protected DataTypes expectedType(DataTypes lhsType, DataTypes rhsType) {
+    protected DataType expectedType(DataType lhsType, DataType rhsType) {
         if (isDateTime(lhsType) || isDateTime(rhsType)) {
-            return DataTypes.DATETIME;
+            return DataType.DATETIME;
         } else if (isNullOrTemporalAmount(lhsType) || isNullOrTemporalAmount(rhsType)) {
             if (isNull(lhsType)) {
                 return rhsType;

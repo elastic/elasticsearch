@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.esql;
 
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 
 public class EsqlIllegalArgumentException extends QlIllegalArgumentException {
     public EsqlIllegalArgumentException(String message, Throwable cause, boolean enableSuppression, boolean writableStackTrace) {
@@ -35,7 +35,7 @@ public class EsqlIllegalArgumentException extends QlIllegalArgumentException {
         super(cause);
     }
 
-    public static EsqlIllegalArgumentException illegalDataType(DataTypes dataType) {
+    public static EsqlIllegalArgumentException illegalDataType(DataType dataType) {
         return EsqlIllegalArgumentException.illegalDataType(dataType.typeName());
     }
 

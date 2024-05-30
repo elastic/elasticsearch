@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.esql.core.expression;
 import org.elasticsearch.xpack.esql.core.capabilities.Unresolvable;
 import org.elasticsearch.xpack.esql.core.capabilities.UnresolvedException;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.util.List;
 
@@ -35,7 +35,7 @@ public abstract class UnresolvedNamedExpression extends NamedExpression implemen
     }
 
     @Override
-    public DataTypes dataType() {
+    public DataType dataType() {
         throw new UnresolvedException("data type", this);
     }
 

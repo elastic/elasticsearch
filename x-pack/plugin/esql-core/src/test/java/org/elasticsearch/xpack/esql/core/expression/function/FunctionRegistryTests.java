@@ -16,7 +16,7 @@ import org.elasticsearch.xpack.esql.core.session.Configuration;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.tree.SourceTests;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.util.Arrays;
 import java.util.List;
@@ -198,7 +198,7 @@ public class FunctionRegistryTests extends ESTestCase {
         }
 
         @Override
-        public DataTypes dataType() {
+        public DataType dataType() {
             return null;
         }
     }
@@ -216,7 +216,7 @@ public class FunctionRegistryTests extends ESTestCase {
         }
 
         @Override
-        public DataTypes dataType() {
+        public DataType dataType() {
             return null;
         }
 

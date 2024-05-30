@@ -13,7 +13,7 @@ import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -21,20 +21,20 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.BOOLEAN;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.DATETIME;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.DOUBLE;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.INTEGER;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.KEYWORD;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.LONG;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.TEXT;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToDouble;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.unsignedLongToDouble;
 
 public class ToDouble extends AbstractConvertFunction {
 
-    private static final Map<DataTypes, BuildFactory> EVALUATORS = Map.ofEntries(
+    private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
         Map.entry(DOUBLE, (fieldEval, source) -> fieldEval),
         Map.entry(BOOLEAN, ToDoubleFromBooleanEvaluator.Factory::new),
         Map.entry(DATETIME, ToDoubleFromLongEvaluator.Factory::new), // CastLongToDoubleEvaluator would be a candidate, but not MV'd
@@ -43,9 +43,9 @@ public class ToDouble extends AbstractConvertFunction {
         Map.entry(UNSIGNED_LONG, ToDoubleFromUnsignedLongEvaluator.Factory::new),
         Map.entry(LONG, ToDoubleFromLongEvaluator.Factory::new), // CastLongToDoubleEvaluator would be a candidate, but not MV'd
         Map.entry(INTEGER, ToDoubleFromIntEvaluator.Factory::new), // CastIntToDoubleEvaluator would be a candidate, but not MV'd
-        Map.entry(DataTypes.COUNTER_DOUBLE, (field, source) -> field),
-        Map.entry(DataTypes.COUNTER_INTEGER, ToDoubleFromIntEvaluator.Factory::new),
-        Map.entry(DataTypes.COUNTER_LONG, ToDoubleFromLongEvaluator.Factory::new)
+        Map.entry(DataType.COUNTER_DOUBLE, (field, source) -> field),
+        Map.entry(DataType.COUNTER_INTEGER, ToDoubleFromIntEvaluator.Factory::new),
+        Map.entry(DataType.COUNTER_LONG, ToDoubleFromLongEvaluator.Factory::new)
     );
 
     @FunctionInfo(
@@ -87,12 +87,12 @@ public class ToDouble extends AbstractConvertFunction {
     }
 
     @Override
-    protected Map<DataTypes, BuildFactory> factories() {
+    protected Map<DataType, BuildFactory> factories() {
         return EVALUATORS;
     }
 
     @Override
-    public DataTypes dataType() {
+    public DataType dataType() {
         return DOUBLE;
     }
 

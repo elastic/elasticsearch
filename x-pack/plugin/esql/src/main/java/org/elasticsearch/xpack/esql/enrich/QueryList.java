@@ -26,15 +26,15 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.IntFunction;
 
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.DATETIME;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.IP;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 
 /**
  * Generates a list of Lucene queries based on the input block.
@@ -66,7 +66,7 @@ abstract class QueryList {
         MappedFieldType field,
         SearchExecutionContext searchExecutionContext,
         Block block,
-        DataTypes inputDataType
+        DataType inputDataType
     ) {
         return new TermQueryList(field, searchExecutionContext, block, inputDataType);
     }
@@ -78,7 +78,7 @@ abstract class QueryList {
         MappedFieldType field,
         SearchExecutionContext searchExecutionContext,
         Block block,
-        DataTypes inputDataType
+        DataType inputDataType
     ) {
         return new GeoShapeQueryList(field, searchExecutionContext, block, inputDataType);
     }
@@ -88,10 +88,10 @@ abstract class QueryList {
         private final byte[] ipBytes = new byte[InetAddressPoint.BYTES];
         private final MappedFieldType field;
         private final SearchExecutionContext searchExecutionContext;
-        private final DataTypes inputDataType;
+        private final DataType inputDataType;
         private final IntFunction<Object> blockValueReader;
 
-        private TermQueryList(MappedFieldType field, SearchExecutionContext searchExecutionContext, Block block, DataTypes inputDataType) {
+        private TermQueryList(MappedFieldType field, SearchExecutionContext searchExecutionContext, Block block, DataType inputDataType) {
             super(block);
 
             this.field = field;
@@ -167,14 +167,14 @@ abstract class QueryList {
         private final MappedFieldType field;
         private final SearchExecutionContext searchExecutionContext;
         private final IntFunction<Geometry> blockValueReader;
-        private final DataTypes inputDataType; // Currently unused, but might be needed for when input is read as doc-values
+        private final DataType inputDataType; // Currently unused, but might be needed for when input is read as doc-values
         private final IntFunction<Query> shapeQuery;
 
         private GeoShapeQueryList(
             MappedFieldType field,
             SearchExecutionContext searchExecutionContext,
             Block block,
-            DataTypes inputDataType
+            DataType inputDataType
         ) {
             super(block);
 

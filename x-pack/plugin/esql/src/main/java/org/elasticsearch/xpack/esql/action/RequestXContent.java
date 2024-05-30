@@ -128,6 +128,7 @@ final class RequestXContent {
 
     private static QueryParams parseParams(XContentParser p) throws IOException {
         List<QueryParam> result = new ArrayList<>();
+        List<String> errors = new ArrayList<>();
         XContentParser.Token token = p.currentToken();
         boolean namedParameter = false;
         boolean unnamedParameter = false;
@@ -145,26 +146,26 @@ final class RequestXContent {
                     // we are at the start of a value/type pair... hopefully
                     param = PARAM_PARSER.apply(p, null);
                     if (param.fields.size() > 1) {
-                        throw new XContentParseException("Multiple parameters in one curly bracket is not supported.");
+                        errors.add("Multiple parameters in one curly bracket is not supported.");
                     }
                     for (Map.Entry<String, Object> entry : param.fields.entrySet()) {
                         if (isValidParamName(entry.getKey()) == false) {
-                            throw new XContentParseException(
+                            errors.add(
                                 entry.getKey()
                                     + " is not a valid parameter name. "
-                                    + "A valid parameter name starts with a letter and contains letters, digits and underscores only"
+                                    + "A valid parameter name starts with a letter and contains letters, digits and underscores only."
                             );
                         }
                         type = EsqlDataTypes.fromJava(entry.getValue());
                         if (type == null) {
-                            throw new XContentParseException(loc, "Failed to parse object: unexpected parameter [" + entry + "] found");
+                            errors.add(loc + " " + entry + " is not supported as a parameter.");
                         }
                         currentParam = new QueryParam(entry.getKey(), entry.getValue(), type);
                         namedParameter = true;
                         if (unnamedParameter && namedParameter) {
-                            throw new XContentParseException(
-                                "Params contain both named and unnamed parameters "
-                                    + currentParam.toString()
+                            errors.add(
+                                "Params cannot contain both named and unnamed parameters: "
+                                    + currentParam
                                     + ", "
                                     + Arrays.toString(result.toArray())
                             );
@@ -203,12 +204,15 @@ final class RequestXContent {
                         value = null;
                         type = DataTypes.NULL;
                     } else {
-                        throw new XContentParseException(loc, "Failed to parse object: unexpected token [" + token + "] found");
+                        errors.add(loc + " " + token + " is not supported as a parameter.");
                     }
                     unnamedParameter = true;
                     if (unnamedParameter && namedParameter) {
-                        throw new XContentParseException(
-                            "Params contain both named and unnamed parameters " + value + ", " + Arrays.toString(result.toArray())
+                        errors.add(
+                            "Params cannot contain both named and unnamed parameters: "
+                                + currentParam
+                                + ", "
+                                + Arrays.toString(result.toArray())
                         );
                     }
                     currentParam = new QueryParam(null, value, type);
@@ -219,6 +223,9 @@ final class RequestXContent {
                 }
                 result.add(currentParam);
             }
+        }
+        if (errors.size() > 0) {
+            throw new XContentParseException("Failed to parse params: " + Arrays.toString(errors.toArray()));
         }
         return new QueryParams(result);
     }

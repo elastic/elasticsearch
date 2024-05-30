@@ -120,14 +120,14 @@ public class EsqlQueryRequestTests extends ESTestCase {
         }
     }
 
-    public void testBothNamedUnnamedParams() throws IOException {
+    public void testInvalidParams() throws IOException {
         String query = randomAlphaOfLengthBetween(1, 100);
         boolean columnar = randomBoolean();
         Locale locale = randomLocale(random());
         QueryBuilder filter = randomQueryBuilder();
 
         String paramsString = """
-            ,"params":[ {"n1" : "v1" }, 1] }""";
+            ,"params":[ {"1" : "v1" }, {"1x" : "v1" }, {"_a" : "v1" }, {"@-#" : "v1" }, 1] }""";
         String json = String.format(Locale.ROOT, """
             {
                 "query": "%s",
@@ -135,67 +135,13 @@ public class EsqlQueryRequestTests extends ESTestCase {
                 "locale": "%s",
                 "filter": %s
                 %s""", query, columnar, locale.toLanguageTag(), filter, paramsString);
+
         Exception e = expectThrows(XContentParseException.class, () -> parseEsqlQueryRequestSync(json));
-        assertThat(e.getMessage(), containsString("failed to parse field [params]"));
-    }
-
-    public void testInvalidNamedParams() throws IOException {
-        String query = randomAlphaOfLengthBetween(1, 100);
-        boolean columnar = randomBoolean();
-        Locale locale = randomLocale(random());
-        QueryBuilder filter = randomQueryBuilder();
-
-        String paramsString1 = """
-            ,"params":[ {"1" : "v1" }] }""";
-        String json1 = String.format(Locale.ROOT, """
-            {
-                "query": "%s",
-                "columnar": %s,
-                "locale": "%s",
-                "filter": %s
-                %s""", query, columnar, locale.toLanguageTag(), filter, paramsString1);
-
-        Exception e = expectThrows(XContentParseException.class, () -> parseEsqlQueryRequestSync(json1));
-        assertThat(e.getMessage(), containsString("failed to parse field [params]"));
-
-        String paramsString2 = """
-            ,"params":[ {"1x" : "v1" }] }""";
-        String json2 = String.format(Locale.ROOT, """
-            {
-                "query": "%s",
-                "columnar": %s,
-                "locale": "%s",
-                "filter": %s
-                %s""", query, columnar, locale.toLanguageTag(), filter, paramsString2);
-
-        e = expectThrows(XContentParseException.class, () -> parseEsqlQueryRequestSync(json2));
-        assertThat(e.getMessage(), containsString("failed to parse field [params]"));
-
-        String paramsString3 = """
-            ,"params":[ {"_a" : "v1" }] }""";
-        String json3 = String.format(Locale.ROOT, """
-            {
-                "query": "%s",
-                "columnar": %s,
-                "locale": "%s",
-                "filter": %s
-                %s""", query, columnar, locale.toLanguageTag(), filter, paramsString3);
-
-        e = expectThrows(XContentParseException.class, () -> parseEsqlQueryRequestSync(json3));
-        assertThat(e.getMessage(), containsString("failed to parse field [params]"));
-
-        String paramsString4 = """
-            ,"params":[ {"@-#" : "v1" }] }""";
-        String json4 = String.format(Locale.ROOT, """
-            {
-                "query": "%s",
-                "columnar": %s,
-                "locale": "%s",
-                "filter": %s
-                %s""", query, columnar, locale.toLanguageTag(), filter, paramsString4);
-
-        e = expectThrows(XContentParseException.class, () -> parseEsqlQueryRequestSync(json4));
-        assertThat(e.getMessage(), containsString("failed to parse field [params]"));
+        assertThat(e.getCause().getMessage(), containsString("1 is not a valid parameter name"));
+        assertThat(e.getCause().getMessage(), containsString("1x is not a valid parameter name"));
+        assertThat(e.getCause().getMessage(), containsString("_a is not a valid parameter name"));
+        assertThat(e.getCause().getMessage(), containsString("@-# is not a valid parameter name"));
+        assertThat(e.getCause().getMessage(), containsString("Params cannot contain both named and unnamed parameters"));
     }
 
     public void testParseFieldsForAsync() throws IOException {

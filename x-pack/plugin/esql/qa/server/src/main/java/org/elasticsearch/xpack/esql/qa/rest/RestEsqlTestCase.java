@@ -460,67 +460,52 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("Not enough actual parameters 0"));
     }
 
-    public void testErrorMessageForMixedUnnamedAndNamedParams() throws IOException {
+    public void testErrorMessageForInvalidParams() throws IOException {
         ResponseException re = expectThrows(
             ResponseException.class,
-            () -> runEsql(requestObjectBuilder().query("row a = 1").params("[\"x\", 123, true, {\"type\": \"y\"}]"))
+            () -> runEsqlSync(
+                requestObjectBuilder().query("row a = 1 | eval x = ?, y = ?")
+                    .params(
+                        "[{\"1\": \"v1\"}, {\"1-\": \"v1\"}, {\"_a\": \"v1\"}, {\"@-#\": \"v1\"}, true, 123, "
+                            + "{\"type\": \"byte\", \"value\": 5}]"
+                    )
+            )
         );
-        assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("Params contain both named and unnamed parameters"));
-    }
-
-    public void testErrorMessageForMultipleParamsInOneBracket() throws IOException {
-        ResponseException re = expectThrows(
-            ResponseException.class,
-            () -> runEsqlSync(requestObjectBuilder().query("row a = 1 | eval x = ?").params("[{\"type\": \"byte\", \"value\": 5}]"))
+        assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("1 is not a valid parameter name."));
+        assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("1- is not a valid parameter name."));
+        assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("_a is not a valid parameter name."));
+        assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("@-# is not a valid parameter name."));
+        assertThat(
+            EntityUtils.toString(re.getResponse().getEntity()),
+            containsString("Params cannot contain both named and unnamed parameters")
         );
         assertThat(
             EntityUtils.toString(re.getResponse().getEntity()),
             containsString("Multiple parameters in one curly bracket is not supported.")
         );
-    }
-
-    public void testErrorMessageForInvalidParamNames() throws IOException {
-        ResponseException re = expectThrows(
-            ResponseException.class,
-            () -> runEsqlSync(requestObjectBuilder().query("row a = 1 | eval x = ?").params("[{\"1\": \"v1\"}]"))
-        );
-        assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("1 is not a valid parameter name."));
-
-        re = expectThrows(
-            ResponseException.class,
-            () -> runEsqlSync(requestObjectBuilder().query("from test | where x = ?").params("[{\"1x\": \"v1\"}]"))
-        );
-        assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("1x is not a valid parameter name."));
-
-        re = expectThrows(
-            ResponseException.class,
-            () -> runEsqlSync(requestObjectBuilder().query("row a = ?").params("[{\"_a\": \"v1\"}]"))
-        );
-        assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("_a is not a valid parameter name."));
-
-        re = expectThrows(
-            ResponseException.class,
-            () -> runEsqlSync(requestObjectBuilder().query("row a = ?").params("[{\"@-#\": \"v1\"}]"))
-        );
-        assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("@-# is not a valid parameter name."));
-
         re = expectThrows(
             ResponseException.class,
             () -> runEsqlSync(requestObjectBuilder().query("row a = ?0").params("[{\"n1\": \"v1\"}]"))
         );
-        assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("No parameter is defined for position ?0"));
+        assertThat(
+            EntityUtils.toString(re.getResponse().getEntity()),
+            containsString("No parameter is defined for position 0, did you mean position 1")
+        );
 
         re = expectThrows(
             ResponseException.class,
             () -> runEsqlSync(requestObjectBuilder().query("row a = ?2").params("[{\"n1\": \"v1\"}]"))
         );
-        assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("No parameter is defined for position ?2"));
+        assertThat(
+            EntityUtils.toString(re.getResponse().getEntity()),
+            containsString("No parameter is defined for position 2, did you mean position 1")
+        );
 
         re = expectThrows(
             ResponseException.class,
             () -> runEsqlSync(requestObjectBuilder().query("row a = ?n0").params("[{\"n1\": \"v1\"}]"))
         );
-        assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("No parameter is defined for name ?n0"));
+        assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("Unknown query parameter [n0], did you mean [n1]"));
     }
 
     public void testErrorMessageForLiteralDateMathOverflow() throws IOException {
@@ -567,7 +552,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             ResponseException.class,
             () -> runEsql(requestObjectBuilder().query("row a = 1 | eval x = ?").params("[{\"n1\": [5, 6, 7]}]"))
         );
-        assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("Failed to parse object: unexpected parameter"));
+        assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("n1=[5, 6, 7] is not supported as a parameter."));
     }
 
     private static String expectedTextBody(String format, int count, @Nullable Character csvDelimiter) {

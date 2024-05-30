@@ -47,6 +47,10 @@ public class QueryParams {
         return (index <= 0 || index > params.size()) ? null : params.get(index - 1);
     }
 
+    public Map<String, QueryParam> namedParams() {
+        return this.nameToParam;
+    }
+
     public boolean contains(String paramName) {
         return this.nameToParam.containsKey(paramName);
     }

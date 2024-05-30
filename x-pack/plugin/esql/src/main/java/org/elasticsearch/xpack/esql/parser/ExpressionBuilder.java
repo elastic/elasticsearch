@@ -732,12 +732,22 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         if (isInteger(nameOrPosition)) {
             int index = Integer.parseInt(nameOrPosition);
             if (params.get(index) == null) {
-                throw new ParsingException(source(node), "No parameter is defined for position ?" + index);
+                String message = "";
+                int np = params.positionalParams().size();
+                if (np > 0) {
+                    message = ", did you mean position " + (np == 1 ? "1" : " or any between 1 and " + np);
+                }
+                throw new ParsingException(source(node), "No parameter is defined for position " + index + message);
             }
             return params.get(index);
         } else {
             if (params.contains(nameOrPosition) == false) {
-                throw new ParsingException(source(node), "No parameter is defined for name ?" + nameOrPosition);
+                String message = "";
+                Object[] names = params.namedParams().keySet().stream().toArray();
+                if (names.length > 0) {
+                    message = ", did you mean " + (names.length == 1 ? "[" + names[0] + "]" : " or any of " + names);
+                }
+                throw new ParsingException(source(node), "Unknown query parameter [" + nameOrPosition + "]" + message);
             }
             return params.get(nameOrPosition);
         }

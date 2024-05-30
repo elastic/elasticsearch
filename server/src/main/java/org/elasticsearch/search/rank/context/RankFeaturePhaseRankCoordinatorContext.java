@@ -23,7 +23,7 @@ import java.util.Objects;
 import static org.elasticsearch.search.SearchService.DEFAULT_FROM;
 import static org.elasticsearch.search.SearchService.DEFAULT_SIZE;
 
-/*
+/**
  * {@code RankFeaturePhaseRankCoordinatorContext} is a base class that runs on the coordinating node and is responsible for retrieving
  * {@code window_size} total results from all shards, rank them, and then produce a final paginated response of [from, from+size] results.
  */
@@ -40,8 +40,8 @@ public abstract class RankFeaturePhaseRankCoordinatorContext {
     }
 
     /**
-     * This method is responsible for computing the updated scores for a list of features (i.e. document-based data).
-     * We pass along an ActionListener that should be called with the updated scores computed, to continue execution to the next phase
+     * Computes the updated scores for a list of features (i.e. document-based data). We also pass along an ActionListener
+     * that should be called with the new scores, and will continue execution to the next phase
      */
     protected abstract void computeScores(RankFeatureDoc[] featureDocs, ActionListener<float[]> scoreListener);
 

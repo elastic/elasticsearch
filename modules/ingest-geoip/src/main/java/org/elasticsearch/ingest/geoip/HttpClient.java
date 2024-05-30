@@ -23,6 +23,7 @@ import java.net.URL;
 import java.security.AccessController;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
+import java.util.Objects;
 
 import static java.net.HttpURLConnection.HTTP_MOVED_PERM;
 import static java.net.HttpURLConnection.HTTP_MOVED_TEMP;
@@ -37,6 +38,8 @@ class HttpClient {
     }
 
     InputStream get(final String url) throws IOException {
+        Objects.requireNonNull(url);
+
         return doPrivileged(() -> {
             String innerUrl = url;
             HttpURLConnection conn = createConnection(innerUrl);

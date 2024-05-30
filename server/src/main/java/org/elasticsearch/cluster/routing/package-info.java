@@ -11,10 +11,10 @@
  * allocations in a cluster. The routing part contains two different views of
  * shards in {@link org.elasticsearch.cluster.routing.RoutingTable} and
  * {@link org.elasticsearch.cluster.routing.RoutingNodes}. RoutingTable provides
- * a view from index to shard to node. RoutingNodes provides view from node
+ * a view from index to shard to node. RoutingNodes provides view from node to
  * shard. Shard allocation is a process of assigning and moving shards between
- * nodes. For more details about allocation see {@link
- * org.elasticsearch.cluster.routing.allocation}.</p>
+ * nodes. For more details about allocation see
+ * {@link org.elasticsearch.cluster.routing.allocation}.</p>
  *
  * <b>Routing Table</b>
  *

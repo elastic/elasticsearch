@@ -36,6 +36,8 @@ import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.elasticsearch.test.ESTestCase.randomList;
 import static org.elasticsearch.test.ESTestCase.randomLongBetween;
 import static org.elasticsearch.test.ESTestCase.randomMap;
+import static org.elasticsearch.xpack.application.rules.QueryRule.MAX_PRIORITY;
+import static org.elasticsearch.xpack.application.rules.QueryRule.MIN_PRIORITY;
 import static org.elasticsearch.xpack.application.rules.QueryRuleCriteriaType.ALWAYS;
 
 public final class EnterpriseSearchModuleTestUtils {
@@ -95,8 +97,12 @@ public final class EnterpriseSearchModuleTestUtils {
         QueryRule.QueryRuleType type = randomFrom(QueryRule.QueryRuleType.values());
         List<QueryRuleCriteria> criteria = List.of(randomQueryRuleCriteria());
         Map<String, Object> actions = Map.of(randomFrom("ids", "docs"), List.of(randomAlphaOfLengthBetween(2, 10)));
-        Integer priority = randomBoolean() ? randomIntBetween(0, 100) : null;
+        Integer priority = randomQueryRulePriority();
         return new QueryRule(id, type, criteria, actions, priority);
+    }
+
+    public static Integer randomQueryRulePriority() {
+        return randomBoolean() ? randomIntBetween(MIN_PRIORITY, MAX_PRIORITY) : null;
     }
 
     public static QueryRuleset randomQueryRuleset() {

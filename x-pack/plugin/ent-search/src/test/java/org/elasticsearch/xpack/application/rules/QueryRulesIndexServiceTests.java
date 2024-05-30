@@ -19,6 +19,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.xpack.application.EnterpriseSearchModuleTestUtils;
 import org.junit.Before;
 
 import java.util.ArrayList;
@@ -75,7 +76,7 @@ public class QueryRulesIndexServiceTests extends ESSingleNodeTestCase {
                 QueryRuleType.PINNED,
                 List.of(new QueryRuleCriteria(EXACT, "query_string", List.of("foo"))),
                 Map.of("ids", List.of("id1", "id2")),
-                randomBoolean() ? randomIntBetween(0, 100) : null
+                EnterpriseSearchModuleTestUtils.randomQueryRulePriority()
             );
             final QueryRuleset myQueryRuleset = new QueryRuleset("my_ruleset", Collections.singletonList(myQueryRule1));
             DocWriteResponse resp = awaitPutQueryRuleset(myQueryRuleset);
@@ -91,14 +92,14 @@ public class QueryRulesIndexServiceTests extends ESSingleNodeTestCase {
             QueryRuleType.PINNED,
             List.of(new QueryRuleCriteria(EXACT, "query_string", List.of("foo"))),
             Map.of("docs", List.of(Map.of("_index", "my_index1", "_id", "id1"), Map.of("_index", "my_index2", "_id", "id2"))),
-            randomBoolean() ? randomIntBetween(0, 100) : null
+            EnterpriseSearchModuleTestUtils.randomQueryRulePriority()
         );
         final QueryRule myQueryRule2 = new QueryRule(
             "my_rule2",
             QueryRuleType.PINNED,
             List.of(new QueryRuleCriteria(EXACT, "query_string", List.of("bar"))),
             Map.of("docs", List.of(Map.of("_index", "my_index1", "_id", "id3"), Map.of("_index", "my_index2", "_id", "id4"))),
-            randomBoolean() ? randomIntBetween(0, 100) : null
+            EnterpriseSearchModuleTestUtils.randomQueryRulePriority()
         );
         final QueryRuleset myQueryRuleset = new QueryRuleset("my_ruleset", List.of(myQueryRule1, myQueryRule2));
         DocWriteResponse newResp = awaitPutQueryRuleset(myQueryRuleset);
@@ -120,7 +121,7 @@ public class QueryRulesIndexServiceTests extends ESSingleNodeTestCase {
                         new QueryRuleCriteria(GTE, "query_string", List.of(i))
                     ),
                     Map.of("ids", List.of("id1", "id2")),
-                    randomBoolean() ? randomIntBetween(0, 100) : null
+                    EnterpriseSearchModuleTestUtils.randomQueryRulePriority()
                 ),
                 new QueryRule(
                     "my_rule_" + i + "_" + (i + 1),
@@ -130,7 +131,7 @@ public class QueryRulesIndexServiceTests extends ESSingleNodeTestCase {
                         new QueryRuleCriteria(GTE, "user.age", List.of(i))
                     ),
                     Map.of("ids", List.of("id3", "id4")),
-                    randomBoolean() ? randomIntBetween(0, 100) : null
+                    EnterpriseSearchModuleTestUtils.randomQueryRulePriority()
                 )
             );
             final QueryRuleset myQueryRuleset = new QueryRuleset("my_ruleset_" + i, rules);

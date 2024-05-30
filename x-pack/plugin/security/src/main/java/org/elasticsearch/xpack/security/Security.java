@@ -2302,7 +2302,9 @@ public class Security extends Plugin
     @Override
     public void close() throws IOException {
         if (enabled) {
-            IOUtils.close(closableComponents.get());
+            if (closableComponents.get() != null) {
+                IOUtils.close(closableComponents.get());
+            }
         }
     }
 }

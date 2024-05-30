@@ -24,13 +24,26 @@ include::{es-ref-dir}/search/search-your-data/search-across-clusters.asciidoc[ta
 [[esql-ccs-security-model]]
 ==== Security model
 
+{es} supports two security models for cross-cluster search (CCS):
+
+* <<esql-ccs-security-model-certificate, TLS certificate authentication>>
+* <<esql-ccs-security-model-api-key, API key authentication>>
+
+[discrete]
+[[esql-ccs-security-model-certificate]]
+===== TLS certificate authentication
+
+Refer to <<remote-clusters-cert, TLS certificate authentication>> for prerequisites and detailed setup instructions.
+
+Importantly, you must ensure that the same named roles and privileges are identical in both clusters.
+
 [discrete]
 [[esql-ccs-security-model-api-key]]
 ===== API key authentication
 
 [NOTE]
 ====
-The `ENRICH` keyword is *not supported* until 8.15 when using {esql} with the API key based security model.
+`ENRICH` is *not supported* in this version when using {esql} with the API key based security model.
 ====
 
 The following information pertains to using {esql} across clusters with the <<remote-clusters-api-key, *API key based security model*>>.
@@ -50,18 +63,21 @@ POST /_security/role/remote1
       "privileges": ["read"]
     }
   ], 
-  "remote_indices": [
+  "remote_indices": [ <3>
     {
       "names": [ "logs-*" ],
       "privileges": [ "read","read_cross_cluster" ], <1>
-      "clusters" : ["my_remote_cluster"]
+      "clusters" : ["my_remote_cluster"] <4>
     }
   ]
 }
 ----
 
 <1> The `read_cross_cluster` privilege is always required when using {esql} across clusters with the API key based security model.
-<2> The `names` field must be an empty string when using the `remote_indices` field. This is only needed for roles that can ONLY search the remote cluster. Typically, users will have both local permission and remote permissions.
+<2> Typically, users will have permissions to read both local and remote indices. However, for cases where the role is intended to ONLY search the remote cluster, the `read` permission is still required for the local cluster. To provide read access to the local cluster, but disallow reading any indices in the local cluster, the `names` field may be an empty string.
+<3> The indices allowed read access to the remote cluster. The configured <<security-api-create-cross-cluster-api-key,cross-cluster API key>> must also allow this index to be read.
+<4> The remote clusters to which these privileges apply. This remote cluster must be configured with a <<security-api-create-cross-cluster-api-key,cross-cluster API key>> and connected to the remote cluster before the remote index can be queried. 
+Verify connection using the <<cluster-remote-info, Remote cluster info>> API.
 
 [discrete]
 [[ccq-remote-cluster-setup]]
@@ -122,7 +138,7 @@ clusters is critical for ES|QL to produce a consistent query result.
 
 [NOTE]
 ====
-Enrich across clusters is *not supported* until 8.15 when using {esql} with the <<remote-clusters-api-key, *API key based security model*>>.
+Enrich across clusters is *not supported* in this version when using {esql} with the <<remote-clusters-api-key, *API key based security model*>>.
 ====
 
 In the following example, the enrich with `hosts` policy can be executed on

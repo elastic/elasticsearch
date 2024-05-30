@@ -148,7 +148,7 @@ You can customize the `sparse_vector` query to include <<sparse-vector-field-par
 [[search-text-inferece]]
 ==== Search with `text_embedding` inference
 
-When the {infer} endpoint uses a `text_embedding` model, you can use a <<query-dsl-knn-query,`knn`query>> on a `semantic_text` field in the following way:
+When the {infer} endpoint uses a `text_embedding` model, you can use a <<query-dsl-knn-query,`knn` query>> on a `semantic_text` field in the following way:
 
 [source,console]
 ------------------------------------------------------------

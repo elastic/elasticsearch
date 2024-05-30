@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.inference.external.response.AzureMistralOpenAiErr
 import org.elasticsearch.xpack.inference.external.response.AzureMistralOpenAiExternalResponseHandler;
 import org.elasticsearch.xpack.inference.external.response.mistral.MistralEmbeddingsResponseEntity;
 import org.elasticsearch.xpack.inference.services.mistral.embeddings.MistralEmbeddingsModel;
-import org.elasticsearch.xpack.inference.services.mistral.embeddings.MistralEmbeddingsServiceSettings;
 
 import java.util.List;
 import java.util.Objects;
@@ -60,8 +59,7 @@ public class MistralEmbeddingsRequestManager extends BaseRequestManager {
         HttpClientContext context,
         ActionListener<InferenceServiceResults> listener
     ) {
-        var serviceSettings = (MistralEmbeddingsServiceSettings) model.getServiceSettings();
-        var truncatedInput = truncate(input, serviceSettings.maxInputTokens());
+        var truncatedInput = truncate(input, model.getServiceSettings().maxInputTokens());
         MistralEmbeddingsRequest request = new MistralEmbeddingsRequest(truncator, truncatedInput, model);
 
         return new ExecutableInferenceRequest(requestSender, logger, request, context, HANDLER, hasRequestCompletedFunction, listener);

@@ -246,7 +246,7 @@ public class MistralService extends SenderService {
     }
 
     private MistralEmbeddingsModel updateEmbeddingModelConfig(MistralEmbeddingsModel embeddingsModel, int embeddingsSize) {
-        var embeddingServiceSettings = (MistralEmbeddingsServiceSettings) embeddingsModel.getServiceSettings();
+        var embeddingServiceSettings = embeddingsModel.getServiceSettings();
 
         if (embeddingServiceSettings.dimensionsSetByUser()
             && embeddingServiceSettings.dimensions() != null

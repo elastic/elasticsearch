@@ -17,4 +17,20 @@ public class EntityTypeUtils {
     public static String getAggregationNameForEntityType(EntityType entityType) {
         return (entityType.equals(EntityType.Host)) ? "host" : "user";
     }
+
+    public static EntityType[] fromStringArray(String[] entityTypeStrings) {
+        EntityType[] entityTypes = new EntityType[entityTypeStrings.length];
+        for (int i = 0; i < entityTypeStrings.length; i++) {
+            var entityTypeString = entityTypeStrings[i].trim().toLowerCase();
+            if (entityTypeString.equals("host")) {
+                entityTypes[i] = EntityType.Host;
+            } else if (entityTypeString.equals("user")) {
+                entityTypes[i] = EntityType.User;
+            } else {
+                throw new IllegalArgumentException("Unknown entity type [" + entityTypeString + "]");
+            }
+        }
+
+        return entityTypes;
+    }
 }

@@ -15,8 +15,8 @@ import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.entityanalytics.action.EntityRiskScoringAction;
+import org.elasticsearch.xpack.entityanalytics.common.EntityTypeUtils;
 import org.elasticsearch.xpack.entityanalytics.models.EntityRiskScoringRequest;
-import org.elasticsearch.xpack.entityanalytics.models.EntityTypes;
 
 import java.util.List;
 
@@ -42,7 +42,7 @@ public class EntityRiskScoringRestHandler extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) {
         String[] AllEntityTypes = { "host", "user" };
         var category1Index = request.param("category_1_index");
-        var entityTypes = EntityTypes.fromStringArray(request.paramAsStringArray("entity_types", AllEntityTypes));
+        var entityTypes = EntityTypeUtils.fromStringArray(request.paramAsStringArray("entity_types", AllEntityTypes));
 
         return channel -> client.execute(
             EntityRiskScoringAction.INSTANCE,

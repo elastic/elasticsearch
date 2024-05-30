@@ -44,13 +44,6 @@ public class EntityRiskScoringRequest extends ActionRequest implements IndicesRe
             validationException = addValidationError("missing category_1_index", validationException);
         }
 
-        // List<String> invalidEntityTypes = Arrays.stream(entityTypes).filter(s -> (s.equals("host") || s.equals("user") ==
-        // false)).toList();
-
-        // if (invalidEntityTypes.isEmpty() == false) {
-        // validationException = addValidationError("invalid entity_types " + invalidEntityTypes, validationException);
-        // }
-
         return validationException;
     }
 

@@ -115,7 +115,7 @@ public class DocsStats implements Writeable, ToXContentFragment {
         return count == that.count
             && deleted == that.deleted
             && totalSizeInBytes == that.totalSizeInBytes
-            && this.docsWithIgnoredFields == that.docsWithIgnoredFields;
+            && docsWithIgnoredFields == that.docsWithIgnoredFields;
     }
 
     @Override

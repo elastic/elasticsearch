@@ -152,10 +152,12 @@ class RequestExecutorService implements RequestExecutor {
     }
 
     public void shutdown() {
-        if (shutdown.compareAndSet(false, true) && cancellableCleanupTask.get() != null) {
+        if (shutdown.compareAndSet(false, true)) {
             settings.deregisterRateLimitGroupIntervalCallback(NAME);
-            logger.debug(() -> "Stopping clean up thread");
-            cancellableCleanupTask.get().cancel();
+            if (cancellableCleanupTask.get() != null) {
+                logger.debug(() -> "Stopping clean up thread");
+                cancellableCleanupTask.get().cancel();
+            }
         }
     }
 

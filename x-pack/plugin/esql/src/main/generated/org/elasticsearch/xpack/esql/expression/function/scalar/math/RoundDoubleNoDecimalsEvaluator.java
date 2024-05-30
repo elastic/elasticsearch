@@ -68,9 +68,11 @@ public final class RoundDoubleNoDecimalsEvaluator implements EvalOperator.Expres
 
   public DoubleVector eval(int positionCount, DoubleVector valVector) {
     try(DoubleVector.Builder result = driverContext.blockFactory().newDoubleVectorBuilder(positionCount)) {
+      double[] buffer = result.values();
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendDouble(Round.process(valVector.getDouble(p)));
+        buffer[p] = Round.process(valVector.getDouble(p));
       }
+      result.values(buffer);
       return result.build();
     }
   }

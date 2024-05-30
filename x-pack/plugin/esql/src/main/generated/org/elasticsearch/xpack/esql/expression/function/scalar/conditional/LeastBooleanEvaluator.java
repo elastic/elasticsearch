@@ -86,13 +86,15 @@ public final class LeastBooleanEvaluator implements EvalOperator.ExpressionEvalu
   public BooleanVector eval(int positionCount, BooleanVector[] valuesVectors) {
     try(BooleanVector.Builder result = driverContext.blockFactory().newBooleanVectorBuilder(positionCount)) {
       boolean[] valuesValues = new boolean[values.length];
+      boolean[] buffer = result.values();
       position: for (int p = 0; p < positionCount; p++) {
         // unpack valuesVectors into valuesValues
         for (int i = 0; i < valuesVectors.length; i++) {
           valuesValues[i] = valuesVectors[i].getBoolean(p);
         }
-        result.appendBoolean(Least.process(valuesValues));
+        buffer[p] = Least.process(valuesValues);
       }
+      result.values(buffer);
       return result.build();
     }
   }

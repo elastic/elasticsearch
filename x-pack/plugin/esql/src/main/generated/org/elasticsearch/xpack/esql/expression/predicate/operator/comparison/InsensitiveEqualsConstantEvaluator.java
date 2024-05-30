@@ -77,9 +77,11 @@ public final class InsensitiveEqualsConstantEvaluator implements EvalOperator.Ex
   public BooleanVector eval(int positionCount, BytesRefVector lhsVector) {
     try(BooleanVector.Builder result = driverContext.blockFactory().newBooleanVectorBuilder(positionCount)) {
       BytesRef lhsScratch = new BytesRef();
+      boolean[] buffer = result.values();
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendBoolean(InsensitiveEquals.processConstant(lhsVector.getBytesRef(p, lhsScratch), rhs));
+        buffer[p] = InsensitiveEquals.processConstant(lhsVector.getBytesRef(p, lhsScratch), rhs);
       }
+      result.values(buffer);
       return result.build();
     }
   }

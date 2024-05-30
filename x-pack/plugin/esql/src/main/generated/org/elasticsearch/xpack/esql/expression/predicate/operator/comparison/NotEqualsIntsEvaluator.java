@@ -90,9 +90,11 @@ public final class NotEqualsIntsEvaluator implements EvalOperator.ExpressionEval
 
   public BooleanVector eval(int positionCount, IntVector lhsVector, IntVector rhsVector) {
     try(BooleanVector.Builder result = driverContext.blockFactory().newBooleanVectorBuilder(positionCount)) {
+      boolean[] buffer = result.values();
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendBoolean(NotEquals.processInts(lhsVector.getInt(p), rhsVector.getInt(p)));
+        buffer[p] = NotEquals.processInts(lhsVector.getInt(p), rhsVector.getInt(p));
       }
+      result.values(buffer);
       return result.build();
     }
   }

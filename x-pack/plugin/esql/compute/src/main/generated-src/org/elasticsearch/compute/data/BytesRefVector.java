@@ -147,6 +147,14 @@ public sealed interface BytesRefVector extends Vector permits ConstantBytesRefVe
 
         @Override
         BytesRefVector build();
+
+        default BytesRef[] values()  {
+          throw new UnsupportedOperationException();
+        }
+
+        default void values(BytesRef[] newValues)  {
+          throw new UnsupportedOperationException();
+        }
     }
 
 }

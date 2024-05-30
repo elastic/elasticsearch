@@ -38,9 +38,11 @@ public final class NowEvaluator implements EvalOperator.ExpressionEvaluator {
 
   public LongVector eval(int positionCount) {
     try(LongVector.Builder result = driverContext.blockFactory().newLongVectorBuilder(positionCount)) {
+      long[] buffer = result.values();
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendLong(Now.process(now));
+        buffer[p] = Now.process(now);
       }
+      result.values(buffer);
       return result.build();
     }
   }

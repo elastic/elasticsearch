@@ -73,9 +73,11 @@ public final class LengthEvaluator implements EvalOperator.ExpressionEvaluator {
   public IntVector eval(int positionCount, BytesRefVector valVector) {
     try(IntVector.Builder result = driverContext.blockFactory().newIntVectorBuilder(positionCount)) {
       BytesRef valScratch = new BytesRef();
+      int[] buffer = result.values();
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendInt(Length.process(valVector.getBytesRef(p, valScratch)));
+        buffer[p] = Length.process(valVector.getBytesRef(p, valScratch));
       }
+      result.values(buffer);
       return result.build();
     }
   }

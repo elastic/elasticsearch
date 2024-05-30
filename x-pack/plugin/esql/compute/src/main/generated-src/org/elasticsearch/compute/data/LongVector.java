@@ -140,6 +140,14 @@ public sealed interface LongVector extends Vector permits ConstantLongVector, Lo
 
         @Override
         LongVector build();
+
+        default long[] values()  {
+          throw new UnsupportedOperationException();
+        }
+
+        default void values(long[] newValues)  {
+          throw new UnsupportedOperationException();
+        }
     }
 
     /**

@@ -139,6 +139,14 @@ public sealed interface BooleanVector extends Vector permits ConstantBooleanVect
 
         @Override
         BooleanVector build();
+
+        default boolean[] values()  {
+          throw new UnsupportedOperationException();
+        }
+
+        default void values(boolean[] newValues)  {
+          throw new UnsupportedOperationException();
+        }
     }
 
     /**

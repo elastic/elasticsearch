@@ -68,9 +68,11 @@ public final class AbsIntEvaluator implements EvalOperator.ExpressionEvaluator {
 
   public IntVector eval(int positionCount, IntVector fieldValVector) {
     try(IntVector.Builder result = driverContext.blockFactory().newIntVectorBuilder(positionCount)) {
+      int[] buffer = result.values();
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendInt(Abs.process(fieldValVector.getInt(p)));
+        buffer[p] = Abs.process(fieldValVector.getInt(p));
       }
+      result.values(buffer);
       return result.build();
     }
   }

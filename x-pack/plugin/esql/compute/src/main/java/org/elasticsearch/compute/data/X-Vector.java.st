@@ -230,6 +230,14 @@ $endif$
 
         @Override
         $Type$Vector build();
+
+        default $type$[] values()  {
+          throw new UnsupportedOperationException();
+        }
+
+        default void values($type$[] newValues)  {
+          throw new UnsupportedOperationException();
+        }
     }
 
 $if(BytesRef)$

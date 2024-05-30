@@ -86,13 +86,15 @@ public final class GreatestLongEvaluator implements EvalOperator.ExpressionEvalu
   public LongVector eval(int positionCount, LongVector[] valuesVectors) {
     try(LongVector.Builder result = driverContext.blockFactory().newLongVectorBuilder(positionCount)) {
       long[] valuesValues = new long[values.length];
+      long[] buffer = result.values();
       position: for (int p = 0; p < positionCount; p++) {
         // unpack valuesVectors into valuesValues
         for (int i = 0; i < valuesVectors.length; i++) {
           valuesValues[i] = valuesVectors[i].getLong(p);
         }
-        result.appendLong(Greatest.process(valuesValues));
+        buffer[p] = Greatest.process(valuesValues);
       }
+      result.values(buffer);
       return result.build();
     }
   }

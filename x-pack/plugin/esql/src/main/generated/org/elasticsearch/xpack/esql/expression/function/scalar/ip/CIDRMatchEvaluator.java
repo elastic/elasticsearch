@@ -120,13 +120,15 @@ public final class CIDRMatchEvaluator implements EvalOperator.ExpressionEvaluato
       for (int i = 0; i < cidrs.length; i++) {
         cidrsScratch[i] = new BytesRef();
       }
+      boolean[] buffer = result.values();
       position: for (int p = 0; p < positionCount; p++) {
         // unpack cidrsVectors into cidrsValues
         for (int i = 0; i < cidrsVectors.length; i++) {
           cidrsValues[i] = cidrsVectors[i].getBytesRef(p, cidrsScratch[i]);
         }
-        result.appendBoolean(CIDRMatch.process(ipVector.getBytesRef(p, ipScratch), cidrsValues));
+        buffer[p] = CIDRMatch.process(ipVector.getBytesRef(p, ipScratch), cidrsValues);
       }
+      result.values(buffer);
       return result.build();
     }
   }

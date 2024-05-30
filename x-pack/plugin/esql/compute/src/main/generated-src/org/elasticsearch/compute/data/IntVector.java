@@ -158,6 +158,14 @@ public sealed interface IntVector extends Vector permits ConstantIntVector, IntA
 
         @Override
         IntVector build();
+
+        default int[] values()  {
+          throw new UnsupportedOperationException();
+        }
+
+        default void values(int[] newValues)  {
+          throw new UnsupportedOperationException();
+        }
     }
 
     /**

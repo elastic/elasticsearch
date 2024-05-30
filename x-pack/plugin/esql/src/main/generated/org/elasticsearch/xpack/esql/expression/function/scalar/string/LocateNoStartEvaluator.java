@@ -95,9 +95,11 @@ public final class LocateNoStartEvaluator implements EvalOperator.ExpressionEval
     try(IntVector.Builder result = driverContext.blockFactory().newIntVectorBuilder(positionCount)) {
       BytesRef strScratch = new BytesRef();
       BytesRef substrScratch = new BytesRef();
+      int[] buffer = result.values();
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendInt(Locate.process(strVector.getBytesRef(p, strScratch), substrVector.getBytesRef(p, substrScratch)));
+        buffer[p] = Locate.process(strVector.getBytesRef(p, strScratch), substrVector.getBytesRef(p, substrScratch));
       }
+      result.values(buffer);
       return result.build();
     }
   }

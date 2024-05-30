@@ -80,9 +80,11 @@ public final class AutomataMatchEvaluator implements EvalOperator.ExpressionEval
   public BooleanVector eval(int positionCount, BytesRefVector inputVector) {
     try(BooleanVector.Builder result = driverContext.blockFactory().newBooleanVectorBuilder(positionCount)) {
       BytesRef inputScratch = new BytesRef();
+      boolean[] buffer = result.values();
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendBoolean(AutomataMatch.process(inputVector.getBytesRef(p, inputScratch), automaton, pattern));
+        buffer[p] = AutomataMatch.process(inputVector.getBytesRef(p, inputScratch), automaton, pattern);
       }
+      result.values(buffer);
       return result.build();
     }
   }

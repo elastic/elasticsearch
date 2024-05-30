@@ -90,9 +90,11 @@ public final class RoundIntEvaluator implements EvalOperator.ExpressionEvaluator
 
   public IntVector eval(int positionCount, IntVector valVector, LongVector decimalsVector) {
     try(IntVector.Builder result = driverContext.blockFactory().newIntVectorBuilder(positionCount)) {
+      int[] buffer = result.values();
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendInt(Round.process(valVector.getInt(p), decimalsVector.getLong(p)));
+        buffer[p] = Round.process(valVector.getInt(p), decimalsVector.getLong(p));
       }
+      result.values(buffer);
       return result.build();
     }
   }

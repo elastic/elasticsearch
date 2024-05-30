@@ -13,9 +13,18 @@ import java.util.Arrays;
  * Builder for {@link BooleanVector}s that grows as needed.
  * This class is generated. Do not edit it.
  */
-final class BooleanVectorBuilder extends AbstractVectorBuilder implements BooleanVector.Builder {
+public final class BooleanVectorBuilder extends AbstractVectorBuilder implements BooleanVector.Builder {
 
     private boolean[] values;
+
+    public boolean[] values() {
+        return values;
+    }
+
+    public void values(boolean[] values) {
+        this.values = values;
+        this.valueCount = values.length;
+    }
 
     BooleanVectorBuilder(int estimatedSize, BlockFactory blockFactory) {
         super(blockFactory);

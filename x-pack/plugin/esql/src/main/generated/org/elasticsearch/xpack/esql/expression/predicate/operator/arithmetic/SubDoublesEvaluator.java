@@ -88,9 +88,11 @@ public final class SubDoublesEvaluator implements EvalOperator.ExpressionEvaluat
 
   public DoubleVector eval(int positionCount, DoubleVector lhsVector, DoubleVector rhsVector) {
     try(DoubleVector.Builder result = driverContext.blockFactory().newDoubleVectorBuilder(positionCount)) {
+      double[] buffer = result.values();
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendDouble(Sub.processDoubles(lhsVector.getDouble(p), rhsVector.getDouble(p)));
+        buffer[p] = Sub.processDoubles(lhsVector.getDouble(p), rhsVector.getDouble(p));
       }
+      result.values(buffer);
       return result.build();
     }
   }

@@ -86,13 +86,15 @@ public final class GreatestIntEvaluator implements EvalOperator.ExpressionEvalua
   public IntVector eval(int positionCount, IntVector[] valuesVectors) {
     try(IntVector.Builder result = driverContext.blockFactory().newIntVectorBuilder(positionCount)) {
       int[] valuesValues = new int[values.length];
+      int[] buffer = result.values();
       position: for (int p = 0; p < positionCount; p++) {
         // unpack valuesVectors into valuesValues
         for (int i = 0; i < valuesVectors.length; i++) {
           valuesValues[i] = valuesVectors[i].getInt(p);
         }
-        result.appendInt(Greatest.process(valuesValues));
+        buffer[p] = Greatest.process(valuesValues);
       }
+      result.values(buffer);
       return result.build();
     }
   }

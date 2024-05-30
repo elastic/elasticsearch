@@ -95,9 +95,11 @@ public final class GreaterThanOrEqualKeywordsEvaluator implements EvalOperator.E
     try(BooleanVector.Builder result = driverContext.blockFactory().newBooleanVectorBuilder(positionCount)) {
       BytesRef lhsScratch = new BytesRef();
       BytesRef rhsScratch = new BytesRef();
+      boolean[] buffer = result.values();
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendBoolean(GreaterThanOrEqual.processKeywords(lhsVector.getBytesRef(p, lhsScratch), rhsVector.getBytesRef(p, rhsScratch)));
+        buffer[p] = GreaterThanOrEqual.processKeywords(lhsVector.getBytesRef(p, lhsScratch), rhsVector.getBytesRef(p, rhsScratch));
       }
+      result.values(buffer);
       return result.build();
     }
   }

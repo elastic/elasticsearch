@@ -86,13 +86,15 @@ public final class GreatestDoubleEvaluator implements EvalOperator.ExpressionEva
   public DoubleVector eval(int positionCount, DoubleVector[] valuesVectors) {
     try(DoubleVector.Builder result = driverContext.blockFactory().newDoubleVectorBuilder(positionCount)) {
       double[] valuesValues = new double[values.length];
+      double[] buffer = result.values();
       position: for (int p = 0; p < positionCount; p++) {
         // unpack valuesVectors into valuesValues
         for (int i = 0; i < valuesVectors.length; i++) {
           valuesValues[i] = valuesVectors[i].getDouble(p);
         }
-        result.appendDouble(Greatest.process(valuesValues));
+        buffer[p] = Greatest.process(valuesValues);
       }
+      result.values(buffer);
       return result.build();
     }
   }

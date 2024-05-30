@@ -86,13 +86,15 @@ public final class GreatestBooleanEvaluator implements EvalOperator.ExpressionEv
   public BooleanVector eval(int positionCount, BooleanVector[] valuesVectors) {
     try(BooleanVector.Builder result = driverContext.blockFactory().newBooleanVectorBuilder(positionCount)) {
       boolean[] valuesValues = new boolean[values.length];
+      boolean[] buffer = result.values();
       position: for (int p = 0; p < positionCount; p++) {
         // unpack valuesVectors into valuesValues
         for (int i = 0; i < valuesVectors.length; i++) {
           valuesValues[i] = valuesVectors[i].getBoolean(p);
         }
-        result.appendBoolean(Greatest.process(valuesValues));
+        buffer[p] = Greatest.process(valuesValues);
       }
+      result.values(buffer);
       return result.build();
     }
   }

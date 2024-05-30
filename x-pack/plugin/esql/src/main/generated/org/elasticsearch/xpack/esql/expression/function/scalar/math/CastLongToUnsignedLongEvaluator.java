@@ -68,9 +68,11 @@ public final class CastLongToUnsignedLongEvaluator implements EvalOperator.Expre
 
   public LongVector eval(int positionCount, LongVector vVector) {
     try(LongVector.Builder result = driverContext.blockFactory().newLongVectorBuilder(positionCount)) {
+      long[] buffer = result.values();
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendLong(Cast.castLongToUnsignedLong(vVector.getLong(p)));
+        buffer[p] = Cast.castLongToUnsignedLong(vVector.getLong(p));
       }
+      result.values(buffer);
       return result.build();
     }
   }

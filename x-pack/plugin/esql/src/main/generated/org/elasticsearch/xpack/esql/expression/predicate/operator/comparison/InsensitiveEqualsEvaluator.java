@@ -95,9 +95,11 @@ public final class InsensitiveEqualsEvaluator implements EvalOperator.Expression
     try(BooleanVector.Builder result = driverContext.blockFactory().newBooleanVectorBuilder(positionCount)) {
       BytesRef lhsScratch = new BytesRef();
       BytesRef rhsScratch = new BytesRef();
+      boolean[] buffer = result.values();
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendBoolean(InsensitiveEquals.process(lhsVector.getBytesRef(p, lhsScratch), rhsVector.getBytesRef(p, rhsScratch)));
+        buffer[p] = InsensitiveEquals.process(lhsVector.getBytesRef(p, lhsScratch), rhsVector.getBytesRef(p, rhsScratch));
       }
+      result.values(buffer);
       return result.build();
     }
   }

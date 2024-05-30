@@ -21,7 +21,7 @@ $endif$
  * Builder for {@link $Type$Vector}s that grows as needed.
  * This class is generated. Do not edit it.
  */
-final class $Type$VectorBuilder extends AbstractVectorBuilder implements $Type$Vector.Builder {
+public final class $Type$VectorBuilder extends AbstractVectorBuilder implements $Type$Vector.Builder {
 
 $if(BytesRef)$
     private BytesRefArray values;
@@ -37,6 +37,15 @@ $if(BytesRef)$
 
 $else$
     private $type$[] values;
+
+    public $type$[] values() {
+        return values;
+    }
+
+    public void values($type$[] values) {
+        this.values = values;
+        this.valueCount = values.length;
+    }
 
     $Type$VectorBuilder(int estimatedSize, BlockFactory blockFactory) {
         super(blockFactory);

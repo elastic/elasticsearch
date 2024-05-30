@@ -10,6 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -142,6 +143,7 @@ public class MountSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
         overrideTierPreference(this.getKey().phase()).ifPresent(override -> settingsBuilder.put(DataTier.TIER_PREFERENCE, override));
 
         final MountSearchableSnapshotRequest mountSearchableSnapshotRequest = new MountSearchableSnapshotRequest(
+            TimeValue.MAX_VALUE,
             mountedIndexName,
             snapshotRepository,
             snapshotName,
@@ -153,7 +155,6 @@ public class MountSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
             false,
             storageType
         );
-        mountSearchableSnapshotRequest.masterNodeTimeout(TimeValue.MAX_VALUE);
         getClient().execute(
             MountSearchableSnapshotAction.INSTANCE,
             mountSearchableSnapshotRequest,

@@ -90,7 +90,12 @@ public class FrozenIndexIT extends ESIntegTestCase {
 
         assertThat(client().prepareDelete("index", indexResponse.getId()).get().status(), equalTo(RestStatus.OK));
 
-        assertAcked(client().execute(FreezeIndexAction.INSTANCE, new FreezeRequest("index").waitForActiveShards(ActiveShardCount.ONE)));
+        assertAcked(
+            client().execute(
+                FreezeIndexAction.INSTANCE,
+                new FreezeRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "index").waitForActiveShards(ActiveShardCount.ONE)
+            )
+        );
 
         assertThat(
             clusterAdmin().prepareState().get().getState().metadata().index("index").getTimestampRange(),
@@ -179,7 +184,9 @@ public class FrozenIndexIT extends ESIntegTestCase {
             assertNull(indicesService.getTimestampFieldType(index));
         }
 
-        assertAcked(client().execute(FreezeIndexAction.INSTANCE, new FreezeRequest("index")).actionGet());
+        assertAcked(
+            client().execute(FreezeIndexAction.INSTANCE, new FreezeRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "index")).actionGet()
+        );
         ensureGreen("index");
         for (final IndicesService indicesService : internalCluster().getInstances(IndicesService.class)) {
             final PlainActionFuture<DateFieldMapper.DateFieldType> timestampFieldTypeFuture = new PlainActionFuture<>();
@@ -193,7 +200,12 @@ public class FrozenIndexIT extends ESIntegTestCase {
             assertThat(timestampFieldTypeFuture.get().dateTimeFormatter().parseMillis(date), equalTo(1580817683000L));
         }
 
-        assertAcked(client().execute(FreezeIndexAction.INSTANCE, new FreezeRequest("index").setFreeze(false)).actionGet());
+        assertAcked(
+            client().execute(
+                FreezeIndexAction.INSTANCE,
+                new FreezeRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "index").setFreeze(false)
+            ).actionGet()
+        );
         ensureGreen("index");
         for (final IndicesService indicesService : internalCluster().getInstances(IndicesService.class)) {
             assertNull(indicesService.getTimestampFieldType(index));
@@ -227,7 +239,10 @@ public class FrozenIndexIT extends ESIntegTestCase {
         for (int i = 0; i < numDocs; i++) {
             prepareIndex(indexName).setSource("created_date", "2011-02-02").get();
         }
-        assertAcked(client().execute(FreezeIndexAction.INSTANCE, new FreezeRequest(indexName)).actionGet());
+        assertAcked(
+            client().execute(FreezeIndexAction.INSTANCE, new FreezeRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, indexName))
+                .actionGet()
+        );
         final OpenPointInTimeRequest openPointInTimeRequest = new OpenPointInTimeRequest(indexName).indicesOptions(
             IndicesOptions.STRICT_EXPAND_OPEN_FORBID_CLOSED
         ).keepAlive(TimeValue.timeValueMinutes(2));
@@ -254,7 +269,12 @@ public class FrozenIndexIT extends ESIntegTestCase {
                 }
             );
         } finally {
-            assertAcked(client().execute(FreezeIndexAction.INSTANCE, new FreezeRequest(indexName).setFreeze(false)).actionGet());
+            assertAcked(
+                client().execute(
+                    FreezeIndexAction.INSTANCE,
+                    new FreezeRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, indexName).setFreeze(false)
+                ).actionGet()
+            );
             client().execute(TransportClosePointInTimeAction.TYPE, new ClosePointInTimeRequest(pitId)).actionGet();
         }
     }
@@ -275,7 +295,12 @@ public class FrozenIndexIT extends ESIntegTestCase {
             prepareIndex("index-2").setId(id).setSource("value", i).get();
         }
 
-        assertAcked(client().execute(FreezeIndexAction.INSTANCE, new FreezeRequest("index-1", "index-2")).actionGet());
+        assertAcked(
+            client().execute(
+                FreezeIndexAction.INSTANCE,
+                new FreezeRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "index-1", "index-2")
+            ).actionGet()
+        );
         final OpenPointInTimeRequest openPointInTimeRequest = new OpenPointInTimeRequest("index-*").indicesOptions(
             IndicesOptions.STRICT_EXPAND_OPEN_FORBID_CLOSED
         ).keepAlive(TimeValue.timeValueMinutes(2));
@@ -311,7 +336,10 @@ public class FrozenIndexIT extends ESIntegTestCase {
             String id = Integer.toString(i);
             prepareIndex("test-index").setId(id).setSource("value", i).get();
         }
-        assertAcked(client().execute(FreezeIndexAction.INSTANCE, new FreezeRequest("test-index")).actionGet());
+        assertAcked(
+            client().execute(FreezeIndexAction.INSTANCE, new FreezeRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "test-index"))
+                .actionGet()
+        );
         // include the frozen indices
         {
             final OpenPointInTimeRequest openPointInTimeRequest = new OpenPointInTimeRequest("test-*").indicesOptions(

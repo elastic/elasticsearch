@@ -136,7 +136,14 @@ public class IpPrefix extends EsqlScalarFunction implements OptionalArgument {
             throw new IllegalArgumentException("Prefix length v6 must be in range [0, 128], found " + prefixLengthV6);
         }
 
-        boolean isIpv4 = Arrays.compareUnsigned(ip.bytes, 0, IPV4_PREFIX.length, IPV4_PREFIX, 0, IPV4_PREFIX.length) == 0;
+        boolean isIpv4 = Arrays.compareUnsigned(
+            ip.bytes,
+            ip.offset,
+            ip.offset + IPV4_PREFIX.length,
+            IPV4_PREFIX,
+            0,
+            IPV4_PREFIX.length
+        ) == 0;
 
         if (isIpv4) {
             makePrefix(ip, scratch, 12 + prefixLengthV4 / 8, prefixLengthV4 % 8);
@@ -154,7 +161,7 @@ public class IpPrefix extends EsqlScalarFunction implements OptionalArgument {
         // Copy the last byte ignoring the trailing bits
         if (remainingBits > 0) {
             byte lastByteMask = (byte) (0xFF << (8 - remainingBits));
-            scratch.bytes[fullBytes] = (byte) (ip.bytes[fullBytes] & lastByteMask);
+            scratch.bytes[fullBytes] = (byte) (ip.bytes[ip.offset + fullBytes] & lastByteMask);
         }
 
         // Copy the last empty bytes

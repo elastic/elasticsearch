@@ -78,6 +78,9 @@ public final class DataTypes {
     public static final DataType COUNTER_INTEGER = new DataType("counter_integer", Integer.BYTES, false, false, true);
     public static final DataType COUNTER_DOUBLE = new DataType("counter_double", Double.BYTES, false, false, true);
 
+    public static final DataType DOC_DATA_TYPE = new DataType("_doc", Integer.BYTES * 3, false, false, false);
+    public static final DataType TSID_DATA_TYPE = new DataType("_tsid", Integer.MAX_VALUE, false, false, true);
+
     private static final Collection<DataType> TYPES = Stream.of(
         UNSUPPORTED,
         NULL,

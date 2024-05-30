@@ -30,7 +30,6 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanNamedReader;
@@ -46,15 +45,14 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.function.LongFunction;
-import java.util.function.Supplier;
-
-import static org.elasticsearch.xpack.esql.core.util.SourceUtils.readSourceWithText;
 
 /**
  * A customized stream input used to deserialize ESQL physical plan fragments. Complements stream
  * input with methods that read plan nodes, Attributes, Expressions, etc.
  */
-public final class PlanStreamInput extends NamedWriteableAwareStreamInput {
+public final class PlanStreamInput extends NamedWriteableAwareStreamInput
+    implements
+        org.elasticsearch.xpack.esql.core.util.PlanStreamInput {
 
     /**
      * A Mapper of stream named id, represented as a primitive long value, to NameId instance.
@@ -70,8 +68,6 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput {
             return seen.computeIfAbsent(streamNameId, k -> new NameId());
         }
     }
-
-    private static final Supplier<LongFunction<NameId>> DEFAULT_NAME_ID_FUNC = NameIdMapper::new;
 
     private final Map<Integer, Block> cachedBlocks = new HashMap<>();
 
@@ -91,11 +87,7 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput {
         super(streamInput, namedWriteableRegistry);
         this.registry = registry;
         this.configuration = configuration;
-        this.nameIdFunction = DEFAULT_NAME_ID_FUNC.get();
-    }
-
-    NameId nameIdFromLongValue(long value) {
-        return nameIdFunction.apply(value);
+        this.nameIdFunction = new NameIdMapper();
     }
 
     DataType dataTypeFromTypeName(String typeName) throws IOException {
@@ -121,11 +113,6 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput {
 
     public PhysicalPlan readOptionalPhysicalPlanNode() throws IOException {
         return readOptionalNamed(PhysicalPlan.class);
-    }
-
-    public Source readSource() throws IOException {
-        boolean hasSource = readBoolean();
-        return hasSource ? readSourceWithText(this, configuration.query()) : Source.EMPTY;
     }
 
     public Expression readExpression() throws IOException {
@@ -268,6 +255,11 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput {
         }
     }
 
+    @Override
+    public String sourceText() {
+        return configuration.query();
+    }
+
     static void throwOnNullOptionalRead(Class<?> type) throws IOException {
         final IOException e = new IOException("read optional named returned null which is not allowed, type:" + type);
         assert false : e;
@@ -278,5 +270,10 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput {
         final IOException e = new IOException("read optional named returned null which is not allowed, reader:" + reader);
         assert false : e;
         throw e;
+    }
+
+    @Override
+    public NameId mapNameId(long l) {
+        return nameIdFunction.apply(l);
     }
 }

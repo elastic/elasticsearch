@@ -44,8 +44,8 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.CARTESIAN_POINT;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_POINT;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.CARTESIAN_POINT;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.GEO_POINT;
 
 final class AggregateMapper {
 

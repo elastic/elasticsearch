@@ -71,7 +71,6 @@ public abstract class RankFeaturePhaseRankCoordinatorContext {
                 topResults[rank] = featureDocs[from + rank];
                 topResults[rank].rank = from + rank + 1;
             }
-            // and call the parent onFinish consumer with the final `ScoreDoc[]` results.
             listener.onResponse(topResults);
         }));
     }

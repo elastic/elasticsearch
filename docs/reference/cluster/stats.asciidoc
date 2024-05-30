@@ -760,19 +760,17 @@ For each section, name and number of times it's been used is reported.
 
 =====
 
-=====
-
 `sparse_vector`::
 (object) Contains statistics about indexed sparse vector used in selected nodes.
 +
-.Properties of `sparse_vector`
+.Properties of `dense_vector`
 [%collapsible%open]
 =====
+
 `value_count`::
 (integer) Total number of sparse vectors indexed across all primary shards assigned to selected nodes.
 
 =====
-
 ====
 
 [[cluster-stats-api-response-body-nodes]]
@@ -1420,9 +1418,6 @@ The API returns the following response:
         }
       ],
       "dense_vector": {
-          "value_count": 0
-      },
-      "sparse_vector": {
           "value_count": 0
       }
    },

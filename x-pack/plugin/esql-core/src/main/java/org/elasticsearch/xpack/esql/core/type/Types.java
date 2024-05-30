@@ -16,12 +16,12 @@ import java.util.Map;
 import java.util.Map.Entry;
 
 import static java.util.Collections.emptyMap;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
-import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
-import static org.elasticsearch.xpack.esql.core.type.DataType.NESTED;
-import static org.elasticsearch.xpack.esql.core.type.DataType.OBJECT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.NESTED;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.OBJECT;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.TEXT;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.UNSUPPORTED;
 
 public abstract class Types {
 
@@ -47,7 +47,7 @@ public abstract class Types {
         return types;
     }
 
-    private static DataType getType(DataTypeRegistry typeRegistry, Map<String, Object> content) {
+    private static DataTypes getType(DataTypeRegistry typeRegistry, Map<String, Object> content) {
         if (content.containsKey("type")) {
             String typeName = content.get("type").toString();
             if ("constant_keyword".equals(typeName) || "wildcard".equals(typeName)) {
@@ -79,7 +79,7 @@ public abstract class Types {
             Map<String, Object> content = (Map<String, Object>) value;
 
             // extract field type
-            DataType esDataType = getType(typeRegistry, content);
+            DataTypes esDataType = getType(typeRegistry, content);
             final Map<String, EsField> properties;
             if (esDataType == OBJECT || esDataType == NESTED) {
                 properties = fromEs(typeRegistry, content);

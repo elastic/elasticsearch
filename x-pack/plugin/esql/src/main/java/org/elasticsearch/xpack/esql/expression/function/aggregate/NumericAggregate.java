@@ -11,7 +11,7 @@ import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
 import java.util.List;
@@ -34,7 +34,7 @@ public abstract class NumericAggregate extends AggregateFunction implements ToAg
         if (supportsDates()) {
             return TypeResolutions.isType(
                 this,
-                e -> e == DataType.DATETIME || e.isNumeric() && e != DataType.UNSIGNED_LONG,
+                e -> e == DataTypes.DATETIME || e.isNumeric() && e != DataTypes.UNSIGNED_LONG,
                 sourceText(),
                 DEFAULT,
                 "datetime",
@@ -43,7 +43,7 @@ public abstract class NumericAggregate extends AggregateFunction implements ToAg
         }
         return isType(
             field(),
-            dt -> dt.isNumeric() && dt != DataType.UNSIGNED_LONG,
+            dt -> dt.isNumeric() && dt != DataTypes.UNSIGNED_LONG,
             sourceText(),
             DEFAULT,
             "numeric except unsigned_long or counter types"
@@ -55,23 +55,23 @@ public abstract class NumericAggregate extends AggregateFunction implements ToAg
     }
 
     @Override
-    public DataType dataType() {
-        return DataType.DOUBLE;
+    public DataTypes dataType() {
+        return DataTypes.DOUBLE;
     }
 
     @Override
     public final AggregatorFunctionSupplier supplier(List<Integer> inputChannels) {
-        DataType type = field().dataType();
-        if (supportsDates() && type == DataType.DATETIME) {
+        DataTypes type = field().dataType();
+        if (supportsDates() && type == DataTypes.DATETIME) {
             return longSupplier(inputChannels);
         }
-        if (type == DataType.LONG) {
+        if (type == DataTypes.LONG) {
             return longSupplier(inputChannels);
         }
-        if (type == DataType.INTEGER) {
+        if (type == DataTypes.INTEGER) {
             return intSupplier(inputChannels);
         }
-        if (type == DataType.DOUBLE) {
+        if (type == DataTypes.DOUBLE) {
             return doubleSupplier(inputChannels);
         }
         throw EsqlIllegalArgumentException.illegalDataType(type);

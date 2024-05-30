@@ -10,7 +10,7 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.KEYWORD;
 
 /**
  * SQL-related information about an index field with keyword type
@@ -41,7 +41,7 @@ public class KeywordEsField extends EsField {
 
     protected KeywordEsField(
         String name,
-        DataType esDataType,
+        DataTypes esDataType,
         Map<String, EsField> properties,
         boolean hasDocValues,
         int precision,

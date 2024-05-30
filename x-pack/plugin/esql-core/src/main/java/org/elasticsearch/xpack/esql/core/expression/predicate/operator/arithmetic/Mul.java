@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.esql.core.expression.predicate.operator.arithmet
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 
@@ -28,11 +28,11 @@ public class Mul extends ArithmeticOperation implements BinaryComparisonInversib
             return new TypeResolution("Unresolved children");
         }
 
-        DataType l = left().dataType();
-        DataType r = right().dataType();
+        DataTypes l = left().dataType();
+        DataTypes r = right().dataType();
 
         // 1. both are numbers
-        if (DataType.isNullOrNumeric(l) && DataType.isNullOrNumeric(r)) {
+        if (DataTypes.isNullOrNumeric(l) && DataTypes.isNullOrNumeric(r)) {
             return TypeResolution.TYPE_RESOLVED;
         }
 

@@ -14,7 +14,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.hamcrest.Matcher;
@@ -33,12 +33,12 @@ public class LengthTests extends AbstractFunctionTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> cases = new ArrayList<>();
-        cases.addAll(List.of(new TestCaseSupplier("length basic test", List.of(DataType.KEYWORD), () -> {
+        cases.addAll(List.of(new TestCaseSupplier("length basic test", List.of(DataTypes.KEYWORD), () -> {
             BytesRef value = new BytesRef(randomAlphaOfLength(between(0, 10000)));
             return new TestCaseSupplier.TestCase(
-                List.of(new TestCaseSupplier.TypedData(value, DataType.KEYWORD, "f")),
+                List.of(new TestCaseSupplier.TypedData(value, DataTypes.KEYWORD, "f")),
                 "LengthEvaluator[val=Attribute[channel=0]]",
-                DataType.INTEGER,
+                DataTypes.INTEGER,
                 equalTo(UnicodeUtil.codePointCount(value))
             );
         })));
@@ -56,21 +56,21 @@ public class LengthTests extends AbstractFunctionTestCase {
         return List.of(
             new TestCaseSupplier(
                 title + " with keyword",
-                List.of(DataType.KEYWORD),
+                List.of(DataTypes.KEYWORD),
                 () -> new TestCaseSupplier.TestCase(
-                    List.of(new TestCaseSupplier.TypedData(new BytesRef(text.get()), DataType.KEYWORD, "f")),
+                    List.of(new TestCaseSupplier.TypedData(new BytesRef(text.get()), DataTypes.KEYWORD, "f")),
                     "LengthEvaluator[val=Attribute[channel=0]]",
-                    DataType.INTEGER,
+                    DataTypes.INTEGER,
                     equalTo(expectedLength)
                 )
             ),
             new TestCaseSupplier(
                 title + " with text",
-                List.of(DataType.TEXT),
+                List.of(DataTypes.TEXT),
                 () -> new TestCaseSupplier.TestCase(
-                    List.of(new TestCaseSupplier.TypedData(new BytesRef(text.get()), DataType.TEXT, "f")),
+                    List.of(new TestCaseSupplier.TypedData(new BytesRef(text.get()), DataTypes.TEXT, "f")),
                     "LengthEvaluator[val=Attribute[channel=0]]",
-                    DataType.INTEGER,
+                    DataTypes.INTEGER,
                     equalTo(expectedLength)
                 )
             )

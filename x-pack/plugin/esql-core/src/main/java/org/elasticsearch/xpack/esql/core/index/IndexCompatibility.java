@@ -8,14 +8,14 @@
 package org.elasticsearch.xpack.esql.core.index;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 
 import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.core.index.VersionCompatibilityChecks.isTypeSupportedInVersion;
-import static org.elasticsearch.xpack.esql.core.type.DataType.isPrimitive;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.isPrimitive;
 import static org.elasticsearch.xpack.esql.core.type.Types.propagateUnsupportedType;
 
 public final class IndexCompatibility {
@@ -23,7 +23,7 @@ public final class IndexCompatibility {
     public static Map<String, EsField> compatible(Map<String, EsField> mapping, Version version) {
         for (Map.Entry<String, EsField> entry : mapping.entrySet()) {
             EsField esField = entry.getValue();
-            DataType dataType = esField.getDataType();
+            DataTypes dataType = esField.getDataType();
             if (isPrimitive(dataType) == false) {
                 compatible(esField.getProperties(), version);
             } else if (isTypeSupportedInVersion(dataType, version) == false) {

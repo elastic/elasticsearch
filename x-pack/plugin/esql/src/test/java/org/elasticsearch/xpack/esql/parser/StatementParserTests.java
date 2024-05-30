@@ -30,7 +30,7 @@ import org.elasticsearch.xpack.esql.core.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.core.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.core.plan.logical.OrderBy;
-import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.WildcardLike;
@@ -67,7 +67,7 @@ import static org.elasticsearch.xpack.esql.core.expression.Literal.FALSE;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.TRUE;
 import static org.elasticsearch.xpack.esql.core.expression.function.FunctionResolutionStrategy.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
-import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.asLongUnsigned;
 import static org.elasticsearch.xpack.esql.parser.ExpressionBuilder.breakIntoFragments;
 import static org.hamcrest.Matchers.allOf;
@@ -1123,44 +1123,44 @@ public class StatementParserTests extends ESTestCase {
         return new UnresolvedAttribute(EMPTY, name);
     }
 
-    private static ReferenceAttribute referenceAttribute(String name, DataType type) {
+    private static ReferenceAttribute referenceAttribute(String name, DataTypes type) {
         return new ReferenceAttribute(EMPTY, name, type);
     }
 
     private static Literal integer(int i) {
-        return new Literal(EMPTY, i, DataType.INTEGER);
+        return new Literal(EMPTY, i, DataTypes.INTEGER);
     }
 
     private static Literal integers(int... ints) {
-        return new Literal(EMPTY, Arrays.stream(ints).boxed().toList(), DataType.INTEGER);
+        return new Literal(EMPTY, Arrays.stream(ints).boxed().toList(), DataTypes.INTEGER);
     }
 
     private static Literal literalLong(long i) {
-        return new Literal(EMPTY, i, DataType.LONG);
+        return new Literal(EMPTY, i, DataTypes.LONG);
     }
 
     private static Literal literalLongs(long... longs) {
-        return new Literal(EMPTY, Arrays.stream(longs).boxed().toList(), DataType.LONG);
+        return new Literal(EMPTY, Arrays.stream(longs).boxed().toList(), DataTypes.LONG);
     }
 
     private static Literal literalDouble(double d) {
-        return new Literal(EMPTY, d, DataType.DOUBLE);
+        return new Literal(EMPTY, d, DataTypes.DOUBLE);
     }
 
     private static Literal literalDoubles(double... doubles) {
-        return new Literal(EMPTY, Arrays.stream(doubles).boxed().toList(), DataType.DOUBLE);
+        return new Literal(EMPTY, Arrays.stream(doubles).boxed().toList(), DataTypes.DOUBLE);
     }
 
     private static Literal literalUnsignedLong(String ulong) {
-        return new Literal(EMPTY, asLongUnsigned(new BigInteger(ulong)), DataType.UNSIGNED_LONG);
+        return new Literal(EMPTY, asLongUnsigned(new BigInteger(ulong)), DataTypes.UNSIGNED_LONG);
     }
 
     private static Literal literalUnsignedLongs(String... ulongs) {
-        return new Literal(EMPTY, Arrays.stream(ulongs).map(s -> asLongUnsigned(new BigInteger(s))).toList(), DataType.UNSIGNED_LONG);
+        return new Literal(EMPTY, Arrays.stream(ulongs).map(s -> asLongUnsigned(new BigInteger(s))).toList(), DataTypes.UNSIGNED_LONG);
     }
 
     private static Literal literalBoolean(boolean b) {
-        return new Literal(EMPTY, b, DataType.BOOLEAN);
+        return new Literal(EMPTY, b, DataTypes.BOOLEAN);
     }
 
     private static Literal literalBooleans(boolean... booleans) {
@@ -1168,15 +1168,15 @@ public class StatementParserTests extends ESTestCase {
         for (boolean b : booleans) {
             v.add(b);
         }
-        return new Literal(EMPTY, v, DataType.BOOLEAN);
+        return new Literal(EMPTY, v, DataTypes.BOOLEAN);
     }
 
     private static Literal literalString(String s) {
-        return new Literal(EMPTY, s, DataType.KEYWORD);
+        return new Literal(EMPTY, s, DataTypes.KEYWORD);
     }
 
     private static Literal literalStrings(String... strings) {
-        return new Literal(EMPTY, Arrays.asList(strings), DataType.KEYWORD);
+        return new Literal(EMPTY, Arrays.asList(strings), DataTypes.KEYWORD);
     }
 
     private void expectError(String query, String errorMessage) {

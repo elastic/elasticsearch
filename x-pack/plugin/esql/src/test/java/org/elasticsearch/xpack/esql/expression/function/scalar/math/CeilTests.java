@@ -12,7 +12,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
 
@@ -34,25 +34,25 @@ public class CeilTests extends AbstractScalarFunctionTestCase {
         suppliers.addAll(List.of(new TestCaseSupplier("large double value", () -> {
             double arg = 1 / randomDouble();
             return new TestCaseSupplier.TestCase(
-                List.of(new TestCaseSupplier.TypedData(arg, DataType.DOUBLE, "arg")),
+                List.of(new TestCaseSupplier.TypedData(arg, DataTypes.DOUBLE, "arg")),
                 "CeilDoubleEvaluator[val=Attribute[channel=0]]",
-                DataType.DOUBLE,
+                DataTypes.DOUBLE,
                 equalTo(Math.ceil(arg))
             );
         }), new TestCaseSupplier("integer value", () -> {
             int arg = randomInt();
             return new TestCaseSupplier.TestCase(
-                List.of(new TestCaseSupplier.TypedData(arg, DataType.INTEGER, "arg")),
+                List.of(new TestCaseSupplier.TypedData(arg, DataTypes.INTEGER, "arg")),
                 "Attribute[channel=0]",
-                DataType.INTEGER,
+                DataTypes.INTEGER,
                 equalTo(arg)
             );
         }), new TestCaseSupplier("long value", () -> {
             long arg = randomLong();
             return new TestCaseSupplier.TestCase(
-                List.of(new TestCaseSupplier.TypedData(arg, DataType.LONG, "arg")),
+                List.of(new TestCaseSupplier.TypedData(arg, DataTypes.LONG, "arg")),
                 "Attribute[channel=0]",
-                DataType.LONG,
+                DataTypes.LONG,
                 equalTo(arg)
             );
         })));
@@ -60,7 +60,7 @@ public class CeilTests extends AbstractScalarFunctionTestCase {
         TestCaseSupplier.forUnaryUnsignedLong(
             suppliers,
             "Attribute[channel=0]",
-            DataType.UNSIGNED_LONG,
+            DataTypes.UNSIGNED_LONG,
             (n) -> n,
             BigInteger.ZERO,
             UNSIGNED_LONG_MAX,
@@ -70,7 +70,7 @@ public class CeilTests extends AbstractScalarFunctionTestCase {
     }
 
     @Override
-    protected DataType expectedType(List<DataType> argTypes) {
+    protected DataTypes expectedType(List<DataTypes> argTypes) {
         return argTypes.get(0);
     }
 

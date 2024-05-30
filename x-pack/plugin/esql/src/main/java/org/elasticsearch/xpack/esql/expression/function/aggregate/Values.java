@@ -17,7 +17,7 @@ import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -51,7 +51,7 @@ public class Values extends AggregateFunction implements ToAggregator {
     }
 
     @Override
-    public DataType dataType() {
+    public DataTypes dataType() {
         return field().dataType();
     }
 
@@ -62,20 +62,20 @@ public class Values extends AggregateFunction implements ToAggregator {
 
     @Override
     public AggregatorFunctionSupplier supplier(List<Integer> inputChannels) {
-        DataType type = field().dataType();
-        if (type == DataType.INTEGER) {
+        DataTypes type = field().dataType();
+        if (type == DataTypes.INTEGER) {
             return new ValuesIntAggregatorFunctionSupplier(inputChannels);
         }
-        if (type == DataType.LONG || type == DataType.DATETIME) {
+        if (type == DataTypes.LONG || type == DataTypes.DATETIME) {
             return new ValuesLongAggregatorFunctionSupplier(inputChannels);
         }
-        if (type == DataType.DOUBLE) {
+        if (type == DataTypes.DOUBLE) {
             return new ValuesDoubleAggregatorFunctionSupplier(inputChannels);
         }
-        if (DataType.isString(type) || type == DataType.IP || type == DataType.VERSION) {
+        if (DataTypes.isString(type) || type == DataTypes.IP || type == DataTypes.VERSION) {
             return new ValuesBytesRefAggregatorFunctionSupplier(inputChannels);
         }
-        if (type == DataType.BOOLEAN) {
+        if (type == DataTypes.BOOLEAN) {
             return new ValuesBooleanAggregatorFunctionSupplier(inputChannels);
         }
         // TODO cartesian_point, geo_point

@@ -49,7 +49,7 @@ import org.elasticsearch.xpack.esql.core.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.core.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.core.type.DateEsField;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
@@ -218,8 +218,8 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 
 import static java.util.Map.entry;
-import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.CARTESIAN_POINT;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.GEO_POINT;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.Entry.of;
@@ -1070,7 +1070,7 @@ public final class PlanNamedTypes {
             Source.readFrom(in),
             in.readOptionalWithReader(PlanNamedTypes::readFieldAttribute),
             in.readString(),
-            DataType.readFrom(in),
+            DataTypes.readFrom(in),
             in.readEsFieldNamed(),
             in.readOptionalString(),
             in.readEnum(Nullability.class),
@@ -1095,7 +1095,7 @@ public final class PlanNamedTypes {
         return new ReferenceAttribute(
             Source.readFrom(in),
             in.readString(),
-            DataType.readFrom(in),
+            DataTypes.readFrom(in),
             in.readOptionalString(),
             in.readEnum(Nullability.class),
             NameId.readFrom(in),
@@ -1117,7 +1117,7 @@ public final class PlanNamedTypes {
         return new MetadataAttribute(
             Source.readFrom(in),
             in.readString(),
-            DataType.readFrom(in),
+            DataTypes.readFrom(in),
             in.readOptionalString(),
             in.readEnum(Nullability.class),
             NameId.readFrom(in),
@@ -1160,7 +1160,7 @@ public final class PlanNamedTypes {
     static EsField readEsField(PlanStreamInput in) throws IOException {
         return new EsField(
             in.readString(),
-            DataType.readFrom(in),
+            DataTypes.readFrom(in),
             in.readImmutableMap(StreamInput::readString, readerFromPlanReader(PlanStreamInput::readEsFieldNamed)),
             in.readBoolean(),
             in.readBoolean()
@@ -1875,7 +1875,7 @@ public final class PlanNamedTypes {
     static Literal readLiteral(PlanStreamInput in) throws IOException {
         Source source = Source.readFrom(in);
         Object value = in.readGenericValue();
-        DataType dataType = DataType.readFrom(in);
+        DataTypes dataType = DataTypes.readFrom(in);
         return new Literal(source, mapToLiteralValue(in, dataType, value), dataType);
     }
 
@@ -1893,7 +1893,7 @@ public final class PlanNamedTypes {
      * For the spatial point type support we need to care about the fact that 8.12.0 uses encoded longs for serializing
      * while 8.13 uses WKB.
      */
-    private static Object mapFromLiteralValue(PlanStreamOutput out, DataType dataType, Object value) {
+    private static Object mapFromLiteralValue(PlanStreamOutput out, DataTypes dataType, Object value) {
         if (dataType == GEO_POINT || dataType == CARTESIAN_POINT) {
             // In 8.12.0 we serialized point literals as encoded longs, but now use WKB
             if (out.getTransportVersion().before(TransportVersions.V_8_13_0)) {
@@ -1910,7 +1910,7 @@ public final class PlanNamedTypes {
      * Not all literal values are currently supported in StreamInput/StreamOutput as generic values.
      * This mapper allows for addition of new and interesting values without (yet) changing StreamInput/Output.
      */
-    private static Object mapToLiteralValue(PlanStreamInput in, DataType dataType, Object value) {
+    private static Object mapToLiteralValue(PlanStreamInput in, DataTypes dataType, Object value) {
         if (dataType == GEO_POINT || dataType == CARTESIAN_POINT) {
             // In 8.12.0 we serialized point literals as encoded longs, but now use WKB
             if (in.getTransportVersion().before(TransportVersions.V_8_13_0)) {
@@ -1923,11 +1923,11 @@ public final class PlanNamedTypes {
         return value;
     }
 
-    private static BytesRef longAsWKB(DataType dataType, long encoded) {
+    private static BytesRef longAsWKB(DataTypes dataType, long encoded) {
         return dataType == GEO_POINT ? GEO.longAsWkb(encoded) : CARTESIAN.longAsWkb(encoded);
     }
 
-    private static long wkbAsLong(DataType dataType, BytesRef wkb) {
+    private static long wkbAsLong(DataTypes dataType, BytesRef wkb) {
         return dataType == GEO_POINT ? GEO.wkbAsLong(wkb) : CARTESIAN.wkbAsLong(wkb);
     }
 

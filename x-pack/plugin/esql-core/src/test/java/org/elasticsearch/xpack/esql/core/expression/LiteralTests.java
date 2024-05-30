@@ -11,7 +11,7 @@ import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.tree.AbstractNodeTestCase;
 import org.elasticsearch.xpack.esql.core.tree.SourceTests;
 import org.elasticsearch.xpack.esql.core.type.Converter;
-import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.core.type.DataTypeConverter;
 
 import java.util.ArrayList;
@@ -21,21 +21,21 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
-import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
-import static org.elasticsearch.xpack.esql.core.type.DataType.BYTE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
-import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
-import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
-import static org.elasticsearch.xpack.esql.core.type.DataType.SHORT;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.BOOLEAN;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.BYTE;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.FLOAT;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.SHORT;
 
 public class LiteralTests extends AbstractNodeTestCase<Literal, Expression> {
     static class ValueAndCompatibleTypes {
         final Supplier<Object> valueSupplier;
-        final List<DataType> validDataTypes;
+        final List<DataTypes> validDataTypes;
 
-        ValueAndCompatibleTypes(Supplier<Object> valueSupplier, DataType... validDataTypes) {
+        ValueAndCompatibleTypes(Supplier<Object> valueSupplier, DataTypes... validDataTypes) {
             this.valueSupplier = valueSupplier;
             this.validDataTypes = Arrays.asList(validDataTypes);
         }
@@ -60,7 +60,7 @@ public class LiteralTests extends AbstractNodeTestCase<Literal, Expression> {
 
     public static Literal randomLiteral() {
         ValueAndCompatibleTypes gen = randomFrom(GENERATORS);
-        DataType dataType = randomFrom(gen.validDataTypes);
+        DataTypes dataType = randomFrom(gen.validDataTypes);
         return new Literal(SourceTests.randomSource(), DataTypeConverter.convert(gen.valueSupplier.get(), dataType), dataType);
     }
 
@@ -81,7 +81,7 @@ public class LiteralTests extends AbstractNodeTestCase<Literal, Expression> {
         // Change the value to another valid value
         mutators.add(l -> new Literal(l.source(), randomValueOfTypeOtherThan(l.value(), l.dataType()), l.dataType()));
         // If we can change the data type then add that as an option as well
-        List<DataType> validDataTypes = validReplacementDataTypes(instance.value(), instance.dataType());
+        List<DataTypes> validDataTypes = validReplacementDataTypes(instance.value(), instance.dataType());
         if (validDataTypes.size() > 1) {
             mutators.add(l -> new Literal(l.source(), l.value(), randomValueOtherThan(l.dataType(), () -> randomFrom(validDataTypes))));
         }
@@ -100,12 +100,12 @@ public class LiteralTests extends AbstractNodeTestCase<Literal, Expression> {
         );
 
         // Replace data type if there are more compatible data types
-        List<DataType> validDataTypes = validReplacementDataTypes(literal.value(), literal.dataType());
+        List<DataTypes> validDataTypes = validReplacementDataTypes(literal.value(), literal.dataType());
         if (validDataTypes.size() > 1) {
-            DataType newDataType = randomValueOtherThan(literal.dataType(), () -> randomFrom(validDataTypes));
+            DataTypes newDataType = randomValueOtherThan(literal.dataType(), () -> randomFrom(validDataTypes));
             assertEquals(
                 new Literal(literal.source(), literal.value(), newDataType),
-                literal.transformPropertiesOnly(DataType.class, p -> newDataType)
+                literal.transformPropertiesOnly(DataTypes.class, p -> newDataType)
             );
         }
     }
@@ -116,7 +116,7 @@ public class LiteralTests extends AbstractNodeTestCase<Literal, Expression> {
         assertEquals("this type of node doesn't have any children to replace", e.getMessage());
     }
 
-    private Object randomValueOfTypeOtherThan(Object original, DataType type) {
+    private Object randomValueOfTypeOtherThan(Object original, DataTypes type) {
         for (ValueAndCompatibleTypes gen : GENERATORS) {
             if (gen.validDataTypes.get(0) == type) {
                 return randomValueOtherThan(original, () -> DataTypeConverter.convert(gen.valueSupplier.get(), type));
@@ -125,10 +125,10 @@ public class LiteralTests extends AbstractNodeTestCase<Literal, Expression> {
         throw new IllegalArgumentException("No native generator for [" + type + "]");
     }
 
-    private List<DataType> validReplacementDataTypes(Object value, DataType type) {
-        List<DataType> validDataTypes = new ArrayList<>();
-        List<DataType> options = Arrays.asList(BYTE, SHORT, INTEGER, LONG, FLOAT, DOUBLE, BOOLEAN);
-        for (DataType candidate : options) {
+    private List<DataTypes> validReplacementDataTypes(Object value, DataTypes type) {
+        List<DataTypes> validDataTypes = new ArrayList<>();
+        List<DataTypes> options = Arrays.asList(BYTE, SHORT, INTEGER, LONG, FLOAT, DOUBLE, BOOLEAN);
+        for (DataTypes candidate : options) {
             try {
                 Converter c = DataTypeConverter.converterFor(type, candidate);
                 c.convert(value);

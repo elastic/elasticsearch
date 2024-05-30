@@ -17,7 +17,7 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.esql.core.planner.TranslatorHandler;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
-import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
@@ -31,7 +31,7 @@ public final class EsqlTranslatorHandler implements TranslatorHandler {
     }
 
     @Override
-    public Object convert(Object value, DataType dataType) {
+    public Object convert(Object value, DataTypes dataType) {
         return EsqlDataTypeConverter.convert(value, dataType);
     }
 

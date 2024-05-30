@@ -17,7 +17,7 @@ import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.core.type.DateUtils;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractConfigurationFunctionTestCase;
@@ -41,10 +41,10 @@ public class ToUpperTests extends AbstractConfigurationFunctionTestCase {
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
 
-        suppliers.add(supplier("keyword ascii", DataType.KEYWORD, () -> randomAlphaOfLengthBetween(1, 10)));
-        suppliers.add(supplier("keyword unicode", DataType.KEYWORD, () -> randomUnicodeOfLengthBetween(1, 10)));
-        suppliers.add(supplier("text ascii", DataType.TEXT, () -> randomAlphaOfLengthBetween(1, 10)));
-        suppliers.add(supplier("text unicode", DataType.TEXT, () -> randomUnicodeOfLengthBetween(1, 10)));
+        suppliers.add(supplier("keyword ascii", DataTypes.KEYWORD, () -> randomAlphaOfLengthBetween(1, 10)));
+        suppliers.add(supplier("keyword unicode", DataTypes.KEYWORD, () -> randomUnicodeOfLengthBetween(1, 10)));
+        suppliers.add(supplier("text ascii", DataTypes.TEXT, () -> randomAlphaOfLengthBetween(1, 10)));
+        suppliers.add(supplier("text unicode", DataTypes.TEXT, () -> randomUnicodeOfLengthBetween(1, 10)));
 
         // add null as parameter
         return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(false, suppliers)));
@@ -53,7 +53,7 @@ public class ToUpperTests extends AbstractConfigurationFunctionTestCase {
     public void testRandomLocale() {
         String testString = randomAlphaOfLength(10);
         EsqlConfiguration cfg = randomLocaleConfig();
-        ToUpper func = new ToUpper(Source.EMPTY, new Literal(Source.EMPTY, testString, DataType.KEYWORD), cfg);
+        ToUpper func = new ToUpper(Source.EMPTY, new Literal(Source.EMPTY, testString, DataTypes.KEYWORD), cfg);
         assertThat(BytesRefs.toBytesRef(testString.toUpperCase(cfg.locale())), equalTo(func.fold()));
     }
 
@@ -77,7 +77,7 @@ public class ToUpperTests extends AbstractConfigurationFunctionTestCase {
         return new ToUpper(source, args.get(0), configuration);
     }
 
-    private static TestCaseSupplier supplier(String name, DataType type, Supplier<String> valueSupplier) {
+    private static TestCaseSupplier supplier(String name, DataTypes type, Supplier<String> valueSupplier) {
         return new TestCaseSupplier(name, List.of(type), () -> {
             List<TestCaseSupplier.TypedData> values = new ArrayList<>();
             String expectedToString = "ToUpperEvaluator[val=Attribute[channel=0], locale=en_US]";

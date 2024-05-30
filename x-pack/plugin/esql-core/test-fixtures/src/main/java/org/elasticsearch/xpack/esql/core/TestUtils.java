@@ -40,7 +40,7 @@ import org.elasticsearch.xpack.esql.core.index.EsIndex;
 import org.elasticsearch.xpack.esql.core.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.core.session.Configuration;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.hamcrest.Description;
@@ -81,7 +81,7 @@ import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomZone;
 import static org.elasticsearch.xpack.esql.core.TestUtils.StringContainsRegex.containsRegex;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
-import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.INTEGER;
 import static org.hamcrest.Matchers.containsString;
 import static org.junit.Assert.assertEquals;
 
@@ -114,7 +114,7 @@ public final class TestUtils {
         if (value instanceof Literal) {
             return (Literal) value;
         }
-        return new Literal(source, value, DataType.fromJava(value));
+        return new Literal(source, value, DataTypes.fromJava(value));
     }
 
     public static Equals equalsOf(Expression left, Expression right) {
@@ -158,10 +158,10 @@ public final class TestUtils {
     }
 
     public static FieldAttribute fieldAttribute() {
-        return fieldAttribute(randomAlphaOfLength(10), randomFrom(DataType.types()));
+        return fieldAttribute(randomAlphaOfLength(10), randomFrom(DataTypes.types()));
     }
 
-    public static FieldAttribute fieldAttribute(String name, DataType type) {
+    public static FieldAttribute fieldAttribute(String name, DataTypes type) {
         return new FieldAttribute(EMPTY, name, new EsField(name, type, emptyMap(), randomBoolean()));
     }
 
@@ -449,7 +449,7 @@ public final class TestUtils {
         return getFieldAttribute(name, INTEGER);
     }
 
-    public static FieldAttribute getFieldAttribute(String name, DataType dataType) {
+    public static FieldAttribute getFieldAttribute(String name, DataTypes dataType) {
         return new FieldAttribute(EMPTY, name, new EsField(name + "f", dataType, emptyMap(), true));
     }
 

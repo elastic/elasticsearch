@@ -20,7 +20,7 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountDistinct;
@@ -43,8 +43,8 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.CARTESIAN_POINT;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.GEO_POINT;
 
 final class AggregateMapper {
 
@@ -225,34 +225,34 @@ final class AggregateMapper {
 
     /** Returns the data type for the engines element type. */
     // defaults to aggstate, but we'll eventually be able to remove this
-    private static DataType toDataType(ElementType elementType) {
+    private static DataTypes toDataType(ElementType elementType) {
         return switch (elementType) {
-            case BOOLEAN -> DataType.BOOLEAN;
-            case BYTES_REF -> DataType.KEYWORD;
-            case INT -> DataType.INTEGER;
-            case LONG -> DataType.LONG;
-            case DOUBLE -> DataType.DOUBLE;
+            case BOOLEAN -> DataTypes.BOOLEAN;
+            case BYTES_REF -> DataTypes.KEYWORD;
+            case INT -> DataTypes.INTEGER;
+            case LONG -> DataTypes.LONG;
+            case DOUBLE -> DataTypes.DOUBLE;
             default -> throw new EsqlIllegalArgumentException("unsupported agg type: " + elementType);
         };
     }
 
     /** Returns the string representation for the data type. This reflects the engine's aggs naming structure. */
-    private static String dataTypeToString(DataType type, Class<?> aggClass) {
+    private static String dataTypeToString(DataTypes type, Class<?> aggClass) {
         if (aggClass == Count.class) {
             return "";  // no type distinction
         }
-        if (type.equals(DataType.BOOLEAN)) {
+        if (type.equals(DataTypes.BOOLEAN)) {
             return "Boolean";
-        } else if (type.equals(DataType.INTEGER)) {
+        } else if (type.equals(DataTypes.INTEGER)) {
             return "Int";
-        } else if (type.equals(DataType.LONG) || type.equals(DataType.DATETIME)) {
+        } else if (type.equals(DataTypes.LONG) || type.equals(DataTypes.DATETIME)) {
             return "Long";
-        } else if (type.equals(DataType.DOUBLE)) {
+        } else if (type.equals(DataTypes.DOUBLE)) {
             return "Double";
-        } else if (type.equals(DataType.KEYWORD)
-            || type.equals(DataType.IP)
-            || type.equals(DataType.VERSION)
-            || type.equals(DataType.TEXT)) {
+        } else if (type.equals(DataTypes.KEYWORD)
+            || type.equals(DataTypes.IP)
+            || type.equals(DataTypes.VERSION)
+            || type.equals(DataTypes.TEXT)) {
                 return "BytesRef";
             } else if (type.equals(GEO_POINT)) {
                 return "GeoPoint";

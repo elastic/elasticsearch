@@ -15,7 +15,7 @@ import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -53,8 +53,8 @@ public class MvAvg extends AbstractMultivalueFunction {
     }
 
     @Override
-    public DataType dataType() {
-        return DataType.DOUBLE;
+    public DataTypes dataType() {
+        return DataTypes.DOUBLE;
     }
 
     @Override
@@ -62,7 +62,7 @@ public class MvAvg extends AbstractMultivalueFunction {
         return switch (PlannerUtils.toElementType(field().dataType())) {
             case DOUBLE -> new MvAvgDoubleEvaluator.Factory(fieldEval);
             case INT -> new MvAvgIntEvaluator.Factory(fieldEval);
-            case LONG -> field().dataType() == DataType.UNSIGNED_LONG
+            case LONG -> field().dataType() == DataTypes.UNSIGNED_LONG
                 ? new MvAvgUnsignedLongEvaluator.Factory(fieldEval)
                 : new MvAvgLongEvaluator.Factory(fieldEval);
             case NULL -> EvalOperator.CONSTANT_NULL_FACTORY;

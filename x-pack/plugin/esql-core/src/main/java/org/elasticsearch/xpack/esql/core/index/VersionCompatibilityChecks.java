@@ -11,12 +11,12 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
 
 import static org.elasticsearch.Version.V_8_2_0;
 import static org.elasticsearch.Version.V_8_4_0;
-import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
-import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.VERSION;
 
 public final class VersionCompatibilityChecks {
 
@@ -26,7 +26,7 @@ public final class VersionCompatibilityChecks {
 
     private VersionCompatibilityChecks() {}
 
-    public static boolean isTypeSupportedInVersion(DataType dataType, Version version) {
+    public static boolean isTypeSupportedInVersion(DataTypes dataType, Version version) {
         if (dataType == UNSIGNED_LONG) {
             return supportsUnsignedLong(version);
         }
@@ -50,7 +50,7 @@ public final class VersionCompatibilityChecks {
         return INTRODUCING_VERSION_FIELD_TYPE.compareTo(version) <= 0;
     }
 
-    public static @Nullable Version versionIntroducingType(DataType dataType) {
+    public static @Nullable Version versionIntroducingType(DataTypes dataType) {
         if (dataType == UNSIGNED_LONG) {
             return INTRODUCING_UNSIGNED_LONG;
         }

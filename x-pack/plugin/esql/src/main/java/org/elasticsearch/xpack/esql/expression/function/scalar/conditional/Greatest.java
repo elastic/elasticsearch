@@ -17,7 +17,7 @@ import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -28,13 +28,13 @@ import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.NULL;
 
 /**
  * Returns the maximum value of multiple columns.
  */
 public class Greatest extends EsqlScalarFunction implements OptionalArgument {
-    private DataType dataType;
+    private DataTypes dataType;
 
     @FunctionInfo(
         returnType = { "boolean", "double", "integer", "ip", "keyword", "long", "text", "version" },
@@ -62,7 +62,7 @@ public class Greatest extends EsqlScalarFunction implements OptionalArgument {
     }
 
     @Override
-    public DataType dataType() {
+    public DataTypes dataType() {
         if (dataType == null) {
             resolveType();
         }
@@ -117,23 +117,23 @@ public class Greatest extends EsqlScalarFunction implements OptionalArgument {
         ExpressionEvaluator.Factory[] factories = children().stream()
             .map(e -> toEvaluator.apply(new MvMax(e.source(), e)))
             .toArray(ExpressionEvaluator.Factory[]::new);
-        if (dataType == DataType.BOOLEAN) {
+        if (dataType == DataTypes.BOOLEAN) {
             return new GreatestBooleanEvaluator.Factory(source(), factories);
         }
-        if (dataType == DataType.DOUBLE) {
+        if (dataType == DataTypes.DOUBLE) {
             return new GreatestDoubleEvaluator.Factory(source(), factories);
         }
-        if (dataType == DataType.INTEGER) {
+        if (dataType == DataTypes.INTEGER) {
             return new GreatestIntEvaluator.Factory(source(), factories);
         }
-        if (dataType == DataType.LONG) {
+        if (dataType == DataTypes.LONG) {
             return new GreatestLongEvaluator.Factory(source(), factories);
         }
-        if (dataType == DataType.KEYWORD
-            || dataType == DataType.TEXT
-            || dataType == DataType.IP
-            || dataType == DataType.VERSION
-            || dataType == DataType.UNSUPPORTED) {
+        if (dataType == DataTypes.KEYWORD
+            || dataType == DataTypes.TEXT
+            || dataType == DataTypes.IP
+            || dataType == DataTypes.VERSION
+            || dataType == DataTypes.UNSUPPORTED) {
 
             return new GreatestBytesRefEvaluator.Factory(source(), factories);
         }

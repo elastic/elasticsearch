@@ -12,7 +12,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.InProcessor;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
@@ -64,8 +64,8 @@ public class In extends org.elasticsearch.xpack.esql.core.expression.predicate.o
     }
 
     @Override
-    protected boolean areCompatible(DataType left, DataType right) {
-        if (left == DataType.UNSIGNED_LONG || right == DataType.UNSIGNED_LONG) {
+    protected boolean areCompatible(DataTypes left, DataTypes right) {
+        if (left == DataTypes.UNSIGNED_LONG || right == DataTypes.UNSIGNED_LONG) {
             // automatic numerical conversions not applicable for UNSIGNED_LONG, see Verifier#validateUnsignedLongOperator().
             return left == right;
         }
@@ -79,7 +79,7 @@ public class In extends org.elasticsearch.xpack.esql.core.expression.predicate.o
             return resolution;
         }
 
-        DataType dt = value().dataType();
+        DataTypes dt = value().dataType();
         for (int i = 0; i < list().size(); i++) {
             Expression listValue = list().get(i);
             if (areCompatible(dt, listValue.dataType()) == false) {

@@ -12,7 +12,7 @@ import org.elasticsearch.compute.ann.ConvertEvaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -20,15 +20,15 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_SHAPE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
-import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.CARTESIAN_POINT;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.CARTESIAN_SHAPE;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.TEXT;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToSpatial;
 
 public class ToCartesianShape extends AbstractConvertFunction {
 
-    private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
+    private static final Map<DataTypes, BuildFactory> EVALUATORS = Map.ofEntries(
         Map.entry(CARTESIAN_POINT, (fieldEval, source) -> fieldEval),
         Map.entry(CARTESIAN_SHAPE, (fieldEval, source) -> fieldEval),
         Map.entry(KEYWORD, ToCartesianShapeFromStringEvaluator.Factory::new),
@@ -55,12 +55,12 @@ public class ToCartesianShape extends AbstractConvertFunction {
     }
 
     @Override
-    protected Map<DataType, BuildFactory> factories() {
+    protected Map<DataTypes, BuildFactory> factories() {
         return EVALUATORS;
     }
 
     @Override
-    public DataType dataType() {
+    public DataTypes dataType() {
         return CARTESIAN_SHAPE;
     }
 

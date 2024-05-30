@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.esql.core.expression;
 
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
 
 import java.util.List;
 import java.util.Objects;
@@ -50,7 +50,7 @@ public abstract class UnaryExpression extends Expression {
     }
 
     @Override
-    public DataType dataType() {
+    public DataTypes dataType() {
         return child.dataType();
     }
 

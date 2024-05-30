@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.esql.core.expression.predicate.operator.arithmet
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
 
 abstract class DateTimeArithmeticOperation extends ArithmeticOperation {
 
@@ -25,8 +25,8 @@ abstract class DateTimeArithmeticOperation extends ArithmeticOperation {
 
         // arithmetic operation can work on numbers in QL
 
-        DataType l = left().dataType();
-        DataType r = right().dataType();
+        DataTypes l = left().dataType();
+        DataTypes r = right().dataType();
 
         // 1. both are numbers
         if (l.isNumeric() && r.isNumeric()) {

@@ -19,7 +19,7 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
-import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
 
 import java.io.IOException;
 import java.util.List;
@@ -30,7 +30,7 @@ public final class EnrichLookupOperator extends AsyncOperator {
     private final String sessionId;
     private final CancellableTask parentTask;
     private final int inputChannel;
-    private final DataType inputDataType;
+    private final DataTypes inputDataType;
     private final String enrichIndex;
     private final String matchType;
     private final String matchField;
@@ -43,7 +43,7 @@ public final class EnrichLookupOperator extends AsyncOperator {
         int maxOutstandingRequests,
         int inputChannel,
         EnrichLookupService enrichLookupService,
-        DataType inputDataType,
+        DataTypes inputDataType,
         String enrichIndex,
         String matchType,
         String matchField,
@@ -87,7 +87,7 @@ public final class EnrichLookupOperator extends AsyncOperator {
         int maxOutstandingRequests,
         int inputChannel,
         EnrichLookupService enrichLookupService,
-        DataType inputDataType,
+        DataTypes inputDataType,
         String enrichIndex,
         String matchType,
         String matchField,

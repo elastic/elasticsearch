@@ -23,7 +23,7 @@ import java.util.stream.Stream;
 import static java.util.stream.Collectors.toMap;
 import static java.util.stream.Collectors.toUnmodifiableMap;
 
-public enum DataType {
+public enum DataTypes {
     UNSUPPORTED("UNSUPPORTED", null, 0, false, false, false),
     NULL("null", 0, false, false, false),
     BOOLEAN("boolean", 1, false, false, false),
@@ -87,11 +87,11 @@ public enum DataType {
      */
     private final boolean docValues;
 
-    DataType(String esName, int size, boolean isInteger, boolean isRational, boolean hasDocValues) {
+    DataTypes(String esName, int size, boolean isInteger, boolean isRational, boolean hasDocValues) {
         this(null, esName, size, isInteger, isRational, hasDocValues);
     }
 
-    DataType(String typeName, String esType, int size, boolean isInteger, boolean isRational, boolean hasDocValues) {
+    DataTypes(String typeName, String esType, int size, boolean isInteger, boolean isRational, boolean hasDocValues) {
         String typeString = typeName != null ? typeName : esType;
         this.typeName = typeString.toLowerCase(Locale.ROOT);
         this.name = typeString.toUpperCase(Locale.ROOT);
@@ -102,7 +102,7 @@ public enum DataType {
         this.docValues = hasDocValues;
     }
 
-    private static final Collection<DataType> TYPES = Stream.of(
+    private static final Collection<DataTypes> TYPES = Stream.of(
         UNSUPPORTED,
         NULL,
         BOOLEAN,
@@ -132,32 +132,32 @@ public enum DataType {
         COUNTER_LONG,
         COUNTER_INTEGER,
         COUNTER_DOUBLE
-    ).sorted(Comparator.comparing(DataType::typeName)).toList();
+    ).sorted(Comparator.comparing(DataTypes::typeName)).toList();
 
-    private static final Map<String, DataType> NAME_TO_TYPE = TYPES.stream().collect(toUnmodifiableMap(DataType::typeName, t -> t));
+    private static final Map<String, DataTypes> NAME_TO_TYPE = TYPES.stream().collect(toUnmodifiableMap(DataTypes::typeName, t -> t));
 
-    private static Map<String, DataType> ES_TO_TYPE;
+    private static Map<String, DataTypes> ES_TO_TYPE;
 
     static {
-        Map<String, DataType> map = TYPES.stream().filter(e -> e.esType() != null).collect(toMap(DataType::esType, t -> t));
+        Map<String, DataTypes> map = TYPES.stream().filter(e -> e.esType() != null).collect(toMap(DataTypes::esType, t -> t));
         map.put("date_nanos", DATETIME);
         ES_TO_TYPE = Collections.unmodifiableMap(map);
     }
 
-    public static Collection<DataType> types() {
+    public static Collection<DataTypes> types() {
         return TYPES;
     }
 
-    public static DataType fromTypeName(String name) {
+    public static DataTypes fromTypeName(String name) {
         return NAME_TO_TYPE.get(name.toLowerCase(Locale.ROOT));
     }
 
-    public static DataType fromEs(String name) {
-        DataType type = ES_TO_TYPE.get(name);
+    public static DataTypes fromEs(String name) {
+        DataTypes type = ES_TO_TYPE.get(name);
         return type != null ? type : UNSUPPORTED;
     }
 
-    public static DataType fromJava(Object value) {
+    public static DataTypes fromJava(Object value) {
         if (value == null) {
             return NULL;
         }
@@ -195,35 +195,35 @@ public enum DataType {
         return null;
     }
 
-    public static boolean isUnsupported(DataType from) {
+    public static boolean isUnsupported(DataTypes from) {
         return from == UNSUPPORTED;
     }
 
-    public static boolean isString(DataType t) {
+    public static boolean isString(DataTypes t) {
         return t == KEYWORD || t == TEXT;
     }
 
-    public static boolean isPrimitive(DataType t) {
+    public static boolean isPrimitive(DataTypes t) {
         return t != OBJECT && t != NESTED && t != UNSUPPORTED;
     }
 
-    public static boolean isNull(DataType t) {
+    public static boolean isNull(DataTypes t) {
         return t == NULL;
     }
 
-    public static boolean isNullOrNumeric(DataType t) {
+    public static boolean isNullOrNumeric(DataTypes t) {
         return t.isNumeric() || isNull(t);
     }
 
-    public static boolean isSigned(DataType t) {
+    public static boolean isSigned(DataTypes t) {
         return t.isNumeric() && t.equals(UNSIGNED_LONG) == false;
     }
 
-    public static boolean isDateTime(DataType type) {
+    public static boolean isDateTime(DataTypes type) {
         return type == DATETIME;
     }
 
-    public static boolean areCompatible(DataType left, DataType right) {
+    public static boolean areCompatible(DataTypes left, DataTypes right) {
         if (left == right) {
             return true;
         } else {
@@ -270,15 +270,15 @@ public enum DataType {
         out.writeString(typeName);
     }
 
-    public static DataType readFrom(StreamInput in) throws IOException {
+    public static DataTypes readFrom(StreamInput in) throws IOException {
         // TODO: Use our normal enum serialization pattern
         String name = in.readString();
-        if (name.equalsIgnoreCase(DataType.DOC_DATA_TYPE.nameUpper())) {
-            return DataType.DOC_DATA_TYPE;
+        if (name.equalsIgnoreCase(DataTypes.DOC_DATA_TYPE.nameUpper())) {
+            return DataTypes.DOC_DATA_TYPE;
         }
-        DataType dataType = DataType.fromTypeName(name);
+        DataTypes dataType = DataTypes.fromTypeName(name);
         if (dataType == null) {
-            throw new IOException("Unknown DataType for type name: " + name);
+            throw new IOException("Unknown DataTypes for type name: " + name);
         }
         return dataType;
     }

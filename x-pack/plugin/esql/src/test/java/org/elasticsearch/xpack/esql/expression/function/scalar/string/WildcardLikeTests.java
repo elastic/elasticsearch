@@ -16,7 +16,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.FunctionName;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
@@ -54,7 +54,7 @@ public class WildcardLikeTests extends AbstractFunctionTestCase {
     }
 
     private static void addCases(List<TestCaseSupplier> suppliers) {
-        for (DataType type : new DataType[] { DataType.KEYWORD, DataType.TEXT }) {
+        for (DataTypes type : new DataTypes[] { DataTypes.KEYWORD, DataTypes.TEXT }) {
             suppliers.add(new TestCaseSupplier(" with " + type.esType(), List.of(type, type), () -> {
                 BytesRef str = new BytesRef(randomAlphaOfLength(5));
                 String patternString = randomAlphaOfLength(2);
@@ -66,7 +66,7 @@ public class WildcardLikeTests extends AbstractFunctionTestCase {
                         new TestCaseSupplier.TypedData(pattern, type, "pattern").forceLiteral()
                     ),
                     startsWith("AutomataMatchEvaluator[input=Attribute[channel=0], pattern=digraph Automaton {\n"),
-                    DataType.BOOLEAN,
+                    DataTypes.BOOLEAN,
                     equalTo(match)
                 );
             }));

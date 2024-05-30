@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.esql.core.expression;
 
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 
 /**
@@ -26,7 +26,7 @@ public class EmptyAttribute extends Attribute {
     protected Attribute clone(
         Source source,
         String name,
-        DataType type,
+        DataTypes type,
         String qualifier,
         Nullability nullability,
         NameId id,
@@ -46,8 +46,8 @@ public class EmptyAttribute extends Attribute {
     }
 
     @Override
-    public DataType dataType() {
-        return DataType.NULL;
+    public DataTypes dataType() {
+        return DataTypes.NULL;
     }
 
     @Override

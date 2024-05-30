@@ -13,7 +13,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.scalar.VaragsTestCaseBuilder;
@@ -43,14 +43,14 @@ public class GreatestTests extends AbstractFunctionTestCase {
         suppliers.add(
             new TestCaseSupplier(
                 "(a, b)",
-                List.of(DataType.KEYWORD, DataType.KEYWORD),
+                List.of(DataTypes.KEYWORD, DataTypes.KEYWORD),
                 () -> new TestCaseSupplier.TestCase(
                     List.of(
-                        new TestCaseSupplier.TypedData(new BytesRef("a"), DataType.KEYWORD, "a"),
-                        new TestCaseSupplier.TypedData(new BytesRef("b"), DataType.KEYWORD, "b")
+                        new TestCaseSupplier.TypedData(new BytesRef("a"), DataTypes.KEYWORD, "a"),
+                        new TestCaseSupplier.TypedData(new BytesRef("b"), DataTypes.KEYWORD, "b")
                     ),
                     "GreatestBytesRefEvaluator[values=[MvMax[field=Attribute[channel=0]], MvMax[field=Attribute[channel=1]]]]",
-                    DataType.KEYWORD,
+                    DataTypes.KEYWORD,
                     equalTo(new BytesRef("b"))
                 )
             )
@@ -58,14 +58,14 @@ public class GreatestTests extends AbstractFunctionTestCase {
         suppliers.add(
             new TestCaseSupplier(
                 "(a, b)",
-                List.of(DataType.VERSION, DataType.VERSION),
+                List.of(DataTypes.VERSION, DataTypes.VERSION),
                 () -> new TestCaseSupplier.TestCase(
                     List.of(
-                        new TestCaseSupplier.TypedData(new BytesRef("1"), DataType.VERSION, "a"),
-                        new TestCaseSupplier.TypedData(new BytesRef("2"), DataType.VERSION, "b")
+                        new TestCaseSupplier.TypedData(new BytesRef("1"), DataTypes.VERSION, "a"),
+                        new TestCaseSupplier.TypedData(new BytesRef("2"), DataTypes.VERSION, "b")
                     ),
                     "GreatestBytesRefEvaluator[values=[MvMax[field=Attribute[channel=0]], MvMax[field=Attribute[channel=1]]]]",
-                    DataType.VERSION,
+                    DataTypes.VERSION,
                     equalTo(new BytesRef("2"))
                 )
             )
@@ -73,14 +73,14 @@ public class GreatestTests extends AbstractFunctionTestCase {
         suppliers.add(
             new TestCaseSupplier(
                 "(a, b)",
-                List.of(DataType.IP, DataType.IP),
+                List.of(DataTypes.IP, DataTypes.IP),
                 () -> new TestCaseSupplier.TestCase(
                     List.of(
-                        new TestCaseSupplier.TypedData(new BytesRef("127.0.0.1"), DataType.IP, "a"),
-                        new TestCaseSupplier.TypedData(new BytesRef("127.0.0.2"), DataType.IP, "b")
+                        new TestCaseSupplier.TypedData(new BytesRef("127.0.0.1"), DataTypes.IP, "a"),
+                        new TestCaseSupplier.TypedData(new BytesRef("127.0.0.2"), DataTypes.IP, "b")
                     ),
                     "GreatestBytesRefEvaluator[values=[MvMax[field=Attribute[channel=0]], MvMax[field=Attribute[channel=1]]]]",
-                    DataType.IP,
+                    DataTypes.IP,
                     equalTo(new BytesRef("127.0.0.2"))
                 )
             )
@@ -88,14 +88,14 @@ public class GreatestTests extends AbstractFunctionTestCase {
         suppliers.add(
             new TestCaseSupplier(
                 "(a, b)",
-                List.of(DataType.DOUBLE, DataType.DOUBLE),
+                List.of(DataTypes.DOUBLE, DataTypes.DOUBLE),
                 () -> new TestCaseSupplier.TestCase(
                     List.of(
-                        new TestCaseSupplier.TypedData(1d, DataType.DOUBLE, "a"),
-                        new TestCaseSupplier.TypedData(2d, DataType.DOUBLE, "b")
+                        new TestCaseSupplier.TypedData(1d, DataTypes.DOUBLE, "a"),
+                        new TestCaseSupplier.TypedData(2d, DataTypes.DOUBLE, "b")
                     ),
                     "GreatestDoubleEvaluator[values=[MvMax[field=Attribute[channel=0]], MvMax[field=Attribute[channel=1]]]]",
-                    DataType.DOUBLE,
+                    DataTypes.DOUBLE,
                     equalTo(2d)
                 )
             )

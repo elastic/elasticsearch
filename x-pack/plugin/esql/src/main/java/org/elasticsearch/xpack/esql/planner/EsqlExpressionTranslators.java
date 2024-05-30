@@ -29,7 +29,7 @@ import org.elasticsearch.xpack.esql.core.querydsl.query.RangeQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.TermQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.TermsQuery;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesFunction;
@@ -53,9 +53,9 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
-import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
-import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.IP;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.VERSION;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAsNumber;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_TIME_FORMATTER;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.HOUR_MINUTE_SECOND;
@@ -202,7 +202,7 @@ public final class EsqlExpressionTranslators {
             }
 
             ZoneId zoneId = null;
-            if (DataType.isDateTime(attribute.dataType())) {
+            if (DataTypes.isDateTime(attribute.dataType())) {
                 zoneId = bc.zoneId();
             }
             if (bc instanceof GreaterThan) {
@@ -250,8 +250,8 @@ public final class EsqlExpressionTranslators {
                 return new MatchAll(source).negate(source);
             }
 
-            DataType valueType = bc.right().dataType();
-            DataType attributeDataType = bc.left().dataType();
+            DataTypes valueType = bc.right().dataType();
+            DataTypes attributeDataType = bc.left().dataType();
             if (valueType == UNSIGNED_LONG && value instanceof Long ul) {
                 value = unsignedLongAsNumber(ul);
             }
@@ -283,7 +283,7 @@ public final class EsqlExpressionTranslators {
         private static final BigDecimal HALF_FLOAT_MAX = BigDecimal.valueOf(65504);
         private static final BigDecimal UNSIGNED_LONG_MAX = BigDecimal.valueOf(2).pow(64).subtract(BigDecimal.ONE);
 
-        private static boolean isInRange(DataType numericFieldDataType, DataType valueDataType, Number value) {
+        private static boolean isInRange(DataTypes numericFieldDataType, DataTypes valueDataType, Number value) {
             double doubleValue = value.doubleValue();
             if (Double.isNaN(doubleValue) || Double.isInfinite(doubleValue)) {
                 return false;
@@ -300,28 +300,28 @@ public final class EsqlExpressionTranslators {
             // Determine min/max for dataType. Use BigDecimals as doubles will have rounding errors for long/ulong.
             BigDecimal minValue;
             BigDecimal maxValue;
-            if (numericFieldDataType == DataType.BYTE) {
+            if (numericFieldDataType == DataTypes.BYTE) {
                 minValue = BigDecimal.valueOf(Byte.MIN_VALUE);
                 maxValue = BigDecimal.valueOf(Byte.MAX_VALUE);
-            } else if (numericFieldDataType == DataType.SHORT) {
+            } else if (numericFieldDataType == DataTypes.SHORT) {
                 minValue = BigDecimal.valueOf(Short.MIN_VALUE);
                 maxValue = BigDecimal.valueOf(Short.MAX_VALUE);
-            } else if (numericFieldDataType == DataType.INTEGER) {
+            } else if (numericFieldDataType == DataTypes.INTEGER) {
                 minValue = BigDecimal.valueOf(Integer.MIN_VALUE);
                 maxValue = BigDecimal.valueOf(Integer.MAX_VALUE);
-            } else if (numericFieldDataType == DataType.LONG) {
+            } else if (numericFieldDataType == DataTypes.LONG) {
                 minValue = BigDecimal.valueOf(Long.MIN_VALUE);
                 maxValue = BigDecimal.valueOf(Long.MAX_VALUE);
-            } else if (numericFieldDataType == DataType.UNSIGNED_LONG) {
+            } else if (numericFieldDataType == DataTypes.UNSIGNED_LONG) {
                 minValue = BigDecimal.ZERO;
                 maxValue = UNSIGNED_LONG_MAX;
-            } else if (numericFieldDataType == DataType.HALF_FLOAT) {
+            } else if (numericFieldDataType == DataTypes.HALF_FLOAT) {
                 minValue = HALF_FLOAT_MAX.negate();
                 maxValue = HALF_FLOAT_MAX;
-            } else if (numericFieldDataType == DataType.FLOAT) {
+            } else if (numericFieldDataType == DataTypes.FLOAT) {
                 minValue = BigDecimal.valueOf(-Float.MAX_VALUE);
                 maxValue = BigDecimal.valueOf(Float.MAX_VALUE);
-            } else if (numericFieldDataType == DataType.DOUBLE || numericFieldDataType == DataType.SCALED_FLOAT) {
+            } else if (numericFieldDataType == DataTypes.DOUBLE || numericFieldDataType == DataTypes.SCALED_FLOAT) {
                 // Scaled floats are represented as doubles in ESQL.
                 minValue = BigDecimal.valueOf(-Double.MAX_VALUE);
                 maxValue = BigDecimal.valueOf(Double.MAX_VALUE);

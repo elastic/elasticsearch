@@ -20,7 +20,7 @@ import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
@@ -42,9 +42,9 @@ public class SplitTests extends AbstractFunctionTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
-        List<DataType> supportedDataTyes = List.of(DataType.KEYWORD, DataType.TEXT);
-        for (DataType sType : supportedDataTyes) {
-            for (DataType dType : supportedDataTyes) {
+        List<DataTypes> supportedDataTyes = List.of(DataTypes.KEYWORD, DataTypes.TEXT);
+        for (DataTypes sType : supportedDataTyes) {
+            for (DataTypes dType : supportedDataTyes) {
                 suppliers.add(new TestCaseSupplier("split test " + sType.toString() + " " + dType.toString(), List.of(sType, dType), () -> {
                     String delimiter = randomAlphaOfLength(1);
                     List<BytesRef> strings = IntStream.range(0, between(1, 5))
@@ -58,7 +58,7 @@ public class SplitTests extends AbstractFunctionTestCase {
                             new TestCaseSupplier.TypedData(new BytesRef(delimiter), dType, "delim")
                         ),
                         "SplitVariableEvaluator[str=Attribute[channel=0], delim=Attribute[channel=1]]",
-                        DataType.KEYWORD,
+                        DataTypes.KEYWORD,
                         equalTo(strings.size() == 1 ? strings.get(0) : strings)
                     );
                 }));
@@ -76,7 +76,7 @@ public class SplitTests extends AbstractFunctionTestCase {
         DriverContext driverContext = driverContext();
         try (
             EvalOperator.ExpressionEvaluator eval = evaluator(
-                new Split(Source.EMPTY, field("str", DataType.KEYWORD), new Literal(Source.EMPTY, new BytesRef(":"), DataType.KEYWORD))
+                new Split(Source.EMPTY, field("str", DataTypes.KEYWORD), new Literal(Source.EMPTY, new BytesRef(":"), DataTypes.KEYWORD))
             ).get(driverContext)
         ) {
             /*
@@ -104,8 +104,8 @@ public class SplitTests extends AbstractFunctionTestCase {
             () -> evaluator(
                 new Split(
                     Source.EMPTY,
-                    field("str", DataType.KEYWORD),
-                    new Literal(Source.EMPTY, new BytesRef(delimiter), DataType.KEYWORD)
+                    field("str", DataTypes.KEYWORD),
+                    new Literal(Source.EMPTY, new BytesRef(delimiter), DataTypes.KEYWORD)
                 )
             ).get(driverContext)
         );

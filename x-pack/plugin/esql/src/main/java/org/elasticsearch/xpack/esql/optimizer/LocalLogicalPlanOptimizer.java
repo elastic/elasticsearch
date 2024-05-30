@@ -29,7 +29,7 @@ import org.elasticsearch.xpack.esql.core.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.core.rule.ParameterizedRule;
 import org.elasticsearch.xpack.esql.core.rule.ParameterizedRuleExecutor;
 import org.elasticsearch.xpack.esql.core.rule.Rule;
-import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
@@ -135,11 +135,11 @@ public class LocalLogicalPlanOptimizer extends ParameterizedRuleExecutor<Logical
             else if (plan instanceof Project project) {
                 var projections = project.projections();
                 List<NamedExpression> newProjections = new ArrayList<>(projections.size());
-                Map<DataType, Alias> nullLiteral = Maps.newLinkedHashMapWithExpectedSize(DataType.types().size());
+                Map<DataTypes, Alias> nullLiteral = Maps.newLinkedHashMapWithExpectedSize(DataTypes.types().size());
 
                 for (NamedExpression projection : projections) {
                     if (projection instanceof FieldAttribute f && stats.exists(f.qualifiedName()) == false) {
-                        DataType dt = f.dataType();
+                        DataTypes dt = f.dataType();
                         Alias nullAlias = nullLiteral.get(f.dataType());
                         // save the first field as null (per datatype)
                         if (nullAlias == null) {
@@ -273,9 +273,9 @@ public class LocalLogicalPlanOptimizer extends ParameterizedRuleExecutor<Logical
         protected void aggOutput(NamedExpression agg, AggregateFunction aggFunc, BlockFactory blockFactory, List<Block> blocks) {
             List<Attribute> output = AbstractPhysicalOperationProviders.intermediateAttributes(List.of(agg), List.of());
             for (Attribute o : output) {
-                DataType dataType = o.dataType();
+                DataTypes dataType = o.dataType();
                 // boolean right now is used for the internal #seen so always return true
-                var value = dataType == DataType.BOOLEAN ? true
+                var value = dataType == DataTypes.BOOLEAN ? true
                     // look for count(literal) with literal != null
                     : aggFunc instanceof Count count && (count.foldable() == false || count.fold() != null) ? 0L
                     // otherwise nullify

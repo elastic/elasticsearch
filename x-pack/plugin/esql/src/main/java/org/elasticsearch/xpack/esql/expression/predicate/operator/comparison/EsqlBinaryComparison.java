@@ -17,7 +17,7 @@ import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparisonProcessor;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cast;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation;
@@ -29,11 +29,11 @@ import java.util.Map;
 import java.util.function.Function;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
-import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.UNSIGNED_LONG;
 
 public abstract class EsqlBinaryComparison extends BinaryComparison implements EvaluatorMapper {
 
-    private final Map<DataType, EsqlArithmeticOperation.BinaryEvaluator> evaluatorMap;
+    private final Map<DataTypes, EsqlArithmeticOperation.BinaryEvaluator> evaluatorMap;
 
     private final BinaryComparisonOperation functionType;
 
@@ -99,7 +99,7 @@ public abstract class EsqlBinaryComparison extends BinaryComparison implements E
         Expression left,
         Expression right,
         BinaryComparisonOperation operation,
-        Map<DataType, EsqlArithmeticOperation.BinaryEvaluator> evaluatorMap
+        Map<DataTypes, EsqlArithmeticOperation.BinaryEvaluator> evaluatorMap
     ) {
         this(source, left, right, operation, null, evaluatorMap);
     }
@@ -111,7 +111,7 @@ public abstract class EsqlBinaryComparison extends BinaryComparison implements E
         BinaryComparisonOperation operation,
         // TODO: We are definitely not doing the right thing with this zoneId
         ZoneId zoneId,
-        Map<DataType, EsqlArithmeticOperation.BinaryEvaluator> evaluatorMap
+        Map<DataTypes, EsqlArithmeticOperation.BinaryEvaluator> evaluatorMap
     ) {
         super(source, left, right, operation.shim, zoneId);
         this.evaluatorMap = evaluatorMap;
@@ -127,7 +127,7 @@ public abstract class EsqlBinaryComparison extends BinaryComparison implements E
         Function<Expression, EvalOperator.ExpressionEvaluator.Factory> toEvaluator
     ) {
         // Our type is always boolean, so figure out the evaluator type from the inputs
-        DataType commonType = EsqlDataTypeRegistry.INSTANCE.commonType(left().dataType(), right().dataType());
+        DataTypes commonType = EsqlDataTypeRegistry.INSTANCE.commonType(left().dataType(), right().dataType());
         EvalOperator.ExpressionEvaluator.Factory lhs;
         EvalOperator.ExpressionEvaluator.Factory rhs;
 
@@ -167,7 +167,7 @@ public abstract class EsqlBinaryComparison extends BinaryComparison implements E
             evaluatorMap::containsKey,
             sourceText(),
             paramOrdinal,
-            evaluatorMap.keySet().stream().map(DataType::typeName).sorted().toArray(String[]::new)
+            evaluatorMap.keySet().stream().map(DataTypes::typeName).sorted().toArray(String[]::new)
         );
     }
 
@@ -177,20 +177,20 @@ public abstract class EsqlBinaryComparison extends BinaryComparison implements E
      * @return TypeResolution.TYPE_RESOLVED iff the types are compatible.  Otherwise, an appropriate type resolution error.
      */
     protected TypeResolution checkCompatibility() {
-        DataType leftType = left().dataType();
-        DataType rightType = right().dataType();
+        DataTypes leftType = left().dataType();
+        DataTypes rightType = right().dataType();
 
         // Unsigned long is only interoperable with other unsigned longs
-        if ((rightType == UNSIGNED_LONG && (false == (leftType == UNSIGNED_LONG || leftType == DataType.NULL)))
-            || (leftType == UNSIGNED_LONG && (false == (rightType == UNSIGNED_LONG || rightType == DataType.NULL)))) {
+        if ((rightType == UNSIGNED_LONG && (false == (leftType == UNSIGNED_LONG || leftType == DataTypes.NULL)))
+            || (leftType == UNSIGNED_LONG && (false == (rightType == UNSIGNED_LONG || rightType == DataTypes.NULL)))) {
             return new TypeResolution(formatIncompatibleTypesMessage());
         }
 
         if ((leftType.isNumeric() && rightType.isNumeric())
-            || (DataType.isString(leftType) && DataType.isString(rightType))
+            || (DataTypes.isString(leftType) && DataTypes.isString(rightType))
             || leftType.equals(rightType)
-            || DataType.isNull(leftType)
-            || DataType.isNull(rightType)) {
+            || DataTypes.isNull(leftType)
+            || DataTypes.isNull(rightType)) {
             return TypeResolution.TYPE_RESOLVED;
         }
         return new TypeResolution(formatIncompatibleTypesMessage());

@@ -11,7 +11,7 @@ import org.elasticsearch.xpack.esql.core.expression.function.scalar.ScalarFuncti
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.core.type.DateUtils;
 
 import java.time.DateTimeException;
@@ -103,7 +103,7 @@ public class Range extends ScalarFunction {
     protected boolean areBoundariesInvalid() {
         Object lowerValue = lower.fold();
         Object upperValue = upper.fold();
-        if (DataType.isDateTime(value.dataType()) || DataType.isDateTime(lower.dataType()) || DataType.isDateTime(upper.dataType())) {
+        if (DataTypes.isDateTime(value.dataType()) || DataTypes.isDateTime(lower.dataType()) || DataTypes.isDateTime(upper.dataType())) {
             try {
                 if (upperValue instanceof String upperString) {
                     upperValue = DateUtils.asDateTime(upperString);
@@ -125,8 +125,8 @@ public class Range extends ScalarFunction {
     }
 
     @Override
-    public DataType dataType() {
-        return DataType.BOOLEAN;
+    public DataTypes dataType() {
+        return DataTypes.BOOLEAN;
     }
 
     @Override

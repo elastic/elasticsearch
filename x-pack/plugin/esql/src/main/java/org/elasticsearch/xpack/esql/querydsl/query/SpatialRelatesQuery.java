@@ -34,21 +34,21 @@ import org.elasticsearch.lucene.spatial.CartesianShapeDocValuesQuery;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
 import java.io.IOException;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.CARTESIAN_POINT;
 
 public class SpatialRelatesQuery extends Query {
     private final String field;
     private final ShapeField.QueryRelation queryRelation;
     private final Geometry shape;
-    private final DataType dataType;
+    private final DataTypes dataType;
 
-    public SpatialRelatesQuery(Source source, String field, ShapeField.QueryRelation queryRelation, Geometry shape, DataType dataType) {
+    public SpatialRelatesQuery(Source source, String field, ShapeField.QueryRelation queryRelation, Geometry shape, DataTypes dataType) {
         super(source);
         this.field = field;
         this.queryRelation = queryRelation;

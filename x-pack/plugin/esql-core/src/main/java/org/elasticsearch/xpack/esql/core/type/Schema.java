@@ -23,14 +23,14 @@ public class Schema implements Iterable<Schema.Entry> {
     public interface Entry {
         String name();
 
-        DataType type();
+        DataTypes type();
     }
 
     static class DefaultEntry implements Entry {
         private final String name;
-        private final DataType type;
+        private final DataTypes type;
 
-        DefaultEntry(String name, DataType type) {
+        DefaultEntry(String name, DataTypes type) {
             this.name = name;
             this.type = type;
         }
@@ -41,7 +41,7 @@ public class Schema implements Iterable<Schema.Entry> {
         }
 
         @Override
-        public DataType type() {
+        public DataTypes type() {
             return type;
         }
     }
@@ -49,9 +49,9 @@ public class Schema implements Iterable<Schema.Entry> {
     public static final Schema EMPTY = new Schema(emptyList(), emptyList());
 
     private final List<String> names;
-    private final List<DataType> types;
+    private final List<DataTypes> types;
 
-    public Schema(List<String> names, List<DataType> types) {
+    public Schema(List<String> names, List<DataTypes> types) {
         Check.isTrue(names.size() == types.size(), "Different # of names {} vs types {}", names, types);
         this.types = types;
         this.names = names;
@@ -61,7 +61,7 @@ public class Schema implements Iterable<Schema.Entry> {
         return names;
     }
 
-    public List<DataType> types() {
+    public List<DataTypes> types() {
         return types;
     }
 
@@ -73,7 +73,7 @@ public class Schema implements Iterable<Schema.Entry> {
         return new DefaultEntry(names.get(i), types.get(i));
     }
 
-    public DataType type(String name) {
+    public DataTypes type(String name) {
         int indexOf = names.indexOf(name);
         if (indexOf < 0) {
             return null;

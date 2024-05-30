@@ -16,7 +16,7 @@ import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.hamcrest.Matcher;
@@ -41,51 +41,51 @@ public class SubstringTests extends AbstractFunctionTestCase {
                 anyNullIsNull(
                     true,
                     List.of(
-                        new TestCaseSupplier("Substring basic test", List.of(DataType.KEYWORD, DataType.INTEGER, DataType.INTEGER), () -> {
+                        new TestCaseSupplier("Substring basic test", List.of(DataTypes.KEYWORD, DataTypes.INTEGER, DataTypes.INTEGER), () -> {
                             int start = between(1, 8);
                             int length = between(1, 10 - start);
                             String text = randomAlphaOfLength(10);
                             return new TestCaseSupplier.TestCase(
                                 List.of(
-                                    new TestCaseSupplier.TypedData(new BytesRef(text), DataType.KEYWORD, "str"),
-                                    new TestCaseSupplier.TypedData(start, DataType.INTEGER, "start"),
-                                    new TestCaseSupplier.TypedData(length, DataType.INTEGER, "end")
+                                    new TestCaseSupplier.TypedData(new BytesRef(text), DataTypes.KEYWORD, "str"),
+                                    new TestCaseSupplier.TypedData(start, DataTypes.INTEGER, "start"),
+                                    new TestCaseSupplier.TypedData(length, DataTypes.INTEGER, "end")
                                 ),
                                 "SubstringEvaluator[str=Attribute[channel=0], start=Attribute[channel=1], length=Attribute[channel=2]]",
-                                DataType.KEYWORD,
+                                DataTypes.KEYWORD,
                                 equalTo(new BytesRef(text.substring(start - 1, start + length - 1)))
                             );
                         }),
                         new TestCaseSupplier(
                             "Substring basic test with text input",
-                            List.of(DataType.TEXT, DataType.INTEGER, DataType.INTEGER),
+                            List.of(DataTypes.TEXT, DataTypes.INTEGER, DataTypes.INTEGER),
                             () -> {
                                 int start = between(1, 8);
                                 int length = between(1, 10 - start);
                                 String text = randomAlphaOfLength(10);
                                 return new TestCaseSupplier.TestCase(
                                     List.of(
-                                        new TestCaseSupplier.TypedData(new BytesRef(text), DataType.TEXT, "str"),
-                                        new TestCaseSupplier.TypedData(start, DataType.INTEGER, "start"),
-                                        new TestCaseSupplier.TypedData(length, DataType.INTEGER, "end")
+                                        new TestCaseSupplier.TypedData(new BytesRef(text), DataTypes.TEXT, "str"),
+                                        new TestCaseSupplier.TypedData(start, DataTypes.INTEGER, "start"),
+                                        new TestCaseSupplier.TypedData(length, DataTypes.INTEGER, "end")
                                     ),
                                     "SubstringEvaluator[str=Attribute[channel=0], start=Attribute[channel=1], length=Attribute[channel=2]]",
-                                    DataType.KEYWORD,
+                                    DataTypes.KEYWORD,
                                     equalTo(new BytesRef(text.substring(start - 1, start + length - 1)))
                                 );
                             }
                         ),
-                        new TestCaseSupplier("Substring empty string", List.of(DataType.TEXT, DataType.INTEGER, DataType.INTEGER), () -> {
+                        new TestCaseSupplier("Substring empty string", List.of(DataTypes.TEXT, DataTypes.INTEGER, DataTypes.INTEGER), () -> {
                             int start = between(1, 8);
                             int length = between(1, 10 - start);
                             return new TestCaseSupplier.TestCase(
                                 List.of(
-                                    new TestCaseSupplier.TypedData(new BytesRef(""), DataType.TEXT, "str"),
-                                    new TestCaseSupplier.TypedData(start, DataType.INTEGER, "start"),
-                                    new TestCaseSupplier.TypedData(length, DataType.INTEGER, "end")
+                                    new TestCaseSupplier.TypedData(new BytesRef(""), DataTypes.TEXT, "str"),
+                                    new TestCaseSupplier.TypedData(start, DataTypes.INTEGER, "start"),
+                                    new TestCaseSupplier.TypedData(length, DataTypes.INTEGER, "end")
                                 ),
                                 "SubstringEvaluator[str=Attribute[channel=0], start=Attribute[channel=1], length=Attribute[channel=2]]",
-                                DataType.KEYWORD,
+                                DataTypes.KEYWORD,
                                 equalTo(new BytesRef(""))
                             );
                         })
@@ -104,7 +104,7 @@ public class SubstringTests extends AbstractFunctionTestCase {
 
     public void testNoLengthToString() {
         assertThat(
-            evaluator(new Substring(Source.EMPTY, field("str", DataType.KEYWORD), field("start", DataType.INTEGER), null)).get(
+            evaluator(new Substring(Source.EMPTY, field("str", DataTypes.KEYWORD), field("start", DataTypes.INTEGER), null)).get(
                 driverContext()
             ).toString(),
             equalTo("SubstringNoLengthEvaluator[str=Attribute[channel=0], start=Attribute[channel=1]]")
@@ -179,9 +179,9 @@ public class SubstringTests extends AbstractFunctionTestCase {
             EvalOperator.ExpressionEvaluator eval = evaluator(
                 new Substring(
                     Source.EMPTY,
-                    field("str", DataType.KEYWORD),
-                    new Literal(Source.EMPTY, start, DataType.INTEGER),
-                    length == null ? null : new Literal(Source.EMPTY, length, DataType.INTEGER)
+                    field("str", DataTypes.KEYWORD),
+                    new Literal(Source.EMPTY, start, DataTypes.INTEGER),
+                    length == null ? null : new Literal(Source.EMPTY, length, DataTypes.INTEGER)
                 )
             ).get(driverContext());
             Block block = eval.eval(row(List.of(new BytesRef(str))))

@@ -13,7 +13,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
-import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -30,7 +30,7 @@ import java.util.Objects;
 public abstract class AbstractFieldHitExtractor implements HitExtractor {
 
     private final String fieldName, hitName;
-    private final DataType dataType;
+    private final DataTypes dataType;
     private final ZoneId zoneId;
 
     protected MultiValueSupport multiValueSupport;
@@ -41,17 +41,17 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
         FULL
     }
 
-    protected AbstractFieldHitExtractor(String name, DataType dataType, ZoneId zoneId) {
+    protected AbstractFieldHitExtractor(String name, DataTypes dataType, ZoneId zoneId) {
         this(name, dataType, zoneId, null, MultiValueSupport.NONE);
     }
 
-    protected AbstractFieldHitExtractor(String name, DataType dataType, ZoneId zoneId, MultiValueSupport multiValueSupport) {
+    protected AbstractFieldHitExtractor(String name, DataTypes dataType, ZoneId zoneId, MultiValueSupport multiValueSupport) {
         this(name, dataType, zoneId, null, multiValueSupport);
     }
 
     protected AbstractFieldHitExtractor(
         String name,
-        DataType dataType,
+        DataTypes dataType,
         ZoneId zoneId,
         String hitName,
         MultiValueSupport multiValueSupport
@@ -83,8 +83,8 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
         zoneId = readZoneId(in);
     }
 
-    protected DataType loadTypeFromName(String typeName) {
-        return DataType.fromTypeName(typeName);
+    protected DataTypes loadTypeFromName(String typeName) {
+        return DataTypes.fromTypeName(typeName);
     }
 
     protected abstract ZoneId readZoneId(StreamInput in) throws IOException;
@@ -240,7 +240,7 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
         return zoneId;
     }
 
-    public DataType dataType() {
+    public DataTypes dataType() {
         return dataType;
     }
 

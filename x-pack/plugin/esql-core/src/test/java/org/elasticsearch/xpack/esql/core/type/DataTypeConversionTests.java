@@ -17,21 +17,21 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.time.ZonedDateTime;
 
-import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
-import static org.elasticsearch.xpack.esql.core.type.DataType.BYTE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
-import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
-import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
-import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
-import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
-import static org.elasticsearch.xpack.esql.core.type.DataType.SHORT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
-import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
-import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.BOOLEAN;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.BYTE;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.FLOAT;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.IP;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.NULL;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.SHORT;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.TEXT;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.UNSUPPORTED;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.VERSION;
 import static org.elasticsearch.xpack.esql.core.type.DataTypeConverter.commonType;
 import static org.elasticsearch.xpack.esql.core.type.DataTypeConverter.converterFor;
 import static org.elasticsearch.xpack.esql.core.type.DateUtils.asDateTime;
@@ -39,7 +39,7 @@ import static org.elasticsearch.xpack.esql.core.type.DateUtils.asDateTime;
 public class DataTypeConversionTests extends ESTestCase {
 
     public void testConversionToString() {
-        DataType to = KEYWORD;
+        DataTypes to = KEYWORD;
         {
             Converter conversion = converterFor(DOUBLE, to);
             assertNull(conversion.convert(null));
@@ -64,7 +64,7 @@ public class DataTypeConversionTests extends ESTestCase {
      * Test conversion to long.
      */
     public void testConversionToLong() {
-        DataType to = LONG;
+        DataTypes to = LONG;
         {
             Converter conversion = converterFor(DOUBLE, to);
             assertNull(conversion.convert(null));
@@ -115,7 +115,7 @@ public class DataTypeConversionTests extends ESTestCase {
     }
 
     public void testConversionToDateTime() {
-        DataType to = DATETIME;
+        DataTypes to = DATETIME;
         {
             Converter conversion = converterFor(DOUBLE, to);
             assertNull(conversion.convert(null));
@@ -180,7 +180,7 @@ public class DataTypeConversionTests extends ESTestCase {
     }
 
     public void testConversionToFloat() {
-        DataType to = FLOAT;
+        DataTypes to = FLOAT;
         {
             Converter conversion = converterFor(DOUBLE, to);
             assertNull(conversion.convert(null));
@@ -227,7 +227,7 @@ public class DataTypeConversionTests extends ESTestCase {
     }
 
     public void testConversionToDouble() {
-        DataType to = DOUBLE;
+        DataTypes to = DOUBLE;
         {
             Converter conversion = converterFor(FLOAT, to);
             assertNull(conversion.convert(null));
@@ -274,7 +274,7 @@ public class DataTypeConversionTests extends ESTestCase {
     }
 
     public void testConversionToBoolean() {
-        DataType to = BOOLEAN;
+        DataTypes to = BOOLEAN;
         {
             Converter conversion = converterFor(FLOAT, to);
             assertNull(conversion.convert(null));
@@ -341,7 +341,7 @@ public class DataTypeConversionTests extends ESTestCase {
     }
 
     public void testConversionToUnsignedLong() {
-        DataType to = UNSIGNED_LONG;
+        DataTypes to = UNSIGNED_LONG;
         {
             Converter conversion = converterFor(DOUBLE, to);
             assertNull(conversion.convert(null));
@@ -402,7 +402,7 @@ public class DataTypeConversionTests extends ESTestCase {
     }
 
     public void testConversionToInt() {
-        DataType to = INTEGER;
+        DataTypes to = INTEGER;
         {
             Converter conversion = converterFor(DOUBLE, to);
             assertNull(conversion.convert(null));
@@ -436,7 +436,7 @@ public class DataTypeConversionTests extends ESTestCase {
     }
 
     public void testConversionToShort() {
-        DataType to = SHORT;
+        DataTypes to = SHORT;
         {
             Converter conversion = converterFor(DOUBLE, to);
             assertNull(conversion.convert(null));
@@ -469,7 +469,7 @@ public class DataTypeConversionTests extends ESTestCase {
     }
 
     public void testConversionToByte() {
-        DataType to = BYTE;
+        DataTypes to = BYTE;
         {
             Converter conversion = converterFor(DOUBLE, to);
             assertNull(conversion.convert(null));
@@ -539,8 +539,8 @@ public class DataTypeConversionTests extends ESTestCase {
     }
 
     public void testEsDataTypes() {
-        for (DataType type : DataType.types()) {
-            assertEquals(type, DataType.fromTypeName(type.typeName()));
+        for (DataTypes type : DataTypes.types()) {
+            assertEquals(type, DataTypes.fromTypeName(type.typeName()));
         }
     }
 
@@ -577,7 +577,7 @@ public class DataTypeConversionTests extends ESTestCase {
     public void testVersionToString() {
         Source s = new Source(Location.EMPTY, "2.1.4");
         Source s2 = new Source(Location.EMPTY, "2.1.4-SNAPSHOT");
-        DataType stringType = randomFrom(TEXT, KEYWORD);
+        DataTypes stringType = randomFrom(TEXT, KEYWORD);
         Converter versionToString = converterFor(VERSION, stringType);
         assertEquals("2.1.4", versionToString.convert(new Literal(s, "2.1.4", VERSION)));
         assertEquals("2.1.4-SNAPSHOT", versionToString.convert(new Literal(s2, "2.1.4-SNAPSHOT", VERSION)));

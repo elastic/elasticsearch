@@ -19,7 +19,7 @@ import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.core.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.expression.NamedExpressions;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
@@ -42,14 +42,14 @@ public class Grok extends RegexExtract {
                 .collect(Collectors.toList());
         }
 
-        private static DataType toDataType(GrokCaptureType type) {
+        private static DataTypes toDataType(GrokCaptureType type) {
             return switch (type) {
-                case STRING -> DataType.KEYWORD;
-                case INTEGER -> DataType.INTEGER;
-                case LONG -> DataType.LONG;
-                case FLOAT -> DataType.FLOAT;
-                case DOUBLE -> DataType.DOUBLE;
-                case BOOLEAN -> DataType.BOOLEAN;
+                case STRING -> DataTypes.KEYWORD;
+                case INTEGER -> DataTypes.INTEGER;
+                case LONG -> DataTypes.LONG;
+                case FLOAT -> DataTypes.FLOAT;
+                case DOUBLE -> DataTypes.DOUBLE;
+                case BOOLEAN -> DataTypes.BOOLEAN;
             };
         }
 

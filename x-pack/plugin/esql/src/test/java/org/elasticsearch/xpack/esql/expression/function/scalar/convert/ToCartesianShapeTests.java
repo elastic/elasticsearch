@@ -14,7 +14,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.FunctionName;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
@@ -39,13 +39,13 @@ public class ToCartesianShapeTests extends AbstractFunctionTestCase {
         final Function<String, String> evaluatorName = s -> "ToCartesianShape" + s + "Evaluator[field=" + attribute + "]";
         final List<TestCaseSupplier> suppliers = new ArrayList<>();
 
-        TestCaseSupplier.forUnaryCartesianPoint(suppliers, attribute, DataType.CARTESIAN_SHAPE, v -> v, List.of());
-        TestCaseSupplier.forUnaryCartesianShape(suppliers, attribute, DataType.CARTESIAN_SHAPE, v -> v, List.of());
+        TestCaseSupplier.forUnaryCartesianPoint(suppliers, attribute, DataTypes.CARTESIAN_SHAPE, v -> v, List.of());
+        TestCaseSupplier.forUnaryCartesianShape(suppliers, attribute, DataTypes.CARTESIAN_SHAPE, v -> v, List.of());
         // random strings that don't look like a cartesian shape
         TestCaseSupplier.forUnaryStrings(
             suppliers,
             evaluatorName.apply("FromString"),
-            DataType.CARTESIAN_SHAPE,
+            DataTypes.CARTESIAN_SHAPE,
             bytesRef -> null,
             bytesRef -> {
                 var exception = expectThrows(Exception.class, () -> CARTESIAN.wktToWkb(bytesRef.utf8ToString()));
@@ -56,7 +56,7 @@ public class ToCartesianShapeTests extends AbstractFunctionTestCase {
             }
         );
         // strings that are cartesian_shape representations
-        for (DataType dt : List.of(DataType.KEYWORD, DataType.TEXT)) {
+        for (DataTypes dt : List.of(DataTypes.KEYWORD, DataTypes.TEXT)) {
             TestCaseSupplier.unary(
                 suppliers,
                 evaluatorName.apply("FromString"),
@@ -67,7 +67,7 @@ public class ToCartesianShapeTests extends AbstractFunctionTestCase {
                         dt
                     )
                 ),
-                DataType.CARTESIAN_SHAPE,
+                DataTypes.CARTESIAN_SHAPE,
                 bytesRef -> CARTESIAN.wktToWkb(((BytesRef) bytesRef).utf8ToString()),
                 List.of()
             );

@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.esql.core.expression;
 
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
 
 import java.util.List;
 import java.util.Objects;
@@ -107,14 +107,14 @@ public abstract class Attribute extends NamedExpression {
         return clone(source(), name(), dataType(), qualifier(), nullable(), id, synthetic());
     }
 
-    public Attribute withDataType(DataType type) {
+    public Attribute withDataType(DataTypes type) {
         return Objects.equals(dataType(), type) ? this : clone(source(), name(), type, qualifier(), nullable(), id(), synthetic());
     }
 
     protected abstract Attribute clone(
         Source source,
         String name,
-        DataType type,
+        DataTypes type,
         String qualifier,
         Nullability nullability,
         NameId id,

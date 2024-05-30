@@ -11,7 +11,7 @@ import org.elasticsearch.compute.ann.ConvertEvaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
@@ -20,17 +20,17 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
-import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
-import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.UNSIGNED_LONG;
 
 /**
  * Converts from <a href="https://en.wikipedia.org/wiki/Degree_(angle)">degrees</a>
  * to <a href="https://en.wikipedia.org/wiki/Radian">radians</a>.
  */
 public class ToRadians extends AbstractConvertFunction implements EvaluatorMapper {
-    private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
+    private static final Map<DataTypes, BuildFactory> EVALUATORS = Map.ofEntries(
         Map.entry(DOUBLE, ToRadiansEvaluator.Factory::new),
         Map.entry(INTEGER, (field, source) -> new ToRadiansEvaluator.Factory(new ToDoubleFromIntEvaluator.Factory(field, source), source)),
         Map.entry(LONG, (field, source) -> new ToRadiansEvaluator.Factory(new ToDoubleFromLongEvaluator.Factory(field, source), source)),
@@ -57,7 +57,7 @@ public class ToRadians extends AbstractConvertFunction implements EvaluatorMappe
     }
 
     @Override
-    protected Map<DataType, BuildFactory> factories() {
+    protected Map<DataTypes, BuildFactory> factories() {
         return EVALUATORS;
     }
 
@@ -72,7 +72,7 @@ public class ToRadians extends AbstractConvertFunction implements EvaluatorMappe
     }
 
     @Override
-    public DataType dataType() {
+    public DataTypes dataType() {
         return DOUBLE;
     }
 

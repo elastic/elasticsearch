@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.esql.core.expression.function.scalar.string;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
 
 import java.util.Objects;
 
@@ -51,8 +51,8 @@ public abstract class BinaryComparisonCaseInsensitiveFunction extends CaseInsens
     }
 
     @Override
-    public DataType dataType() {
-        return DataType.BOOLEAN;
+    public DataTypes dataType() {
+        return DataTypes.BOOLEAN;
     }
 
     @Override

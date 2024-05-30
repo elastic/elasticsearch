@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.esql.core.expression.function.scalar;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
 
 import java.time.Instant;
 import java.time.ZonedDateTime;
@@ -17,18 +17,18 @@ import java.util.BitSet;
 import java.util.Iterator;
 
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
-import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
-import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
-import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.BOOLEAN;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.KEYWORD;
 
 public final class FunctionTestUtils {
 
     public static Literal l(Object value) {
-        return new Literal(EMPTY, value, DataType.fromJava(value));
+        return new Literal(EMPTY, value, DataTypes.fromJava(value));
     }
 
-    public static Literal l(Object value, DataType type) {
+    public static Literal l(Object value, DataTypes type) {
         return new Literal(EMPTY, value, type);
     }
 

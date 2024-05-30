@@ -18,37 +18,37 @@ public class DefaultDataTypeRegistry implements DataTypeRegistry {
     private DefaultDataTypeRegistry() {}
 
     @Override
-    public Collection<DataType> dataTypes() {
-        return DataType.types();
+    public Collection<DataTypes> dataTypes() {
+        return DataTypes.types();
     }
 
     @Override
-    public DataType fromEs(String typeName, TimeSeriesParams.MetricType metricType) {
-        return DataType.fromEs(typeName);
+    public DataTypes fromEs(String typeName, TimeSeriesParams.MetricType metricType) {
+        return DataTypes.fromEs(typeName);
     }
 
     @Override
-    public DataType fromJava(Object value) {
-        return DataType.fromJava(value);
+    public DataTypes fromJava(Object value) {
+        return DataTypes.fromJava(value);
     }
 
     @Override
-    public boolean isUnsupported(DataType type) {
-        return DataType.isUnsupported(type);
+    public boolean isUnsupported(DataTypes type) {
+        return DataTypes.isUnsupported(type);
     }
 
     @Override
-    public boolean canConvert(DataType from, DataType to) {
+    public boolean canConvert(DataTypes from, DataTypes to) {
         return DataTypeConverter.canConvert(from, to);
     }
 
     @Override
-    public Object convert(Object value, DataType type) {
+    public Object convert(Object value, DataTypes type) {
         return DataTypeConverter.convert(value, type);
     }
 
     @Override
-    public DataType commonType(DataType left, DataType right) {
+    public DataTypes commonType(DataTypes left, DataTypes right) {
         return DataTypeConverter.commonType(left, right);
     }
 }

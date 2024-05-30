@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
@@ -21,7 +21,7 @@ import static org.hamcrest.Matchers.equalTo;
 public abstract class AbstractTrimTests extends AbstractFunctionTestCase {
     static Iterable<Object[]> parameters(String name, boolean trimLeading, boolean trimTrailing) {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
-        for (DataType type : strings()) {
+        for (DataTypes type : strings()) {
             suppliers.add(new TestCaseSupplier("no whitespace/" + type, List.of(type), () -> {
                 String text = randomAlphaOfLength(8);
                 return testCase(name, type, text, text);
@@ -70,7 +70,7 @@ public abstract class AbstractTrimTests extends AbstractFunctionTestCase {
         return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(false, suppliers)));
     }
 
-    private static TestCaseSupplier.TestCase testCase(String name, DataType type, String data, String expected) {
+    private static TestCaseSupplier.TestCase testCase(String name, DataTypes type, String data, String expected) {
         return new TestCaseSupplier.TestCase(
             List.of(new TestCaseSupplier.TypedData(new BytesRef(data), type, "str")),
             name + "[val=Attribute[channel=0]]",

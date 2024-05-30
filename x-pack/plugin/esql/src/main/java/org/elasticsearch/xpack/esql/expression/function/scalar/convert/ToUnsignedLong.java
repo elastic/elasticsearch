@@ -13,7 +13,7 @@ import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -21,14 +21,14 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
-import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
-import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
-import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.BOOLEAN;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.TEXT;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.booleanToUnsignedLong;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.doubleToUnsignedLong;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.intToUnsignedLong;
@@ -37,7 +37,7 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToUn
 
 public class ToUnsignedLong extends AbstractConvertFunction {
 
-    private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
+    private static final Map<DataTypes, BuildFactory> EVALUATORS = Map.ofEntries(
         Map.entry(UNSIGNED_LONG, (fieldEval, source) -> fieldEval),
         Map.entry(DATETIME, ToUnsignedLongFromLongEvaluator.Factory::new),
         Map.entry(BOOLEAN, ToUnsignedLongFromBooleanEvaluator.Factory::new),
@@ -78,12 +78,12 @@ public class ToUnsignedLong extends AbstractConvertFunction {
     }
 
     @Override
-    protected Map<DataType, BuildFactory> factories() {
+    protected Map<DataTypes, BuildFactory> factories() {
         return EVALUATORS;
     }
 
     @Override
-    public DataType dataType() {
+    public DataTypes dataType() {
         return UNSIGNED_LONG;
     }
 

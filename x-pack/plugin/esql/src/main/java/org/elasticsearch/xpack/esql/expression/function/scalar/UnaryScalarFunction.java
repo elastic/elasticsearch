@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
 
 import java.util.Arrays;
 
@@ -43,7 +43,7 @@ public abstract class UnaryScalarFunction extends EsqlScalarFunction {
     }
 
     @Override
-    public DataType dataType() {
+    public DataTypes dataType() {
         return field.dataType();
     }
 }

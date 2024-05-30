@@ -51,7 +51,7 @@ import org.elasticsearch.xpack.esql.core.querydsl.query.TermQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.TermsQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.WildcardQuery;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.versionfield.Version;
@@ -66,9 +66,9 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
-import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
-import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.IP;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.VERSION;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAsNumber;
 
 public final class ExpressionTranslators {
@@ -282,7 +282,7 @@ public final class ExpressionTranslators {
             }
 
             ZoneId zoneId = null;
-            if (DataType.isDateTime(attribute.dataType())) {
+            if (DataTypes.isDateTime(attribute.dataType())) {
                 zoneId = bc.zoneId();
             }
             if (bc instanceof GreaterThan) {
@@ -377,8 +377,8 @@ public final class ExpressionTranslators {
             return handler.wrapFunctionQuery(in, in.value(), () -> translate(in, handler));
         }
 
-        private static boolean needsTypeSpecificValueHandling(DataType fieldType) {
-            return DataType.isDateTime(fieldType) || fieldType == IP || fieldType == VERSION || fieldType == UNSIGNED_LONG;
+        private static boolean needsTypeSpecificValueHandling(DataTypes fieldType) {
+            return DataTypes.isDateTime(fieldType) || fieldType == IP || fieldType == VERSION || fieldType == UNSIGNED_LONG;
         }
 
         private static Query translate(In in, TranslatorHandler handler) {
@@ -388,7 +388,7 @@ public final class ExpressionTranslators {
             List<Query> queries = new ArrayList<>();
 
             for (Expression rhs : in.list()) {
-                if (DataType.isNull(rhs.dataType()) == false) {
+                if (DataTypes.isNull(rhs.dataType()) == false) {
                     if (needsTypeSpecificValueHandling(attribute.dataType())) {
                         // delegates to BinaryComparisons translator to ensure consistent handling of date and time values
                         Query query = BinaryComparisons.translate(new Equals(in.source(), in.value(), rhs, in.zoneId()), handler);

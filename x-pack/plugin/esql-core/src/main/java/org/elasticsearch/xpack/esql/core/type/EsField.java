@@ -16,17 +16,17 @@ import java.util.Objects;
  */
 public class EsField {
 
-    private final DataType esDataType;
+    private final DataTypes esDataType;
     private final boolean aggregatable;
     private final Map<String, EsField> properties;
     private final String name;
     private final boolean isAlias;
 
-    public EsField(String name, DataType esDataType, Map<String, EsField> properties, boolean aggregatable) {
+    public EsField(String name, DataTypes esDataType, Map<String, EsField> properties, boolean aggregatable) {
         this(name, esDataType, properties, aggregatable, false);
     }
 
-    public EsField(String name, DataType esDataType, Map<String, EsField> properties, boolean aggregatable, boolean isAlias) {
+    public EsField(String name, DataTypes esDataType, Map<String, EsField> properties, boolean aggregatable, boolean isAlias) {
         this.name = name;
         this.esDataType = esDataType;
         this.aggregatable = aggregatable;
@@ -44,7 +44,7 @@ public class EsField {
     /**
      * The field type
      */
-    public DataType getDataType() {
+    public DataTypes getDataType() {
         return esDataType;
     }
 

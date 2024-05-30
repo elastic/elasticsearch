@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.core.type.DataTypeConverter;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 
@@ -69,8 +69,8 @@ public class In extends ScalarFunction {
     }
 
     @Override
-    public DataType dataType() {
-        return DataType.BOOLEAN;
+    public DataTypes dataType() {
+        return DataTypes.BOOLEAN;
     }
 
     @Override
@@ -100,7 +100,7 @@ public class In extends ScalarFunction {
         return new In(source(), value, canonicalValues, zoneId);
     }
 
-    protected List<Object> foldAndConvertListOfValues(List<Expression> expressions, DataType dataType) {
+    protected List<Object> foldAndConvertListOfValues(List<Expression> expressions, DataTypes dataType) {
         List<Object> values = new ArrayList<>(expressions.size());
         for (Expression e : expressions) {
             values.add(DataTypeConverter.convert(Foldables.valueOf(e), dataType));
@@ -108,8 +108,8 @@ public class In extends ScalarFunction {
         return values;
     }
 
-    protected boolean areCompatible(DataType left, DataType right) {
-        return DataType.areCompatible(left, right);
+    protected boolean areCompatible(DataTypes left, DataTypes right) {
+        return DataTypes.areCompatible(left, right);
     }
 
     @Override
@@ -132,7 +132,7 @@ public class In extends ScalarFunction {
             }
         }
 
-        DataType dt = value.dataType();
+        DataTypes dt = value.dataType();
         for (int i = 0; i < list.size(); i++) {
             Expression listValue = list.get(i);
             if (areCompatible(dt, listValue.dataType()) == false) {

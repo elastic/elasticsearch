@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.esql.core.expression.predicate;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.core.type.DateUtils;
 
 import java.time.ZoneId;
@@ -17,15 +17,15 @@ import java.time.ZonedDateTime;
 import java.util.Arrays;
 
 import static org.elasticsearch.xpack.esql.core.expression.function.scalar.FunctionTestUtils.l;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
-import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
-import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
-import static org.elasticsearch.xpack.esql.core.type.DataType.SHORT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.FLOAT;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.SHORT;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.TEXT;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.UNSIGNED_LONG;
 
 public class RangeTests extends ESTestCase {
 
@@ -204,10 +204,10 @@ public class RangeTests extends ESTestCase {
             Object[] test = tests[i];
             Range range = new Range(
                 Source.EMPTY,
-                l(test[0], (DataType) test[1]),
-                l(test[2], (DataType) test[3]),
+                l(test[0], (DataTypes) test[1]),
+                l(test[2], (DataTypes) test[3]),
                 (Boolean) test[4],
-                l(test[5], (DataType) test[6]),
+                l(test[5], (DataTypes) test[6]),
                 (Boolean) test[7],
                 ZoneId.systemDefault()
             );
@@ -219,11 +219,11 @@ public class RangeTests extends ESTestCase {
         return DateUtils.asDateTime(date);
     }
 
-    private static DataType randomNumericType() {
+    private static DataTypes randomNumericType() {
         return randomFrom(INTEGER, SHORT, LONG, UNSIGNED_LONG, FLOAT, DOUBLE);
     }
 
-    private static DataType randomTextType() {
+    private static DataTypes randomTextType() {
         return randomFrom(KEYWORD, TEXT);
     }
 

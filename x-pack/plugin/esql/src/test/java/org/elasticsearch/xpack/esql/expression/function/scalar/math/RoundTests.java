@@ -14,7 +14,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.math.Maths;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
@@ -40,7 +40,7 @@ public class RoundTests extends AbstractFunctionTestCase {
         suppliers.add(
             supplier(
                 "<double>",
-                DataType.DOUBLE,
+                DataTypes.DOUBLE,
                 () -> 1 / randomDouble(),
                 "RoundDoubleNoDecimalsEvaluator[val=Attribute[channel=0]]",
                 d -> Maths.round(d, 0)
@@ -49,9 +49,9 @@ public class RoundTests extends AbstractFunctionTestCase {
         suppliers.add(
             supplier(
                 "<double>, <integer>",
-                DataType.DOUBLE,
+                DataTypes.DOUBLE,
                 () -> 1 / randomDouble(),
-                DataType.INTEGER,
+                DataTypes.INTEGER,
                 () -> between(-30, 30),
                 "RoundDoubleEvaluator[val=Attribute[channel=0], decimals=CastIntToLongEvaluator[v=Attribute[channel=1]]]",
                 Maths::round
@@ -65,29 +65,29 @@ public class RoundTests extends AbstractFunctionTestCase {
             (nullPosition, nullData, original) -> original
         );
 
-        suppliers.add(new TestCaseSupplier("two doubles", List.of(DataType.DOUBLE, DataType.INTEGER), () -> {
+        suppliers.add(new TestCaseSupplier("two doubles", List.of(DataTypes.DOUBLE, DataTypes.INTEGER), () -> {
             double number1 = 1 / randomDouble();
             double number2 = 1 / randomDouble();
             int precision = between(-30, 30);
             return new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(List.of(number1, number2), DataType.DOUBLE, "number"),
-                    new TestCaseSupplier.TypedData(precision, DataType.INTEGER, "decimals")
+                    new TestCaseSupplier.TypedData(List.of(number1, number2), DataTypes.DOUBLE, "number"),
+                    new TestCaseSupplier.TypedData(precision, DataTypes.INTEGER, "decimals")
                 ),
                 "RoundDoubleEvaluator[val=Attribute[channel=0], decimals=CastIntToLongEvaluator[v=Attribute[channel=1]]]",
-                DataType.DOUBLE,
+                DataTypes.DOUBLE,
                 is(nullValue())
             ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
                 .withWarning("Line -1:-1: java.lang.IllegalArgumentException: single-value function encountered multi-value");
         }));
 
         // Integer or Long without a decimals parameter is a noop
-        suppliers.add(supplier("<integer>", DataType.INTEGER, ESTestCase::randomInt, "Attribute[channel=0]", Function.identity()));
-        suppliers.add(supplier("<long>", DataType.LONG, ESTestCase::randomLong, "Attribute[channel=0]", Function.identity()));
+        suppliers.add(supplier("<integer>", DataTypes.INTEGER, ESTestCase::randomInt, "Attribute[channel=0]", Function.identity()));
+        suppliers.add(supplier("<long>", DataTypes.LONG, ESTestCase::randomLong, "Attribute[channel=0]", Function.identity()));
         suppliers.add(
             supplier(
                 "<unsigned_long>",
-                DataType.UNSIGNED_LONG,
+                DataTypes.UNSIGNED_LONG,
                 ESTestCase::randomLong,
                 "Attribute[channel=0]",
                 NumericUtils::unsignedLongAsBigInteger
@@ -134,7 +134,7 @@ public class RoundTests extends AbstractFunctionTestCase {
     private static TestCaseSupplier supplier(double v, double expected) {
         return supplier(
             "round(" + v + ") -> " + expected,
-            DataType.DOUBLE,
+            DataTypes.DOUBLE,
             () -> v,
             "RoundDoubleNoDecimalsEvaluator[val=Attribute[channel=0]]",
             value -> expected
@@ -144,9 +144,9 @@ public class RoundTests extends AbstractFunctionTestCase {
     private static TestCaseSupplier supplier(double v, int decimals, double expected) {
         return supplier(
             "round(" + v + ", " + decimals + ") -> " + expected,
-            DataType.DOUBLE,
+            DataTypes.DOUBLE,
             () -> v,
-            DataType.INTEGER,
+            DataTypes.INTEGER,
             () -> decimals,
             "RoundDoubleEvaluator[val=Attribute[channel=0], decimals=CastIntToLongEvaluator[v=Attribute[channel=1]]]",
             (value, de) -> expected
@@ -156,9 +156,9 @@ public class RoundTests extends AbstractFunctionTestCase {
     private static TestCaseSupplier supplier(long v, int decimals, long expected) {
         return supplier(
             "round(" + v + "L, " + decimals + ") -> " + expected,
-            DataType.LONG,
+            DataTypes.LONG,
             () -> v,
-            DataType.INTEGER,
+            DataTypes.INTEGER,
             () -> decimals,
             "RoundLongEvaluator[val=Attribute[channel=0], decimals=CastIntToLongEvaluator[v=Attribute[channel=1]]]",
             (value, de) -> expected
@@ -168,9 +168,9 @@ public class RoundTests extends AbstractFunctionTestCase {
     private static TestCaseSupplier supplier(int v, int decimals, int expected) {
         return supplier(
             "round(" + v + ", " + decimals + ") -> " + expected,
-            DataType.INTEGER,
+            DataTypes.INTEGER,
             () -> v,
-            DataType.INTEGER,
+            DataTypes.INTEGER,
             () -> decimals,
             "RoundIntEvaluator[val=Attribute[channel=0], decimals=CastIntToLongEvaluator[v=Attribute[channel=1]]]",
             (value, de) -> expected
@@ -179,7 +179,7 @@ public class RoundTests extends AbstractFunctionTestCase {
 
     private static <N> TestCaseSupplier supplier(
         String name,
-        DataType numberType,
+        DataTypes numberType,
         Supplier<N> numberSupplier,
         String expectedEvaluatorName,
         Function<N, ? extends Number> expected
@@ -197,9 +197,9 @@ public class RoundTests extends AbstractFunctionTestCase {
 
     private static <N, D> TestCaseSupplier supplier(
         String name,
-        DataType numberType,
+        DataTypes numberType,
         Supplier<N> numberSupplier,
-        DataType decimalsType,
+        DataTypes decimalsType,
         Supplier<D> decimalsSupplier,
         String expectedEvaluatorName,
         BiFunction<N, D, ? extends Number> expected

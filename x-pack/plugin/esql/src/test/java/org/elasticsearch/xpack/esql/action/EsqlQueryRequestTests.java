@@ -32,7 +32,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.Column;
-import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.parser.TypedParamValue;
 
 import java.io.IOException;
@@ -227,7 +227,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
             """;
         EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
         Column c = request.tables().get("a").get("c");
-        assertThat(c.type(), equalTo(DataType.KEYWORD));
+        assertThat(c.type(), equalTo(DataTypes.KEYWORD));
         try (
             BytesRefBlock.Builder builder = new BlockFactory(
                 new NoopCircuitBreaker(CircuitBreaker.REQUEST),
@@ -259,7 +259,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
 
         EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
         Column c = request.tables().get("a").get("c");
-        assertThat(c.type(), equalTo(DataType.INTEGER));
+        assertThat(c.type(), equalTo(DataTypes.INTEGER));
         try (
             IntBlock.Builder builder = new BlockFactory(new NoopCircuitBreaker(CircuitBreaker.REQUEST), BigArrays.NON_RECYCLING_INSTANCE)
                 .newIntBlockBuilder(10)
@@ -287,7 +287,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
 
         EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
         Column c = request.tables().get("a").get("c");
-        assertThat(c.type(), equalTo(DataType.LONG));
+        assertThat(c.type(), equalTo(DataTypes.LONG));
         try (
             LongBlock.Builder builder = new BlockFactory(new NoopCircuitBreaker(CircuitBreaker.REQUEST), BigArrays.NON_RECYCLING_INSTANCE)
                 .newLongBlockBuilder(10)
@@ -329,15 +329,15 @@ public class EsqlQueryRequestTests extends ESTestCase {
         EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
         assertThat(request.tables().keySet(), hasSize(2));
         Map<String, Column> t1 = request.tables().get("t1");
-        assertThat(t1.get("a").type(), equalTo(DataType.LONG));
-        assertThat(t1.get("b").type(), equalTo(DataType.LONG));
-        assertThat(t1.get("c").type(), equalTo(DataType.KEYWORD));
-        assertThat(t1.get("d").type(), equalTo(DataType.LONG));
+        assertThat(t1.get("a").type(), equalTo(DataTypes.LONG));
+        assertThat(t1.get("b").type(), equalTo(DataTypes.LONG));
+        assertThat(t1.get("c").type(), equalTo(DataTypes.KEYWORD));
+        assertThat(t1.get("d").type(), equalTo(DataTypes.LONG));
         Map<String, Column> t2 = request.tables().get("t2");
-        assertThat(t2.get("a").type(), equalTo(DataType.LONG));
-        assertThat(t2.get("b").type(), equalTo(DataType.INTEGER));
-        assertThat(t2.get("c").type(), equalTo(DataType.LONG));
-        assertThat(t2.get("d").type(), equalTo(DataType.LONG));
+        assertThat(t2.get("a").type(), equalTo(DataTypes.LONG));
+        assertThat(t2.get("b").type(), equalTo(DataTypes.INTEGER));
+        assertThat(t2.get("c").type(), equalTo(DataTypes.LONG));
+        assertThat(t2.get("d").type(), equalTo(DataTypes.LONG));
         assertTablesOnlyValidOnSnapshot(request);
     }
 

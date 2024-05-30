@@ -7,18 +7,18 @@
 package org.elasticsearch.xpack.esql.core.expression;
 
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
 
 import java.util.Objects;
 
 public abstract class TypedAttribute extends Attribute {
 
-    private final DataType dataType;
+    private final DataTypes dataType;
 
     protected TypedAttribute(
         Source source,
         String name,
-        DataType dataType,
+        DataTypes dataType,
         String qualifier,
         Nullability nullability,
         NameId id,
@@ -29,7 +29,7 @@ public abstract class TypedAttribute extends Attribute {
     }
 
     @Override
-    public DataType dataType() {
+    public DataTypes dataType() {
         return dataType;
     }
 

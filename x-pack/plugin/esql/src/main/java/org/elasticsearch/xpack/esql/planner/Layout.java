@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.esql.planner;
 
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
-import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -26,14 +26,14 @@ import java.util.Set;
  */
 public interface Layout {
     /**
-     * The values stored in the {@link Layout}, a channel id and a {@link DataType}.
+     * The values stored in the {@link Layout}, a channel id and a {@link DataTypes}.
      */
-    record ChannelAndType(int channel, DataType type) {}
+    record ChannelAndType(int channel, DataTypes type) {}
 
     /**
-     * A part of an "inverse" layout, a {@link Set} or {@link NameId}s and a {@link DataType}.
+     * A part of an "inverse" layout, a {@link Set} or {@link NameId}s and a {@link DataTypes}.
      */
-    record ChannelSet(Set<NameId> nameIds, DataType type) {}
+    record ChannelSet(Set<NameId> nameIds, DataTypes type) {}
 
     /**
      * @param id the attribute id
@@ -53,7 +53,7 @@ public interface Layout {
 
     /**
      * Build a list whose index is each channel id and who's values are
-     * all link {@link NameId}s at that position and their {@link DataType}.
+     * all link {@link NameId}s at that position and their {@link DataTypes}.
      */
     List<ChannelSet> inverse();
 

@@ -11,7 +11,7 @@ import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
 import java.util.List;
@@ -101,7 +101,7 @@ public interface EstimatesRowSize {
         }
     }
 
-    static int estimateSize(DataType dataType) {
+    static int estimateSize(DataTypes dataType) {
         ElementType elementType = PlannerUtils.toElementType(dataType);
         return switch (elementType) {
             case BOOLEAN -> 1;

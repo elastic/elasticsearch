@@ -48,7 +48,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
@@ -115,7 +115,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     /**
      * Generate a random value of the appropriate type to fit into blocks of {@code e}.
      */
-    public static Literal randomLiteral(DataType type) {
+    public static Literal randomLiteral(DataTypes type) {
         return new Literal(Source.EMPTY, switch (type.typeName()) {
             case "boolean" -> randomBoolean();
             case "byte" -> randomByte();
@@ -164,14 +164,14 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     /**
      * Build an {@link Attribute} that loads a field.
      */
-    public static FieldAttribute field(String name, DataType type) {
+    public static FieldAttribute field(String name, DataTypes type) {
         return new FieldAttribute(Source.synthetic(name), name, new EsField(name, type, Map.of(), true));
     }
 
     /**
      * Build an {@link Attribute} that loads a field and then creates a deep copy of its data.
      */
-    public static Expression deepCopyOfField(String name, DataType type) {
+    public static Expression deepCopyOfField(String name, DataTypes type) {
         return new DeepCopy(
             Source.synthetic(name),
             new FieldAttribute(Source.synthetic(name), name, new EsField(name, type, Map.of(), true))
@@ -245,7 +245,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         }
     }
 
-    protected final void assertResolveTypeValid(Expression expression, DataType expectedType) {
+    protected final void assertResolveTypeValid(Expression expression, DataTypes expectedType) {
         assertTrue(expression.typeResolved().resolved());
         assertThat(expression.dataType(), equalTo(expectedType));
     }
@@ -290,7 +290,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     private Object toJavaObjectUnsignedLongAware(Block block, int position) {
         Object result;
         result = toJavaObject(block, position);
-        if (result != null && testCase.expectedType() == DataType.UNSIGNED_LONG) {
+        if (result != null && testCase.expectedType() == DataTypes.UNSIGNED_LONG) {
             assertThat(result, instanceOf(Long.class));
             result = NumericUtils.unsignedLongAsBigInteger((Long) result);
         }
@@ -546,7 +546,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         if (testCase.foldingExceptionClass() == null) {
             Object result = nullOptimized.fold();
             // Decode unsigned longs into BigIntegers
-            if (testCase.expectedType() == DataType.UNSIGNED_LONG && result != null) {
+            if (testCase.expectedType() == DataTypes.UNSIGNED_LONG && result != null) {
                 result = NumericUtils.unsignedLongAsBigInteger((Long) result);
             }
             assertThat(result, testCase.getMatcher());
@@ -584,9 +584,9 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         for (int i = 0; i < args.size(); i++) {
             typesFromSignature.add(new HashSet<>());
         }
-        Function<DataType, String> typeName = dt -> dt.esType() != null ? dt.esType() : dt.typeName();
-        for (Map.Entry<List<DataType>, DataType> entry : signatures().entrySet()) {
-            List<DataType> types = entry.getKey();
+        Function<DataTypes, String> typeName = dt -> dt.esType() != null ? dt.esType() : dt.typeName();
+        for (Map.Entry<List<DataTypes>, DataTypes> entry : signatures().entrySet()) {
+            List<DataTypes> types = entry.getKey();
             for (int i = 0; i < args.size() && i < types.size(); i++) {
                 typesFromSignature.get(i).add(typeName.apply(types.get(i)));
             }
@@ -627,14 +627,14 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         return anyNullIsNull(
             testCaseSuppliers,
             (nullPosition, nullValueDataType, original) -> entirelyNullPreservesType == false
-                && nullValueDataType == DataType.NULL
-                && original.getData().size() == 1 ? DataType.NULL : original.expectedType(),
+                && nullValueDataType == DataTypes.NULL
+                && original.getData().size() == 1 ? DataTypes.NULL : original.expectedType(),
             (nullPosition, nullData, original) -> original
         );
     }
 
     public interface ExpectedType {
-        DataType expectedType(int nullPosition, DataType nullValueDataType, TestCaseSupplier.TestCase original);
+        DataTypes expectedType(int nullPosition, DataTypes nullValueDataType, TestCaseSupplier.TestCase original);
     }
 
     public interface ExpectedEvaluatorToString {
@@ -659,7 +659,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
          * *again*, replacing the argument with null, but annotating the
          * argument's type as `null` explicitly.
          */
-        Set<List<DataType>> uniqueSignatures = new HashSet<>();
+        Set<List<DataTypes>> uniqueSignatures = new HashSet<>();
         for (TestCaseSupplier original : testCaseSuppliers) {
             boolean firstTimeSeenSignature = uniqueSignatures.add(original.types());
             for (int nullPosition = 0; nullPosition < original.types().size(); nullPosition++) {
@@ -684,8 +684,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                 }));
 
                 if (firstTimeSeenSignature) {
-                    List<DataType> typesWithNull = IntStream.range(0, original.types().size())
-                        .mapToObj(i -> i == finalNullPosition ? DataType.NULL : original.types().get(i))
+                    List<DataTypes> typesWithNull = IntStream.range(0, original.types().size())
+                        .mapToObj(i -> i == finalNullPosition ? DataTypes.NULL : original.types().get(i))
                         .toList();
                     boolean newSignature = uniqueSignatures.add(typesWithNull);
                     if (newSignature) {
@@ -697,7 +697,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                             return new TestCaseSupplier.TestCase(
                                 data,
                                 equalTo("LiteralsEvaluator[lit=null]"),
-                                expectedType.expectedType(finalNullPosition, DataType.NULL, oc),
+                                expectedType.expectedType(finalNullPosition, DataTypes.NULL, oc),
                                 nullValue(),
                                 null,
                                 oc.getExpectedTypeError(),
@@ -730,8 +730,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         List<TestCaseSupplier> suppliers = new ArrayList<>(testCaseSuppliers.size());
         suppliers.addAll(testCaseSuppliers);
 
-        Set<List<DataType>> valid = testCaseSuppliers.stream().map(TestCaseSupplier::types).collect(Collectors.toSet());
-        List<Set<DataType>> validPerPosition = validPerPosition(valid);
+        Set<List<DataTypes>> valid = testCaseSuppliers.stream().map(TestCaseSupplier::types).collect(Collectors.toSet());
+        List<Set<DataTypes>> validPerPosition = validPerPosition(valid);
 
         testCaseSuppliers.stream()
             .map(s -> s.types().size())
@@ -744,7 +744,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
              * the full combinatorial explosions of all nulls - just a single null.
              * Hopefully <null>, <null> cases will function the same as <null>, <valid>
              * cases.
-             */.filter(types -> types.stream().filter(t -> t == DataType.NULL).count() <= 1)
+             */.filter(types -> types.stream().filter(t -> t == DataTypes.NULL).count() <= 1)
             .map(types -> typeErrorSupplier(validPerPosition.size() != 1, validPerPosition, types, typeErrorMessageSupplier))
             .forEach(suppliers::add);
         return suppliers;
@@ -752,20 +752,20 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
 
     public static String errorMessageStringForBinaryOperators(
         boolean includeOrdinal,
-        List<Set<DataType>> validPerPosition,
-        List<DataType> types
+        List<Set<DataTypes>> validPerPosition,
+        List<DataTypes> types
     ) {
         try {
             return typeErrorMessage(includeOrdinal, validPerPosition, types);
         } catch (IllegalStateException e) {
             // This means all the positional args were okay, so the expected error is from the combination
-            if (types.get(0).equals(DataType.UNSIGNED_LONG)) {
+            if (types.get(0).equals(DataTypes.UNSIGNED_LONG)) {
                 return "first argument of [] is [unsigned_long] and second is ["
                     + types.get(1).typeName()
                     + "]. [unsigned_long] can only be operated on together with another [unsigned_long]";
 
             }
-            if (types.get(1).equals(DataType.UNSIGNED_LONG)) {
+            if (types.get(1).equals(DataTypes.UNSIGNED_LONG)) {
                 return "first argument of [] is ["
                     + types.get(0).typeName()
                     + "] and second is [unsigned_long]. [unsigned_long] can only be operated on together with another [unsigned_long]";
@@ -789,8 +789,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         List<TestCaseSupplier> suppliers = new ArrayList<>(testCaseSuppliers.size());
         suppliers.addAll(testCaseSuppliers);
 
-        Set<List<DataType>> valid = testCaseSuppliers.stream().map(TestCaseSupplier::types).collect(Collectors.toSet());
-        List<Set<DataType>> validPerPosition = validPerPosition(valid);
+        Set<List<DataTypes>> valid = testCaseSuppliers.stream().map(TestCaseSupplier::types).collect(Collectors.toSet());
+        List<Set<DataTypes>> validPerPosition = validPerPosition(valid);
 
         testCaseSuppliers.stream()
             .map(s -> s.types().size())
@@ -816,13 +816,13 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         }
     }
 
-    private static List<Set<DataType>> validPerPosition(Set<List<DataType>> valid) {
+    private static List<Set<DataTypes>> validPerPosition(Set<List<DataTypes>> valid) {
         int max = valid.stream().mapToInt(List::size).max().getAsInt();
-        List<Set<DataType>> result = new ArrayList<>(max);
+        List<Set<DataTypes>> result = new ArrayList<>(max);
         for (int i = 0; i < max; i++) {
             result.add(new HashSet<>());
         }
-        for (List<DataType> signature : valid) {
+        for (List<DataTypes> signature : valid) {
             for (int i = 0; i < signature.size(); i++) {
                 result.get(i).add(signature.get(i));
             }
@@ -830,22 +830,22 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         return result;
     }
 
-    private static Stream<List<DataType>> allPermutations(int argumentCount) {
+    private static Stream<List<DataTypes>> allPermutations(int argumentCount) {
         if (argumentCount == 0) {
             return Stream.of(List.of());
         }
         if (argumentCount > 3) {
             throw new IllegalArgumentException("would generate too many combinations");
         }
-        Stream<List<DataType>> stream = representable().map(t -> List.of(t));
+        Stream<List<DataTypes>> stream = representable().map(t -> List.of(t));
         for (int i = 1; i < argumentCount; i++) {
             stream = stream.flatMap(types -> representable().map(t -> append(types, t)));
         }
         return stream;
     }
 
-    private static List<DataType> append(List<DataType> orig, DataType extra) {
-        List<DataType> longer = new ArrayList<>(orig.size() + 1);
+    private static List<DataTypes> append(List<DataTypes> orig, DataTypes extra) {
+        List<DataTypes> longer = new ArrayList<>(orig.size() + 1);
         longer.addAll(orig);
         longer.add(extra);
         return longer;
@@ -853,13 +853,13 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
 
     @FunctionalInterface
     protected interface TypeErrorMessageSupplier {
-        String apply(boolean includeOrdinal, List<Set<DataType>> validPerPosition, List<DataType> types);
+        String apply(boolean includeOrdinal, List<Set<DataTypes>> validPerPosition, List<DataTypes> types);
     }
 
     protected static TestCaseSupplier typeErrorSupplier(
         boolean includeOrdinal,
-        List<Set<DataType>> validPerPosition,
-        List<DataType> types
+        List<Set<DataTypes>> validPerPosition,
+        List<DataTypes> types
     ) {
         return typeErrorSupplier(includeOrdinal, validPerPosition, types, AbstractFunctionTestCase::typeErrorMessage);
     }
@@ -869,8 +869,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
      */
     protected static TestCaseSupplier typeErrorSupplier(
         boolean includeOrdinal,
-        List<Set<DataType>> validPerPosition,
-        List<DataType> types,
+        List<Set<DataTypes>> validPerPosition,
+        List<DataTypes> types,
         TypeErrorMessageSupplier errorMessageSupplier
     ) {
         return new TestCaseSupplier(
@@ -886,7 +886,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     /**
      * Build the expected error message for an invalid type signature.
      */
-    protected static String typeErrorMessage(boolean includeOrdinal, List<Set<DataType>> validPerPosition, List<DataType> types) {
+    protected static String typeErrorMessage(boolean includeOrdinal, List<Set<DataTypes>> validPerPosition, List<DataTypes> types) {
         int badArgPosition = -1;
         for (int i = 0; i < types.size(); i++) {
             if (validPerPosition.get(i).contains(types.get(i)) == false) {
@@ -905,192 +905,192 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         return ordinal + "argument of [] must be [" + expectedType + "], found value [" + name + "] type [" + name + "]";
     }
 
-    private static final Map<Set<DataType>, String> NAMED_EXPECTED_TYPES = Map.ofEntries(
+    private static final Map<Set<DataTypes>, String> NAMED_EXPECTED_TYPES = Map.ofEntries(
         Map.entry(
-            Set.of(DataType.DATE_PERIOD, DataType.DOUBLE, DataType.INTEGER, DataType.LONG, DataType.TIME_DURATION, DataType.NULL),
+            Set.of(DataTypes.DATE_PERIOD, DataTypes.DOUBLE, DataTypes.INTEGER, DataTypes.LONG, DataTypes.TIME_DURATION, DataTypes.NULL),
             "numeric, date_period or time_duration"
         ),
-        Map.entry(Set.of(DataType.DATETIME, DataType.NULL), "datetime"),
-        Map.entry(Set.of(DataType.DOUBLE, DataType.NULL), "double"),
-        Map.entry(Set.of(DataType.INTEGER, DataType.NULL), "integer"),
-        Map.entry(Set.of(DataType.IP, DataType.NULL), "ip"),
-        Map.entry(Set.of(DataType.LONG, DataType.INTEGER, DataType.UNSIGNED_LONG, DataType.DOUBLE, DataType.NULL), "numeric"),
-        Map.entry(Set.of(DataType.LONG, DataType.INTEGER, DataType.UNSIGNED_LONG, DataType.DOUBLE), "numeric"),
-        Map.entry(Set.of(DataType.KEYWORD, DataType.TEXT, DataType.VERSION, DataType.NULL), "string or version"),
-        Map.entry(Set.of(DataType.KEYWORD, DataType.TEXT, DataType.NULL), "string"),
-        Map.entry(Set.of(DataType.IP, DataType.KEYWORD, DataType.TEXT, DataType.NULL), "ip or string"),
+        Map.entry(Set.of(DataTypes.DATETIME, DataTypes.NULL), "datetime"),
+        Map.entry(Set.of(DataTypes.DOUBLE, DataTypes.NULL), "double"),
+        Map.entry(Set.of(DataTypes.INTEGER, DataTypes.NULL), "integer"),
+        Map.entry(Set.of(DataTypes.IP, DataTypes.NULL), "ip"),
+        Map.entry(Set.of(DataTypes.LONG, DataTypes.INTEGER, DataTypes.UNSIGNED_LONG, DataTypes.DOUBLE, DataTypes.NULL), "numeric"),
+        Map.entry(Set.of(DataTypes.LONG, DataTypes.INTEGER, DataTypes.UNSIGNED_LONG, DataTypes.DOUBLE), "numeric"),
+        Map.entry(Set.of(DataTypes.KEYWORD, DataTypes.TEXT, DataTypes.VERSION, DataTypes.NULL), "string or version"),
+        Map.entry(Set.of(DataTypes.KEYWORD, DataTypes.TEXT, DataTypes.NULL), "string"),
+        Map.entry(Set.of(DataTypes.IP, DataTypes.KEYWORD, DataTypes.TEXT, DataTypes.NULL), "ip or string"),
         Map.entry(Set.copyOf(Arrays.asList(representableTypes())), "representable"),
         Map.entry(Set.copyOf(Arrays.asList(representableNonSpatialTypes())), "representableNonSpatial"),
         Map.entry(
             Set.of(
-                DataType.BOOLEAN,
-                DataType.DOUBLE,
-                DataType.INTEGER,
-                DataType.KEYWORD,
-                DataType.LONG,
-                DataType.TEXT,
-                DataType.UNSIGNED_LONG,
-                DataType.NULL
+                DataTypes.BOOLEAN,
+                DataTypes.DOUBLE,
+                DataTypes.INTEGER,
+                DataTypes.KEYWORD,
+                DataTypes.LONG,
+                DataTypes.TEXT,
+                DataTypes.UNSIGNED_LONG,
+                DataTypes.NULL
             ),
             "boolean or numeric or string"
         ),
         Map.entry(
             Set.of(
-                DataType.DATETIME,
-                DataType.DOUBLE,
-                DataType.INTEGER,
-                DataType.KEYWORD,
-                DataType.LONG,
-                DataType.TEXT,
-                DataType.UNSIGNED_LONG,
-                DataType.NULL
+                DataTypes.DATETIME,
+                DataTypes.DOUBLE,
+                DataTypes.INTEGER,
+                DataTypes.KEYWORD,
+                DataTypes.LONG,
+                DataTypes.TEXT,
+                DataTypes.UNSIGNED_LONG,
+                DataTypes.NULL
             ),
             "datetime or numeric or string"
         ),
         // What Add accepts
         Map.entry(
             Set.of(
-                DataType.DATE_PERIOD,
-                DataType.DATETIME,
-                DataType.DOUBLE,
-                DataType.INTEGER,
-                DataType.LONG,
-                DataType.NULL,
-                DataType.TIME_DURATION,
-                DataType.UNSIGNED_LONG
+                DataTypes.DATE_PERIOD,
+                DataTypes.DATETIME,
+                DataTypes.DOUBLE,
+                DataTypes.INTEGER,
+                DataTypes.LONG,
+                DataTypes.NULL,
+                DataTypes.TIME_DURATION,
+                DataTypes.UNSIGNED_LONG
             ),
             "datetime or numeric"
         ),
         Map.entry(
             Set.of(
-                DataType.BOOLEAN,
-                DataType.DATETIME,
-                DataType.DOUBLE,
-                DataType.INTEGER,
-                DataType.KEYWORD,
-                DataType.LONG,
-                DataType.TEXT,
-                DataType.UNSIGNED_LONG,
-                DataType.NULL
+                DataTypes.BOOLEAN,
+                DataTypes.DATETIME,
+                DataTypes.DOUBLE,
+                DataTypes.INTEGER,
+                DataTypes.KEYWORD,
+                DataTypes.LONG,
+                DataTypes.TEXT,
+                DataTypes.UNSIGNED_LONG,
+                DataTypes.NULL
             ),
             "boolean or datetime or numeric or string"
         ),
         // to_int
         Map.entry(
             Set.of(
-                DataType.BOOLEAN,
-                DataType.COUNTER_INTEGER,
-                DataType.DATETIME,
-                DataType.DOUBLE,
-                DataType.INTEGER,
-                DataType.KEYWORD,
-                DataType.LONG,
-                DataType.TEXT,
-                DataType.UNSIGNED_LONG,
-                DataType.NULL
+                DataTypes.BOOLEAN,
+                DataTypes.COUNTER_INTEGER,
+                DataTypes.DATETIME,
+                DataTypes.DOUBLE,
+                DataTypes.INTEGER,
+                DataTypes.KEYWORD,
+                DataTypes.LONG,
+                DataTypes.TEXT,
+                DataTypes.UNSIGNED_LONG,
+                DataTypes.NULL
             ),
             "boolean or counter_integer or datetime or numeric or string"
         ),
         // to_long
         Map.entry(
             Set.of(
-                DataType.BOOLEAN,
-                DataType.COUNTER_INTEGER,
-                DataType.COUNTER_LONG,
-                DataType.DATETIME,
-                DataType.DOUBLE,
-                DataType.INTEGER,
-                DataType.KEYWORD,
-                DataType.LONG,
-                DataType.TEXT,
-                DataType.UNSIGNED_LONG,
-                DataType.NULL
+                DataTypes.BOOLEAN,
+                DataTypes.COUNTER_INTEGER,
+                DataTypes.COUNTER_LONG,
+                DataTypes.DATETIME,
+                DataTypes.DOUBLE,
+                DataTypes.INTEGER,
+                DataTypes.KEYWORD,
+                DataTypes.LONG,
+                DataTypes.TEXT,
+                DataTypes.UNSIGNED_LONG,
+                DataTypes.NULL
             ),
             "boolean or counter_integer or counter_long or datetime or numeric or string"
         ),
         // to_double
         Map.entry(
             Set.of(
-                DataType.BOOLEAN,
-                DataType.COUNTER_DOUBLE,
-                DataType.COUNTER_INTEGER,
-                DataType.COUNTER_LONG,
-                DataType.DATETIME,
-                DataType.DOUBLE,
-                DataType.INTEGER,
-                DataType.KEYWORD,
-                DataType.LONG,
-                DataType.TEXT,
-                DataType.UNSIGNED_LONG,
-                DataType.NULL
+                DataTypes.BOOLEAN,
+                DataTypes.COUNTER_DOUBLE,
+                DataTypes.COUNTER_INTEGER,
+                DataTypes.COUNTER_LONG,
+                DataTypes.DATETIME,
+                DataTypes.DOUBLE,
+                DataTypes.INTEGER,
+                DataTypes.KEYWORD,
+                DataTypes.LONG,
+                DataTypes.TEXT,
+                DataTypes.UNSIGNED_LONG,
+                DataTypes.NULL
             ),
             "boolean or counter_double or counter_integer or counter_long or datetime or numeric or string"
         ),
         Map.entry(
             Set.of(
-                DataType.BOOLEAN,
-                DataType.CARTESIAN_POINT,
-                DataType.DATETIME,
-                DataType.DOUBLE,
-                DataType.GEO_POINT,
-                DataType.INTEGER,
-                DataType.KEYWORD,
-                DataType.LONG,
-                DataType.TEXT,
-                DataType.UNSIGNED_LONG,
-                DataType.NULL
+                DataTypes.BOOLEAN,
+                DataTypes.CARTESIAN_POINT,
+                DataTypes.DATETIME,
+                DataTypes.DOUBLE,
+                DataTypes.GEO_POINT,
+                DataTypes.INTEGER,
+                DataTypes.KEYWORD,
+                DataTypes.LONG,
+                DataTypes.TEXT,
+                DataTypes.UNSIGNED_LONG,
+                DataTypes.NULL
             ),
             "boolean or cartesian_point or datetime or geo_point or numeric or string"
         ),
         Map.entry(
             Set.of(
-                DataType.DATETIME,
-                DataType.DOUBLE,
-                DataType.INTEGER,
-                DataType.IP,
-                DataType.KEYWORD,
-                DataType.LONG,
-                DataType.TEXT,
-                DataType.UNSIGNED_LONG,
-                DataType.VERSION,
-                DataType.NULL
+                DataTypes.DATETIME,
+                DataTypes.DOUBLE,
+                DataTypes.INTEGER,
+                DataTypes.IP,
+                DataTypes.KEYWORD,
+                DataTypes.LONG,
+                DataTypes.TEXT,
+                DataTypes.UNSIGNED_LONG,
+                DataTypes.VERSION,
+                DataTypes.NULL
             ),
             "datetime, double, integer, ip, keyword, long, text, unsigned_long or version"
         ),
         Map.entry(
             Set.of(
-                DataType.BOOLEAN,
-                DataType.DATETIME,
-                DataType.DOUBLE,
-                DataType.GEO_POINT,
-                DataType.GEO_SHAPE,
-                DataType.INTEGER,
-                DataType.IP,
-                DataType.KEYWORD,
-                DataType.LONG,
-                DataType.TEXT,
-                DataType.UNSIGNED_LONG,
-                DataType.VERSION,
-                DataType.NULL
+                DataTypes.BOOLEAN,
+                DataTypes.DATETIME,
+                DataTypes.DOUBLE,
+                DataTypes.GEO_POINT,
+                DataTypes.GEO_SHAPE,
+                DataTypes.INTEGER,
+                DataTypes.IP,
+                DataTypes.KEYWORD,
+                DataTypes.LONG,
+                DataTypes.TEXT,
+                DataTypes.UNSIGNED_LONG,
+                DataTypes.VERSION,
+                DataTypes.NULL
             ),
             "cartesian_point or datetime or geo_point or numeric or string"
         ),
-        Map.entry(Set.of(DataType.GEO_POINT, DataType.KEYWORD, DataType.TEXT, DataType.NULL), "geo_point or string"),
-        Map.entry(Set.of(DataType.CARTESIAN_POINT, DataType.KEYWORD, DataType.TEXT, DataType.NULL), "cartesian_point or string"),
+        Map.entry(Set.of(DataTypes.GEO_POINT, DataTypes.KEYWORD, DataTypes.TEXT, DataTypes.NULL), "geo_point or string"),
+        Map.entry(Set.of(DataTypes.CARTESIAN_POINT, DataTypes.KEYWORD, DataTypes.TEXT, DataTypes.NULL), "cartesian_point or string"),
         Map.entry(
-            Set.of(DataType.GEO_POINT, DataType.GEO_SHAPE, DataType.KEYWORD, DataType.TEXT, DataType.NULL),
+            Set.of(DataTypes.GEO_POINT, DataTypes.GEO_SHAPE, DataTypes.KEYWORD, DataTypes.TEXT, DataTypes.NULL),
             "geo_point or geo_shape or string"
         ),
         Map.entry(
-            Set.of(DataType.CARTESIAN_POINT, DataType.CARTESIAN_SHAPE, DataType.KEYWORD, DataType.TEXT, DataType.NULL),
+            Set.of(DataTypes.CARTESIAN_POINT, DataTypes.CARTESIAN_SHAPE, DataTypes.KEYWORD, DataTypes.TEXT, DataTypes.NULL),
             "cartesian_point or cartesian_shape or string"
         ),
-        Map.entry(Set.of(DataType.GEO_POINT, DataType.CARTESIAN_POINT, DataType.NULL), "geo_point or cartesian_point"),
-        Map.entry(Set.of(DataType.DATE_PERIOD, DataType.TIME_DURATION, DataType.NULL), "dateperiod or timeduration")
+        Map.entry(Set.of(DataTypes.GEO_POINT, DataTypes.CARTESIAN_POINT, DataTypes.NULL), "geo_point or cartesian_point"),
+        Map.entry(Set.of(DataTypes.DATE_PERIOD, DataTypes.TIME_DURATION, DataTypes.NULL), "dateperiod or timeduration")
     );
 
     // TODO: generate this message dynamically, a la AbstractConvertFunction#supportedTypesNames()?
-    private static String expectedType(Set<DataType> validTypes) {
+    private static String expectedType(Set<DataTypes> validTypes) {
         String named = NAMED_EXPECTED_TYPES.get(validTypes);
         if (named == null) {
             /*
@@ -1105,20 +1105,20 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         return named;
     }
 
-    protected static Stream<DataType> representable() {
-        return DataType.types().stream().filter(EsqlDataTypes::isRepresentable);
+    protected static Stream<DataTypes> representable() {
+        return DataTypes.types().stream().filter(EsqlDataTypes::isRepresentable);
     }
 
-    protected static DataType[] representableTypes() {
-        return representable().toArray(DataType[]::new);
+    protected static DataTypes[] representableTypes() {
+        return representable().toArray(DataTypes[]::new);
     }
 
-    protected static Stream<DataType> representableNonSpatial() {
+    protected static Stream<DataTypes> representableNonSpatial() {
         return representable().filter(t -> isSpatial(t) == false);
     }
 
-    protected static DataType[] representableNonSpatialTypes() {
-        return representableNonSpatial().toArray(DataType[]::new);
+    protected static DataTypes[] representableNonSpatialTypes() {
+        return representableNonSpatial().toArray(DataTypes[]::new);
     }
 
     protected final void assertTypeResolutionFailure(Expression expression) {
@@ -1160,9 +1160,9 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     /**
      * Unique signatures in this test's parameters.
      */
-    private static Map<List<DataType>, DataType> signatures;
+    private static Map<List<DataTypes>, DataTypes> signatures;
 
-    private static Map<List<DataType>, DataType> signatures() {
+    private static Map<List<DataTypes>, DataTypes> signatures() {
         Class<?> testClass = getTestClass();
         if (signatures != null && classGeneratingSignatures == testClass) {
             return signatures;
@@ -1184,7 +1184,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             if (tc.getExpectedTypeError() != null) {
                 continue;
             }
-            if (tc.getData().stream().anyMatch(t -> t.type() == DataType.NULL)) {
+            if (tc.getData().stream().anyMatch(t -> t.type() == DataTypes.NULL)) {
                 continue;
             }
             signatures.putIfAbsent(tc.getData().stream().map(TestCaseSupplier.TypedData::type).toList(), tc.expectedType());
@@ -1256,12 +1256,12 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         header.append("result");
 
         List<String> table = new ArrayList<>();
-        for (Map.Entry<List<DataType>, DataType> sig : signatures().entrySet()) { // TODO flip to using sortedSignatures
+        for (Map.Entry<List<DataTypes>, DataTypes> sig : signatures().entrySet()) { // TODO flip to using sortedSignatures
             if (sig.getKey().size() > argNames.size()) { // skip variadic [test] cases (but not those with optional parameters)
                 continue;
             }
             StringBuilder b = new StringBuilder();
-            for (DataType arg : sig.getKey()) {
+            for (DataTypes arg : sig.getKey()) {
                 b.append(arg.typeName()).append(" | ");
             }
             b.append("| ".repeat(argNames.size() - sig.getKey().size()));
@@ -1428,7 +1428,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             builder.endObject();
         } else {
             int minArgCount = (int) args.stream().filter(a -> false == a.optional()).count();
-            for (Map.Entry<List<DataType>, DataType> sig : sortedSignatures()) {
+            for (Map.Entry<List<DataTypes>, DataTypes> sig : sortedSignatures()) {
                 if (variadic && sig.getKey().size() > args.size()) {
                     // For variadic functions we test much longer signatures, let's just stop at the last one
                     continue;
@@ -1472,11 +1472,11 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         return asciidoc.replaceAll("[^ ]+\\[([^\\]]+)\\]", "$1");
     }
 
-    private static List<Map.Entry<List<DataType>, DataType>> sortedSignatures() {
-        List<Map.Entry<List<DataType>, DataType>> sortedSignatures = new ArrayList<>(signatures().entrySet());
+    private static List<Map.Entry<List<DataTypes>, DataTypes>> sortedSignatures() {
+        List<Map.Entry<List<DataTypes>, DataTypes>> sortedSignatures = new ArrayList<>(signatures().entrySet());
         Collections.sort(sortedSignatures, new Comparator<>() {
             @Override
-            public int compare(Map.Entry<List<DataType>, DataType> lhs, Map.Entry<List<DataType>, DataType> rhs) {
+            public int compare(Map.Entry<List<DataTypes>, DataTypes> lhs, Map.Entry<List<DataTypes>, DataTypes> rhs) {
                 int maxlen = Math.max(lhs.getKey().size(), rhs.getKey().size());
                 for (int i = 0; i < maxlen; i++) {
                     if (lhs.getKey().size() <= i) {
@@ -1600,7 +1600,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     /**
      * All string types (keyword, text, match_only_text, etc).
      */
-    protected static DataType[] strings() {
-        return DataType.types().stream().filter(DataType::isString).toArray(DataType[]::new);
+    protected static DataTypes[] strings() {
+        return DataTypes.types().stream().filter(DataTypes::isString).toArray(DataTypes[]::new);
     }
 }

@@ -13,7 +13,7 @@ import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -57,16 +57,16 @@ public class Abs extends UnaryScalarFunction {
     @Override
     public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
         var field = toEvaluator.apply(field());
-        if (dataType() == DataType.DOUBLE) {
+        if (dataType() == DataTypes.DOUBLE) {
             return new AbsDoubleEvaluator.Factory(source(), field);
         }
-        if (dataType() == DataType.UNSIGNED_LONG) {
+        if (dataType() == DataTypes.UNSIGNED_LONG) {
             return field;
         }
-        if (dataType() == DataType.LONG) {
+        if (dataType() == DataTypes.LONG) {
             return new AbsLongEvaluator.Factory(source(), field);
         }
-        if (dataType() == DataType.INTEGER) {
+        if (dataType() == DataTypes.INTEGER) {
             return new AbsIntEvaluator.Factory(source(), field);
         }
         throw EsqlIllegalArgumentException.illegalDataType(dataType());

@@ -12,7 +12,7 @@ import org.elasticsearch.compute.ann.ConvertEvaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -20,14 +20,14 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
-import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
-import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.IP;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.TEXT;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToIP;
 
 public class ToIP extends AbstractConvertFunction {
 
-    private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
+    private static final Map<DataTypes, BuildFactory> EVALUATORS = Map.ofEntries(
         Map.entry(IP, (field, source) -> field),
         Map.entry(KEYWORD, ToIPFromStringEvaluator.Factory::new),
         Map.entry(TEXT, ToIPFromStringEvaluator.Factory::new)
@@ -59,12 +59,12 @@ public class ToIP extends AbstractConvertFunction {
     }
 
     @Override
-    protected Map<DataType, BuildFactory> factories() {
+    protected Map<DataTypes, BuildFactory> factories() {
         return EVALUATORS;
     }
 
     @Override
-    public DataType dataType() {
+    public DataTypes dataType() {
         return IP;
     }
 

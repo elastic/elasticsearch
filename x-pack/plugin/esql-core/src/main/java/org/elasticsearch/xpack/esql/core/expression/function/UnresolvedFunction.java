@@ -13,7 +13,7 @@ import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.session.Configuration;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 
 import java.util.LinkedHashSet;
@@ -120,7 +120,7 @@ public class UnresolvedFunction extends Function implements Unresolvable {
     }
 
     @Override
-    public DataType dataType() {
+    public DataTypes dataType() {
         throw new UnresolvedException("dataType", this);
     }
 

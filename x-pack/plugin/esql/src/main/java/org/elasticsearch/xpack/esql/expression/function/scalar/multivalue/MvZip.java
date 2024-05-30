@@ -17,7 +17,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
@@ -38,7 +38,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isStr
  */
 public class MvZip extends EsqlScalarFunction implements OptionalArgument, EvaluatorMapper {
     private final Expression mvLeft, mvRight, delim;
-    private static final Literal COMMA = new Literal(Source.EMPTY, ",", DataType.TEXT);
+    private static final Literal COMMA = new Literal(Source.EMPTY, ",", DataTypes.TEXT);
 
     @FunctionInfo(
         returnType = { "keyword" },
@@ -111,8 +111,8 @@ public class MvZip extends EsqlScalarFunction implements OptionalArgument, Evalu
     }
 
     @Override
-    public DataType dataType() {
-        return DataType.KEYWORD;
+    public DataTypes dataType() {
+        return DataTypes.KEYWORD;
     }
 
     private static void buildOneSide(BytesRefBlock.Builder builder, int start, int end, BytesRefBlock field, BytesRef fieldScratch) {

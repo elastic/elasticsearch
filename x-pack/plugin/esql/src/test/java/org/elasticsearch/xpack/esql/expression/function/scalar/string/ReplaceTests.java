@@ -13,7 +13,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
@@ -32,16 +32,16 @@ public class ReplaceTests extends AbstractFunctionTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
-        for (DataType strType : DataType.types()) {
-            if (DataType.isString(strType) == false) {
+        for (DataTypes strType : DataTypes.types()) {
+            if (DataTypes.isString(strType) == false) {
                 continue;
             }
-            for (DataType oldStrType : DataType.types()) {
-                if (DataType.isString(oldStrType) == false) {
+            for (DataTypes oldStrType : DataTypes.types()) {
+                if (DataTypes.isString(oldStrType) == false) {
                     continue;
                 }
-                for (DataType newStrType : DataType.types()) {
-                    if (DataType.isString(newStrType) == false) {
+                for (DataTypes newStrType : DataTypes.types()) {
+                    if (DataTypes.isString(newStrType) == false) {
                         continue;
                     }
                     suppliers.add(new TestCaseSupplier(List.of(strType, oldStrType, newStrType), () -> {
@@ -78,18 +78,18 @@ public class ReplaceTests extends AbstractFunctionTestCase {
             )
         );
 
-        suppliers.add(new TestCaseSupplier("syntax error", List.of(DataType.KEYWORD, DataType.KEYWORD, DataType.KEYWORD), () -> {
+        suppliers.add(new TestCaseSupplier("syntax error", List.of(DataTypes.KEYWORD, DataTypes.KEYWORD, DataTypes.KEYWORD), () -> {
             String text = randomAlphaOfLength(10);
             String invalidRegex = "[";
             String newStr = randomAlphaOfLength(5);
             return new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(new BytesRef(text), DataType.KEYWORD, "str"),
-                    new TestCaseSupplier.TypedData(new BytesRef(invalidRegex), DataType.KEYWORD, "oldStr"),
-                    new TestCaseSupplier.TypedData(new BytesRef(newStr), DataType.KEYWORD, "newStr")
+                    new TestCaseSupplier.TypedData(new BytesRef(text), DataTypes.KEYWORD, "str"),
+                    new TestCaseSupplier.TypedData(new BytesRef(invalidRegex), DataTypes.KEYWORD, "oldStr"),
+                    new TestCaseSupplier.TypedData(new BytesRef(newStr), DataTypes.KEYWORD, "newStr")
                 ),
                 "ReplaceEvaluator[str=Attribute[channel=0], regex=Attribute[channel=1], newStr=Attribute[channel=2]]",
-                DataType.KEYWORD,
+                DataTypes.KEYWORD,
                 equalTo(null)
             ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
                 .withWarning(
@@ -109,15 +109,15 @@ public class ReplaceTests extends AbstractFunctionTestCase {
     private static TestCaseSupplier fixedCase(String name, String str, String oldStr, String newStr, String result) {
         return new TestCaseSupplier(
             name,
-            List.of(DataType.KEYWORD, DataType.KEYWORD, DataType.KEYWORD),
-            () -> testCase(DataType.KEYWORD, DataType.KEYWORD, DataType.KEYWORD, str, oldStr, newStr, result)
+            List.of(DataTypes.KEYWORD, DataTypes.KEYWORD, DataTypes.KEYWORD),
+            () -> testCase(DataTypes.KEYWORD, DataTypes.KEYWORD, DataTypes.KEYWORD, str, oldStr, newStr, result)
         );
     }
 
     private static TestCaseSupplier.TestCase testCase(
-        DataType strType,
-        DataType oldStrType,
-        DataType newStrType,
+        DataTypes strType,
+        DataTypes oldStrType,
+        DataTypes newStrType,
         String str,
         String oldStr,
         String newStr,
@@ -130,7 +130,7 @@ public class ReplaceTests extends AbstractFunctionTestCase {
                 new TestCaseSupplier.TypedData(new BytesRef(newStr), newStrType, "newStr")
             ),
             "ReplaceEvaluator[str=Attribute[channel=0], regex=Attribute[channel=1], newStr=Attribute[channel=2]]",
-            DataType.KEYWORD,
+            DataTypes.KEYWORD,
             equalTo(new BytesRef(result))
         );
     }

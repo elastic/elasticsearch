@@ -13,7 +13,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
 import java.io.IOException;
@@ -21,7 +21,7 @@ import java.io.IOException;
 /**
  * A column of data provided in the request.
  */
-public record Column(DataType type, Block values) implements Releasable, Writeable {
+public record Column(DataTypes type, Block values) implements Releasable, Writeable {
     public Column(BlockStreamInput in) throws IOException {
         this(EsqlDataTypes.fromTypeName(in.readString()), in.readNamedWriteable(Block.class));
     }

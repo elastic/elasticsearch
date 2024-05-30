@@ -12,7 +12,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.arithmetic.BinaryComparisonInversible;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation.OperationSymbol.DIV;
@@ -20,13 +20,13 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.longToUnsi
 
 public class Div extends EsqlArithmeticOperation implements BinaryComparisonInversible {
 
-    private DataType type;
+    private DataTypes type;
 
     public Div(Source source, Expression left, Expression right) {
         this(source, left, right, null);
     }
 
-    public Div(Source source, Expression left, Expression right, DataType type) {
+    public Div(Source source, Expression left, Expression right, DataTypes type) {
         super(
             source,
             left,
@@ -41,7 +41,7 @@ public class Div extends EsqlArithmeticOperation implements BinaryComparisonInve
     }
 
     @Override
-    public DataType dataType() {
+    public DataTypes dataType() {
         if (type == null) {
             type = super.dataType();
         }

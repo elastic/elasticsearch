@@ -10,6 +10,8 @@ package org.elasticsearch.blobcache.common;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionTestUtils;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.test.ESTestCase;
 
@@ -22,7 +24,9 @@ import java.util.TreeSet;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
+import java.util.stream.LongStream;
 
 import static org.elasticsearch.blobcache.BlobCacheTestUtils.mergeContiguousRanges;
 import static org.elasticsearch.blobcache.BlobCacheTestUtils.randomRanges;
@@ -35,6 +39,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class SparseFileTrackerTests extends ESTestCase {
@@ -116,6 +121,49 @@ public class SparseFileTrackerTests extends ESTestCase {
                 );
                 assertThat(invoked.get(), is(false));
             }
+        }
+    }
+
+    public void testListenerCompletedImmediatelyWhenSubRangeIsAvailable() {
+        final byte[] bytes = new byte[randomIntBetween(8, 1024)];
+        final var tracker = new SparseFileTracker(getTestName(), bytes.length);
+
+        // wraps a future to assert that the sub range bytes are available
+        BiFunction<ByteRange, PlainActionFuture<Void>, ActionListener<Void>> wrapper = (range, future) -> ActionListener.runBefore(
+            future,
+            () -> LongStream.range(range.start(), range.end())
+                .forEach(pos -> assertThat(bytes[BlobCacheUtils.toIntBytes(pos)], equalTo(AVAILABLE)))
+        );
+
+        var completeUpTo = randomIntBetween(2, bytes.length);
+        {
+            long subRangeStart = randomLongBetween(0, completeUpTo - 2);
+            long subRangeEnd = randomLongBetween(subRangeStart + 1, completeUpTo - 1);
+            var subRange = ByteRange.of(subRangeStart, subRangeEnd);
+            var range = ByteRange.of(0, completeUpTo);
+            var future = new PlainActionFuture<Void>();
+
+            var gaps = tracker.waitForRange(range, subRange, wrapper.apply(subRange, future));
+            assertThat(future.isDone(), equalTo(false));
+            assertThat(gaps, notNullValue());
+            assertThat(gaps, hasSize(1));
+
+            fillGap(bytes, gaps.get(0));
+
+            assertThat(future.isDone(), equalTo(true));
+        }
+        {
+            long subRangeStart = randomLongBetween(0L, Math.max(0L, completeUpTo - 1));
+            long subRangeEnd = randomLongBetween(subRangeStart, completeUpTo);
+            var subRange = ByteRange.of(subRangeStart, subRangeEnd);
+
+            var range = ByteRange.of(randomLongBetween(0L, subRangeStart), randomLongBetween(subRangeEnd, bytes.length));
+            var future = new PlainActionFuture<Void>();
+
+            var gaps = tracker.waitForRange(range, subRange, wrapper.apply(subRange, future));
+            assertThat(future.isDone(), equalTo(true));
+            assertThat(gaps, notNullValue());
+            assertThat(gaps, hasSize(0));
         }
     }
 
@@ -545,5 +593,17 @@ public class SparseFileTrackerTests extends ESTestCase {
             gap.onCompletion();
             return true;
         }
+    }
+
+
+    private static void fillGap(byte[] fileContents, SparseFileTracker.Gap gap) {
+        for (long i = gap.start(); i < gap.end(); i++) {
+            assertThat(fileContents[toIntBytes(i)], equalTo(UNAVAILABLE));
+        }
+        for (long i = gap.start(); i < gap.end(); i++) {
+            fileContents[toIntBytes(i)] = AVAILABLE;
+            gap.onProgress(i + 1L);
+        }
+        gap.onCompletion();
     }
 }

@@ -173,7 +173,7 @@ public class SparseFileTracker {
             );
         }
 
-        if (complete >= range.end()) {
+        if (subRange.end() <= complete) {
             listener.onResponse(null);
             return List.of();
         }

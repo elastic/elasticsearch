@@ -141,12 +141,12 @@ public sealed interface DoubleVector extends Vector permits ConstantDoubleVector
         @Override
         DoubleVector build();
 
-        default double[] values()  {
-          throw new UnsupportedOperationException();
+        default double[] values() {
+            throw new UnsupportedOperationException();
         }
 
-        default void values(double[] newValues)  {
-          throw new UnsupportedOperationException();
+        default void values(double[] newValues) {
+            throw new UnsupportedOperationException();
         }
     }
 

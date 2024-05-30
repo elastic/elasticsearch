@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.Modifier;
 import javax.lang.model.element.TypeElement;
@@ -188,7 +189,9 @@ public class EvaluatorImplementer {
                 ClassName type = processFunction.resultDataType(false);
                 vectorize = type.simpleName().startsWith("BytesRef") == false;
                 if (vectorize) {
-                    String arrayType = type.simpleName().substring(0, type.simpleName().length() - "Vector".length()).toLowerCase(Locale.ROOT);
+                    String arrayType = type.simpleName()
+                        .substring(0, type.simpleName().length() - "Vector".length())
+                        .toLowerCase(Locale.ROOT);
                     builder.addStatement(arrayType + "[] buffer = result.values()");
                 }
             }
@@ -732,7 +735,7 @@ public class EvaluatorImplementer {
 
     private record FixedProcessFunctionArg(TypeName type, String name, boolean includeInToString, boolean build, boolean releasable)
         implements
-        ProcessFunctionArg {
+            ProcessFunctionArg {
         @Override
         public TypeName dataType(boolean blockStyle) {
             return type;

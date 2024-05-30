@@ -6,8 +6,10 @@
  */
 package org.elasticsearch.xpack.esql.core.type;
 
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 
+import java.io.IOException;
 import java.math.BigInteger;
 import java.time.ZonedDateTime;
 import java.util.Collection;
@@ -20,7 +22,7 @@ import java.util.stream.Stream;
 import static java.util.stream.Collectors.toMap;
 import static java.util.stream.Collectors.toUnmodifiableMap;
 
-public enum DataTypes {
+public enum DataTypes implements DataType {
     UNSUPPORTED("UNSUPPORTED", null, 0, false, false, false),
     NULL("null", 0, false, false, false),
     BOOLEAN("boolean", 1, false, false, false),
@@ -141,8 +143,6 @@ public enum DataTypes {
         ES_TO_TYPE = Collections.unmodifiableMap(map);
     }
 
-    private DataTypes() {}
-
     public static Collection<DataType> types() {
         return TYPES;
     }
@@ -232,4 +232,49 @@ public enum DataTypes {
                 || (isDateTime(left) && isDateTime(right));
         }
     }
+    @Override
+    public String name() {
+        return name;
+    }
+
+    @Override
+    public String typeName() {
+        return typeName;
+    }
+
+    @Override
+    public String esType() {
+        return esType;
+    }
+
+    @Override
+    public boolean isInteger() {
+        return isInteger;
+    }
+
+    @Override
+    public boolean isRational() {
+        return isRational;
+    }
+
+    @Override
+    public boolean isNumeric() {
+        return isInteger || isRational;
+    }
+
+    @Override
+    public int size() {
+        return size;
+    }
+
+    @Override
+    public boolean hasDocValues() {
+        return docValues;
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(typeName);
+    }
+
 }

@@ -12,7 +12,7 @@ import org.elasticsearch.index.mapper.TimeSeriesParams;
 import java.util.Collection;
 
 /**
- * Central class for {@link DataType} creation and conversion.
+ * Central class for {@link DataTypeDeprecated} creation and conversion.
  */
 public interface DataTypeRegistry {
 

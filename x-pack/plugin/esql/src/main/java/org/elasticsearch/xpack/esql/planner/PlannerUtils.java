@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.core.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.core.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypeDeprecated;
 import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.core.util.Queries;
@@ -217,7 +218,7 @@ public class PlannerUtils {
     }
 
     /**
-     * Map QL's {@link DataType} to the compute engine's {@link ElementType}, for sortable types only.
+     * Map QL's {@link DataTypeDeprecated} to the compute engine's {@link ElementType}, for sortable types only.
      * This specifically excludes spatial data types, which are not themselves sortable.
      */
     public static ElementType toSortableElementType(DataType dataType) {
@@ -228,14 +229,14 @@ public class PlannerUtils {
     }
 
     /**
-     * Map QL's {@link DataType} to the compute engine's {@link ElementType}.
+     * Map QL's {@link DataTypeDeprecated} to the compute engine's {@link ElementType}.
      */
     public static ElementType toElementType(DataType dataType) {
         return toElementType(dataType, MappedFieldType.FieldExtractPreference.NONE);
     }
 
     /**
-     * Map QL's {@link DataType} to the compute engine's {@link ElementType}.
+     * Map QL's {@link DataTypeDeprecated} to the compute engine's {@link ElementType}.
      * Under some situations, the same data type might be extracted into a different element type.
      * For example, spatial types can be extracted into doc-values under specific conditions, otherwise they extract as BytesRef.
      */

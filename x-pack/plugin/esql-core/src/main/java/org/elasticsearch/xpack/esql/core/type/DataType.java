@@ -10,120 +10,11 @@ package org.elasticsearch.xpack.esql.core.type;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.search.sort.ScriptSortBuilder;
 
 import java.io.IOException;
-import java.util.Locale;
-import java.util.Objects;
 
-public class DataType implements Writeable {
-
-    private final String typeName;
-
-    private final String name;
-
-    private final String esType;
-
-    private final int size;
-
-    /**
-     * True if the type represents an integer number
-     */
-    private final boolean isInteger;
-
-    /**
-     * True if the type represents a rational number
-     */
-    private final boolean isRational;
-
-    /**
-     * True if the type supports doc values by default
-     */
-    private final boolean docValues;
-
-    public DataType(String esName, int size, boolean isInteger, boolean isRational, boolean hasDocValues) {
-        this(null, esName, size, isInteger, isRational, hasDocValues);
-    }
-
-    public DataType(String typeName, String esType, int size, boolean isInteger, boolean isRational, boolean hasDocValues) {
-        String typeString = typeName != null ? typeName : esType;
-        this.typeName = typeString.toLowerCase(Locale.ROOT);
-        this.name = typeString.toUpperCase(Locale.ROOT);
-        this.esType = esType;
-        this.size = size;
-        this.isInteger = isInteger;
-        this.isRational = isRational;
-        this.docValues = hasDocValues;
-    }
-
-    public String name() {
-        return name;
-    }
-
-    public String typeName() {
-        return typeName;
-    }
-
-    public String esType() {
-        return esType;
-    }
-
-    public ScriptSortBuilder.ScriptSortType scriptSortType() {
-        return isNumeric() ? ScriptSortBuilder.ScriptSortType.NUMBER
-            : this == DataTypes.VERSION ? ScriptSortBuilder.ScriptSortType.VERSION
-            : ScriptSortBuilder.ScriptSortType.STRING;
-    }
-
-    public boolean isInteger() {
-        return isInteger;
-    }
-
-    public boolean isRational() {
-        return isRational;
-    }
-
-    public boolean isNumeric() {
-        return isInteger || isRational;
-    }
-
-    public int size() {
-        return size;
-    }
-
-    public boolean hasDocValues() {
-        return docValues;
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(typeName, esType, size, isInteger, isRational, docValues);
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (this == obj) {
-            return true;
-        }
-
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-
-        DataType other = (DataType) obj;
-        return Objects.equals(typeName, other.typeName)
-            && Objects.equals(esType, other.esType)
-            && size == other.size
-            && isInteger == other.isInteger
-            && isRational == other.isRational
-            && docValues == other.docValues;
-    }
-
-    @Override
-    public String toString() {
-        return name;
-    }
-
-    public static DataType readFrom(StreamInput in) throws IOException {
+public interface DataType extends Writeable {
+    static DataType readFrom(StreamInput in) throws IOException {
         String name = in.readString();
         if (name.equalsIgnoreCase(DataTypes.DOC_DATA_TYPE.name())) {
             return DataTypes.DOC_DATA_TYPE;
@@ -135,8 +26,31 @@ public class DataType implements Writeable {
         return dataType;
     }
 
+    String name();
+
+    String typeName();
+
+    String esType();
+
+    boolean isInteger();
+
+    boolean isRational();
+
+    boolean isNumeric();
+
+    int size();
+
+    boolean hasDocValues();
+
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(typeName);
-    }
+    int hashCode();
+
+    @Override
+    boolean equals(Object obj);
+
+    @Override
+    String toString();
+
+    @Override
+    void writeTo(StreamOutput out) throws IOException;
 }

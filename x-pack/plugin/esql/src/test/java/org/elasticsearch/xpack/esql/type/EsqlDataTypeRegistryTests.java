@@ -25,9 +25,9 @@ import static org.hamcrest.Matchers.equalTo;
 public class EsqlDataTypeRegistryTests extends ESTestCase {
 
     public void testCounter() {
-        resolve("long", TimeSeriesParams.MetricType.COUNTER, EsqlDataTypes.COUNTER_LONG);
-        resolve("integer", TimeSeriesParams.MetricType.COUNTER, EsqlDataTypes.COUNTER_INTEGER);
-        resolve("double", TimeSeriesParams.MetricType.COUNTER, EsqlDataTypes.COUNTER_DOUBLE);
+        resolve("long", TimeSeriesParams.MetricType.COUNTER, DataTypes.COUNTER_LONG);
+        resolve("integer", TimeSeriesParams.MetricType.COUNTER, DataTypes.COUNTER_INTEGER);
+        resolve("double", TimeSeriesParams.MetricType.COUNTER, DataTypes.COUNTER_DOUBLE);
 
     }
 

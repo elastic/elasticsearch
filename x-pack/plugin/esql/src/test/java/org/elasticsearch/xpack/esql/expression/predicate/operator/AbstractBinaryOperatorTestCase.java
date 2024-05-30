@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.hamcrest.Matcher;
 
 import java.util.Arrays;
@@ -81,8 +80,8 @@ public abstract class AbstractBinaryOperatorTestCase extends AbstractFunctionTes
 
     public final void testApplyToAllTypes() {
         // TODO replace with test cases
-        for (DataType lhsType : EsqlDataTypes.types()) {
-            for (DataType rhsType : EsqlDataTypes.types()) {
+        for (DataType lhsType : DataTypes.types()) {
+            for (DataType rhsType : DataTypes.types()) {
                 if (supportsTypes(lhsType, rhsType) == false) {
                     continue;
                 }
@@ -118,12 +117,12 @@ public abstract class AbstractBinaryOperatorTestCase extends AbstractFunctionTes
     }
 
     public final void testResolveType() {
-        for (DataType lhsType : EsqlDataTypes.types()) {
+        for (DataType lhsType : DataTypes.types()) {
             if (isRepresentable(lhsType) == false) {
                 continue;
             }
             Literal lhs = randomLiteral(lhsType);
-            for (DataType rhsType : EsqlDataTypes.types()) {
+            for (DataType rhsType : DataTypes.types()) {
                 if (isRepresentable(rhsType) == false) {
                     continue;
                 }

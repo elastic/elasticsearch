@@ -39,6 +39,8 @@
             "EQL",
             "ES|QL",
             "Engine",
+            "Experiences",
+            "Extract&Transform",
             "FIPS",
             "Features",
             "Geo",
@@ -48,6 +50,7 @@
             "ILM+SLM",
             "IdentityProvider",
             "Indices APIs",
+            "Inference",
             "Infra/CLI",
             "Infra/Circuit Breakers",
             "Infra/Core",
@@ -76,6 +79,7 @@
             "Ranking",
             "Recovery",
             "Reindex",
+            "Relevance",
             "Rollup",
             "SQL",
             "Search",
@@ -174,7 +178,9 @@
             }
           },
           "then": {
-            "required": ["breaking"]
+            "required": [
+              "breaking"
+            ]
           }
         },
         {
@@ -186,7 +192,9 @@
             }
           },
           "then": {
-            "required": ["breaking"]
+            "required": [
+              "breaking"
+            ]
           }
         }
       ],
@@ -198,7 +206,9 @@
         }
       },
       "then": {
-        "required": ["deprecation"]
+        "required": [
+          "deprecation"
+        ]
       },
       "additionalProperties": false
     },

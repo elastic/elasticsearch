@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.parser;
 
 import org.antlr.v4.runtime.Token;
+import org.elasticsearch.xpack.esql.core.common.Failure;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -26,6 +27,8 @@ public class QueryParams {
 
     // This is populated by EsqlParser, each parameter marker has an entry.
     private Map<Token, QueryParam> tokenToParam = new HashMap<>();
+
+    private List<Failure> parsingErrors = new ArrayList<>();
 
     public QueryParams() {}
 
@@ -69,5 +72,13 @@ public class QueryParams {
 
     public QueryParam get(Token tokenLocation) {
         return this.tokenToParam.get(tokenLocation);
+    }
+
+    public List<Failure> parsingErrors() {
+        return this.parsingErrors;
+    }
+
+    public void addParsingErrors(Failure e) {
+        this.parsingErrors.add(e);
     }
 }

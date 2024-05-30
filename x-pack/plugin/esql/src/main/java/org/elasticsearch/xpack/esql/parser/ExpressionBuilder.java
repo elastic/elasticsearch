@@ -18,6 +18,7 @@ import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
+import org.elasticsearch.xpack.esql.core.common.Failure;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -95,7 +96,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
      */
     public static final int MAX_EXPRESSION_DEPTH = 500;
 
-    private final QueryParams params;
+    protected final QueryParams params;
 
     ExpressionBuilder(QueryParams params) {
         this.params = params;
@@ -700,6 +701,9 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     @Override
     public Object visitInputNamedOrPositionalParam(EsqlBaseParser.InputNamedOrPositionalParamContext ctx) {
         QueryParam param = paramByNameOrPosition(ctx.NAMED_OR_POSITIONAL_PARAM());
+        if (param == null) {
+            return Literal.NULL;
+        }
         return visitParam(ctx, param);
     }
 
@@ -735,9 +739,9 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                 String message = "";
                 int np = params.positionalParams().size();
                 if (np > 0) {
-                    message = ", did you mean position " + (np == 1 ? "1" : " or any between 1 and " + np);
+                    message = ", did you mean position " + (np == 1 ? "1?" : " or any between 1 and " + np + "?");
                 }
-                throw new ParsingException(source(node), "No parameter is defined for position " + index + message);
+                params.addParsingErrors(new Failure(null, "No parameter is defined for position " + index + message));
             }
             return params.get(index);
         } else {
@@ -745,9 +749,9 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                 String message = "";
                 Object[] names = params.namedParams().keySet().stream().toArray();
                 if (names.length > 0) {
-                    message = ", did you mean " + (names.length == 1 ? "[" + names[0] + "]" : " or any of " + names);
+                    message = ", did you mean " + (names.length == 1 ? "[" + names[0] + "]?" : " or any of [" + names + " ]?");
                 }
-                throw new ParsingException(source(node), "Unknown query parameter [" + nameOrPosition + "]" + message);
+                params.addParsingErrors(new Failure(null, "Unknown query parameter [" + nameOrPosition + "]" + message));
             }
             return params.get(nameOrPosition);
         }

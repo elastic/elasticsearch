@@ -485,16 +485,11 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         );
         re = expectThrows(
             ResponseException.class,
-            () -> runEsqlSync(requestObjectBuilder().query("row a = ?0").params("[{\"n1\": \"v1\"}]"))
+            () -> runEsqlSync(requestObjectBuilder().query("row a = ?0, b= ?2").params("[{\"n1\": \"v1\"}]"))
         );
         assertThat(
             EntityUtils.toString(re.getResponse().getEntity()),
             containsString("No parameter is defined for position 0, did you mean position 1")
-        );
-
-        re = expectThrows(
-            ResponseException.class,
-            () -> runEsqlSync(requestObjectBuilder().query("row a = ?2").params("[{\"n1\": \"v1\"}]"))
         );
         assertThat(
             EntityUtils.toString(re.getResponse().getEntity()),

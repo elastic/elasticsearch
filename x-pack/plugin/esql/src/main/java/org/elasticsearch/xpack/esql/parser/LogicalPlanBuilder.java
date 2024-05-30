@@ -89,7 +89,12 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     }
 
     protected LogicalPlan plan(ParseTree ctx) {
-        return ParserUtils.typedParsing(this, ctx, LogicalPlan.class);
+        LogicalPlan p = ParserUtils.typedParsing(this, ctx, LogicalPlan.class);
+        if (this.params.parsingErrors().isEmpty()) {
+            return p;
+        } else {
+            throw new ParsingException(Arrays.toString(params.parsingErrors().toArray()));
+        }
     }
 
     protected List<LogicalPlan> plans(List<? extends ParserRuleContext> ctxs) {

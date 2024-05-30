@@ -116,6 +116,16 @@ GET my-index/_search
 
 
 [discrete]
+[[advanced-search]]
+=== Advanced search on `semantic_text` fields
+
+The `semantic` query uses default settings for searching on `semantic_text` fields for ease of use.
+If you want to fine-tune a search on a `semantic_text` field, you need to know the task type used by the `inference_id` configured in `semantic_text`.
+You can find the task type using the <<get-inference-api>>, and check the `task_type` associated with the {infer} service.
+Depending on the `task_type`, use either the `sparse_vector` or the `knn` query for greater flexibility and customization.
+
+
+[discrete]
 [[search-sparse-inference]]
 ==== Search with `sparse_embedding` inference
 

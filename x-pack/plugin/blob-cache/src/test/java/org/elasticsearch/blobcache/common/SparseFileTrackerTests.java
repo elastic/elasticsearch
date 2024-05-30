@@ -595,7 +595,6 @@ public class SparseFileTrackerTests extends ESTestCase {
         }
     }
 
-
     private static void fillGap(byte[] fileContents, SparseFileTracker.Gap gap) {
         for (long i = gap.start(); i < gap.end(); i++) {
             assertThat(fileContents[toIntBytes(i)], equalTo(UNAVAILABLE));

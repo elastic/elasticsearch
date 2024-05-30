@@ -46,15 +46,29 @@ public class ThreadWatchdog {
 
     private static final Logger logger = LogManager.getLogger(ThreadWatchdog.class);
 
+    /**
+     * Activity tracker for the current thread. Thread-locals are only retained by the owning thread so these will be GCd after thread exit.
+     */
     private final ThreadLocal<ActivityTracker> activityTrackerThreadLocal = new ThreadLocal<>();
+
+    /**
+     * Collection of known activity trackers to be scanned for stuck threads. Uses {@link WeakReference} so that we don't prevent trackers
+     * from being GCd if a thread exits. There aren't many such trackers, O(#cpus), and they almost never change, so an {@link ArrayList}
+     * with explicit synchronization is fine.
+     */
     private final List<WeakReference<ActivityTracker>> knownTrackers = new ArrayList<>();
 
     /**
-     * @return an activity tracker for read activities on the current thread
+     * @return an activity tracker for activities on the current thread.
      */
+    // Today we only use this to track activity processing reads on network threads. Tracking time when we're busy processing writes is
+    // a little trickier because that code is more re-entrant, both within the network layer and also it may complete a listener from the
+    // wider codebase that ends up calling back into the network layer again. But also we don't see many network threads blocking for ages
+    // on the write path, so we focus on reads for now.
     public ActivityTracker getActivityTrackerForCurrentThread() {
         var result = activityTrackerThreadLocal.get();
         if (result == null) {
+            // this is a previously-untracked thread; thread creation is assumed to be very rare, no need to optimize this path at all
             result = new ActivityTracker(Thread.currentThread());
             synchronized (knownTrackers) {
                 knownTrackers.add(new WeakReference<>(result));
@@ -67,11 +81,13 @@ public class ThreadWatchdog {
     // exposed for testing
     List<String> getStuckThreadNames() {
         List<String> stuckThreadNames = null;
+        // this is not called very often, and only on a single thread, with almost no contention on this mutex since thread creation is rare
         synchronized (knownTrackers) {
             final var iterator = knownTrackers.iterator();
             while (iterator.hasNext()) {
                 final var tracker = iterator.next().get();
                 if (tracker == null) {
+                    // tracker was GCd because its thread exited - very rare, no need to optimize this case
                     iterator.remove();
                 } else if (tracker.isIdleOrMakingProgress() == false) {
                     if (stuckThreadNames == null) {
@@ -86,7 +102,8 @@ public class ThreadWatchdog {
 
     /**
      * Per-thread class which keeps track of activity on that thread, represented as a {@code long} which is incremented every time an
-     * activity starts or stops. Thus the parity of its value indicates whether the thread is idle or not.
+     * activity starts or stops. Thus the parity of its value indicates whether the thread is idle or not. Crucially, the activity tracking
+     * is very lightweight (on the tracked thread).
      */
     public static final class ActivityTracker extends AtomicLong {
 
@@ -100,19 +117,18 @@ public class ThreadWatchdog {
         public void startActivity() {
             assert trackedThread == Thread.currentThread() : trackedThread.getName() + " vs " + Thread.currentThread().getName();
             final var prevValue = getAndIncrement();
-            assert (prevValue & 1) == 0 : "thread [" + trackedThread.getName() + "] was already active";
+            assert isIdle(prevValue) : "thread [" + trackedThread.getName() + "] was already active";
         }
 
         public void stopActivity() {
             assert trackedThread == Thread.currentThread() : trackedThread.getName() + " vs " + Thread.currentThread().getName();
             final var prevValue = getAndIncrement();
-            assert (prevValue & 1) != 0 : "thread [" + trackedThread.getName() + "] was already inactive";
+            assert isIdle(prevValue) == false : "thread [" + trackedThread.getName() + "] was already idle";
         }
 
         boolean isIdleOrMakingProgress() {
             final var value = get();
-            if ((value & 1) == 0) {
-                // idle
+            if (isIdle(value)) {
                 return true;
             }
             if (value == lastObservedValue) {
@@ -124,6 +140,11 @@ public class ThreadWatchdog {
                 return true;
             }
         }
+
+        private static boolean isIdle(long value) {
+            // the parity of the value indicates the idle state: initially zero (idle), so active == odd
+            return (value & 1) == 0;
+        }
     }
 
     public void run(Settings settings, ThreadPool threadPool, Lifecycle lifecycle) {
@@ -131,6 +152,10 @@ public class ThreadWatchdog {
             .run();
     }
 
+    /**
+     * Action which runs itself periodically, calling {@link #getStuckThreadNames} to check for active threads that didn't make progress
+     * since the last call, and if it finds any then it dispatches {@link #threadDumper} to log the current hot threads.
+     */
     private final class Checker extends AbstractRunnable {
         private final ThreadPool threadPool;
         private final TimeValue interval;

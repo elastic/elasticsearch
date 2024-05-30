@@ -25,7 +25,7 @@ public class DateEsFieldTests extends AbstractEsFieldTypeTests<DateEsField> {
         String name = instance.getName();
         Map<String, EsField> properties = instance.getProperties();
         boolean aggregatable = instance.isAggregatable();
-        switch (between(0, 3)) {
+        switch (between(0, 2)) {
             case 0 -> name = randomAlphaOfLength(name.length() + 1);
             case 1 -> properties = randomValueOtherThan(properties, () -> randomProperties(0));
             case 2 -> aggregatable = false == aggregatable;

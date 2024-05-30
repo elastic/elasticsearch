@@ -1,12 +1,0 @@
---2024-05-29 16:28:13--  https://en.wikipedia.org/w/index.php?cirrusDumpQuery=
-Loaded CA certificate '/etc/ssl/certs/ca-certificates.crt'
-Resolving en.wikipedia.org (en.wikipedia.org)... 208.80.154.224, 2620:0:861:ed1a::1
-Connecting to en.wikipedia.org (en.wikipedia.org)|208.80.154.224|:443... connected.
-HTTP request sent, awaiting response... 200 OK
-Length: unspecified [text/html]
-Saving to: ‘index.php?cirrusDumpQuery=’
-
-index.php?cirrusDumpQuery=        [<=>                                             ]       0  --.-KB/s               index.php?cirrusDumpQuery=        [ <=>                                            ] 105.95K  --.-KB/s    in 0.07s   
-
-2024-05-29 16:28:14 (1.44 MB/s) - ‘index.php?cirrusDumpQuery=’ saved [108488]
-

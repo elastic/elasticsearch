@@ -27,12 +27,13 @@ public abstract class AbstractEsFieldTypeTests<T extends EsField> extends Abstra
         int targetSize = between(1, 5);
         Map<String, EsField> properties = new TreeMap<>();
         while (properties.size() < targetSize) {
-            properties.put(randomAlphaOfLength(properties.size() + 1), switch (between(0, 1000)) {
+            properties.put(randomAlphaOfLength(properties.size() + 1), switch (between(0, 5)) {
                 case 0 -> EsFieldTests.randomEsField(depth + 1);
                 case 1 -> DateEsFieldTests.randomDateEsField(depth + 1);
                 case 2 -> InvalidMappedFieldTests.randomInvalidMappedField(depth + 1);
                 case 3 -> KeywordEsFieldTests.randomKeywordEsField(depth + 1);
                 case 4 -> TextEsFieldTests.randomTextEsField(depth + 1);
+                case 5 -> UnsupportedEsFieldTests.randomUnsupportedEsField(depth + 1);
                 default -> throw new IllegalArgumentException();
             });
         }
@@ -47,7 +48,7 @@ public abstract class AbstractEsFieldTypeTests<T extends EsField> extends Abstra
 
     @Override
     protected final NamedWriteableRegistry getNamedWriteableRegistry() {
-        return new NamedWriteableRegistry(EsFields.ENTRIES);
+        return new NamedWriteableRegistry(EsField.getNamedWriteables());
     }
 
     @Override

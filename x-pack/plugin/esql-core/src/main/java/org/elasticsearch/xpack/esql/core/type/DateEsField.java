@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.esql.core.type;
 
-import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -18,11 +17,7 @@ import java.util.Map;
  * SQL-related information about an index field with date type
  */
 public class DateEsField extends EsField {
-    static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
-        EsField.class,
-        "DateEsField",
-        DateEsField::new
-    );
+    static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(EsField.class, "DateEsField", DateEsField::new);
 
     public static DateEsField dateEsField(String name, Map<String, EsField> properties, boolean hasDocValues) {
         return new DateEsField(name, DataTypes.DATETIME, properties, hasDocValues);

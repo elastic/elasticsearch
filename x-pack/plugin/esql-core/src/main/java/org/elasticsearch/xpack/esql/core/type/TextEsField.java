@@ -23,11 +23,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataTypes.TEXT;
  * SQL-related information about an index field with text type
  */
 public class TextEsField extends EsField {
-    static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
-        EsField.class,
-        "TextEsField",
-        TextEsField::new
-    );
+    static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(EsField.class, "TextEsField", TextEsField::new);
 
     public TextEsField(String name, Map<String, EsField> properties, boolean hasDocValues) {
         this(name, properties, hasDocValues, false);

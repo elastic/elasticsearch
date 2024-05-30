@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -20,11 +21,18 @@ import java.util.Objects;
  * SQL-related information about an index field
  */
 public class EsField implements NamedWriteable {
-    static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
-        EsField.class,
-        "EsField",
-        EsField::new
-    );
+    public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
+        return List.of(
+            EsField.ENTRY,
+            DateEsField.ENTRY,
+            InvalidMappedField.ENTRY,
+            KeywordEsField.ENTRY,
+            TextEsField.ENTRY,
+            UnsupportedEsField.ENTRY
+        );
+    }
+
+    static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(EsField.class, "EsField", EsField::new);
 
     private final DataType esDataType;
     private final boolean aggregatable;

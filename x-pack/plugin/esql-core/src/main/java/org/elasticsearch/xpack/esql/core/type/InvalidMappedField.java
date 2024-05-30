@@ -55,7 +55,7 @@ public class InvalidMappedField extends EsField {
     }
 
     @Override
-    public String getName() {
+    public String getWriteableName() {
         return "InvalidMappedField";
     }
 

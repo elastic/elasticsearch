@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.esql.core.type;
 
-import org.elasticsearch.test.ESTestCase;
-
 import java.io.IOException;
 import java.util.Map;
 

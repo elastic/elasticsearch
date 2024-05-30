@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.esql.core.type;
 import java.io.IOException;
 import java.util.Map;
 
-public class UnsupportedMappedFieldTests extends AbstractEsFieldTypeTests<UnsupportedEsField> {
+public class UnsupportedEsFieldTests extends AbstractEsFieldTypeTests<UnsupportedEsField> {
     static UnsupportedEsField randomUnsupportedEsField(int depth) {
         String name = randomAlphaOfLength(4);
         String originalType = randomAlphaOfLength(5);

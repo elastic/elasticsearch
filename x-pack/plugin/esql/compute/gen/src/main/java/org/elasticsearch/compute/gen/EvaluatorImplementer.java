@@ -1050,7 +1050,7 @@ public class EvaluatorImplementer {
             if (builderArg != null) {
                 return builderArg.type.enclosingClassName();
             }
-            boolean useBlockStyle = blockStyle || nullableReturn ||  warnExceptions.isEmpty() == false;
+            boolean useBlockStyle = blockStyle || nullableReturn || warnExceptions.isEmpty() == false;
             return useBlockStyle ? blockType(TypeName.get(function.getReturnType())) : vectorType(TypeName.get(function.getReturnType()));
         }
     }

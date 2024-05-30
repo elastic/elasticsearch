@@ -1739,7 +1739,7 @@ public class ApiKeyServiceTests extends ESTestCase {
     }
 
     private void assertCacheCount(TestTelemetryPlugin telemetryPlugin, CacheType type, long expectedCount) {
-        List<Measurement> metrics = telemetryPlugin.getLongAsyncCounterMeasurement(type.metricsPrefix() + ".count.total");
+        List<Measurement> metrics = telemetryPlugin.getLongGaugeMeasurement(type.metricsPrefix() + ".count.total");
         final Long actual;
         if (metrics.isEmpty()) {
             actual = 0L;

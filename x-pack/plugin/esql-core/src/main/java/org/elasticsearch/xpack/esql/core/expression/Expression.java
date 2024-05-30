@@ -12,7 +12,6 @@ import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.DataTypeDeprecated;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 
 import java.util.List;
@@ -180,7 +179,7 @@ public abstract class Expression extends Node<Expression> implements Resolvable 
     }
 
     /**
-     * The {@link DataTypeDeprecated} returned by executing the tree rooted at this
+     * The {@link DataType} returned by executing the tree rooted at this
      * expression. If {@link #typeResolved()} returns an error then the behavior
      * of this method is undefined. It <strong>may</strong> return a valid
      * type. Or it may throw an exception. Or it may return a totally nonsensical

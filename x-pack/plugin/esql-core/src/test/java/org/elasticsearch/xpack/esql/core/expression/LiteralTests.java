@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.esql.core.tree.SourceTests;
 import org.elasticsearch.xpack.esql.core.type.Converter;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DataTypeConverter;
-import org.elasticsearch.xpack.esql.core.type.DataTypeDeprecated;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -106,7 +105,7 @@ public class LiteralTests extends AbstractNodeTestCase<Literal, Expression> {
             DataType newDataType = randomValueOtherThan(literal.dataType(), () -> randomFrom(validDataTypes));
             assertEquals(
                 new Literal(literal.source(), literal.value(), newDataType),
-                literal.transformPropertiesOnly(DataTypeDeprecated.class, p -> newDataType)
+                literal.transformPropertiesOnly(DataType.class, p -> newDataType)
             );
         }
     }

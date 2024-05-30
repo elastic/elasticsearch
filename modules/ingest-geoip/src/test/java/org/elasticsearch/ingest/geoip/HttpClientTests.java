@@ -10,6 +10,7 @@ package org.elasticsearch.ingest.geoip;
 
 import com.sun.net.httpserver.HttpServer;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.AfterClass;
@@ -41,6 +42,13 @@ public class HttpClientTests extends ESTestCase {
                 fail(e);
             }
         });
+        server.createContext("/404/", exchange -> {
+            try {
+                exchange.sendResponseHeaders(404, 0);
+            } catch (Exception e) {
+                fail(e);
+            }
+        });
         server.start();
     }
 
@@ -63,5 +71,11 @@ public class HttpClientTests extends ESTestCase {
         HttpClient client = new HttpClient();
         String response = bytesToString(client.getBytes(url("/hello/")));
         assertThat(response, equalTo("hello world"));
+    }
+
+    public void testGetBytes404() throws Exception {
+        HttpClient client = new HttpClient();
+        Exception e = expectThrows(ResourceNotFoundException.class, () -> client.getBytes(url("/404/")));
+        assertThat(e.getMessage(), equalTo(url("/404/") + " not found"));
     }
 }

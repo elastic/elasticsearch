@@ -13,7 +13,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
-import org.elasticsearch.index.query.support.NestedScope;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -128,7 +127,7 @@ public final class Mapping implements ToXContentFragment {
 
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
         var stream = Stream.concat(Stream.of(metadataMappers), root.mappers.values().stream());
-        return root.syntheticFieldLoader(new NestedScope(), stream);
+        return root.syntheticFieldLoader(stream);
     }
 
     /**

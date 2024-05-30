@@ -60,7 +60,6 @@ import org.elasticsearch.index.mapper.TextParams;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.index.query.support.NestedScope;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.script.field.FlattenedDocValuesField;
@@ -811,7 +810,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
     }
 
     @Override
-    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader(NestedScope nestedScope) {
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
         if (hasScript()) {
             return SourceLoader.SyntheticFieldLoader.NOTHING;
         }

@@ -44,7 +44,6 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.index.query.support.NestedScope;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
@@ -846,7 +845,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         }
 
         @Override
-        public SourceLoader.SyntheticFieldLoader syntheticFieldLoader(NestedScope nestedScope) {
+        public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
             return new StringStoredFieldFieldLoader(name(), simpleName(), null) {
                 @Override
                 protected void write(XContentBuilder b, Object value) throws IOException {

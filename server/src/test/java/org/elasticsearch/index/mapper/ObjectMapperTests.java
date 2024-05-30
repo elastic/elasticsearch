@@ -18,7 +18,6 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.ObjectMapper.Dynamic;
-import org.elasticsearch.index.query.support.NestedScope;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -510,8 +509,8 @@ public class ObjectMapperTests extends MapperServiceTestCase {
     public void testSyntheticSourceDocValuesEmpty() throws IOException {
         DocumentMapper mapper = createDocumentMapper(mapping(b -> b.startObject("o").field("type", "object").endObject()));
         ObjectMapper o = (ObjectMapper) mapper.mapping().getRoot().getMapper("o");
-        assertThat(o.syntheticFieldLoader(new NestedScope()).docValuesLoader(null, null), nullValue());
-        assertThat(mapper.mapping().getRoot().syntheticFieldLoader(new NestedScope()).docValuesLoader(null, null), nullValue());
+        assertThat(o.syntheticFieldLoader().docValuesLoader(null, null), nullValue());
+        assertThat(mapper.mapping().getRoot().syntheticFieldLoader().docValuesLoader(null, null), nullValue());
     }
 
     /**
@@ -536,8 +535,8 @@ public class ObjectMapperTests extends MapperServiceTestCase {
             b.endObject().endObject();
         }));
         ObjectMapper o = (ObjectMapper) mapper.mapping().getRoot().getMapper("o");
-        assertThat(o.syntheticFieldLoader(new NestedScope()).docValuesLoader(null, null), nullValue());
-        assertThat(mapper.mapping().getRoot().syntheticFieldLoader(new NestedScope()).docValuesLoader(null, null), nullValue());
+        assertThat(o.syntheticFieldLoader().docValuesLoader(null, null), nullValue());
+        assertThat(mapper.mapping().getRoot().syntheticFieldLoader().docValuesLoader(null, null), nullValue());
     }
 
     public void testStoreArraySourceinSyntheticSourceMode() throws IOException {

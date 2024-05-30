@@ -19,7 +19,6 @@ import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.index.query.support.NestedScope;
 
 import java.util.Collections;
 
@@ -100,7 +99,7 @@ public class SizeFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader(NestedScope nestedScope) {
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
         return SourceLoader.SyntheticFieldLoader.NOTHING;
     }
 }

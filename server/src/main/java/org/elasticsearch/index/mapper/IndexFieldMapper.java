@@ -19,7 +19,6 @@ import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.plain.ConstantIndexFieldData;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.index.query.support.NestedScope;
 import org.elasticsearch.script.field.DelegateDocValuesField;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
@@ -114,7 +113,7 @@ public class IndexFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader(NestedScope nestedScope) {
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
         return SourceLoader.SyntheticFieldLoader.NOTHING;
     }
 }

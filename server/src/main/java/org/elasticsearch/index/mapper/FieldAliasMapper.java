@@ -10,7 +10,6 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.query.support.NestedScope;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -158,7 +157,7 @@ public final class FieldAliasMapper extends Mapper {
     }
 
     @Override
-    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader(NestedScope nestedScope) {
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
         return SourceLoader.SyntheticFieldLoader.NOTHING;
     }
 }

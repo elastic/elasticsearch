@@ -24,7 +24,6 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.query.support.NestedScope;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -470,12 +469,12 @@ public abstract class FieldMapper extends Mapper {
     /**
      * Mappers override this method with native synthetic source support.
      * If mapper does not support synthetic source, it is generated using generic implementation
-     * in {@link DocumentParser#parseObjectOrField} and {@link Mapper#syntheticFieldLoader(NestedScope)}.
+     * in {@link DocumentParser#parseObjectOrField} and {@link ObjectMapper#syntheticFieldLoader()}.
      *
      * @return implementation of {@link SourceLoader.SyntheticFieldLoader}
      */
     @Override
-    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader(NestedScope nestedScope) {
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
         // If mapper supports synthetic source natively, it overrides this method,
         // /so we won't see those here.
         if (syntheticSourceMode() == SyntheticSourceMode.FALLBACK) {
@@ -488,7 +487,7 @@ public abstract class FieldMapper extends Mapper {
             return SourceLoader.SyntheticFieldLoader.NOTHING;
         }
 
-        return super.syntheticFieldLoader(nestedScope);
+        return super.syntheticFieldLoader();
     }
 
     public static final class MultiFields implements Iterable<FieldMapper>, ToXContent {

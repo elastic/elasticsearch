@@ -13,7 +13,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.StringLiteralDeduplicator;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
-import org.elasticsearch.index.query.support.NestedScope;
 import org.elasticsearch.xcontent.ToXContentFragment;
 
 import java.util.Map;
@@ -98,7 +97,7 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
      *         users configure synthetic source in the mapping without configuring all
      *         fields properly.
      */
-    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader(NestedScope nestedScope) {
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
         throw new IllegalArgumentException("field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source");
     }
 

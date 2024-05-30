@@ -13,7 +13,6 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexVersions;
-import org.elasticsearch.index.query.support.NestedScope;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -222,5 +221,5 @@ public abstract class MetadataFieldMapper extends FieldMapper {
     }
 
     @Override
-    public abstract SourceLoader.SyntheticFieldLoader syntheticFieldLoader(NestedScope nestedScope);
+    public abstract SourceLoader.SyntheticFieldLoader syntheticFieldLoader();
 }

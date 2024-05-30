@@ -41,7 +41,6 @@ import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.index.query.support.NestedScope;
 import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.script.Script;
@@ -1467,10 +1466,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             iw.close();
             try (DirectoryReader reader = DirectoryReader.open(directory)) {
                 LeafReader leafReader = getOnlyLeafReader(reader);
-                SourceLoader.SyntheticFieldLoader fieldLoader = mapper.mapping()
-                    .getRoot()
-                    .getMapper("field")
-                    .syntheticFieldLoader(new NestedScope());
+                SourceLoader.SyntheticFieldLoader fieldLoader = mapper.mapping().getRoot().getMapper("field").syntheticFieldLoader();
                 /*
                  * null means "there are no values for this field, don't call me".
                  * Empty fields are common enough that we need to make sure this

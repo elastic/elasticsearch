@@ -213,6 +213,10 @@ public class EvaluatorImplementer {
                 }
                 processFunction.args.stream().forEach(a -> a.unpackValues(builder, blockStyle));
 
+                if (processFunction.warnExceptions.isEmpty() == false) {
+                    builder.beginControlFlow("try");
+                }
+
                 StringBuilder pattern = new StringBuilder();
                 List<Object> args = new ArrayList<>();
                 pattern.append(processOutputsMultivalued ? "$T.$N(result, p, " : "$T.$N(");
@@ -226,25 +230,22 @@ public class EvaluatorImplementer {
                 });
                 pattern.append(")");
 
-                if (processFunction.warnExceptions.isEmpty() == false) {
-                    builder.beginControlFlow("try");
-                }
-
                 if (processFunction.builderArg == null) {
-                    builder.addStatement("var processResult = " + pattern, args.toArray());
-
                     if (processFunction.nullableReturn) {
+                        builder.addStatement("var processResult = " + pattern, args.toArray());
+
                         builder.beginControlFlow("if (processResult == null)");
                         {
                             builder.addStatement("result.appendNull()");
                         }
                         builder.nextControlFlow("else");
-                    }
 
-                    builder.addStatement("result.$L(processResult)", appendMethod(resultDataType));
+                        builder.addStatement("result.$L(processResult)", appendMethod(resultDataType));
 
-                    if (processFunction.nullableReturn) {
                         builder.endControlFlow();
+                    } else {
+                        args.add(0, appendMethod(resultDataType));
+                        builder.addStatement("result.$L(" + pattern + ")", args.toArray());
                     }
                 } else {
                     builder.addStatement(pattern.toString(), args.toArray());

@@ -7,52 +7,79 @@
  */
 
 /**
- * <p>Cluster routing package provides routing information and manages shard
- * allocations in cluster. The routing part contains two different views on
- * shards in cluster {@link org.elasticsearch.cluster.routing.RoutingTable} and
+ * <p>The cluster routing package provides routing information and manages shard
+ * allocations in a cluster. The routing part contains two different views of
+ * shards in {@link org.elasticsearch.cluster.routing.RoutingTable} and
  * {@link org.elasticsearch.cluster.routing.RoutingNodes}. RoutingTable provides
- * view from index to shard to node, and RoutingNodes provides view from node to
+ * a view from index to shard to node. RoutingNodes provides view from node
  * shard. Shard allocation is a process of assigning and moving shards between
  * nodes. For more details about allocation see {@link
  * org.elasticsearch.cluster.routing.allocation}.</p>
  *
  * <b>Routing Table</b>
  *
- * <p>The routing table provide a view on global cluster state from index
+ * <p>The routing table provide a view of global cluster state from index
  * perspective. It's a mapping from indices to shards and shards to nodes, where
- * relationship between shard and node might not exists if shard allocation is
- * not possible. Routing table represents desired shards layout and current
- * state of shards.</p>
+ * relationship between shard and node may not exists if a shard allocation is
+ * not possible.
  *
- * <p>As class hierarchy goes - at the top level there is a {@link
- * org.elasticsearch.cluster.routing.RoutingTable}. RoutingTable is a part of
- * {@link org.elasticsearch.cluster.ClusterState}. It contains mapping between
- * indices and {@link org.elasticsearch.cluster.routing.IndexRoutingTable}.
- * {@link org.elasticsearch.cluster.routing.IndexRoutingTable} contains routing
- * information about all shards in that index - {@link
- * org.elasticsearch.cluster.routing.IndexShardRoutingTable}. Each shard can
- * have one or more instances - primary and replicas. IndexShardRoutingTable
- * contains information about all shard instances for specific shard id - {@link
- * org.elasticsearch.cluster.routing.ShardRouting}.</p>
+ * <p>{@link org.elasticsearch.cluster.routing.RoutingTable} is the access
+ * point to the routing information. RoutingTable is a part of the
+ * {@link org.elasticsearch.cluster.ClusterState}. It maps index names to
+ * {@link org.elasticsearch.cluster.routing.IndexRoutingTable}.
+ * {@link org.elasticsearch.cluster.routing.IndexRoutingTable}, in turn,
+ * holds a list of shards in that index,
+ * {@link org.elasticsearch.cluster.routing.IndexShardRoutingTable}. Each
+ * shard has one or more instances: a primary and replicas. An
+ * IndexShardRoutingTable contains information about all shard instances for
+ * specific shard, {@link org.elasticsearch.cluster.routing.ShardRouting}.
+ * The ShardRouting is a state of a shard instance in a cluster. There are
+ * several states of ShardRouting: unassigned, initializing, relocating,
+ * started.</p>
+ *
+ * An example of routing table:
+ *
+ * <pre>
+ * {@code
+ * └── ClusterState
+ *     └── RoutingTable
+ *         ├── index1-IndexRoutingTable
+ *         │   ├── shard1-IndexShardRoutingTable
+ *         │   │   ├── primary-ShardRouting
+ *         │   │   │   └── STARTED-node1
+ *         │   │   ├── replica1-ShardRouting
+ *         │   │   │   └── INITIALIZING-node2
+ *         │   │   └── replica2-ShardRouting
+ *         │   │       └── UNASSIGNED
+ *         │   └── shard2-IndexShardRoutingTable ...
+ *         └── index2-IndexRoutingTable ...
+ * }
+ * </pre>
+ *
  *
  * <b>Routing Nodes</b>
  *
- * <p>{@link org.elasticsearch.cluster.routing.RoutingNode} provides view to
- * shard routing from node perspective. There is a RoutingNode for every {@link
- * org.elasticsearch.cluster.node.DiscoveryNode}, and it contains information about
- * all shards and their state on this node. {@link
- * org.elasticsearch.cluster.routing.RoutingNodes} (plural) provide another view
- * on routing from nodes perspective - such as finding all shards by specific
- * node or finding all nodes for specific shard.</p>
+ * <p>{@link org.elasticsearch.cluster.routing.RoutingNode} provides a view to
+ * from node to shard routing. There is a RoutingNode for every
+ * {@link org.elasticsearch.cluster.node.DiscoveryNode}. It contains
+ * information about  all shards and their state on this node.
+ * {@link org.elasticsearch.cluster.routing.RoutingNodes} (plural) provide
+ * aggregated view from all cluster nodes. It supports finding all shards by
+ * specific node or finding all nodes for specific shard.</p>
  *
  * <b>Reroute</b>
  *
- * <p>Reroute is a process of routing change in the cluster. It will start
- * allocation process, which might assign or move shards around. When cluster
- * has an update that impacts routing (for example: node join cluster, index
- * created, snapshot restored, ...) the reroute process must be triggered. There
- * are 2 ways to trigger reroute - batched(recommended) with {@link
- * org.elasticsearch.cluster.routing.BatchedRerouteService} and non-batch {@link
- * org.elasticsearch.cluster.routing.allocation.AllocationService}.</p>
+ * <p>Reroute is a process of routing update in the cluster. Routing update
+ * may start allocation process, which assign or move shards around. When
+ * cluster has an update that impacts routing (for example: node join
+ * cluster, index created, snapshot restored, ...) the code that handles
+ * cluster update should trigger reroute. There are 2 ways to trigger reroute -
+ * batched with
+ * {@link org.elasticsearch.cluster.routing.BatchedRerouteService} and
+ * unbatched
+ * {@link org.elasticsearch.cluster.routing.allocation.AllocationService}.
+ * Batched reroute can combine multiple requests into one (used when starting
+ * initializing shards). Unbatched reroute allows to mix other cluster state
+ * changes that might be required to create or delete index.</p>
  */
 package org.elasticsearch.cluster.routing;

@@ -8,7 +8,7 @@
 /**
  * Functions that take a row of data and produce a row of data without holding
  * any state between rows. This includes both the {@link org.elasticsearch.xpack.esql.core.expression.function.scalar.ScalarFunction}
- * subclass to link into the QL infrastucture and the {@link org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator}
+ * subclass to link into the QL infrastructure and the {@link org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator}
  * implementation to run the actual function.
  *
  * <h2>Guide to adding new function</h2>
@@ -56,7 +56,17 @@
  *         Find a function in this package similar to the one you are working on and copy it to build
  *         yours. There's some ceremony required in each function class to make it constant foldable
  *         and return the right types. Take a stab at these, but don't worry too much about getting
- *         it right.
+ *         it right. Your function might extend from one of several abstract base classes, all of
+ *         those are fine for this guide, but might have special instructions called out later.
+ *         Known good base classes:
+ *         <ul>
+ *             <li>{@link org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction}</li>
+ *             <li>{@link org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.AbstractMultivalueFunction}</li>
+ *             <li>{@link org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction}
+ *                 or any subclass like {@code AbstractTrigonometricFunction}</li>
+ *             <li>{@link org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction}</li>
+ *             <li>{@link org.elasticsearch.xpack.esql.expression.function.scalar.math.DoubleConstantFunction}</li>
+ *         </ul>
  *     </li>
  *     <li>
  *         There are also methods annotated with {@link org.elasticsearch.compute.ann.Evaluator}
@@ -80,9 +90,17 @@
  *             about the options for generating code from the javadocs on those annotations.
  *         </p>
  *     <li>
- *         Once your evaluator is generated you can implement
- *         {@link org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper#toEvaluator},
- *         having it return the generated evaluator.
+ *         Once your evaluator is generated you can have your function return it,
+ *         generally by implementing {@link org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper#toEvaluator}.
+ *         It's possible that your abstract base class implements that function and
+ *         will need you to implement something else:
+ *         <ul>
+ *             <li>{@link org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction}: {@code factories}</li>
+ *             <li>{@link org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.AbstractMultivalueFunction}:
+ *                 {@code evaluator}</li>
+ *             <li>{@code AbstractTrigonometricFunction}: {@code doubleEvaluator}</li>
+ *             <li>{@link org.elasticsearch.xpack.esql.expression.function.scalar.math.DoubleConstantFunction}: nothing!</li>
+ *         </ul>
  *     </li>
  *     <li>
  *         Add your function to {@link org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry}.

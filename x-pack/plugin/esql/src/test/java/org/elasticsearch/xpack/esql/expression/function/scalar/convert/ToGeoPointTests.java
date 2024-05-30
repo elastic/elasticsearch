@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.FunctionName;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -41,21 +40,15 @@ public class ToGeoPointTests extends AbstractFunctionTestCase {
         final Function<String, String> evaluatorName = s -> "ToGeoPoint" + s + "Evaluator[field=" + attribute + "]";
         final List<TestCaseSupplier> suppliers = new ArrayList<>();
 
-        TestCaseSupplier.forUnaryGeoPoint(suppliers, attribute, EsqlDataTypes.GEO_POINT, v -> v, List.of());
+        TestCaseSupplier.forUnaryGeoPoint(suppliers, attribute, DataTypes.GEO_POINT, v -> v, List.of());
         // random strings that don't look like a geo point
-        TestCaseSupplier.forUnaryStrings(
-            suppliers,
-            evaluatorName.apply("FromString"),
-            EsqlDataTypes.GEO_POINT,
-            bytesRef -> null,
-            bytesRef -> {
-                var exception = expectThrows(Exception.class, () -> GEO.wktToWkb(bytesRef.utf8ToString()));
-                return List.of(
-                    "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                    "Line -1:-1: " + exception
-                );
-            }
-        );
+        TestCaseSupplier.forUnaryStrings(suppliers, evaluatorName.apply("FromString"), DataTypes.GEO_POINT, bytesRef -> null, bytesRef -> {
+            var exception = expectThrows(Exception.class, () -> GEO.wktToWkb(bytesRef.utf8ToString()));
+            return List.of(
+                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
+                "Line -1:-1: " + exception
+            );
+        });
         // strings that are geo point representations
         for (DataType dt : List.of(DataTypes.KEYWORD, DataTypes.TEXT)) {
             TestCaseSupplier.unary(
@@ -68,7 +61,7 @@ public class ToGeoPointTests extends AbstractFunctionTestCase {
                         dt
                     )
                 ),
-                EsqlDataTypes.GEO_POINT,
+                DataTypes.GEO_POINT,
                 bytesRef -> GEO.wktToWkb(((BytesRef) bytesRef).utf8ToString()),
                 List.of()
             );

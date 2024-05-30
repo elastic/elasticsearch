@@ -28,6 +28,11 @@ public class EsqlCapabilities {
     private static final String FN_CBRT = "fn_cbrt";
 
     /**
+     * Support for function {@code IP_PREFIX}.
+     */
+    private static final String FN_IP_PREFIX = "fn_ip_prefix";
+
+    /**
      * Optimization for ST_CENTROID changed some results in cartesian data. #108713
      */
     private static final String ST_CENTROID_AGG_OPTIMIZED = "st_centroid_agg_optimized";
@@ -47,6 +52,7 @@ public class EsqlCapabilities {
     private static Set<String> capabilities() {
         List<String> caps = new ArrayList<>();
         caps.add(FN_CBRT);
+        caps.add(FN_IP_PREFIX);
         caps.add(ST_CENTROID_AGG_OPTIMIZED);
         caps.add(METADATA_IGNORED_FIELD);
 

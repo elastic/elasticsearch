@@ -16,7 +16,7 @@ import java.io.IOException;
 public interface DataType extends Writeable {
     static DataType readFrom(StreamInput in) throws IOException {
         String name = in.readString();
-        if (name.equalsIgnoreCase(DataTypes.DOC_DATA_TYPE.name())) {
+        if (name.equalsIgnoreCase(DataTypes.DOC_DATA_TYPE.nameUpper())) {
             return DataTypes.DOC_DATA_TYPE;
         }
         DataType dataType = DataTypes.fromTypeName(name);
@@ -26,7 +26,7 @@ public interface DataType extends Writeable {
         return dataType;
     }
 
-    String name();
+    String nameUpper();
 
     String typeName();
 

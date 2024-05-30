@@ -63,7 +63,7 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
 
     private Set<DataType> withNullAndSorted(DataType[] validTypes) {
         Set<DataType> realValidTypes = new LinkedHashSet<>();
-        Arrays.stream(validTypes).sorted(Comparator.comparing(DataType::name)).forEach(realValidTypes::add);
+        Arrays.stream(validTypes).sorted(Comparator.comparing(DataType::nameUpper)).forEach(realValidTypes::add);
         realValidTypes.add(DataTypes.NULL);
         return realValidTypes;
     }
@@ -71,7 +71,7 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
     public Set<DataType> sortedTypesSet(DataType[] validTypes, DataType... additionalTypes) {
         Set<DataType> mergedSet = new LinkedHashSet<>();
         Stream.concat(Stream.of(validTypes), Stream.of(additionalTypes))
-            .sorted(Comparator.comparing(DataType::name))
+            .sorted(Comparator.comparing(DataType::nameUpper))
             .forEach(mergedSet::add);
         return mergedSet;
     }
@@ -181,7 +181,7 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
             return "ip";
         }
         List<DataType> negations = Stream.concat(Stream.of(numerics()), Stream.of(DataTypes.DATE_PERIOD, DataTypes.TIME_DURATION))
-            .sorted(Comparator.comparing(DataType::name))
+            .sorted(Comparator.comparing(DataType::nameUpper))
             .toList();
         if (withoutNull.equals(negations)) {
             return "numeric, date_period or time_duration";

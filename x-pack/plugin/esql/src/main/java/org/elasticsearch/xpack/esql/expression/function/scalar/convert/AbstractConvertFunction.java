@@ -88,7 +88,7 @@ public abstract class AbstractConvertFunction extends UnaryScalarFunction {
             STRING_TYPES.forEach(supportTypes::remove);
         }
 
-        supportTypes.forEach(t -> supportedTypesNames.add(t.name().toLowerCase(Locale.ROOT)));
+        supportTypes.forEach(t -> supportedTypesNames.add(t.nameUpper().toLowerCase(Locale.ROOT)));
         supportedTypesNames.sort(String::compareTo);
         return Strings.join(supportedTypesNames, " or ");
     }

@@ -131,7 +131,7 @@ public enum DataTypes implements DataType {
         COUNTER_LONG,
         COUNTER_INTEGER,
         COUNTER_DOUBLE
-    ).sorted(Comparator.comparing(DataType::typeName)).toList();
+    ).sorted(Comparator.comparing(DataType::typeName)).map(t -> (DataType) t).toList();
 
     private static final Map<String, DataType> NAME_TO_TYPE = TYPES.stream().collect(toUnmodifiableMap(DataType::typeName, t -> t));
 
@@ -233,7 +233,7 @@ public enum DataTypes implements DataType {
         }
     }
     @Override
-    public String name() {
+    public String nameUpper() {
         return name;
     }
 

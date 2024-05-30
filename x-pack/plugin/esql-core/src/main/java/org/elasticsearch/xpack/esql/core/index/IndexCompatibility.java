@@ -27,9 +27,9 @@ public final class IndexCompatibility {
             if (isPrimitive(dataType) == false) {
                 compatible(esField.getProperties(), version);
             } else if (isTypeSupportedInVersion(dataType, version) == false) {
-                EsField field = new UnsupportedEsField(entry.getKey(), dataType.name(), null, esField.getProperties());
+                EsField field = new UnsupportedEsField(entry.getKey(), dataType.nameUpper(), null, esField.getProperties());
                 entry.setValue(field);
-                propagateUnsupportedType(entry.getKey(), dataType.name(), esField.getProperties());
+                propagateUnsupportedType(entry.getKey(), dataType.nameUpper(), esField.getProperties());
             }
         }
         return mapping;

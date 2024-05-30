@@ -138,7 +138,7 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             } else {
                 prefixType = TrainedModelPrefixStrings.PrefixType.NONE;
             }
-            if (in.getTransportVersion().onOrAfter(TransportVersions.NLP_DOCUMENT_CHUNKING_ADDED)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
                 chunkResults = in.readBoolean();
             } else {
                 chunkResults = false;
@@ -232,7 +232,7 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
                 out.writeEnum(prefixType);
             }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.NLP_DOCUMENT_CHUNKING_ADDED)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
                 out.writeBoolean(chunkResults);
             }
         }

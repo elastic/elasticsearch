@@ -14,73 +14,44 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.cluster.FeatureFlag;
-import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.test.rest.TestFeatureService;
 import org.junit.AfterClass;
 import org.junit.Before;
-import org.junit.ClassRule;
-import org.junit.rules.RuleChain;
-import org.junit.rules.TemporaryFolder;
-import org.junit.rules.TestRule;
 
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Supplier;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 public abstract class ParameterizedRollingUpgradeTestCase extends ESRestTestCase {
+    protected static final int NODE_NUM = 3;
     private static final String OLD_CLUSTER_VERSION = System.getProperty("tests.old_cluster_version");
+    private static final Set<Integer> upgradedNodes = new HashSet<>();
+    private static TestFeatureService oldClusterTestFeatureService = null;
+    private static boolean upgradeFailed = false;
+    private static IndexVersion oldIndexVersion;
+    private final int requestedUpgradedNodes;
 
-    private static final TemporaryFolder repoDirectory = new TemporaryFolder();
-
-    private static final int NODE_NUM = 3;
-
-    private static final ElasticsearchCluster cluster = ElasticsearchCluster.local()
-        .distribution(DistributionType.DEFAULT)
-        .version(getOldClusterTestVersion())
-        .nodes(NODE_NUM)
-        .setting("path.repo", new Supplier<>() {
-            @Override
-            @SuppressForbidden(reason = "TemporaryFolder only has io.File methods, not nio.File")
-            public String get() {
-                return repoDirectory.getRoot().getPath();
-            }
-        })
-        .setting("xpack.security.enabled", "false")
-        .feature(FeatureFlag.TIME_SERIES_MODE)
-        .build();
-
-    @ClassRule
-    public static TestRule ruleChain = RuleChain.outerRule(repoDirectory).around(cluster);
+    protected ParameterizedRollingUpgradeTestCase(@Name("upgradedNodes") int upgradedNodes) {
+        this.requestedUpgradedNodes = upgradedNodes;
+    }
 
     @ParametersFactory(shuffle = false)
     public static Iterable<Object[]> parameters() {
         return IntStream.rangeClosed(0, NODE_NUM).boxed().map(n -> new Object[] { n }).toList();
     }
 
-    private static final Set<Integer> upgradedNodes = new HashSet<>();
-    private static TestFeatureService oldClusterTestFeatureService = null;
-    private static boolean upgradeFailed = false;
-    private static IndexVersion oldIndexVersion;
-
-    private final int requestedUpgradedNodes;
-
-    protected ParameterizedRollingUpgradeTestCase(@Name("upgradedNodes") int upgradedNodes) {
-        this.requestedUpgradedNodes = upgradedNodes;
-    }
+    protected abstract ElasticsearchCluster getUpgradeCluster();
 
     @Before
     public void extractOldClusterFeatures() {
@@ -135,7 +106,7 @@ public abstract class ParameterizedRollingUpgradeTestCase extends ESRestTestCase
                 if (upgradedNodes.add(n)) {
                     try {
                         logger.info("Upgrading node {} to version {}", n, Version.CURRENT);
-                        cluster.upgradeNodeToVersion(n, Version.CURRENT);
+                        getUpgradeCluster().upgradeNodeToVersion(n, Version.CURRENT);
                     } catch (Exception e) {
                         upgradeFailed = true;
                         throw e;
@@ -199,7 +170,7 @@ public abstract class ParameterizedRollingUpgradeTestCase extends ESRestTestCase
 
     @Override
     protected String getTestRestCluster() {
-        return cluster.getHttpAddresses();
+        return getUpgradeCluster().getHttpAddresses();
     }
 
     @Override

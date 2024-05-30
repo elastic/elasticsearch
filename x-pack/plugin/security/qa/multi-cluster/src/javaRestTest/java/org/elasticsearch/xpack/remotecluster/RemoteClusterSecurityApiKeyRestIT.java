@@ -108,6 +108,7 @@ public class RemoteClusterSecurityApiKeyRestIT extends AbstractRemoteClusterSecu
             final var putRoleRequest = new Request("PUT", "/_security/role/" + REMOTE_SEARCH_ROLE);
             putRoleRequest.setJsonEntity("""
                 {
+                  "description": "role with privileges for remote and local indices",
                   "cluster": ["manage_own_api_key"],
                   "indices": [
                     {

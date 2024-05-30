@@ -14,14 +14,14 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.EsqlClientException;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Literal;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -52,11 +52,11 @@ public class ConcatTests extends AbstractFunctionTestCase {
         }
         Set<DataType> supported = Set.of(DataTypes.NULL, DataTypes.KEYWORD, DataTypes.TEXT);
         List<Set<DataType>> supportedPerPosition = List.of(supported, supported);
-        for (DataType lhs : EsqlDataTypes.types()) {
+        for (DataType lhs : DataTypes.types()) {
             if (lhs == DataTypes.NULL || EsqlDataTypes.isRepresentable(lhs) == false) {
                 continue;
             }
-            for (DataType rhs : EsqlDataTypes.types()) {
+            for (DataType rhs : DataTypes.types()) {
                 if (rhs == DataTypes.NULL || EsqlDataTypes.isRepresentable(rhs) == false) {
                     continue;
                 }

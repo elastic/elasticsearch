@@ -13,7 +13,7 @@ import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
-import org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptorTestHelper;
 
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
@@ -82,7 +82,7 @@ public class RoleReferenceTests extends ESTestCase {
     }
 
     public void testFixedRoleReference() throws ExecutionException, InterruptedException {
-        final RoleDescriptor roleDescriptor = RoleDescriptorTests.randomRoleDescriptor();
+        final RoleDescriptor roleDescriptor = RoleDescriptorTestHelper.randomRoleDescriptor();
         final String source = "source";
         final var fixedRoleReference = new RoleReference.FixedRoleReference(roleDescriptor, source);
 

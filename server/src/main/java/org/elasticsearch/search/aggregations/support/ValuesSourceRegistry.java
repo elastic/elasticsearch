@@ -10,6 +10,7 @@ package org.elasticsearch.search.aggregations.support;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 
 import java.util.AbstractMap;
 import java.util.ArrayList;
@@ -58,7 +59,11 @@ public class ValuesSourceRegistry {
         private final Map<RegistryKey<?>, List<Map.Entry<ValuesSourceType, ?>>> aggregatorRegistry = new HashMap<>();
 
         public Builder() {
-            this.usageServiceBuilder = new AggregationUsageService.Builder();
+            this(MeterRegistry.NOOP);
+        }
+
+        public Builder(MeterRegistry meterRegistry) {
+            this.usageServiceBuilder = new AggregationUsageService.Builder(meterRegistry);
         }
 
         /**

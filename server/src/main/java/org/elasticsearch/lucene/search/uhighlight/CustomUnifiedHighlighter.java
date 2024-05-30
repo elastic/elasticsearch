@@ -293,7 +293,8 @@ public final class CustomUnifiedHighlighter extends UnifiedHighlighter {
                 if (parent instanceof ESToParentBlockJoinQuery) {
                     hasUnknownLeaf[0] = true;
                 }
-                return super.getSubVisitor(occur, parent);
+                // we want to visit all queries, including those within the must_not clauses.
+                return this;
             }
         });
         return hasUnknownLeaf[0];

@@ -37,6 +37,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * Interface to extract values from Lucene in order to feed it into the MapReducer.
@@ -53,7 +54,7 @@ public abstract class ItemSetMapReduceValueSource {
             int id,
             IncludeExclude includeExclude,
             AbstractItemSetMapReducer.OrdinalOptimization ordinalOptimization,
-            LeafReaderContext ctx
+            Optional<LeafReaderContext> ctx
         ) throws IOException;
     }
 
@@ -345,20 +346,21 @@ public abstract class ItemSetMapReduceValueSource {
             int id,
             IncludeExclude includeExclude,
             AbstractItemSetMapReducer.OrdinalOptimization ordinalOptimization,
-            LeafReaderContext ctx
+            Optional<LeafReaderContext> ctx
         ) throws IOException {
             super(config, id, ValueFormatter.BYTES_REF);
 
             if (AbstractItemSetMapReducer.OrdinalOptimization.GLOBAL_ORDINALS.equals(ordinalOptimization)
                 && config.getValuesSource() instanceof Bytes.WithOrdinals
-                && ((Bytes.WithOrdinals) config.getValuesSource()).supportsGlobalOrdinalsMapping()) {
+                && ((Bytes.WithOrdinals) config.getValuesSource()).supportsGlobalOrdinalsMapping()
+                && ctx.isPresent()) {
                 logger.debug("Use ordinals for field [{}]", config.fieldContext().field());
 
                 this.executionStrategy = new GlobalOrdinalsStrategy(
                     getField(),
                     (Bytes.WithOrdinals) config.getValuesSource(),
                     includeExclude == null ? null : includeExclude.convertToOrdinalsFilter(config.format()),
-                    ctx
+                    ctx.get()
                 );
             } else {
                 this.executionStrategy = new MapStrategy(
@@ -394,7 +396,7 @@ public abstract class ItemSetMapReduceValueSource {
             int id,
             IncludeExclude includeExclude,
             AbstractItemSetMapReducer.OrdinalOptimization unusedOrdinalOptimization,
-            LeafReaderContext unusedCtx
+            Optional<LeafReaderContext> unusedCtx
         ) {
             super(config, id, ValueFormatter.LONG);
             this.source = (Numeric) config.getValuesSource();

@@ -10,22 +10,21 @@ package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.time.Duration;
 import java.time.Period;
 import java.util.List;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.esql.core.type.DateUtils.asDateTime;
+import static org.elasticsearch.xpack.esql.core.type.DateUtils.asMillis;
+import static org.elasticsearch.xpack.esql.core.util.NumericUtils.ZERO_AS_UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.AbstractArithmeticTestCase.arithmeticExceptionOverflowCase;
-import static org.elasticsearch.xpack.ql.type.DateUtils.asDateTime;
-import static org.elasticsearch.xpack.ql.type.DateUtils.asMillis;
-import static org.elasticsearch.xpack.ql.util.NumericUtils.ZERO_AS_UNSIGNED_LONG;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -82,11 +81,11 @@ public class SubTests extends AbstractFunctionTestCase {
 
         suppliers.add(new TestCaseSupplier("Datetime - Period", () -> {
             long lhs = (Long) randomLiteral(DataTypes.DATETIME).value();
-            Period rhs = (Period) randomLiteral(EsqlDataTypes.DATE_PERIOD).value();
+            Period rhs = (Period) randomLiteral(DataTypes.DATE_PERIOD).value();
             return new TestCaseSupplier.TestCase(
                 List.of(
                     new TestCaseSupplier.TypedData(lhs, DataTypes.DATETIME, "lhs"),
-                    new TestCaseSupplier.TypedData(rhs, EsqlDataTypes.DATE_PERIOD, "rhs")
+                    new TestCaseSupplier.TypedData(rhs, DataTypes.DATE_PERIOD, "rhs")
                 ),
                 "SubDatetimesEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
                 DataTypes.DATETIME,
@@ -94,25 +93,25 @@ public class SubTests extends AbstractFunctionTestCase {
             );
         }));
         suppliers.add(new TestCaseSupplier("Period - Period", () -> {
-            Period lhs = (Period) randomLiteral(EsqlDataTypes.DATE_PERIOD).value();
-            Period rhs = (Period) randomLiteral(EsqlDataTypes.DATE_PERIOD).value();
+            Period lhs = (Period) randomLiteral(DataTypes.DATE_PERIOD).value();
+            Period rhs = (Period) randomLiteral(DataTypes.DATE_PERIOD).value();
             return new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(lhs, EsqlDataTypes.DATE_PERIOD, "lhs"),
-                    new TestCaseSupplier.TypedData(rhs, EsqlDataTypes.DATE_PERIOD, "rhs")
+                    new TestCaseSupplier.TypedData(lhs, DataTypes.DATE_PERIOD, "lhs"),
+                    new TestCaseSupplier.TypedData(rhs, DataTypes.DATE_PERIOD, "rhs")
                 ),
                 "Only folding possible, so there's no evaluator",
-                EsqlDataTypes.DATE_PERIOD,
+                DataTypes.DATE_PERIOD,
                 equalTo(lhs.minus(rhs))
             );
         }));
         suppliers.add(new TestCaseSupplier("Datetime - Duration", () -> {
             long lhs = (Long) randomLiteral(DataTypes.DATETIME).value();
-            Duration rhs = (Duration) randomLiteral(EsqlDataTypes.TIME_DURATION).value();
+            Duration rhs = (Duration) randomLiteral(DataTypes.TIME_DURATION).value();
             TestCaseSupplier.TestCase testCase = new TestCaseSupplier.TestCase(
                 List.of(
                     new TestCaseSupplier.TypedData(lhs, DataTypes.DATETIME, "lhs"),
-                    new TestCaseSupplier.TypedData(rhs, EsqlDataTypes.TIME_DURATION, "rhs")
+                    new TestCaseSupplier.TypedData(rhs, DataTypes.TIME_DURATION, "rhs")
                 ),
                 "SubDatetimesEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
                 DataTypes.DATETIME,
@@ -121,15 +120,15 @@ public class SubTests extends AbstractFunctionTestCase {
             return testCase;
         }));
         suppliers.add(new TestCaseSupplier("Duration - Duration", () -> {
-            Duration lhs = (Duration) randomLiteral(EsqlDataTypes.TIME_DURATION).value();
-            Duration rhs = (Duration) randomLiteral(EsqlDataTypes.TIME_DURATION).value();
+            Duration lhs = (Duration) randomLiteral(DataTypes.TIME_DURATION).value();
+            Duration rhs = (Duration) randomLiteral(DataTypes.TIME_DURATION).value();
             return new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(lhs, EsqlDataTypes.TIME_DURATION, "lhs"),
-                    new TestCaseSupplier.TypedData(rhs, EsqlDataTypes.TIME_DURATION, "rhs")
+                    new TestCaseSupplier.TypedData(lhs, DataTypes.TIME_DURATION, "lhs"),
+                    new TestCaseSupplier.TypedData(rhs, DataTypes.TIME_DURATION, "rhs")
                 ),
                 "Only folding possible, so there's no evaluator",
-                EsqlDataTypes.TIME_DURATION,
+                DataTypes.TIME_DURATION,
                 equalTo(lhs.minus(rhs))
             );
         }));

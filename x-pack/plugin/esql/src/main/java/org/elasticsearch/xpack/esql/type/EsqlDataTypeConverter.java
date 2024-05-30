@@ -13,6 +13,16 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
+import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.Converter;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypeConverter;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.util.NumericUtils;
+import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToBoolean;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCartesianPoint;
@@ -28,16 +38,6 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToUnsignedLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToVersion;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
-import org.elasticsearch.xpack.ql.InvalidArgumentException;
-import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.Converter;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypeConverter;
-import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.elasticsearch.xpack.ql.util.NumericUtils;
-import org.elasticsearch.xpack.ql.util.StringUtils;
 import org.elasticsearch.xpack.versionfield.Version;
 
 import java.io.IOException;
@@ -54,33 +54,33 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 
 import static java.util.Map.entry;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.CARTESIAN_POINT;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.CARTESIAN_SHAPE;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_POINT;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_SHAPE;
-import static org.elasticsearch.xpack.ql.type.DataTypeConverter.safeDoubleToLong;
-import static org.elasticsearch.xpack.ql.type.DataTypeConverter.safeToInt;
-import static org.elasticsearch.xpack.ql.type.DataTypeConverter.safeToLong;
-import static org.elasticsearch.xpack.ql.type.DataTypeConverter.safeToUnsignedLong;
-import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
-import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
-import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
-import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
-import static org.elasticsearch.xpack.ql.type.DataTypes.IP;
-import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
-import static org.elasticsearch.xpack.ql.type.DataTypes.LONG;
-import static org.elasticsearch.xpack.ql.type.DataTypes.NULL;
-import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
-import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
-import static org.elasticsearch.xpack.ql.type.DataTypes.VERSION;
-import static org.elasticsearch.xpack.ql.type.DataTypes.isPrimitive;
-import static org.elasticsearch.xpack.ql.type.DataTypes.isString;
-import static org.elasticsearch.xpack.ql.util.NumericUtils.ONE_AS_UNSIGNED_LONG;
-import static org.elasticsearch.xpack.ql.util.NumericUtils.ZERO_AS_UNSIGNED_LONG;
-import static org.elasticsearch.xpack.ql.util.NumericUtils.asLongUnsigned;
-import static org.elasticsearch.xpack.ql.util.NumericUtils.asUnsignedLong;
-import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAsNumber;
-import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.UNSPECIFIED;
+import static org.elasticsearch.xpack.esql.core.type.DataTypeConverter.safeDoubleToLong;
+import static org.elasticsearch.xpack.esql.core.type.DataTypeConverter.safeToInt;
+import static org.elasticsearch.xpack.esql.core.type.DataTypeConverter.safeToLong;
+import static org.elasticsearch.xpack.esql.core.type.DataTypeConverter.safeToUnsignedLong;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.BOOLEAN;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.CARTESIAN_POINT;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.CARTESIAN_SHAPE;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.GEO_POINT;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.GEO_SHAPE;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.IP;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.NULL;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.TEXT;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.VERSION;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.isPrimitive;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.isString;
+import static org.elasticsearch.xpack.esql.core.util.NumericUtils.ONE_AS_UNSIGNED_LONG;
+import static org.elasticsearch.xpack.esql.core.util.NumericUtils.ZERO_AS_UNSIGNED_LONG;
+import static org.elasticsearch.xpack.esql.core.util.NumericUtils.asLongUnsigned;
+import static org.elasticsearch.xpack.esql.core.util.NumericUtils.asUnsignedLong;
+import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAsNumber;
+import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.UNSPECIFIED;
 
 public class EsqlDataTypeConverter {
 
@@ -146,10 +146,10 @@ public class EsqlDataTypeConverter {
             if (EsqlDataTypes.isSpatial(to)) {
                 return EsqlConverter.STRING_TO_SPATIAL;
             }
-            if (to == EsqlDataTypes.TIME_DURATION) {
+            if (to == DataTypes.TIME_DURATION) {
                 return EsqlConverter.STRING_TO_TIME_DURATION;
             }
-            if (to == EsqlDataTypes.DATE_PERIOD) {
+            if (to == DataTypes.DATE_PERIOD) {
                 return EsqlConverter.STRING_TO_DATE_PERIOD;
             }
         }
@@ -188,15 +188,15 @@ public class EsqlDataTypeConverter {
         if ((value.isEmpty() || qualifier.isEmpty()) == false) {
             try {
                 TemporalAmount result = parseTemporalAmout(Integer.parseInt(value.toString()), qualifier.toString(), Source.EMPTY);
-                if (EsqlDataTypes.DATE_PERIOD == expectedType && result instanceof Period
-                    || EsqlDataTypes.TIME_DURATION == expectedType && result instanceof Duration) {
+                if (DataTypes.DATE_PERIOD == expectedType && result instanceof Period
+                    || DataTypes.TIME_DURATION == expectedType && result instanceof Duration) {
                     return result;
                 }
-                if (result instanceof Period && expectedType == EsqlDataTypes.TIME_DURATION) {
-                    errorMessage += ", did you mean " + EsqlDataTypes.DATE_PERIOD + "?";
+                if (result instanceof Period && expectedType == DataTypes.TIME_DURATION) {
+                    errorMessage += ", did you mean " + DataTypes.DATE_PERIOD + "?";
                 }
-                if (result instanceof Duration && expectedType == EsqlDataTypes.DATE_PERIOD) {
-                    errorMessage += ", did you mean " + EsqlDataTypes.TIME_DURATION + "?";
+                if (result instanceof Duration && expectedType == DataTypes.DATE_PERIOD) {
+                    errorMessage += ", did you mean " + DataTypes.TIME_DURATION + "?";
                 }
             } catch (NumberFormatException ex) {
                 // wrong pattern
@@ -234,18 +234,20 @@ public class EsqlDataTypeConverter {
         return DataTypeConverter.commonType(left, right);
     }
 
+    // generally supporting abbreviations from https://en.wikipedia.org/wiki/Unit_of_time
     public static TemporalAmount parseTemporalAmout(Number value, String qualifier, Source source) throws InvalidArgumentException,
         ArithmeticException, ParsingException {
         return switch (qualifier) {
-            case "millisecond", "milliseconds" -> Duration.ofMillis(safeToLong(value));
-            case "second", "seconds" -> Duration.ofSeconds(safeToLong(value));
-            case "minute", "minutes" -> Duration.ofMinutes(safeToLong(value));
-            case "hour", "hours" -> Duration.ofHours(safeToLong(value));
+            case "millisecond", "milliseconds", "ms" -> Duration.ofMillis(safeToLong(value));
+            case "second", "seconds", "sec", "s" -> Duration.ofSeconds(safeToLong(value));
+            case "minute", "minutes", "min" -> Duration.ofMinutes(safeToLong(value));
+            case "hour", "hours", "h" -> Duration.ofHours(safeToLong(value));
 
-            case "day", "days" -> Period.ofDays(safeToInt(safeToLong(value)));
-            case "week", "weeks" -> Period.ofWeeks(safeToInt(safeToLong(value)));
-            case "month", "months" -> Period.ofMonths(safeToInt(safeToLong(value)));
-            case "year", "years" -> Period.ofYears(safeToInt(safeToLong(value)));
+            case "day", "days", "d" -> Period.ofDays(safeToInt(safeToLong(value)));
+            case "week", "weeks", "w" -> Period.ofWeeks(safeToInt(safeToLong(value)));
+            case "month", "months", "mo" -> Period.ofMonths(safeToInt(safeToLong(value)));
+            case "quarter", "quarters", "q" -> Period.ofMonths(safeToInt(Math.multiplyExact(3L, safeToLong(value))));
+            case "year", "years", "yr", "y" -> Period.ofYears(safeToInt(safeToLong(value)));
 
             default -> throw new ParsingException(source, "Unexpected time interval qualifier: '{}'", qualifier);
         };
@@ -429,8 +431,8 @@ public class EsqlDataTypeConverter {
 
     public enum EsqlConverter implements Converter {
 
-        STRING_TO_DATE_PERIOD(x -> EsqlDataTypeConverter.parseTemporalAmount(x, EsqlDataTypes.DATE_PERIOD)),
-        STRING_TO_TIME_DURATION(x -> EsqlDataTypeConverter.parseTemporalAmount(x, EsqlDataTypes.TIME_DURATION)),
+        STRING_TO_DATE_PERIOD(x -> EsqlDataTypeConverter.parseTemporalAmount(x, DataTypes.DATE_PERIOD)),
+        STRING_TO_TIME_DURATION(x -> EsqlDataTypeConverter.parseTemporalAmount(x, DataTypes.TIME_DURATION)),
         STRING_TO_CHRONO_FIELD(EsqlDataTypeConverter::stringToChrono),
         STRING_TO_DATETIME(x -> EsqlDataTypeConverter.dateTimeToLong((String) x)),
         STRING_TO_IP(x -> EsqlDataTypeConverter.stringToIP((String) x)),

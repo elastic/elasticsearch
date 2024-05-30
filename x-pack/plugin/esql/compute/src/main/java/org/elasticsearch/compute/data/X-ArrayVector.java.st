@@ -12,7 +12,9 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BytesRefArray;
+import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 
 import java.io.IOException;
@@ -21,6 +23,8 @@ $else$
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.ReleasableIterator;
 
 import java.io.IOException;
 import java.util.stream.Collectors;
@@ -38,7 +42,9 @@ final class $Type$ArrayVector extends AbstractVector implements $Type$Vector {
 
     static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance($Type$ArrayVector.class)
         // TODO: remove these extra bytes once `asBlock` returns a block with a separate reference to the vector.
-        + RamUsageEstimator.shallowSizeOfInstance($Type$VectorBlock.class);
+        + RamUsageEstimator.shallowSizeOfInstance($Type$VectorBlock.class)
+        // TODO: remove this if/when we account for memory used by Pages
+        + Block.PAGE_MEM_OVERHEAD_PER_BLOCK;
 
 $if(BytesRef)$
     private final BytesRefArray values;
@@ -164,6 +170,11 @@ $endif$
             }
             return builder.build();
         }
+    }
+
+    @Override
+    public ReleasableIterator<$Type$Block> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
+        return new $Type$Lookup(asBlock(), positions, targetBlockSize);
     }
 
     public static long ramBytesEstimated($if(BytesRef)$BytesRefArray$else$$type$[]$endif$ values) {

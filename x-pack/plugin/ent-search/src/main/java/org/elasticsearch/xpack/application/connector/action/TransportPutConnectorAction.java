@@ -17,7 +17,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.application.connector.ConnectorIndexService;
 
-public class TransportPutConnectorAction extends HandledTransportAction<PutConnectorAction.Request, PutConnectorAction.Response> {
+public class TransportPutConnectorAction extends HandledTransportAction<PutConnectorAction.Request, ConnectorCreateActionResponse> {
 
     protected final ConnectorIndexService connectorIndexService;
 
@@ -34,7 +34,16 @@ public class TransportPutConnectorAction extends HandledTransportAction<PutConne
     }
 
     @Override
-    protected void doExecute(Task task, PutConnectorAction.Request request, ActionListener<PutConnectorAction.Response> listener) {
-        connectorIndexService.createConnectorWithDocId(request, listener.map(r -> new PutConnectorAction.Response(r.getResult())));
+    protected void doExecute(Task task, PutConnectorAction.Request request, ActionListener<ConnectorCreateActionResponse> listener) {
+        connectorIndexService.createConnector(
+            request.getConnectorId(),
+            request.getDescription(),
+            request.getIndexName(),
+            request.getIsNative(),
+            request.getLanguage(),
+            request.getName(),
+            request.getServiceType(),
+            listener
+        );
     }
 }

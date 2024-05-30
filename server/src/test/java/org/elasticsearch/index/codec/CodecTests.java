@@ -25,6 +25,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.similarity.SimilarityService;
@@ -115,7 +116,8 @@ public class CodecTests extends ESTestCase {
             mapperRegistry,
             () -> null,
             settings.getMode().idFieldMapperWithoutFieldData(),
-            ScriptCompiler.NONE
+            ScriptCompiler.NONE,
+            MapperMetrics.NOOP
         );
         return new CodecService(service, BigArrays.NON_RECYCLING_INSTANCE);
     }

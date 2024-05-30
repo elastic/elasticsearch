@@ -58,6 +58,10 @@ public class TextSimilarityInferenceResults extends NlpInferenceResults {
         return resultsField;
     }
 
+    public double score() {
+        return score;
+    }
+
     @Override
     public Double predictedValue() {
         return score;

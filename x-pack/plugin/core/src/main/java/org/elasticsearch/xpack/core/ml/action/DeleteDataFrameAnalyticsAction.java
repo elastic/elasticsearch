@@ -48,6 +48,7 @@ public class DeleteDataFrameAnalyticsAction extends ActionType<AcknowledgedRespo
         }
 
         public Request() {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
             ackTimeout(DEFAULT_TIMEOUT);
         }
 

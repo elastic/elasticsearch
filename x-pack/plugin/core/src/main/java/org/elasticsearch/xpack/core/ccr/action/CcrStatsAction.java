@@ -45,7 +45,9 @@ public class CcrStatsAction extends ActionType<CcrStatsAction.Response> {
             }
         }
 
-        public Request() {}
+        public Request(TimeValue masterNodeTimeout) {
+            super(masterNodeTimeout);
+        }
 
         @Override
         public ActionRequestValidationException validate() {

@@ -30,6 +30,20 @@ setup:
   - match: { service_type: super-connector }
 
 ---
+'Create Connector - Succeeds if body not provided':
+  - do:
+      connector.post: { }
+
+  - set:  { id: id }
+  - match: { id: $id }
+
+  - do:
+      connector.get:
+        connector_id: $id
+
+  - match: { id: $id }
+
+---
 'Create Connector - Default values are initialized correctly':
   - do:
       connector.post:

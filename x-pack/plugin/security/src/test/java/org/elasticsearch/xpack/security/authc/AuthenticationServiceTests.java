@@ -53,7 +53,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -417,11 +417,9 @@ public class AuthenticationServiceTests extends ESTestCase {
     }
 
     public void testTokenMissing() throws Exception {
-        final MockLogAppender mockAppender = new MockLogAppender();
-
-        try (var ignored = mockAppender.capturing(RealmsAuthenticator.class)) {
-            mockAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+        try (var mockLog = MockLog.capture(RealmsAuthenticator.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "unlicensed realms",
                     RealmsAuthenticator.class.getName(),
                     Level.WARN,
@@ -456,7 +454,7 @@ public class AuthenticationServiceTests extends ESTestCase {
                     verify(auditTrail).anonymousAccessDenied(reqId.get(), "_action", transportRequest);
                 }
                 verifyNoMoreInteractions(auditTrail);
-                mockAppender.assertAllExpectationsMatched();
+                mockLog.assertAllExpectationsMatched();
                 setCompletedToTrue(completed);
             });
 
@@ -2514,10 +2512,13 @@ public class AuthenticationServiceTests extends ESTestCase {
             true,
             true,
             null,
+            null,
+            null,
             concreteSecurityIndexName,
             indexStatus,
             IndexMetadata.State.OPEN,
-            "my_uuid"
+            "my_uuid",
+            Set.of()
         );
     }
 

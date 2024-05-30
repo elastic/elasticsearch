@@ -65,6 +65,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.action.admin.cluster.desirednodes;
     exports org.elasticsearch.action.admin.cluster.health;
     exports org.elasticsearch.action.admin.cluster.migration;
+    exports org.elasticsearch.action.admin.cluster.node.capabilities;
     exports org.elasticsearch.action.admin.cluster.node.hotthreads;
     exports org.elasticsearch.action.admin.cluster.node.info;
     exports org.elasticsearch.action.admin.cluster.node.reload;
@@ -391,6 +392,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.plugins.internal
         to
             org.elasticsearch.metering,
+            org.elasticsearch.stateless,
             org.elasticsearch.settings.secure,
             org.elasticsearch.serverless.constants,
             org.elasticsearch.serverless.apifiltering,

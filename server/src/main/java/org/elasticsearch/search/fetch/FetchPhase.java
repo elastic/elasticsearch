@@ -167,23 +167,35 @@ public final class FetchPhase {
                     leafSourceLoader,
                     leafIdLoader
                 );
-                sourceProvider.source = hit.source();
-                fieldLookupProvider.setPreloadedStoredFieldValues(hit.hit().getId(), hit.loadedFields());
-                for (FetchSubPhaseProcessor processor : processors) {
-                    processor.process(hit);
+                boolean success = false;
+                try {
+                    sourceProvider.source = hit.source();
+                    fieldLookupProvider.setPreloadedStoredFieldValues(hit.hit().getId(), hit.loadedFields());
+                    for (FetchSubPhaseProcessor processor : processors) {
+                        processor.process(hit);
+                    }
+                    success = true;
+                    return hit.hit();
+                } finally {
+                    if (success == false) {
+                        hit.hit().decRef();
+                    }
                 }
-                return hit.hit();
             }
         };
 
         SearchHit[] hits = docsIterator.iterate(context.shardTarget(), context.searcher().getIndexReader(), docIdsToLoad);
 
         if (context.isCancelled()) {
+            for (SearchHit hit : hits) {
+                // release all hits that would otherwise become owned and eventually released by SearchHits below
+                hit.decRef();
+            }
             throw new TaskCancelledException("cancelled");
         }
 
         TotalHits totalHits = context.getTotalHits();
-        return SearchHits.unpooled(hits, totalHits, context.getMaxScore());
+        return new SearchHits(hits, totalHits, context.getMaxScore());
     }
 
     List<FetchSubPhaseProcessor> getProcessors(SearchShardTarget target, FetchContext context, Profiler profiler) {
@@ -257,12 +269,12 @@ public final class FetchPhase {
 
         String id = idLoader.getId(subDocId);
         if (id == null) {
-            // TODO: can we use pooled buffers here as well?
-            SearchHit hit = SearchHit.unpooled(docId, null);
+            SearchHit hit = new SearchHit(docId);
+            // TODO: can we use real pooled buffers here as well?
             Source source = Source.lazy(lazyStoredSourceLoader(profiler, subReaderContext, subDocId));
             return new HitContext(hit, subReaderContext, subDocId, Map.of(), source);
         } else {
-            SearchHit hit = SearchHit.unpooled(docId, id);
+            SearchHit hit = new SearchHit(docId, id);
             Source source;
             if (requiresSource) {
                 Timer timer = profiler.startLoadingSource();
@@ -339,7 +351,7 @@ public final class FetchPhase {
         assert nestedIdentity != null;
         Source nestedSource = nestedIdentity.extractSource(rootSource);
 
-        SearchHit hit = SearchHit.unpooled(topDocId, rootId, nestedIdentity);
+        SearchHit hit = new SearchHit(topDocId, rootId, nestedIdentity);
         return new HitContext(hit, subReaderContext, nestedInfo.doc(), childFieldLoader.storedFields(), nestedSource);
     }
 

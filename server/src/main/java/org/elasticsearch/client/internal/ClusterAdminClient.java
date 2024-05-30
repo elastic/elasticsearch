@@ -21,6 +21,9 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;
+import org.elasticsearch.action.admin.cluster.node.capabilities.NodesCapabilitiesRequest;
+import org.elasticsearch.action.admin.cluster.node.capabilities.NodesCapabilitiesResponse;
+import org.elasticsearch.action.admin.cluster.node.capabilities.TransportNodesCapabilitiesAction;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequestBuilder;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
@@ -246,6 +249,14 @@ public class ClusterAdminClient implements ElasticsearchClient {
 
     public NodesStatsRequestBuilder prepareNodesStats(String... nodesIds) {
         return new NodesStatsRequestBuilder(this).setNodesIds(nodesIds);
+    }
+
+    public ActionFuture<NodesCapabilitiesResponse> nodesCapabilities(final NodesCapabilitiesRequest request) {
+        return execute(TransportNodesCapabilitiesAction.TYPE, request);
+    }
+
+    public void nodesCapabilities(final NodesCapabilitiesRequest request, final ActionListener<NodesCapabilitiesResponse> listener) {
+        execute(TransportNodesCapabilitiesAction.TYPE, request, listener);
     }
 
     public void nodesUsage(final NodesUsageRequest request, final ActionListener<NodesUsageResponse> listener) {

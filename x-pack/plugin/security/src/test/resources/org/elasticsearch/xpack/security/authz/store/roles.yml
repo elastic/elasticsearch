@@ -92,3 +92,9 @@ role_remote:
         - 'remote-*'
       privileges:
         - "monitor_enrich"
+
+role_with_description:
+  description:
+    "Allows all security-related operations!"
+  cluster:
+    - manage_security

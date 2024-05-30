@@ -88,7 +88,7 @@ import static org.mockito.Mockito.verify;
 public class TransformIndexerStateTests extends ESTestCase {
 
     private static final SearchResponse ONE_HIT_SEARCH_RESPONSE = new SearchResponse(
-        new SearchHits(new SearchHit[] { new SearchHit(1) }, new TotalHits(1L, TotalHits.Relation.EQUAL_TO), 1.0f),
+        SearchHits.unpooled(new SearchHit[] { SearchHit.unpooled(1) }, new TotalHits(1L, TotalHits.Relation.EQUAL_TO), 1.0f),
         // Simulate completely null aggs
         null,
         new Suggest(Collections.emptyList()),

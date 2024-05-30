@@ -15,14 +15,14 @@ import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Literal;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.elasticsearch.xpack.ql.util.NumericUtils;
 import org.elasticsearch.xpack.versionfield.Version;
 import org.hamcrest.Matcher;
 
@@ -43,8 +43,8 @@ import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.CARTESIAN;
-import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.GEO;
+import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
+import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -92,7 +92,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                 expected,
                 lhsSuppliers,
                 rhsSuppliers,
-                evaluatorToString,
+                (lhs, rhs) -> equalTo(evaluatorToString.apply(lhs, rhs)),
                 (lhs, rhs) -> warnings,
                 suppliers,
                 expectedType,
@@ -202,16 +202,18 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             (l, r) -> expected.apply(((Number) l).doubleValue(), ((Number) r).doubleValue()),
             lhsSuppliers,
             rhsSuppliers,
-            (lhsType, rhsType) -> name
-                + "["
-                + lhsName
-                + "="
-                + castToDoubleEvaluator("Attribute[channel=0]", lhsType)
-                + ", "
-                + rhsName
-                + "="
-                + castToDoubleEvaluator("Attribute[channel=1]", rhsType)
-                + "]",
+            (lhsType, rhsType) -> equalTo(
+                name
+                    + "["
+                    + lhsName
+                    + "="
+                    + castToDoubleEvaluator("Attribute[channel=0]", lhsType)
+                    + ", "
+                    + rhsName
+                    + "="
+                    + castToDoubleEvaluator("Attribute[channel=1]", rhsType)
+                    + "]"
+            ),
             (lhs, rhs) -> warnings,
             suppliers,
             DataTypes.DOUBLE,
@@ -224,7 +226,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         BinaryOperator<Object> expected,
         List<TypedDataSupplier> lhsSuppliers,
         List<TypedDataSupplier> rhsSuppliers,
-        BiFunction<DataType, DataType, String> evaluatorToString,
+        BiFunction<DataType, DataType, Matcher<String>> evaluatorToString,
         BiFunction<TypedData, TypedData, List<String>> warnings,
         List<TestCaseSupplier> suppliers,
         DataType expectedType,
@@ -243,7 +245,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
     public static TestCaseSupplier testCaseSupplier(
         TypedDataSupplier lhsSupplier,
         TypedDataSupplier rhsSupplier,
-        BiFunction<DataType, DataType, String> evaluatorToString,
+        BiFunction<DataType, DataType, Matcher<String>> evaluatorToString,
         DataType expectedType,
         BinaryOperator<Object> expectedValue
     ) {
@@ -253,7 +255,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
     private static TestCaseSupplier testCaseSupplier(
         TypedDataSupplier lhsSupplier,
         TypedDataSupplier rhsSupplier,
-        BiFunction<DataType, DataType, String> evaluatorToString,
+        BiFunction<DataType, DataType, Matcher<String>> evaluatorToString,
         DataType expectedType,
         BinaryOperator<Object> expectedValue,
         BiFunction<TypedData, TypedData, List<String>> warnings
@@ -366,7 +368,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                     (l, r) -> expectedTypeStuff.expected().apply((Number) l, (Number) r),
                     getSuppliersForNumericType(lhsType, expectedTypeStuff.min(), expectedTypeStuff.max(), allowRhsZero),
                     getSuppliersForNumericType(rhsType, expectedTypeStuff.min(), expectedTypeStuff.max(), allowRhsZero),
-                    evaluatorToString,
+                    (lhs, rhs) -> equalTo(evaluatorToString.apply(lhs, rhs)),
                     warnings,
                     suppliers,
                     DataTypes.BOOLEAN,
@@ -391,16 +393,18 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             for (DataType rhsType : numericTypes) {
                 DataType expected = widen(lhsType, rhsType);
                 NumericTypeTestConfig<Number> expectedTypeStuff = typeStuff.get(expected);
-                BiFunction<DataType, DataType, String> evaluatorToString = (lhs, rhs) -> expectedTypeStuff.evaluatorName()
-                    + "["
-                    + lhsName
-                    + "="
-                    + getCastEvaluator("Attribute[channel=0]", lhs, expected)
-                    + ", "
-                    + rhsName
-                    + "="
-                    + getCastEvaluator("Attribute[channel=1]", rhs, expected)
-                    + "]";
+                BiFunction<DataType, DataType, Matcher<String>> evaluatorToString = (lhs, rhs) -> equalTo(
+                    expectedTypeStuff.evaluatorName()
+                        + "["
+                        + lhsName
+                        + "="
+                        + getCastEvaluator("Attribute[channel=0]", lhs, expected)
+                        + ", "
+                        + rhsName
+                        + "="
+                        + getCastEvaluator("Attribute[channel=1]", rhs, expected)
+                        + "]"
+                );
                 casesCrossProduct(
                     (l, r) -> expectedTypeStuff.expected().apply((Number) l, (Number) r),
                     getSuppliersForNumericType(lhsType, expectedTypeStuff.min(), expectedTypeStuff.max(), true),
@@ -429,26 +433,22 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         boolean symmetric
     ) {
         return forBinaryNotCasting(
-            name,
-            lhsName,
-            rhsName,
             expected,
             expectedType,
             lhsSuppliers,
             rhsSuppliers,
+            equalTo(name + "[" + lhsName + "=Attribute[channel=0], " + rhsName + "=Attribute[channel=1]]"),
             (lhs, rhs) -> warnings,
             symmetric
         );
     }
 
     public static List<TestCaseSupplier> forBinaryNotCasting(
-        String name,
-        String lhsName,
-        String rhsName,
         BinaryOperator<Object> expected,
         DataType expectedType,
         List<TypedDataSupplier> lhsSuppliers,
         List<TypedDataSupplier> rhsSuppliers,
+        Matcher<String> evaluatorToString,
         BiFunction<TypedData, TypedData, List<String>> warnings,
         boolean symmetric
     ) {
@@ -457,7 +457,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             expected,
             lhsSuppliers,
             rhsSuppliers,
-            (lhsType, rhsType) -> name + "[" + lhsName + "=Attribute[channel=0], " + rhsName + "=Attribute[channel=1]]",
+            (lhsType, rhsType) -> evaluatorToString,
             warnings,
             suppliers,
             expectedType,
@@ -636,7 +636,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
     }
 
     /**
-     * Generate positive test cases for a unary function operating on an {@link EsqlDataTypes#GEO_POINT}.
+     * Generate positive test cases for a unary function operating on an {@link DataTypes#GEO_POINT}.
      */
     public static void forUnaryGeoPoint(
         List<TestCaseSupplier> suppliers,
@@ -649,7 +649,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
     }
 
     /**
-     * Generate positive test cases for a unary function operating on an {@link EsqlDataTypes#CARTESIAN_POINT}.
+     * Generate positive test cases for a unary function operating on an {@link DataTypes#CARTESIAN_POINT}.
      */
     public static void forUnaryCartesianPoint(
         List<TestCaseSupplier> suppliers,
@@ -662,7 +662,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
     }
 
     /**
-     * Generate positive test cases for a unary function operating on an {@link EsqlDataTypes#GEO_SHAPE}.
+     * Generate positive test cases for a unary function operating on an {@link DataTypes#GEO_SHAPE}.
      */
     public static void forUnaryGeoShape(
         List<TestCaseSupplier> suppliers,
@@ -675,7 +675,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
     }
 
     /**
-     * Generate positive test cases for a unary function operating on an {@link EsqlDataTypes#CARTESIAN_SHAPE}.
+     * Generate positive test cases for a unary function operating on an {@link DataTypes#CARTESIAN_SHAPE}.
      */
     public static void forUnaryCartesianShape(
         List<TestCaseSupplier> suppliers,
@@ -1006,7 +1006,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
 
     public static List<TypedDataSupplier> datePeriodCases() {
         return List.of(
-            new TypedDataSupplier("<zero date period>", () -> Period.ZERO, EsqlDataTypes.DATE_PERIOD),
+            new TypedDataSupplier("<zero date period>", () -> Period.ZERO, DataTypes.DATE_PERIOD, true),
             new TypedDataSupplier(
                 "<random date period>",
                 () -> Period.of(
@@ -1014,18 +1014,20 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                     ESTestCase.randomIntBetween(-13, 13),
                     ESTestCase.randomIntBetween(-32, 32)
                 ),
-                EsqlDataTypes.DATE_PERIOD
+                DataTypes.DATE_PERIOD,
+                true
             )
         );
     }
 
     public static List<TypedDataSupplier> timeDurationCases() {
         return List.of(
-            new TypedDataSupplier("<zero time duration>", () -> Duration.ZERO, EsqlDataTypes.TIME_DURATION),
+            new TypedDataSupplier("<zero time duration>", () -> Duration.ZERO, DataTypes.TIME_DURATION, true),
             new TypedDataSupplier(
                 "<up to 7 days duration>",
                 () -> Duration.ofMillis(ESTestCase.randomLongBetween(-604800000L, 604800000L)), // plus/minus 7 days
-                EsqlDataTypes.TIME_DURATION
+                DataTypes.TIME_DURATION,
+                true
             )
         );
     }
@@ -1048,7 +1050,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
 
     public static List<TypedDataSupplier> geoPointCases(Supplier<Boolean> hasAlt) {
         return List.of(
-            new TypedDataSupplier("<geo_point>", () -> GEO.asWkb(GeometryTestUtils.randomPoint(hasAlt.get())), EsqlDataTypes.GEO_POINT)
+            new TypedDataSupplier("<geo_point>", () -> GEO.asWkb(GeometryTestUtils.randomPoint(hasAlt.get())), DataTypes.GEO_POINT)
         );
     }
 
@@ -1057,7 +1059,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             new TypedDataSupplier(
                 "<cartesian_point>",
                 () -> CARTESIAN.asWkb(ShapeTestUtils.randomPoint(hasAlt.get())),
-                EsqlDataTypes.CARTESIAN_POINT
+                DataTypes.CARTESIAN_POINT
             )
         );
     }
@@ -1067,7 +1069,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             new TypedDataSupplier(
                 "<geo_shape>",
                 () -> GEO.asWkb(GeometryTestUtils.randomGeometryWithoutCircle(0, hasAlt.get())),
-                EsqlDataTypes.GEO_SHAPE
+                DataTypes.GEO_SHAPE
             )
         );
     }
@@ -1077,7 +1079,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             new TypedDataSupplier(
                 "<cartesian_shape>",
                 () -> CARTESIAN.asWkb(ShapeTestUtils.randomGeometry(hasAlt.get())),
-                EsqlDataTypes.CARTESIAN_SHAPE
+                DataTypes.CARTESIAN_SHAPE
             )
         );
     }
@@ -1237,7 +1239,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         private final String[] expectedWarnings;
 
         private final String expectedTypeError;
-        private final boolean allTypesAreRepresentable;
+        private final boolean canBuildEvaluator;
 
         private final Class<? extends Throwable> foldingExceptionClass;
         private final String foldingExceptionMessage;
@@ -1271,7 +1273,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             this.matcher = matcher;
             this.expectedWarnings = expectedWarnings;
             this.expectedTypeError = expectedTypeError;
-            this.allTypesAreRepresentable = data.stream().allMatch(d -> EsqlDataTypes.isRepresentable(d.type));
+            this.canBuildEvaluator = data.stream().allMatch(d -> d.forceLiteral || EsqlDataTypes.isRepresentable(d.type));
             this.foldingExceptionClass = foldingExceptionClass;
             this.foldingExceptionMessage = foldingExceptionMessage;
         }
@@ -1297,11 +1299,11 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         }
 
         public List<Object> getDataValues() {
-            return data.stream().map(t -> t.data()).collect(Collectors.toList());
+            return data.stream().filter(d -> d.forceLiteral == false).map(TypedData::data).collect(Collectors.toList());
         }
 
-        public boolean allTypesAreRepresentable() {
-            return allTypesAreRepresentable;
+        public boolean canBuildEvaluator() {
+            return canBuildEvaluator;
         }
 
         public Matcher<Object> getMatcher() {
@@ -1426,6 +1428,13 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
          */
         public TypedData forceLiteral() {
             return new TypedData(data, type, name, true);
+        }
+
+        /**
+         * Has this been forced to a {@link Literal}.
+         */
+        public boolean isForceLiteral() {
+            return forceLiteral;
         }
 
         /**

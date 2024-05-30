@@ -48,23 +48,28 @@ import java.util.function.Function;
  * This operator currently only supports shard level concurrency. A new concurrency mechanism should be introduced at the time serie level
  * in order to read tsdb indices in parallel.
  */
-public record TimeSeriesSortedSourceOperatorFactory(
-    int limit,
-    int maxPageSize,
-    int taskConcurrency,
-    TimeValue timeSeriesPeriod,
-    LuceneSliceQueue sliceQueue
-) implements LuceneOperator.Factory {
+public class TimeSeriesSortedSourceOperatorFactory extends LuceneOperator.Factory {
+
+    private final int maxPageSize;
+    private final TimeValue timeSeriesPeriod;
+
+    private TimeSeriesSortedSourceOperatorFactory(
+        List<? extends ShardContext> contexts,
+        Function<ShardContext, Query> queryFunction,
+        int taskConcurrency,
+        int maxPageSize,
+        TimeValue timeSeriesPeriod,
+        int limit
+    ) {
+        super(contexts, queryFunction, DataPartitioning.SHARD, taskConcurrency, limit, ScoreMode.COMPLETE_NO_SCORES);
+        this.maxPageSize = maxPageSize;
+        this.timeSeriesPeriod = timeSeriesPeriod;
+    }
 
     @Override
     public SourceOperator get(DriverContext driverContext) {
         var rounding = timeSeriesPeriod.equals(TimeValue.ZERO) == false ? Rounding.builder(timeSeriesPeriod).build() : null;
         return new Impl(driverContext.blockFactory(), sliceQueue, maxPageSize, limit, rounding);
-    }
-
-    @Override
-    public int taskConcurrency() {
-        return taskConcurrency;
     }
 
     @Override
@@ -80,10 +85,14 @@ public record TimeSeriesSortedSourceOperatorFactory(
         List<? extends ShardContext> searchContexts,
         Function<ShardContext, Query> queryFunction
     ) {
-        var weightFunction = LuceneOperator.weightFunction(queryFunction, ScoreMode.COMPLETE_NO_SCORES);
-        var sliceQueue = LuceneSliceQueue.create(searchContexts, weightFunction, DataPartitioning.SHARD, taskConcurrency);
-        taskConcurrency = Math.min(sliceQueue.totalSlices(), taskConcurrency);
-        return new TimeSeriesSortedSourceOperatorFactory(limit, maxPageSize, taskConcurrency, timeSeriesPeriod, sliceQueue);
+        return new TimeSeriesSortedSourceOperatorFactory(
+            searchContexts,
+            queryFunction,
+            taskConcurrency,
+            maxPageSize,
+            timeSeriesPeriod,
+            limit
+        );
     }
 
     static final class Impl extends SourceOperator {
@@ -292,10 +301,14 @@ public record TimeSeriesSortedSourceOperatorFactory(
                             queue.pop();
                             newTop = queue.size() > 0 ? queue.top() : null;
                         }
-                        if (newTop != null && newTop.timeSeriesHash.equals(currentTsid) == false) {
-                            newTop.reinitializeIfNeeded(Thread.currentThread());
-                            globalTsidOrd++;
-                            currentTsid = BytesRef.deepCopyOf(newTop.timeSeriesHash);
+                        if (newTop != null) {
+                            if (newTop != leaf) {
+                                newTop.reinitializeIfNeeded(Thread.currentThread());
+                            }
+                            if (newTop.timeSeriesHash.equals(currentTsid) == false) {
+                                globalTsidOrd++;
+                                currentTsid = BytesRef.deepCopyOf(newTop.timeSeriesHash);
+                            }
                         }
                     }
                 } else {

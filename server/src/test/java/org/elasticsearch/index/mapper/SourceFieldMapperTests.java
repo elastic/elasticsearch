@@ -13,6 +13,8 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
@@ -297,5 +299,45 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
             ).documentMapper().sourceMapper()
         );
         assertThat(e.getMessage(), containsString("Parameters [enabled,includes,excludes] are not allowed in source"));
+    }
+
+    public void testBypassCheckForNonDefaultParameterValuesInEarlierVersions() throws IOException {
+        Settings settings = Settings.builder().put(SourceFieldMapper.LOSSY_PARAMETERS_ALLOWED_SETTING_NAME, false).build();
+        {
+            var sourceFieldMapper = createMapperService(
+                IndexVersionUtils.getPreviousVersion(IndexVersions.SOURCE_MAPPER_LOSSY_PARAMS_CHECK),
+                settings,
+                () -> true,
+                topMapping(b -> b.startObject("_source").field("enabled", false).endObject())
+            ).documentMapper().sourceMapper();
+            assertThat(sourceFieldMapper, notNullValue());
+        }
+        {
+            var sourceFieldMapper = createMapperService(
+                IndexVersionUtils.getPreviousVersion(IndexVersions.SOURCE_MAPPER_LOSSY_PARAMS_CHECK),
+                settings,
+                () -> true,
+                topMapping(b -> b.startObject("_source").array("includes", "foo").endObject())
+            ).documentMapper().sourceMapper();
+            assertThat(sourceFieldMapper, notNullValue());
+        }
+        {
+            var sourceFieldMapper = createMapperService(
+                IndexVersionUtils.getPreviousVersion(IndexVersions.SOURCE_MAPPER_LOSSY_PARAMS_CHECK),
+                settings,
+                () -> true,
+                topMapping(b -> b.startObject("_source").array("excludes", "foo").endObject())
+            ).documentMapper().sourceMapper();
+            assertThat(sourceFieldMapper, notNullValue());
+        }
+        {
+            var sourceFieldMapper = createMapperService(
+                IndexVersionUtils.getPreviousVersion(IndexVersions.SOURCE_MAPPER_LOSSY_PARAMS_CHECK),
+                settings,
+                () -> true,
+                topMapping(b -> b.startObject("_source").field("mode", "disabled").endObject())
+            ).documentMapper().sourceMapper();
+            assertThat(sourceFieldMapper, notNullValue());
+        }
     }
 }

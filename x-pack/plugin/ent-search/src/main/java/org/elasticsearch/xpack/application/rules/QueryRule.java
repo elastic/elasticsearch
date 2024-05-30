@@ -55,11 +55,10 @@ public class QueryRule implements Writeable, ToXContentObject {
     private final QueryRuleType type;
     private final List<QueryRuleCriteria> criteria;
     private final Map<String, Object> actions;
-    private final int priority;
+    private final Integer priority;
 
     public static final int MIN_PRIORITY = 0;
     public static final int MAX_PRIORITY = 1000000;
-    public static final int DEFAULT_PRIORITY = MAX_PRIORITY + 1;
 
     public enum QueryRuleType {
         PINNED;
@@ -113,7 +112,7 @@ public class QueryRule implements Writeable, ToXContentObject {
             throw new IllegalArgumentException("Query rule actions cannot be empty");
         }
         this.actions = actions;
-        this.priority = priority != null ? priority : DEFAULT_PRIORITY;
+        this.priority = priority;
 
         validate();
     }
@@ -131,7 +130,7 @@ public class QueryRule implements Writeable, ToXContentObject {
         if (in.getTransportVersion().onOrAfter(TransportVersions.QUERY_RULE_CRUD_API_PUT)) {
             this.priority = in.readOptionalVInt();
         } else {
-            this.priority = DEFAULT_PRIORITY;
+            this.priority = null;
         }
 
         validate();
@@ -151,7 +150,7 @@ public class QueryRule implements Writeable, ToXContentObject {
             throw new IllegalArgumentException("Unsupported QueryRuleType: " + type);
         }
 
-        if (priority < MIN_PRIORITY || priority > DEFAULT_PRIORITY) {
+        if (priority != null && (priority < MIN_PRIORITY || priority > MAX_PRIORITY)) {
             throw new IllegalArgumentException("Priority was " + priority + ", must be between " + MIN_PRIORITY + " and " + MAX_PRIORITY);
         }
     }
@@ -204,7 +203,7 @@ public class QueryRule implements Writeable, ToXContentObject {
         PARSER.declareString(constructorArg(), TYPE_FIELD);
         PARSER.declareObjectArray(constructorArg(), (p, c) -> QueryRuleCriteria.fromXContent(p), CRITERIA_FIELD);
         PARSER.declareObject(constructorArg(), (p, c) -> p.map(), ACTIONS_FIELD);
-        PARSER.declareIntOrNull(optionalConstructorArg(), DEFAULT_PRIORITY, PRIORITY_FIELD);
+        PARSER.declareInt(optionalConstructorArg(), PRIORITY_FIELD);
     }
 
     /**
@@ -247,7 +246,7 @@ public class QueryRule implements Writeable, ToXContentObject {
             builder.xContentList(CRITERIA_FIELD.getPreferredName(), criteria);
             builder.field(ACTIONS_FIELD.getPreferredName());
             builder.map(actions);
-            if (priority != DEFAULT_PRIORITY) {
+            if (priority != null) {
                 builder.field(PRIORITY_FIELD.getPreferredName(), priority);
             }
         }
@@ -291,7 +290,7 @@ public class QueryRule implements Writeable, ToXContentObject {
         return actions;
     }
 
-    public int priority() {
+    public Integer priority() {
         return priority;
     }
 

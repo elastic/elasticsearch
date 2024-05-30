@@ -108,37 +108,43 @@ public class HttpClientTests extends ESTestCase {
 
     public void testGetBytes() throws Exception {
         HttpClient client = new HttpClient();
-        String response = bytesToString(client.getBytes(url("/hello/")));
+        String u = url("/hello/");
+        String response = bytesToString(client.getBytes(u));
         assertThat(response, equalTo("hello world"));
     }
 
-    public void testGetBytes404() throws Exception {
+    public void testGetBytes404() {
         HttpClient client = new HttpClient();
-        Exception e = expectThrows(ResourceNotFoundException.class, () -> client.getBytes(url("/404/")));
-        assertThat(e.getMessage(), equalTo(url("/404/") + " not found"));
+        String u = url("/404/");
+        Exception e = expectThrows(ResourceNotFoundException.class, () -> client.getBytes(u));
+        assertThat(e.getMessage(), equalTo(u + " not found"));
     }
 
     public void testRedirect() throws Exception {
         HttpClient client = new HttpClient();
-        String response = bytesToString(client.getBytes(url("/redirect/3/hello/")));
+        String u = url("/redirect/3/hello/");
+        String response = bytesToString(client.getBytes(u));
         assertThat(response, equalTo("hello world"));
     }
 
     public void testRelativeRedirect() throws Exception {
         HttpClient client = new HttpClient();
-        String response = bytesToString(client.getBytes(url("/redirect")));
+        String u = url("/redirect");
+        String response = bytesToString(client.getBytes(u));
         assertThat(response, equalTo("hello world"));
     }
 
-    public void testRedirectTo404() throws Exception {
+    public void testRedirectTo404() {
         HttpClient client = new HttpClient();
-        Exception e = expectThrows(ResourceNotFoundException.class, () -> client.getBytes(url("/redirect/5/404/")));
-        assertThat(e.getMessage(), equalTo(url("/redirect/5/404/") + " not found"));
+        String u = url("/redirect/5/404/");
+        Exception e = expectThrows(ResourceNotFoundException.class, () -> client.getBytes(u));
+        assertThat(e.getMessage(), equalTo(u + " not found"));
     }
 
-    public void testTooManyRedirects() throws Exception {
+    public void testTooManyRedirects() {
         HttpClient client = new HttpClient();
-        Exception e = expectThrows(IllegalStateException.class, () -> client.getBytes(url("/redirect/100/hello/")));
-        assertThat(e.getMessage(), equalTo("too many redirects connection to [" + url("/redirect/100/hello/") + "]"));
+        String u = url("/redirect/100/hello/");
+        Exception e = expectThrows(IllegalStateException.class, () -> client.getBytes(u));
+        assertThat(e.getMessage(), equalTo("too many redirects connection to [" + u + "]"));
     }
 }

@@ -47,7 +47,7 @@ public class FileSettingsRoleMappingsRestartIT extends SecurityIntegTestCase {
                           "roles": [ "kibana_user" ],
                           "rules": { "field": { "username": "*" } },
                           "metadata": {
-                             "uuid" : "b9a59ba9-6b92-4be3-bb8d-02bb270cb3a7",
+                             "uuid" : "b9a59ba9-6b92-4be2-bb8d-02bb270cb3a7",
                              "_foo": "something"
                           }
                        },
@@ -99,7 +99,7 @@ public class FileSettingsRoleMappingsRestartIT extends SecurityIntegTestCase {
                     new FieldExpression("username", List.of(new FieldExpression.FieldValue("*"))),
                     List.of("kibana_user"),
                     List.of(),
-                    Map.of("uuid", "b9a59ba9-6b92-4be3-bb8d-02bb270cb3a7", "_foo", "something"),
+                    Map.of("uuid", "b9a59ba9-6b92-4be2-bb8d-02bb270cb3a7", "_foo", "something"),
                     true
                 ),
                 new ExpressionRoleMapping(
@@ -129,7 +129,7 @@ public class FileSettingsRoleMappingsRestartIT extends SecurityIntegTestCase {
                     new FieldExpression("username", List.of(new FieldExpression.FieldValue("*"))),
                     List.of("kibana_user"),
                     List.of(),
-                    Map.of("uuid", "b9a59ba9-6b92-4be3-bb8d-02bb270cb3a7", "_foo", "something"),
+                    Map.of("uuid", "b9a59ba9-6b92-4be2-bb8d-02bb270cb3a7", "_foo", "something"),
                     true
                 ),
                 new ExpressionRoleMapping(

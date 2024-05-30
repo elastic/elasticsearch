@@ -14,10 +14,10 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
 import java.util.List;
 import java.util.Map;
@@ -45,8 +45,8 @@ public class ToLong extends AbstractConvertFunction {
         Map.entry(DOUBLE, ToLongFromDoubleEvaluator.Factory::new),
         Map.entry(UNSIGNED_LONG, ToLongFromUnsignedLongEvaluator.Factory::new),
         Map.entry(INTEGER, ToLongFromIntEvaluator.Factory::new), // CastIntToLongEvaluator would be a candidate, but not MV'd
-        Map.entry(EsqlDataTypes.COUNTER_LONG, (field, source) -> field),
-        Map.entry(EsqlDataTypes.COUNTER_INTEGER, ToLongFromIntEvaluator.Factory::new)
+        Map.entry(DataTypes.COUNTER_LONG, (field, source) -> field),
+        Map.entry(DataTypes.COUNTER_INTEGER, ToLongFromIntEvaluator.Factory::new)
     );
 
     @FunctionInfo(

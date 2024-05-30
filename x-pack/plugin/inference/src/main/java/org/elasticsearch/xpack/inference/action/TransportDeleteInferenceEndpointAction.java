@@ -152,7 +152,7 @@ public class TransportDeleteInferenceEndpointAction extends AcknowledgedTranspor
             if (modelIdsReferencedByPipelines.contains(inferenceEndpointId)) {
                 listener.onFailure(
                     new ElasticsearchStatusException(
-                        "Model "
+                        "Inference endpoint "
                             + inferenceEndpointId
                             + " is referenced by pipelines and cannot be deleted. "
                             + "Use `force` to delete it anyway, or use `dry_run` to list the pipelines that reference it.",

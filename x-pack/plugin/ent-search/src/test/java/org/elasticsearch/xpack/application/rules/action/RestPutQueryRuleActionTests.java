@@ -61,6 +61,6 @@ public class RestPutQueryRuleActionTests extends AbstractRestEnterpriseSearchAct
 
     @Override
     protected EnterpriseSearchBaseRestHandler getRestAction(XPackLicenseState licenseState) {
-        return new RestPutQueryRulesetAction(licenseState);
+        return new RestPutQueryRuleAction(licenseState);
     }
 }

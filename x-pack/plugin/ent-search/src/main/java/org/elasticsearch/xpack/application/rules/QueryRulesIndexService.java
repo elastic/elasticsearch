@@ -38,6 +38,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.application.rules.action.PutQueryRuleAction;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -268,7 +269,7 @@ public class QueryRulesIndexService {
      * @param queryRule
      * @param listener
      */
-    public void putQueryRule(String queryRulesetId, QueryRule queryRule, ActionListener<DocWriteResponse> listener) {
+    public void putQueryRule(String queryRulesetId, QueryRule queryRule, ActionListener<PutQueryRuleAction.Response> listener) {
         getQueryRuleset(queryRulesetId, new ActionListener<>() {
             @Override
             public void onResponse(QueryRuleset queryRuleset) {
@@ -276,13 +277,23 @@ public class QueryRulesIndexService {
                     .filter(rule -> rule.id().equals(queryRule.id()) == false)
                     .collect(Collectors.toList());
                 rules.add(queryRule);
-                putQueryRuleset(new QueryRuleset(queryRulesetId, rules), listener);
+                final boolean created = queryRuleset.rules().stream().noneMatch(rule -> rule.id().equals(queryRule.id()));
+
+                putQueryRuleset(new QueryRuleset(queryRulesetId, rules), listener.delegateFailureAndWrap((delegate, docWriteResponse) -> {
+                    DocWriteResponse.Result result = created ? DocWriteResponse.Result.CREATED : docWriteResponse.getResult();
+                    delegate.onResponse(new PutQueryRuleAction.Response(result));
+                }));
             }
 
             @Override
             public void onFailure(Exception e) {
                 if (e instanceof ResourceNotFoundException) {
-                    putQueryRuleset(new QueryRuleset(queryRulesetId, List.of(queryRule)), listener);
+                    putQueryRuleset(
+                        new QueryRuleset(queryRulesetId, List.of(queryRule)),
+                        listener.delegateFailureAndWrap((delegate, docWriteResponse) -> {
+                            delegate.onResponse(new PutQueryRuleAction.Response(DocWriteResponse.Result.CREATED));
+                        })
+                    );
                     return;
                 }
                 listener.onFailure(e);

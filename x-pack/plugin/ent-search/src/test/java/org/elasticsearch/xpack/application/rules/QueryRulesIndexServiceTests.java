@@ -182,14 +182,14 @@ public class QueryRulesIndexServiceTests extends ESSingleNodeTestCase {
                 QueryRuleType.PINNED,
                 List.of(new QueryRuleCriteria(EXACT, "query_string", List.of("foo"))),
                 Map.of("ids", List.of("id1", "id2")),
-                randomBoolean() ? randomIntBetween(0, 100) : null
+                EnterpriseSearchModuleTestUtils.randomQueryRulePriority()
             );
             final QueryRule myQueryRule2 = new QueryRule(
                 "my_rule2",
                 QueryRuleType.PINNED,
                 List.of(new QueryRuleCriteria(EXACT, "query_string", List.of("bar"))),
                 Map.of("ids", List.of("id3", "id4")),
-                randomBoolean() ? randomIntBetween(0, 100) : null
+                EnterpriseSearchModuleTestUtils.randomQueryRulePriority()
             );
             final QueryRuleset myQueryRuleset = new QueryRuleset("my_ruleset", List.of(myQueryRule1, myQueryRule2));
             DocWriteResponse resp = awaitPutQueryRuleset(myQueryRuleset);

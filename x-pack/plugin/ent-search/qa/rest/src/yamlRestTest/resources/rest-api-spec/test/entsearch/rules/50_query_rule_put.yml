@@ -16,6 +16,11 @@ teardown:
         ruleset_id: test-query-rule-recreating
         ignore: 404
 
+  - do:
+      query_ruleset.delete:
+        ruleset_id: forbidden-query-ruleset
+        ignore: 404
+
 ---
 'Create query rule with existing ruleset respecting priority order':
   # Start with 2 rules, one that specifies priority and one that does not (should go at the end)
@@ -93,7 +98,7 @@ teardown:
               - 'id1'
           priority: 2
 
-  - match: { result: 'updated' }
+  - match: { result: 'created' }
 
   - do:
       query_ruleset.get:
@@ -149,7 +154,7 @@ teardown:
             ids:
               - 'id2'
 
-  - match: { result: 'updated' }
+  - match: { result: 'created' }
 
   - do:
       query_ruleset.get:

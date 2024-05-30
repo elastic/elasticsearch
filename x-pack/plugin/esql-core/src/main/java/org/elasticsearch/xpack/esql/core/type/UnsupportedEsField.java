@@ -6,6 +6,11 @@
  */
 package org.elasticsearch.xpack.esql.core.type;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+
+import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 import java.util.TreeMap;
@@ -15,6 +20,11 @@ import java.util.TreeMap;
  * All the subfields (properties) of an unsupported type should also be unsupported.
  */
 public class UnsupportedEsField extends EsField {
+    static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        EsField.class,
+        "UnsupportedEsField",
+        UnsupportedEsField::new
+    );
 
     private final String originalType;
     private final String inherited; // for fields belonging to parents (or grandparents) that have an unsupported type
@@ -27,6 +37,23 @@ public class UnsupportedEsField extends EsField {
         super(name, DataTypes.UNSUPPORTED, properties, false);
         this.originalType = originalType;
         this.inherited = inherited;
+    }
+
+    public UnsupportedEsField(StreamInput in) throws IOException {
+        this(in.readString(), in.readString(), in.readOptionalString(), in.readMap(i -> i.readNamedWriteable(EsField.class)));
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(getName());
+        out.writeString(getOriginalType());
+        out.writeOptionalString(getInherited());
+        out.writeMap(getProperties(), StreamOutput::writeNamedWriteable);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return "UnsupportedEsField";
     }
 
     public String getOriginalType() {

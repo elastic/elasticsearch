@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.esql.core.querydsl.container.Sort;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 
@@ -29,11 +28,8 @@ import java.util.Map;
 import java.util.Objects;
 
 public class EsQueryExec extends LeafExec implements EstimatesRowSize {
-    public static final DataType DOC_DATA_TYPE = new DataType("_doc", Integer.BYTES * 3, false, false, false);
-    public static final DataType TSID_DATA_TYPE = new DataType("_tsid", Integer.MAX_VALUE, false, false, true);
-
-    static final EsField DOC_ID_FIELD = new EsField("_doc", DOC_DATA_TYPE, Map.of(), false);
-    static final EsField TSID_FIELD = new EsField("_tsid", TSID_DATA_TYPE, Map.of(), true);
+    static final EsField DOC_ID_FIELD = new EsField("_doc", DataTypes.DOC_DATA_TYPE, Map.of(), false);
+    static final EsField TSID_FIELD = new EsField("_tsid", DataTypes.TSID_DATA_TYPE, Map.of(), true);
     static final EsField TIMESTAMP_FIELD = new EsField("@timestamp", DataTypes.DATETIME, Map.of(), true);
     static final EsField INTERVAL_FIELD = new EsField("@timestamp_interval", DataTypes.DATETIME, Map.of(), true);
 

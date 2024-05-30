@@ -6,12 +6,23 @@
  */
 package org.elasticsearch.xpack.esql.core.type;
 
+import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+
+import java.io.IOException;
 import java.util.Map;
 
 /**
  * SQL-related information about an index field with date type
  */
 public class DateEsField extends EsField {
+    static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        EsField.class,
+        "DateEsField",
+        DateEsField::new
+    );
 
     public static DateEsField dateEsField(String name, Map<String, EsField> properties, boolean hasDocValues) {
         return new DateEsField(name, DataTypes.DATETIME, properties, hasDocValues);
@@ -19,5 +30,21 @@ public class DateEsField extends EsField {
 
     private DateEsField(String name, DataType dataType, Map<String, EsField> properties, boolean hasDocValues) {
         super(name, dataType, properties, hasDocValues);
+    }
+
+    private DateEsField(StreamInput in) throws IOException {
+        this(in.readString(), DataTypes.DATETIME, in.readMap(i -> i.readNamedWriteable(EsField.class)), in.readBoolean());
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(getName());
+        out.writeMap(getProperties(), StreamOutput::writeNamedWriteable);
+        out.writeBoolean(isAggregatable());
+    }
+
+    @Override
+    public String getWriteableName() {
+        return "DateEsField";
     }
 }

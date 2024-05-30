@@ -1070,7 +1070,7 @@ public final class PlanNamedTypes {
             Source.readFrom(in),
             in.readOptionalWithReader(PlanNamedTypes::readFieldAttribute),
             in.readString(),
-            in.dataTypeFromTypeName(in.readString()),
+            DataType.readFrom(in),
             in.readEsFieldNamed(),
             in.readOptionalString(),
             in.readEnum(Nullability.class),
@@ -1095,7 +1095,7 @@ public final class PlanNamedTypes {
         return new ReferenceAttribute(
             Source.readFrom(in),
             in.readString(),
-            in.dataTypeFromTypeName(in.readString()),
+            DataType.readFrom(in),
             in.readOptionalString(),
             in.readEnum(Nullability.class),
             NameId.readFrom(in),
@@ -1117,7 +1117,7 @@ public final class PlanNamedTypes {
         return new MetadataAttribute(
             Source.readFrom(in),
             in.readString(),
-            in.dataTypeFromTypeName(in.readString()),
+            DataType.readFrom(in),
             in.readOptionalString(),
             in.readEnum(Nullability.class),
             NameId.readFrom(in),
@@ -1141,7 +1141,7 @@ public final class PlanNamedTypes {
         return new UnsupportedAttribute(
             Source.readFrom(in),
             in.readString(),
-            readUnsupportedEsField(in),
+            new UnsupportedEsField(in),
             in.readOptionalString(),
             NameId.readFrom(in)
         );
@@ -1150,109 +1150,9 @@ public final class PlanNamedTypes {
     static void writeUnsupportedAttr(PlanStreamOutput out, UnsupportedAttribute unsupportedAttribute) throws IOException {
         Source.EMPTY.writeTo(out);
         out.writeString(unsupportedAttribute.name());
-        writeUnsupportedEsField(out, unsupportedAttribute.field());
+        unsupportedAttribute.field().writeTo(out);
         out.writeOptionalString(unsupportedAttribute.hasCustomMessage() ? unsupportedAttribute.unresolvedMessage() : null);
         unsupportedAttribute.id().writeTo(out);
-    }
-
-    // -- EsFields
-
-    static EsField readEsField(PlanStreamInput in) throws IOException {
-        return new EsField(
-            in.readString(),
-            in.dataTypeFromTypeName(in.readString()),
-            in.readImmutableMap(StreamInput::readString, readerFromPlanReader(PlanStreamInput::readEsFieldNamed)),
-            in.readBoolean(),
-            in.readBoolean()
-        );
-    }
-
-    static void writeEsField(PlanStreamOutput out, EsField esField) throws IOException {
-        out.writeString(esField.getName());
-        out.writeString(esField.getDataType().typeName());
-        out.writeMap(esField.getProperties(), (o, v) -> out.writeNamed(EsField.class, v));
-        out.writeBoolean(esField.isAggregatable());
-        out.writeBoolean(esField.isAlias());
-    }
-
-    static DateEsField readDateEsField(PlanStreamInput in) throws IOException {
-        return DateEsField.dateEsField(
-            in.readString(),
-            in.readImmutableMap(StreamInput::readString, readerFromPlanReader(PlanStreamInput::readEsFieldNamed)),
-            in.readBoolean()
-        );
-    }
-
-    static void writeDateEsField(PlanStreamOutput out, DateEsField dateEsField) throws IOException {
-        out.writeString(dateEsField.getName());
-        out.writeMap(dateEsField.getProperties(), (o, v) -> out.writeNamed(EsField.class, v));
-        out.writeBoolean(dateEsField.isAggregatable());
-    }
-
-    static InvalidMappedField readInvalidMappedField(PlanStreamInput in) throws IOException {
-        return new InvalidMappedField(
-            in.readString(),
-            in.readString(),
-            in.readImmutableMap(StreamInput::readString, readerFromPlanReader(PlanStreamInput::readEsFieldNamed))
-        );
-    }
-
-    static void writeInvalidMappedField(PlanStreamOutput out, InvalidMappedField field) throws IOException {
-        out.writeString(field.getName());
-        out.writeString(field.errorMessage());
-        out.writeMap(field.getProperties(), (o, v) -> out.writeNamed(EsField.class, v));
-    }
-
-    static KeywordEsField readKeywordEsField(PlanStreamInput in) throws IOException {
-        return new KeywordEsField(
-            in.readString(),
-            in.readImmutableMap(StreamInput::readString, readerFromPlanReader(PlanStreamInput::readEsFieldNamed)),
-            in.readBoolean(),
-            in.readInt(),
-            in.readBoolean(),
-            in.readBoolean()
-        );
-    }
-
-    static void writeKeywordEsField(PlanStreamOutput out, KeywordEsField keywordEsField) throws IOException {
-        out.writeString(keywordEsField.getName());
-        out.writeMap(keywordEsField.getProperties(), (o, v) -> out.writeNamed(EsField.class, v));
-        out.writeBoolean(keywordEsField.isAggregatable());
-        out.writeInt(keywordEsField.getPrecision());
-        out.writeBoolean(keywordEsField.getNormalized());
-        out.writeBoolean(keywordEsField.isAlias());
-    }
-
-    static TextEsField readTextEsField(PlanStreamInput in) throws IOException {
-        return new TextEsField(
-            in.readString(),
-            in.readImmutableMap(StreamInput::readString, readerFromPlanReader(PlanStreamInput::readEsFieldNamed)),
-            in.readBoolean(),
-            in.readBoolean()
-        );
-    }
-
-    static void writeTextEsField(PlanStreamOutput out, TextEsField textEsField) throws IOException {
-        out.writeString(textEsField.getName());
-        out.writeMap(textEsField.getProperties(), (o, v) -> out.writeNamed(EsField.class, v));
-        out.writeBoolean(textEsField.isAggregatable());
-        out.writeBoolean(textEsField.isAlias());
-    }
-
-    static UnsupportedEsField readUnsupportedEsField(PlanStreamInput in) throws IOException {
-        return new UnsupportedEsField(
-            in.readString(),
-            in.readString(),
-            in.readOptionalString(),
-            in.readImmutableMap(StreamInput::readString, readerFromPlanReader(PlanStreamInput::readEsFieldNamed))
-        );
-    }
-
-    static void writeUnsupportedEsField(PlanStreamOutput out, UnsupportedEsField unsupportedEsField) throws IOException {
-        out.writeString(unsupportedEsField.getName());
-        out.writeString(unsupportedEsField.getOriginalType());
-        out.writeOptionalString(unsupportedEsField.getInherited());
-        out.writeMap(unsupportedEsField.getProperties(), (o, v) -> out.writeNamed(EsField.class, v));
     }
 
     // -- BinaryComparison
@@ -1875,7 +1775,7 @@ public final class PlanNamedTypes {
     static Literal readLiteral(PlanStreamInput in) throws IOException {
         Source source = Source.readFrom(in);
         Object value = in.readGenericValue();
-        DataType dataType = in.dataTypeFromTypeName(in.readString());
+        DataType dataType = DataType.readFrom(in);
         return new Literal(source, mapToLiteralValue(in, dataType, value), dataType);
     }
 

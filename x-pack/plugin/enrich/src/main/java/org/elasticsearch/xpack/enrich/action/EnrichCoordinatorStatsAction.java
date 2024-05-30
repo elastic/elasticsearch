@@ -130,7 +130,14 @@ public class EnrichCoordinatorStatsAction extends ActionType<EnrichCoordinatorSt
             EnrichCache enrichCache,
             EnrichCoordinatorProxyAction.Coordinator coordinator
         ) {
-            super(NAME, clusterService, transportService, actionFilters, NodeRequest::new, threadPool.executor(ThreadPool.Names.MANAGEMENT));
+            super(
+                NAME,
+                clusterService,
+                transportService,
+                actionFilters,
+                NodeRequest::new,
+                threadPool.executor(ThreadPool.Names.MANAGEMENT)
+            );
             this.enrichCache = enrichCache;
             this.coordinator = coordinator;
         }

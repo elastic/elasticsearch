@@ -47,6 +47,11 @@ public class EsqlCapabilities {
      */
     private static final String LOOKUP = "lookup";
 
+    /**
+     * Cast string literals to temporal amount.
+     */
+    private static final String CAST_STRING_LITERAL_TO_TEMPORAL_AMOUNT = "cast_string_literal_to_temporal_amount";
+
     public static final Set<String> CAPABILITIES = capabilities();
 
     private static Set<String> capabilities() {
@@ -55,6 +60,7 @@ public class EsqlCapabilities {
         caps.add(FN_IP_PREFIX);
         caps.add(ST_CENTROID_AGG_OPTIMIZED);
         caps.add(METADATA_IGNORED_FIELD);
+        caps.add(CAST_STRING_LITERAL_TO_TEMPORAL_AMOUNT);
 
         if (Build.current().isSnapshot()) {
             caps.add(LOOKUP);

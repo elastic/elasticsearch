@@ -182,6 +182,7 @@ ver:version
 ;
 
 convertToDatePeriod
+required_capability: cast_string_literal_to_temporal_amount
 row x = "2024-01-01"::datetime | eval y = x + "3 days"::date_period;
 
 x:datetime |y:datetime
@@ -189,6 +190,7 @@ x:datetime |y:datetime
 ;
 
 convertToTimeDuration
+required_capability: cast_string_literal_to_temporal_amount
 row x = "2024-01-01"::datetime | eval y = x + "3 hours"::time_duration;
 
 x:datetime |y:datetime

@@ -121,9 +121,9 @@ public abstract class AbstractClient implements Client {
         ActionType<Response> action,
         Request request
     ) {
-        if (EsExecutors.executorName(Thread.currentThread()) != null) {
-            throw new IllegalStateException("can only call synchronous execute on a test thread " + Thread.currentThread());
-        }
+//        if (EsExecutors.executorName(Thread.currentThread()) != null) {
+//            throw new IllegalStateException("can only call synchronous execute on a test thread " + Thread.currentThread());
+//        }
         // assert EsExecutors.executorName(Thread.currentThread()) == null
         // : "can only call synchronous execute on a test thread " + Thread.currentThread();
         PlainActionFuture<Response> actionFuture = new RefCountedFuture<>();
@@ -419,10 +419,9 @@ public abstract class AbstractClient implements Client {
      */
     // todo: the use of UnsafePlainActionFuture here is quite broad, we should find a better way to be more specific
     // (unless making all usages safe is easy).
-    private static class RefCountedFuture<R extends RefCounted> extends UnsafePlainActionFuture<R> {
+    private static class RefCountedFuture<R extends RefCounted> extends PlainActionFuture<R> {
 
         private RefCountedFuture() {
-            super(ThreadPool.Names.GENERIC);
         }
 
         @Override

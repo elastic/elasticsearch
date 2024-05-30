@@ -13,7 +13,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.index.query.QueryBuilders.prefixQuery;
 
-public class PrefixQuery extends LeafQuery {
+public class PrefixQuery extends Query {
 
     private final String field, query;
     private final boolean caseInsensitive;

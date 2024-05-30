@@ -34,6 +34,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xpack.application.connector.ConnectorTemplateRegistry.ACCESS_CONTROL_INDEX_PREFIX;
 
 /**
  * Represents a Connector in the Elasticsearch ecosystem. Connectors are used for integrating
@@ -268,6 +269,10 @@ public class Connector implements NamedWriteable, ToXContentObject {
                 .build();
         }
     );
+
+    public String getAccessControlIndexName() {
+        return ACCESS_CONTROL_INDEX_PREFIX + this.indexName;
+    }
 
     static {
         PARSER.declareStringOrNull(optionalConstructorArg(), API_KEY_ID_FIELD);

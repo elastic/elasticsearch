@@ -35,11 +35,11 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
-import static org.elasticsearch.xpack.inference.external.action.openai.OpenAiChatCompletionActionTests.buildExpectedChatCompletionResultMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.external.http.retry.RetrySettingsTests.buildSettingsWithRetryFields;
 import static org.elasticsearch.xpack.inference.external.request.openai.OpenAiUtils.ORGANIZATION_HEADER;
+import static org.elasticsearch.xpack.inference.results.ChatCompletionResultsTests.buildExpectationCompletion;
 import static org.elasticsearch.xpack.inference.results.TextEmbeddingResultsTests.buildExpectationFloat;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionModelTests.createChatCompletionModel;
@@ -333,7 +333,7 @@ public class OpenAiActionCreatorTests extends ESTestCase {
 
             var result = listener.actionGet(TIMEOUT);
 
-            assertThat(result.asMap(), is(buildExpectedChatCompletionResultMap(List.of("Hello there, how may I assist you today?"))));
+            assertThat(result.asMap(), is(buildExpectationCompletion(List.of("Hello there, how may I assist you today?"))));
             assertThat(webServer.requests(), hasSize(1));
 
             var request = webServer.requests().get(0);
@@ -396,7 +396,7 @@ public class OpenAiActionCreatorTests extends ESTestCase {
 
             var result = listener.actionGet(TIMEOUT);
 
-            assertThat(result.asMap(), is(buildExpectedChatCompletionResultMap(List.of("Hello there, how may I assist you today?"))));
+            assertThat(result.asMap(), is(buildExpectationCompletion(List.of("Hello there, how may I assist you today?"))));
             assertThat(webServer.requests(), hasSize(1));
 
             var request = webServer.requests().get(0);
@@ -458,7 +458,7 @@ public class OpenAiActionCreatorTests extends ESTestCase {
 
             var result = listener.actionGet(TIMEOUT);
 
-            assertThat(result.asMap(), is(buildExpectedChatCompletionResultMap(List.of("Hello there, how may I assist you today?"))));
+            assertThat(result.asMap(), is(buildExpectationCompletion(List.of("Hello there, how may I assist you today?"))));
             assertThat(webServer.requests(), hasSize(1));
 
             var request = webServer.requests().get(0);

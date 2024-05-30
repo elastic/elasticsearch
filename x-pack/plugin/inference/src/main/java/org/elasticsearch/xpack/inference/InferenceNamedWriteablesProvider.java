@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInt
 import org.elasticsearch.xpack.inference.services.elasticsearch.MultilingualE5SmallInternalServiceSettings;
 import org.elasticsearch.xpack.inference.services.elser.ElserInternalServiceSettings;
 import org.elasticsearch.xpack.inference.services.elser.ElserMlNodeTaskSettings;
+import org.elasticsearch.xpack.inference.services.googleaistudio.completion.GoogleAiStudioCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceServiceSettings;
 import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserSecretSettings;
 import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserServiceSettings;
@@ -107,6 +108,7 @@ public class InferenceNamedWriteablesProvider {
         addCohereNamedWriteables(namedWriteables);
         addAzureOpenAiNamedWriteables(namedWriteables);
         addAzureAiStudioNamedWriteables(namedWriteables);
+        addGoogleAiStudioNamedWritables(namedWriteables);
         addMistralNamedWriteables(namedWriteables);
 
         return namedWriteables;
@@ -268,6 +270,16 @@ public class InferenceNamedWriteablesProvider {
         );
     }
 
+    private static void addGoogleAiStudioNamedWritables(List<NamedWriteableRegistry.Entry> namedWriteables) {
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                ServiceSettings.class,
+                GoogleAiStudioCompletionServiceSettings.NAME,
+                GoogleAiStudioCompletionServiceSettings::new
+            )
+        );
+    }
+
     private static void addInternalElserNamedWriteables(List<NamedWriteableRegistry.Entry> namedWriteables) {
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(ServiceSettings.class, ElserInternalServiceSettings.NAME, ElserInternalServiceSettings::new)
@@ -332,4 +344,5 @@ public class InferenceNamedWriteablesProvider {
             new NamedWriteableRegistry.Entry(InferenceServiceResults.class, RankedDocsResults.NAME, RankedDocsResults::new)
         );
     }
+
 }

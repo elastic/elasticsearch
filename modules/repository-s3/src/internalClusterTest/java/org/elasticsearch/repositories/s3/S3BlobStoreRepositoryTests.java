@@ -627,6 +627,8 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
                 trackRequest("HeadObject");
                 metricsCount.computeIfAbsent(new S3BlobStore.StatsKey(S3BlobStore.Operation.HEAD_OBJECT, purpose), k -> new AtomicLong())
                     .incrementAndGet();
+            } else {
+                logger.info("--> rawRequest not tracked [{}] with parsed purpose [{}]", request, purpose.getKey());
             }
         }
 

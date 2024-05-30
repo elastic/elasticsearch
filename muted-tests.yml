@@ -35,6 +35,26 @@ tests:
 - class: "org.elasticsearch.upgrades.MlTrainedModelsUpgradeIT"
   issue: "https://github.com/elastic/elasticsearch/issues/108993"
   method: "testTrainedModelInference"
+- class: "org.elasticsearch.datastreams.DataStreamsClientYamlTestSuiteIT"
+  issue: "https://github.com/elastic/elasticsearch/issues/109154"
+  method: "test {p0=data_stream/200_rollover_failure_store/Lazily roll over a data\
+    \ stream's failure store after an ingest failure}"
+- class: "org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT"
+  issue: "https://github.com/elastic/elasticsearch/issues/109188"
+  method: "test {yaml=search/180_locale_dependent_mapping/Test Index and Search locale\
+    \ dependent mappings / dates}"
+- class: "org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT"
+  issue: "https://github.com/elastic/elasticsearch/issues/109189"
+  method: "test {p0=esql/70_locale/Date format with Italian locale}"
+- class: "org.elasticsearch.upgrades.SearchStatesIT"
+  issue: "https://github.com/elastic/elasticsearch/issues/109190"
+  method: "testBWCSearchStates"
+- class: "org.elasticsearch.xpack.esql.CsvTests"
+  issue: "https://github.com/elastic/elasticsearch/issues/109198"
+  method: "test {ip.IpPrefixLengthFromColumn}"
+- class: "org.elasticsearch.xpack.test.rest.XPackRestIT"
+  issue: "https://github.com/elastic/elasticsearch/issues/109200"
+  method: "test {p0=esql/70_locale/Date format with Italian locale}"
 # Examples:
 #
 #  Mute a single test case in a YAML test suite:

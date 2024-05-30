@@ -127,7 +127,7 @@ public class RepositoryIntegrityHealthIndicatorService implements HealthIndicato
             repositoryHealthAnalyzer.getSymptom(),
             repositoryHealthAnalyzer.getDetails(verbose),
             repositoryHealthAnalyzer.getImpacts(),
-            repositoryHealthAnalyzer.getDiagnoses(maxAffectedResourcesCount)
+            repositoryHealthAnalyzer.getDiagnoses(verbose, maxAffectedResourcesCount)
         );
     }
 
@@ -243,7 +243,10 @@ public class RepositoryIntegrityHealthIndicatorService implements HealthIndicato
             return IMPACTS;
         }
 
-        public List<Diagnosis> getDiagnoses(int maxAffectedResourcesCount) {
+        public List<Diagnosis> getDiagnoses(boolean verbose, int maxAffectedResourcesCount) {
+            if (verbose == false) {
+                return List.of();
+            }
             var diagnoses = new ArrayList<Diagnosis>();
             if (corruptedRepositories.isEmpty() == false) {
                 diagnoses.add(
@@ -253,10 +256,10 @@ public class RepositoryIntegrityHealthIndicatorService implements HealthIndicato
                     )
                 );
             }
-            if (unknownRepositories.size() > 0) {
+            if (unknownRepositories.isEmpty() == false) {
                 diagnoses.add(createDiagnosis(UNKNOWN_DEFINITION, unknownRepositories, nodesWithUnknownRepos, maxAffectedResourcesCount));
             }
-            if (invalidRepositories.size() > 0) {
+            if (invalidRepositories.isEmpty() == false) {
                 diagnoses.add(createDiagnosis(INVALID_DEFINITION, invalidRepositories, nodesWithInvalidRepos, maxAffectedResourcesCount));
             }
             return diagnoses;

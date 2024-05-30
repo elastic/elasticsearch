@@ -16,7 +16,6 @@ import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.esql.version.EsqlVersion;
 
 import java.io.IOException;
 import java.util.List;
@@ -51,7 +50,6 @@ public class RestEsqlQueryAction extends BaseRestHandler {
             esqlRequest = RequestXContent.parseSync(parser);
         }
 
-        defaultVersionForOldClients(esqlRequest, request);
         LOGGER.debug("Beginning execution of ESQL query.\nQuery string: [{}]", esqlRequest.query());
 
         return channel -> {
@@ -67,42 +65,5 @@ public class RestEsqlQueryAction extends BaseRestHandler {
     @Override
     protected Set<String> responseParams() {
         return Set.of(URL_PARAM_DELIMITER, EsqlQueryResponse.DROP_NULL_COLUMNS_OPTION);
-    }
-
-    static final String PRODUCT_ORIGIN = "x-elastic-product-origin";
-    static final String CLIENT_META = "x-elastic-client-meta";
-
-    /**
-     * Default the {@link EsqlQueryRequest#esqlVersion()} to the oldest version
-     * if we can detect that the request comes from an older version of the
-     * official client or an older version of kibana. These versions supported
-     * ESQL but ESQL was not GA, so, <strong>technically</strong> we can break
-     * them. But it's not hugely complicated to make them work smoothly on the
-     * upgrade that starts to require the {@code version} field. This does
-     * just that.
-     */
-    static void defaultVersionForOldClients(EsqlQueryRequest esqlRequest, RestRequest restRequest) {
-        if (esqlRequest.esqlVersion() != null) {
-            return;
-        }
-        String clientMeta = restRequest.header(CLIENT_META);
-        if (clientMeta == null) {
-            return;
-        }
-        String product = restRequest.header(PRODUCT_ORIGIN);
-        if ("kibana".equals(product)) {
-            /*
-             * Kibana 8.11 to 8.13 used the 8.9 version of the javascript client.
-             * Kibana 8.14, the version we *want* to send the versions is on the
-             * 8.13 version of the javascript client.
-             */
-            if (clientMeta.contains("es=8.9")) {
-                esqlRequest.esqlVersion(EsqlVersion.ROCKET.versionStringWithoutEmoji());
-            }
-            return;
-        }
-        if (clientMeta.contains("es=8.13") || clientMeta.contains("es=8.12") || clientMeta.contains("es=8.11")) {
-            esqlRequest.esqlVersion(EsqlVersion.ROCKET.versionStringWithoutEmoji());
-        }
     }
 }

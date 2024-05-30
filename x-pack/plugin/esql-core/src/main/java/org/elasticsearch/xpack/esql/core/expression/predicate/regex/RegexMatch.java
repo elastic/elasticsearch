@@ -12,17 +12,14 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.esql.core.expression.gen.processor.Processor;
-import org.elasticsearch.xpack.esql.core.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DataTypes;
 
 import java.util.Objects;
 
-import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isStringAndExact;
-import static org.elasticsearch.xpack.esql.core.expression.gen.script.ParamsBuilder.paramsBuilder;
 
 public abstract class RegexMatch<T extends StringPattern> extends UnaryScalarFunction {
 
@@ -79,24 +76,6 @@ public abstract class RegexMatch<T extends StringPattern> extends UnaryScalarFun
     @Override
     protected Processor makeProcessor() {
         return new RegexProcessor(pattern().asJavaRegex());
-    }
-
-    @Override
-    public ScriptTemplate asScript() {
-        ScriptTemplate fieldAsScript = asScript(field());
-        // keep backwards compatibility with previous 7.x versions
-        if (caseInsensitive == false) {
-            return new ScriptTemplate(
-                formatTemplate(format("{ql}.", "regex({},{})", fieldAsScript.template())),
-                paramsBuilder().script(fieldAsScript.params()).variable(pattern.asJavaRegex()).build(),
-                dataType()
-            );
-        }
-        return new ScriptTemplate(
-            formatTemplate(format("{ql}.", "regex({},{},{})", fieldAsScript.template())),
-            paramsBuilder().script(fieldAsScript.params()).variable(pattern.asJavaRegex()).variable(caseInsensitive).build(),
-            dataType()
-        );
     }
 
     @Override

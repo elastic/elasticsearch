@@ -8,8 +8,6 @@
 package org.elasticsearch.xpack.esql.core.expression.function.scalar;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.gen.pipeline.Pipe;
-import org.elasticsearch.xpack.esql.core.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 import java.util.List;
@@ -46,13 +44,4 @@ public abstract class BaseSurrogateFunction extends ScalarFunction implements Su
         return substitute().fold();
     }
 
-    @Override
-    protected Pipe makePipe() {
-        return substitute().asPipe();
-    }
-
-    @Override
-    public ScriptTemplate asScript() {
-        return substitute().asScript();
-    }
 }

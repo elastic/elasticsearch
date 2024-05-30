@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.dissect.DissectParser;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
@@ -100,7 +101,6 @@ import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.RowExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -234,7 +234,7 @@ public class PlanNamedTypesTests extends ESTestCase {
         var in = planStreamInput(bso);
         var deser = PlanNamedTypes.readUnsupportedAttr(in);
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(orig, unused -> deser);
-        assertThat(deser.id(), equalTo(in.nameIdFromLongValue(Long.parseLong(orig.id().toString()))));
+        assertThat(deser.id(), equalTo(in.mapNameId(Long.parseLong(orig.id().toString()))));
     }
 
     public void testUnsupportedAttribute() {
@@ -259,7 +259,7 @@ public class PlanNamedTypesTests extends ESTestCase {
         var in = planStreamInput(bso);
         var deser = PlanNamedTypes.readFieldAttribute(in);
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(orig, unused -> deser);
-        assertThat(deser.id(), equalTo(in.nameIdFromLongValue(Long.parseLong(orig.id().toString()))));
+        assertThat(deser.id(), equalTo(in.mapNameId(Long.parseLong(orig.id().toString()))));
     }
 
     public void testFieldAttribute() {
@@ -413,7 +413,7 @@ public class PlanNamedTypesTests extends ESTestCase {
         var in = planStreamInput(bso);
         var deser = PlanNamedTypes.readAlias(in);
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(orig, unused -> deser);
-        assertThat(deser.id(), equalTo(in.nameIdFromLongValue(Long.parseLong(orig.id().toString()))));
+        assertThat(deser.id(), equalTo(in.mapNameId(Long.parseLong(orig.id().toString()))));
     }
 
     public void testLiteralSimple() throws IOException {
@@ -463,7 +463,13 @@ public class PlanNamedTypesTests extends ESTestCase {
     }
 
     public void testEsRelation() throws IOException {
-        var orig = new EsRelation(Source.EMPTY, randomEsIndex(), List.of(randomFieldAttribute()), randomBoolean());
+        var orig = new EsRelation(
+            Source.EMPTY,
+            randomEsIndex(),
+            List.of(randomFieldAttribute()),
+            randomFrom(IndexMode.values()),
+            randomBoolean()
+        );
         BytesStreamOutput bso = new BytesStreamOutput();
         PlanStreamOutput out = new PlanStreamOutput(bso, planNameRegistry, null);
         PlanNamedTypes.writeEsRelation(out, orig);
@@ -474,7 +480,7 @@ public class PlanNamedTypesTests extends ESTestCase {
     public void testEsqlProject() throws IOException {
         var orig = new EsqlProject(
             Source.EMPTY,
-            new EsRelation(Source.EMPTY, randomEsIndex(), List.of(randomFieldAttribute()), randomBoolean()),
+            new EsRelation(Source.EMPTY, randomEsIndex(), List.of(randomFieldAttribute()), randomFrom(IndexMode.values()), randomBoolean()),
             List.of(randomFieldAttribute())
         );
         BytesStreamOutput bso = new BytesStreamOutput();
@@ -485,7 +491,13 @@ public class PlanNamedTypesTests extends ESTestCase {
     }
 
     public void testMvExpand() throws IOException {
-        var esRelation = new EsRelation(Source.EMPTY, randomEsIndex(), List.of(randomFieldAttribute()), randomBoolean());
+        var esRelation = new EsRelation(
+            Source.EMPTY,
+            randomEsIndex(),
+            List.of(randomFieldAttribute()),
+            randomFrom(IndexMode.values()),
+            randomBoolean()
+        );
         var orig = new MvExpand(Source.EMPTY, esRelation, randomFieldAttribute(), randomFieldAttribute());
         BytesStreamOutput bso = new BytesStreamOutput();
         PlanStreamOutput out = new PlanStreamOutput(bso, planNameRegistry, null);
@@ -677,7 +689,7 @@ public class PlanNamedTypesTests extends ESTestCase {
         return Map.copyOf(map);
     }
 
-    static List<DataType> DATA_TYPES = EsqlDataTypes.types().stream().toList();
+    static List<DataType> DATA_TYPES = DataTypes.types().stream().toList();
 
     static DataType randomDataType() {
         return DATA_TYPES.get(randomIntBetween(0, DATA_TYPES.size() - 1));

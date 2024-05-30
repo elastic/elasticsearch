@@ -115,3 +115,13 @@ NOTE: If you cancelled the reindexing process, you run the query only a part of
 the data which affects the quality of your results.
 
 include::{es-ref-dir}/tab-widgets/inference-api/infer-api-search-widget.asciidoc[]
+
+
+[discrete]
+[[infer-interactive-tutorials]]
+==== Interactive tutorials
+
+You can also find tutorials in an interactive Colab notebook format using the
+{es} Python client:
+* https://colab.research.google.com/github/elastic/elasticsearch-labs/blob/main/notebooks/integrations/cohere/inference-cohere.ipynb[Cohere {infer} tutorial notebook]
+* https://colab.research.google.com/github/elastic/elasticsearch-labs/blob/main/notebooks/search/07-inference.ipynb[OpenAI {infer} tutorial notebook]

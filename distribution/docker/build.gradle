@@ -72,8 +72,6 @@ if (useDra == false) {
   }
 }
 
-testFixtures.useFixture()
-
 configurations {
   aarch64DockerSource {
     attributes {

@@ -7,11 +7,11 @@
 
 package org.elasticsearch.xpack.esql.core.planner;
 
+import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
-import org.elasticsearch.xpack.esql.core.querydsl.query.ScriptQuery;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.util.function.Supplier;
@@ -27,9 +27,9 @@ public interface TranslatorHandler {
 
     default Query wrapFunctionQuery(ScalarFunction sf, Expression field, Supplier<Query> querySupplier) {
         if (field instanceof FieldAttribute) {
-            return ExpressionTranslator.wrapIfNested(querySupplier.get(), field);
+            return querySupplier.get();
         }
-        return new ScriptQuery(sf.source(), sf.asScript());
+        throw new QlIllegalArgumentException("Cannot translate expression:[" + sf.sourceText() + "]");
     }
 
     String nameOf(Expression e);

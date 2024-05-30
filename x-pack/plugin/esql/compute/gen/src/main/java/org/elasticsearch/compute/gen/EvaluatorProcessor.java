@@ -80,6 +80,7 @@ public class EvaluatorProcessor implements Processor {
                                 env.getTypeUtils(),
                                 (ExecutableElement) evaluatorMethod,
                                 evaluatorAnn.extraName(),
+                                nullableReturn(evaluatorMethod),
                                 warnExceptions(evaluatorMethod)
                             ).sourceFile(),
                             env
@@ -135,8 +136,27 @@ public class EvaluatorProcessor implements Processor {
         return true;
     }
 
+    private static boolean nullableReturn(Element evaluatorMethod) {
+        var nullableReturnValue = (Boolean) getEvaluatorValue(evaluatorMethod, "nullableReturn");
+
+        return nullableReturnValue != null && nullableReturnValue;
+    }
+
     private static List<TypeMirror> warnExceptions(Element evaluatorMethod) {
+        var warnExceptionsValue = (List<?>) getEvaluatorValue(evaluatorMethod, "warnExceptions");
+
         List<TypeMirror> result = new ArrayList<>();
+
+        if (warnExceptionsValue != null) {
+            for (var v : warnExceptionsValue) {
+                result.add((TypeMirror) ((AnnotationValue) v).getValue());
+            }
+        }
+
+        return result;
+    }
+
+    private static Object getEvaluatorValue(Element evaluatorMethod, String key) {
         for (var mirror : evaluatorMethod.getAnnotationMirrors()) {
             String annotationType = mirror.getAnnotationType().toString();
             if (annotationType.equals(Evaluator.class.getName())
@@ -144,15 +164,14 @@ public class EvaluatorProcessor implements Processor {
                 || annotationType.equals(ConvertEvaluator.class.getName())) {
 
                 for (var e : mirror.getElementValues().entrySet()) {
-                    if (false == e.getKey().getSimpleName().toString().equals("warnExceptions")) {
+                    if (false == e.getKey().getSimpleName().toString().equals(key)) {
                         continue;
                     }
-                    for (var v : (List<?>) e.getValue().getValue()) {
-                        result.add((TypeMirror) ((AnnotationValue) v).getValue());
-                    }
+
+                    return e.getValue().getValue();
                 }
             }
         }
-        return result;
+        return null;
     }
 }

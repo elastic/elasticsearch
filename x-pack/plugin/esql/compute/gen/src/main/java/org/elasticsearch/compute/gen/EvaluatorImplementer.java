@@ -65,10 +65,11 @@ public class EvaluatorImplementer {
         javax.lang.model.util.Types types,
         ExecutableElement processFunction,
         String extraName,
+        boolean nullableReturn,
         List<TypeMirror> warnExceptions
     ) {
         this.declarationType = (TypeElement) processFunction.getEnclosingElement();
-        this.processFunction = new ProcessFunction(elements, types, processFunction, warnExceptions);
+        this.processFunction = new ProcessFunction(elements, types, processFunction, nullableReturn, warnExceptions);
 
         this.implementation = ClassName.get(
             elements.getPackageOf(declarationType).toString(),
@@ -224,18 +225,30 @@ public class EvaluatorImplementer {
                     a.buildInvocation(pattern, args, blockStyle);
                 });
                 pattern.append(")");
-                String builtPattern;
-                if (processFunction.builderArg == null) {
-                    builtPattern = "result.$L(" + pattern + ")";
-                    args.add(0, appendMethod(resultDataType));
-                } else {
-                    builtPattern = pattern.toString();
-                }
+
                 if (processFunction.warnExceptions.isEmpty() == false) {
                     builder.beginControlFlow("try");
                 }
 
-                builder.addStatement(builtPattern, args.toArray());
+                if (processFunction.builderArg == null) {
+                    builder.addStatement("var processResult = " + pattern, args.toArray());
+
+                    if (processFunction.nullableReturn) {
+                        builder.beginControlFlow("if (processResult == null)");
+                        {
+                            builder.addStatement("result.appendNull()");
+                        }
+                        builder.nextControlFlow("else");
+                    }
+
+                    builder.addStatement("result.$L(processResult)", appendMethod(resultDataType));
+
+                    if (processFunction.nullableReturn) {
+                        builder.endControlFlow();
+                    }
+                } else {
+                    builder.addStatement(pattern.toString(), args.toArray());
+                }
 
                 if (processFunction.warnExceptions.isEmpty() == false) {
                     String catchPattern = "catch ("
@@ -969,6 +982,7 @@ public class EvaluatorImplementer {
         private final ExecutableElement function;
         private final List<ProcessFunctionArg> args;
         private final BuilderProcessFunctionArg builderArg;
+        private final boolean nullableReturn;
         private final List<TypeMirror> warnExceptions;
 
         private boolean hasBlockType;
@@ -977,6 +991,7 @@ public class EvaluatorImplementer {
             Elements elements,
             javax.lang.model.util.Types types,
             ExecutableElement function,
+            boolean nullableReturn,
             List<TypeMirror> warnExceptions
         ) {
             this.function = function;
@@ -1026,6 +1041,7 @@ public class EvaluatorImplementer {
                 args.add(new StandardProcessFunctionArg(type, name));
             }
             this.builderArg = builderArg;
+            this.nullableReturn = nullableReturn;
             this.warnExceptions = warnExceptions;
         }
 
@@ -1033,7 +1049,7 @@ public class EvaluatorImplementer {
             if (builderArg != null) {
                 return builderArg.type.enclosingClassName();
             }
-            boolean useBlockStyle = blockStyle || warnExceptions.isEmpty() == false;
+            boolean useBlockStyle = blockStyle || nullableReturn ||  warnExceptions.isEmpty() == false;
             return useBlockStyle ? blockType(TypeName.get(function.getReturnType())) : vectorType(TypeName.get(function.getReturnType()));
         }
     }

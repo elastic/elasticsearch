@@ -75,6 +75,12 @@ public @interface MvEvaluator {
     String ascending() default "";
 
     /**
+     * True if the process method may return null, false otherwise.
+     * Defaults to false.
+     */
+    boolean nullableReturn() default false;
+
+    /**
      * Exceptions thrown by the process method to catch and convert
      * into a warning and turn into a null value.
      */

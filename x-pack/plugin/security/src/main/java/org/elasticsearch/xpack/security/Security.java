@@ -56,6 +56,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeMetadata;
@@ -408,6 +409,7 @@ import org.elasticsearch.xpack.security.transport.SecurityServerTransportInterce
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 import org.elasticsearch.xpack.security.transport.netty4.SecurityNetty4ServerTransport;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.security.Provider;
@@ -619,7 +621,7 @@ public class Security extends Plugin
     // restart or master node change.
     private final AtomicInteger nodeLocalMigrationRetryCount = new AtomicInteger(0);
 
-    private final SetOnce<List<AutoCloseable>> closableComponents = new SetOnce<>();
+    private final SetOnce<List<Closeable>> closableComponents = new SetOnce<>();
 
     public Security(Settings settings) {
         this(settings, Collections.emptyList());
@@ -1156,12 +1158,12 @@ public class Security extends Plugin
         cacheInvalidatorRegistry.validate();
 
         final List<ReloadableSecurityComponent> reloadableComponents = new ArrayList<>();
-        final List<AutoCloseable> closableComponents = new ArrayList<>();
+        final List<Closeable> closableComponents = new ArrayList<>();
         for (Object component : components) {
             if (component instanceof ReloadableSecurityComponent reloadable) {
                 reloadableComponents.add(reloadable);
             }
-            if (component instanceof AutoCloseable closeable) {
+            if (component instanceof Closeable closeable) {
                 closableComponents.add(closeable);
             }
         }
@@ -2298,15 +2300,9 @@ public class Security extends Plugin
     }
 
     @Override
-    public void close() {
+    public void close() throws IOException {
         if (enabled) {
-            closableComponents.get().forEach(component -> {
-                try {
-                    component.close();
-                } catch (Exception e) {
-                    logger.warn("component close() method should not throw Exception", e);
-                }
-            });
+            IOUtils.close(closableComponents.get());
         }
     }
 }

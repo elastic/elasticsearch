@@ -151,7 +151,7 @@ import static org.elasticsearch.xpack.security.support.SecurityIndexManager.Avai
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.Availability.SEARCH_SHARDS;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
 
-public class ApiKeyService implements AutoCloseable {
+public class ApiKeyService implements Closeable {
 
     private static final Logger logger = LogManager.getLogger(ApiKeyService.class);
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ApiKeyService.class);
@@ -1487,7 +1487,7 @@ public class ApiKeyService implements AutoCloseable {
     }
 
     @Override
-    public void close() throws Exception {
+    public void close() {
         cacheMetrics.forEach(metric -> {
             try {
                 metric.close();

@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
@@ -37,7 +38,7 @@ public class ClusterStateObserverTests extends ESTestCase {
             assertThat(Arrays.toString(invocation.getArguments()), containsString("test-listener"));
             listenerAdded.set(true);
             return null;
-        }).when(clusterApplierService).addTimeoutListener(any(), any());
+        }).when(clusterApplierService).addTimeoutListener(any(), any(), any());
 
         final ClusterState clusterState = ClusterState.builder(new ClusterName("test")).nodes(DiscoveryNodes.builder()).build();
         when(clusterApplierService.state()).thenReturn(clusterState);
@@ -63,7 +64,7 @@ public class ClusterStateObserverTests extends ESTestCase {
             public String toString() {
                 return "test-listener";
             }
-        });
+        }, Predicates.always(), null, null);
 
         assertTrue(listenerAdded.get());
     }

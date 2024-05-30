@@ -40,13 +40,13 @@ public class Repeat extends EsqlScalarFunction implements OptionalArgument {
 
     @FunctionInfo(
         returnType = "keyword",
-        description = "Returns an integer that indicates the position of a keyword substring within another string",
-        examples = @Example(file = "string", tag = "locate")
+        description = "Returns a string constructed by concatenating the input string with itself a specified number of times.",
+        examples = @Example(file = "string", tag = "repeat")
     )
     public Repeat(
         Source source,
-        @Param(name = "string", type = { "keyword", "text" }, description = "An input string") Expression str,
-        @Param(name = "number", type = { "integer" }, description = "Number times to repeat") Expression number
+        @Param(name = "string", type = { "keyword", "text" }, description = "String expression.") Expression str,
+        @Param(name = "number", type = { "integer" }, description = "Number times to repeat.") Expression number
     ) {
         super(source, Arrays.asList(str, number));
         this.str = str;

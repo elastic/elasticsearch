@@ -1374,17 +1374,15 @@ emp_no:integer | first_name:keyword | e:keyword    | d:keyword
 10031          | null               | null         | null
 ;
 
-repeat#[skip:-8.14.99,reason:new string function added in 8.15]
-from employees 
-| sort emp_no 
-| limit 3
-| eval repeated = repeat(first_name, 2) 
-| keep emp_no, first_name, repeated;
 
-emp_no:integer | first_name:keyword  | repeated:keyword
-10001 | Georgi    | GeorgiGeorgi        
-10002 | Bezalel   | BezalelBezalel      
-10003 | Parto     | PartoParto
+repeat#[skip:-8.14.99,reason:new string function added in 8.15]
+// tag::repeat[]
+row a = "Cheese!"
+| eval triple_a = repeat(a, 3);
+
+a:keyword | triple_a:keyword
+Cheese! | Cheese!Cheese!Cheese!
+// end::repeat[]
 ;
 
 repeatUtf16Emoji#[skip:-8.14.99,reason:new string function added in 8.15]

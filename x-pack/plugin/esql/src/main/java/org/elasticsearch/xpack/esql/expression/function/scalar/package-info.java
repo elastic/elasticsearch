@@ -47,7 +47,7 @@
  *     <li>
  *         Pick one of the csv-spec files in {@code x-pack/plugin/esql/qa/testFixtures/src/main/resources/}
  *         and add a test for the function you want to write. These files are roughly themed but there
- *         isn't a strong guiding principle in the theme.
+ *         isn't a strong guiding principle in the organization.
  *     </li>
  *     <li>
  *         Rerun the {@code CsvTests} and watch your new test fail. Yay, TDD doing it's job.
@@ -60,12 +60,25 @@
  *     </li>
  *     <li>
  *         There are also methods annotated with {@link org.elasticsearch.compute.ann.Evaluator}
- *         that contain the actual inner implementation of the function. Modify those to look right
- *         and click {@code Build->Recompile 'FunctionName.java'} in IntelliJ or run the
- *         {@code CsvTests} again. This should generate an
- *         {@link org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator} implementation
- *         calling the method annotated with {@link org.elasticsearch.compute.ann.Evaluator}. Please commit the
- *         generated evaluator before submitting your PR.
+ *         that contain the actual inner implementation of the function. They are usually named
+ *         "process" or "processInts" or "processBar". Modify those to look right and click
+ *         {@code Build->Recompile 'FunctionName.java'} in IntelliJ or run the {@code CsvTests}
+ *         again. This should generate an {@link org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator}
+ *         implementation calling the method annotated with {@link org.elasticsearch.compute.ann.Evaluator}.
+ *         Please commit the generated evaluator before submitting your PR.
+ *         <p>
+ *             NOTE: The function you copied may have a method annotated with
+ *             {@link org.elasticsearch.compute.ann.ConvertEvaluator} or
+ *             {@link org.elasticsearch.compute.ann.MvEvaluator} instead of
+ *             {@link org.elasticsearch.compute.ann.Evaluator}. Those do similar things and the
+ *             instructions should still work for you regardless. If your function contains an implementation
+ *             of {@link org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator} written by
+ *             hand then please stop and ask for help. This is not a good first function.
+ *         </p>
+ *         <p>
+ *             NOTE 2: Regardless of which annotation is on your "process" method you can learn more
+ *             about the options for generating code from the javadocs on those annotations.
+ *         </p>
  *     <li>
  *         Once your evaluator is generated you can implement
  *         {@link org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper#toEvaluator},
@@ -100,24 +113,32 @@
  *         {@code ./gradlew -p x-pack/plugin/esql/ test}
  *     </li>
  *     <li>
- *         Now it's time to write some docs!
- *         Generate the docs, a syntax diagram and a table with supported types by running the tests via
- *         gradle: {@code ./gradlew x-pack:plugin:esql:test}
+ *         Now it's time to generate some docs!
+ *         Actually, running the tests in the example above should have done it for you.
  *         The generated files are
- *         <ol>
+ *         <ul>
  *              <li>{@code docs/reference/esql/functions/description/myfunction.asciidoc}</li>
  *              <li>{@code docs/reference/esql/functions/examples/myfunction.asciidoc}</li>
  *              <li>{@code docs/reference/esql/functions/layout/myfunction.asciidoc}</li>
  *              <li>{@code docs/reference/esql/functions/parameters/myfunction.asciidoc}</li>
  *              <li>{@code docs/reference/esql/functions/signature/myfunction.svg}</li>
  *              <li>{@code docs/reference/esql/functions/types/myfunction.asciidoc}</li>
- *         </ol>
+ *         </ul>
  *
  *         Make sure to commit them. Add a reference to the
  *         {@code docs/reference/esql/functions/layout/myfunction.asciidoc} in the function list
  *         docs. There are plenty of examples on how
  *         to reference those files e.g. if you are writing a Math function, you will want to
  *         list it in {@code docs/reference/esql/functions/math-functions.asciidoc}.
+ *         <p>
+ *             You can generate the docs for just your function by running
+ *             {@code ./gradlew :x-pack:plugin:esql:test -Dtests.class='*SinTests'}. It's just
+ *             running your new unit test. You should see something like:
+ *         </p>
+ *         <pre>{@code
+ *              > Task :x-pack:plugin:esql:test
+ *              ESQL Docs: Only files related to [sin.asciidoc], patching them into place
+ *         }</pre>
  *     </li>
  *     <li>
  *          Build the docs by cloning the <a href="https://github.com/elastic/docs">docs repo</a>

@@ -77,7 +77,7 @@ POST /_security/role/remote1
 ----
 
 <1> The `read_cross_cluster` privilege is always required when using {esql} across clusters with the API key based security model.
-<2> The `cross_cluster_search` cluster privilege is also required.
+<2> The `cross_cluster_search` cluster privilege is also required for the _local_ cluster.
 <3> Typically, users will have permissions to read both local and remote indices. However, for cases where the role is intended to ONLY search the remote cluster, the `read` permission is still required for the local cluster. To provide read access to the local cluster, but disallow reading any indices in the local cluster, the `names` field may be an empty string.
 <4> The indices allowed read access to the remote cluster. The configured <<security-api-create-cross-cluster-api-key,cross-cluster API key>> must also allow this index to be read.
 <5> The remote clusters to which these privileges apply. This remote cluster must be configured with a <<security-api-create-cross-cluster-api-key,cross-cluster API key>> and connected to the remote cluster before the remote index can be queried. 

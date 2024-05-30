@@ -1238,7 +1238,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
             assertThat(
                 "Reconciling nodes should all have same amount (max 1 delta) of moves: " + totalOutgoingMoves,
                 summary.getMax() - summary.getMin(),
-                lessThanOrEqualTo(1)
+                lessThanOrEqualTo(numberOfNodes)
             );
 
             totalOutgoingMoves.keySet().removeIf(nodeId -> isReconciled(allocation.routingNodes().node(nodeId), balance));

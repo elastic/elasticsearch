@@ -154,7 +154,8 @@ public class AddIncrementallyTests extends ESAllocationTestCase {
             ClusterRebalanceAllocationDecider.ClusterRebalanceType.ALWAYS.toString()
         )
             .put("cluster.routing.allocation.node_concurrent_recoveries", 100)
-            .put("cluster.routing.allocation.node_initial_primaries_recoveries", 100);
+            .put("cluster.routing.allocation.node_initial_primaries_recoveries", 100)
+            .put("cluster.routing.allocation.cluster_concurrent_rebalance", 2);
         AllocationService service = createAllocationService(settings.build());
 
         ClusterState clusterState = initCluster(service, 1, 3, 3, 1);

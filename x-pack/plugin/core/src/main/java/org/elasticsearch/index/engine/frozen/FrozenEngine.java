@@ -96,7 +96,7 @@ public final class FrozenEngine extends ReadOnlyEngine {
             }
             this.docsStats = docsStats(reader);
             this.denseVectorStats = denseVectorStats(reader);
-            this.sparseVectorStats = sparseVectorStats(reader, null); // TODO
+            this.sparseVectorStats = sparseVectorStats(reader, null);
             canMatchReader = ElasticsearchDirectoryReader.wrap(
                 new RewriteCachingDirectoryReader(directory, reader.leaves(), null),
                 config.getShardId()

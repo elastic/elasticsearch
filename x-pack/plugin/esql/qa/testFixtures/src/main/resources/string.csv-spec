@@ -1374,8 +1374,8 @@ emp_no:integer | first_name:keyword | e:keyword    | d:keyword
 10031          | null               | null         | null
 ;
 
-
-repeat#[skip:-8.14.99,reason:new string function added in 8.15]
+repeat
+required_capability: repeat 
 // tag::repeat[]
 ROW a = "Hello!"
 | EVAL triple_a = REPEAT(a, 3);
@@ -1387,28 +1387,32 @@ Hello! | Hello!Hello!Hello!
 // end::repeat-result[]
 ;
 
-repeatUtf16Emoji#[skip:-8.14.99,reason:new string function added in 8.15]
+repeatUtf16Emoji
+required_capability: repeat 
 row a = "🐱Meow!🐶Woof!" | eval repeated = repeat(a, 2);
 
 a:keyword | repeated:keyword
 🐱Meow!🐶Woof! | 🐱Meow!🐶Woof!🐱Meow!🐶Woof!
 ;
 
-repeatLength#[skip:-8.14.99,reason:new string function added in 8.15]
+repeatLength
+required_capability: repeat 
 row a = "cheese" | eval repeated_len = length(repeat(a, 5));
 
 a:keyword | repeated_len:integer
 cheese | 30
 ;
 
-repeatSubstring#[skip:-8.14.99,reason:new string function added in 8.15]
+repeatSubstring
+required_capability: repeat 
 row a = "catcat" | eval repeated = repeat(substring(a, 4), 2);
 
 a:keyword | repeated:keyword
 catcat | catcat
 ;
 
-repeatZero#[skip:-8.14.99,reason:new string function added in 8.15]
+repeatZero
+required_capability: repeat 
 row a = "cheese" | eval repeated = repeat(a, 0);
 
 a:keyword | repeated:keyword

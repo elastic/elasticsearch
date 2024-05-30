@@ -262,7 +262,7 @@ final class BootstrapChecks {
         }
 
         boolean isMemoryLocked() {
-            return Natives.isMemoryLocked();
+            return NativeAccess.instance().isMemoryLocked();
         }
 
     }
@@ -334,7 +334,7 @@ final class BootstrapChecks {
 
         // visible for testing
         boolean isMemoryLocked() {
-            return Natives.isMemoryLocked();
+            return NativeAccess.instance().isMemoryLocked();
         }
 
         @Override

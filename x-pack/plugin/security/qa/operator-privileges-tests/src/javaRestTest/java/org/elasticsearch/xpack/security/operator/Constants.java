@@ -369,6 +369,7 @@ public class Constants {
         "cluster:monitor/xpack/esql/stats/dist",
         "cluster:monitor/xpack/inference",
         "cluster:monitor/xpack/inference/get",
+        "cluster:monitor/xpack/inference/diagnostics/get",
         "cluster:monitor/xpack/info",
         "cluster:monitor/xpack/info/aggregate_metric",
         "cluster:monitor/xpack/info/analytics",
@@ -607,6 +608,7 @@ public class Constants {
         "internal:cluster/coordination_diagnostics/info",
         "internal:cluster/formation/info",
         "internal:gateway/local/started_shards",
-        "internal:admin/indices/prevalidate_shard_path"
+        "internal:admin/indices/prevalidate_shard_path",
+        "internal:index/metadata/migration_version/update"
     ).filter(Objects::nonNull).collect(Collectors.toUnmodifiableSet());
 }

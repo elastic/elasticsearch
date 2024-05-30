@@ -295,8 +295,15 @@ public abstract class ESRestTestCase extends ESTestCase {
         if (capabilities.isEmpty() == false) {
             request.addParameter("capabilities", String.join(",", capabilities));
         }
-        Map<String, Object> response = entityAsMap(client.performRequest(request).getEntity());
-        return Optional.ofNullable((Boolean) response.get("supported"));
+        try {
+            Map<String, Object> response = entityAsMap(client.performRequest(request).getEntity());
+            return Optional.ofNullable((Boolean) response.get("supported"));
+        } catch (ResponseException responseException) {
+            if (responseException.getResponse().getStatusLine().getStatusCode() / 100 == 4) {
+                return Optional.empty(); // we don't know, the capabilities API is unsupported
+            }
+            throw responseException;
+        }
     }
 
     protected static boolean clusterHasFeature(String featureId) {

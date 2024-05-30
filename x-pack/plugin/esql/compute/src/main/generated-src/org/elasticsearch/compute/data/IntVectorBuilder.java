@@ -21,9 +21,9 @@ public final class IntVectorBuilder extends AbstractVectorBuilder implements Int
         return values;
     }
 
-    public void values(int[] values) {
-        this.values = values;
-        this.valueCount = values.length;
+    public void valueCount(int val) {
+        assert values.length >= val;
+        this.valueCount = val;
     }
 
     IntVectorBuilder(int estimatedSize, BlockFactory blockFactory) {

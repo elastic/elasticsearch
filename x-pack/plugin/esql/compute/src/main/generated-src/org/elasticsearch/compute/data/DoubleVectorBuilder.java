@@ -21,9 +21,9 @@ public final class DoubleVectorBuilder extends AbstractVectorBuilder implements 
         return values;
     }
 
-    public void values(double[] values) {
-        this.values = values;
-        this.valueCount = values.length;
+    public void valueCount(int val) {
+        assert values.length >= val;
+        this.valueCount = val;
     }
 
     DoubleVectorBuilder(int estimatedSize, BlockFactory blockFactory) {

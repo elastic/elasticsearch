@@ -144,7 +144,7 @@ public sealed interface BooleanVector extends Vector permits ConstantBooleanVect
             throw new UnsupportedOperationException();
         }
 
-        default void values(boolean[] newValues) {
+        default public void valueCount(int val) {
             throw new UnsupportedOperationException();
         }
     }

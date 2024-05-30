@@ -74,7 +74,7 @@ public final class CastIntToDoubleEvaluator implements EvalOperator.ExpressionEv
       position: for (int p = 0; p < positionCount; p++) {
         buffer[p] = Cast.castIntToDouble(vVector.getInt(p));
       }
-      result.values(buffer);
+      result.valueCount(positionCount);
       return result.build();
     }
   }

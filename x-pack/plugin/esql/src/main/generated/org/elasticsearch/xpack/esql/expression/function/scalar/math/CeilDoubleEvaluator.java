@@ -72,7 +72,7 @@ public final class CeilDoubleEvaluator implements EvalOperator.ExpressionEvaluat
       position: for (int p = 0; p < positionCount; p++) {
         buffer[p] = Ceil.process(valVector.getDouble(p));
       }
-      result.values(buffer);
+      result.valueCount(positionCount);
       return result.build();
     }
   }

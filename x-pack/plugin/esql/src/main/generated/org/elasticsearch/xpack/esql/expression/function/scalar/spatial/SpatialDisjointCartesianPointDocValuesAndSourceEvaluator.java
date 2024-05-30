@@ -102,7 +102,7 @@ public final class SpatialDisjointCartesianPointDocValuesAndSourceEvaluator impl
       position: for (int p = 0; p < positionCount; p++) {
         buffer[p] = SpatialDisjoint.processCartesianPointDocValuesAndSource(leftValueVector.getLong(p), rightValueVector.getBytesRef(p, rightValueScratch));
       }
-      result.values(buffer);
+      result.valueCount(positionCount);
       return result.build();
     }
   }

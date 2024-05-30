@@ -72,7 +72,7 @@ public final class AbsIntEvaluator implements EvalOperator.ExpressionEvaluator {
       position: for (int p = 0; p < positionCount; p++) {
         buffer[p] = Abs.process(fieldValVector.getInt(p));
       }
-      result.values(buffer);
+      result.valueCount(positionCount);
       return result.build();
     }
   }

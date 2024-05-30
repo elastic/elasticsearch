@@ -92,7 +92,7 @@ public final class Atan2Evaluator implements EvalOperator.ExpressionEvaluator {
       position: for (int p = 0; p < positionCount; p++) {
         buffer[p] = Atan2.process(yVector.getDouble(p), xVector.getDouble(p));
       }
-      result.values(buffer);
+      result.valueCount(positionCount);
       return result.build();
     }
   }

@@ -76,7 +76,7 @@ public final class DateTruncEvaluator implements EvalOperator.ExpressionEvaluato
       position: for (int p = 0; p < positionCount; p++) {
         buffer[p] = DateTrunc.process(fieldValVector.getLong(p), rounding);
       }
-      result.values(buffer);
+      result.valueCount(positionCount);
       return result.build();
     }
   }

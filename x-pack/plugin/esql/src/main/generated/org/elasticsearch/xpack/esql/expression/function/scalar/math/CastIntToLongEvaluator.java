@@ -74,7 +74,7 @@ public final class CastIntToLongEvaluator implements EvalOperator.ExpressionEval
       position: for (int p = 0; p < positionCount; p++) {
         buffer[p] = Cast.castIntToLong(vVector.getInt(p));
       }
-      result.values(buffer);
+      result.valueCount(positionCount);
       return result.build();
     }
   }

@@ -281,7 +281,7 @@ public class EvaluatorImplementer {
             }
             builder.endControlFlow();
             if (vectorize) {
-                builder.addStatement("result.values(buffer)");
+                builder.addStatement("result.valueCount(positionCount)");
             }
             builder.addStatement("return result.build()");
             builder.endControlFlow();

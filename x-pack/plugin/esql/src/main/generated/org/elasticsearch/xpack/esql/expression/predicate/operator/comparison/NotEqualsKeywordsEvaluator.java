@@ -99,7 +99,7 @@ public final class NotEqualsKeywordsEvaluator implements EvalOperator.Expression
       position: for (int p = 0; p < positionCount; p++) {
         buffer[p] = NotEquals.processKeywords(lhsVector.getBytesRef(p, lhsScratch), rhsVector.getBytesRef(p, rhsScratch));
       }
-      result.values(buffer);
+      result.valueCount(positionCount);
       return result.build();
     }
   }

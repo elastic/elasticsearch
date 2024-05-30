@@ -92,7 +92,7 @@ public final class RoundUnsignedLongEvaluator implements EvalOperator.Expression
       position: for (int p = 0; p < positionCount; p++) {
         buffer[p] = Round.processUnsignedLong(valVector.getLong(p), decimalsVector.getLong(p));
       }
-      result.values(buffer);
+      result.valueCount(positionCount);
       return result.build();
     }
   }

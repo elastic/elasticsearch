@@ -102,7 +102,7 @@ public final class SpatialIntersectsCartesianPointDocValuesAndSourceEvaluator im
       position: for (int p = 0; p < positionCount; p++) {
         buffer[p] = SpatialIntersects.processCartesianPointDocValuesAndSource(leftValueVector.getLong(p), rightValueVector.getBytesRef(p, rightValueScratch));
       }
-      result.values(buffer);
+      result.valueCount(positionCount);
       return result.build();
     }
   }

@@ -72,7 +72,7 @@ public final class TanhEvaluator implements EvalOperator.ExpressionEvaluator {
       position: for (int p = 0; p < positionCount; p++) {
         buffer[p] = Tanh.process(valVector.getDouble(p));
       }
-      result.values(buffer);
+      result.valueCount(positionCount);
       return result.build();
     }
   }

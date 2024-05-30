@@ -74,7 +74,7 @@ public final class CastLongToDoubleEvaluator implements EvalOperator.ExpressionE
       position: for (int p = 0; p < positionCount; p++) {
         buffer[p] = Cast.castLongToDouble(vVector.getLong(p));
       }
-      result.values(buffer);
+      result.valueCount(positionCount);
       return result.build();
     }
   }

@@ -94,7 +94,7 @@ public final class RoundDoubleEvaluator implements EvalOperator.ExpressionEvalua
       position: for (int p = 0; p < positionCount; p++) {
         buffer[p] = Round.process(valVector.getDouble(p), decimalsVector.getLong(p));
       }
-      result.values(buffer);
+      result.valueCount(positionCount);
       return result.build();
     }
   }

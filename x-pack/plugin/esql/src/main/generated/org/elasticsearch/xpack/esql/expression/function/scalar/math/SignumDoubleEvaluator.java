@@ -72,7 +72,7 @@ public final class SignumDoubleEvaluator implements EvalOperator.ExpressionEvalu
       position: for (int p = 0; p < positionCount; p++) {
         buffer[p] = Signum.process(valVector.getDouble(p));
       }
-      result.values(buffer);
+      result.valueCount(positionCount);
       return result.build();
     }
   }

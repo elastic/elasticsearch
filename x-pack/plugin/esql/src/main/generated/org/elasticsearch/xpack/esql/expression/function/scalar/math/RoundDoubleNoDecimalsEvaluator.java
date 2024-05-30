@@ -72,7 +72,7 @@ public final class RoundDoubleNoDecimalsEvaluator implements EvalOperator.Expres
       position: for (int p = 0; p < positionCount; p++) {
         buffer[p] = Round.process(valVector.getDouble(p));
       }
-      result.values(buffer);
+      result.valueCount(positionCount);
       return result.build();
     }
   }

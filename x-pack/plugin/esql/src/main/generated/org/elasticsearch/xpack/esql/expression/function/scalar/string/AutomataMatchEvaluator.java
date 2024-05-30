@@ -84,7 +84,7 @@ public final class AutomataMatchEvaluator implements EvalOperator.ExpressionEval
       position: for (int p = 0; p < positionCount; p++) {
         buffer[p] = AutomataMatch.process(inputVector.getBytesRef(p, inputScratch), automaton, pattern);
       }
-      result.values(buffer);
+      result.valueCount(positionCount);
       return result.build();
     }
   }

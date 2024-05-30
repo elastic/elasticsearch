@@ -99,7 +99,7 @@ public final class InsensitiveEqualsEvaluator implements EvalOperator.Expression
       position: for (int p = 0; p < positionCount; p++) {
         buffer[p] = InsensitiveEquals.process(lhsVector.getBytesRef(p, lhsScratch), rhsVector.getBytesRef(p, rhsScratch));
       }
-      result.values(buffer);
+      result.valueCount(positionCount);
       return result.build();
     }
   }

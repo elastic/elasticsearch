@@ -152,7 +152,7 @@ public sealed interface BytesRefVector extends Vector permits ConstantBytesRefVe
             throw new UnsupportedOperationException();
         }
 
-        default void values(BytesRef[] newValues) {
+        default public void valueCount(int val) {
             throw new UnsupportedOperationException();
         }
     }

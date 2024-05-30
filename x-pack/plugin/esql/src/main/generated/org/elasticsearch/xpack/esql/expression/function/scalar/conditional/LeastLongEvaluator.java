@@ -94,7 +94,7 @@ public final class LeastLongEvaluator implements EvalOperator.ExpressionEvaluato
         }
         buffer[p] = Least.process(valuesValues);
       }
-      result.values(buffer);
+      result.valueCount(positionCount);
       return result.build();
     }
   }

@@ -235,7 +235,7 @@ $endif$
             throw new UnsupportedOperationException();
         }
 
-        default void values($type$[] newValues) {
+        default public void valueCount(int val) {
             throw new UnsupportedOperationException();
         }
     }

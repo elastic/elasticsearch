@@ -72,7 +72,7 @@ public final class CastLongToUnsignedLongEvaluator implements EvalOperator.Expre
       position: for (int p = 0; p < positionCount; p++) {
         buffer[p] = Cast.castLongToUnsignedLong(vVector.getLong(p));
       }
-      result.values(buffer);
+      result.valueCount(positionCount);
       return result.build();
     }
   }

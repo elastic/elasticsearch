@@ -94,7 +94,7 @@ public final class GreaterThanOrEqualDoublesEvaluator implements EvalOperator.Ex
       position: for (int p = 0; p < positionCount; p++) {
         buffer[p] = GreaterThanOrEqual.processDoubles(lhsVector.getDouble(p), rhsVector.getDouble(p));
       }
-      result.values(buffer);
+      result.valueCount(positionCount);
       return result.build();
     }
   }

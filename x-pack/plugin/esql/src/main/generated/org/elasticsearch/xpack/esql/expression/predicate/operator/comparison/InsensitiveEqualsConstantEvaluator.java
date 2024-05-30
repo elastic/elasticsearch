@@ -81,7 +81,7 @@ public final class InsensitiveEqualsConstantEvaluator implements EvalOperator.Ex
       position: for (int p = 0; p < positionCount; p++) {
         buffer[p] = InsensitiveEquals.processConstant(lhsVector.getBytesRef(p, lhsScratch), rhs);
       }
-      result.values(buffer);
+      result.valueCount(positionCount);
       return result.build();
     }
   }

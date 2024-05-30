@@ -94,7 +94,7 @@ public final class EqualsLongsEvaluator implements EvalOperator.ExpressionEvalua
       position: for (int p = 0; p < positionCount; p++) {
         buffer[p] = Equals.processLongs(lhsVector.getLong(p), rhsVector.getLong(p));
       }
-      result.values(buffer);
+      result.valueCount(positionCount);
       return result.build();
     }
   }

@@ -72,7 +72,7 @@ public final class AbsDoubleEvaluator implements EvalOperator.ExpressionEvaluato
       position: for (int p = 0; p < positionCount; p++) {
         buffer[p] = Abs.process(fieldValVector.getDouble(p));
       }
-      result.values(buffer);
+      result.valueCount(positionCount);
       return result.build();
     }
   }

@@ -145,7 +145,7 @@ public sealed interface DoubleVector extends Vector permits ConstantDoubleVector
             throw new UnsupportedOperationException();
         }
 
-        default void values(double[] newValues) {
+        default public void valueCount(int val) {
             throw new UnsupportedOperationException();
         }
     }

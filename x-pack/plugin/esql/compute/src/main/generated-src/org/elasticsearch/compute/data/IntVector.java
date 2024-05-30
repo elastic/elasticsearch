@@ -163,7 +163,7 @@ public sealed interface IntVector extends Vector permits ConstantIntVector, IntA
             throw new UnsupportedOperationException();
         }
 
-        default void values(int[] newValues) {
+        default public void valueCount(int val) {
             throw new UnsupportedOperationException();
         }
     }

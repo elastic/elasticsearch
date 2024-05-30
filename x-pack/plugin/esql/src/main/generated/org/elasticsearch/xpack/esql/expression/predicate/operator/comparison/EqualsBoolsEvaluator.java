@@ -92,7 +92,7 @@ public final class EqualsBoolsEvaluator implements EvalOperator.ExpressionEvalua
       position: for (int p = 0; p < positionCount; p++) {
         buffer[p] = Equals.processBools(lhsVector.getBoolean(p), rhsVector.getBoolean(p));
       }
-      result.values(buffer);
+      result.valueCount(positionCount);
       return result.build();
     }
   }

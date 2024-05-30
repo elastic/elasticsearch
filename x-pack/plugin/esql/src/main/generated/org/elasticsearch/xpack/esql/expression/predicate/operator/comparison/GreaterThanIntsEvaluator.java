@@ -94,7 +94,7 @@ public final class GreaterThanIntsEvaluator implements EvalOperator.ExpressionEv
       position: for (int p = 0; p < positionCount; p++) {
         buffer[p] = GreaterThan.processInts(lhsVector.getInt(p), rhsVector.getInt(p));
       }
-      result.values(buffer);
+      result.valueCount(positionCount);
       return result.build();
     }
   }

@@ -99,7 +99,7 @@ public final class LessThanOrEqualKeywordsEvaluator implements EvalOperator.Expr
       position: for (int p = 0; p < positionCount; p++) {
         buffer[p] = LessThanOrEqual.processKeywords(lhsVector.getBytesRef(p, lhsScratch), rhsVector.getBytesRef(p, rhsScratch));
       }
-      result.values(buffer);
+      result.valueCount(positionCount);
       return result.build();
     }
   }

@@ -92,7 +92,7 @@ public final class RoundLongEvaluator implements EvalOperator.ExpressionEvaluato
       position: for (int p = 0; p < positionCount; p++) {
         buffer[p] = Round.process(valVector.getLong(p), decimalsVector.getLong(p));
       }
-      result.values(buffer);
+      result.valueCount(positionCount);
       return result.build();
     }
   }

@@ -100,7 +100,7 @@ public final class StartsWithEvaluator implements EvalOperator.ExpressionEvaluat
       position: for (int p = 0; p < positionCount; p++) {
         buffer[p] = StartsWith.process(strVector.getBytesRef(p, strScratch), prefixVector.getBytesRef(p, prefixScratch));
       }
-      result.values(buffer);
+      result.valueCount(positionCount);
       return result.build();
     }
   }

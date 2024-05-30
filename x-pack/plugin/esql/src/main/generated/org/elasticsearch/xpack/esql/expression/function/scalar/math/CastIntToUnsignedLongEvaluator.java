@@ -74,7 +74,7 @@ public final class CastIntToUnsignedLongEvaluator implements EvalOperator.Expres
       position: for (int p = 0; p < positionCount; p++) {
         buffer[p] = Cast.castIntToUnsignedLong(vVector.getInt(p));
       }
-      result.values(buffer);
+      result.valueCount(positionCount);
       return result.build();
     }
   }

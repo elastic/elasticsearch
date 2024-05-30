@@ -92,7 +92,7 @@ public final class NotEqualsBoolsEvaluator implements EvalOperator.ExpressionEva
       position: for (int p = 0; p < positionCount; p++) {
         buffer[p] = NotEquals.processBools(lhsVector.getBoolean(p), rhsVector.getBoolean(p));
       }
-      result.values(buffer);
+      result.valueCount(positionCount);
       return result.build();
     }
   }

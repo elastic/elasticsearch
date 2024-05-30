@@ -99,7 +99,7 @@ public final class GreaterThanOrEqualKeywordsEvaluator implements EvalOperator.E
       position: for (int p = 0; p < positionCount; p++) {
         buffer[p] = GreaterThanOrEqual.processKeywords(lhsVector.getBytesRef(p, lhsScratch), rhsVector.getBytesRef(p, rhsScratch));
       }
-      result.values(buffer);
+      result.valueCount(positionCount);
       return result.build();
     }
   }

@@ -42,7 +42,7 @@ public final class NowEvaluator implements EvalOperator.ExpressionEvaluator {
       position: for (int p = 0; p < positionCount; p++) {
         buffer[p] = Now.process(now);
       }
-      result.values(buffer);
+      result.valueCount(positionCount);
       return result.build();
     }
   }

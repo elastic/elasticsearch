@@ -72,7 +72,7 @@ public final class AbsLongEvaluator implements EvalOperator.ExpressionEvaluator 
       position: for (int p = 0; p < positionCount; p++) {
         buffer[p] = Abs.process(fieldValVector.getLong(p));
       }
-      result.values(buffer);
+      result.valueCount(positionCount);
       return result.build();
     }
   }

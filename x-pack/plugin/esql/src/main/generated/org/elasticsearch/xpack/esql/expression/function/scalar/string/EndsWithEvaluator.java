@@ -100,7 +100,7 @@ public final class EndsWithEvaluator implements EvalOperator.ExpressionEvaluator
       position: for (int p = 0; p < positionCount; p++) {
         buffer[p] = EndsWith.process(strVector.getBytesRef(p, strScratch), suffixVector.getBytesRef(p, suffixScratch));
       }
-      result.values(buffer);
+      result.valueCount(positionCount);
       return result.build();
     }
   }

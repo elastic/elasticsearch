@@ -42,9 +42,9 @@ $else$
         return values;
     }
 
-    public void values($type$[] values) {
-        this.values = values;
-        this.valueCount = values.length;
+    public void valueCount(int val) {
+        assert values.length >= val;
+        this.valueCount = val;
     }
 
     $Type$VectorBuilder(int estimatedSize, BlockFactory blockFactory) {

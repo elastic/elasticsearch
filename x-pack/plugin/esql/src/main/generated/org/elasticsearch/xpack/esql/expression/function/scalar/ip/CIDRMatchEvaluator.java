@@ -128,7 +128,7 @@ public final class CIDRMatchEvaluator implements EvalOperator.ExpressionEvaluato
         }
         buffer[p] = CIDRMatch.process(ipVector.getBytesRef(p, ipScratch), cidrsValues);
       }
-      result.values(buffer);
+      result.valueCount(positionCount);
       return result.build();
     }
   }

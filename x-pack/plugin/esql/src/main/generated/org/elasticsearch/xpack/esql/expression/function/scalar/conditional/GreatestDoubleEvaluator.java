@@ -94,7 +94,7 @@ public final class GreatestDoubleEvaluator implements EvalOperator.ExpressionEva
         }
         buffer[p] = Greatest.process(valuesValues);
       }
-      result.values(buffer);
+      result.valueCount(positionCount);
       return result.build();
     }
   }

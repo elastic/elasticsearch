@@ -72,7 +72,7 @@ public final class FloorDoubleEvaluator implements EvalOperator.ExpressionEvalua
       position: for (int p = 0; p < positionCount; p++) {
         buffer[p] = Floor.process(valVector.getDouble(p));
       }
-      result.values(buffer);
+      result.valueCount(positionCount);
       return result.build();
     }
   }

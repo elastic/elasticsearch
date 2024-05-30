@@ -80,7 +80,7 @@ public final class DateExtractConstantEvaluator implements EvalOperator.Expressi
       position: for (int p = 0; p < positionCount; p++) {
         buffer[p] = DateExtract.process(valueVector.getLong(p), chronoField, zone);
       }
-      result.values(buffer);
+      result.valueCount(positionCount);
       return result.build();
     }
   }

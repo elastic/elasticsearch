@@ -94,7 +94,7 @@ public final class LeastDoubleEvaluator implements EvalOperator.ExpressionEvalua
         }
         buffer[p] = Least.process(valuesValues);
       }
-      result.values(buffer);
+      result.valueCount(positionCount);
       return result.build();
     }
   }

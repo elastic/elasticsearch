@@ -99,7 +99,7 @@ public final class GreaterThanKeywordsEvaluator implements EvalOperator.Expressi
       position: for (int p = 0; p < positionCount; p++) {
         buffer[p] = GreaterThan.processKeywords(lhsVector.getBytesRef(p, lhsScratch), rhsVector.getBytesRef(p, rhsScratch));
       }
-      result.values(buffer);
+      result.valueCount(positionCount);
       return result.build();
     }
   }

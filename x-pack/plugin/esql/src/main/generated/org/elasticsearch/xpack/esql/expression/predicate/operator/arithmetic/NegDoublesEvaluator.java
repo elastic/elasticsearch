@@ -72,7 +72,7 @@ public final class NegDoublesEvaluator implements EvalOperator.ExpressionEvaluat
       position: for (int p = 0; p < positionCount; p++) {
         buffer[p] = Neg.processDoubles(vVector.getDouble(p));
       }
-      result.values(buffer);
+      result.valueCount(positionCount);
       return result.build();
     }
   }

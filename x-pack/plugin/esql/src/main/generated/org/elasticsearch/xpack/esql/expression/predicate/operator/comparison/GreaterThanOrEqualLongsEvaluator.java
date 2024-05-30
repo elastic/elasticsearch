@@ -94,7 +94,7 @@ public final class GreaterThanOrEqualLongsEvaluator implements EvalOperator.Expr
       position: for (int p = 0; p < positionCount; p++) {
         buffer[p] = GreaterThanOrEqual.processLongs(lhsVector.getLong(p), rhsVector.getLong(p));
       }
-      result.values(buffer);
+      result.valueCount(positionCount);
       return result.build();
     }
   }

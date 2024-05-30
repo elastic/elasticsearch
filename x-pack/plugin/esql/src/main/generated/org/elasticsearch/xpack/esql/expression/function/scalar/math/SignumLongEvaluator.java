@@ -74,7 +74,7 @@ public final class SignumLongEvaluator implements EvalOperator.ExpressionEvaluat
       position: for (int p = 0; p < positionCount; p++) {
         buffer[p] = Signum.process(valVector.getLong(p));
       }
-      result.values(buffer);
+      result.valueCount(positionCount);
       return result.build();
     }
   }

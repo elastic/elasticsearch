@@ -74,7 +74,7 @@ public final class CbrtUnsignedLongEvaluator implements EvalOperator.ExpressionE
       position: for (int p = 0; p < positionCount; p++) {
         buffer[p] = Cbrt.processUnsignedLong(valVector.getLong(p));
       }
-      result.values(buffer);
+      result.valueCount(positionCount);
       return result.build();
     }
   }

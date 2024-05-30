@@ -99,7 +99,7 @@ public final class EqualsGeometriesEvaluator implements EvalOperator.ExpressionE
       position: for (int p = 0; p < positionCount; p++) {
         buffer[p] = Equals.processGeometries(lhsVector.getBytesRef(p, lhsScratch), rhsVector.getBytesRef(p, rhsScratch));
       }
-      result.values(buffer);
+      result.valueCount(positionCount);
       return result.build();
     }
   }

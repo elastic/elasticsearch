@@ -21,9 +21,9 @@ public final class LongVectorBuilder extends AbstractVectorBuilder implements Lo
         return values;
     }
 
-    public void values(long[] values) {
-        this.values = values;
-        this.valueCount = values.length;
+    public void valueCount(int val) {
+        assert values.length >= val;
+        this.valueCount = val;
     }
 
     LongVectorBuilder(int estimatedSize, BlockFactory blockFactory) {

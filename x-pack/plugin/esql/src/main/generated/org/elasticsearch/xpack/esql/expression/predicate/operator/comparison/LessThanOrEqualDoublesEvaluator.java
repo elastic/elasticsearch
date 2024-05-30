@@ -94,7 +94,7 @@ public final class LessThanOrEqualDoublesEvaluator implements EvalOperator.Expre
       position: for (int p = 0; p < positionCount; p++) {
         buffer[p] = LessThanOrEqual.processDoubles(lhsVector.getDouble(p), rhsVector.getDouble(p));
       }
-      result.values(buffer);
+      result.valueCount(positionCount);
       return result.build();
     }
   }

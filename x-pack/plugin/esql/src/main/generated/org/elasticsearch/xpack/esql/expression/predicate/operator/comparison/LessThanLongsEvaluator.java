@@ -94,7 +94,7 @@ public final class LessThanLongsEvaluator implements EvalOperator.ExpressionEval
       position: for (int p = 0; p < positionCount; p++) {
         buffer[p] = LessThan.processLongs(lhsVector.getLong(p), rhsVector.getLong(p));
       }
-      result.values(buffer);
+      result.valueCount(positionCount);
       return result.build();
     }
   }

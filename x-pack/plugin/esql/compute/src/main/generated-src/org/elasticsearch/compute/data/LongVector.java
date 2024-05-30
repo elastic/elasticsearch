@@ -145,7 +145,7 @@ public sealed interface LongVector extends Vector permits ConstantLongVector, Lo
             throw new UnsupportedOperationException();
         }
 
-        default void values(long[] newValues) {
+        default public void valueCount(int val) {
             throw new UnsupportedOperationException();
         }
     }

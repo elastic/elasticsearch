@@ -74,7 +74,7 @@ public final class CastUnsignedLongToDoubleEvaluator implements EvalOperator.Exp
       position: for (int p = 0; p < positionCount; p++) {
         buffer[p] = Cast.castUnsignedLongToDouble(vVector.getLong(p));
       }
-      result.values(buffer);
+      result.valueCount(positionCount);
       return result.build();
     }
   }

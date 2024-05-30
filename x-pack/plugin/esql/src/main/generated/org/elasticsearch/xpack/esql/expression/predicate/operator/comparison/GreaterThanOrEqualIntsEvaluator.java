@@ -94,7 +94,7 @@ public final class GreaterThanOrEqualIntsEvaluator implements EvalOperator.Expre
       position: for (int p = 0; p < positionCount; p++) {
         buffer[p] = GreaterThanOrEqual.processInts(lhsVector.getInt(p), rhsVector.getInt(p));
       }
-      result.values(buffer);
+      result.valueCount(positionCount);
       return result.build();
     }
   }

@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.entityanalytics.EntityRiskPlugin;
 import org.elasticsearch.xpack.entityanalytics.models.EntityRiskScoringRequest;
 import org.elasticsearch.xpack.entityanalytics.models.EntityRiskScoringResponse;
 import org.elasticsearch.xpack.entityanalytics.models.EntityType;
+import org.elasticsearch.xpack.entityanalytics.models.RiskScoreCalculator;
 import org.elasticsearch.xpack.entityanalytics.models.RiskScoreQueryBuilder;
 
 /*
@@ -91,7 +92,8 @@ public class EntityRiskScoringAction extends ActionType<EntityRiskScoringRespons
                 client.search(sr, new DelegatingActionListener<>(listener) {
                     @Override
                     public void onResponse(SearchResponse searchResponse) {
-                        listener.onResponse(EntityRiskScoringResponse.fromSearchResponse(searchResponse, entityTypes));
+                        var result = RiskScoreCalculator.calculateRiskScores(entityTypes, searchResponse);
+                        listener.onResponse(new EntityRiskScoringResponse(result));
                     }
                 });
             } catch (Exception e) {

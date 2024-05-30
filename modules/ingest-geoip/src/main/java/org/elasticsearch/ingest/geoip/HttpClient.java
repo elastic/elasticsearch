@@ -36,10 +36,10 @@ class HttpClient {
         return get(url).readAllBytes();
     }
 
-    InputStream get(final String urlToGet) throws IOException {
+    InputStream get(final String url) throws IOException {
         return doPrivileged(() -> {
-            String url = urlToGet;
-            HttpURLConnection conn = createConnection(url);
+            String innerUrl = url;
+            HttpURLConnection conn = createConnection(innerUrl);
 
             int redirectsCount = 0;
             while (true) {
@@ -50,21 +50,21 @@ class HttpClient {
                     case HTTP_MOVED_TEMP:
                     case HTTP_SEE_OTHER:
                         if (redirectsCount++ > 50) {
-                            throw new IllegalStateException("too many redirects connection to [" + urlToGet + "]");
+                            throw new IllegalStateException("too many redirects connection to [" + url + "]");
                         }
 
                         // deal with redirections (including relative urls)
                         final String location = conn.getHeaderField("Location");
-                        final URL base = new URL(url);
+                        final URL base = new URL(innerUrl);
                         final URL next = new URL(base, location);
-                        url = next.toExternalForm();
-                        conn = createConnection(url);
+                        innerUrl = next.toExternalForm();
+                        conn = createConnection(innerUrl);
                         break;
                     case HTTP_NOT_FOUND:
-                        throw new ResourceNotFoundException("{} not found", urlToGet);
+                        throw new ResourceNotFoundException("{} not found", url);
                     default:
                         int responseCode = conn.getResponseCode();
-                        throw new ElasticsearchStatusException("error during downloading {}", RestStatus.fromCode(responseCode), urlToGet);
+                        throw new ElasticsearchStatusException("error during downloading {}", RestStatus.fromCode(responseCode), url);
                 }
             }
         });

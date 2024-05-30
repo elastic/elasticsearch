@@ -44,7 +44,7 @@ public final class SecurityCacheMetrics {
         );
         metrics.add(
             registry.registerLongGauge(
-                type.metricsPrefix + ".count.total",
+                type.metricsPrefix + ".count.current",
                 "The current number of cache entries.",
                 "count",
                 () -> new LongWithAttributes(cache.count())
@@ -57,9 +57,9 @@ public final class SecurityCacheMetrics {
 
         API_KEY_AUTH_CACHE("es.security.api_key.auth_cache"),
 
-        API_KEY_DOCS_CACHE("es.security.api_key.docs_cache"),
+        API_KEY_DOCS_CACHE("es.security.api_key.doc_cache"),
 
-        API_KEY_ROLE_DESCRIPTORS_CACHE("es.security.api_key.role_descriptors_cache"),
+        API_KEY_ROLE_DESCRIPTORS_CACHE("es.security.api_key.role_descriptor_cache"),
 
         ;
 

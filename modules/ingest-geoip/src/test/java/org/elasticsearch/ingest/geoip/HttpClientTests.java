@@ -49,6 +49,45 @@ public class HttpClientTests extends ESTestCase {
                 fail(e);
             }
         });
+        server.createContext("/redirect", exchange -> {
+            // path is either like this: /redirect/count/destination/
+            // or just: /redirect
+            try {
+                final String path = exchange.getRequestURI().getPath();
+                int count;
+                String destination;
+                if (path.lastIndexOf("/") > 0) {
+                    // path is /redirect/count/destination/, so pull out the bits
+                    String[] bits = path.split("/");
+                    count = Integer.parseInt(bits[2]);
+                    destination = bits[3];
+                } else {
+                    // path is just /redirect
+                    count = -1;
+                    destination = "hello";
+                }
+
+                if (count == -1) {
+                    // send a relative redirect, i.e. just "hello/"
+                    exchange.getResponseHeaders().add("Location", destination + "/");
+                } else if (count > 0) {
+                    // decrement the count and send a redirect to either a full url ("http://...")
+                    // or to an absolute url on this same server ("/...")
+                    count--;
+                    String location = "/redirect/" + count + "/" + destination + "/";
+                    if (count % 2 == 0) {
+                        location = url(location); // do the full url
+                    }
+                    exchange.getResponseHeaders().add("Location", location);
+                } else {
+                    // the count has hit zero, so ship them off to the destination
+                    exchange.getResponseHeaders().add("Location", "/" + destination + "/");
+                }
+                exchange.sendResponseHeaders(302, 0);
+            } catch (Exception e) {
+                fail(e);
+            }
+        });
         server.start();
     }
 
@@ -77,5 +116,29 @@ public class HttpClientTests extends ESTestCase {
         HttpClient client = new HttpClient();
         Exception e = expectThrows(ResourceNotFoundException.class, () -> client.getBytes(url("/404/")));
         assertThat(e.getMessage(), equalTo(url("/404/") + " not found"));
+    }
+
+    public void testRedirect() throws Exception {
+        HttpClient client = new HttpClient();
+        String response = bytesToString(client.getBytes(url("/redirect/3/hello/")));
+        assertThat(response, equalTo("hello world"));
+    }
+
+    public void testRelativeRedirect() throws Exception {
+        HttpClient client = new HttpClient();
+        String response = bytesToString(client.getBytes(url("/redirect")));
+        assertThat(response, equalTo("hello world"));
+    }
+
+    public void testRedirectTo404() throws Exception {
+        HttpClient client = new HttpClient();
+        Exception e = expectThrows(ResourceNotFoundException.class, () -> client.getBytes(url("/redirect/5/404/")));
+        assertThat(e.getMessage(), equalTo(url("/redirect/5/404/") + " not found"));
+    }
+
+    public void testTooManyRedirects() throws Exception {
+        HttpClient client = new HttpClient();
+        Exception e = expectThrows(IllegalStateException.class, () -> client.getBytes(url("/redirect/100/hello/")));
+        assertThat(e.getMessage(), equalTo("too many redirects connection to [" + url("/redirect/100/hello/") + "]"));
     }
 }

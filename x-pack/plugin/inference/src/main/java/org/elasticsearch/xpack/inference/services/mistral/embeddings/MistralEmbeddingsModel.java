@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.mistral.embeddings;
 
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
@@ -16,7 +17,6 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.mistral.MistralActionVisitor;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.azureaistudio.embeddings.AzureAiStudioEmbeddingsTaskSettings;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -46,7 +46,7 @@ public class MistralEmbeddingsModel extends Model {
             taskType,
             service,
             MistralEmbeddingsServiceSettings.fromMap(serviceSettings, context),
-            AzureAiStudioEmbeddingsTaskSettings.fromMap(taskSettings),
+            new EmptyTaskSettings(),    // no task settings for Mistral embeddings
             DefaultSecretSettings.fromMap(secrets)
         );
     }
@@ -76,7 +76,10 @@ public class MistralEmbeddingsModel extends Model {
         TaskSettings taskSettings,
         DefaultSecretSettings secrets
     ) {
-        super(new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings), new ModelSecrets(secrets));
+        super(
+            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, new EmptyTaskSettings()),
+            new ModelSecrets(secrets)
+        );
         setPropertiesFromServiceSettings(serviceSettings);
     }
 
@@ -84,6 +87,11 @@ public class MistralEmbeddingsModel extends Model {
         this.model = serviceSettings.model();
         this.rateLimitSettings = serviceSettings.rateLimitSettings();
         setEndpointUrl();
+    }
+
+    @Override
+    public MistralEmbeddingsServiceSettings getServiceSettings() {
+        return (MistralEmbeddingsServiceSettings) super.getServiceSettings();
     }
 
     public String model() {
@@ -121,7 +129,6 @@ public class MistralEmbeddingsModel extends Model {
     }
 
     public ExecutableAction accept(MistralActionVisitor creator, Map<String, Object> taskSettings) {
-        // TODO
-        return null;
+        return creator.create(this, taskSettings);
     }
 }

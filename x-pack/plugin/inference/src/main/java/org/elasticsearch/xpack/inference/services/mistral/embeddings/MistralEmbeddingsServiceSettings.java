@@ -34,11 +34,11 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOpt
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractSimilarity;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeAsType;
+import static org.elasticsearch.xpack.inference.services.mistral.MistralConstants.DIMENSIONS_SET_BY_USER;
 import static org.elasticsearch.xpack.inference.services.mistral.MistralConstants.MISTRAL_MODEL_FIELD;
 
 public class MistralEmbeddingsServiceSettings extends FilteredXContentObject implements ServiceSettings {
     public static final String NAME = "mistral_embeddings_service_settings";
-    static final String DIMENSIONS_SET_BY_USER = "dimensions_set_by_user";
 
     private final String model;
     private final Integer dimensions;
@@ -46,6 +46,9 @@ public class MistralEmbeddingsServiceSettings extends FilteredXContentObject imp
     private final SimilarityMeasure similarity;
     private final Integer maxInputTokens;
     private final RateLimitSettings rateLimitSettings;
+
+    // default for Mistral is 5 requests / sec
+    // setting this to 240 (4 requests / sec) is a sane default for us
     protected static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(240);
 
     public static MistralEmbeddingsServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
@@ -86,7 +89,7 @@ public class MistralEmbeddingsServiceSettings extends FilteredXContentObject imp
             throw validationException;
         }
 
-        return new MistralEmbeddingsServiceSettings(model, dims, dimensionsSetByUser, similarity, maxInputTokens, rateLimitSettings);
+        return new MistralEmbeddingsServiceSettings(model, dims, dimensionsSetByUser, maxInputTokens, similarity, rateLimitSettings);
     }
 
     public MistralEmbeddingsServiceSettings(StreamInput in) throws IOException {
@@ -102,8 +105,8 @@ public class MistralEmbeddingsServiceSettings extends FilteredXContentObject imp
         String model,
         @Nullable Integer dimensions,
         Boolean dimensionsSetByUser,
-        @Nullable SimilarityMeasure similarity,
         @Nullable Integer maxInputTokens,
+        @Nullable SimilarityMeasure similarity,
         @Nullable RateLimitSettings rateLimitSettings
     ) {
         this.model = model;
@@ -160,8 +163,11 @@ public class MistralEmbeddingsServiceSettings extends FilteredXContentObject imp
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
         this.toXContentFragmentOfExposedFields(builder, params);
         builder.field(DIMENSIONS_SET_BY_USER, dimensionsSetByUser);
+        rateLimitSettings.toXContent(builder, params);
+        builder.endObject();
         return builder;
     }
 

@@ -269,8 +269,8 @@ public class MistralService extends SenderService {
             embeddingServiceSettings.model(),
             embeddingsSize,
             embeddingServiceSettings.dimensionsSetByUser(),
-            similarityToUse,
             embeddingServiceSettings.maxInputTokens(),
+            similarityToUse,
             embeddingServiceSettings.rateLimitSettings()
         );
 

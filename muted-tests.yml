@@ -49,6 +49,9 @@ tests:
 - class: "org.elasticsearch.upgrades.SearchStatesIT"
   issue: "https://github.com/elastic/elasticsearch/issues/109190"
   method: "testBWCSearchStates"
+- class: "org.elasticsearch.xpack.esql.CsvTests"
+  issue: "https://github.com/elastic/elasticsearch/issues/109198"
+  method: "test {ip.IpPrefixLengthFromColumn}"
 # Examples:
 #
 #  Mute a single test case in a YAML test suite:

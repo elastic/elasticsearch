@@ -2,4 +2,4 @@
 
 *Description*
 
-Returns a string constructed by concatenating the input string with itself a specified number of times.
+Returns a string constructed by concatenating `string` with itself the specified `number` of times.

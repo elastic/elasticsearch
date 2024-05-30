@@ -292,7 +292,7 @@ now           |Returns current date and time.
 percentile    |The value at which a certain percentage of observed values occur.
 pi            |Returns {wikipedia}/Pi[Pi], the ratio of a circle's circumference to its diameter.
 pow           |Returns the value of `base` raised to the power of `exponent`.
-repeat        |Returns a string constructed by concatenating the input string with itself a specified number of times.
+repeat        |Returns a string constructed by concatenating `string` with itself the specified `number` of times.
 replace       |The function substitutes in the string `str` any match of the regular expression `regex` with the replacement string `newStr`.
 right         |Return the substring that extracts 'length' chars from 'str' starting from the right.
 round         |Rounds a number to the specified number of decimal places. Defaults to 0, which returns the nearest integer. If the precision is a negative number, rounds to the number of digits left of the decimal point.

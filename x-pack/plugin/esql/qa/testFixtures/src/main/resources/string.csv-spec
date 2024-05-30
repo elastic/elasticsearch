@@ -1377,12 +1377,14 @@ emp_no:integer | first_name:keyword | e:keyword    | d:keyword
 
 repeat#[skip:-8.14.99,reason:new string function added in 8.15]
 // tag::repeat[]
-row a = "Cheese!"
-| eval triple_a = repeat(a, 3);
-
-a:keyword | triple_a:keyword
-Cheese! | Cheese!Cheese!Cheese!
+ROW a = "Hello!"
+| EVAL triple_a = REPEAT(a, 3);
 // end::repeat[]
+
+// tag::repeat-result[]
+a:keyword | triple_a:keyword
+Hello! | Hello!Hello!Hello!
+// end::repeat-result[]
 ;
 
 repeatUtf16Emoji#[skip:-8.14.99,reason:new string function added in 8.15]

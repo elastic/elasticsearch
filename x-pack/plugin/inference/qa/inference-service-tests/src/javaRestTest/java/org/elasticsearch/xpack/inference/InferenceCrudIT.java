@@ -118,28 +118,29 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
     }
 
     public void testDeleteEndpointWhileReferencedByPipeline() throws IOException {
-        String modelId = "model_referenced_by_pipeline";
-        putModel(modelId, mockSparseServiceModelConfig(), TaskType.SPARSE_EMBEDDING);
+        String endpointId = "endpoint_referenced_by_pipeline";
+        putModel(endpointId, mockSparseServiceModelConfig(), TaskType.SPARSE_EMBEDDING);
         var pipelineId = "pipeline_referencing_model";
-        putPipeline(pipelineId, modelId);
+        putPipeline(pipelineId, endpointId);
 
         {
-            var e = expectThrows(ResponseException.class, () -> deleteModel(modelId));
+            var e = expectThrows(ResponseException.class, () -> deleteModel(endpointId));
             assertThat(
                 e.getMessage(),
                 containsString(
-                    "Model model_referenced_by_pipeline is referenced by pipelines and cannot be deleted. Use `force` to delete it anyway, or use `dry_run` to list the pipelines that reference it."
+                    "Inference endpoint endpoint_referenced_by_pipeline is referenced by pipelines and cannot be deleted. "
+                        + "Use `force` to delete it anyway, or use `dry_run` to list the pipelines that reference it."
                 )
             );
         }
         {
-            var response = deleteModel(modelId, "dry_run=true");
+            var response = deleteModel(endpointId, "dry_run=true");
             var entityString = EntityUtils.toString(response.getEntity());
             assertThat(entityString, containsString(pipelineId));
             assertThat(entityString, containsString("\"acknowledged\":false"));
         }
         {
-            var response = deleteModel(modelId, "force=true");
+            var response = deleteModel(endpointId, "force=true");
             var entityString = EntityUtils.toString(response.getEntity());
             assertThat(entityString, containsString("\"acknowledged\":true"));
         }

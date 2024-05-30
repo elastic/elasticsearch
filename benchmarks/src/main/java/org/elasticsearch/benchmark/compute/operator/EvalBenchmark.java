@@ -36,7 +36,6 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.RLike;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.planner.Layout;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -113,7 +112,7 @@ public class EvalBenchmark {
                     new EsField("timestamp", DataTypes.DATETIME, Map.of(), true)
                 );
                 yield EvalMapper.toEvaluator(
-                    new DateTrunc(Source.EMPTY, new Literal(Source.EMPTY, Duration.ofHours(24), EsqlDataTypes.TIME_DURATION), timestamp),
+                    new DateTrunc(Source.EMPTY, new Literal(Source.EMPTY, Duration.ofHours(24), DataTypes.TIME_DURATION), timestamp),
                     layout(timestamp)
                 ).get(driverContext);
             }

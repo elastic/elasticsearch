@@ -183,7 +183,6 @@ public class QueryRescorerBuilderTests extends ESTestCase {
             assertEquals(rescoreBuilder.getQueryWeight(), rescoreContext.queryWeight(), Float.MIN_VALUE);
             assertEquals(rescoreBuilder.getRescoreQueryWeight(), rescoreContext.rescoreQueryWeight(), Float.MIN_VALUE);
             assertEquals(rescoreBuilder.getScoreMode(), rescoreContext.scoreMode());
-            assertTrue(rescoreContext.canCombineScores());
         }
     }
 

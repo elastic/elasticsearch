@@ -58,6 +58,11 @@ public class LearningToRankRescorer implements Rescorer {
 
         LocalModel definition = ltrRescoreContext.regressionModelDefinition;
 
+        // Because scores of the first-paass query and the LTR model are not comparable, there is no way to combine the results.
+        // We will truncate the {@link TopDocs} to the window size so rescoring will be done on the full topDocs.
+        topDocs = topN(topDocs, rescoreContext.getWindowSize());
+
+
         // Save doc IDs for which rescoring was applied to be used in score explanation
         Set<Integer> topDocIDs = Arrays.stream(topDocs.scoreDocs).map(scoreDoc -> scoreDoc.doc).collect(toUnmodifiableSet());
         rescoreContext.setRescoredDocs(topDocIDs);
@@ -127,5 +132,19 @@ public class LearningToRankRescorer implements Rescorer {
         throws IOException {
         // TODO: Call infer again but with individual feature importance values and explaining the model (which features are used, etc.)
         return null;
+    }
+
+
+    /** Returns a new {@link TopDocs} with the topN from the incoming one, or the same TopDocs if the number of hits is already &lt;=
+     *  topN. */
+    private static TopDocs topN(TopDocs in, int topN) {
+        if (in.scoreDocs.length < topN) {
+            return in;
+        }
+
+        ScoreDoc[] subset = new ScoreDoc[topN];
+        System.arraycopy(in.scoreDocs, 0, subset, 0, topN);
+
+        return new TopDocs(in.totalHits, subset);
     }
 }

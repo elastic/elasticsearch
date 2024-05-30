@@ -155,8 +155,8 @@ public final class QueryRescorer implements Rescorer {
         private float rescoreQueryWeight = 1.0f;
         private QueryRescoreMode scoreMode;
 
-        public QueryRescoreContext(int windowSize, boolean canCombineScores) {
-            super(windowSize, QueryRescorer.INSTANCE, canCombineScores);
+        public QueryRescoreContext(int windowSize) {
+            super(windowSize, QueryRescorer.INSTANCE);
             this.scoreMode = QueryRescoreMode.Total;
         }
 

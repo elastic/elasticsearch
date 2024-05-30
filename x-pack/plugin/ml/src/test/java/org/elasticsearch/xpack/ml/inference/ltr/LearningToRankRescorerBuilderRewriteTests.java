@@ -216,7 +216,6 @@ public class LearningToRankRescorerBuilderRewriteTests extends AbstractBuilderTe
             featureExtractors.stream().flatMap(featureExtractor -> featureExtractor.featureNames().stream()).toList(),
             containsInAnyOrder("feature_1", "feature_2", DOUBLE_FIELD_NAME, INT_FIELD_NAME)
         );
-        assertFalse(rescoreContext.canCombineScores());
     }
 
     private LearningToRankRescorerBuilder rewriteAndFetch(

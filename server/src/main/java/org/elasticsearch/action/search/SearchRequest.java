@@ -390,9 +390,6 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             if (source.aggregations() != null) {
                 validationException = source.aggregations().validate(validationException);
             }
-            if (source.rescores() != null) {
-                validationException = validateRescores(validationException);
-            }
             if (source.rankBuilder() != null) {
                 int size = source.size() == -1 ? SearchService.DEFAULT_SIZE : source.size();
                 if (size == 0) {
@@ -444,6 +441,11 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
                     validationException = addValidationError("[rank] requires [explain] is [false]", validationException);
                 }
             }
+            if (source.rescores() != null) {
+                for (@SuppressWarnings("rawtypes") RescorerBuilder rescoreBuilder : source.rescores()) {
+                    validationException = rescoreBuilder.validate(this, validationException);
+                }
+            }
         }
         if (pointInTimeBuilder() != null) {
             if (scroll) {
@@ -487,48 +489,6 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             validationException = addValidationError("using [point in time] is not allowed with wait_for_checkpoints", validationException);
 
         }
-        return validationException;
-    }
-
-    public ActionRequestValidationException validateRescores(ActionRequestValidationException validationException) {
-        RescorerBuilder<?> nonCombinableRescorer = null;
-
-        if (source.rescores() == null) {
-            return validationException;
-        }
-
-        int paginationWindowSize = source.from() + source.size();
-
-        for (RescorerBuilder<?> currentRescorer : source.rescores()) {
-            if (nonCombinableRescorer != null && nonCombinableRescorer.windowSize() < currentRescorer.windowSize()) {
-                validationException = addValidationError(
-                    "unable to add a rescorer with [window_size: "
-                        + currentRescorer.windowSize()
-                        + "] because a rescorer of type ["
-                        + nonCombinableRescorer.getWriteableName()
-                        + "] with a smaller [window_size: "
-                        + nonCombinableRescorer.windowSize()
-                        + "] has been added before",
-                    validationException
-                );
-            }
-
-            if (currentRescorer.canCombineScores() == false) {
-                if (currentRescorer.windowSize() < paginationWindowSize) {
-                    validationException = addValidationError(
-                        "rescorer [window_size] is too small and should be at least the value of [from + size: "
-                            + paginationWindowSize
-                            + "] but was ["
-                            + currentRescorer.windowSize()
-                            + "]",
-                        validationException
-                    );
-                }
-
-                nonCombinableRescorer = currentRescorer;
-            }
-        }
-
         return validationException;
     }
 

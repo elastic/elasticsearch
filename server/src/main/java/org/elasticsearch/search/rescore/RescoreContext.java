@@ -22,18 +22,15 @@ import java.util.Set;
 public class RescoreContext {
     private final int windowSize;
     private final Rescorer rescorer;
-    private final boolean canCombineScores;
     private Set<Integer> rescoredDocs; // doc Ids for which rescoring was applied
 
     /**
      * Build the context.
      * @param rescorer the rescorer actually performing the rescore.
-     * @param canCombineScores Indicates if the rescorer score can be combined with other scores.
      */
-    public RescoreContext(int windowSize, Rescorer rescorer, boolean canCombineScores) {
+    public RescoreContext(int windowSize, Rescorer rescorer) {
         this.windowSize = windowSize;
         this.rescorer = rescorer;
-        this.canCombineScores = canCombineScores;
     }
 
     /**
@@ -67,9 +64,5 @@ public class RescoreContext {
      */
     public List<ParsedQuery> getParsedQueries() {
         return Collections.emptyList();
-    }
-
-    public boolean canCombineScores() {
-        return canCombineScores;
     }
 }

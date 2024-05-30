@@ -442,7 +442,8 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
                 }
             }
             if (source.rescores() != null) {
-                for (@SuppressWarnings("rawtypes") RescorerBuilder rescoreBuilder : source.rescores()) {
+                for (@SuppressWarnings("rawtypes")
+                RescorerBuilder rescoreBuilder : source.rescores()) {
                     validationException = rescoreBuilder.validate(this, validationException);
                 }
             }

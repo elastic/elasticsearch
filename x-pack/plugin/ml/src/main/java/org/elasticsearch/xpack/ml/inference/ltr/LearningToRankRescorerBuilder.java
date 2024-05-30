@@ -158,14 +158,16 @@ public class LearningToRankRescorerBuilder extends RescorerBuilder<LearningToRan
             RescorerBuilder<?> nextRescorer = rescorers.get(i);
             int nextRescorerWindowSize = nextRescorer.windowSize() != null ? nextRescorer.windowSize() : DEFAULT_WINDOW_SIZE;
             if (windowSize() < nextRescorerWindowSize) {
-                return addValidationError("unable to add a rescorer with [window_size: "
-                    + nextRescorer.windowSize()
-                    + "] because a rescorer of type ["
-                    + nextRescorer.getWriteableName()
-                    + "] with a smaller [window_size: "
-                    + windowSize()
-                    + "] has been added before",
-                validationException);
+                return addValidationError(
+                    "unable to add a rescorer with [window_size: "
+                        + nextRescorer.windowSize()
+                        + "] because a rescorer of type ["
+                        + nextRescorer.getWriteableName()
+                        + "] with a smaller [window_size: "
+                        + windowSize()
+                        + "] has been added before",
+                    validationException
+                );
             }
         }
 

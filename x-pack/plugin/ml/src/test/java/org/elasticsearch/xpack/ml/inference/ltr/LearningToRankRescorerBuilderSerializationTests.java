@@ -187,16 +187,15 @@ public class LearningToRankRescorerBuilderSerializationTests extends AbstractBWC
         return in -> new LearningToRankRescorerBuilder(in, learningToRankService);
     }
 
-
     protected LearningToRankRescorerBuilder createTestInstance(int windowSize) {
         LearningToRankRescorerBuilder builder = randomBoolean()
             ? createXContextTestInstance(null)
             : new LearningToRankRescorerBuilder(
-            randomAlphaOfLength(10),
-            randomLearningToRankConfig(),
-            randomBoolean() ? randomParams() : null,
-            learningToRankService
-        );
+                randomAlphaOfLength(10),
+                randomLearningToRankConfig(),
+                randomBoolean() ? randomParams() : null,
+                learningToRankService
+            );
 
         builder.windowSize(windowSize);
 

@@ -5,9 +5,9 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.entityanalytics.action;
+package org.elasticsearch.xpack.entityanalytics.common;
 
-final class Constants {
+public final class Constants {
     /**
      * The risk scoring algorithm uses a Riemann zeta function to sum an entity's risk inputs to a known, finite value (@see RISK_SCORING_SUM_MAX). It does so by assigning each input a weight based on its position in the list (ordered by score) of inputs. This value represents the complex variable s of Re(s) in traditional Riemann zeta function notation.
      */

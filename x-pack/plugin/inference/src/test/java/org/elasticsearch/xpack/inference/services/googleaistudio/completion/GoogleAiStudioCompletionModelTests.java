@@ -11,6 +11,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.googleaistudio.GoogleAiStudioSecretSettings;
 
 import java.net.URISyntaxException;
@@ -28,7 +29,8 @@ public class GoogleAiStudioCompletionModelTests extends ESTestCase {
             "service",
             new HashMap<>(Map.of("model_id", "model")),
             new HashMap<>(Map.of()),
-            null
+            null,
+            ConfigurationParseContext.PERSISTENT
         );
 
         assertThat(model.getTaskSettings(), is(EmptyTaskSettings.INSTANCE));

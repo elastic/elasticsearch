@@ -19,6 +19,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.junit.After;
 import org.junit.Before;
@@ -110,7 +111,8 @@ public class HuggingFaceBaseServiceTests extends ESTestCase {
             TaskType taskType,
             Map<String, Object> serviceSettings,
             Map<String, Object> secretSettings,
-            String failureMessage
+            String failureMessage,
+            ConfigurationParseContext context
         ) {
             return null;
         }

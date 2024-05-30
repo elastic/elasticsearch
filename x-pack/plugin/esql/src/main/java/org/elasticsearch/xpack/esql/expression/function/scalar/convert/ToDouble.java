@@ -14,10 +14,10 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
 import java.util.List;
 import java.util.Map;
@@ -44,9 +44,9 @@ public class ToDouble extends AbstractConvertFunction {
         Map.entry(UNSIGNED_LONG, ToDoubleFromUnsignedLongEvaluator.Factory::new),
         Map.entry(LONG, ToDoubleFromLongEvaluator.Factory::new), // CastLongToDoubleEvaluator would be a candidate, but not MV'd
         Map.entry(INTEGER, ToDoubleFromIntEvaluator.Factory::new), // CastIntToDoubleEvaluator would be a candidate, but not MV'd
-        Map.entry(EsqlDataTypes.COUNTER_DOUBLE, (field, source) -> field),
-        Map.entry(EsqlDataTypes.COUNTER_INTEGER, ToDoubleFromIntEvaluator.Factory::new),
-        Map.entry(EsqlDataTypes.COUNTER_LONG, ToDoubleFromLongEvaluator.Factory::new)
+        Map.entry(DataTypes.COUNTER_DOUBLE, (field, source) -> field),
+        Map.entry(DataTypes.COUNTER_INTEGER, ToDoubleFromIntEvaluator.Factory::new),
+        Map.entry(DataTypes.COUNTER_LONG, ToDoubleFromLongEvaluator.Factory::new)
     );
 
     @FunctionInfo(

@@ -101,7 +101,6 @@ import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.RowExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -235,7 +234,7 @@ public class PlanNamedTypesTests extends ESTestCase {
         var in = planStreamInput(bso);
         var deser = PlanNamedTypes.readUnsupportedAttr(in);
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(orig, unused -> deser);
-        assertThat(deser.id(), equalTo(in.nameIdFromLongValue(Long.parseLong(orig.id().toString()))));
+        assertThat(deser.id(), equalTo(in.mapNameId(Long.parseLong(orig.id().toString()))));
     }
 
     public void testUnsupportedAttribute() {
@@ -260,7 +259,7 @@ public class PlanNamedTypesTests extends ESTestCase {
         var in = planStreamInput(bso);
         var deser = PlanNamedTypes.readFieldAttribute(in);
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(orig, unused -> deser);
-        assertThat(deser.id(), equalTo(in.nameIdFromLongValue(Long.parseLong(orig.id().toString()))));
+        assertThat(deser.id(), equalTo(in.mapNameId(Long.parseLong(orig.id().toString()))));
     }
 
     public void testFieldAttribute() {
@@ -414,7 +413,7 @@ public class PlanNamedTypesTests extends ESTestCase {
         var in = planStreamInput(bso);
         var deser = PlanNamedTypes.readAlias(in);
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(orig, unused -> deser);
-        assertThat(deser.id(), equalTo(in.nameIdFromLongValue(Long.parseLong(orig.id().toString()))));
+        assertThat(deser.id(), equalTo(in.mapNameId(Long.parseLong(orig.id().toString()))));
     }
 
     public void testLiteralSimple() throws IOException {
@@ -690,7 +689,7 @@ public class PlanNamedTypesTests extends ESTestCase {
         return Map.copyOf(map);
     }
 
-    static List<DataType> DATA_TYPES = EsqlDataTypes.types().stream().toList();
+    static List<DataType> DATA_TYPES = DataTypes.types().stream().toList();
 
     static DataType randomDataType() {
         return DATA_TYPES.get(randomIntBetween(0, DATA_TYPES.size() - 1));

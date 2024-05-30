@@ -29,7 +29,6 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.VaragsTestCaseBui
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesFunctionTestCase;
 import org.elasticsearch.xpack.esql.planner.Layout;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
@@ -91,12 +90,7 @@ public class CoalesceTests extends AbstractFunctionTestCase {
     }
 
     protected static void addSpatialCombinations(List<TestCaseSupplier> suppliers) {
-        for (DataType dataType : List.of(
-            EsqlDataTypes.GEO_POINT,
-            EsqlDataTypes.GEO_SHAPE,
-            EsqlDataTypes.CARTESIAN_POINT,
-            EsqlDataTypes.CARTESIAN_SHAPE
-        )) {
+        for (DataType dataType : List.of(DataTypes.GEO_POINT, DataTypes.GEO_SHAPE, DataTypes.CARTESIAN_POINT, DataTypes.CARTESIAN_SHAPE)) {
             TestCaseSupplier.TypedDataSupplier leftDataSupplier = SpatialRelatesFunctionTestCase.testCaseSupplier(dataType);
             TestCaseSupplier.TypedDataSupplier rightDataSupplier = SpatialRelatesFunctionTestCase.testCaseSupplier(dataType);
             suppliers.add(

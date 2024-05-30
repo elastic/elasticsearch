@@ -7,13 +7,11 @@
 
 package org.elasticsearch.xpack.entityanalytics.models;
 
-import java.util.Map;
-
 public class RiskScoreResult {
-    public Map<String, Double> userScores;
-    public Map<String, Double> hostScores;
+    public EntityScore[] userScores;
+    public EntityScore[] hostScores;
 
-    public RiskScoreResult(Map<String, Double> userScores, Map<String, Double> hostScores) {
+    public RiskScoreResult(EntityScore[] userScores, EntityScore[] hostScores) {
         this.userScores = userScores;
         this.hostScores = hostScores;
     }

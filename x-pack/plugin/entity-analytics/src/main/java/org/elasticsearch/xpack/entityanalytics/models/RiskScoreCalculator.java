@@ -14,40 +14,60 @@ import org.elasticsearch.xpack.entityanalytics.common.Constants;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class RiskScoreCalculator {
-    private static Map<String, Double> processResultsForEntityType(EntityType entityType, SearchResponse searchResponse) {
-        System.out.println("HELLOWORLD RESPONSE " + searchResponse);
+    private static EntityScore[] processResultsForEntityType(EntityType entityType, SearchResponse searchResponse) {
         String aggregationName = (entityType.equals(EntityType.Host)) ? "host" : "user";
         String identifierField = (entityType.equals(EntityType.Host)) ? "host.name" : "user.name";
-
-        Map<String, Double> results = new HashMap<>();
+        int maxInputs = 10; // TODO make dynamic
+        double global_identifier_type_weight = 1; // TODO: make dynamic
+        List<EntityScore> results = new ArrayList<EntityScore>();
         CompositeAggregation entityCompositeAgg = searchResponse.getAggregations().get(aggregationName);
-        for (CompositeAggregation.Bucket eachBucket : entityCompositeAgg.getBuckets()) {
-            TopHits hits = eachBucket.getAggregations().get("top_inputs");
-            var alertRiskScores = new ArrayList<Double>();
-            hits.getHits().forEach(eachAlert -> {
-                var alertSource = eachAlert.getSourceAsMap();
-                alertRiskScores.add(Double.parseDouble(alertSource.get("kibana.alert.risk_score").toString()));
-            });
-            alertRiskScores.sort(Collections.reverseOrder());
 
-            double totalScore = 0;
-            for (int i = 0; i < alertRiskScores.size(); i++) {
-                totalScore += alertRiskScores.get(i) / Math.pow(i + 1, Constants.RISK_SCORING_SUM_VALUE);
-            }
-            double normalizedScore = (Constants.RISK_SCORING_NORMALIZATION_MAX * totalScore) / Constants.RISK_SCORING_SUM_MAX;
-            results.put(eachBucket.getKey().get(identifierField).toString(), normalizedScore);
+        for (CompositeAggregation.Bucket eachBucket : entityCompositeAgg.getBuckets()) {
+            TopHits topHits = eachBucket.getAggregations().get("top_inputs");
+            List<RiskInput> riskInputs = new ArrayList<>();
+            double[] totalScore = { 0.0 };
+            AtomicInteger counter = new AtomicInteger(0);
+            var hits = topHits.getHits();
+
+            hits.forEach(eachAlert -> {
+                int i = counter.getAndIncrement();
+                var alertSource = eachAlert.getSourceAsMap();
+                var riskScoreDouble = Double.parseDouble(alertSource.get("kibana.alert.risk_score").toString());
+
+                double riskContribution = riskScoreDouble / Math.pow(i + 1, Constants.RISK_SCORING_SUM_VALUE);
+
+                if (riskInputs.size() < maxInputs) {
+                    double normalizedRiskContribution = 100 * riskContribution / Constants.RISK_SCORING_SUM_MAX;
+                    riskInputs.add(RiskInput.fromAlertHit(eachAlert, normalizedRiskContribution));
+                }
+
+                totalScore[0] += riskContribution;
+            });
+            double normalizedScore = (Constants.RISK_SCORING_NORMALIZATION_MAX * totalScore[0]) / Constants.RISK_SCORING_SUM_MAX;
+            int category1Count = Math.toIntExact(hits.getTotalHits().value);
+            String identifierValue = eachBucket.getKey().get(identifierField).toString();
+            results.add(
+                new EntityScore(
+                    identifierField,
+                    identifierValue,
+                    totalScore[0],
+                    category1Count,
+                    totalScore[0] * global_identifier_type_weight,
+                    normalizedScore,
+                    riskInputs.toArray(new RiskInput[0])
+                )
+            );
         }
-        return results;
+        return results.toArray(new EntityScore[0]);
     }
 
     public static RiskScoreResult calculateRiskScores(EntityType[] entityTypes, SearchResponse searchResponse) {
-        Map<String, Double> hostResults = new HashMap<>();
-        Map<String, Double> userResults = new HashMap<>();
+        EntityScore[] hostResults = {};
+        EntityScore[] userResults = {};
         var entityTypeList = Arrays.asList(entityTypes);
 
         if (entityTypeList.contains(EntityType.Host)) {

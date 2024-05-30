@@ -18,6 +18,7 @@ import org.elasticsearch.search.aggregations.bucket.composite.CompositeValuesSou
 import org.elasticsearch.search.aggregations.bucket.composite.TermsValuesSourceBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.entityanalytics.common.EntityTypeUtils;
 
 import java.time.Instant;
@@ -33,10 +34,11 @@ public class RiskScoreQueryBuilder {
         sources.add(new TermsValuesSourceBuilder(identifierField).field(identifierField));
 
         return AggregationBuilders.composite(aggregationName, sources)
-            .size(10)
+            .size(1000) // TODO: page size
             .subAggregation(
                 AggregationBuilders.topHits("top_inputs")
                     .size(100)
+                    .sort("kibana.alert.risk_score", SortOrder.DESC)
                     .fetchSource(
                         FetchSourceContext.of(
                             true,
@@ -72,6 +74,7 @@ public class RiskScoreQueryBuilder {
         );
 
         searchSourceBuilder.query(functionScoreQuery);
+        searchSourceBuilder.size(0);
 
         for (EntityType entityType : entityTypes) {
             searchSourceBuilder.aggregation(buildEntityAggregation(entityType));

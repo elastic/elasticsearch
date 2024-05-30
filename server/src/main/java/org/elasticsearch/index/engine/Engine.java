@@ -241,6 +241,9 @@ public abstract class Engine implements Closeable {
         } catch (IOException e) {
             logger.trace(() -> "IO error while getting the number of documents with ignored fields", e);
         } catch (UnsupportedOperationException e) {
+            // NOTE: `source only snapshots` include only _source, stored fields and metadata while inverted index
+            // and doc values are missing. As a result we cannot count the number of documents with ignored fields
+            // on an index restored out of a `source only snapshot`.
             logger.trace(() -> "Getting number of documents with ignored fields is not supported", e);
         }
         return 0;

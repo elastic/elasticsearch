@@ -29,7 +29,6 @@ include::{es-ref-dir}/search/search-your-data/search-across-clusters.asciidoc[ta
 * <<esql-ccs-security-model-certificate, TLS certificate authentication>>
 * <<esql-ccs-security-model-api-key, API key authentication>>
 
-
 [discrete]
 [[esql-ccs-security-model-certificate]]
 ===== TLS certificate authentication
@@ -49,8 +48,8 @@ Refer to <<remote-clusters-cert, TLS certificate authentication>> for prerequisi
 
 The following information pertains to using {esql} across clusters with the <<remote-clusters-api-key, *API key based security model*>>.
 API key based cross-cluster search (CCS) enables more granular control over allowed actions between clusters.
-As a result defining roles and privileges is more complex than with the certificate based security model.
-It makes sense when you have different administrators for different clusters.
+As a result, defining roles and privileges is more complex than with the certificate based security model.
+For example, it makes sense in scenarios when you have different administrators for different clusters.
 
 You will need to create an API key using the <<security-api-create-cross-cluster-api-key,Create cross-cluster API key>> API or using the {kibana-ref}/api-keys.html[Kibana API keys UI].
 

@@ -36,6 +36,8 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.store.IndicesStore;
+import org.elasticsearch.telemetry.tracing.Tracer;
+import org.elasticsearch.telemetry.tracing.TracerSpan;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -92,20 +94,34 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
     private final Collection<ClusterStateListener> clusterStateListeners = new CopyOnWriteArrayList<>();
     private final Map<TimeoutClusterStateListener, NotifyTimeout> timeoutClusterStateListeners = new ConcurrentHashMap<>();
 
-    private final AtomicReference<ClusterState> state; // last applied state
+    private final AtomicReference<ClusterState> state = new AtomicReference<>(); // last applied state
 
     private final String nodeName;
-
-    private final ClusterApplierRecordingService recordingService;
+    private final ClusterApplierRecordingService recordingService = new ClusterApplierRecordingService();
+    private final Tracer tracer;
 
     private NodeConnectionsService nodeConnectionsService;
 
-    public ClusterApplierService(String nodeName, Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool) {
+    public ClusterApplierService(
+        String nodeName,
+        Settings settings,
+        ClusterSettings clusterSettings,
+        ThreadPool threadPool
+    ) {
+        this(nodeName, settings, clusterSettings, threadPool, Tracer.NOOP);
+    }
+
+    public ClusterApplierService(
+        String nodeName,
+        Settings settings,
+        ClusterSettings clusterSettings,
+        ThreadPool threadPool,
+        Tracer tracer
+    ) {
         this.clusterSettings = clusterSettings;
         this.threadPool = threadPool;
-        this.state = new AtomicReference<>();
         this.nodeName = nodeName;
-        this.recordingService = new ClusterApplierRecordingService();
+        this.tracer = tracer;
 
         clusterSettings.initializeAndWatch(CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING, t -> slowTaskLoggingThreshold = t);
         clusterSettings.initializeAndWatch(CLUSTER_SERVICE_SLOW_TASK_THREAD_DUMP_TIMEOUT_SETTING, t -> slowTaskThreadDumpTimeout = t);
@@ -484,30 +500,31 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
                 logger.info("{}, term: {}, version: {}, reason: {}", summary, newClusterState.term(), newClusterState.version(), source);
             }
         }
-
-        logger.trace("connecting to nodes of cluster state with version {}", newClusterState.version());
-        try (Releasable ignored = stopWatch.record("connecting to new nodes")) {
-            connectToNodesAndWait(newClusterState);
-        }
-
-        // nothing to do until we actually recover from the gateway or any other block indicates we need to disable persistency
-        if (clusterChangedEvent.state().blocks().disableStatePersistence() == false && clusterChangedEvent.metadataChanged()) {
-            logger.debug("applying settings from cluster state with version {}", newClusterState.version());
-            final Settings incomingSettings = clusterChangedEvent.state().metadata().settings();
-            try (Releasable ignored = stopWatch.record("applying settings")) {
-                clusterSettings.applySettings(incomingSettings);
+        TracerSpan.span(threadPool, tracer, "applying_cluster_state", () -> {
+            logger.trace("connecting to nodes of cluster state with version {}", newClusterState.version());
+            try (Releasable ignored = stopWatch.record("connecting to new nodes")) {
+                connectToNodesAndWait(newClusterState);
             }
-        }
 
-        logger.debug("apply cluster state with version {}", newClusterState.version());
-        callClusterStateAppliers(clusterChangedEvent, stopWatch);
+            // nothing to do until we actually recover from the gateway or any other block indicates we need to disable persistency
+            if (clusterChangedEvent.state().blocks().disableStatePersistence() == false && clusterChangedEvent.metadataChanged()) {
+                logger.debug("applying settings from cluster state with version {}", newClusterState.version());
+                final Settings incomingSettings = clusterChangedEvent.state().metadata().settings();
+                try (Releasable ignored = stopWatch.record("applying settings")) {
+                    clusterSettings.applySettings(incomingSettings);
+                }
+            }
 
-        nodeConnectionsService.disconnectFromNodesExcept(newClusterState.nodes());
+            logger.debug("apply cluster state with version {}", newClusterState.version());
+            callClusterStateAppliers(clusterChangedEvent, stopWatch);
 
-        logger.debug("set locally applied cluster state to version {}", newClusterState.version());
-        state.set(newClusterState);
+            nodeConnectionsService.disconnectFromNodesExcept(newClusterState.nodes());
 
-        callClusterStateListeners(clusterChangedEvent, stopWatch);
+            logger.debug("set locally applied cluster state to version {}", newClusterState.version());
+            state.set(newClusterState);
+
+            callClusterStateListeners(clusterChangedEvent, stopWatch);
+        });
     }
 
     protected void connectToNodesAndWait(ClusterState newClusterState) {
@@ -532,7 +549,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         callClusterStateAppliers(clusterChangedEvent, stopWatch, lowPriorityStateAppliers);
     }
 
-    private static void callClusterStateAppliers(
+    private void callClusterStateAppliers(
         ClusterChangedEvent clusterChangedEvent,
         Recorder stopWatch,
         Collection<ClusterStateApplier> clusterStateAppliers
@@ -540,10 +557,12 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         for (ClusterStateApplier applier : clusterStateAppliers) {
             logger.trace("calling [{}] with change to version [{}]", applier, clusterChangedEvent.state().version());
             final String name = applier.toString();
-            try (Releasable ignored = stopWatch.record(name)) {
-                applier.applyClusterState(clusterChangedEvent);
-            }
-            // TODO assert "ClusterStateApplier must not set response headers in the ClusterApplierService"
+            TracerSpan.span(threadPool, tracer, "ClusterStateApplier:" + name, () -> {
+                try (Releasable ignored = stopWatch.record(name)) {
+                    applier.applyClusterState(clusterChangedEvent);
+                }
+                // TODO assert "ClusterStateApplier must not set response headers in the ClusterApplierService"
+            });
         }
     }
 
@@ -552,22 +571,22 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         callClusterStateListener(clusterChangedEvent, stopWatch, timeoutClusterStateListeners.keySet());
     }
 
-    private static void callClusterStateListener(
+    private void callClusterStateListener(
         ClusterChangedEvent clusterChangedEvent,
         Recorder stopWatch,
         Collection<? extends ClusterStateListener> listeners
     ) {
         for (ClusterStateListener listener : listeners) {
-            try {
-                logger.trace("calling [{}] with change to version [{}]", listener, clusterChangedEvent.state().version());
-                final String name = listener.toString();
+            logger.trace("calling [{}] with change to version [{}]", listener, clusterChangedEvent.state().version());
+            final String name = listener.toString();
+            TracerSpan.span(threadPool, tracer, "ClusterStateListener:" + name, () -> {
                 try (Releasable ignored = stopWatch.record(name)) {
                     listener.clusterChanged(clusterChangedEvent);
+                } catch (Exception ex) {
+                    logger.warn("failed to notify ClusterStateListener", ex);
                 }
-            } catch (Exception ex) {
-                logger.warn("failed to notify ClusterStateListener", ex);
-            }
-            // TODO assert "ClusterStateApplier must not set response headers in the ClusterStateListener"
+                // TODO assert "ClusterStateApplier must not set response headers in the ClusterStateListener"
+            });
         }
     }
 

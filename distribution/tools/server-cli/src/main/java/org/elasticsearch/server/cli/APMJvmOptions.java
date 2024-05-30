@@ -77,10 +77,10 @@ class APMJvmOptions {
         "log_level", "warn",
         "log_format_file", "JSON",
         "application_packages", "org.elasticsearch,org.apache.lucene",
-        "metrics_interval", "120s",
+        "metrics_interval", "5s",
         "breakdown_metrics", "false",
         "central_config", "false",
-        "transaction_sample_rate", "0.2"
+        "transaction_sample_rate", "1.0"
         );
     // end::noformat
 

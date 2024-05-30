@@ -28,12 +28,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.threadpool.ThreadPool;
 
 public class ClusterService extends AbstractLifecycleComponent {
-    private final MasterService masterService;
-
-    private final ClusterApplierService clusterApplierService;
 
     public static final org.elasticsearch.common.settings.Setting.AffixSetting<String> USER_DEFINED_METADATA = Setting.prefixKeySetting(
         "cluster.metadata.",
@@ -44,21 +42,34 @@ public class ClusterService extends AbstractLifecycleComponent {
      * The node's settings.
      */
     private final Settings settings;
-
-    private final ClusterName clusterName;
-
-    private final OperationRouting operationRouting;
-
     private final ClusterSettings clusterSettings;
-
     private final String nodeName;
+    private final ClusterName clusterName;
+    private final MasterService masterService;
+    private final OperationRouting operationRouting;
+    private final ClusterApplierService clusterApplierService;
 
-    public ClusterService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool, TaskManager taskManager) {
+    public ClusterService(
+        Settings settings,
+        ClusterSettings clusterSettings,
+        ThreadPool threadPool,
+        TaskManager taskManager
+    ) {
+        this(settings, clusterSettings, threadPool, taskManager, Tracer.NOOP);
+    }
+
+    public ClusterService(
+        Settings settings,
+        ClusterSettings clusterSettings,
+        ThreadPool threadPool,
+        TaskManager taskManager,
+        Tracer tracer
+    ) {
         this(
             settings,
             clusterSettings,
             new MasterService(settings, clusterSettings, threadPool, taskManager),
-            new ClusterApplierService(Node.NODE_NAME_SETTING.get(settings), settings, clusterSettings, threadPool)
+            new ClusterApplierService(Node.NODE_NAME_SETTING.get(settings), settings, clusterSettings, threadPool, tracer)
         );
     }
 
@@ -69,11 +80,11 @@ public class ClusterService extends AbstractLifecycleComponent {
         ClusterApplierService clusterApplierService
     ) {
         this.settings = settings;
+        this.clusterSettings = clusterSettings;
         this.nodeName = Node.NODE_NAME_SETTING.get(settings);
+        this.clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);
         this.masterService = masterService;
         this.operationRouting = new OperationRouting(settings, clusterSettings);
-        this.clusterSettings = clusterSettings;
-        this.clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);
         // Add a no-op update consumer so changes are logged
         this.clusterSettings.addAffixUpdateConsumer(USER_DEFINED_METADATA, (first, second) -> {}, (first, second) -> {});
         this.clusterApplierService = clusterApplierService;

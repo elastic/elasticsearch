@@ -221,14 +221,97 @@ public class FieldBasedRerankerIT extends ESIntegTestCase {
         );
     }
 
-    public void testThrowingRankBuilderAllContextsAreClosedPartialFailures() throws Exception {
+    public void testQueryPhaseShardThrowingRankBuilderAllContextsAreClosedAllShardsFail() throws Exception {
         final String indexName = "test_index";
         final String rankFeatureField = "rankFeatureField";
         final String searchField = "searchField";
         final int rankWindowSize = 10;
 
-        // we have less than the max number of nodes here, so not all shards will have failed and "partial" results can be
-        // returned
+        // this test is irrespective of the number of shards, as we will always reach QueryPhaseRankShardContext#combineQueryPhaseResults
+        // even with no results. So, when we get back to the coordinator, all shards will have failed, and the whole response
+        // will be marked as a failure
+        createIndex(indexName);
+        indexRandom(
+            true,
+            prepareIndex(indexName).setId("1").setSource(rankFeatureField, 0.1, searchField, "A"),
+            prepareIndex(indexName).setId("2").setSource(rankFeatureField, 0.2, searchField, "B"),
+            prepareIndex(indexName).setId("3").setSource(rankFeatureField, 0.3, searchField, "C"),
+            prepareIndex(indexName).setId("4").setSource(rankFeatureField, 0.4, searchField, "D"),
+            prepareIndex(indexName).setId("5").setSource(rankFeatureField, 0.5, searchField, "E")
+        );
+
+        expectThrows(
+            SearchPhaseExecutionException.class,
+            () -> prepareSearch().setQuery(
+                boolQuery().should(constantScoreQuery(matchQuery(searchField, "A")).boost(randomFloat()))
+                    .should(constantScoreQuery(matchQuery(searchField, "B")).boost(randomFloat()))
+                    .should(constantScoreQuery(matchQuery(searchField, "C")).boost(randomFloat()))
+                    .should(constantScoreQuery(matchQuery(searchField, "D")).boost(randomFloat()))
+                    .should(constantScoreQuery(matchQuery(searchField, "E")).boost(randomFloat()))
+            )
+                .setRankBuilder(
+                    new ThrowingRankBuilder(
+                        rankWindowSize,
+                        rankFeatureField,
+                        ThrowingRankBuilder.ThrowingRankBuilderType.THROWING_QUERY_PHASE_SHARD_CONTEXT.name()
+                    )
+                )
+                .addFetchField(searchField)
+                .setTrackTotalHits(true)
+                .setAllowPartialSearchResults(true)
+                .setSize(10)
+                .get()
+        );
+    }
+
+    public void testQueryPhaseCoordinatorThrowingRankBuilderAllContextsAreClosedAllShardsFail() throws Exception {
+        final String indexName = "test_index";
+        final String rankFeatureField = "rankFeatureField";
+        final String searchField = "searchField";
+        final int rankWindowSize = 10;
+
+        createIndex(indexName);
+        indexRandom(
+            true,
+            prepareIndex(indexName).setId("1").setSource(rankFeatureField, 0.1, searchField, "A"),
+            prepareIndex(indexName).setId("2").setSource(rankFeatureField, 0.2, searchField, "B"),
+            prepareIndex(indexName).setId("3").setSource(rankFeatureField, 0.3, searchField, "C"),
+            prepareIndex(indexName).setId("4").setSource(rankFeatureField, 0.4, searchField, "D"),
+            prepareIndex(indexName).setId("5").setSource(rankFeatureField, 0.5, searchField, "E")
+        );
+
+        // when we throw on the coordinator, the onPhaseFailure handler will be invoked, which in turn will mark the whole
+        // search request as a failure (i.e. no partial results)
+        expectThrows(
+            SearchPhaseExecutionException.class,
+            () -> prepareSearch().setQuery(
+                boolQuery().should(constantScoreQuery(matchQuery(searchField, "A")).boost(randomFloat()))
+                    .should(constantScoreQuery(matchQuery(searchField, "B")).boost(randomFloat()))
+                    .should(constantScoreQuery(matchQuery(searchField, "C")).boost(randomFloat()))
+                    .should(constantScoreQuery(matchQuery(searchField, "D")).boost(randomFloat()))
+                    .should(constantScoreQuery(matchQuery(searchField, "E")).boost(randomFloat()))
+            )
+                .setRankBuilder(
+                    new ThrowingRankBuilder(
+                        rankWindowSize,
+                        rankFeatureField,
+                        ThrowingRankBuilder.ThrowingRankBuilderType.THROWING_QUERY_PHASE_COORDINATOR_CONTEXT.name()
+                    )
+                )
+                .addFetchField(searchField)
+                .setTrackTotalHits(true)
+                .setAllowPartialSearchResults(true)
+                .setSize(10)
+                .get()
+        );
+    }
+
+    public void testRankFeaturePhaseShardThrowingRankBuilderAllContextsAreClosedPartialFailures() throws Exception {
+        final String indexName = "test_index";
+        final String rankFeatureField = "rankFeatureField";
+        final String searchField = "searchField";
+        final int rankWindowSize = 10;
+
         createIndex(indexName, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 10).build());
         indexRandom(
             true,
@@ -239,7 +322,7 @@ public class FieldBasedRerankerIT extends ESIntegTestCase {
             prepareIndex(indexName).setId("5").setSource(rankFeatureField, 0.5, searchField, "E")
         );
 
-        // we have 10 shards and 2 documents, so when the exception is thrown we know that not all shards will report failures
+        // we have 10 shards and 5 documents, so when the exception is thrown we know that not all shards will report failures
         assertResponse(
             prepareSearch().setQuery(
                 boolQuery().should(constantScoreQuery(matchQuery(searchField, "A")).boost(randomFloat()))
@@ -248,7 +331,13 @@ public class FieldBasedRerankerIT extends ESIntegTestCase {
                     .should(constantScoreQuery(matchQuery(searchField, "D")).boost(randomFloat()))
                     .should(constantScoreQuery(matchQuery(searchField, "E")).boost(randomFloat()))
             )
-                .setRankBuilder(new ThrowingRankBuilder(rankWindowSize, rankFeatureField))
+                .setRankBuilder(
+                    new ThrowingRankBuilder(
+                        rankWindowSize,
+                        rankFeatureField,
+                        ThrowingRankBuilder.ThrowingRankBuilderType.THROWING_RANK_FEATURE_PHASE_SHARD_CONTEXT.name()
+                    )
+                )
                 .addFetchField(searchField)
                 .setTrackTotalHits(true)
                 .setAllowPartialSearchResults(true)
@@ -257,7 +346,7 @@ public class FieldBasedRerankerIT extends ESIntegTestCase {
                 assertTrue(response.getFailedShards() > 0);
                 assertTrue(
                     Arrays.stream(response.getShardFailures())
-                        .allMatch(failure -> failure.getCause().getMessage().equals("This rank builder throws an exception"))
+                        .allMatch(failure -> failure.getCause().getMessage().contains("rfs - simulated failure"))
                 );
                 assertHitCount(response, 5);
                 assertTrue(response.getHits().getHits().length == 0);
@@ -265,13 +354,13 @@ public class FieldBasedRerankerIT extends ESIntegTestCase {
         );
     }
 
-    public void testThrowingRankBuilderAllContextsAreClosedAllShardsFail() throws Exception {
+    public void testRankFeaturePhaseShardThrowingRankBuilderAllContextsAreClosedAllShardsFail() throws Exception {
         final String indexName = "test_index";
         final String rankFeatureField = "rankFeatureField";
         final String searchField = "searchField";
         final int rankWindowSize = 10;
 
-        // we have 1 shard and 2 documents, so when the exception is thrown we know that all shards will have failed
+        // we have 1 shard and 5 documents, so when the exception is thrown we know that all shards will have failed
         createIndex(indexName, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).build());
         indexRandom(
             true,
@@ -291,7 +380,53 @@ public class FieldBasedRerankerIT extends ESIntegTestCase {
                     .should(constantScoreQuery(matchQuery(searchField, "D")).boost(randomFloat()))
                     .should(constantScoreQuery(matchQuery(searchField, "E")).boost(randomFloat()))
             )
-                .setRankBuilder(new ThrowingRankBuilder(rankWindowSize, rankFeatureField))
+                .setRankBuilder(
+                    new ThrowingRankBuilder(
+                        rankWindowSize,
+                        rankFeatureField,
+                        ThrowingRankBuilder.ThrowingRankBuilderType.THROWING_RANK_FEATURE_PHASE_SHARD_CONTEXT.name()
+                    )
+                )
+                .addFetchField(searchField)
+                .setTrackTotalHits(true)
+                .setAllowPartialSearchResults(true)
+                .setSize(10)
+                .get()
+        );
+    }
+
+    public void testRankFeaturePhaseCoordinatorThrowingRankBuilderAllContextsAreClosedAllShardsFail() throws Exception {
+        final String indexName = "test_index";
+        final String rankFeatureField = "rankFeatureField";
+        final String searchField = "searchField";
+        final int rankWindowSize = 10;
+
+        createIndex(indexName);
+        indexRandom(
+            true,
+            prepareIndex(indexName).setId("1").setSource(rankFeatureField, 0.1, searchField, "A"),
+            prepareIndex(indexName).setId("2").setSource(rankFeatureField, 0.2, searchField, "B"),
+            prepareIndex(indexName).setId("3").setSource(rankFeatureField, 0.3, searchField, "C"),
+            prepareIndex(indexName).setId("4").setSource(rankFeatureField, 0.4, searchField, "D"),
+            prepareIndex(indexName).setId("5").setSource(rankFeatureField, 0.5, searchField, "E")
+        );
+
+        expectThrows(
+            SearchPhaseExecutionException.class,
+            () -> prepareSearch().setQuery(
+                boolQuery().should(constantScoreQuery(matchQuery(searchField, "A")).boost(randomFloat()))
+                    .should(constantScoreQuery(matchQuery(searchField, "B")).boost(randomFloat()))
+                    .should(constantScoreQuery(matchQuery(searchField, "C")).boost(randomFloat()))
+                    .should(constantScoreQuery(matchQuery(searchField, "D")).boost(randomFloat()))
+                    .should(constantScoreQuery(matchQuery(searchField, "E")).boost(randomFloat()))
+            )
+                .setRankBuilder(
+                    new ThrowingRankBuilder(
+                        rankWindowSize,
+                        rankFeatureField,
+                        ThrowingRankBuilder.ThrowingRankBuilderType.THROWING_RANK_FEATURE_PHASE_COORDINATOR_CONTEXT.name()
+                    )
+                )
                 .addFetchField(searchField)
                 .setTrackTotalHits(true)
                 .setAllowPartialSearchResults(true)
@@ -462,31 +597,57 @@ public class FieldBasedRerankerIT extends ESIntegTestCase {
 
     public static class ThrowingRankBuilder extends FieldBasedRankBuilder {
 
+        public enum ThrowingRankBuilderType {
+            THROWING_QUERY_PHASE_SHARD_CONTEXT,
+            THROWING_QUERY_PHASE_COORDINATOR_CONTEXT,
+            THROWING_RANK_FEATURE_PHASE_SHARD_CONTEXT,
+            THROWING_RANK_FEATURE_PHASE_COORDINATOR_CONTEXT;
+        }
+
+        protected final ThrowingRankBuilderType throwingRankBuilderType;
+
         public static final ParseField FIELD_FIELD = new ParseField("field");
+        public static final ParseField THROWING_TYPE_FIELD = new ParseField("throwing-type");
         static final ConstructingObjectParser<ThrowingRankBuilder, Void> PARSER = new ConstructingObjectParser<>("throwing-rank", args -> {
             int rankWindowSize = args[0] == null ? DEFAULT_RANK_WINDOW_SIZE : (int) args[0];
             String field = (String) args[1];
             if (field == null || field.isEmpty()) {
                 throw new IllegalArgumentException("Field cannot be null or empty");
             }
-            return new ThrowingRankBuilder(rankWindowSize, field);
+            String throwingType = (String) args[2];
+            return new ThrowingRankBuilder(rankWindowSize, field, throwingType);
         });
 
         static {
             PARSER.declareInt(optionalConstructorArg(), RANK_WINDOW_SIZE_FIELD);
             PARSER.declareString(constructorArg(), FIELD_FIELD);
+            PARSER.declareString(constructorArg(), THROWING_TYPE_FIELD);
         }
 
         public static FieldBasedRankBuilder fromXContent(XContentParser parser) throws IOException {
             return PARSER.parse(parser, null);
         }
 
-        public ThrowingRankBuilder(final int rankWindowSize, final String field) {
+        public ThrowingRankBuilder(final int rankWindowSize, final String field, final String throwingType) {
             super(rankWindowSize, field);
+            this.throwingRankBuilderType = ThrowingRankBuilderType.valueOf(throwingType);
         }
 
         public ThrowingRankBuilder(StreamInput in) throws IOException {
             super(in);
+            this.throwingRankBuilderType = in.readEnum(ThrowingRankBuilderType.class);
+        }
+
+        @Override
+        protected void doWriteTo(StreamOutput out) throws IOException {
+            super.doWriteTo(out);
+            out.writeEnum(throwingRankBuilderType);
+        }
+
+        @Override
+        protected void doXContent(XContentBuilder builder, Params params) throws IOException {
+            super.doXContent(builder, params);
+            builder.field(THROWING_TYPE_FIELD.getPreferredName(), throwingRankBuilderType);
         }
 
         @Override
@@ -495,13 +656,62 @@ public class FieldBasedRerankerIT extends ESIntegTestCase {
         }
 
         @Override
+        public QueryPhaseRankShardContext buildQueryPhaseShardContext(List<Query> queries, int from) {
+            if (this.throwingRankBuilderType == ThrowingRankBuilderType.THROWING_QUERY_PHASE_SHARD_CONTEXT)
+                return new QueryPhaseRankShardContext(queries, rankWindowSize()) {
+                    @Override
+                    public RankShardResult combineQueryPhaseResults(List<TopDocs> rankResults) {
+                        throw new UnsupportedOperationException("qps - simulated failure");
+                    }
+                };
+            else {
+                return super.buildQueryPhaseShardContext(queries, from);
+            }
+        }
+
+        @Override
+        public QueryPhaseRankCoordinatorContext buildQueryPhaseCoordinatorContext(int size, int from) {
+            if (this.throwingRankBuilderType == ThrowingRankBuilderType.THROWING_QUERY_PHASE_COORDINATOR_CONTEXT)
+                return new QueryPhaseRankCoordinatorContext(rankWindowSize()) {
+                    @Override
+                    public ScoreDoc[] rankQueryPhaseResults(
+                        List<QuerySearchResult> querySearchResults,
+                        SearchPhaseController.TopDocsStats topDocStats
+                    ) {
+                        throw new UnsupportedOperationException("qpc - simulated failure");
+                    }
+                };
+            else {
+                return super.buildQueryPhaseCoordinatorContext(size, from);
+            }
+        }
+
+        @Override
         public RankFeaturePhaseRankShardContext buildRankFeaturePhaseShardContext() {
-            return new RankFeaturePhaseRankShardContext(field) {
-                @Override
-                public RankShardResult buildRankFeatureShardResult(SearchHits hits, int shardId) {
-                    throw new IllegalArgumentException("This rank builder throws an exception");
-                }
-            };
+            if (this.throwingRankBuilderType == ThrowingRankBuilderType.THROWING_RANK_FEATURE_PHASE_SHARD_CONTEXT)
+                return new RankFeaturePhaseRankShardContext(field) {
+                    @Override
+                    public RankShardResult buildRankFeatureShardResult(SearchHits hits, int shardId) {
+                        throw new UnsupportedOperationException("rfs - simulated failure");
+                    }
+                };
+            else {
+                return super.buildRankFeaturePhaseShardContext();
+            }
+        }
+
+        @Override
+        public RankFeaturePhaseRankCoordinatorContext buildRankFeaturePhaseCoordinatorContext(int size, int from) {
+            if (this.throwingRankBuilderType == ThrowingRankBuilderType.THROWING_RANK_FEATURE_PHASE_COORDINATOR_CONTEXT)
+                return new RankFeaturePhaseRankCoordinatorContext(size, from, rankWindowSize()) {
+                    @Override
+                    protected void computeScores(RankFeatureDoc[] featureDocs, ActionListener<float[]> scoreListener) {
+                        throw new UnsupportedOperationException("rfc - simulated failure");
+                    }
+                };
+            else {
+                return super.buildRankFeaturePhaseCoordinatorContext(size, from);
+            }
         }
     }
 

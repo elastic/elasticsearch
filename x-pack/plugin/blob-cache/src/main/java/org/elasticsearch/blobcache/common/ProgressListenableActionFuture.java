@@ -24,7 +24,7 @@ import java.util.function.Supplier;
  */
 class ProgressListenableActionFuture extends PlainActionFuture<Long> {
 
-    private record PositionAndListener(Long position, ActionListener<Long> listener) {}
+    private record PositionAndListener(long position, ActionListener<Long> listener) {}
 
     protected final long start;
     protected final long end;

@@ -24,7 +24,7 @@ public class DocsStats implements Writeable, ToXContentFragment {
     private long count = 0;
     private long deleted = 0;
     private long totalSizeInBytes = 0;
-    private long docsWithIgnoredFields = -1;
+    private long docsWithIgnoredFields = 0;
 
     public DocsStats() {
 
@@ -36,6 +36,8 @@ public class DocsStats implements Writeable, ToXContentFragment {
         totalSizeInBytes = in.readVLong();
         if (in.getTransportVersion().onOrAfter(TransportVersions.COUNT_DOCS_WITH_IGNORED_FIELDS)) {
             docsWithIgnoredFields = in.readVLong();
+        } else {
+            docsWithIgnoredFields = 0;
         }
     }
 
@@ -100,9 +102,7 @@ public class DocsStats implements Writeable, ToXContentFragment {
         builder.field(Fields.COUNT, count);
         builder.field(Fields.DELETED, deleted);
         builder.field(Fields.TOTAL_SIZE_IN_BYTES, totalSizeInBytes);
-        if (docsWithIgnoredFields >= 0) {
-            builder.field(Fields.DOCS_WITH_IGNORED_FIELDS, docsWithIgnoredFields);
-        }
+        builder.field(Fields.DOCS_WITH_IGNORED_FIELDS, docsWithIgnoredFields);
         builder.endObject();
         return builder;
     }

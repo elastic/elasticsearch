@@ -30,9 +30,6 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
-/**
- * Repeat function, given a string 'a' and in integer 'b', it returns 'a' concatenated with itself 'b' times.
- */
 public class Repeat extends EsqlScalarFunction implements OptionalArgument {
 
     private final Expression str;

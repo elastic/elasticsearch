@@ -16,16 +16,15 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
@@ -36,7 +35,7 @@ import java.util.Set;
 import static org.elasticsearch.cluster.metadata.Metadata.ALL_CONTEXTS;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
-public final class RoleMappingMetadata extends AbstractNamedDiffable<Metadata.Custom> implements Metadata.Custom, ToXContent {
+public final class RoleMappingMetadata extends AbstractNamedDiffable<Metadata.Custom> implements Metadata.Custom {
 
     public static final String TYPE = "role_mappings";
 
@@ -44,7 +43,7 @@ public final class RoleMappingMetadata extends AbstractNamedDiffable<Metadata.Cu
     private static final ConstructingObjectParser<RoleMappingMetadata, Void> PARSER = new ConstructingObjectParser<>(
         TYPE,
         // serialization tests rely on the order of the ExpressionRoleMapping
-        args -> new RoleMappingMetadata(new LinkedHashSet<>((List<ExpressionRoleMapping>) args[0]))
+        args -> new RoleMappingMetadata(new LinkedHashSet<>((Collection<ExpressionRoleMapping>) args[0]))
     );
 
     static {
@@ -97,16 +96,6 @@ public final class RoleMappingMetadata extends AbstractNamedDiffable<Metadata.Cu
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
         // role mappings are serialized without their names
         return Iterators.concat(ChunkedToXContentHelper.startArray(TYPE), roleMappings.iterator(), ChunkedToXContentHelper.endArray());
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return ChunkedToXContent.wrapAsToXContent(this).toXContent(builder, params);
-    }
-
-    @Override
-    public boolean isFragment() {
-        return true;
     }
 
     public static RoleMappingMetadata fromXContent(XContentParser parser) throws IOException {

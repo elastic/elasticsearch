@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.security.authc;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
@@ -23,7 +23,7 @@ import java.util.Set;
 import static org.elasticsearch.xpack.security.authc.support.mapper.ExpressionRoleMappingTests.randomRoleMapping;
 import static org.hamcrest.Matchers.equalTo;
 
-public class RoleMappingMetadataXContentSerializationTests extends AbstractXContentSerializingTestCase<RoleMappingMetadata> {
+public class RoleMappingMetadataXContentSerializationTests extends AbstractChunkedSerializingTestCase<RoleMappingMetadata> {
     @Override
     protected Writeable.Reader<RoleMappingMetadata> instanceReader() {
         return RoleMappingMetadata::new;

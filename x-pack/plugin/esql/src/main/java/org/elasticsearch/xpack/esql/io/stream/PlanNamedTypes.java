@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.Order;
@@ -224,7 +225,6 @@ import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.Entry.of;
 import static org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanReader.readerFromPlanReader;
 import static org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanWriter.writerFromPlanWriter;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToLong;
 
 /**
  * A utility class that consists solely of static methods that describe how to serialize and
@@ -1074,21 +1074,21 @@ public final class PlanNamedTypes {
             in.readEsFieldNamed(),
             in.readOptionalString(),
             in.readEnum(Nullability.class),
-            in.nameIdFromLongValue(in.readLong()),
+            NameId.readFrom(in),
             in.readBoolean()
         );
     }
 
-    static void writeFieldAttribute(PlanStreamOutput out, FieldAttribute fileAttribute) throws IOException {
+    static void writeFieldAttribute(PlanStreamOutput out, FieldAttribute fieldAttribute) throws IOException {
         Source.EMPTY.writeTo(out);
-        out.writeOptionalWriteable(fileAttribute.parent() == null ? null : o -> writeFieldAttribute(out, fileAttribute.parent()));
-        out.writeString(fileAttribute.name());
-        out.writeString(fileAttribute.dataType().typeName());
-        out.writeNamed(EsField.class, fileAttribute.field());
-        out.writeOptionalString(fileAttribute.qualifier());
-        out.writeEnum(fileAttribute.nullable());
-        out.writeLong(stringToLong(fileAttribute.id().toString()));
-        out.writeBoolean(fileAttribute.synthetic());
+        out.writeOptionalWriteable(fieldAttribute.parent() == null ? null : o -> writeFieldAttribute(out, fieldAttribute.parent()));
+        out.writeString(fieldAttribute.name());
+        out.writeString(fieldAttribute.dataType().typeName());
+        out.writeNamed(EsField.class, fieldAttribute.field());
+        out.writeOptionalString(fieldAttribute.qualifier());
+        out.writeEnum(fieldAttribute.nullable());
+        fieldAttribute.id().writeTo(out);
+        out.writeBoolean(fieldAttribute.synthetic());
     }
 
     static ReferenceAttribute readReferenceAttr(PlanStreamInput in) throws IOException {
@@ -1098,7 +1098,7 @@ public final class PlanNamedTypes {
             in.dataTypeFromTypeName(in.readString()),
             in.readOptionalString(),
             in.readEnum(Nullability.class),
-            in.nameIdFromLongValue(in.readLong()),
+            NameId.readFrom(in),
             in.readBoolean()
         );
     }
@@ -1109,7 +1109,7 @@ public final class PlanNamedTypes {
         out.writeString(referenceAttribute.dataType().typeName());
         out.writeOptionalString(referenceAttribute.qualifier());
         out.writeEnum(referenceAttribute.nullable());
-        out.writeLong(stringToLong(referenceAttribute.id().toString()));
+        referenceAttribute.id().writeTo(out);
         out.writeBoolean(referenceAttribute.synthetic());
     }
 
@@ -1120,7 +1120,7 @@ public final class PlanNamedTypes {
             in.dataTypeFromTypeName(in.readString()),
             in.readOptionalString(),
             in.readEnum(Nullability.class),
-            in.nameIdFromLongValue(in.readLong()),
+            NameId.readFrom(in),
             in.readBoolean(),
             in.readBoolean()
         );
@@ -1132,7 +1132,7 @@ public final class PlanNamedTypes {
         out.writeString(metadataAttribute.dataType().typeName());
         out.writeOptionalString(metadataAttribute.qualifier());
         out.writeEnum(metadataAttribute.nullable());
-        out.writeLong(stringToLong(metadataAttribute.id().toString()));
+        metadataAttribute.id().writeTo(out);
         out.writeBoolean(metadataAttribute.synthetic());
         out.writeBoolean(metadataAttribute.searchable());
     }
@@ -1143,7 +1143,7 @@ public final class PlanNamedTypes {
             in.readString(),
             readUnsupportedEsField(in),
             in.readOptionalString(),
-            in.nameIdFromLongValue(in.readLong())
+            NameId.readFrom(in)
         );
     }
 
@@ -1152,7 +1152,7 @@ public final class PlanNamedTypes {
         out.writeString(unsupportedAttribute.name());
         writeUnsupportedEsField(out, unsupportedAttribute.field());
         out.writeOptionalString(unsupportedAttribute.hasCustomMessage() ? unsupportedAttribute.unresolvedMessage() : null);
-        out.writeLong(stringToLong(unsupportedAttribute.id().toString()));
+        unsupportedAttribute.id().writeTo(out);
     }
 
     // -- EsFields
@@ -1856,7 +1856,7 @@ public final class PlanNamedTypes {
             in.readString(),
             in.readOptionalString(),
             in.readNamed(Expression.class),
-            in.nameIdFromLongValue(in.readLong()),
+            NameId.readFrom(in),
             in.readBoolean()
         );
     }
@@ -1866,7 +1866,7 @@ public final class PlanNamedTypes {
         out.writeString(alias.name());
         out.writeOptionalString(alias.qualifier());
         out.writeExpression(alias.child());
-        out.writeLong(stringToLong(alias.id().toString()));
+        alias.id().writeTo(out);
         out.writeBoolean(alias.synthetic());
     }
 

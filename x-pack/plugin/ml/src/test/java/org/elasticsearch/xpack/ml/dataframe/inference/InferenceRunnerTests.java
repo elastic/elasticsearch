@@ -56,6 +56,7 @@ import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Deque;
 import java.util.List;
 import java.util.Map;
@@ -202,7 +203,7 @@ public class InferenceRunnerTests extends ESTestCase {
             new SearchResponse(
                 SearchHits.unpooled(new SearchHit[] { SearchHit.unpooled(1) }, new TotalHits(1L, TotalHits.Relation.EQUAL_TO), 1.0f),
                 InternalAggregations.from(List.of(new Max(DestinationIndex.INCREMENTAL_ID, 1, DocValueFormat.RAW, Map.of()))),
-                new Suggest(List.of()),
+                new Suggest(new ArrayList<>()),
                 false,
                 false,
                 new SearchProfileResults(Map.of()),
@@ -224,7 +225,7 @@ public class InferenceRunnerTests extends ESTestCase {
                         SearchHits.EMPTY_WITH_TOTAL_HITS,
                         // Simulate completely null aggs
                         null,
-                        new Suggest(List.of()),
+                        new Suggest(new ArrayList<>()),
                         false,
                         false,
                         new SearchProfileResults(Map.of()),

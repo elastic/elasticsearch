@@ -1,0 +1,5 @@
+pr: 109209
+summary: "ESQL: Allow evaluators to return null"
+area: ES|QL
+type: enhancement
+issues: []

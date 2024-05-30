@@ -63,6 +63,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -199,8 +200,8 @@ public class InferenceRunnerTests extends ESTestCase {
         var threadpool = mock(ThreadPool.class);
         when(threadpool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         when(client.threadPool()).thenReturn(threadpool);
-        var searchResponse = new AtomicReference<>(
-            new SearchResponse(
+        var searchResponse = new AtomicReference<Supplier<SearchResponse>>(
+            () -> new SearchResponse(
                 SearchHits.unpooled(new SearchHit[] { SearchHit.unpooled(1) }, new TotalHits(1L, TotalHits.Relation.EQUAL_TO), 1.0f),
                 InternalAggregations.from(List.of(new Max(DestinationIndex.INCREMENTAL_ID, 1, DocValueFormat.RAW, Map.of()))),
                 new Suggest(new ArrayList<>()),
@@ -221,7 +222,7 @@ public class InferenceRunnerTests extends ESTestCase {
             @Override
             public SearchResponse actionGet() {
                 return searchResponse.getAndSet(
-                    new SearchResponse(
+                    () -> new SearchResponse(
                         SearchHits.EMPTY_WITH_TOTAL_HITS,
                         // Simulate completely null aggs
                         null,
@@ -238,7 +239,7 @@ public class InferenceRunnerTests extends ESTestCase {
                         ShardSearchFailure.EMPTY_ARRAY,
                         SearchResponse.Clusters.EMPTY
                     )
-                );
+                ).get();
             }
 
             @Override

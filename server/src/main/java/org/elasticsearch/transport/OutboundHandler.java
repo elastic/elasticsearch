@@ -260,12 +260,15 @@ final class OutboundHandler {
                 }
 
                 private void maybeLogSlowMessage(boolean success) {
+                    if (logger.isDebugEnabled() == false) {
+                        return;
+                    }
                     final long logThreshold = slowLogThresholdMs;
                     if (logThreshold > 0) {
                         final long took = threadPool.rawRelativeTimeInMillis() - startTime;
                         handlingTimeTracker.addHandlingTime(took);
                         if (took > logThreshold) {
-                            logger.warn(
+                            logger.debug(
                                 "sending transport message [{}] of size [{}] on [{}] took [{}ms] which is above the warn "
                                     + "threshold of [{}ms] with success [{}]",
                                 message,

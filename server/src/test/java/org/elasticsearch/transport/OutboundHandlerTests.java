@@ -36,6 +36,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.TransportVersionUtils;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
@@ -533,12 +534,13 @@ public class OutboundHandlerTests extends ESTestCase {
      */
     private static final String EXPECTED_LOGGER_NAME = "org.elasticsearch.transport.OutboundHandler";
 
+    @TestLogging(reason = "asserting DEBUG logging", value = EXPECTED_LOGGER_NAME + ":DEBUG")
     public void testSlowLogOutboundMessage() throws Exception {
         handler.setSlowLogThreshold(TimeValue.timeValueMillis(5L));
 
         try (var mockLog = MockLog.capture(OutboundHandler.class)) {
             mockLog.addExpectation(
-                new MockLog.SeenEventExpectation("expected message", EXPECTED_LOGGER_NAME, Level.WARN, "sending transport message ")
+                new MockLog.SeenEventExpectation("expected message", EXPECTED_LOGGER_NAME, Level.DEBUG, "sending transport message ")
             );
 
             final int length = randomIntBetween(1, 100);

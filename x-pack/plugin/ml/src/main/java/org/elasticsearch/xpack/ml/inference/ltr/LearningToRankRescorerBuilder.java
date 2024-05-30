@@ -160,9 +160,9 @@ public class LearningToRankRescorerBuilder extends RescorerBuilder<LearningToRan
             if (windowSize() < nextRescorerWindowSize) {
                 return addValidationError(
                     "unable to add a rescorer with [window_size: "
-                        + nextRescorer.windowSize()
+                        + nextRescorerWindowSize
                         + "] because a rescorer of type ["
-                        + nextRescorer.getWriteableName()
+                        + getWriteableName()
                         + "] with a smaller [window_size: "
                         + windowSize()
                         + "] has been added before",

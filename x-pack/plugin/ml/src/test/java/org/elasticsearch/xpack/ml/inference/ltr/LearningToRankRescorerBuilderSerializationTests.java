@@ -133,29 +133,27 @@ public class LearningToRankRescorerBuilderSerializationTests extends AbstractBWC
             assertThat(
                 validationErrors.validationErrors().get(0),
                 equalTo(
-                    "unable to add a rescorer with [window_size: 60] because a rescorer of type [query] "
+                    "unable to add a rescorer with [window_size: 60] because a rescorer of type [learning_to_rank] "
                         + "with a smaller [window_size: 50] has been added before"
                 )
             );
         }
 
         {
-            SearchSourceBuilder source = new SearchSourceBuilder().from(10)
-                .size(10)
+            SearchSourceBuilder source = new SearchSourceBuilder().size(3)
                 .addRescorer(createQueryRescorerBuilder(randomIntBetween(2, 10000)))
                 .addRescorer(createQueryRescorerBuilder(randomIntBetween(2, 10000)))
-                .addRescorer(createTestInstance(50))
+                .addRescorer(createTestInstance(5))
                 .addRescorer(createQueryRescorerBuilder(null));
 
-            int windowSize = source.rescores().get(3).windowSize();
             SearchRequest searchRequest = new SearchRequest().source(source);
             ActionRequestValidationException validationErrors = searchRequest.validate();
             assertNotNull(validationErrors);
             assertThat(
                 validationErrors.validationErrors().get(0),
                 equalTo(
-                    "unable to add a rescorer with [window_size: 10] because a rescorer of type [query] "
-                        + "with a smaller [window_size: 50] has been added before"
+                    "unable to add a rescorer with [window_size: 10] because a rescorer of type [learning_to_rank] "
+                        + "with a smaller [window_size: 5] has been added before"
                 )
             );
         }

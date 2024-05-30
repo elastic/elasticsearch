@@ -30,14 +30,11 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanNamedReader;
 import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanReader;
-import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -88,19 +85,6 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput
         this.registry = registry;
         this.configuration = configuration;
         this.nameIdFunction = new NameIdMapper();
-    }
-
-    DataType dataTypeFromTypeName(String typeName) throws IOException {
-        DataType dataType;
-        if (typeName.equalsIgnoreCase(EsQueryExec.DOC_DATA_TYPE.name())) {
-            dataType = EsQueryExec.DOC_DATA_TYPE;
-        } else {
-            dataType = EsqlDataTypes.fromTypeName(typeName);
-        }
-        if (dataType == null) {
-            throw new IOException("Unknown DataType for type name: " + typeName);
-        }
-        return dataType;
     }
 
     public LogicalPlan readLogicalPlanNode() throws IOException {

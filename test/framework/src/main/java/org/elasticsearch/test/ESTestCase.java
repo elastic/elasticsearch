@@ -2187,6 +2187,10 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
     }
 
+    public static void safeSleep(TimeValue timeValue) {
+        safeSleep(timeValue.millis());
+    }
+
     public static void safeSleep(long millis) {
         try {
             Thread.sleep(millis);

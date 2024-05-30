@@ -161,7 +161,7 @@ public class IpPrefix extends EsqlScalarFunction implements OptionalArgument {
         // Copy the last byte ignoring the trailing bits
         if (remainingBits > 0) {
             byte lastByteMask = (byte) (0xFF << (8 - remainingBits));
-            scratch.bytes[fullBytes] = (byte) (ip.bytes[fullBytes] & lastByteMask);
+            scratch.bytes[fullBytes] = (byte) (ip.bytes[ip.offset + fullBytes] & lastByteMask);
         }
 
         // Copy the last empty bytes

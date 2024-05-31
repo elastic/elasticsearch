@@ -11,6 +11,9 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
 public class RiskScoreResult implements ToXContentObject {
     public EntityScore[] userScores;
@@ -19,6 +22,25 @@ public class RiskScoreResult implements ToXContentObject {
     public RiskScoreResult(EntityScore[] userScores, EntityScore[] hostScores) {
         this.userScores = userScores;
         this.hostScores = hostScores;
+    }
+
+    public static RiskScoreResult mergeResults(List<RiskScoreResult> results) {
+        List<EntityScore> mergedUserScores = new ArrayList<>();
+        List<EntityScore> mergedHostScores = new ArrayList<>();
+
+        for (RiskScoreResult result : results) {
+            if (result.userScores != null) {
+                Collections.addAll(mergedUserScores, result.userScores);
+            }
+            if (result.hostScores != null) {
+                Collections.addAll(mergedHostScores, result.hostScores);
+            }
+        }
+
+        EntityScore[] mergedUserScoresArray = mergedUserScores.toArray(new EntityScore[0]);
+        EntityScore[] mergedHostScoresArray = mergedHostScores.toArray(new EntityScore[0]);
+
+        return new RiskScoreResult(mergedUserScoresArray, mergedHostScoresArray);
     }
 
     @Override

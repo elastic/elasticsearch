@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.DelegatingActionListener;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -29,7 +30,11 @@ import org.elasticsearch.xpack.entityanalytics.models.EntityRiskScoringRequest;
 import org.elasticsearch.xpack.entityanalytics.models.EntityRiskScoringResponse;
 import org.elasticsearch.xpack.entityanalytics.models.EntityType;
 import org.elasticsearch.xpack.entityanalytics.models.RiskScoreCalculator;
-import org.elasticsearch.xpack.entityanalytics.models.RiskScoreQueryBuilder;
+import org.elasticsearch.xpack.entityanalytics.models.RiskScoreQueryHelper;
+import org.elasticsearch.xpack.entityanalytics.models.RiskScoreResult;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /*
  * TODO: comment here
@@ -88,18 +93,52 @@ public class EntityRiskScoringAction extends ActionType<EntityRiskScoringRespons
             ActionListener<EntityRiskScoringResponse> listener
         ) {
             try {
-                var sr = RiskScoreQueryBuilder.buildRiskScoreSearchRequest(category1Index, entityTypes);
-                client.search(sr, new DelegatingActionListener<>(listener) {
-                    @Override
-                    public void onResponse(SearchResponse searchResponse) {
-                        var result = RiskScoreCalculator.calculateRiskScores(entityTypes, searchResponse);
-                        listener.onResponse(new EntityRiskScoringResponse(result));
-                    }
-                });
+                // Initial search request
+                var sr = RiskScoreQueryHelper.buildRiskScoreSearchRequest(category1Index, entityTypes);
+                List<RiskScoreResult> accumulatedResults = new ArrayList<>();
+                performAggregation(sr, entityTypes, listener, accumulatedResults);
             } catch (Exception e) {
                 logger.error("unable to execute the entity analytics query", e);
                 listener.onFailure(e);
             }
+        }
+
+        private void performAggregation(
+            SearchRequest sr,
+            EntityType[] entityTypes,
+            ActionListener<EntityRiskScoringResponse> listener,
+            List<RiskScoreResult> accumulatedResults
+        ) {
+
+            client.search(sr, new DelegatingActionListener<>(listener) {
+                @Override
+                public void onResponse(SearchResponse searchResponse) {
+                    try {
+                        var result = RiskScoreCalculator.calculateRiskScores(entityTypes, searchResponse);
+                        accumulatedResults.add(result);
+
+                        var afterKeysByEntityType = RiskScoreQueryHelper.getAfterKeysForEntityTypes(entityTypes, searchResponse);
+                        EntityType[] entityTypesWithAfterKeys = afterKeysByEntityType.keySet().toArray(new EntityType[0]);
+                        if (entityTypesWithAfterKeys.length > 0) {
+                            System.out.println("Performing search for entity types " + entityTypesWithAfterKeys);
+                            var updatedSr = RiskScoreQueryHelper.updateAggregationsWithAfterKeys(afterKeysByEntityType, sr);
+                            performAggregation(updatedSr, entityTypesWithAfterKeys, listener, accumulatedResults);
+                        } else {
+                            var mergedResult = RiskScoreResult.mergeResults(accumulatedResults);
+                            listener.onResponse(new EntityRiskScoringResponse(mergedResult));
+                        }
+                    } catch (Exception e) {
+                        logger.error("Error processing search response", e);
+                        listener.onFailure(e);
+                    }
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    logger.error("Error during search request", e);
+                    listener.onFailure(e);
+                }
+            });
         }
     }
 }

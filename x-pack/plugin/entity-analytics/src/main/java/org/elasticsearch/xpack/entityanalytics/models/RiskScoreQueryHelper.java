@@ -8,11 +8,14 @@
 package org.elasticsearch.xpack.entityanalytics.models;
 
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.functionscore.FieldValueFactorFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeValuesSourceBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.TermsValuesSourceBuilder;
@@ -24,16 +27,33 @@ import org.elasticsearch.xpack.entityanalytics.common.EntityTypeUtils;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
-public class RiskScoreQueryBuilder {
-    private static CompositeAggregationBuilder buildEntityAggregation(EntityType entityType) {
+public class RiskScoreQueryHelper {
+
+    public static Map<EntityType, Map<String, Object>> getAfterKeysForEntityTypes(EntityType[] entityTypes, SearchResponse searchResponse) {
+        Map<EntityType, Map<String, Object>> afterKeys = new HashMap<>();
+        for (EntityType entityType : entityTypes) {
+            String aggregationName = EntityTypeUtils.getAggregationNameForEntityType(entityType);
+            CompositeAggregation compositeAggregation = searchResponse.getAggregations().get(aggregationName);
+            Map<String, Object> newAfterKey = compositeAggregation.afterKey();
+            if (newAfterKey != null) {
+                afterKeys.put(entityType, newAfterKey);
+            }
+        }
+
+        return afterKeys;
+    }
+
+    private static CompositeAggregationBuilder buildEntityAggregation(EntityType entityType, Map<String, Object> afterKeys) {
         String identifierField = EntityTypeUtils.getIdentifierFieldForEntityType(entityType);
         String aggregationName = EntityTypeUtils.getAggregationNameForEntityType(entityType);
         List<CompositeValuesSourceBuilder<?>> sources = new ArrayList<>();
         sources.add(new TermsValuesSourceBuilder(identifierField).field(identifierField));
 
-        return AggregationBuilders.composite(aggregationName, sources)
+        CompositeAggregationBuilder compositeAggregationBuilder = AggregationBuilders.composite(aggregationName, sources)
             .size(1000) // TODO: page size
             .subAggregation(
                 AggregationBuilders.topHits("top_inputs")
@@ -52,6 +72,12 @@ public class RiskScoreQueryBuilder {
                         )
                     )
             );
+
+        if (afterKeys != null) {
+            compositeAggregationBuilder.aggregateAfter(afterKeys);
+        }
+
+        return compositeAggregationBuilder;
     }
 
     public static SearchRequest buildRiskScoreSearchRequest(String index, EntityType[] entityTypes) {
@@ -77,11 +103,46 @@ public class RiskScoreQueryBuilder {
         searchSourceBuilder.size(0);
 
         for (EntityType entityType : entityTypes) {
-            searchSourceBuilder.aggregation(buildEntityAggregation(entityType));
+            searchSourceBuilder.aggregation(buildEntityAggregation(entityType, null));
         }
 
         SearchRequest searchRequest = new SearchRequest();
         searchRequest.source(searchSourceBuilder);
         return searchRequest;
+    }
+
+    public static SearchRequest updateAggregationsWithAfterKeys(
+        Map<EntityType, Map<String, Object>> afterKeysByEntityType,
+        SearchRequest originalSearchRequest
+    ) {
+        // Extract the original query and filters
+        SearchSourceBuilder originalSourceBuilder = originalSearchRequest.source();
+        QueryBuilder originalQuery = originalSourceBuilder.query();
+
+        // Create a new search source builder
+        SearchSourceBuilder newSourceBuilder = new SearchSourceBuilder();
+        newSourceBuilder.query(originalQuery);
+        newSourceBuilder.size(0);
+
+        // Update aggregations with after keys
+        for (EntityType entityType : EntityType.values()) {
+            Map<String, Object> afterKeys = afterKeysByEntityType.get(entityType);
+            CompositeAggregationBuilder newCompositeAggregationBuilder = buildEntityAggregation(entityType, afterKeys);
+            newSourceBuilder.aggregation(newCompositeAggregationBuilder);
+        }
+
+        // Build the new search request
+        SearchRequest newSearchRequest = new SearchRequest();
+        newSearchRequest.source(newSourceBuilder);
+        return newSearchRequest;
+    }
+
+    private static EntityType getEntityTypeByAggregationName(String aggregationName) {
+        for (EntityType entityType : EntityType.values()) {
+            if (aggregationName.equals(EntityTypeUtils.getAggregationNameForEntityType(entityType))) {
+                return entityType;
+            }
+        }
+        return null;
     }
 }

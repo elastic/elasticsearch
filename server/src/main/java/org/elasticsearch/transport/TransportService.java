@@ -975,7 +975,7 @@ public class TransportService extends AbstractLifecycleComponent
         }
         final var sendRequestException = new SendRequestTransportException(node, action, failure);
         final var handler = contextToNotify.handler();
-        final var executor = getInternalSendExceptionExecutor(handler.executor());
+        final var executor = getAvoidStackOverflowExecutor(handler.executor());
         executor.execute(new AbstractRunnable() {
             @Override
             protected void doRun() {
@@ -1027,7 +1027,7 @@ public class TransportService extends AbstractLifecycleComponent
         });
     }
 
-    private Executor getInternalSendExceptionExecutor(Executor handlerExecutor) {
+    private Executor getAvoidStackOverflowExecutor(Executor handlerExecutor) {
         if (lifecycle.stoppedOrClosed()) {
             // too late to try and dispatch anywhere else, let's just use the calling thread
             return EsExecutors.DIRECT_EXECUTOR_SERVICE;
@@ -1342,36 +1342,31 @@ public class TransportService extends AbstractLifecycleComponent
             return;
         }
 
-        // Callback that an exception happened, but on a different thread since we don't want handlers to worry about stack overflows.
-        final var executor = threadPool.generic();
-        assert executor.isShutdown() == false : "connections should all be closed before threadpool shuts down";
-        executor.execute(new AbstractRunnable() {
-            @Override
-            public void doRun() {
-                for (Transport.ResponseContext<?> holderToNotify : pruned) {
-                    if (tracerLog.isTraceEnabled() && shouldTraceAction(holderToNotify.action())) {
-                        tracerLog.trace(
-                            "[{}][{}] pruning request because connection to node [{}] closed",
-                            holderToNotify.requestId(),
-                            holderToNotify.action(),
-                            connection.getNode()
-                        );
+        for (Transport.ResponseContext<?> holderToNotify : pruned) {
+            if (tracerLog.isTraceEnabled() && shouldTraceAction(holderToNotify.action())) {
+                tracerLog.trace(
+                    "[{}][{}] pruning request because connection to node [{}] closed",
+                    holderToNotify.requestId(),
+                    holderToNotify.action(),
+                    connection.getNode()
+                );
+            }
+            NodeDisconnectedException exception = new NodeDisconnectedException(connection.getNode(), holderToNotify.action());
+
+            TransportResponseHandler<?> handler = holderToNotify.handler();
+            // Callback that an exception happened, but on a different thread since we don't want handlers to worry about stack overflows.
+            final var executor = getAvoidStackOverflowExecutor(handler.executor());
+            if (executor == EsExecutors.DIRECT_EXECUTOR_SERVICE) {
+                handler.handleException(exception);
+            } else {
+                executor.execute(new ForkingResponseHandlerRunnable(handler, exception) {
+                    @Override
+                    protected void doRun() {
+                        handler.handleException(exception);
                     }
-                    holderToNotify.handler().handleException(new NodeDisconnectedException(connection.getNode(), holderToNotify.action()));
-                }
+                });
             }
-
-            @Override
-            public void onFailure(Exception e) {
-                assert false : e;
-                logger.warn(() -> "failed to notify response handler on connection close [" + connection + "]", e);
-            }
-
-            @Override
-            public String toString() {
-                return "onConnectionClosed(" + connection.getNode() + ")";
-            }
-        });
+        }
     }
 
     final class TimeoutHandler implements Runnable {

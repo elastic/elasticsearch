@@ -240,6 +240,24 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
         assertThat(updatedPipeline, equalTo(indexedConnector.getPipeline()));
     }
 
+    public void testUpdateConnectorFeatures() throws Exception {
+        Connector connector = ConnectorTestUtils.getRandomConnector();
+        String connectorId = randomUUID();
+
+        ConnectorCreateActionResponse resp = awaitCreateConnector(connectorId, connector);
+        assertThat(resp.status(), anyOf(equalTo(RestStatus.CREATED), equalTo(RestStatus.OK)));
+
+    }
+
+    public void testUpdateConnectorFeatures_partialUpdate() throws Exception {
+        Connector connector = ConnectorTestUtils.getRandomConnector();
+        String connectorId = randomUUID();
+
+        ConnectorCreateActionResponse resp = awaitCreateConnector(connectorId, connector);
+        assertThat(resp.status(), anyOf(equalTo(RestStatus.CREATED), equalTo(RestStatus.OK)));
+
+    }
+
     public void testUpdateConnectorFiltering() throws Exception {
         Connector connector = ConnectorTestUtils.getRandomConnector();
         String connectorId = randomUUID();

@@ -38,6 +38,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
@@ -100,7 +101,7 @@ public class TransportDeleteDesiredBalanceActionTests extends ESAllocationTestCa
         var clusterSettings = ClusterSettings.createBuiltInClusterSettings(settings);
 
         var delegate = new BalancedShardsAllocator();
-        var computer = new DesiredBalanceComputer(clusterSettings, threadPool, delegate) {
+        var computer = new DesiredBalanceComputer(clusterSettings, threadPool, Tracer.NOOP, delegate) {
 
             final AtomicReference<DesiredBalance> lastComputationInput = new AtomicReference<>();
 

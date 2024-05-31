@@ -51,6 +51,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 
@@ -365,7 +366,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             shardsAllocator,
             threadPool,
             clusterService,
-            new DesiredBalanceComputer(clusterSettings, threadPool, shardsAllocator) {
+            new DesiredBalanceComputer(clusterSettings, threadPool, Tracer.NOOP, shardsAllocator) {
                 @Override
                 public DesiredBalance compute(
                     DesiredBalance previousDesiredBalance,
@@ -468,7 +469,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             shardsAllocator,
             threadPool,
             clusterService,
-            new DesiredBalanceComputer(clusterSettings, threadPool, shardsAllocator) {
+            new DesiredBalanceComputer(clusterSettings, threadPool, Tracer.NOOP, shardsAllocator) {
                 @Override
                 public DesiredBalance compute(
                     DesiredBalance previousDesiredBalance,
@@ -555,7 +556,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
         var delegateAllocator = createShardsAllocator();
         var clusterSettings = createBuiltInClusterSettings();
 
-        var desiredBalanceComputer = new DesiredBalanceComputer(clusterSettings, threadPool, delegateAllocator) {
+        var desiredBalanceComputer = new DesiredBalanceComputer(clusterSettings, threadPool, Tracer.NOOP, delegateAllocator) {
 
             final AtomicReference<DesiredBalance> lastComputationInput = new AtomicReference<>();
 
@@ -623,7 +624,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
         var clusterService = ClusterServiceUtils.createClusterService(clusterState, threadPool);
 
         var delegateAllocator = createShardsAllocator();
-        var desiredBalanceComputer = new DesiredBalanceComputer(createBuiltInClusterSettings(), threadPool, delegateAllocator);
+        var desiredBalanceComputer = new DesiredBalanceComputer(createBuiltInClusterSettings(), threadPool, Tracer.NOOP, delegateAllocator);
         var desiredBalanceShardsAllocator = new DesiredBalanceShardsAllocator(
             delegateAllocator,
             threadPool,
@@ -672,7 +673,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
 
         final var resetCalled = new AtomicBoolean();
         var delegateAllocator = createShardsAllocator();
-        var desiredBalanceComputer = new DesiredBalanceComputer(createBuiltInClusterSettings(), threadPool, delegateAllocator);
+        var desiredBalanceComputer = new DesiredBalanceComputer(createBuiltInClusterSettings(), threadPool, Tracer.NOOP, delegateAllocator);
         var desiredBalanceAllocator = new DesiredBalanceShardsAllocator(
             delegateAllocator,
             threadPool,

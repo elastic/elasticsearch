@@ -33,10 +33,13 @@ import org.elasticsearch.telemetry.metric.DoubleGauge;
 import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
 import org.elasticsearch.telemetry.metric.LongGaugeMetric;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
+import org.elasticsearch.telemetry.tracing.Tracer;
+import org.elasticsearch.telemetry.tracing.TracerSpan;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Comparator;
 import java.util.Iterator;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
@@ -73,7 +76,9 @@ public class DesiredBalanceReconciler {
     private final NodeAllocationOrdering allocationOrdering = new NodeAllocationOrdering();
     private final NodeAllocationOrdering moveOrdering = new NodeAllocationOrdering();
 
+    private final ThreadPool threadPool;
     // stats
+    private final Tracer tracer;
     /**
      * Number of unassigned shards during last reconciliation
      */
@@ -88,14 +93,15 @@ public class DesiredBalanceReconciler {
     protected final LongGaugeMetric undesiredAllocations;
     private final DoubleGauge undesiredAllocationsRatio;
 
-    public DesiredBalanceReconciler(ClusterSettings clusterSettings, ThreadPool threadPool, MeterRegistry meterRegistry) {
+    public DesiredBalanceReconciler(ClusterSettings clusterSettings, ThreadPool threadPool, MeterRegistry meterRegistry, Tracer tracer) {
         this.undesiredAllocationLogInterval = new FrequencyCappedAction(threadPool);
         clusterSettings.initializeAndWatch(UNDESIRED_ALLOCATIONS_LOG_INTERVAL_SETTING, this.undesiredAllocationLogInterval::setMinInterval);
         clusterSettings.initializeAndWatch(
             UNDESIRED_ALLOCATIONS_LOG_THRESHOLD_SETTING,
             value -> this.undesiredAllocationsLogThreshold = value
         );
-
+        this.threadPool = threadPool;
+        this.tracer = tracer;
         unassignedShards = LongGaugeMetric.create(
             meterRegistry,
             "es.allocator.desired_balance.shards.unassigned.current",
@@ -130,7 +136,13 @@ public class DesiredBalanceReconciler {
         var nodeIds = allocation.routingNodes().getAllNodeIds();
         allocationOrdering.retainNodes(nodeIds);
         moveOrdering.retainNodes(nodeIds);
-        new Reconciliation(desiredBalance, allocation).run();
+        TracerSpan.span(
+            threadPool,
+            tracer,
+            "reconcile-desired-balance",
+            Map.of("desired-balance-index", desiredBalance.lastConvergedIndex()),
+            new Reconciliation(desiredBalance, allocation)::run
+        );
     }
 
     public void clear() {
@@ -171,16 +183,22 @@ public class DesiredBalanceReconciler {
                 // compute next moves towards current desired balance:
 
                 // 1. allocate unassigned shards first
-                logger.trace("Reconciler#allocateUnassigned");
-                allocateUnassigned();
-                assert allocateUnassignedInvariant();
+                TracerSpan.span(threadPool, tracer, "allocate-unassigned-shards", () -> {
+                    logger.trace("Reconciler#allocateUnassigned");
+                    allocateUnassigned();
+                    assert allocateUnassignedInvariant();
+                });
 
                 // 2. move any shards that cannot remain where they are
-                logger.trace("Reconciler#moveShards");
-                moveShards();
+                TracerSpan.span(threadPool, tracer, "move-shards", () -> {
+                    logger.trace("Reconciler#moveShards");
+                    moveShards();
+                });
                 // 3. move any other shards that are desired elsewhere
-                logger.trace("Reconciler#balance");
-                balance();
+                TracerSpan.span(threadPool, tracer, "balance-shards", () -> {
+                    logger.trace("Reconciler#balance");
+                    balance();
+                });
 
                 logger.debug("Reconciliation is complete");
             }

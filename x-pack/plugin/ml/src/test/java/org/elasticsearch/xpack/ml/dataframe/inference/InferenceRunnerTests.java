@@ -16,11 +16,11 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
@@ -61,8 +61,6 @@ import java.util.Deque;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -195,88 +193,57 @@ public class InferenceRunnerTests extends ESTestCase {
         );
     }
 
-    private static Client mockClient() {
+    private Client mockClient() {
         var client = mock(Client.class);
         var threadpool = mock(ThreadPool.class);
         when(threadpool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         when(client.threadPool()).thenReturn(threadpool);
-        var searchResponse = new AtomicReference<Supplier<SearchResponse>>(
-            () -> new SearchResponse(
-                SearchHits.unpooled(new SearchHit[] { SearchHit.unpooled(1) }, new TotalHits(1L, TotalHits.Relation.EQUAL_TO), 1.0f),
-                InternalAggregations.from(List.of(new Max(DestinationIndex.INCREMENTAL_ID, 1, DocValueFormat.RAW, Map.of()))),
-                new Suggest(new ArrayList<>()),
-                false,
-                false,
-                new SearchProfileResults(Map.of()),
-                1,
-                "",
-                1,
-                1,
-                0,
-                0,
-                ShardSearchFailure.EMPTY_ARRAY,
-                SearchResponse.Clusters.EMPTY
-            )
+
+        Supplier<SearchResponse> withHits = () -> new SearchResponse(
+            SearchHits.unpooled(new SearchHit[] { SearchHit.unpooled(1) }, new TotalHits(1L, TotalHits.Relation.EQUAL_TO), 1.0f),
+            InternalAggregations.from(List.of(new Max(DestinationIndex.INCREMENTAL_ID, 1, DocValueFormat.RAW, Map.of()))),
+            new Suggest(new ArrayList<>()),
+            false,
+            false,
+            new SearchProfileResults(Map.of()),
+            1,
+            "",
+            1,
+            1,
+            0,
+            0,
+            ShardSearchFailure.EMPTY_ARRAY,
+            SearchResponse.Clusters.EMPTY
         );
-        when(client.search(any())).thenReturn(new ActionFuture<>() {
+        Supplier<SearchResponse> withNoHits = () -> new SearchResponse(
+            SearchHits.EMPTY_WITH_TOTAL_HITS,
+            // Simulate completely null aggs
+            null,
+            new Suggest(new ArrayList<>()),
+            false,
+            false,
+            new SearchProfileResults(Map.of()),
+            1,
+            "",
+            1,
+            1,
+            0,
+            0,
+            ShardSearchFailure.EMPTY_ARRAY,
+            SearchResponse.Clusters.EMPTY
+        );
+
+        when(client.search(any())).thenReturn(response(withHits)).thenReturn(response(withNoHits));
+        return client;
+    }
+
+    // we only expect to call actionGet, calling other API will hang indefinitely
+    private static ActionFuture<SearchResponse> response(Supplier<SearchResponse> searchResponse) {
+        return new PlainActionFuture<>() {
             @Override
             public SearchResponse actionGet() {
-                return searchResponse.getAndSet(
-                    () -> new SearchResponse(
-                        SearchHits.EMPTY_WITH_TOTAL_HITS,
-                        // Simulate completely null aggs
-                        null,
-                        new Suggest(new ArrayList<>()),
-                        false,
-                        false,
-                        new SearchProfileResults(Map.of()),
-                        1,
-                        "",
-                        1,
-                        1,
-                        0,
-                        0,
-                        ShardSearchFailure.EMPTY_ARRAY,
-                        SearchResponse.Clusters.EMPTY
-                    )
-                ).get();
+                return searchResponse.get();
             }
-
-            @Override
-            public SearchResponse actionGet(long timeout, TimeUnit unit) {
-                return actionGet();
-            }
-
-            @Override
-            public SearchResponse actionGet(TimeValue timeout) {
-                return actionGet();
-            }
-
-            @Override
-            public boolean cancel(boolean mayInterruptIfRunning) {
-                return false;
-            }
-
-            @Override
-            public boolean isCancelled() {
-                return false;
-            }
-
-            @Override
-            public boolean isDone() {
-                return true;
-            }
-
-            @Override
-            public SearchResponse get() {
-                return actionGet();
-            }
-
-            @Override
-            public SearchResponse get(long timeout, TimeUnit unit) {
-                return actionGet();
-            }
-        });
-        return client;
+        };
     }
 }

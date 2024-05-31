@@ -21,6 +21,7 @@ import org.elasticsearch.action.support.UnsafePlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.search.SearchHit;
@@ -275,5 +276,5 @@ public class InferenceRunner {
         );
     }
 
-    private record InferenceState(Long lastIncrementalId, long processedTestDocsCount) {}
+    private record InferenceState(@Nullable Long lastIncrementalId, long processedTestDocsCount) {}
 }

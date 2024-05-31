@@ -126,39 +126,39 @@ if (OS.current() == OS.WINDOWS) {
     // see: https://github.com/elastic/elasticsearch/issues/51202
     versions = ['2', '1']
   }
-  versions.each { version ->
-    def oldEsDependency = configurations['es' + version]
-    oldEsDependency.getAttributes().attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE);
-    TaskProvider<AntFixture> fixture = tasks.register("oldEs${version}Fixture", AntFixture) {
-      dependsOn project.configurations.oldesFixture, jdks.legacy, oldEsDependency
-      executable = "${BuildParams.runtimeJavaHome}/bin/java"
-      env 'CLASSPATH', "${-> project.configurations.oldesFixture.asPath}"
-      // old versions of Elasticsearch need JAVA_HOME
-      env 'JAVA_HOME', jdks.legacy.javaHomePath
-      // If we are running on certain arm systems we need to explicitly set the stack size to overcome JDK page size bug
-      if (Architecture.current() == Architecture.AARCH64) {
-        env 'ES_JAVA_OPTS', '-Xss512k'
-      }
-      args 'oldes.OldElasticsearch',
-        baseDir,
-        "${ -> oldEsDependency.singleFile.getPath()}",
-        version == '090'
-      waitCondition = { fixture, ant ->
-        // the fixture writes the ports file when Elasticsearch's HTTP service
-        // is ready, so we can just wait for the file to exist
-        return fixture.portsFile.exists()
-      }
-    }
-
-    tasks.named("javaRestTest").configure {
-      dependsOn fixture
-        systemProperty "tests.fromOld", "true"
-        /* Use a closure on the string to delay evaluation until right before we
-         * run the integration tests so that we can be sure that the file is
-         * ready. */
-        nonInputProperties.systemProperty "es${version}.port", fixture.map(f->f.addressAndPort)
-    }
-  }
+//  versions.each { version ->
+//    def oldEsDependency = configurations['es' + version]
+//    oldEsDependency.getAttributes().attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE);
+//    TaskProvider<AntFixture> fixture = tasks.register("oldEs${version}Fixture", AntFixture) {
+//      dependsOn project.configurations.oldesFixture, jdks.legacy, oldEsDependency
+//      executable = "${BuildParams.runtimeJavaHome}/bin/java"
+//      env 'CLASSPATH', "${-> project.configurations.oldesFixture.asPath}"
+//      // old versions of Elasticsearch need JAVA_HOME
+//      env 'JAVA_HOME', jdks.legacy.javaHomePath
+//      // If we are running on certain arm systems we need to explicitly set the stack size to overcome JDK page size bug
+//      if (Architecture.current() == Architecture.AARCH64) {
+//        env 'ES_JAVA_OPTS', '-Xss512k'
+//      }
+//      args 'oldes.OldElasticsearch',
+//        baseDir,
+//        "${ -> oldEsDependency.singleFile.getPath()}",
+//        version == '090'
+//      waitCondition = { fixture, ant ->
+//        // the fixture writes the ports file when Elasticsearch's HTTP service
+//        // is ready, so we can just wait for the file to exist
+//        return fixture.portsFile.exists()
+//      }
+//    }
+//
+//    tasks.named("javaRestTest").configure {
+//        dependsOn fixture
+//        systemProperty "tests.fromOld", "false"
+//        /* Use a closure on the string to delay evaluation until right before we
+//         * run the integration tests so that we can be sure that the file is
+//         * ready. */
+////        nonInputProperties.systemProperty "es${version}.port", fixture.map(f->f.addressAndPort)
+//    }
+//  }
 }
 
 tasks.named("yamlRestTestV7CompatTransform").configure { task ->

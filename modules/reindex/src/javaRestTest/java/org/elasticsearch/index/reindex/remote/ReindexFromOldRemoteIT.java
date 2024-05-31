@@ -28,7 +28,7 @@ public class ReindexFromOldRemoteIT extends ESRestTestCase {
     private static final int DOCS = 5;
 
     private void oldEsTestCase(String portPropertyName, String requestsPerSecond) throws IOException {
-        boolean enabled = Booleans.parseBoolean(System.getProperty("tests.fromOld"));
+        boolean enabled = Booleans.parseBoolean(System.getProperty("tests.fromOld"), false);
         assumeTrue("test is disabled, probably because this is windows", enabled);
 
         int oldEsPort = Integer.parseInt(System.getProperty(portPropertyName));

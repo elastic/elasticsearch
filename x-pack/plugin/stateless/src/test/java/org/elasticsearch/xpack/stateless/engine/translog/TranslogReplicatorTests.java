@@ -50,7 +50,6 @@ import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -61,12 +60,10 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class TranslogReplicatorTests extends ESTestCase {
@@ -448,11 +445,12 @@ public class TranslogReplicatorTests extends ESTestCase {
         ObjectStoreService objectStoreService = mockObjectStoreService(compoundFiles);
         StatelessClusterConsistencyService consistencyService = mockConsistencyService();
 
+        int threshold = randomIntBetween(128, 512);
         TranslogReplicator translogReplicator = new TranslogReplicator(
             threadPool,
             Settings.builder()
                 .put(TranslogReplicator.FLUSH_INTERVAL_SETTING.getKey(), TimeValue.timeValueDays(1))
-                .put(TranslogReplicator.FLUSH_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(64))
+                .put(TranslogReplicator.FLUSH_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(threshold))
                 .build(),
             objectStoreService,
             consistencyService,
@@ -461,27 +459,37 @@ public class TranslogReplicatorTests extends ESTestCase {
         translogReplicator.doStart();
         translogReplicator.register(shardId, primaryTerm, seqNo -> {});
 
-        Translog.Operation[] operations = generateRandomOperations(4);
-        BytesReference[] operationsBytes = convertOperationsToBytes(operations);
+        ArrayList<Translog.Operation> operations = new ArrayList<>();
+        ArrayList<BytesReference> operationsBytes = new ArrayList<>();
+        int bytes = 0;
+        int seqNo = 0;
+        while (bytes <= threshold) {
+            Translog.Operation operation = generateOperation(seqNo++);
+            operations.add(operation);
+            BytesReference ref = convertOperationsToBytes(new Translog.Operation[] { operation })[0];
+            operationsBytes.add(ref);
+            bytes += ref.length();
+        }
+
+        Translog.Location location = new Translog.Location(0, 0, 0);
         long currentLocation = 0;
-        translogReplicator.add(shardId, operationsBytes[0], 0, new Translog.Location(0, currentLocation, operationsBytes[0].length()));
-        currentLocation += operationsBytes[0].length();
-        translogReplicator.add(shardId, operationsBytes[1], 1, new Translog.Location(0, currentLocation, operationsBytes[1].length()));
-        currentLocation += operationsBytes[1].length();
-        translogReplicator.add(shardId, operationsBytes[3], 3, new Translog.Location(0, currentLocation, operationsBytes[3].length()));
-        currentLocation += operationsBytes[3].length();
-        Translog.Location finalLocation = new Translog.Location(0, currentLocation, operationsBytes[2].length());
-        translogReplicator.add(shardId, operationsBytes[2], 2, finalLocation);
+        seqNo = 0;
+        for (BytesReference ref : operationsBytes) {
+            location = new Translog.Location(0, currentLocation, ref.length());
+            translogReplicator.add(shardId, ref, seqNo++, location);
+            currentLocation += ref.length();
+        }
 
         PlainActionFuture<Void> future = new PlainActionFuture<>();
-        translogReplicator.sync(shardId, finalLocation, future);
+        translogReplicator.sync(shardId, location, future);
         future.actionGet();
 
         assertThat(compoundFiles.size(), equalTo(Math.toIntExact(translogReplicator.getMaxUploadedFile() + 1)));
         assertTranslogContains(
             new TranslogReplicatorReader(objectStoreService.getTranslogBlobContainer(), shardId),
-            new Translog.Operation[] { operations[0], operations[1], operations[3], operations[2] }
+            operations.toArray(new Translog.Operation[0])
         );
+
     }
 
     public void testTranslogBytesAreSyncedAfterRetry() throws IOException {
@@ -547,15 +555,21 @@ public class TranslogReplicatorTests extends ESTestCase {
         assertThat(compoundFiles.size(), equalTo(Math.toIntExact(translogReplicator.getMaxUploadedFile() + 1)));
         assertTranslogContains(
             new TranslogReplicatorReader(objectStoreService.getTranslogBlobContainer(), shardId),
-            new Translog.Operation[] { operations[0], operations[1], operations[3], operations[2] }
+            operations[0],
+            operations[1],
+            operations[3],
+            operations[2]
         );
     }
 
+    // Test a sync that hits the exact number of bytes is completed and a location 1 byte past the amount flushed will wait on the next
+    // flush
     public void testTranslogBytesAreSyncedEdgeCondition() throws IOException {
         ShardId shardId = new ShardId(new Index("name", "uuid"), 0);
         long primaryTerm = randomLongBetween(0, 10);
+        AtomicReference<CountDownLatch> blockerRef = new AtomicReference<>(new CountDownLatch(0));
 
-        ObjectStoreService objectStoreService = mockObjectStoreService(new ArrayList<>());
+        ObjectStoreService objectStoreService = mockObjectStoreService(new ArrayList<>(), blockerRef);
         StatelessClusterConsistencyService consistencyService = mockConsistencyService();
 
         TranslogReplicator translogReplicator = new TranslogReplicator(
@@ -571,11 +585,8 @@ public class TranslogReplicatorTests extends ESTestCase {
         BytesArray bytesArray = new BytesArray(new byte[16]);
         Translog.Location location = new Translog.Location(0, 0, bytesArray.length());
         PlainActionFuture<Void> future = new PlainActionFuture<>();
-        translogReplicator.sync(shardId, location, future);
-        assertFalse(future.isDone());
-
         translogReplicator.add(shardId, bytesArray, 0, location);
-
+        translogReplicator.sync(shardId, location, future);
         future.actionGet();
 
         PlainActionFuture<Void> synchronouslyCompleteFuture = new PlainActionFuture<>();
@@ -584,8 +595,58 @@ public class TranslogReplicatorTests extends ESTestCase {
 
         PlainActionFuture<Void> synchronouslyIncompleteFuture = new PlainActionFuture<>();
         Translog.Location incompleteLocation = new Translog.Location(location.generation, location.translogLocation + location.size, 1);
+        CountDownLatch blocker = new CountDownLatch(1);
+        blockerRef.set(blocker);
+        translogReplicator.add(shardId, new BytesArray(new byte[1]), 1, incompleteLocation);
         translogReplicator.sync(shardId, incompleteLocation, synchronouslyIncompleteFuture);
         assertFalse(synchronouslyIncompleteFuture.isDone());
+        blocker.countDown();
+        synchronouslyIncompleteFuture.actionGet();
+    }
+
+    public void testTranslogNotFlushedUntilSyncRequested() throws Exception {
+        ShardId shardId = new ShardId(new Index("name", "uuid"), 0);
+        long primaryTerm = randomLongBetween(0, 10);
+
+        PlainActionFuture<Void> syncStartedFuture = new PlainActionFuture<>();
+
+        ObjectStoreService objectStoreService = mock(ObjectStoreService.class);
+        doAnswer(invocation -> {
+            syncStartedFuture.onResponse(null);
+            invocation.<ActionListener<Void>>getArgument(2).onResponse(null);
+            return null;
+        }).when(objectStoreService).uploadTranslogFile(any(), any(), any());
+        StatelessClusterConsistencyService consistencyService = mockConsistencyService();
+
+        TranslogReplicator translogReplicator = new TranslogReplicator(
+            threadPool,
+            getSettings(),
+            objectStoreService,
+            consistencyService,
+            (sId) -> primaryTerm
+        );
+        translogReplicator.doStart();
+        translogReplicator.register(shardId, primaryTerm, (seqNo) -> {});
+
+        Translog.Operation[] operations = generateRandomOperations(4);
+        BytesReference[] operationsBytes = convertOperationsToBytes(operations);
+        long currentLocation = 0;
+        translogReplicator.add(shardId, operationsBytes[0], 0, new Translog.Location(0, currentLocation, operationsBytes[0].length()));
+        currentLocation += operationsBytes[0].length();
+        Translog.Location intermediateLocation = new Translog.Location(0, currentLocation, operationsBytes[1].length());
+        translogReplicator.add(shardId, operationsBytes[1], 1, intermediateLocation);
+
+        expectThrows(ElasticsearchTimeoutException.class, () -> syncStartedFuture.actionGet(300, TimeUnit.MILLISECONDS));
+
+        PlainActionFuture<Void> future = new PlainActionFuture<>();
+        if (randomBoolean()) {
+            translogReplicator.sync(shardId, intermediateLocation, future);
+        } else {
+            translogReplicator.syncAll(shardId, future);
+        }
+
+        syncStartedFuture.actionGet();
+        future.actionGet();
     }
 
     public void testTranslogSyncOnlyCompletedOnceAllPriorFilesSynced() throws Exception {
@@ -630,20 +691,20 @@ public class TranslogReplicatorTests extends ESTestCase {
         Translog.Location intermediateLocation = new Translog.Location(0, currentLocation, operationsBytes[1].length());
         translogReplicator.add(shardId, operationsBytes[1], 1, intermediateLocation);
         currentLocation += operationsBytes[1].length();
-        safeAwait(intermediateStartedLatch);
 
         PlainActionFuture<Void> future = new PlainActionFuture<>();
         translogReplicator.sync(shardId, intermediateLocation, future);
+        safeAwait(intermediateStartedLatch);
         expectThrows(ElasticsearchTimeoutException.class, () -> future.actionGet(300, TimeUnit.MILLISECONDS));
 
         translogReplicator.add(shardId, operationsBytes[2], 2, new Translog.Location(0, currentLocation, operationsBytes[2].length()));
         currentLocation += operationsBytes[2].length();
         Translog.Location finalLocation = new Translog.Location(0, currentLocation, operationsBytes[3].length());
         translogReplicator.add(shardId, operationsBytes[3], 3, finalLocation);
-        safeAwait(finalSyncStartedLatch);
 
         PlainActionFuture<Void> future2 = new PlainActionFuture<>();
         translogReplicator.sync(shardId, finalLocation, future2);
+        safeAwait(finalSyncStartedLatch);
         expectThrows(ElasticsearchTimeoutException.class, () -> future2.actionGet(300, TimeUnit.MILLISECONDS));
 
         firstSyncCompleter.get().onResponse(null);
@@ -695,29 +756,34 @@ public class TranslogReplicatorTests extends ESTestCase {
 
         assertTranslogContains(
             new TranslogReplicatorReader(objectStoreService.getTranslogBlobContainer(), shardId1),
-            new Translog.Operation[] { operations[0], operations[1] }
+            operations[0],
+            operations[1]
         );
         assertTranslogContains(
             new TranslogReplicatorReader(objectStoreService.getTranslogBlobContainer(), shardId2),
-            new Translog.Operation[] { operations[0], operations[1], operations[3] }
+            operations[0],
+            operations[1],
+            operations[3]
         );
 
         Translog.Location finalLocationShard2 = new Translog.Location(0, currentLocation, operationsBytes[2].length());
 
         PlainActionFuture<Void> future3 = new PlainActionFuture<>();
-        translogReplicator.sync(shardId2, finalLocationShard2, future3);
-        assertFalse(future3.isDone());
-
         translogReplicator.add(shardId2, operationsBytes[2], 2, finalLocationShard2);
+        translogReplicator.sync(shardId2, finalLocationShard2, future3);
         future3.actionGet();
 
         assertTranslogContains(
             new TranslogReplicatorReader(objectStoreService.getTranslogBlobContainer(), shardId1),
-            new Translog.Operation[] { operations[0], operations[1] }
+            operations[0],
+            operations[1]
         );
         assertTranslogContains(
             new TranslogReplicatorReader(objectStoreService.getTranslogBlobContainer(), shardId2),
-            new Translog.Operation[] { operations[0], operations[1], operations[3], operations[2] }
+            operations[0],
+            operations[1],
+            operations[3],
+            operations[2]
         );
     }
 
@@ -938,29 +1004,6 @@ public class TranslogReplicatorTests extends ESTestCase {
         expectThrows(AlreadyClosedException.class, () -> translogReplicator.add(shardId, operationsBytes[0], 0, location));
     }
 
-    public void testSchedulesFlushCheck() {
-        long primaryTerm = randomLongBetween(0, 10);
-
-        var threadPool = mock(ThreadPool.class);
-        StatelessClusterConsistencyService consistencyService = mockConsistencyService();
-        try (
-            var translogReplicator = new TranslogReplicator(
-                threadPool,
-                getSettings(),
-                mock(ObjectStoreService.class),
-                consistencyService,
-                (sId) -> primaryTerm
-            )
-        ) {
-            translogReplicator.doStart();
-            verify(threadPool).scheduleWithFixedDelay(
-                any(Runnable.class),
-                eq(TimeValue.timeValueMillis(50)),
-                argThat((Executor e) -> true)
-            );
-        }
-    }
-
     public void testReplicatorReaderStopsRecoveringWhenMissingExpectedDirectoryFilesWhenAtTheBeginning() throws IOException {
         ShardId shardId = new ShardId(new Index("name", "uuid"), 0);
         long primaryTerm = randomLongBetween(0, 10);
@@ -1107,8 +1150,16 @@ public class TranslogReplicatorTests extends ESTestCase {
     }
 
     private ObjectStoreService mockObjectStoreService(ArrayList<BytesReference> compoundFiles) throws IOException {
+        return mockObjectStoreService(compoundFiles, new AtomicReference<>(new CountDownLatch(0)));
+    }
+
+    private ObjectStoreService mockObjectStoreService(
+        ArrayList<BytesReference> compoundFiles,
+        AtomicReference<CountDownLatch> uploadBlocker
+    ) throws IOException {
         ObjectStoreService objectStoreService = mock(ObjectStoreService.class);
         doAnswer(invocation -> {
+            uploadBlocker.get().await();
             compoundFiles.add(getBytes(invocation.getArgument(1)));
             invocation.<ActionListener<Void>>getArgument(2).onResponse(null);
             return null;

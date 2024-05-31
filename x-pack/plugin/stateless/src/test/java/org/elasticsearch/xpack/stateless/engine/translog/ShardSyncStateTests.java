@@ -18,9 +18,7 @@
 package co.elastic.elasticsearch.stateless.engine.translog;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
@@ -30,6 +28,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongConsumer;
@@ -47,13 +46,12 @@ public class ShardSyncStateTests extends ESTestCase {
         long generation = 2;
         long primaryTerm = randomLongBetween(0, 20);
         ShardSyncState shardSyncState = getShardSyncState(shardId, primaryTerm);
-        shardSyncState.writeToBuffer(new BytesArray(new byte[10]), 0, new Translog.Location(0, 0, 10));
-        ShardSyncState.SyncState syncState = shardSyncState.pollSync(generation);
 
+        TranslogMetadata translogMetadata = new TranslogMetadata(0, 10, 1, 2, 1, shardSyncState.createDirectory(generation, 0));
         TranslogReplicator.BlobTranslogFile activeTranslogFile = new TranslogReplicator.BlobTranslogFile(
             generation,
             "",
-            Map.of(shardId, syncState.metadata(0, 10)),
+            Map.of(shardId, translogMetadata),
             Collections.singleton(shardId)
         ) {
             @Override
@@ -79,13 +77,12 @@ public class ShardSyncStateTests extends ESTestCase {
         long primaryTerm = randomLongBetween(0, 20);
         ShardSyncState shardSyncState = getShardSyncState(shardId, primaryTerm);
 
-        shardSyncState.writeToBuffer(new BytesArray(new byte[10]), 0, new Translog.Location(0, 0, 10));
         shardSyncState.markSyncStarting(
             primaryTerm,
             new TranslogReplicator.BlobTranslogFile(
                 1,
                 "",
-                Map.of(shardId, shardSyncState.pollSync(1).metadata(0, 10)),
+                Map.of(shardId, new TranslogMetadata(0, 10, 1, 2, 1, shardSyncState.createDirectory(1, 0))),
                 Collections.singleton(shardId)
             ) {
                 @Override
@@ -93,13 +90,12 @@ public class ShardSyncStateTests extends ESTestCase {
             }
         );
 
-        shardSyncState.writeToBuffer(new BytesArray(new byte[10]), 0, new Translog.Location(0, 10, 10));
         shardSyncState.markSyncStarting(
             primaryTerm,
             new TranslogReplicator.BlobTranslogFile(
                 2,
                 "",
-                Map.of(shardId, shardSyncState.pollSync(2).metadata(0, 10)),
+                Map.of(shardId, new TranslogMetadata(0, 10, 1, 3, 2, shardSyncState.createDirectory(2, 0))),
                 Collections.singleton(shardId)
             ) {
                 @Override
@@ -107,13 +103,17 @@ public class ShardSyncStateTests extends ESTestCase {
             }
         );
 
-        shardSyncState.writeToBuffer(new BytesArray(new byte[10]), 0, new Translog.Location(0, 20, 10));
-        ShardSyncState.SyncState syncState = shardSyncState.pollSync(4);
-        assertThat(syncState.estimatedOps(), equalTo(3L));
-        assertThat(syncState.referencedTranslogFileOffsets(), equalTo(new int[] { 3, 2 }));
+        TranslogMetadata.Directory directory = shardSyncState.createDirectory(4, 0);
+        assertThat(directory.estimatedOperationsToRecover(), equalTo(3L));
+        assertThat(directory.referencedTranslogFileOffsets(), equalTo(new int[] { 3, 2 }));
         shardSyncState.markSyncStarting(
             primaryTerm,
-            new TranslogReplicator.BlobTranslogFile(4, "", Map.of(shardId, syncState.metadata(0, 10)), Collections.singleton(shardId)) {
+            new TranslogReplicator.BlobTranslogFile(
+                4,
+                "",
+                Map.of(shardId, new TranslogMetadata(0, 10, 1, 2, 1, directory)),
+                Collections.singleton(shardId)
+            ) {
                 @Override
                 protected void closeInternal() {}
             }
@@ -121,13 +121,17 @@ public class ShardSyncStateTests extends ESTestCase {
 
         shardSyncState.markCommitUploaded(2);
 
-        shardSyncState.writeToBuffer(new BytesArray(new byte[10]), 0, new Translog.Location(0, 30, 10));
-        ShardSyncState.SyncState syncState2 = shardSyncState.pollSync(5);
-        assertThat(syncState2.estimatedOps(), equalTo(4L));
-        assertThat(syncState2.referencedTranslogFileOffsets(), equalTo(new int[] { 4, 3, 1 }));
+        TranslogMetadata.Directory directory2 = shardSyncState.createDirectory(5, 0);
+        assertThat(directory2.estimatedOperationsToRecover(), equalTo(4L));
+        assertThat(directory2.referencedTranslogFileOffsets(), equalTo(new int[] { 4, 3, 1 }));
         shardSyncState.markSyncStarting(
             primaryTerm,
-            new TranslogReplicator.BlobTranslogFile(5, "", Map.of(shardId, syncState2.metadata(0, 10)), Collections.singleton(shardId)) {
+            new TranslogReplicator.BlobTranslogFile(
+                5,
+                "",
+                Map.of(shardId, new TranslogMetadata(0, 10, 1, 2, 1, directory2)),
+                Collections.singleton(shardId)
+            ) {
                 @Override
                 protected void closeInternal() {}
             }
@@ -136,10 +140,9 @@ public class ShardSyncStateTests extends ESTestCase {
         // Now that 1 is fully marked as deleted, it will not be referenced in the next directory
         shardSyncState.markTranslogDeleted(1);
 
-        shardSyncState.writeToBuffer(new BytesArray(new byte[10]), 0, new Translog.Location(0, 40, 10));
-        ShardSyncState.SyncState syncState3 = shardSyncState.pollSync(6);
-        assertThat(syncState3.estimatedOps(), equalTo(4L));
-        assertThat(syncState3.referencedTranslogFileOffsets(), equalTo(new int[] { 4, 2, 1 }));
+        TranslogMetadata.Directory directory3 = shardSyncState.createDirectory(6, 0);
+        assertThat(directory3.estimatedOperationsToRecover(), equalTo(4L));
+        assertThat(directory3.referencedTranslogFileOffsets(), equalTo(new int[] { 4, 2, 1 }));
     }
 
     public void testActiveTranslogFileIsNotReleasedAfterShardClose() throws IOException {
@@ -147,13 +150,11 @@ public class ShardSyncStateTests extends ESTestCase {
         long primaryTerm = randomLongBetween(0, 20);
         long generation = randomLongBetween(1, 5);
         ShardSyncState shardSyncState = getShardSyncState(shardId, primaryTerm);
-        shardSyncState.writeToBuffer(new BytesArray(new byte[10]), 0, new Translog.Location(0, 0, 10));
-        ShardSyncState.SyncState syncState = shardSyncState.pollSync(generation);
 
         TranslogReplicator.BlobTranslogFile activeTranslogFile = new TranslogReplicator.BlobTranslogFile(
             generation,
             "",
-            Map.of(shardId, syncState.metadata(0, 10)),
+            Map.of(shardId, new TranslogMetadata(0, 10, 1, 2, 1, shardSyncState.createDirectory(generation, 0))),
             Collections.singleton(shardId)
         ) {
             @Override
@@ -179,13 +180,11 @@ public class ShardSyncStateTests extends ESTestCase {
         long primaryTerm = randomLongBetween(0, 20);
         long generation = randomLongBetween(1, 5);
         ShardSyncState shardSyncState = getShardSyncState(shardId, primaryTerm);
-        shardSyncState.writeToBuffer(new BytesArray(new byte[10]), 0, new Translog.Location(0, 0, 10));
-        ShardSyncState.SyncState syncState = shardSyncState.pollSync(generation);
 
         TranslogReplicator.BlobTranslogFile activeTranslogFile = new TranslogReplicator.BlobTranslogFile(
             generation,
             "",
-            Map.of(shardId, syncState.metadata(0, 10)),
+            Map.of(shardId, new TranslogMetadata(0, 10, 1, 2, 1, shardSyncState.createDirectory(generation, 0))),
             Collections.singleton(shardId)
         ) {
             @Override
@@ -209,13 +208,11 @@ public class ShardSyncStateTests extends ESTestCase {
         long primaryTerm = randomLongBetween(1, 20);
         long generation = randomLongBetween(1, 5);
         ShardSyncState shardSyncState = getShardSyncState(shardId, primaryTerm);
-        shardSyncState.writeToBuffer(new BytesArray(new byte[10]), 0, new Translog.Location(0, 0, 10));
-        ShardSyncState.SyncState syncState = shardSyncState.pollSync(generation);
 
         TranslogReplicator.BlobTranslogFile activeTranslogFile = new TranslogReplicator.BlobTranslogFile(
             generation,
             "",
-            Map.of(shardId, syncState.metadata(0, 10)),
+            Map.of(shardId, new TranslogMetadata(0, 10, 1, 2, 1, shardSyncState.createDirectory(generation, 0))),
             Collections.singleton(shardId)
         ) {
             @Override
@@ -235,17 +232,17 @@ public class ShardSyncStateTests extends ESTestCase {
         long generation = randomLongBetween(1, 5);
         ArrayList<Long> seqNos = new ArrayList<>();
         ShardSyncState shardSyncState = getShardSyncState(shardId, primaryTerm, seqNos::add);
-        shardSyncState.writeToBuffer(new BytesArray(new byte[10]), 0, new Translog.Location(0, 0, 10));
-        shardSyncState.writeToBuffer(new BytesArray(new byte[10]), 1, new Translog.Location(0, 10, 20));
-        shardSyncState.writeToBuffer(new BytesArray(new byte[10]), 2, new Translog.Location(0, 20, 30));
-        ShardSyncState.SyncState syncState = shardSyncState.pollSync(generation);
-        ShardSyncState.SyncMarker syncMarker = syncState.buffer().syncMarker();
-        shardSyncState.writeToBuffer(new BytesArray(new byte[10]), 3, new Translog.Location(0, 30, 40));
+        TranslogMetadata.Directory directory = shardSyncState.createDirectory(generation, 0);
+        ShardSyncState.SyncMarker syncMarker = new ShardSyncState.SyncMarker(
+            primaryTerm,
+            new Translog.Location(0, 30, 40),
+            List.of(0L, 1L, 2L)
+        );
 
         TranslogReplicator.BlobTranslogFile activeTranslogFile = new TranslogReplicator.BlobTranslogFile(
             generation,
             "",
-            Map.of(shardId, syncState.metadata(0, 30)),
+            Map.of(shardId, new TranslogMetadata(0, 40, 0, 4, 4, directory)),
             Collections.singleton(shardId)
         ) {
             @Override
@@ -269,17 +266,16 @@ public class ShardSyncStateTests extends ESTestCase {
         ArrayList<Long> seqNos = new ArrayList<>();
         AtomicLong currentPrimaryTerm = new AtomicLong(primaryTerm);
         ShardSyncState shardSyncState = getShardSyncState(shardId, primaryTerm, currentPrimaryTerm::get, seqNos::add);
-        shardSyncState.writeToBuffer(new BytesArray(new byte[10]), 0, new Translog.Location(0, 0, 10));
-        shardSyncState.writeToBuffer(new BytesArray(new byte[10]), 1, new Translog.Location(0, 10, 20));
-        shardSyncState.writeToBuffer(new BytesArray(new byte[10]), 2, new Translog.Location(0, 20, 30));
-        ShardSyncState.SyncState syncState = shardSyncState.pollSync(generation);
-        ShardSyncState.SyncMarker syncMarker = syncState.buffer().syncMarker();
-        shardSyncState.writeToBuffer(new BytesArray(new byte[10]), 3, new Translog.Location(0, 30, 40));
+        ShardSyncState.SyncMarker syncMarker = new ShardSyncState.SyncMarker(
+            primaryTerm,
+            new Translog.Location(0, 30, 0),
+            List.of(0L, 1L, 2L)
+        );
 
         TranslogReplicator.BlobTranslogFile activeTranslogFile = new TranslogReplicator.BlobTranslogFile(
             generation,
             "",
-            Map.of(shardId, syncState.metadata(0, 30)),
+            Map.of(shardId, new TranslogMetadata(0, 30, 0, 3, 3, shardSyncState.createDirectory(generation, 0))),
             Collections.singleton(shardId)
         ) {
             @Override
@@ -302,9 +298,9 @@ public class ShardSyncStateTests extends ESTestCase {
         long generation = randomLongBetween(1, 5);
         ArrayList<Long> seqNos = new ArrayList<>();
         ShardSyncState shardSyncState = getShardSyncState(shardId, primaryTerm, seqNos::add);
-        shardSyncState.writeToBuffer(new BytesArray(new byte[10]), 0, new Translog.Location(0, 0, 10));
 
         Translog.Location manualSync = new Translog.Location(0, 10, 0);
+        shardSyncState.updateProcessedLocation(manualSync);
         shardSyncState.ensureSynced(manualSync, new ActionListener<>() {
             @Override
             public void onResponse(Void unused) {
@@ -317,14 +313,13 @@ public class ShardSyncStateTests extends ESTestCase {
             }
         });
 
-        ShardSyncState.SyncState syncState = shardSyncState.pollSync(generation);
-        ShardSyncState.SyncMarker syncMarker = syncState.buffer().syncMarker();
+        ShardSyncState.SyncMarker syncMarker = new ShardSyncState.SyncMarker(primaryTerm, manualSync, List.of(0L));
         assertThat(syncMarker.location(), equalTo(manualSync));
 
         TranslogReplicator.BlobTranslogFile activeTranslogFile = new TranslogReplicator.BlobTranslogFile(
             generation,
             "",
-            Map.of(shardId, syncState.metadata(0, 30)),
+            Map.of(shardId, new TranslogMetadata(0, 30, 0, 3, 3, shardSyncState.createDirectory(generation, 0))),
             Collections.singleton(shardId)
         ) {
             @Override
@@ -359,8 +354,7 @@ public class ShardSyncStateTests extends ESTestCase {
             primaryTerm,
             primaryTermSupplier,
             persistedSeqNoConsumer,
-            new ThreadContext(Settings.EMPTY),
-            BigArrays.NON_RECYCLING_INSTANCE
+            new ThreadContext(Settings.EMPTY)
         );
         return shardSyncState;
     }

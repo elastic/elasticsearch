@@ -93,8 +93,8 @@ public class GoogleAiStudioEmbeddingsServiceSettings extends FilteredXContentObj
 
     public GoogleAiStudioEmbeddingsServiceSettings(StreamInput in) throws IOException {
         this.modelId = in.readString();
-        this.maxInputTokens = in.readOptionalInt();
-        this.dims = in.readOptionalInt();
+        this.maxInputTokens = in.readOptionalVInt();
+        this.dims = in.readOptionalVInt();
         this.similarity = in.readOptionalEnum(SimilarityMeasure.class);
         this.rateLimitSettings = new RateLimitSettings(in);
     }
@@ -145,8 +145,8 @@ public class GoogleAiStudioEmbeddingsServiceSettings extends FilteredXContentObj
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(modelId);
-        out.writeOptionalInt(maxInputTokens);
-        out.writeOptionalInt(dims);
+        out.writeOptionalVInt(maxInputTokens);
+        out.writeOptionalVInt(dims);
         out.writeOptionalEnum(similarity);
         rateLimitSettings.writeTo(out);
     }

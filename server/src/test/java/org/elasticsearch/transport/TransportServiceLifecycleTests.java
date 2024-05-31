@@ -12,6 +12,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
@@ -47,6 +48,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.startsWith;
 
 public class TransportServiceLifecycleTests extends ESTestCase {
@@ -248,7 +250,7 @@ public class TransportServiceLifecycleTests extends ESTestCase {
     private void onConnectionClosedUsesHandlerExecutor(Settings settings, String executorName, String expectedExecutor) {
         try (var nodeA = new TestNode("node-A", settings)) {
             final var testThread = Thread.currentThread();
-            final var future = new PlainActionFuture<TransportResponse.Empty>();
+            final var future = new PlainActionFuture<Exception>();
             Executor executor = nodeA.getExecutor(executorName);
             Transport.Connection connection = nodeA.getDevNullConnection();
             nodeA.transportService.sendRequest(
@@ -256,16 +258,20 @@ public class TransportServiceLifecycleTests extends ESTestCase {
                 TestNode.randomActionName(random()),
                 new TransportRequest.Empty(),
                 TransportRequestOptions.EMPTY,
-                new ActionListenerResponseHandler<>(ActionListener.assertOnce(future.delegateResponse((l, e) -> {
-                    assertThat(EsExecutors.executorName(Thread.currentThread()), equalTo(expectedExecutor));
-                    if (expectedExecutor == null) {
-                        assertSame(testThread, Thread.currentThread());
-                    }
-                    l.onFailure(e);
-                })), unusedReader(), executor)
+                new ActionListenerResponseHandler<>(
+                    ActionListener.assertOnce(ActionTestUtils.assertNoSuccessListener(future::onResponse).delegateResponse((l, e) -> {
+                        assertThat(EsExecutors.executorName(Thread.currentThread()), equalTo(expectedExecutor));
+                        if (expectedExecutor == null) {
+                            assertSame(testThread, Thread.currentThread());
+                        }
+                        l.onFailure(e);
+                    })),
+                    unusedReader(),
+                    executor
+                )
             );
             nodeA.transportService.onConnectionClosed(connection);
-            expectThrows(ExecutionException.class, NodeDisconnectedException.class, () -> future.get(10, TimeUnit.SECONDS));
+            assertThat(safeGet(future), instanceOf(NodeDisconnectedException.class));
         }
     }
 

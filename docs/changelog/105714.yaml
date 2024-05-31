@@ -1,5 +1,5 @@
 pr: 105714
-summary: Cross check livedocs for terms aggs when index access control list is non-null
+summary: Apply stricter Document Level Security (DLS) rules for terms aggregations when min_doc_count is set to 0.
 area: "Aggregations"
 type: bug
 issues: []

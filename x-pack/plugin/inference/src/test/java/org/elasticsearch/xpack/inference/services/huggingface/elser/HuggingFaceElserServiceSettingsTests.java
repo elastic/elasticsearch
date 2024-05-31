@@ -77,9 +77,9 @@ public class HuggingFaceElserServiceSettingsTests extends AbstractWireSerializin
 
         assertThat(
             thrownException.getMessage(),
-            is(
+            containsString(
                 Strings.format(
-                    "Validation Failed: 1: [service_settings] Invalid url [%s] received for field [%s];",
+                    "Validation Failed: 1: [service_settings] Invalid url [%s] received for field [%s]",
                     url,
                     HuggingFaceElserServiceSettings.URL
                 )
@@ -122,6 +122,6 @@ public class HuggingFaceElserServiceSettingsTests extends AbstractWireSerializin
 
     @Override
     protected HuggingFaceElserServiceSettings mutateInstance(HuggingFaceElserServiceSettings instance) throws IOException {
-        return createRandom();
+        return randomValueOtherThan(instance, HuggingFaceElserServiceSettingsTests::createRandom);
     }
 }

@@ -145,7 +145,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 if (randomBoolean() || autoShardingEvent == null) {
                     // If we're mutating the auto sharding event of the failure store, we need to ensure there's at least one failure index.
                     if (failureIndices.isEmpty()) {
-                        failureIndices = DataStreamTestHelper.randomIndexInstances();
+                        failureIndices = DataStreamTestHelper.randomNonEmptyIndexInstances();
                         failureStore = true;
                     }
                     autoShardingEvent = new DataStreamAutoShardingEvent(
@@ -365,7 +365,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             equalTo(
                 String.format(
                     Locale.ROOT,
-                    "cannot remove backing index [%s] of data stream [%s] because it is the write index",
+                    "cannot remove backing index [%s] of data stream [%s] because it is the write index of the failure store",
                     original.getFailureIndices().getIndices().get(original.getFailureIndices().getIndices().size() - 1).getName(),
                     original.getName()
                 )

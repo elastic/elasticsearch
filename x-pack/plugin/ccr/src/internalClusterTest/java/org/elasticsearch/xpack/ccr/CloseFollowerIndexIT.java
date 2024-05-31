@@ -74,7 +74,7 @@ public class CloseFollowerIndexIT extends CcrIntegTestCase {
         assertAcked(leaderClient().admin().indices().prepareCreate("index1").setSource(leaderIndexSettings, XContentType.JSON));
         ensureLeaderYellow("index1");
 
-        PutFollowAction.Request followRequest = new PutFollowAction.Request();
+        PutFollowAction.Request followRequest = new PutFollowAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
         followRequest.setRemoteCluster("leader_cluster");
         followRequest.setLeaderIndex("index1");
         followRequest.setFollowerIndex("index2");

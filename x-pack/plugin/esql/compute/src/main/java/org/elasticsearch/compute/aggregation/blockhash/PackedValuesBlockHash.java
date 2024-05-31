@@ -199,8 +199,13 @@ final class PackedValuesBlockHash extends BlockHash {
 
         @Override
         public IntBlock next() {
-            int size = Math.toIntExact(Math.min(Integer.MAX_VALUE, targetByteSize / Integer.BYTES / 2));
+            int size = Math.toIntExact(Math.min(positionCount - position, targetByteSize / Integer.BYTES / 2));
             try (IntBlock.Builder ords = blockFactory.newIntBlockBuilder(size)) {
+                if (ords.estimatedBytes() > targetByteSize) {
+                    throw new IllegalStateException(
+                        "initial builder overshot target [" + ords.estimatedBytes() + "] vs [" + targetByteSize + "]"
+                    );
+                }
                 while (position < positionCount && ords.estimatedBytes() < targetByteSize) {
                     // TODO a test where targetByteSize is very small should still make a few rows.
                     boolean singleEntry = startPosition(groups);

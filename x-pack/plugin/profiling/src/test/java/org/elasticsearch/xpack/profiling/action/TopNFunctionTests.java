@@ -16,7 +16,6 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
-import java.util.Map;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 
@@ -35,31 +34,35 @@ public class TopNFunctionTests extends ESTestCase {
         String frameGroupID = FrameGroupID.create(fileID, addressOrLine, exeFilename, sourceFilename, functionName);
 
         XContentType contentType = randomFrom(XContentType.values());
+        // tag::noformat
         XContentBuilder expectedRequest = XContentFactory.contentBuilder(contentType)
             .startObject()
-            .field("id", frameGroupID)
-            .field("rank", 1)
-            .startObject("frame")
-            .field("frame_type", frameType)
-            .field("inline", inline)
-            .field("address_or_line", addressOrLine)
-            .field("function_name", functionName)
-            .field("file_name", sourceFilename)
-            .field("line_number", sourceLine)
-            .field("executable_file_name", exeFilename)
-            .endObject()
-            .field("sub_groups", Map.of("basket", 7L))
-            .field("self_count", 1)
-            .field("total_count", 10)
-            .field("self_annual_co2_tons")
-            .rawValue("2.2000")
-            .field("total_annual_co2_tons")
-            .rawValue("22.0000")
-            .field("self_annual_costs_usd")
-            .rawValue("12.0000")
-            .field("total_annual_costs_usd")
-            .rawValue("120.0000")
+                .field("id", frameGroupID)
+                .field("rank", 1)
+                .startObject("frame")
+                    .field("frame_type", frameType)
+                    .field("inline", inline)
+                    .field("address_or_line", addressOrLine)
+                    .field("function_name", functionName)
+                    .field("file_name", sourceFilename)
+                    .field("line_number", sourceLine)
+                    .field("executable_file_name", exeFilename)
+                .endObject()
+                .startObject("sub_groups")
+                    .startObject("transaction.name")
+                        .startObject("basket")
+                            .field("count", 7L)
+                        .endObject()
+                    .endObject()
+                .endObject()
+                .field("self_count", 1)
+                .field("total_count", 10)
+                .field("self_annual_co2_tons").rawValue("2.2000")
+                .field("total_annual_co2_tons").rawValue("22.0000")
+                .field("self_annual_costs_usd").rawValue("12.0000")
+                .field("total_annual_costs_usd").rawValue("120.0000")
             .endObject();
+        // end::noformat
 
         XContentBuilder actualRequest = XContentFactory.contentBuilder(contentType);
         TopNFunction topNFunction = new TopNFunction(
@@ -78,7 +81,7 @@ public class TopNFunctionTests extends ESTestCase {
             22.0d,
             12.0d,
             120.0d,
-            Map.of("basket", 7L)
+            SubGroup.root("transaction.name", false).addCount("basket", 7L)
         );
         topNFunction.toXContent(actualRequest, ToXContent.EMPTY_PARAMS);
 
@@ -113,8 +116,8 @@ public class TopNFunctionTests extends ESTestCase {
             4.0d,
             23.2d,
             12.0d,
-            Map.of("checkout", 4L, "basket", 12L)
+            SubGroup.root("transaction.name", false).addCount("checkout", 4L).addCount("basket", 12L)
         );
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(topNFunction, (TopNFunction::clone));
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(topNFunction, (TopNFunction::copy));
     }
 }

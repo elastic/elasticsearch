@@ -9,8 +9,7 @@
 package org.elasticsearch.index.engine;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.codecs.Codec;
-import org.apache.lucene.codecs.KnnVectorsFormat;
+import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FieldInfo;
@@ -37,6 +36,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.action.support.UnsafePlainActionFuture;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.Loggers;
@@ -58,8 +58,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.codec.Elasticsearch814Codec;
-import org.elasticsearch.index.codec.LegacyPerFieldMapperCodec;
 import org.elasticsearch.index.mapper.DocumentParser;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
@@ -78,6 +76,7 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transports;
 
 import java.io.Closeable;
@@ -1095,7 +1094,6 @@ public abstract class Engine implements Closeable {
         segment.segmentSort = info.info.getIndexSort();
         segment.attributes = new HashMap<>();
         segment.attributes.putAll(info.info.getAttributes());
-        Codec codec = info.info.getCodec();
         Map<String, List<String>> knnFormats = null;
         if (includeVectorFormatsInfo) {
             try {
@@ -1104,11 +1102,11 @@ public abstract class Engine implements Closeable {
                     for (FieldInfo fieldInfo : fieldInfos) {
                         String name = fieldInfo.getName();
                         if (fieldInfo.hasVectorValues()) {
-                            KnnVectorsFormat knnVectorsFormatForField = getKnnVectorsFormatForField(codec, name);
                             if (knnFormats == null) {
                                 knnFormats = new HashMap<>();
                             }
-                            knnFormats.compute(knnVectorsFormatForField.getName(), (s, a) -> {
+                            String key = fieldInfo.getAttribute(PerFieldKnnVectorsFormat.PER_FIELD_FORMAT_KEY);
+                            knnFormats.compute(key, (s, a) -> {
                                 if (a == null) {
                                     a = new ArrayList<>();
                                 }
@@ -1129,18 +1127,6 @@ public abstract class Engine implements Closeable {
         }
         // TODO: add more fine grained mem stats values to per segment info here
         segments.put(info.info.name, segment);
-    }
-
-    private static KnnVectorsFormat getKnnVectorsFormatForField(Codec codec, String name) {
-        KnnVectorsFormat format;
-        if (codec instanceof Elasticsearch814Codec esCodec) {
-            format = esCodec.getKnnVectorsFormatForField(name);
-        } else if (codec instanceof LegacyPerFieldMapperCodec legacy) {
-            format = legacy.getKnnVectorsFormatForField(name);
-        } else {
-            format = codec.knnVectorsFormat();
-        }
-        return format;
     }
 
     /**
@@ -1972,7 +1958,7 @@ public abstract class Engine implements Closeable {
 
         logger.debug("drainForClose(): draining ops");
         releaseEnsureOpenRef.close();
-        final var future = new PlainActionFuture<Void>() {
+        final var future = new UnsafePlainActionFuture<Void>(ThreadPool.Names.GENERIC) {
             @Override
             protected boolean blockingAllowed() {
                 // TODO remove this blocking, or at least do it elsewhere, see https://github.com/elastic/elasticsearch/issues/89821

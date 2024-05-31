@@ -3358,6 +3358,9 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                     // leave subsequent entries for this shard alone until this one is unpaused
                     iterator.remove();
                 }
+                // All other shard updates leave the shard in a complete state, which means we should leave this update in the list so it
+                // can fall through to later entries and start any waiting shard snapshots:
+                assert updatedState.isActive() == false;
 
                 logger.trace("[{}] Updating shard [{}] with status [{}]", updateSnapshotState.snapshot, updatedShard, updatedState.state());
                 changedCount++;

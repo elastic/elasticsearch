@@ -11,11 +11,11 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.arithmetic.ArithmeticOperation;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.arithmetic.BinaryComparisonInversible;
-import org.elasticsearch.xpack.esql.core.expression.predicate.operator.arithmetic.Neg;
-import org.elasticsearch.xpack.esql.core.expression.predicate.operator.arithmetic.Sub;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Neg;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Sub;
 
 import java.time.DateTimeException;
 import java.util.List;

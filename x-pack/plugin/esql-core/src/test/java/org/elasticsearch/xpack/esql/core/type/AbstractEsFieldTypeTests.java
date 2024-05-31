@@ -20,20 +20,27 @@ public abstract class AbstractEsFieldTypeTests<T extends EsField> extends Abstra
 
     protected abstract T mutate(T instance) throws IOException;
 
-    static Map<String, EsField> randomProperties(int depth) {
-        if (depth > 4 || randomBoolean()) {
+    /**
+     * Generate sub-properties.
+     * @param maxDepth the maximum number of levels of properties to make
+     */
+    static Map<String, EsField> randomProperties(int maxDepth) {
+        if (maxDepth < 0) {
+            throw new IllegalArgumentException("depth must be >= 0");
+        }
+        if (maxDepth == 0 || randomBoolean()) {
             return Map.of();
         }
         int targetSize = between(1, 5);
         Map<String, EsField> properties = new TreeMap<>();
         while (properties.size() < targetSize) {
             properties.put(randomAlphaOfLength(properties.size() + 1), switch (between(0, 5)) {
-                case 0 -> EsFieldTests.randomEsField(depth + 1);
-                case 1 -> DateEsFieldTests.randomDateEsField(depth + 1);
-                case 2 -> InvalidMappedFieldTests.randomInvalidMappedField(depth + 1);
-                case 3 -> KeywordEsFieldTests.randomKeywordEsField(depth + 1);
-                case 4 -> TextEsFieldTests.randomTextEsField(depth + 1);
-                case 5 -> UnsupportedEsFieldTests.randomUnsupportedEsField(depth + 1);
+                case 0 -> EsFieldTests.randomEsField(maxDepth - 1);
+                case 1 -> DateEsFieldTests.randomDateEsField(maxDepth - 1);
+                case 2 -> InvalidMappedFieldTests.randomInvalidMappedField(maxDepth - 1);
+                case 3 -> KeywordEsFieldTests.randomKeywordEsField(maxDepth - 1);
+                case 4 -> TextEsFieldTests.randomTextEsField(maxDepth - 1);
+                case 5 -> UnsupportedEsFieldTests.randomUnsupportedEsField(maxDepth - 1);
                 default -> throw new IllegalArgumentException();
             });
         }

@@ -13,9 +13,9 @@ import java.io.IOException;
 import java.util.Map;
 
 public class KeywordEsFieldTests extends AbstractEsFieldTypeTests<KeywordEsField> {
-    static KeywordEsField randomKeywordEsField(int depth) {
+    static KeywordEsField randomKeywordEsField(int maxPropertiesDepth) {
         String name = randomAlphaOfLength(4);
-        Map<String, EsField> properties = randomProperties(depth);
+        Map<String, EsField> properties = randomProperties(maxPropertiesDepth);
         boolean hasDocValues = randomBoolean();
         int precision = randomInt();
         boolean normalized = randomBoolean();
@@ -25,7 +25,7 @@ public class KeywordEsFieldTests extends AbstractEsFieldTypeTests<KeywordEsField
 
     @Override
     protected KeywordEsField createTestInstance() {
-        return randomKeywordEsField(0);
+        return randomKeywordEsField(4);
     }
 
     @Override
@@ -38,7 +38,7 @@ public class KeywordEsFieldTests extends AbstractEsFieldTypeTests<KeywordEsField
         boolean isAlias = instance.isAlias();
         switch (between(0, 5)) {
             case 0 -> name = randomAlphaOfLength(name.length() + 1);
-            case 1 -> properties = randomValueOtherThan(properties, () -> randomProperties(0));
+            case 1 -> properties = randomValueOtherThan(properties, () -> randomProperties(4));
             case 2 -> hasDocValues = false == hasDocValues;
             case 3 -> precision = randomValueOtherThan(precision, ESTestCase::randomInt);
             case 4 -> normalized = false == normalized;

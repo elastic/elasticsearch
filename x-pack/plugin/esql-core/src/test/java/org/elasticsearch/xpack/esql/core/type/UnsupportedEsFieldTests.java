@@ -11,17 +11,17 @@ import java.io.IOException;
 import java.util.Map;
 
 public class UnsupportedEsFieldTests extends AbstractEsFieldTypeTests<UnsupportedEsField> {
-    static UnsupportedEsField randomUnsupportedEsField(int depth) {
+    static UnsupportedEsField randomUnsupportedEsField(int maxPropertiesDepth) {
         String name = randomAlphaOfLength(4);
         String originalType = randomAlphaOfLength(5);
         String inherited = randomBoolean() ? null : randomAlphaOfLength(5);
-        Map<String, EsField> properties = randomProperties(depth);
+        Map<String, EsField> properties = randomProperties(maxPropertiesDepth);
         return new UnsupportedEsField(name, originalType, inherited, properties);
     }
 
     @Override
     protected UnsupportedEsField createTestInstance() {
-        return randomUnsupportedEsField(0);
+        return randomUnsupportedEsField(4);
     }
 
     @Override
@@ -34,7 +34,7 @@ public class UnsupportedEsFieldTests extends AbstractEsFieldTypeTests<Unsupporte
             case 0 -> name = randomAlphaOfLength(name.length() + 1);
             case 1 -> originalType = randomValueOtherThan(originalType, () -> randomAlphaOfLength(4));
             case 2 -> inherited = randomValueOtherThan(inherited, () -> randomBoolean() ? null : randomAlphaOfLength(4));
-            case 3 -> properties = randomValueOtherThan(properties, () -> randomProperties(0));
+            case 3 -> properties = randomValueOtherThan(properties, () -> randomProperties(4));
             default -> throw new IllegalArgumentException();
         }
         return new UnsupportedEsField(name, originalType, inherited, properties);

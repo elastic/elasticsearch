@@ -11,13 +11,13 @@ import java.io.IOException;
 import java.util.Map;
 
 public class DateEsFieldTests extends AbstractEsFieldTypeTests<DateEsField> {
-    static DateEsField randomDateEsField(int depth) {
-        return DateEsField.dateEsField(randomAlphaOfLength(5), randomProperties(depth), randomBoolean());
+    static DateEsField randomDateEsField(int maxPropertiesDepth) {
+        return DateEsField.dateEsField(randomAlphaOfLength(5), randomProperties(maxPropertiesDepth), randomBoolean());
     }
 
     @Override
     protected DateEsField createTestInstance() {
-        return randomDateEsField(0);
+        return randomDateEsField(4);
     }
 
     @Override
@@ -27,7 +27,7 @@ public class DateEsFieldTests extends AbstractEsFieldTypeTests<DateEsField> {
         boolean aggregatable = instance.isAggregatable();
         switch (between(0, 2)) {
             case 0 -> name = randomAlphaOfLength(name.length() + 1);
-            case 1 -> properties = randomValueOtherThan(properties, () -> randomProperties(0));
+            case 1 -> properties = randomValueOtherThan(properties, () -> randomProperties(4));
             case 2 -> aggregatable = false == aggregatable;
             default -> throw new IllegalArgumentException();
         }

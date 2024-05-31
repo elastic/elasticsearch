@@ -11,10 +11,10 @@ import java.io.IOException;
 import java.util.Map;
 
 public class EsFieldTests extends AbstractEsFieldTypeTests<EsField> {
-    static EsField randomEsField(int depth) {
+    static EsField randomEsField(int maxPropertiesDepth) {
         String name = randomAlphaOfLength(4);
         DataType esDataType = randomFrom(DataTypes.types());
-        Map<String, EsField> properties = randomProperties(depth);
+        Map<String, EsField> properties = randomProperties(maxPropertiesDepth);
         boolean aggregatable = randomBoolean();
         boolean isAlias = randomBoolean();
         return new EsField(name, esDataType, properties, aggregatable, isAlias);
@@ -22,7 +22,7 @@ public class EsFieldTests extends AbstractEsFieldTypeTests<EsField> {
 
     @Override
     protected EsField createTestInstance() {
-        return randomEsField(0);
+        return randomEsField(4);
     }
 
     @Override
@@ -35,7 +35,7 @@ public class EsFieldTests extends AbstractEsFieldTypeTests<EsField> {
         switch (between(0, 4)) {
             case 0 -> name = randomAlphaOfLength(name.length() + 1);
             case 1 -> esDataType = randomValueOtherThan(esDataType, () -> randomFrom(DataTypes.types()));
-            case 2 -> properties = randomValueOtherThan(properties, () -> randomProperties(0));
+            case 2 -> properties = randomValueOtherThan(properties, () -> randomProperties(4));
             case 3 -> aggregatable = false == aggregatable;
             case 4 -> isAlias = false == isAlias;
             default -> throw new IllegalArgumentException();

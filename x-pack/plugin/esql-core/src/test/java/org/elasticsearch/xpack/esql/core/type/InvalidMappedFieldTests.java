@@ -11,16 +11,16 @@ import java.io.IOException;
 import java.util.Map;
 
 public class InvalidMappedFieldTests extends AbstractEsFieldTypeTests<InvalidMappedField> {
-    static InvalidMappedField randomInvalidMappedField(int depth) {
+    static InvalidMappedField randomInvalidMappedField(int maxPropertiesDepth) {
         String name = randomAlphaOfLength(4);
         String errorMessage = randomAlphaOfLengthBetween(1, 100);
-        Map<String, EsField> properties = randomProperties(depth);
+        Map<String, EsField> properties = randomProperties(maxPropertiesDepth);
         return new InvalidMappedField(name, errorMessage, properties);
     }
 
     @Override
     protected InvalidMappedField createTestInstance() {
-        return randomInvalidMappedField(0);
+        return randomInvalidMappedField(4);
     }
 
     @Override
@@ -31,7 +31,7 @@ public class InvalidMappedFieldTests extends AbstractEsFieldTypeTests<InvalidMap
         switch (between(0, 2)) {
             case 0 -> name = randomAlphaOfLength(name.length() + 1);
             case 1 -> errorMessage = randomValueOtherThan(errorMessage, () -> randomAlphaOfLengthBetween(1, 100));
-            case 2 -> properties = randomValueOtherThan(properties, () -> randomProperties(0));
+            case 2 -> properties = randomValueOtherThan(properties, () -> randomProperties(4));
             default -> throw new IllegalArgumentException();
         }
         return new InvalidMappedField(name, errorMessage, properties);

@@ -11,9 +11,9 @@ import java.io.IOException;
 import java.util.Map;
 
 public class TextEsFieldTests extends AbstractEsFieldTypeTests<TextEsField> {
-    static TextEsField randomTextEsField(int depth) {
+    static TextEsField randomTextEsField(int maxPropertiesDepth) {
         String name = randomAlphaOfLength(4);
-        Map<String, EsField> properties = randomProperties(depth);
+        Map<String, EsField> properties = randomProperties(maxPropertiesDepth);
         boolean hasDocValues = randomBoolean();
         boolean isAlias = randomBoolean();
         return new TextEsField(name, properties, hasDocValues, isAlias);
@@ -21,7 +21,7 @@ public class TextEsFieldTests extends AbstractEsFieldTypeTests<TextEsField> {
 
     @Override
     protected TextEsField createTestInstance() {
-        return randomTextEsField(0);
+        return randomTextEsField(4);
     }
 
     @Override
@@ -32,7 +32,7 @@ public class TextEsFieldTests extends AbstractEsFieldTypeTests<TextEsField> {
         boolean isAlias = instance.isAlias();
         switch (between(0, 3)) {
             case 0 -> name = randomAlphaOfLength(name.length() + 1);
-            case 1 -> properties = randomValueOtherThan(properties, () -> randomProperties(0));
+            case 1 -> properties = randomValueOtherThan(properties, () -> randomProperties(4));
             case 2 -> hasDocValues = false == hasDocValues;
             case 3 -> isAlias = false == isAlias;
             default -> throw new IllegalArgumentException();

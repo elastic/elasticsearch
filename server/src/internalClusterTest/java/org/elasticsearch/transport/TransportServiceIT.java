@@ -14,7 +14,10 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 public class TransportServiceIT extends ESSingleNodeTestCase {
     @Override
     protected Settings nodeSettings() {
-        return Settings.builder().put(super.nodeSettings()).put(TransportService.ENABLE_STACK_OVERFLOW_AVOIDANCE.getKey(), randomBoolean()).build();
+        return Settings.builder()
+            .put(super.nodeSettings())
+            .put(TransportService.ENABLE_STACK_OVERFLOW_AVOIDANCE.getKey(), randomBoolean())
+            .build();
     }
 
     public void testNodeStartsWithSetting() {

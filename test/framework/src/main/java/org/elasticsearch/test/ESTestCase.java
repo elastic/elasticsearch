@@ -2188,7 +2188,6 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
     }
 
-
     public static Exception safeAwaitFailure(SubscribableListener<?> listener) {
         return safeAwait(
             SubscribableListener.newForked(

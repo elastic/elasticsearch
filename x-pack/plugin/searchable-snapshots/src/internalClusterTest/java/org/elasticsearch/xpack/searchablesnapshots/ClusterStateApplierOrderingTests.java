@@ -65,6 +65,7 @@ public class ClusterStateApplierOrderingTests extends BaseSearchableSnapshotsInt
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0);
 
         final MountSearchableSnapshotRequest req = new MountSearchableSnapshotRequest(
+            TEST_REQUEST_TIMEOUT,
             restoredIndexName,
             fsRepoName,
             snapshotInfo.snapshotId().getName(),

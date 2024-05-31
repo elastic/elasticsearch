@@ -38,12 +38,12 @@ import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
-import org.elasticsearch.xpack.core.inference.action.DeleteInferenceModelAction;
+import org.elasticsearch.xpack.core.inference.action.DeleteInferenceEndpointAction;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceDiagnosticsAction;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.action.PutInferenceModelAction;
-import org.elasticsearch.xpack.inference.action.TransportDeleteInferenceModelAction;
+import org.elasticsearch.xpack.inference.action.TransportDeleteInferenceEndpointAction;
 import org.elasticsearch.xpack.inference.action.TransportGetInferenceDiagnosticsAction;
 import org.elasticsearch.xpack.inference.action.TransportGetInferenceModelAction;
 import org.elasticsearch.xpack.inference.action.TransportInferenceAction;
@@ -60,7 +60,7 @@ import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 import org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
-import org.elasticsearch.xpack.inference.rest.RestDeleteInferenceModelAction;
+import org.elasticsearch.xpack.inference.rest.RestDeleteInferenceEndpointAction;
 import org.elasticsearch.xpack.inference.rest.RestGetInferenceDiagnosticsAction;
 import org.elasticsearch.xpack.inference.rest.RestGetInferenceModelAction;
 import org.elasticsearch.xpack.inference.rest.RestInferenceAction;
@@ -125,7 +125,7 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
             new ActionHandler<>(InferenceAction.INSTANCE, TransportInferenceAction.class),
             new ActionHandler<>(GetInferenceModelAction.INSTANCE, TransportGetInferenceModelAction.class),
             new ActionHandler<>(PutInferenceModelAction.INSTANCE, TransportPutInferenceModelAction.class),
-            new ActionHandler<>(DeleteInferenceModelAction.INSTANCE, TransportDeleteInferenceModelAction.class),
+            new ActionHandler<>(DeleteInferenceEndpointAction.INSTANCE, TransportDeleteInferenceEndpointAction.class),
             new ActionHandler<>(XPackUsageFeatureAction.INFERENCE, TransportInferenceUsageAction.class),
             new ActionHandler<>(GetInferenceDiagnosticsAction.INSTANCE, TransportGetInferenceDiagnosticsAction.class)
         );
@@ -147,7 +147,7 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
             new RestInferenceAction(),
             new RestGetInferenceModelAction(),
             new RestPutInferenceModelAction(),
-            new RestDeleteInferenceModelAction(),
+            new RestDeleteInferenceEndpointAction(),
             new RestGetInferenceDiagnosticsAction()
         );
     }

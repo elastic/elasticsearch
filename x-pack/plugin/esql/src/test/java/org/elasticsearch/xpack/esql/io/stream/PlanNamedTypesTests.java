@@ -34,7 +34,6 @@ import org.elasticsearch.xpack.esql.core.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DataTypes;
-import org.elasticsearch.xpack.esql.core.type.DateEsField;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
@@ -266,66 +265,6 @@ public class PlanNamedTypesTests extends ESTestCase {
         Stream.generate(PlanNamedTypesTests::randomFieldAttribute).limit(100).forEach(PlanNamedTypesTests::assertNamedExpression);
     }
 
-    public void testKeywordEsFieldSimple() throws IOException {
-        var orig = new KeywordEsField(
-            "BarKeyField", // name
-            Map.of(), // no properties
-            true, // hasDocValues
-            5, // precision
-            true, // normalized
-            true // alias
-        );
-        BytesStreamOutput bso = new BytesStreamOutput();
-        PlanStreamOutput out = new PlanStreamOutput(bso, planNameRegistry, null);
-        PlanNamedTypes.writeKeywordEsField(out, orig);
-        var deser = PlanNamedTypes.readKeywordEsField(planStreamInput(bso));
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(orig, unused -> deser);
-    }
-
-    public void testKeywordEsField() {
-        Stream.generate(PlanNamedTypesTests::randomKeywordEsField).limit(100).forEach(PlanNamedTypesTests::assertNamedEsField);
-    }
-
-    public void testTextdEsFieldSimple() throws IOException {
-        var orig = new TextEsField(
-            "BarKeyField", // name
-            Map.of(), // no properties
-            true, // hasDocValues
-            true // alias
-        );
-        BytesStreamOutput bso = new BytesStreamOutput();
-        PlanStreamOutput out = new PlanStreamOutput(bso, planNameRegistry, null);
-        PlanNamedTypes.writeTextEsField(out, orig);
-        var deser = PlanNamedTypes.readTextEsField(planStreamInput(bso));
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(orig, unused -> deser);
-    }
-
-    public void testTextEsField() {
-        Stream.generate(PlanNamedTypesTests::randomTextEsField).limit(100).forEach(PlanNamedTypesTests::assertNamedEsField);
-    }
-
-    public void testInvalidMappedFieldSimple() throws IOException {
-        var orig = new InvalidMappedField("foo", "bar");
-        BytesStreamOutput bso = new BytesStreamOutput();
-        PlanStreamOutput out = new PlanStreamOutput(bso, planNameRegistry, null);
-        PlanNamedTypes.writeInvalidMappedField(out, orig);
-        var deser = PlanNamedTypes.readInvalidMappedField(planStreamInput(bso));
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(orig, unused -> deser);
-    }
-
-    public void testInvalidMappedField() {
-        Stream.generate(PlanNamedTypesTests::randomInvalidMappedField).limit(100).forEach(PlanNamedTypesTests::assertNamedEsField);
-    }
-
-    public void testEsDateFieldSimple() throws IOException {
-        var orig = DateEsField.dateEsField("birth_date", Map.of(), false);
-        BytesStreamOutput bso = new BytesStreamOutput();
-        PlanStreamOutput out = new PlanStreamOutput(bso, planNameRegistry, null);
-        PlanNamedTypes.writeDateEsField(out, orig);
-        var deser = PlanNamedTypes.readDateEsField(planStreamInput(bso));
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(orig, unused -> deser);
-    }
-
     public void testBinComparisonSimple() throws IOException {
         var orig = new Equals(Source.EMPTY, field("foo", DataTypes.DOUBLE), field("bar", DataTypes.DOUBLE));
         BytesStreamOutput bso = new BytesStreamOutput();
@@ -513,11 +452,6 @@ public class PlanNamedTypesTests extends ESTestCase {
 
     private static <T> void assertNamedType(Class<T> type, T origObj) {
         var deserObj = serializeDeserialize(origObj, (o, v) -> o.writeNamed(type, origObj), i -> i.readNamed(type));
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(origObj, unused -> deserObj);
-    }
-
-    private static void assertNamedEsField(EsField origObj) {
-        var deserObj = serializeDeserialize(origObj, (o, v) -> o.writeNamed(EsField.class, v), PlanStreamInput::readEsFieldNamed);
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(origObj, unused -> deserObj);
     }
 

@@ -1,0 +1,5 @@
+pr: 109206
+summary: Fix race condition between shrinking and ILM
+area: Search
+type: bug
+issues: []

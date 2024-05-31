@@ -19,7 +19,7 @@ public class TextEmbeddingUtils {
      * @return the size of the text embedding
      * @throws IllegalStateException if the list of embeddings is empty
      */
-    public static int getFirstEmbeddingSize(List<Embedding<?>> embeddings) throws IllegalStateException {
+    public static int getFirstEmbeddingSize(List<EmbeddingInt> embeddings) throws IllegalStateException {
         if (embeddings.isEmpty()) {
             throw new IllegalStateException("Embeddings list is empty");
         }

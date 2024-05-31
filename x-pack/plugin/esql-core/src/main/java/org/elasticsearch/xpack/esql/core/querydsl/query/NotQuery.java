@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.esql.core.querydsl.query;
 
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.search.sort.NestedSortBuilder;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 import java.util.Objects;
@@ -30,25 +29,6 @@ public class NotQuery extends Query {
 
     public Query child() {
         return child;
-    }
-
-    @Override
-    public boolean containsNestedField(String path, String field) {
-        return child.containsNestedField(path, field);
-    }
-
-    @Override
-    public Query addNestedField(String path, String field, String format, boolean hasDocValues) {
-        Query rewrittenChild = child.addNestedField(path, field, format, hasDocValues);
-        if (child == rewrittenChild) {
-            return this;
-        }
-        return new NotQuery(source(), child);
-    }
-
-    @Override
-    public void enrichNestedSort(NestedSortBuilder sort) {
-        child.enrichNestedSort(sort);
     }
 
     @Override

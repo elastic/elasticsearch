@@ -16,7 +16,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -63,7 +62,7 @@ public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase 
             settings,
             version,
             threadPool,
-            new NetworkService(Collections.emptyList()),
+            networkService,
             PageCacheRecycler.NON_RECYCLING_INSTANCE,
             namedWriteableRegistry,
             new NoneCircuitBreakerService(),

@@ -25,6 +25,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.UnsafePlainActionFuture;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -55,6 +56,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeMetadata;
@@ -407,6 +409,7 @@ import org.elasticsearch.xpack.security.transport.SecurityServerTransportInterce
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 import org.elasticsearch.xpack.security.transport.netty4.SecurityNetty4ServerTransport;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.security.Provider;
@@ -617,6 +620,8 @@ public class Security extends Plugin
     // submit migration jobs doesn't get out of hand and retries forever if they fail. Reset by a
     // restart or master node change.
     private final AtomicInteger nodeLocalMigrationRetryCount = new AtomicInteger(0);
+
+    private final SetOnce<List<Closeable>> closableComponents = new SetOnce<>();
 
     public Security(Settings settings) {
         this(settings, Collections.emptyList());
@@ -936,7 +941,8 @@ public class Security extends Plugin
             systemIndices.getMainIndexManager(),
             clusterService,
             cacheInvalidatorRegistry,
-            threadPool
+            threadPool,
+            telemetryProvider.getMeterRegistry()
         );
         components.add(apiKeyService);
 
@@ -1151,13 +1157,19 @@ public class Security extends Plugin
 
         cacheInvalidatorRegistry.validate();
 
-        this.reloadableComponents.set(
-            components.stream()
-                .filter(ReloadableSecurityComponent.class::isInstance)
-                .map(ReloadableSecurityComponent.class::cast)
-                .collect(Collectors.toUnmodifiableList())
-        );
+        final List<ReloadableSecurityComponent> reloadableComponents = new ArrayList<>();
+        final List<Closeable> closableComponents = new ArrayList<>();
+        for (Object component : components) {
+            if (component instanceof ReloadableSecurityComponent reloadable) {
+                reloadableComponents.add(reloadable);
+            }
+            if (component instanceof Closeable closeable) {
+                closableComponents.add(closeable);
+            }
+        }
 
+        this.reloadableComponents.set(List.copyOf(reloadableComponents));
+        this.closableComponents.set(List.copyOf(closableComponents));
         return components;
     }
 
@@ -2130,7 +2142,7 @@ public class Security extends Plugin
             return;
         }
 
-        final PlainActionFuture<ActionResponse.Empty> future = new PlainActionFuture<>();
+        final PlainActionFuture<ActionResponse.Empty> future = new UnsafePlainActionFuture<>(ThreadPool.Names.GENERIC);
         getClient().execute(
             ActionTypes.RELOAD_REMOTE_CLUSTER_CREDENTIALS_ACTION,
             new TransportReloadRemoteClusterCredentialsAction.Request(settingsWithKeystore),
@@ -2285,5 +2297,14 @@ public class Security extends Plugin
     // visible for testing
     OperatorPrivileges.OperatorPrivilegesService getOperatorPrivilegesService() {
         return operatorPrivilegesService.get();
+    }
+
+    @Override
+    public void close() throws IOException {
+        if (enabled) {
+            if (closableComponents.get() != null) {
+                IOUtils.close(closableComponents.get());
+            }
+        }
     }
 }

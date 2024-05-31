@@ -40,6 +40,7 @@ public class CoreProtocol {
     public static final String WAIT_FOR_COMPLETION_TIMEOUT_NAME = "wait_for_completion_timeout";
     public static final String KEEP_ON_COMPLETION_NAME = "keep_on_completion";
     public static final String KEEP_ALIVE_NAME = "keep_alive";
+    public static final String TIER_NAME = "tier";
 
     // params
     public static final String PARAMS_NAME = "params";

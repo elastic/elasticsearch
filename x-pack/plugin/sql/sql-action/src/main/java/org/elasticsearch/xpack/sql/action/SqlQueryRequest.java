@@ -43,6 +43,7 @@ import static org.elasticsearch.xpack.sql.action.Protocol.KEEP_ON_COMPLETION_NAM
 import static org.elasticsearch.xpack.sql.action.Protocol.MIN_KEEP_ALIVE;
 import static org.elasticsearch.xpack.sql.action.Protocol.WAIT_FOR_COMPLETION_TIMEOUT_NAME;
 import static org.elasticsearch.xpack.sql.proto.CoreProtocol.ALLOW_PARTIAL_SEARCH_RESULTS_NAME;
+import static org.elasticsearch.xpack.sql.proto.CoreProtocol.TIER_NAME;
 
 /**
  * Request to perform an sql query
@@ -57,6 +58,7 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
     static final ParseField KEEP_ON_COMPLETION = new ParseField(KEEP_ON_COMPLETION_NAME);
     static final ParseField KEEP_ALIVE = new ParseField(KEEP_ALIVE_NAME);
     static final ParseField ALLOW_PARTIAL_SEARCH_RESULTS = new ParseField(ALLOW_PARTIAL_SEARCH_RESULTS_NAME);
+    static final ParseField TIER = new ParseField(TIER_NAME);
 
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(SqlQueryRequest.class);
 
@@ -88,6 +90,7 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
             ObjectParser.ValueType.VALUE
         );
         PARSER.declareBoolean(SqlQueryRequest::allowPartialSearchResults, ALLOW_PARTIAL_SEARCH_RESULTS);
+        PARSER.declareString(SqlQueryRequest::setTier, TIER);
     }
 
     private String cursor = "";
@@ -108,6 +111,15 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
     private TimeValue keepAlive = DEFAULT_KEEP_ALIVE;
 
     private boolean allowPartialSearchResults = Protocol.ALLOW_PARTIAL_SEARCH_RESULTS;
+    private String tier;
+
+    public String getTier() {
+        return tier;
+    }
+
+    public void setTier(String tier) {
+        this.tier = tier;
+    }
 
     public SqlQueryRequest() {
         super();
@@ -131,7 +143,8 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
         TimeValue waitForCompletionTimeout,
         boolean keepOnCompletion,
         TimeValue keepAlive,
-        boolean allowPartialSearchResults
+        boolean allowPartialSearchResults,
+        String tier
     ) {
         super(query, params, filter, runtimeMappings, zoneId, catalog, fetchSize, requestTimeout, pageTimeout, requestInfo);
         this.cursor = cursor;
@@ -142,6 +155,7 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
         this.keepOnCompletion = keepOnCompletion;
         this.keepAlive = keepAlive;
         this.allowPartialSearchResults = allowPartialSearchResults;
+        this.tier = tier;
     }
 
     @Override
@@ -166,6 +180,7 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
             this.keepAlive = in.readOptionalTimeValue();
         }
         allowPartialSearchResults = in.getTransportVersion().onOrAfter(TransportVersions.V_8_3_0) && in.readBoolean();
+        this.tier = in.readOptionalString();
     }
 
     /**
@@ -302,6 +317,7 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_3_0)) {
             out.writeBoolean(allowPartialSearchResults);
         }
+        out.writeOptionalString(tier);
     }
 
     @Override
@@ -316,7 +332,8 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
             waitForCompletionTimeout,
             keepOnCompletion,
             keepAlive,
-            allowPartialSearchResults
+            allowPartialSearchResults,
+            tier
         );
     }
 
@@ -331,7 +348,8 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
             && Objects.equals(cursor, ((SqlQueryRequest) obj).cursor)
             && Objects.equals(columnar, ((SqlQueryRequest) obj).columnar)
             && Objects.equals(waitForCompletionTimeout, ((SqlQueryRequest) obj).waitForCompletionTimeout)
-            && Objects.equals(keepAlive, ((SqlQueryRequest) obj).keepAlive);
+            && Objects.equals(keepAlive, ((SqlQueryRequest) obj).keepAlive)
+            && Objects.equals(tier, ((SqlQueryRequest) obj).tier);
     }
 
     @Override

@@ -54,6 +54,11 @@ public class RestSqlQueryAction extends BaseRestHandler {
             sqlRequest = SqlQueryRequest.fromXContent(parser);
         }
 
+        String tier = request.param("tier");
+        if (tier != null) {
+            sqlRequest.setTier(tier);
+        }
+
         return channel -> {
             RestCancellableNodeClient cancellableClient = new RestCancellableNodeClient(client, request.getHttpChannel());
             cancellableClient.execute(

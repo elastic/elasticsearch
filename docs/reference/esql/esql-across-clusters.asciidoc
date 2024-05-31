@@ -57,7 +57,7 @@ Refer to <<remote-clusters-cert, TLS certificate authentication>> for prerequisi
 The following information pertains to using {esql} across clusters with the <<remote-clusters-api-key, *API key based security model*>>. You'll need to follow the steps on that page for the *full setup instructions*. This page only contains additional information specific to {esql}.
 
 API key based cross-cluster search (CCS) enables more granular control over allowed actions between clusters.
-This may be the preferred model when you have different administrators for different clusters and want more control over who can access what data.
+This may be the preferred model when you have different administrators for different clusters and want more control over who can access what data. In this model, cluster administrators must explicitly define the access given to clusters and users.
 
 You will need to:
 

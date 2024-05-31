@@ -20,7 +20,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataTypes.TEXT;
 
 /**
- * SQL-related information about an index field with text type
+ * Information about a field in an es index with the {@code text} type.
  */
 public class TextEsField extends EsField {
     static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(EsField.class, "TextEsField", TextEsField::new);

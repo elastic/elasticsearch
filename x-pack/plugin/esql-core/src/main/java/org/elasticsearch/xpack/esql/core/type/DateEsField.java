@@ -14,7 +14,7 @@ import java.io.IOException;
 import java.util.Map;
 
 /**
- * SQL-related information about an index field with date type
+ * Information about a field in an ES index with the {@code date} type
  */
 public class DateEsField extends EsField {
     static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(EsField.class, "DateEsField", DateEsField::new);

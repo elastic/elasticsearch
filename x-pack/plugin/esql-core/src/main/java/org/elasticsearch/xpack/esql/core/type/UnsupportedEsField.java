@@ -16,8 +16,8 @@ import java.util.Objects;
 import java.util.TreeMap;
 
 /**
- * SQL-related information about an index field that cannot be supported by SQL.
- * All the subfields (properties) of an unsupported type should also be unsupported.
+ * Information about a field in an ES index that cannot be supported by ESQL.
+ * All the subfields (properties) of an unsupported type are also be unsupported.
  */
 public class UnsupportedEsField extends EsField {
     static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(

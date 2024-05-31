@@ -18,7 +18,7 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * SQL-related information about an index field
+ * Information about a field in an ES index.
  */
 public class EsField implements NamedWriteable {
     public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {

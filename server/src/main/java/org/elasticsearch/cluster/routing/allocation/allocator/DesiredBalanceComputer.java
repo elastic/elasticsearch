@@ -346,7 +346,8 @@ public class DesiredBalanceComputer {
                         // we run at least one iteration, but if another reroute happened meanwhile
                         // then publish the interim state and restart the calculation
                         logger.debug(
-                            "Desired balance computation for [{}] interrupted after [{}] and [{}] iterations as newer cluster state received. "
+                            "Desired balance computation for [{}] is interrupted after [{}] "
+                                + "and [{}] iterations as newer cluster state received. "
                                 + "Publishing intermediate desired balance and restarting computation",
                             desiredBalanceInput.index(),
                             i,

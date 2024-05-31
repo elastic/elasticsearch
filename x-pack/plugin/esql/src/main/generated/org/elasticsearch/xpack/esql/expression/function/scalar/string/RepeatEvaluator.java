@@ -53,7 +53,7 @@ public final class RepeatEvaluator implements EvalOperator.ExpressionEvaluator {
         if (numberVector == null) {
           return eval(page.getPositionCount(), strBlock, numberBlock);
         }
-        return eval(page.getPositionCount(), strVector, numberVector).asBlock();
+        return eval(page.getPositionCount(), strVector, numberVector);
       }
     }
   }
@@ -84,17 +84,27 @@ public final class RepeatEvaluator implements EvalOperator.ExpressionEvaluator {
           result.appendNull();
           continue position;
         }
-        result.appendBytesRef(Repeat.process(strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch), numberBlock.getInt(numberBlock.getFirstValueIndex(p))));
+        try {
+          result.appendBytesRef(Repeat.process(strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch), numberBlock.getInt(numberBlock.getFirstValueIndex(p))));
+        } catch (IllegalArgumentException e) {
+          warnings.registerException(e);
+          result.appendNull();
+        }
       }
       return result.build();
     }
   }
 
-  public BytesRefVector eval(int positionCount, BytesRefVector strVector, IntVector numberVector) {
-    try(BytesRefVector.Builder result = driverContext.blockFactory().newBytesRefVectorBuilder(positionCount)) {
+  public BytesRefBlock eval(int positionCount, BytesRefVector strVector, IntVector numberVector) {
+    try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       BytesRef strScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendBytesRef(Repeat.process(strVector.getBytesRef(p, strScratch), numberVector.getInt(p)));
+        try {
+          result.appendBytesRef(Repeat.process(strVector.getBytesRef(p, strScratch), numberVector.getInt(p)));
+        } catch (IllegalArgumentException e) {
+          warnings.registerException(e);
+          result.appendNull();
+        }
       }
       return result.build();
     }

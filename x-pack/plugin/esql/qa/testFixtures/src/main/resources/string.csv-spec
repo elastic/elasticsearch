@@ -1419,6 +1419,17 @@ a:keyword | repeated:keyword
 cheese | ""
 ;
 
+repeatNegative
+required_capability: repeat 
+row a = "cheese" | eval repeated = repeat(a, -1);
+
+warning:Line 1:36: evaluation of [repeat(a, -1)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:36: java.lang.IllegalArgumentException: Number parameter cannot be negative, found [-1]
+
+a:keyword | repeated:keyword
+cheese | null
+;
+
 repeatVariableNumber
 required_capability: repeat 
 from employees 

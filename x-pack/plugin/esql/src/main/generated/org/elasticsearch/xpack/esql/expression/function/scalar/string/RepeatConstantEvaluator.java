@@ -46,7 +46,7 @@ public final class RepeatConstantEvaluator implements EvalOperator.ExpressionEva
       if (strVector == null) {
         return eval(page.getPositionCount(), strBlock);
       }
-      return eval(page.getPositionCount(), strVector).asBlock();
+      return eval(page.getPositionCount(), strVector);
     }
   }
 
@@ -65,17 +65,27 @@ public final class RepeatConstantEvaluator implements EvalOperator.ExpressionEva
           result.appendNull();
           continue position;
         }
-        result.appendBytesRef(Repeat.processConstantNumber(strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch), number));
+        try {
+          result.appendBytesRef(Repeat.processConstantNumber(strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch), number));
+        } catch (IllegalArgumentException e) {
+          warnings.registerException(e);
+          result.appendNull();
+        }
       }
       return result.build();
     }
   }
 
-  public BytesRefVector eval(int positionCount, BytesRefVector strVector) {
-    try(BytesRefVector.Builder result = driverContext.blockFactory().newBytesRefVectorBuilder(positionCount)) {
+  public BytesRefBlock eval(int positionCount, BytesRefVector strVector) {
+    try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       BytesRef strScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendBytesRef(Repeat.processConstantNumber(strVector.getBytesRef(p, strScratch), number));
+        try {
+          result.appendBytesRef(Repeat.processConstantNumber(strVector.getBytesRef(p, strScratch), number));
+        } catch (IllegalArgumentException e) {
+          warnings.registerException(e);
+          result.appendNull();
+        }
       }
       return result.build();
     }

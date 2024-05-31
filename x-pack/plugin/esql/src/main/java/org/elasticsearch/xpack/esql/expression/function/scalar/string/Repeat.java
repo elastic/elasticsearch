@@ -79,12 +79,12 @@ public class Repeat extends EsqlScalarFunction implements OptionalArgument {
         return str.foldable() && number.foldable();
     }
 
-    @Evaluator(extraName = "Constant")
+    @Evaluator(extraName = "Constant", warnExceptions = { IllegalArgumentException.class })
     static BytesRef processConstantNumber(BytesRef str, @Fixed int number) {
         return processInner(str, number);
     }
 
-    @Evaluator
+    @Evaluator(warnExceptions = { IllegalArgumentException.class })
     static BytesRef process(BytesRef str, int number) {
         return processInner(str, number);
     }

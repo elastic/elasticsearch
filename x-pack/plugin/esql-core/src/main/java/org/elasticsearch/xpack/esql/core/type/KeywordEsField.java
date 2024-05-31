@@ -87,7 +87,7 @@ public class KeywordEsField extends EsField {
 
     @Override
     public String getWriteableName() {
-        return "KeywordEsField";
+        return ENTRY.name;
     }
 
     public int getPrecision() {

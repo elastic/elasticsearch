@@ -53,7 +53,7 @@ public class UnsupportedEsField extends EsField {
 
     @Override
     public String getWriteableName() {
-        return "UnsupportedEsField";
+        return ENTRY.name;
     }
 
     public String getOriginalType() {

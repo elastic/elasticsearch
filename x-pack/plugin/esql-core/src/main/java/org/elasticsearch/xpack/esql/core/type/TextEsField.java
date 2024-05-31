@@ -47,7 +47,7 @@ public class TextEsField extends EsField {
 
     @Override
     public String getWriteableName() {
-        return "TextEsField";
+        return ENTRY.name;
     }
 
     @Override

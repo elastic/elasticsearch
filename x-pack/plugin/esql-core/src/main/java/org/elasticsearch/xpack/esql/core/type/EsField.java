@@ -71,7 +71,7 @@ public class EsField implements NamedWriteable {
 
     @Override
     public String getWriteableName() {
-        return "EsField";
+        return ENTRY.name;
     }
 
     /**

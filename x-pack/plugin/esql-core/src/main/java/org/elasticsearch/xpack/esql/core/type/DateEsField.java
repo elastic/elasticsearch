@@ -40,6 +40,6 @@ public class DateEsField extends EsField {
 
     @Override
     public String getWriteableName() {
-        return "DateEsField";
+        return ENTRY.name;
     }
 }

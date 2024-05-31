@@ -180,6 +180,7 @@ public class TransportVersions {
     public static final TransportVersion ADD_METADATA_FLATTENED_TO_ROLES = def(8_671_00_0);
     public static final TransportVersion ML_INFERENCE_GOOGLE_AI_STUDIO_COMPLETION_ADDED = def(8_672_00_0);
     public static final TransportVersion WATCHER_REQUEST_TIMEOUTS = def(8_673_00_0);
+    public static final TransportVersion SECURITY_SETTINGS_REQUEST_TIMEOUTS = def(8_674_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

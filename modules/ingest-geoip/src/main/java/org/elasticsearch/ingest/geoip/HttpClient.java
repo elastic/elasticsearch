@@ -15,7 +15,6 @@ import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.rest.RestStatus;
 
-import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.Authenticator;
@@ -70,7 +69,7 @@ class HttpClient {
             while (true) {
                 switch (conn.getResponseCode()) {
                     case HTTP_OK:
-                        return new BufferedInputStream(getInputStream(conn));
+                        return getInputStream(conn);
                     case HTTP_MOVED_PERM:
                     case HTTP_MOVED_TEMP:
                     case HTTP_SEE_OTHER:

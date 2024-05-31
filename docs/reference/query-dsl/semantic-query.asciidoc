@@ -6,7 +6,7 @@
 
 beta[]
 
-The `semantic` query type enables you to perform semantic search on data stored in a <<semantic-text,`semantic_text`>> field.
+The `semantic` query type enables you to perform <<semantic-search,semantic search>> on data stored in a <<semantic-text,`semantic_text`>> field.
 
 
 [discrete]
@@ -48,7 +48,7 @@ Refer to <<semantic-search-semantic-text,this tutorial>> to learn more about sem
 ==== Hybrid search with the `semantic` query
 
 The `semantic` query can be used as a part of a hybrid search where the `semantic` query is combined with lexical queries.
-For example, the query below finds documents with title matching "mountain lake", and combines them with results from a semantic search on the field `title_semantic`, that is a `semantic_text` field.
+For example, the query below finds documents with the `title` field matching "mountain lake", and combines them with results from a semantic search on the field `title_semantic`, that is a `semantic_text` field.
 The combined documents are then scored, and the top 3 top scored documents are returned.
 
 [source,console]
@@ -81,7 +81,7 @@ POST my-index/_search
 ------------------------------------------------------------
 // TEST[skip:TBD]
 
-You can also use semantic_text as part of <<rrf,Reciprocal Rank Fusion>>:
+You can also use semantic_text as part of <<rrf,Reciprocal Rank Fusion>> to make ranking relevant results easier:
 
 [source,console]
 ------------------------------------------------------------
@@ -122,7 +122,7 @@ GET my-index/_search
 The `semantic` query uses default settings for searching on `semantic_text` fields for ease of use.
 If you want to fine-tune a search on a `semantic_text` field, you need to know the task type used by the `inference_id` configured in `semantic_text`.
 You can find the task type using the <<get-inference-api>>, and check the `task_type` associated with the {infer} service.
-Depending on the `task_type`, use either the `sparse_vector` or the `knn` query for greater flexibility and customization.
+Depending on the `task_type`, use either the <<query-dsl-sparse-vector-query,`sparse_vector`>> or the <<query-dsl-knn-query,`knn`>> query for greater flexibility and customization.
 
 
 [discrete]

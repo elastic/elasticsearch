@@ -10,10 +10,9 @@ beta[]
 The `semantic_text` field type automatically generates embeddings for text
 content using an inference endpoint. 
 
-The `semantic_text` field type specifies an `inference_id` that you can create
-by using the <<put-inference-api>> that will be used to generate embeddings.
-This field type and the <<query-dsl-semantic-query,`semantic` query>> type make
-it simpler to perform semantic search on your data.
+The `semantic_text` field type specifies an inference endpoint identifier that will be used to generate embeddings.
+You can create the inference endpoint by using the <<put-inference-api>>.
+This field type and the <<query-dsl-semantic-query,`semantic` query>> type make it simpler to perform semantic search on your data.
 
 Using `semantic_text`, you won't need to specify how to generate embeddings for
 your data, or how to index it. The inference endpoint automatically determines
@@ -59,9 +58,9 @@ When the first document is indexed, the `inference_id` will be used to generate 
 ==== Automatic text chunking
 
 {infer-cap} endpoints have a limit on the amount of text they can process.
-To allow for large amounts of text to be used in semantic search, `semantic_text` automatically generates smaller passages if needed called _chunks_.
+To allow for large amounts of text to be used in semantic search, `semantic_text` automatically generates smaller passages if needed, called _chunks_.
 
-Each chunk will include the text subpassage and its corresponding embedding generated from it.
+Each chunk will include the text subpassage and the corresponding embedding generated from it.
 When querying, the individual passages will be automatically searched for each document, and the most relevant passage will be used to compute a score.
 
 
@@ -132,7 +131,5 @@ field to collect the values of other fields for semantic search. Each value has
 its embeddings calculated separately; each field value is a separate set of chunk(s) in
 the resulting embeddings.
 
-This imposes restrictions on updating documents with `semantic_text`:
-
-* In bulk requests, all fields that are copied to a `semantic_text` field must
-have a value to ensure every embedding is calculated correctly.
+This imposes a restriction on bulk updates to documents with `semantic_text`. 
+In bulk requests, all fields that are copied to a `semantic_text` field must have a value to ensure every embedding is calculated correctly.

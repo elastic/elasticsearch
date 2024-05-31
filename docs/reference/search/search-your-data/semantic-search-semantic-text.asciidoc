@@ -9,12 +9,12 @@ beta[]
 This tutorial shows you how to use the semantic text feature to perform semantic search on your data.
 
 Semantic text simplifies the {infer} workflow by providing {infer} at ingestion time and sensible default values automatically.
-You don't need to define certain settings and parameters or create {infer} ingest pipelines.
+You don't need to define model related settings and parameters, or create {infer} ingest pipelines.
 
-The recommended way to use semantic search in the {stack} is following the semantic text workflow.
-When you need more control over the settings, you can still use the complete {infer} workflow (refer to  <<semantic-search-inference,this tutorial>> to review the process).
+The recommended way to use <<semantic-search,semantic search>> in the {stack} is following the `semantic_text` workflow.
+When you need more control over indexing and query settings, you can still use the complete {infer} workflow (refer to  <<semantic-search-inference,this tutorial>> to review the process).
 
-This tutorial uses the <<inference-example-elser,`elser` service>> for demonstration but you can use any service and their supported models offered by the {infer-cap} API.
+This tutorial uses the <<inference-example-elser,`elser` service>> for demonstration, but you can use any service and their supported models offered by the {infer-cap} API.
 
 
 [discrete]
@@ -112,8 +112,8 @@ you can see an index named `test-data` with 182469 documents.
 
 Create the embeddings from the text by reindexing the data from the `test-data`
 index to the `semantic-embeddings` index. The data in the `content` field will
-be reindexed into the `content` field of the destination index. Then the same
-data will be copied to the `semantic_text` field as a result of the `copy_to`
+be reindexed into the `content` field of the destination index. 
+The `content` field data will be copied to the `semantic_text` field as a result of the `copy_to`
 parameter set in the index mapping creation step. The copied data will be
 processed by the {infer} endpoint associated with the `semantic_text` semantic text
 field.
@@ -145,7 +145,7 @@ GET _tasks/<task_id>
 // TEST[skip:TBD]
 
 It is recommended to cancel the reindexing process if you don't want to wait
-until it is fully complete which might take several hours:
+until it is fully complete which might take a long time for an inference endpoint with few assigned resources:
 
 [source,console]
 ------------------------------------------------------------

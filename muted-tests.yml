@@ -46,6 +46,9 @@ tests:
   - class: org.elasticsearch.blobcache.common.SparseFileTrackerTests
     method: testCallsListenerWhenRangeIsAvailable
     issue: https://github.com/elastic/elasticsearch/issues/109259
+  - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
+    method: test {yaml=reference/esql/esql-async-query-api/line_17}
+    issue: https://github.com/elastic/elasticsearch/issues/109260
 
 # Examples:
 #

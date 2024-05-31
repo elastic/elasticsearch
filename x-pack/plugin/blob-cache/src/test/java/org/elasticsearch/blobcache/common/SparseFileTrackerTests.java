@@ -326,9 +326,14 @@ public class SparseFileTrackerTests extends ESTestCase {
                 assertThat(gap.start(), greaterThanOrEqualTo(range.start()));
                 assertThat(gap.end(), lessThanOrEqualTo(range.end()));
 
+                final boolean completeBeforeEndOfGap = triggeringProgress < gap.end() - 1L; // gap.end is exclusive
+                long from = gap.start();
+                long written = 0L;
+
                 for (long i = gap.start(); i < gap.end(); i++) {
                     assertThat(fileContents[toIntBytes(i)], equalTo(UNAVAILABLE));
                     fileContents[toIntBytes(i)] = AVAILABLE;
+                    written += 1L;
                     if (triggeringProgress == i) {
                         assertFalse(expectNotification.getAndSet(true));
                     }
@@ -342,19 +347,35 @@ public class SparseFileTrackerTests extends ESTestCase {
                         equalTo(triggeringProgress < i)
                     );
 
-                    gap.onProgress(i + 1L);
+                    long progress = from + written;
+                    gap.onProgress(progress);
 
-                    assertThat(
-                        "Listener should not have been called before ["
-                            + triggeringProgress
-                            + "] is reached, but it was triggered after progress got updated to ["
-                            + i
-                            + ']',
-                        wasNotified.get() && waitIfPendingWasNotified.get(),
-                        equalTo(triggeringProgress < i + 1L)
-                    );
+                    if (completeBeforeEndOfGap) {
+                        assertThat(
+                            "Listener should not have been called before ["
+                                + triggeringProgress
+                                + "] is reached, but it was triggered after progress got updated to ["
+                                + i
+                                + ']',
+                            wasNotified.get() && waitIfPendingWasNotified.get(),
+                            equalTo(triggeringProgress < progress)
+                        );
+                    } else {
+                        assertThat(
+                            "Listener should not have been called before gap  ["
+                                + gap
+                                + "] is completed, but it was triggered after progress got updated to ["
+                                + i
+                                + ']',
+                            wasNotified.get() && waitIfPendingWasNotified.get(),
+                            equalTo(false)
+                        );
+                    }
+
+                    if (progress == gap.end()) {
+                        gap.onCompletion();
+                    }
                 }
-                gap.onCompletion();
 
                 assertThat(
                     "Listener should not have been called before ["

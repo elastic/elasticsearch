@@ -11,15 +11,19 @@ package org.elasticsearch.datastreams;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
+import org.elasticsearch.action.datastreams.GetDataStreamAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.network.InetAddresses;
@@ -27,26 +31,32 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.indices.InvalidIndexTemplateException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.xcontent.XContentType;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.is;
 
 public class LogsDataStreamIT extends ESSingleNodeTestCase {
 
-    public static final String LOG_MAPPING = """
+    private static final String LOGS_OR_STANDARD_MAPPING = """
         {
-          "_doc":{
             "properties": {
               "@timestamp" : {
                 "type": "date"
@@ -67,12 +77,39 @@ public class LogsDataStreamIT extends ESSingleNodeTestCase {
                 "type": "ip"
               }
             }
-          }
         }""";
 
-    private static final String DOC_TEMPLATE = """
+    private static final String TIME_SERIES_MAPPING = """
+        {
+            "properties": {
+              "@timestamp" : {
+                "type": "date"
+              },
+              "hostname": {
+                "type": "keyword",
+                "time_series_dimension": "true"
+              },
+              "pid": {
+                "type": "long",
+                "time_series_dimension": "true"
+              },
+              "method": {
+                "type": "keyword"
+              },
+              "ip_address": {
+                "type": "ip"
+              },
+              "cpu_usage": {
+                "type": "float",
+                "time_series_metric": "gauge"
+              }
+            }
+        }""";
+
+    private static final String LOG_DOC_TEMPLATE = """
         {
             "@timestamp": "%s",
+            "hostname": "%s",
             "pid": "%d",
             "method": "%s",
             "message": "%s",
@@ -80,18 +117,41 @@ public class LogsDataStreamIT extends ESSingleNodeTestCase {
         }
         """;
 
-    static String toIsoTimestamp(Instant instant) {
+    private static final String TIME_SERIES_DOC_TEMPLATE = """
+        {
+            "@timestamp": "%s",
+            "hostname": "%s",
+            "pid": "%d",
+            "method": "%s",
+            "ip_address": "%s",
+            "cpu_usage": "%f"
+        }
+        """;
+
+    private static String toIsoTimestamp(final Instant instant) {
         return DateFormatter.forPattern(FormatNames.STRICT_DATE_OPTIONAL_TIME.getName()).format(instant);
     }
 
     private static String createLogDocument(
-        final Instant instant,
+        final Instant timestamp,
+        final String hostname,
         long pid,
         final String method,
         final String message,
         final String ipAddress
     ) {
-        return Strings.format(DOC_TEMPLATE, toIsoTimestamp(instant), pid, method, message, ipAddress);
+        return Strings.format(LOG_DOC_TEMPLATE, toIsoTimestamp(timestamp), hostname, pid, method, message, ipAddress);
+    }
+
+    private static String createTimeSeriesDocument(
+        final Instant timestamp,
+        final String hostname,
+        long pid,
+        final String method,
+        final String ipAddress,
+        double cpuUsage
+    ) {
+        return Strings.format(TIME_SERIES_DOC_TEMPLATE, toIsoTimestamp(timestamp), hostname, pid, method, ipAddress, cpuUsage);
     }
 
     @Override
@@ -100,37 +160,166 @@ public class LogsDataStreamIT extends ESSingleNodeTestCase {
     }
 
     public void testLogsIndexModeDataStreamIndexing() throws IOException, ExecutionException, InterruptedException {
-        putComposableIndexTemplate(client(), IndexMode.LOGS, "logs-composable-template", List.of("logs-*-*"));
-        final String dataStreamName = generateDataStreamName();
-        createLogsDataStream(client(), dataStreamName);
-        indexLogDocuments(client(), randomIntBetween(32, 64), randomIntBetween(128, 256), dataStreamName);
+        putComposableIndexTemplate(
+            client(),
+            "logs-composable-template",
+            LOGS_OR_STANDARD_MAPPING,
+            Map.of("index.mode", "logs"),
+            List.of("logs-*-*")
+        );
+        final String dataStreamName = generateDataStreamName("logs");
+        createDataStream(client(), dataStreamName);
+        indexLogOrStandardDocuments(client(), randomIntBetween(10, 20), randomIntBetween(32, 64), dataStreamName);
         rolloverDataStream(dataStreamName);
-        indexLogDocuments(client(), randomIntBetween(32, 64), randomIntBetween(128, 256), dataStreamName);
+        indexLogOrStandardDocuments(client(), randomIntBetween(10, 20), randomIntBetween(32, 64), dataStreamName);
+    }
+
+    public void testIndexModeLogsAndStandardSwitching() throws IOException, ExecutionException, InterruptedException {
+        final List<IndexMode> indexModes = new ArrayList<>();
+        final String dataStreamName = generateDataStreamName("logs");
+        indexModes.add(IndexMode.STANDARD);
+        putComposableIndexTemplate(
+            client(),
+            "logs-composable-template",
+            LOGS_OR_STANDARD_MAPPING,
+            Map.of("index.mode", "standard"),
+            List.of("logs-*-*")
+        );
+        createDataStream(client(), dataStreamName);
+        for (int i = 0; i < randomIntBetween(5, 10); i++) {
+            final IndexMode indexMode = i % 2 == 0 ? IndexMode.LOGS : IndexMode.STANDARD;
+            indexModes.add(indexMode);
+            updateComposableIndexTemplate(
+                client(),
+                "logs-composable-template",
+                LOGS_OR_STANDARD_MAPPING,
+                Map.of("index.mode", indexMode.getName()),
+                List.of("logs-*-*")
+            );
+            indexLogOrStandardDocuments(client(), randomIntBetween(10, 20), randomIntBetween(32, 64), dataStreamName);
+            rolloverDataStream(dataStreamName);
+        }
+        assertDataStreamBackingIndicesModes(dataStreamName, indexModes);
+    }
+
+    public void testIndexModeLogsAndTimeSeriesSwitching() throws IOException, ExecutionException, InterruptedException {
+        final String dataStreamName = generateDataStreamName("custom");
+        final List<String> indexPatterns = List.of("custom-*-*");
+        final Map<String, String> logsSettings = Map.of("index.mode", "logs");
+        final Map<String, String> timeSeriesSettings = Map.of("index.mode", "time_series", "index.routing_path", "hostname");
+
+        putComposableIndexTemplate(client(), "custom-composable-template", LOGS_OR_STANDARD_MAPPING, logsSettings, indexPatterns);
+        createDataStream(client(), dataStreamName);
+        indexLogOrStandardDocuments(client(), randomIntBetween(10, 20), randomIntBetween(32, 64), dataStreamName);
+
+        updateComposableIndexTemplate(client(), "custom-composable-template", TIME_SERIES_MAPPING, timeSeriesSettings, indexPatterns);
+        rolloverDataStream(dataStreamName);
+        indexTimeSeriesDocuments(client(), randomIntBetween(10, 20), randomIntBetween(32, 64), dataStreamName);
+
+        updateComposableIndexTemplate(client(), "custom-composable-template", LOGS_OR_STANDARD_MAPPING, logsSettings, indexPatterns);
+        rolloverDataStream(dataStreamName);
+        indexLogOrStandardDocuments(client(), randomIntBetween(10, 20), randomIntBetween(32, 64), dataStreamName);
+
+        assertDataStreamBackingIndicesModes(dataStreamName, List.of(IndexMode.LOGS, IndexMode.TIME_SERIES, IndexMode.LOGS));
+    }
+
+    public void testInvalidIndexModeTimeSeriesSwitchWithoutROutingPath() throws IOException, ExecutionException, InterruptedException {
+        final String dataStreamName = generateDataStreamName("custom");
+        final List<String> indexPatterns = List.of("custom-*-*");
+        final Map<String, String> logsSettings = Map.of("index.mode", "logs");
+        final Map<String, String> timeSeriesSettings = Map.of("index.mode", "time_series");
+
+        putComposableIndexTemplate(client(), "custom-composable-template", LOGS_OR_STANDARD_MAPPING, logsSettings, indexPatterns);
+        createDataStream(client(), dataStreamName);
+        indexLogOrStandardDocuments(client(), randomIntBetween(10, 20), randomIntBetween(32, 64), dataStreamName);
+
+        expectThrows(
+            InvalidIndexTemplateException.class,
+            () -> updateComposableIndexTemplate(
+                client(),
+                "custom-composable-template",
+                LOGS_OR_STANDARD_MAPPING,
+                timeSeriesSettings,
+                indexPatterns
+            )
+        );
+    }
+
+    public void testInvalidIndexModeTimeSeriesSwitchWithoutDimensions() throws IOException, ExecutionException, InterruptedException {
+        final String dataStreamName = generateDataStreamName("custom");
+        final List<String> indexPatterns = List.of("custom-*-*");
+        final Map<String, String> logsSettings = Map.of("index.mode", "logs");
+        final Map<String, String> timeSeriesSettings = Map.of("index.mode", "time_series", "index.routing_path", "hostname");
+
+        putComposableIndexTemplate(client(), "custom-composable-template", LOGS_OR_STANDARD_MAPPING, logsSettings, indexPatterns);
+        createDataStream(client(), dataStreamName);
+        indexLogOrStandardDocuments(client(), randomIntBetween(10, 20), randomIntBetween(32, 64), dataStreamName);
+
+        final IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> {
+            updateComposableIndexTemplate(
+                client(),
+                "custom-composable-template",
+                LOGS_OR_STANDARD_MAPPING,
+                timeSeriesSettings,
+                indexPatterns
+            );
+
+        });
+        assertThat(
+            exception.getCause().getCause().getMessage(),
+            Matchers.equalTo(
+                "All fields that match routing_path must be configured with [time_series_dimension: true] or flattened fields with "
+                    + "a list of dimensions in [time_series_dimensions] and without the [script] parameter. [hostname] was not a dimension."
+            )
+        );
+    }
+
+    private void assertDataStreamBackingIndicesModes(final String dataStreamName, final List<IndexMode> modes) {
+        final GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] { dataStreamName });
+        final GetDataStreamAction.Response getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
+            .actionGet();
+        final DataStream dataStream = getDataStreamResponse.getDataStreams().get(0).getDataStream();
+        final DataStream.DataStreamIndices backingIndices = dataStream.getBackingIndices();
+        final Iterator<IndexMode> indexModesIterator = modes.iterator();
+        assertThat(backingIndices.getIndices().size(), Matchers.equalTo(modes.size()));
+        for (final Index index : backingIndices.getIndices()) {
+            final GetSettingsResponse getSettingsResponse = indicesAdmin().getSettings(
+                new GetSettingsRequest().indices(index.getName()).includeDefaults(true)
+            ).actionGet();
+            final Settings settings = getSettingsResponse.getIndexToSettings().get(index.getName());
+            assertThat(settings.get("index.mode"), Matchers.equalTo(indexModesIterator.next().getName()));
+        }
+    }
+
+    final String generateDataStreamName(final String prefix) {
+        return String.format("%s-%s-%s", prefix, randomFrom("apache", "nginx", "system"), randomFrom("dev", "qa", "prod"));
     }
 
     private void rolloverDataStream(final String dataStreamName) {
-        assertThat(indicesAdmin().rolloverIndex(new RolloverRequest(dataStreamName, null)).actionGet().isRolledOver(), is(true));
+        assertAcked(indicesAdmin().rolloverIndex(new RolloverRequest(dataStreamName, null)).actionGet());
     }
 
-    private void indexLogDocuments(final Client client, int numBulkRequests, int numDocsPerBulkRequest, final String dataStreamName) {
+    private void indexLogOrStandardDocuments(
+        final Client client,
+        int numBulkRequests,
+        int numDocsPerBulkRequest,
+        final String dataStreamName
+    ) {
         {
-            Instant timestamp = Instant.now();
             for (int i = 0; i < numBulkRequests; i++) {
                 BulkRequest bulkRequest = new BulkRequest(dataStreamName);
                 for (int j = 0; j < numDocsPerBulkRequest; j++) {
                     var indexRequest = new IndexRequest(dataStreamName).opType(DocWriteRequest.OpType.CREATE);
-                    indexRequest.source(
-                        createLogDocument(
-                            timestamp,
-                            randomIntBetween(100, 200),
-                            randomFrom("POST", "PUT", "GET"),
-                            randomAlphaOfLengthBetween(256, 512),
-                            InetAddresses.toAddrString(randomIp(randomBoolean()))
-                        ),
-                        XContentType.JSON
+                    final String doc = createLogDocument(
+                        Instant.now(),
+                        randomAlphaOfLength(7),
+                        randomIntBetween(100, 200),
+                        randomFrom("POST", "PUT", "GET"),
+                        randomAlphaOfLengthBetween(256, 512),
+                        InetAddresses.toAddrString(randomIp(randomBoolean()))
                     );
+                    indexRequest.source(doc, XContentType.JSON);
                     bulkRequest.add(indexRequest);
-                    timestamp = timestamp.plusSeconds(1);
                 }
                 final BulkResponse bulkResponse = client.bulk(bulkRequest).actionGet();
                 assertThat(bulkResponse.hasFailures(), is(false));
@@ -140,30 +329,70 @@ public class LogsDataStreamIT extends ESSingleNodeTestCase {
         }
     }
 
-    private void createLogsDataStream(final Client client, final String dataStreamName) throws InterruptedException, ExecutionException {
+    private void indexTimeSeriesDocuments(
+        final Client client,
+        int numBulkRequests,
+        int numDocsPerBulkRequest,
+        final String dataStreamName
+    ) {
+        {
+            for (int i = 0; i < numBulkRequests; i++) {
+                BulkRequest bulkRequest = new BulkRequest(dataStreamName);
+                for (int j = 0; j < numDocsPerBulkRequest; j++) {
+                    var indexRequest = new IndexRequest(dataStreamName).opType(DocWriteRequest.OpType.CREATE);
+                    final String doc = createTimeSeriesDocument(
+                        Instant.now(),
+                        randomAlphaOfLength(12),
+                        randomIntBetween(100, 200),
+                        randomFrom("POST", "PUT", "GET"),
+                        InetAddresses.toAddrString(randomIp(randomBoolean())),
+                        randomDoubleBetween(0.0D, 1.0D, false)
+                    );
+                    indexRequest.source(doc, XContentType.JSON);
+                    bulkRequest.add(indexRequest);
+                }
+                final BulkResponse bulkResponse = client.bulk(bulkRequest).actionGet();
+                assertThat(bulkResponse.hasFailures(), is(false));
+            }
+            final BroadcastResponse refreshResponse = client.admin().indices().refresh(new RefreshRequest(dataStreamName)).actionGet();
+            assertThat(refreshResponse.getStatus(), is(RestStatus.OK));
+        }
+    }
+
+    private void createDataStream(final Client client, final String dataStreamName) throws InterruptedException, ExecutionException {
         final CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
         final AcknowledgedResponse createDataStreamResponse = client.execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest)
             .get();
         assertThat(createDataStreamResponse.isAcknowledged(), is(true));
     }
 
-    private static String generateDataStreamName() {
-        return Strings.format("logs-%s-%s", randomFrom("apache", "nginx", "system"), randomFrom("dev", "qa", "prod"));
+    private static void updateComposableIndexTemplate(
+        final Client client,
+        final String templateName,
+        final String mapping,
+        final Map<String, String> settings,
+        final List<String> indexPatterns
+    ) throws IOException {
+        putComposableIndexTemplate(client, templateName, mapping, settings, indexPatterns);
     }
 
     private static void putComposableIndexTemplate(
         final Client client,
-        final IndexMode indexMode,
         final String templateName,
+        final String mapping,
+        final Map<String, String> settings,
         final List<String> indexPatterns
     ) throws IOException {
-        final Settings.Builder templateSettings = Settings.builder().put("index.mode", indexMode);
+        final Settings.Builder templateSettings = Settings.builder();
+        for (Map.Entry<String, String> setting : settings.entrySet()) {
+            templateSettings.put(setting.getKey(), setting.getValue());
+        }
         final TransportPutComposableIndexTemplateAction.Request putComposableTemplateRequest =
             new TransportPutComposableIndexTemplateAction.Request(templateName);
         putComposableTemplateRequest.indexTemplate(
             ComposableIndexTemplate.builder()
                 .indexPatterns(indexPatterns)
-                .template(new Template(templateSettings.build(), new CompressedXContent(LOG_MAPPING), null))
+                .template(new Template(templateSettings.build(), new CompressedXContent(mapping), null))
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
                 .build()
         );

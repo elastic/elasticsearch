@@ -22,6 +22,7 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xpack.inference.common.EmbeddingRequestChunker;
 import org.elasticsearch.xpack.inference.external.action.googleaistudio.GoogleAiStudioActionCreator;
 import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
@@ -29,6 +30,7 @@ import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.googleaistudio.completion.GoogleAiStudioCompletionModel;
+import org.elasticsearch.xpack.inference.services.googleaistudio.embeddings.GoogleAiStudioEmbeddingsModel;
 
 import java.util.List;
 import java.util.Map;
@@ -39,6 +41,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.parsePersi
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
+import static org.elasticsearch.xpack.inference.services.googleaistudio.GoogleAiStudioServiceFields.EMBEDDING_MAX_BATCH_SIZE;
 
 public class GoogleAiStudioService extends SenderService {
 
@@ -97,6 +100,14 @@ public class GoogleAiStudioService extends SenderService {
     ) {
         return switch (taskType) {
             case COMPLETION -> new GoogleAiStudioCompletionModel(
+                inferenceEntityId,
+                taskType,
+                NAME,
+                serviceSettings,
+                taskSettings,
+                secretSettings
+            );
+            case TEXT_EMBEDDING -> new GoogleAiStudioEmbeddingsModel(
                 inferenceEntityId,
                 taskType,
                 NAME,
@@ -213,6 +224,13 @@ public class GoogleAiStudioService extends SenderService {
         TimeValue timeout,
         ActionListener<List<ChunkedInferenceServiceResults>> listener
     ) {
-        throw new UnsupportedOperationException("Chunked inference not supported yet for Google AI Studio");
+        GoogleAiStudioModel googleAiStudioModel = (GoogleAiStudioModel) model;
+        var actionCreator = new GoogleAiStudioActionCreator(getSender(), getServiceComponents());
+
+        var batchedRequests = new EmbeddingRequestChunker(input, EMBEDDING_MAX_BATCH_SIZE).batchRequestsWithListeners(listener);
+        for (var request : batchedRequests) {
+            var action = googleAiStudioModel.accept(actionCreator, taskSettings, inputType);
+            action.execute(new DocumentsOnlyInput(request.batch().inputs()), timeout, request.listener());
+        }
     }
 }

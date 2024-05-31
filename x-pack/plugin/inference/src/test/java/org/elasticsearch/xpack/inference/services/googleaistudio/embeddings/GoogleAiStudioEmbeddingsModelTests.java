@@ -1,0 +1,48 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.inference.services.googleaistudio.embeddings;
+
+import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.EmptyTaskSettings;
+import org.elasticsearch.inference.SimilarityMeasure;
+import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.inference.services.googleaistudio.GoogleAiStudioSecretSettings;
+
+public class GoogleAiStudioEmbeddingsModelTests extends ESTestCase {
+
+    public static GoogleAiStudioEmbeddingsModel createModel(String model, String apiKey, String url) {
+        return new GoogleAiStudioEmbeddingsModel(
+            "id",
+            TaskType.TEXT_EMBEDDING,
+            "service",
+            url,
+            new GoogleAiStudioEmbeddingsServiceSettings(model, null, null, SimilarityMeasure.DOT_PRODUCT, null),
+            EmptyTaskSettings.INSTANCE,
+            new GoogleAiStudioSecretSettings(new SecureString(apiKey.toCharArray()))
+        );
+    }
+
+    public static GoogleAiStudioEmbeddingsModel createModel(
+        String model,
+        String apiKey,
+        @Nullable Integer tokenLimit,
+        @Nullable Integer dimensions
+    ) {
+        return new GoogleAiStudioEmbeddingsModel(
+            "id",
+            TaskType.TEXT_EMBEDDING,
+            "service",
+            new GoogleAiStudioEmbeddingsServiceSettings(model, tokenLimit, dimensions, SimilarityMeasure.DOT_PRODUCT, null),
+            EmptyTaskSettings.INSTANCE,
+            new GoogleAiStudioSecretSettings(new SecureString(apiKey.toCharArray()))
+        );
+    }
+
+}

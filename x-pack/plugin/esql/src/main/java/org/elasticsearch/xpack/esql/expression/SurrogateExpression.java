@@ -19,9 +19,9 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunct
  *     should be replaced with a combination of aggregations and then
  *     "put back together" on output. Like {@code AVG = SUM / COUNT}.</li>
  *     <li>The aggregation can be folded if it receives constant
- *     input. Like {@code MIN(1) == 1}. This is optional, if the aggregation
- *     doesn't implement this method it won't be constant folded which
- *     is slower but will work without error.</li>
+ *     input. Like {@code MIN(1) == 1}. This is optional but if you don't
+ *     write this then aggregations can't be constant folded which will
+ *     slow down the query.</li>
  * </ul>
  */
 public interface SurrogateExpression {

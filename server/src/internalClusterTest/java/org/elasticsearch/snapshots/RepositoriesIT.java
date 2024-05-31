@@ -302,7 +302,11 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
         logger.info("--> try updating the repository, should fail because the deletion of the snapshot is in progress");
         RepositoryConflictException e2 = expectThrows(
             RepositoryConflictException.class,
-            clusterAdmin().preparePutRepository(repo).setType("mock").setSettings(Settings.builder().put("location", randomRepoPath()))
+            clusterAdmin().preparePutRepository(repo)
+                // if "true" will deadlock on snapshot thread pool, we are running with single thread which is busy at the moment
+                .setVerify(false)
+                .setType("mock")
+                .setSettings(Settings.builder().put("location", randomRepoPath()))
         );
         assertThat(e2.status(), equalTo(RestStatus.CONFLICT));
         assertThat(e2.getMessage(), containsString("trying to modify or unregister repository that is currently used"));

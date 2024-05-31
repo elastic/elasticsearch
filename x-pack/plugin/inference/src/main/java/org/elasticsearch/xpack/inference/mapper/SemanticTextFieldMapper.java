@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.mapper;
 
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.common.Explicit;
@@ -76,12 +77,13 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
     public static final String CONTENT_TYPE = "semantic_text";
 
     public static final TypeParser PARSER = new TypeParser(
-        (n, c) -> new Builder(n, c.indexVersionCreated()),
+        (n, c) -> new Builder(n, c.indexVersionCreated(), query -> c.bitSetProducer(query)),
         List.of(notInMultiFields(CONTENT_TYPE), notFromDynamicTemplates(CONTENT_TYPE))
     );
 
     public static class Builder extends FieldMapper.Builder {
         private final IndexVersion indexVersionCreated;
+        private final Function<Query, BitSetProducer> bitSetProducer;
 
         private final Parameter<String> inferenceId = Parameter.stringParam(
             "inference_id",
@@ -108,10 +110,11 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
         private Function<MapperBuilderContext, ObjectMapper> inferenceFieldBuilder;
 
-        public Builder(String name, IndexVersion indexVersionCreated) {
+        public Builder(String name, IndexVersion indexVersionCreated, Function<Query, BitSetProducer> bitSetProducer) {
             super(name);
             this.indexVersionCreated = indexVersionCreated;
-            this.inferenceFieldBuilder = c -> createInferenceField(c, indexVersionCreated, modelSettings.get());
+            this.bitSetProducer = bitSetProducer;
+            this.inferenceFieldBuilder = c -> createInferenceField(c, indexVersionCreated, bitSetProducer, modelSettings.get());
         }
 
         public Builder setInferenceId(String id) {
@@ -161,13 +164,22 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                     indexVersionCreated,
                     meta.getValue()
                 ),
-                copyTo
+                copyTo,
+                bitSetProducer
             );
         }
     }
 
-    private SemanticTextFieldMapper(String simpleName, MappedFieldType mappedFieldType, CopyTo copyTo) {
+    private final Function<Query, BitSetProducer> bitSetProducer;
+
+    private SemanticTextFieldMapper(
+        String simpleName,
+        MappedFieldType mappedFieldType,
+        CopyTo copyTo,
+        Function<Query, BitSetProducer> bitSetProducer
+    ) {
         super(simpleName, mappedFieldType, MultiFields.empty(), copyTo);
+        this.bitSetProducer = bitSetProducer;
     }
 
     @Override
@@ -179,7 +191,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), fieldType().indexVersionCreated).init(this);
+        return new Builder(simpleName(), fieldType().indexVersionCreated, bitSetProducer).init(this);
     }
 
     @Override
@@ -214,7 +226,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         final SemanticTextFieldMapper mapper;
         if (fieldType().getModelSettings() == null) {
             context.path().remove();
-            Builder builder = (Builder) new Builder(simpleName(), fieldType().indexVersionCreated).init(this);
+            Builder builder = (Builder) new Builder(simpleName(), fieldType().indexVersionCreated, bitSetProducer).init(this);
             try {
                 mapper = builder.setModelSettings(field.inference().modelSettings())
                     .setInferenceId(field.inference().inferenceId())
@@ -421,18 +433,20 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
     private static ObjectMapper createInferenceField(
         MapperBuilderContext context,
         IndexVersion indexVersionCreated,
+        Function<Query, BitSetProducer> bitSetProducer,
         @Nullable SemanticTextField.ModelSettings modelSettings
     ) {
         return new ObjectMapper.Builder(INFERENCE_FIELD, Explicit.EXPLICIT_TRUE).dynamic(ObjectMapper.Dynamic.FALSE)
-            .add(createChunksField(indexVersionCreated, modelSettings))
+            .add(createChunksField(indexVersionCreated, bitSetProducer, modelSettings))
             .build(context);
     }
 
     private static NestedObjectMapper.Builder createChunksField(
         IndexVersion indexVersionCreated,
+        Function<Query, BitSetProducer> bitSetProducer,
         SemanticTextField.ModelSettings modelSettings
     ) {
-        NestedObjectMapper.Builder chunksField = new NestedObjectMapper.Builder(CHUNKS_FIELD, indexVersionCreated);
+        NestedObjectMapper.Builder chunksField = new NestedObjectMapper.Builder(CHUNKS_FIELD, indexVersionCreated, bitSetProducer);
         chunksField.dynamic(ObjectMapper.Dynamic.FALSE);
         KeywordFieldMapper.Builder chunkTextField = new KeywordFieldMapper.Builder(CHUNKED_TEXT_FIELD, indexVersionCreated).indexed(false)
             .docValues(false);

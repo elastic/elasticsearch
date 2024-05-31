@@ -387,13 +387,16 @@ public class NestedObjectMapper extends ObjectMapper {
 
         @Override
         public DocValuesLoader docValuesLoader(LeafReader leafReader, int[] docIdsInLeaf) throws IOException {
-            this.children = null;
+            // docs is set to null because the provided docIdsInLeaf represents the parent of the documents to be loaded in this nested
+            // context
             this.leafStoredFields = storedFieldsLoader.getLoader(leafReader.getContext(), null);
             this.leafSource = sourceLoader.leaf(leafReader, null);
             IndexSearcher searcher = new IndexSearcher(leafReader);
             searcher.setQueryCache(null);
             var childScorer = searcher.createWeight(childFilter, ScoreMode.COMPLETE_NO_SCORES, 1f).scorer(leafReader.getContext());
             var parentDocs = parentBitSetProducer.get().getBitSet(leafReader.getContext());
+            // reset children
+            this.children = null;
             return parentDoc -> {
                 this.children = childScorer != null ? collectChildren(parentDoc, parentDocs, childScorer.iterator()) : List.of();
                 return children.size() > 0;

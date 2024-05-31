@@ -1041,6 +1041,9 @@ doubly nested object:
                   sub_nested_field:
                     type: nested
                     properties:
+                      foo:
+                        type: text
+                        store: true
                       obj1:
                         enabled: false
 

@@ -8,10 +8,13 @@
 
 package org.elasticsearch.telemetry.tracing;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Map;
+import java.util.function.Consumer;
 
 public class TracerSpan {
 
@@ -34,6 +37,26 @@ public class TracerSpan {
             action.run();
         } finally {
             tracer.stopTrace(span);
+        }
+    }
+
+    public static <T> void span(
+        ThreadPool threadPool,
+        Tracer tracer,
+        String name,
+        ActionListener<T> listener,
+        Consumer<ActionListener<T>> action
+    ) {
+        var span = Span.create();
+        try (var ctx = threadPool.getThreadContext().newTraceContext()) {
+            var context = threadPool.getThreadContext();
+            tracer.startTrace(context, span, name, Map.of());
+            action.accept(
+                ContextPreservingActionListener.wrapPreservingContext(
+                    ActionListener.runAfter(listener, () -> tracer.stopTrace(span)),
+                    context
+                )
+            );
         }
     }
 }

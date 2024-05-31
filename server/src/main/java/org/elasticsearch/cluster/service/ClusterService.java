@@ -49,12 +49,7 @@ public class ClusterService extends AbstractLifecycleComponent {
     private final OperationRouting operationRouting;
     private final ClusterApplierService clusterApplierService;
 
-    public ClusterService(
-        Settings settings,
-        ClusterSettings clusterSettings,
-        ThreadPool threadPool,
-        TaskManager taskManager
-    ) {
+    public ClusterService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool, TaskManager taskManager) {
         this(settings, clusterSettings, threadPool, taskManager, Tracer.NOOP);
     }
 

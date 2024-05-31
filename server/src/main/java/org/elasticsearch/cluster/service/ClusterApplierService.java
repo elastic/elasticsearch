@@ -102,12 +102,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
 
     private NodeConnectionsService nodeConnectionsService;
 
-    public ClusterApplierService(
-        String nodeName,
-        Settings settings,
-        ClusterSettings clusterSettings,
-        ThreadPool threadPool
-    ) {
+    public ClusterApplierService(String nodeName, Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool) {
         this(nodeName, settings, clusterSettings, threadPool, Tracer.NOOP);
     }
 

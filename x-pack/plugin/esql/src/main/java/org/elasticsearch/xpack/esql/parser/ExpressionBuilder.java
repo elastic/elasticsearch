@@ -538,7 +538,6 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     @Override
     public Expression visitInlineCast(EsqlBaseParser.InlineCastContext ctx) {
         Source source = source(ctx);
-        // NOCOMMIT this seems like trouble
         DataType dataType = typedParsing(this, ctx.dataType(), DataType.class);
         var converterToFactory = EsqlDataTypeConverter.converterFunctionFactory(dataType);
         if (converterToFactory == null) {

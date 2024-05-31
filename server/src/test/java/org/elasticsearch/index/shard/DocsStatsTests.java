@@ -31,12 +31,13 @@ public class DocsStatsTests extends ESTestCase {
     }
 
     public void testSerialize() throws Exception {
+        boolean includeIgnoredFieldStats = randomBoolean();
         DocsStats originalStats = new DocsStats(
             randomNonNegativeLong(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
-            randomNonNegativeLong(),
-            randomNonNegativeLong()
+            randomLong(),
+            randomLong()
         );
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             originalStats.writeTo(out);
@@ -47,6 +48,7 @@ public class DocsStatsTests extends ESTestCase {
                 assertThat(cloneStats.getDeleted(), equalTo(originalStats.getDeleted()));
                 assertThat(cloneStats.getTotalSizeInBytes(), equalTo(originalStats.getTotalSizeInBytes()));
                 assertThat(cloneStats.getDocsWithIgnoredFields(), equalTo(originalStats.getDocsWithIgnoredFields()));
+                assertThat(cloneStats.getIgnoredFieldTermsSumDocFreq(), equalTo(originalStats.getIgnoredFieldTermsSumDocFreq()));
             }
         }
     }

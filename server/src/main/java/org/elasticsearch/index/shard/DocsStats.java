@@ -36,8 +36,8 @@ public class DocsStats implements Writeable, ToXContentFragment {
         deleted = in.readVLong();
         totalSizeInBytes = in.readVLong();
         if (in.getTransportVersion().onOrAfter(TransportVersions.IGNORED_FIELDS_STATS)) {
-            docsWithIgnoredFields = in.readVLong();
-            ignoredFieldTermsSumDocFreq = in.readVLong();
+            docsWithIgnoredFields = in.readLong();
+            ignoredFieldTermsSumDocFreq = in.readLong();
         }
     }
 
@@ -101,11 +101,9 @@ public class DocsStats implements Writeable, ToXContentFragment {
         out.writeVLong(count);
         out.writeVLong(deleted);
         out.writeVLong(totalSizeInBytes);
-        if (docsWithIgnoredFields != -1 && out.getTransportVersion().onOrAfter(TransportVersions.IGNORED_FIELDS_STATS)) {
-            out.writeVLong(docsWithIgnoredFields);
-        }
-        if (ignoredFieldTermsSumDocFreq != -1 && out.getTransportVersion().onOrAfter(TransportVersions.IGNORED_FIELDS_STATS)) {
-            out.writeVLong(ignoredFieldTermsSumDocFreq);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.IGNORED_FIELDS_STATS)) {
+            out.writeLong(docsWithIgnoredFields);
+            out.writeLong(ignoredFieldTermsSumDocFreq);
         }
     }
 
@@ -115,12 +113,8 @@ public class DocsStats implements Writeable, ToXContentFragment {
         builder.field(Fields.COUNT, count);
         builder.field(Fields.DELETED, deleted);
         builder.field(Fields.TOTAL_SIZE_IN_BYTES, totalSizeInBytes);
-        if (docsWithIgnoredFields != -1) {
-            builder.field(Fields.DOCS_WITH_IGNORED_FIELDS, docsWithIgnoredFields);
-        }
-        if (ignoredFieldTermsSumDocFreq != -1) {
-            builder.field(Fields.SUM_DOC_FREQ_TERMS_IGNORED_FIELD, ignoredFieldTermsSumDocFreq);
-        }
+        builder.field(Fields.DOCS_WITH_IGNORED_FIELDS, docsWithIgnoredFields);
+        builder.field(Fields.SUM_DOC_FREQ_TERMS_IGNORED_FIELD, ignoredFieldTermsSumDocFreq);
         builder.endObject();
         return builder;
     }

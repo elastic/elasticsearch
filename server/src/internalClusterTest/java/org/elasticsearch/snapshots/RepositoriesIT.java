@@ -303,6 +303,7 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
         RepositoryConflictException e2 = expectThrows(
             RepositoryConflictException.class,
             clusterAdmin().preparePutRepository(repo)
+                // if "true" will deadlock on snapshot thread pool, we are running with single thread which is busy at the moment
                 .setVerify(false)
                 .setType("mock")
                 .setSettings(Settings.builder().put("location", randomRepoPath()))

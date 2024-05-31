@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.esql.parser.EsqlBaseParser.IndexIdentifierContext
 
 import java.util.List;
 
-import static org.elasticsearch.xpack.ql.parser.ParserUtils.visitList;
+import static org.elasticsearch.xpack.esql.core.parser.ParserUtils.visitList;
 
 abstract class IdentifierBuilder extends AbstractBuilder {
 

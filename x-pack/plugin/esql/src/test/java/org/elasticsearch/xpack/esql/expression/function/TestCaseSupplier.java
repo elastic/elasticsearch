@@ -15,14 +15,14 @@ import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Literal;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.elasticsearch.xpack.ql.util.NumericUtils;
 import org.elasticsearch.xpack.versionfield.Version;
 import org.hamcrest.Matcher;
 
@@ -43,8 +43,8 @@ import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.CARTESIAN;
-import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.GEO;
+import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
+import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -636,7 +636,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
     }
 
     /**
-     * Generate positive test cases for a unary function operating on an {@link EsqlDataTypes#GEO_POINT}.
+     * Generate positive test cases for a unary function operating on an {@link DataTypes#GEO_POINT}.
      */
     public static void forUnaryGeoPoint(
         List<TestCaseSupplier> suppliers,
@@ -649,7 +649,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
     }
 
     /**
-     * Generate positive test cases for a unary function operating on an {@link EsqlDataTypes#CARTESIAN_POINT}.
+     * Generate positive test cases for a unary function operating on an {@link DataTypes#CARTESIAN_POINT}.
      */
     public static void forUnaryCartesianPoint(
         List<TestCaseSupplier> suppliers,
@@ -662,7 +662,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
     }
 
     /**
-     * Generate positive test cases for a unary function operating on an {@link EsqlDataTypes#GEO_SHAPE}.
+     * Generate positive test cases for a unary function operating on an {@link DataTypes#GEO_SHAPE}.
      */
     public static void forUnaryGeoShape(
         List<TestCaseSupplier> suppliers,
@@ -675,7 +675,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
     }
 
     /**
-     * Generate positive test cases for a unary function operating on an {@link EsqlDataTypes#CARTESIAN_SHAPE}.
+     * Generate positive test cases for a unary function operating on an {@link DataTypes#CARTESIAN_SHAPE}.
      */
     public static void forUnaryCartesianShape(
         List<TestCaseSupplier> suppliers,
@@ -1006,7 +1006,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
 
     public static List<TypedDataSupplier> datePeriodCases() {
         return List.of(
-            new TypedDataSupplier("<zero date period>", () -> Period.ZERO, EsqlDataTypes.DATE_PERIOD, true),
+            new TypedDataSupplier("<zero date period>", () -> Period.ZERO, DataTypes.DATE_PERIOD, true),
             new TypedDataSupplier(
                 "<random date period>",
                 () -> Period.of(
@@ -1014,7 +1014,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                     ESTestCase.randomIntBetween(-13, 13),
                     ESTestCase.randomIntBetween(-32, 32)
                 ),
-                EsqlDataTypes.DATE_PERIOD,
+                DataTypes.DATE_PERIOD,
                 true
             )
         );
@@ -1022,11 +1022,11 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
 
     public static List<TypedDataSupplier> timeDurationCases() {
         return List.of(
-            new TypedDataSupplier("<zero time duration>", () -> Duration.ZERO, EsqlDataTypes.TIME_DURATION, true),
+            new TypedDataSupplier("<zero time duration>", () -> Duration.ZERO, DataTypes.TIME_DURATION, true),
             new TypedDataSupplier(
                 "<up to 7 days duration>",
                 () -> Duration.ofMillis(ESTestCase.randomLongBetween(-604800000L, 604800000L)), // plus/minus 7 days
-                EsqlDataTypes.TIME_DURATION,
+                DataTypes.TIME_DURATION,
                 true
             )
         );
@@ -1050,7 +1050,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
 
     public static List<TypedDataSupplier> geoPointCases(Supplier<Boolean> hasAlt) {
         return List.of(
-            new TypedDataSupplier("<geo_point>", () -> GEO.asWkb(GeometryTestUtils.randomPoint(hasAlt.get())), EsqlDataTypes.GEO_POINT)
+            new TypedDataSupplier("<geo_point>", () -> GEO.asWkb(GeometryTestUtils.randomPoint(hasAlt.get())), DataTypes.GEO_POINT)
         );
     }
 
@@ -1059,7 +1059,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             new TypedDataSupplier(
                 "<cartesian_point>",
                 () -> CARTESIAN.asWkb(ShapeTestUtils.randomPoint(hasAlt.get())),
-                EsqlDataTypes.CARTESIAN_POINT
+                DataTypes.CARTESIAN_POINT
             )
         );
     }
@@ -1069,7 +1069,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             new TypedDataSupplier(
                 "<geo_shape>",
                 () -> GEO.asWkb(GeometryTestUtils.randomGeometryWithoutCircle(0, hasAlt.get())),
-                EsqlDataTypes.GEO_SHAPE
+                DataTypes.GEO_SHAPE
             )
         );
     }
@@ -1079,7 +1079,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             new TypedDataSupplier(
                 "<cartesian_shape>",
                 () -> CARTESIAN.asWkb(ShapeTestUtils.randomGeometry(hasAlt.get())),
-                EsqlDataTypes.CARTESIAN_SHAPE
+                DataTypes.CARTESIAN_SHAPE
             )
         );
     }

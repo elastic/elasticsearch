@@ -13,12 +13,12 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Literal;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.hamcrest.Matcher;
 
 import java.util.List;
@@ -76,6 +76,24 @@ public class SubstringTests extends AbstractFunctionTestCase {
                                     "SubstringEvaluator[str=Attribute[channel=0], start=Attribute[channel=1], length=Attribute[channel=2]]",
                                     DataTypes.KEYWORD,
                                     equalTo(new BytesRef(text.substring(start - 1, start + length - 1)))
+                                );
+                            }
+                        ),
+                        new TestCaseSupplier(
+                            "Substring empty string",
+                            List.of(DataTypes.TEXT, DataTypes.INTEGER, DataTypes.INTEGER),
+                            () -> {
+                                int start = between(1, 8);
+                                int length = between(1, 10 - start);
+                                return new TestCaseSupplier.TestCase(
+                                    List.of(
+                                        new TestCaseSupplier.TypedData(new BytesRef(""), DataTypes.TEXT, "str"),
+                                        new TestCaseSupplier.TypedData(start, DataTypes.INTEGER, "start"),
+                                        new TestCaseSupplier.TypedData(length, DataTypes.INTEGER, "end")
+                                    ),
+                                    "SubstringEvaluator[str=Attribute[channel=0], start=Attribute[channel=1], length=Attribute[channel=2]]",
+                                    DataTypes.KEYWORD,
+                                    equalTo(new BytesRef(""))
                                 );
                             }
                         )

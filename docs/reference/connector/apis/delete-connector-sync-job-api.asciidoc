@@ -9,6 +9,8 @@ beta::[]
 Removes a connector sync job and its associated data.
 This is a destructive action that is not recoverable.
 
+To get started with Connector APIs, check out the {enterprise-search-ref}/connectors-tutorial-api.html[tutorial^].
+
 [[delete-connector-sync-job-api-request]]
 ==== {api-request-title}
 

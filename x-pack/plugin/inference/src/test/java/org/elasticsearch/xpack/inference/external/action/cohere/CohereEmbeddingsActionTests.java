@@ -49,6 +49,7 @@ import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.results.TextEmbeddingResultsTests.buildExpectationByte;
 import static org.elasticsearch.xpack.inference.results.TextEmbeddingResultsTests.buildExpectationFloat;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -245,7 +246,7 @@ public class CohereEmbeddingsActionTests extends ESTestCase {
                 IllegalArgumentException.class,
                 () -> createAction("^^", "secret", CohereEmbeddingsTaskSettings.EMPTY_SETTINGS, null, null, sender)
             );
-            MatcherAssert.assertThat(thrownException.getMessage(), is("unable to parse url [^^]"));
+            MatcherAssert.assertThat(thrownException.getMessage(), containsString("unable to parse url [^^]"));
         }
     }
 

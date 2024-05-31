@@ -158,6 +158,7 @@
   - requires:
       cluster_features: [ "gte_v8.15.0" ]
       reason: "sparse_vector field type added multi-value support in 8.15"
+      test_runner_features: "close_to"
 
   - do:
       indices.create:
@@ -247,7 +248,7 @@
         index: test
         id: "3"
         body:
-          text: "empty array with no nested values - should not be retrieved in exists queries"
+          text: "empty array with no values - should not be retrieved in exists queries"
           ml:
             tokens: [ ]
   - do:
@@ -298,6 +299,8 @@
   - match: { hits.total.value: 2 }
   - match: { hits.hits.0._id: "2" }
   - match: { hits.hits.1._id: "1" }
+
+  - close_to: { hits.hits.1._score: { value: 0.9797, error: 0.01 } }
 
   - do:
       search:

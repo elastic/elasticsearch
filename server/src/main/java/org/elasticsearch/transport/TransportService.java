@@ -1371,31 +1371,14 @@ public class TransportService extends AbstractLifecycleComponent
             TransportResponseHandler<?> handler = holderToNotify.handler();
             // we used to fork to a different thread always to avoid stack overflows, but we avoid doing that now, expecting handlers
             // to handle that themselves instead.
-            final var executor = handler.executor();
+            var executor = handler.executor();
             if (executor == EsExecutors.DIRECT_EXECUTOR_SERVICE) {
-                if (enableStackOverflowAvoidance == false) {
-                    handler.handleException(exception);
-                } else {
-                    threadPool.generic().submit(new AbstractRunnable() {
-                        @Override
-                        protected void doRun() throws Exception {
-                            handler.handleException(exception);
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            assert false : e;
-                            logger.warn(() -> "failed to notify response handler on connection close [" + connection + "]", e);
-                        }
-
-                        @Override
-                        public String toString() {
-                            return "onConnectionClosed(" + connection.getNode() + ")";
-                        }
-                    });
-                }
+                executor = threadPool.generic();
+            }
+            if (executor == EsExecutors.DIRECT_EXECUTOR_SERVICE) {
+                handler.handleException(exception);
             } else {
-                executor.execute(new ForkingResponseHandlerRunnable(handler, exception) {
+                executor.execute(new ForkingResponseHandlerRunnable(handler, exception, executor) {
                     @Override
                     protected void doRun() {
                         handler.handleException(exception);

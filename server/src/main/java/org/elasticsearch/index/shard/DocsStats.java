@@ -101,8 +101,10 @@ public class DocsStats implements Writeable, ToXContentFragment {
         out.writeVLong(count);
         out.writeVLong(deleted);
         out.writeVLong(totalSizeInBytes);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.IGNORED_FIELDS_STATS)) {
+        if (docsWithIgnoredFields != -1 && out.getTransportVersion().onOrAfter(TransportVersions.IGNORED_FIELDS_STATS)) {
             out.writeVLong(docsWithIgnoredFields);
+        }
+        if (ignoredFieldTermsSumDocFreq != -1 && out.getTransportVersion().onOrAfter(TransportVersions.IGNORED_FIELDS_STATS)) {
             out.writeVLong(ignoredFieldTermsSumDocFreq);
         }
     }

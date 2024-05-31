@@ -106,17 +106,17 @@ testClusters.matching { it.name == "follow-cluster" }.configureEach {
   def leaderUris = project.getProviders().of(TestClusterValueSource.class) {
     it.parameters.clusterName.set("leader-cluster")
     it.parameters.service = serviceProvider
-  }.map { it.getAllTransportPortURI() }
+  }.map { it.allTransportPortURI }.map { it.join(',') }
 
   def middleUris = project.getProviders().of(TestClusterValueSource.class) {
     it.parameters.clusterName.set("middle-cluster")
     it.parameters.service = serviceProvider
-  }.map { it.getAllTransportPortURI() }
+  }.map { it.allTransportPortURI }.map { it.join(',') }
 
   setting 'cluster.remote.leader_cluster.seeds',
-    { "\"${leaderUris.get().join(",")}\"" }, IGNORE_VALUE
+    { "\"${leaderUris.get()}\"" }, IGNORE_VALUE
   setting 'cluster.remote.middle_cluster.seeds',
-    { "\"${middleUris.get().join(",")}\"" }, IGNORE_VALUE
+    { "\"${middleUris.get()}\"" }, IGNORE_VALUE
 }
 
 

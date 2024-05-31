@@ -18,6 +18,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import javax.inject.Inject;
 
@@ -93,7 +94,11 @@ public abstract class TestClustersRegistry implements BuildService<BuildServiceP
 
     public TestClusterInfo getClusterDetails(String clusterName) {
         ElasticsearchCluster cluster = runningClusters.stream().filter(c -> c.getName().equals(clusterName)).findFirst().orElseThrow();
-        return new TestClusterInfo(cluster.getAllHttpSocketURI(), cluster.getAllTransportPortURI());
+        return new TestClusterInfo(
+            cluster.getAllHttpSocketURI(),
+            cluster.getAllTransportPortURI(),
+            cluster.getNodes().stream().map(n -> n.getAuditLog()).collect(Collectors.toList())
+        );
     }
 
     public void restart(String clusterName) {

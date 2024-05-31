@@ -25,9 +25,13 @@ dependencies {
 
 // These tests are only invoked direclty as part of a dedicated build job
 tasks.named('javaRestTest').configure {task ->
-    onlyIf("E2E test task must be invoked directly") {
-      gradle.startParameter.getTaskNames().contains(task.path) ||
-        (gradle.startParameter.getTaskNames().contains(task.name) && gradle.startParameter.currentDir == project.projectDir)
+  def taskNames = gradle.startParameter.getTaskNames()
+  def currentDir = gradle.startParameter.currentDir
+  def projectDir = project.projectDir
+
+  onlyIf("E2E test task must be invoked directly") {
+    taskNames.contains(task.path) ||
+        (taskNames.contains(task.name) && currentDir == projectDir)
     }
 }
 

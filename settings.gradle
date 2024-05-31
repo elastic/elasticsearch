@@ -132,6 +132,11 @@ void addSubProjects(String path, File dir) {
     return
   }
 
+  // broken for configuration cache. disabled for now.
+  if (projectName.equals(":x-pack:qa:repository-old-versions")) {
+    return
+  }
+
   include projectName
   if (path.isEmpty() || path.startsWith(':example-plugins')) {
     project(projectName).projectDir = dir

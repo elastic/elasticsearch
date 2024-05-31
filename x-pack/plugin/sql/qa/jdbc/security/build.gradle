@@ -1,4 +1,8 @@
 import org.elasticsearch.gradle.internal.test.RestIntegTestTask
+import org.elasticsearch.gradle.testclusters.TestClusterValueSource
+import org.elasticsearch.gradle.testclusters.TestClustersPlugin
+import org.elasticsearch.gradle.testclusters.TestClustersRegistry
+import org.elasticsearch.gradle.util.GradleUtils
 
 apply plugin: 'elasticsearch.internal-test-artifact'
 
@@ -18,7 +22,6 @@ subprojects {
   dependencies {
     javaRestTestImplementation project(":x-pack:plugin:core")
     testArtifacts testArtifact(project(mainProject.path))
-
   }
 
   testClusters.configureEach {
@@ -41,14 +44,23 @@ subprojects {
     into testArtifactsDir
   }
 
-
   tasks.withType(RestIntegTestTask).configureEach {
     dependsOn copyTestClasses
     classpath += configurations.testArtifacts
     testClassesDirs = project.files(testArtifactsDir)
+
+    Provider<TestClustersRegistry> serviceProvider = GradleUtils.getBuildService(
+      project.gradle.sharedServices,
+      TestClustersPlugin.REGISTRY_SERVICE_NAME
+    )
+    def clusterInfo = project.getProviders().of(TestClusterValueSource.class) {
+      it.parameters.clusterName.set("javaRestTest")
+      it.parameters.service = serviceProvider
+    }
+
     nonInputProperties.systemProperty 'tests.audit.logfile',
-      "${-> testClusters.javaRestTest.singleNode().getAuditLog()}"
+      "${-> clusterInfo.get().getAuditLogs()[0] } }"
     nonInputProperties.systemProperty 'tests.audit.yesterday.logfile',
-      "${-> testClusters.javaRestTest.singleNode().getAuditLog().getParentFile()}/javaRestTest_audit-${new Date().format('yyyy-MM-dd')}.json"
+      "${-> clusterInfo.get().getAuditLogs()[0].getParentFile()}/javaRestTest_audit-${new Date().format('yyyy-MM-dd')}.json"
   }
 }

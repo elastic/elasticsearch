@@ -236,6 +236,6 @@ public class ProgressListenableActionFutureTests extends ESTestCase {
     private static ProgressListenableActionFuture randomFuture() {
         final long delta = randomLongBetween(1L, ByteSizeUnit.TB.toBytes(1L));
         final long start = randomLongBetween(Long.MIN_VALUE, Long.MAX_VALUE - delta);
-        return new ProgressListenableActionFuture(start, start + delta);
+        return new ProgressListenableActionFuture(start, start + delta, null);
     }
 }

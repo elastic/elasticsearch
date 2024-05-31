@@ -10,9 +10,11 @@ package org.elasticsearch.blobcache.common;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.core.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.LongConsumer;
 import java.util.function.Supplier;
 
 /**
@@ -26,12 +28,17 @@ class ProgressListenableActionFuture extends PlainActionFuture<Long> {
 
     private record PositionAndListener(long position, ActionListener<Long> listener) {}
 
-    protected final long start;
-    protected final long end;
+    final long start;
+    final long end;
 
-    // modified under 'this' mutex
-    private volatile List<PositionAndListener> listeners;
-    protected volatile long progress;
+    /**
+     * A consumer that accepts progress made by this {@link ProgressListenableActionFuture}
+     */
+    @Nullable
+    private final LongConsumer progressConsumer;
+
+    private List<PositionAndListener> listeners;
+    private long progress;
     private volatile boolean completed;
 
     /**
@@ -41,12 +48,13 @@ class ProgressListenableActionFuture extends PlainActionFuture<Long> {
      * @param start the start (inclusive)
      * @param end   the end (exclusive)
      */
-    ProgressListenableActionFuture(long start, long end) {
+    ProgressListenableActionFuture(long start, long end, @Nullable LongConsumer progressConsumer) {
         super();
         this.start = start;
         this.end = end;
         this.progress = start;
         this.completed = false;
+        this.progressConsumer = progressConsumer;
         assert invariant();
     }
 
@@ -108,6 +116,9 @@ class ProgressListenableActionFuture extends PlainActionFuture<Long> {
             }
         }
         if (listenersToExecute != null) {
+            if (progressConsumer != null) {
+                safeAcceptProgress(progressConsumer, progressValue);
+            }
             listenersToExecute.forEach(listener -> executeListener(listener, () -> progressValue));
         }
         assert invariant();
@@ -186,6 +197,16 @@ class ProgressListenableActionFuture extends PlainActionFuture<Long> {
             listener.onResponse(result.get());
         } catch (Exception e) {
             listener.onFailure(e);
+        }
+    }
+
+    private static void safeAcceptProgress(LongConsumer consumer, long progress) {
+        assert consumer != null;
+        try {
+            consumer.accept(progress);
+        } catch (Exception e) {
+            assert false : e;
+            throw e;
         }
     }
 

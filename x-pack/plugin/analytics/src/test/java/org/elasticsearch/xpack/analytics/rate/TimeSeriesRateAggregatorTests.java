@@ -20,11 +20,12 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.DimensionHasher;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
-import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
+import org.elasticsearch.index.mapper.RoutingDimensions;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
@@ -163,9 +164,9 @@ public class TimeSeriesRateAggregatorTests extends AggregatorTestCase {
     }
 
     private static BytesReference tsid(String dim) throws IOException {
-        TimeSeriesIdFieldMapper.TimeSeriesIdBuilder idBuilder = new TimeSeriesIdFieldMapper.TimeSeriesIdBuilder(null);
-        idBuilder.addString("dim", dim);
-        return idBuilder.buildTsidHash();
+        var routingDimensions = new RoutingDimensions(null);
+        routingDimensions.addString("dim", dim);
+        return DimensionHasher.build(routingDimensions);
     }
 
     private Document doc(long timestamp, BytesReference tsid, long counterValue, String dim) {

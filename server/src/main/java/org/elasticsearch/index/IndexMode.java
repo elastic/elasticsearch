@@ -25,6 +25,7 @@ import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.ProvidedIdFieldMapper;
+import org.elasticsearch.index.mapper.RoutingDimensions;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
@@ -202,7 +203,7 @@ public enum IndexMode {
         @Override
         public DocumentDimensions buildDocumentDimensions(IndexSettings settings) {
             IndexRouting.ExtractFromSource routing = (IndexRouting.ExtractFromSource) settings.getIndexRouting();
-            return new TimeSeriesIdFieldMapper.TimeSeriesIdBuilder(routing.builder());
+            return new RoutingDimensions(routing.builder());
         }
 
         @Override

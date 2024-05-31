@@ -11,20 +11,9 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.StringHelper;
-import org.elasticsearch.cluster.routing.IndexRouting;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.hash.Murmur3Hasher;
-import org.elasticsearch.common.hash.MurmurHash3;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.network.NetworkAddress;
-import org.elasticsearch.common.util.ByteUtils;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fielddata.FieldData;
@@ -38,15 +27,9 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 
 import java.io.IOException;
-import java.net.InetAddress;
 import java.time.ZoneId;
-import java.util.Base64;
+import java.util.Collection;
 import java.util.Collections;
-import java.util.Comparator;
-import java.util.LinkedHashMap;
-import java.util.Map;
-import java.util.SortedSet;
-import java.util.TreeSet;
 
 /**
  * Mapper for {@code _tsid} field included generated when the index is
@@ -58,7 +41,6 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
     public static final String CONTENT_TYPE = "_tsid";
     public static final TimeSeriesIdFieldType FIELD_TYPE = new TimeSeriesIdFieldType();
     public static final TimeSeriesIdFieldMapper INSTANCE = new TimeSeriesIdFieldMapper();
-    private static final Base64.Encoder BASE64_ENCODER = Base64.getUrlEncoder().withoutPadding();
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
@@ -135,15 +117,23 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
     public void postParse(DocumentParserContext context) throws IOException {
         assert fieldType().isIndexed() == false;
 
-        final TimeSeriesIdBuilder timeSeriesIdBuilder = (TimeSeriesIdBuilder) context.getDimensions();
-        final BytesRef timeSeriesId = getIndexVersionCreated(context).before(IndexVersions.TIME_SERIES_ID_HASHING)
-            ? timeSeriesIdBuilder.buildLegacyTsid().toBytesRef()
-            : timeSeriesIdBuilder.buildTsidHash().toBytesRef();
+        final RoutingDimensions routingDimensions = (RoutingDimensions) context.getDimensions();
+        final BytesRef timeSeriesId;
+        if (getIndexVersionCreated(context).before(IndexVersions.TIME_SERIES_ID_HASHING)) {
+            long limit = context.indexSettings().getValue(MapperService.INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING);
+            int size = routingDimensions.dimensions().size();
+            if (size > limit) {
+                throw new MapperException("Too many dimension fields [" + size + "], max [" + limit + "] dimension fields allowed");
+            }
+            timeSeriesId = buildLegacyTsid(routingDimensions).toBytesRef();
+        } else {
+            timeSeriesId = DimensionHasher.build(routingDimensions).toBytesRef();
+        }
         context.doc().add(new SortedDocValuesField(fieldType().name(), timeSeriesId));
         TsidExtractingIdFieldMapper.createField(
             context,
             getIndexVersionCreated(context).before(IndexVersions.TIME_SERIES_ROUTING_HASH_IN_ID)
-                ? timeSeriesIdBuilder.routingBuilder
+                ? routingDimensions.routingBuilder()
                 : null,
             timeSeriesId
         );
@@ -163,264 +153,19 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
         return SourceLoader.SyntheticFieldLoader.NOTHING;
     }
 
-    /**
-     * Decode the {@code _tsid} into a human readable map.
-     */
-    public static Object encodeTsid(StreamInput in) {
-        try {
-            return base64Encode(in.readSlicedBytesReference().toBytesRef());
-        } catch (IOException e) {
-            throw new IllegalArgumentException("Unable to read tsid");
-        }
-    }
-
-    public static class TimeSeriesIdBuilder implements DocumentDimensions {
-
-        private static final int SEED = 0;
-
-        public static final int MAX_DIMENSIONS = 512;
-
-        private record Dimension(BytesRef name, BytesReference value) {}
-
-        private final Murmur3Hasher tsidHasher = new Murmur3Hasher(0);
-
-        /**
-         * A sorted set of the serialized values of dimension fields that will be used
-         * for generating the _tsid field. The map will be used by {@link TimeSeriesIdFieldMapper}
-         * to build the _tsid field for the document.
-         */
-        private final SortedSet<Dimension> dimensions = new TreeSet<>(Comparator.comparing(o -> o.name));
-        /**
-         * Builds the routing. Used for building {@code _id}. If null then skipped.
-         */
-        @Nullable
-        private final IndexRouting.ExtractFromSource.Builder routingBuilder;
-
-        public TimeSeriesIdBuilder(@Nullable IndexRouting.ExtractFromSource.Builder routingBuilder) {
-            this.routingBuilder = routingBuilder;
+    public static BytesReference buildLegacyTsid(RoutingDimensions routingDimensions) throws IOException {
+        Collection<RoutingDimensions.Dimension> dimensions = routingDimensions.dimensions();
+        if (dimensions.isEmpty()) {
+            throw new IllegalArgumentException("Dimension fields are missing.");
         }
 
-        public BytesReference buildLegacyTsid() throws IOException {
-            if (dimensions.isEmpty()) {
-                throw new IllegalArgumentException("Dimension fields are missing.");
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.writeVInt(dimensions.size());
+            for (RoutingDimensions.Dimension entry : dimensions) {
+                out.writeBytesRef(entry.name());
+                entry.value().writeTo(out);
             }
-
-            try (BytesStreamOutput out = new BytesStreamOutput()) {
-                out.writeVInt(dimensions.size());
-                for (Dimension entry : dimensions) {
-                    out.writeBytesRef(entry.name);
-                    entry.value.writeTo(out);
-                }
-                return out.bytes();
-            }
-        }
-
-        private static final int MAX_HASH_LEN_BYTES = 2;
-
-        static {
-            assert MAX_HASH_LEN_BYTES == StreamOutput.putVInt(new byte[2], tsidHashLen(MAX_DIMENSIONS), 0);
-        }
-
-        /**
-         * Here we build the hash of the tsid using a similarity function so that we have a result
-         * with the following pattern:
-         *
-         * hash128(catenate(dimension field names)) +
-         * foreach(dimension field value, limit = MAX_DIMENSIONS) { hash32(dimension field value) } +
-         * hash128(catenate(dimension field values))
-         *
-         * The idea is to be able to place 'similar' time series close to each other. Two time series
-         * are considered 'similar' if they share the same dimensions (names and values).
-         */
-        public BytesReference buildTsidHash() {
-            // NOTE: hash all dimension field names
-            int numberOfDimensions = Math.min(MAX_DIMENSIONS, dimensions.size());
-            int len = tsidHashLen(numberOfDimensions);
-            // either one or two bytes are occupied by the vint since we're bounded by #MAX_DIMENSIONS
-            byte[] tsidHash = new byte[MAX_HASH_LEN_BYTES + len];
-            int tsidHashIndex = StreamOutput.putVInt(tsidHash, len, 0);
-
-            tsidHasher.reset();
-            for (final Dimension dimension : dimensions) {
-                tsidHasher.update(dimension.name.bytes);
-            }
-            tsidHashIndex = writeHash128(tsidHasher.digestHash(), tsidHash, tsidHashIndex);
-
-            // NOTE: concatenate all dimension value hashes up to a certain number of dimensions
-            int tsidHashStartIndex = tsidHashIndex;
-            for (final Dimension dimension : dimensions) {
-                if ((tsidHashIndex - tsidHashStartIndex) >= 4 * numberOfDimensions) {
-                    break;
-                }
-                final BytesRef dimensionValueBytesRef = dimension.value.toBytesRef();
-                ByteUtils.writeIntLE(
-                    StringHelper.murmurhash3_x86_32(
-                        dimensionValueBytesRef.bytes,
-                        dimensionValueBytesRef.offset,
-                        dimensionValueBytesRef.length,
-                        SEED
-                    ),
-                    tsidHash,
-                    tsidHashIndex
-                );
-                tsidHashIndex += 4;
-            }
-
-            // NOTE: hash all dimension field allValues
-            tsidHasher.reset();
-            for (final Dimension dimension : dimensions) {
-                tsidHasher.update(dimension.value.toBytesRef().bytes);
-            }
-            tsidHashIndex = writeHash128(tsidHasher.digestHash(), tsidHash, tsidHashIndex);
-
-            return new BytesArray(tsidHash, 0, tsidHashIndex);
-        }
-
-        private static int tsidHashLen(int numberOfDimensions) {
-            return 16 + 16 + 4 * numberOfDimensions;
-        }
-
-        private int writeHash128(final MurmurHash3.Hash128 hash128, byte[] buffer, int tsidHashIndex) {
-            ByteUtils.writeLongLE(hash128.h1, buffer, tsidHashIndex);
-            tsidHashIndex += 8;
-            ByteUtils.writeLongLE(hash128.h2, buffer, tsidHashIndex);
-            tsidHashIndex += 8;
-            return tsidHashIndex;
-        }
-
-        @Override
-        public DocumentDimensions addString(String fieldName, BytesRef utf8Value) {
-            try (BytesStreamOutput out = new BytesStreamOutput()) {
-                out.write((byte) 's');
-                /*
-                 * Write in utf8 instead of StreamOutput#writeString which is utf-16-ish
-                 * so it's easier for folks to reason about the space taken up. Mostly
-                 * it'll be smaller too.
-                 */
-                out.writeBytesRef(utf8Value);
-                add(fieldName, out.bytes());
-
-                if (routingBuilder != null) {
-                    routingBuilder.addMatching(fieldName, utf8Value);
-                }
-            } catch (IOException e) {
-                throw new IllegalArgumentException("Dimension field cannot be serialized.", e);
-            }
-            return this;
-        }
-
-        @Override
-        public DocumentDimensions addIp(String fieldName, InetAddress value) {
-            return addString(fieldName, NetworkAddress.format(value));
-        }
-
-        @Override
-        public DocumentDimensions addLong(String fieldName, long value) {
-            try (BytesStreamOutput out = new BytesStreamOutput()) {
-                out.write((byte) 'l');
-                out.writeLong(value);
-                add(fieldName, out.bytes());
-            } catch (IOException e) {
-                throw new IllegalArgumentException("Dimension field cannot be serialized.", e);
-            }
-            return this;
-        }
-
-        @Override
-        public DocumentDimensions addUnsignedLong(String fieldName, long value) {
-            try (BytesStreamOutput out = new BytesStreamOutput()) {
-                Object ul = DocValueFormat.UNSIGNED_LONG_SHIFTED.format(value);
-                if (ul instanceof Long l) {
-                    out.write((byte) 'l');
-                    out.writeLong(l);
-                } else {
-                    out.write((byte) 'u');
-                    out.writeLong(value);
-                }
-                add(fieldName, out.bytes());
-                return this;
-            } catch (IOException e) {
-                throw new IllegalArgumentException("Dimension field cannot be serialized.", e);
-            }
-        }
-
-        @Override
-        public DocumentDimensions validate(final IndexSettings settings) {
-            if (settings.getIndexVersionCreated().before(IndexVersions.TIME_SERIES_ID_HASHING)
-                && dimensions.size() > settings.getValue(MapperService.INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING)) {
-                throw new MapperException(
-                    "Too many dimension fields ["
-                        + dimensions.size()
-                        + "], max ["
-                        + settings.getValue(MapperService.INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING)
-                        + "] dimension fields allowed"
-                );
-            }
-            return this;
-        }
-
-        private void add(String fieldName, BytesReference encoded) throws IOException {
-            if (dimensions.add(new Dimension(new BytesRef(fieldName), encoded)) == false) {
-                throw new IllegalArgumentException("Dimension field [" + fieldName + "] cannot be a multi-valued field.");
-            }
-        }
-    }
-
-    public static Object encodeTsid(final BytesRef bytesRef) {
-        return base64Encode(bytesRef);
-    }
-
-    private static String base64Encode(final BytesRef bytesRef) {
-        byte[] bytes = new byte[bytesRef.length];
-        System.arraycopy(bytesRef.bytes, bytesRef.offset, bytes, 0, bytesRef.length);
-        return BASE64_ENCODER.encodeToString(bytes);
-    }
-
-    public static Map<String, Object> decodeTsidAsMap(BytesRef bytesRef) {
-        try (StreamInput input = new BytesArray(bytesRef).streamInput()) {
-            return decodeTsidAsMap(input);
-        } catch (IOException ex) {
-            throw new IllegalArgumentException("Dimension field cannot be deserialized.", ex);
-        }
-    }
-
-    public static Map<String, Object> decodeTsidAsMap(StreamInput in) {
-        try {
-            int size = in.readVInt();
-            Map<String, Object> result = new LinkedHashMap<>(size);
-
-            for (int i = 0; i < size; i++) {
-                String name = null;
-                try {
-                    name = in.readSlicedBytesReference().utf8ToString();
-                } catch (AssertionError ae) {
-                    throw new IllegalArgumentException("Error parsing keyword dimension: " + ae.getMessage(), ae);
-                }
-
-                int type = in.read();
-                switch (type) {
-                    case (byte) 's' -> {
-                        // parse a string
-                        try {
-                            result.put(name, in.readSlicedBytesReference().utf8ToString());
-                        } catch (AssertionError ae) {
-                            throw new IllegalArgumentException("Error parsing keyword dimension: " + ae.getMessage(), ae);
-                        }
-                    }
-                    case (byte) 'l' -> // parse a long
-                        result.put(name, in.readLong());
-                    case (byte) 'u' -> { // parse an unsigned_long
-                        Object ul = DocValueFormat.UNSIGNED_LONG_SHIFTED.format(in.readLong());
-                        result.put(name, ul);
-                    }
-                    case (byte) 'd' -> // parse a double
-                        result.put(name, in.readDouble());
-                    default -> throw new IllegalArgumentException("Cannot parse [" + name + "]: Unknown type [" + type + "]");
-                }
-            }
-            return result;
-        } catch (IOException | IllegalArgumentException e) {
-            throw new IllegalArgumentException("Error formatting " + NAME + ": " + e.getMessage(), e);
+            return out.bytes();
         }
     }
 }

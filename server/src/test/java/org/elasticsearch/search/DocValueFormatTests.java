@@ -18,7 +18,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
-import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper.TimeSeriesIdBuilder;
+import org.elasticsearch.index.mapper.DimensionHasher;
+import org.elasticsearch.index.mapper.RoutingDimensions;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -374,11 +375,11 @@ public class DocValueFormatTests extends ESTestCase {
     }
 
     public void testParseTsid() throws IOException {
-        TimeSeriesIdBuilder timeSeriesIdBuilder = new TimeSeriesIdBuilder(null);
-        timeSeriesIdBuilder.addString("string", randomAlphaOfLength(10));
-        timeSeriesIdBuilder.addLong("long", randomLong());
-        timeSeriesIdBuilder.addUnsignedLong("ulong", randomLong());
-        BytesRef expected = timeSeriesIdBuilder.buildTsidHash().toBytesRef();
+        var routingDimensions = new RoutingDimensions(null);
+        routingDimensions.addString("string", randomAlphaOfLength(10));
+        routingDimensions.addLong("long", randomLong());
+        routingDimensions.addUnsignedLong("ulong", randomLong());
+        BytesRef expected = DimensionHasher.build(routingDimensions).toBytesRef();
         byte[] expectedBytes = new byte[expected.length];
         System.arraycopy(expected.bytes, 0, expectedBytes, 0, expected.length);
         BytesRef actual = DocValueFormat.TIME_SERIES_ID.parseBytesRef(expected);

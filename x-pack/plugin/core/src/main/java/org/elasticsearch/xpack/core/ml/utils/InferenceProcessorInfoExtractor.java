@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.ml.utils;
+package org.elasticsearch.xpack.core.ml.utils;
 
 import org.apache.lucene.util.Counter;
 import org.elasticsearch.cluster.ClusterState;
@@ -16,6 +16,7 @@ import org.elasticsearch.ingest.Pipeline;
 import org.elasticsearch.transport.Transports;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -24,13 +25,11 @@ import java.util.function.Consumer;
 
 import static org.elasticsearch.inference.InferenceResults.MODEL_ID_RESULTS_FIELD;
 import static org.elasticsearch.ingest.Pipeline.PROCESSORS_KEY;
-import static org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor.TYPE;
 
 /**
  * Utilities for extracting information around inference processors from IngestMetadata
  */
 public final class InferenceProcessorInfoExtractor {
-
     private static final String FOREACH_PROCESSOR_NAME = "foreach";
     // Any more than 10 nestings of processors, we stop searching for inference processor definitions
     private static final int MAX_INFERENCE_PROCESSOR_SEARCH_RECURSIONS = 10;
@@ -131,6 +130,38 @@ public final class InferenceProcessorInfoExtractor {
         return pipelineIdsByModelIds;
     }
 
+    /**
+     * @param state Current {@link ClusterState}
+     * @return a map from Model or Deployment IDs or Aliases to each pipeline referencing them.
+     */
+    @SuppressWarnings("unchecked")
+    public static Set<String> pipelineIdsForResource(ClusterState state, Set<String> ids) {
+        assert Transports.assertNotTransportThread("non-trivial nested loops over cluster state structures");
+        Set<String> pipelineIds = new HashSet<>();
+        Metadata metadata = state.metadata();
+        if (metadata == null) {
+            return pipelineIds;
+        }
+        IngestMetadata ingestMetadata = metadata.custom(IngestMetadata.TYPE);
+        if (ingestMetadata == null) {
+            return pipelineIds;
+        }
+        ingestMetadata.getPipelines().forEach((pipelineId, configuration) -> {
+            Map<String, Object> configMap = configuration.getConfigAsMap();
+            List<Map<String, Object>> processorConfigs = ConfigurationUtils.readList(null, null, configMap, PROCESSORS_KEY);
+            for (Map<String, Object> processorConfigWithKey : processorConfigs) {
+                for (Map.Entry<String, Object> entry : processorConfigWithKey.entrySet()) {
+                    addModelsAndPipelines(entry.getKey(), pipelineId, (Map<String, Object>) entry.getValue(), pam -> {
+                        if (ids.contains(pam.modelIdOrAlias)) {
+                            pipelineIds.add(pipelineId);
+                        }
+                    }, 0);
+                }
+            }
+        });
+        return pipelineIds;
+    }
+
     @SuppressWarnings("unchecked")
     private static void addModelsAndPipelines(
         String processorType,
@@ -146,7 +177,7 @@ public final class InferenceProcessorInfoExtractor {
         if (processorType == null || processorDefinition == null) {
             return;
         }
-        if (TYPE.equals(processorType)) {
+        if (InferenceProcessorConstants.TYPE.equals(processorType)) {
             String modelId = (String) processorDefinition.get(MODEL_ID_RESULTS_FIELD);
             if (modelId != null) {
                 handler.accept(new PipelineAndModel(pipelineId, modelId));

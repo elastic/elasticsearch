@@ -48,33 +48,38 @@ abstract class FieldAndDocumentLevelSecurityRequestInterceptor implements Reques
         AuthorizationInfo authorizationInfo,
         ActionListener<Void> listener
     ) {
-        final boolean isDlsLicensed = DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState);
-        final boolean isFlsLicensed = FIELD_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState);
         if (requestInfo.getRequest() instanceof IndicesRequest indicesRequest
             && false == TransportActionProxy.isProxyAction(requestInfo.getAction())
             && supports(indicesRequest)
-            && (isDlsLicensed || isFlsLicensed)) {
-            final IndicesAccessControl indicesAccessControl = threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
-            final Map<String, IndicesAccessControl.IndexAccessControl> accessControlByIndex = new HashMap<>();
-            for (String index : requestIndices(indicesRequest)) {
-                IndicesAccessControl.IndexAccessControl indexAccessControl = indicesAccessControl.getIndexPermissions(index);
-                if (indexAccessControl != null
-                    && (indexAccessControl.getFieldPermissions().hasFieldLevelSecurity()
-                        || indexAccessControl.getDocumentPermissions().hasDocumentLevelPermissions())) {
-                    logger.trace(
-                        "intercepted request for index [{}] with field level access controls [{}] "
-                            + "document level access controls [{}]. disabling conflicting features",
-                        index,
-                        indexAccessControl.getFieldPermissions().hasFieldLevelSecurity(),
-                        indexAccessControl.getDocumentPermissions().hasDocumentLevelPermissions()
-                    );
-                    accessControlByIndex.put(index, indexAccessControl);
-                }
+            && (DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState)
+                || FIELD_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState))) {
+            doIntercept(indicesRequest, listener);
+        } else {
+            listener.onResponse(null);
+        }
+    }
+
+    private void doIntercept(IndicesRequest indicesRequest, ActionListener<Void> listener) {
+        final IndicesAccessControl indicesAccessControl = threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
+        final Map<String, IndicesAccessControl.IndexAccessControl> accessControlByIndex = new HashMap<>();
+        for (String index : requestIndices(indicesRequest)) {
+            IndicesAccessControl.IndexAccessControl indexAccessControl = indicesAccessControl.getIndexPermissions(index);
+            if (indexAccessControl != null
+                && (indexAccessControl.getFieldPermissions().hasFieldLevelSecurity()
+                    || indexAccessControl.getDocumentPermissions().hasDocumentLevelPermissions())) {
+                logger.trace(
+                    "intercepted request for index [{}] with field level access controls [{}] "
+                        + "document level access controls [{}]. disabling conflicting features",
+                    index,
+                    indexAccessControl.getFieldPermissions().hasFieldLevelSecurity(),
+                    indexAccessControl.getDocumentPermissions().hasDocumentLevelPermissions()
+                );
+                accessControlByIndex.put(index, indexAccessControl);
             }
-            if (false == accessControlByIndex.isEmpty()) {
-                disableFeatures(indicesRequest, accessControlByIndex, listener);
-                return;
-            }
+        }
+        if (false == accessControlByIndex.isEmpty()) {
+            disableFeatures(indicesRequest, accessControlByIndex, listener);
+            return;
         }
         listener.onResponse(null);
     }

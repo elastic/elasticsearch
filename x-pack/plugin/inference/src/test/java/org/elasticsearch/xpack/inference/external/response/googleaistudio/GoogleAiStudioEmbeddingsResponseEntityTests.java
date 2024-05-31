@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.external.response.googleaistudio;
 
 import org.apache.http.HttpResponse;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.inference.results.FloatEmbedding;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.request.Request;
@@ -42,7 +41,7 @@ public class GoogleAiStudioEmbeddingsResponseEntityTests extends ESTestCase {
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
 
-        assertThat(parsedResults.embeddings(), is(List.of(FloatEmbedding.of(List.of(-0.00606332F, 0.058092743F)))));
+        assertThat(parsedResults.embeddings(), is(List.of(TextEmbeddingResults.Embedding.of(List.of(-0.00606332F, 0.058092743F)))));
     }
 
     public void testFromResponse_CreatesResultsForMultipleItems() throws IOException {
@@ -72,7 +71,12 @@ public class GoogleAiStudioEmbeddingsResponseEntityTests extends ESTestCase {
 
         assertThat(
             parsedResults.embeddings(),
-            is(List.of(FloatEmbedding.of(List.of(-0.00606332F, 0.058092743F)), FloatEmbedding.of(List.of(0.030681048F, 0.01714732F))))
+            is(
+                List.of(
+                    TextEmbeddingResults.Embedding.of(List.of(-0.00606332F, 0.058092743F)),
+                    TextEmbeddingResults.Embedding.of(List.of(0.030681048F, 0.01714732F))
+                )
+            )
         );
     }
 

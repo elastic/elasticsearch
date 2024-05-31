@@ -32,7 +32,6 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
 import org.elasticsearch.xpack.core.inference.results.ChunkedTextEmbeddingFloatResults;
-import org.elasticsearch.xpack.core.inference.results.FloatEmbedding;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
@@ -49,6 +48,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -714,7 +714,7 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
                 var floatResult = (ChunkedTextEmbeddingFloatResults) results.get(0);
                 assertThat(floatResult.chunks(), hasSize(1));
                 assertEquals(input.get(0), floatResult.chunks().get(0).matchedText());
-                assertEquals(FloatEmbedding.of(List.of(0.0123F, -0.0123F)), floatResult.chunks().get(0).embedding());
+                assertTrue(Arrays.equals(new float[] { 0.0123f, -0.0123f }, floatResult.chunks().get(0).embedding()));
             }
 
             // second result
@@ -723,7 +723,7 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
                 var floatResult = (ChunkedTextEmbeddingFloatResults) results.get(1);
                 assertThat(floatResult.chunks(), hasSize(1));
                 assertEquals(input.get(1), floatResult.chunks().get(0).matchedText());
-                assertEquals(FloatEmbedding.of(List.of(0.0456F, -0.0456F)), floatResult.chunks().get(0).embedding());
+                assertTrue(Arrays.equals(new float[] { 0.0456f, -0.0456f }, floatResult.chunks().get(0).embedding()));
             }
 
             assertThat(webServer.requests(), hasSize(1));

@@ -975,7 +975,7 @@ public class TransportService extends AbstractLifecycleComponent
         }
         final var sendRequestException = new SendRequestTransportException(node, action, failure);
         final var handler = contextToNotify.handler();
-        final var executor = getAvoidStackOverflowExecutor(handler.executor());
+        final var executor = getInternalSendExceptionExecutor(handler.executor());
         executor.execute(new AbstractRunnable() {
             @Override
             protected void doRun() {
@@ -1027,7 +1027,7 @@ public class TransportService extends AbstractLifecycleComponent
         });
     }
 
-    private Executor getAvoidStackOverflowExecutor(Executor handlerExecutor) {
+    private Executor getInternalSendExceptionExecutor(Executor handlerExecutor) {
         if (lifecycle.stoppedOrClosed()) {
             // too late to try and dispatch anywhere else, let's just use the calling thread
             return EsExecutors.DIRECT_EXECUTOR_SERVICE;
@@ -1354,8 +1354,9 @@ public class TransportService extends AbstractLifecycleComponent
             NodeDisconnectedException exception = new NodeDisconnectedException(connection.getNode(), holderToNotify.action());
 
             TransportResponseHandler<?> handler = holderToNotify.handler();
-            // Callback that an exception happened, but on a different thread since we don't want handlers to worry about stack overflows.
-            final var executor = getAvoidStackOverflowExecutor(handler.executor());
+            // we used to fork to a different thread always to avoid stack overflows, but we avoid doing that now, expecting handlers
+            // to handle that themselves instead.
+            final var executor = handler.executor();
             if (executor == EsExecutors.DIRECT_EXECUTOR_SERVICE) {
                 handler.handleException(exception);
             } else {

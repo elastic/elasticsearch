@@ -828,24 +828,24 @@ public class AuthorizationService {
                             AuditLevel.ACCESS_DENIED,
                             authentication,
                             action,
-                            resolvedIndicesSet.toArray(new String[0]),
+                            resolvedIndicesSet.toArray(Strings.EMPTY_ARRAY),
                             BulkItemRequest.class.getSimpleName(),
                             request.remoteAddress(),
                             authzInfo
                         )
                     );
-                    actionToGrantedIndicesMap.forEach((action, resolvedIndicesSet) -> {
-                        auditTrail.explicitIndexAccessEvent(
+                    actionToGrantedIndicesMap.forEach(
+                        (action, resolvedIndicesSet) -> auditTrail.explicitIndexAccessEvent(
                             requestId,
                             AuditLevel.ACCESS_GRANTED,
                             authentication,
                             action,
-                            resolvedIndicesSet.toArray(new String[0]),
+                            resolvedIndicesSet.toArray(Strings.EMPTY_ARRAY),
                             BulkItemRequest.class.getSimpleName(),
                             request.remoteAddress(),
                             authzInfo
-                        );
-                    });
+                        )
+                    );
                     delegate2.onResponse(null);
                 }
             );

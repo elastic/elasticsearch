@@ -9,7 +9,9 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.ann.Evaluator;
+import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.EsqlClientException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -21,17 +23,19 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 
-import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.Function;
 
+import static org.elasticsearch.common.unit.ByteSizeUnit.MB;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
 public class Repeat extends EsqlScalarFunction implements OptionalArgument {
+
+    static final long MAX_REPEATED_LENGTH = MB.toBytes(1);
 
     private final Expression str;
     private final Expression number;
@@ -75,8 +79,17 @@ public class Repeat extends EsqlScalarFunction implements OptionalArgument {
         return str.foldable() && number.foldable();
     }
 
+    @Evaluator(extraName = "Constant")
+    static BytesRef processConstantNumber(BytesRef str, @Fixed int number) {
+        return processInner(str, number);
+    }
+
     @Evaluator
     static BytesRef process(BytesRef str, int number) {
+        return processInner(str, number);
+    }
+
+    static BytesRef processInner(BytesRef str, int number) {
         if (str == null) {
             return null;
         }
@@ -84,16 +97,15 @@ public class Repeat extends EsqlScalarFunction implements OptionalArgument {
             throw new IllegalArgumentException("Number parameter cannot be negative, found [" + number + "]");
         }
 
-        if (number == 0) {
-            return new BytesRef(0);
+        int repeatedLen = str.length * number;
+        if (repeatedLen > MAX_REPEATED_LENGTH) {
+            throw new EsqlClientException("Creating repeated strings with more than [" + MAX_REPEATED_LENGTH + "] bytes is not supported");
         }
 
-        int repeatedLen = str.length * number;
         byte[] repeated = new byte[repeatedLen];
         for (int offset = 0; offset < repeatedLen; offset += str.length) {
-            System.arraycopy(str.bytes, 0, repeated, offset, str.length);
+            System.arraycopy(str.bytes, str.offset, repeated, offset, str.length);
         }
-
         return new BytesRef(repeated);
     }
 
@@ -110,6 +122,12 @@ public class Repeat extends EsqlScalarFunction implements OptionalArgument {
     @Override
     public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
         ExpressionEvaluator.Factory strExpr = toEvaluator.apply(str);
+
+        if (number.foldable()) {
+            int num = (int) number.fold();
+            return new RepeatConstantEvaluator.Factory(source(), strExpr, num);
+        }
+
         ExpressionEvaluator.Factory numberExpr = toEvaluator.apply(number);
         return new RepeatEvaluator.Factory(source(), strExpr, numberExpr);
     }

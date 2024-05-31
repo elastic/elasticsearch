@@ -1425,11 +1425,29 @@ from employees
 | sort emp_no 
 | limit 4 
 | eval first_repeated = repeat(first_name, emp_no - 10001) 
-| keep emp_no, first_name, first_repeated
+| keep emp_no, first_name, first_repeated;
 
 emp_no:integer | first_name:keyword  | first_repeated:keyword
 10001 | Georgi    | ""
 10002 | Bezalel   | Bezalel   
 10003 | Parto     | PartoParto 
 10004 | Chirstian | ChirstianChirstianChirstian   
+;
+
+repeatStringNull
+required_capability: repeat 
+row n = 2 | eval repeated = repeat(null, n);
+
+n:integer | repeated:keyword
+2 | null
+;
+
+repeatNumberNull
+required_capability: repeat 
+row s = "cheese" | eval repeated = repeat(s, null);
+
+s:keyword | repeated:keyword
+cheese    | null
+;
+
 

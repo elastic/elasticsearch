@@ -1,4 +1,12 @@
-tests: []
+tests:
+  [
+    {
+        class: org.elasticsearch.xpack.ml.integration.MlDistributedFailureIT,
+        method: testFullClusterRestart,
+        issue: https://github.com/elastic/elasticsearch/issues/108757
+      }
+  ]
+
 # Examples:
 #
 #  Mute a single test case in a YAML test suite:

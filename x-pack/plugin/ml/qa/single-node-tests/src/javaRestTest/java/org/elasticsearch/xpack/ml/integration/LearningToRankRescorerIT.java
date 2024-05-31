@@ -251,24 +251,40 @@ public class LearningToRankRescorerIT extends InferenceTestCase {
         );
     }
 
+    public void testLearningToRankRescorerWithFieldCollapsing() throws IOException {
+        Request request = new Request("GET", "store/_search?size=3");
+        request.setJsonEntity("""
+            {
+             "collapse": {
+                "field": "product"
+              },
+              "rescore": {
+                "window_size": 5,
+                "learning_to_rank": { "model_id": "ltr-model" }
+              }
+            }""");
+
+        assertHitScores(client().performRequest(request), List.of(20.0, 9.0, 9.0));
+    }
+
     public void testLearningToRankRescorerWithChainedRescorers() throws IOException {
 
         String queryTemplate = """
             {
-                "rescore": [
+              "rescore": [
                 {
-                    "window_size": %d,
-                    "query": { "rescore_query" : { "script_score": { "query": { "match_all": {} }, "script": { "source": "return 4" } } } }
+                  "window_size": %d,
+                  "query": { "rescore_query" : { "script_score": { "query": { "match_all": {} }, "script": { "source": "return 4" } } } }
                 },
                 {
-                    "window_size": 5,
-                    "learning_to_rank": { "model_id": "ltr-model" }
+                  "window_size": 5,
+                  "learning_to_rank": { "model_id": "ltr-model" }
                 },
                 {
-                    "window_size": %d,
-                    "query": { "rescore_query": { "script_score": { "query": { "match_all": {} }, "script": { "source": "return 20"} } } }
-                }
-                  ]
+                  "window_size": %d,
+                  "query": { "rescore_query": { "script_score": { "query": { "match_all": {} }, "script": { "source": "return 20"} } } }
+                 }
+              ]
             }""";
 
         {

@@ -65,14 +65,21 @@ public abstract class RankFeaturePhaseRankCoordinatorContext {
             for (int i = 0; i < featureDocs.length; i++) {
                 featureDocs[i].score = scores[i];
             }
-            Arrays.sort(featureDocs, Comparator.comparing((RankFeatureDoc doc) -> doc.score).reversed());
-            RankFeatureDoc[] topResults = new RankFeatureDoc[Math.max(0, Math.min(size, featureDocs.length - from))];
-            for (int rank = 0; rank < topResults.length; ++rank) {
-                topResults[rank] = featureDocs[from + rank];
-                topResults[rank].rank = from + rank + 1;
-            }
-            listener.onResponse(topResults);
+            listener.onResponse(featureDocs);
         }));
+    }
+
+    /**
+     * Ranks the provided {@link RankFeatureDoc} array and paginates the results based on the `from` and `size` parameters.
+     */
+    public RankFeatureDoc[] rankAndPaginate(RankFeatureDoc[] rankFeatureDocs) {
+        Arrays.sort(rankFeatureDocs, Comparator.comparing((RankFeatureDoc doc) -> doc.score).reversed());
+        RankFeatureDoc[] topResults = new RankFeatureDoc[Math.max(0, Math.min(size, rankFeatureDocs.length - from))];
+        for (int rank = 0; rank < topResults.length; ++rank) {
+            topResults[rank] = rankFeatureDocs[from + rank];
+            topResults[rank].rank = from + rank + 1;
+        }
+        return topResults;
     }
 
     private RankFeatureDoc[] extractFeatureDocs(List<RankFeatureResult> rankSearchResults) {

@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
@@ -170,10 +171,14 @@ public class RankFeaturePhase extends SearchPhase {
         SearchPhaseController.ReducedQueryPhase reducedQueryPhase
     ) {
         assert rankFeaturePhaseRankCoordinatorContext != null;
-        ActionListener<RankFeatureDoc[]> rankResultListener = new ActionListener<>() {
+        ThreadedActionListener<RankFeatureDoc[]> rankResultListener = new ThreadedActionListener<>(context, new ActionListener<>() {
             @Override
-            public void onResponse(RankFeatureDoc[] scoreDocs) {
-                SearchPhaseController.ReducedQueryPhase reducedRankFeaturePhase = newReducedQueryPhaseResults(reducedQueryPhase, scoreDocs);
+            public void onResponse(RankFeatureDoc[] docsWithUpdatedScores) {
+                RankFeatureDoc[] topResults = rankFeaturePhaseRankCoordinatorContext.rankAndPaginate(docsWithUpdatedScores);
+                SearchPhaseController.ReducedQueryPhase reducedRankFeaturePhase = newReducedQueryPhaseResults(
+                    reducedQueryPhase,
+                    topResults
+                );
                 moveToNextPhase(rankPhaseResults, reducedRankFeaturePhase);
             }
 
@@ -181,7 +186,7 @@ public class RankFeaturePhase extends SearchPhase {
             public void onFailure(Exception e) {
                 context.onPhaseFailure(RankFeaturePhase.this, "Computing updated ranks for results failed", e);
             }
-        };
+        });
         rankFeaturePhaseRankCoordinatorContext.rankGlobalResults(
             rankPhaseResults.getAtomicArray().asList().stream().map(SearchPhaseResult::rankFeatureResult).toList(),
             rankResultListener

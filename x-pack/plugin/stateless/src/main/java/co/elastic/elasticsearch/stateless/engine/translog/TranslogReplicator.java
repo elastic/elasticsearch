@@ -22,6 +22,7 @@ import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.RetryableAction;
@@ -31,9 +32,7 @@ import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.health.ClusterShardHealth;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -46,7 +45,6 @@ import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
@@ -65,6 +63,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongConsumer;
 import java.util.function.ToLongFunction;
 
@@ -74,8 +73,6 @@ import static org.elasticsearch.core.TimeValue.timeValueMillis;
 public class TranslogReplicator extends AbstractLifecycleComponent {
 
     private static final Logger logger = LogManager.getLogger(TranslogReplicator.class);
-
-    private static final TimeValue FLUSH_CHECK_INTERVAL = TimeValue.timeValueMillis(50);
 
     public static final Setting<TimeValue> FLUSH_RETRY_INITIAL_DELAY_SETTING = Setting.timeSetting(
         "stateless.translog.flush.retry.initial_delay",
@@ -107,12 +104,12 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
     private final Executor executor;
     private final NodeSyncState nodeState = new NodeSyncState();
     private final ConcurrentHashMap<ShardId, ShardSyncState> shardSyncStates = new ConcurrentHashMap<>();
+    private final AtomicReference<NodeTranslogBuffer> currentBuffer = new AtomicReference<>();
     private final Object generateFlushLock = new Object();
-    private final AtomicLong lastFlushTime;
     private final AtomicBoolean isOpen = new AtomicBoolean(true);
     private final TimeValue flushRetryInitialDelay;
     private final TimeValue flushInterval;
-    private final ByteSizeValue flushSize;
+    private final ByteSizeValue flushSizeThreshold;
 
     public TranslogReplicator(
         final ThreadPool threadPool,
@@ -141,10 +138,9 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
         this.objectStoreService = objectStoreService;
         this.flushRetryInitialDelay = FLUSH_RETRY_INITIAL_DELAY_SETTING.get(settings);
         this.flushInterval = FLUSH_INTERVAL_SETTING.get(settings);
-        this.flushSize = FLUSH_SIZE_SETTING.get(settings);
+        this.flushSizeThreshold = FLUSH_SIZE_SETTING.get(settings);
         this.consistencyService = consistencyService;
         this.currentPrimaryTerm = currentPrimaryTerm;
-        this.lastFlushTime = new AtomicLong(getCurrentTimeMillis());
     }
 
     public void setBigArrays(BigArrays bigArrays) {
@@ -179,41 +175,85 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
     }
 
     @Override
-    protected void doStart() {
-        threadPool.scheduleWithFixedDelay(new AbstractRunnable() {
-            @Override
-            protected void doRun() throws IOException {
-                if (isFlushIntervalReached() || isFlushSizeReached()) {
-                    UploadTranslogTask uploadTask = createCompoundTranslogSync();
-                    if (uploadTask != null) {
-                        uploadTask.run();
+    protected void doStart() {}
+
+    private class ScheduleFlush extends AbstractRunnable {
+
+        private final NodeTranslogBuffer buffer;
+
+        private ScheduleFlush(NodeTranslogBuffer buffer) {
+            this.buffer = buffer;
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            logger.error("Unexpected exception when running schedule flush task", e);
+            assert false;
+        }
+
+        @Override
+        public void onRejection(Exception e) {
+            if (e instanceof EsRejectedExecutionException esre && esre.isExecutorShutdown()) {
+                logger.debug("translog flush task rejected due to shutdown");
+            } else {
+                onFailure(e);
+            }
+        }
+
+        @Override
+        protected void doRun() {
+            if (buffer.markMinimumIntervalExhausted()) {
+                executor.execute(new FlushTask(buffer));
+            }
+        }
+    }
+
+    private class FlushTask extends AbstractRunnable {
+
+        private final NodeTranslogBuffer buffer;
+
+        private FlushTask(NodeTranslogBuffer buffer) {
+            this.buffer = buffer;
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            if (e instanceof AlreadyClosedException == false) {
+                logger.error("Unexpected exception when running translog flush task", e);
+                assert false;
+            }
+        }
+
+        @Override
+        public void onRejection(Exception e) {
+            if (e instanceof EsRejectedExecutionException esre && esre.isExecutorShutdown()) {
+                logger.debug("translog flush task rejected due to shutdown");
+            } else {
+                onFailure(e);
+            }
+        }
+
+        @Override
+        protected void doRun() throws Exception {
+            UploadTranslogTask uploadTask = null;
+            synchronized (generateFlushLock) {
+                if (currentBuffer.compareAndSet(buffer, null)) {
+                    long generation = nodeState.compoundTranslogGeneration.get();
+                    CompoundTranslog translog = buffer.complete(generation, shardSyncStates.values());
+                    if (translog != null) {
+                        long beforeIncrement = nodeState.compoundTranslogGeneration.getAndIncrement();
+                        assert beforeIncrement == generation;
+                        uploadTask = createUploadTask(translog);
                     }
-                }
-            }
-
-            private boolean isFlushIntervalReached() {
-                return lastFlushTime.get() + flushInterval.millis() <= getCurrentTimeMillis();
-            }
-
-            private boolean isFlushSizeReached() {
-                return getCurrentBufferSize() >= flushSize.getBytes();
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                logger.error("unexpected exception when running translog replication task", e);
-                assert false : e;
-            }
-
-            @Override
-            public void onRejection(Exception e) {
-                if (e instanceof EsRejectedExecutionException esre && esre.isExecutorShutdown()) {
-                    logger.debug("translog replication task rejected due to shutdown");
                 } else {
-                    onFailure(e);
+                    // The only thing that can steal the current buffer from this task is a close
+                    assert isOpen.get() == false;
                 }
             }
-        }, FLUSH_CHECK_INTERVAL, executor);
+            if (uploadTask != null) {
+                uploadTask.run();
+            }
+        }
     }
 
     @Override
@@ -224,6 +264,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
         isOpen.set(false);
         nodeState.close();
         shardSyncStates.values().forEach(ShardSyncState::close);
+        Releasables.close(currentBuffer.getAndSet(null));
     }
 
     public void register(ShardId shardId, long primaryTerm, LongConsumer persistedSeqNoConsumer) {
@@ -235,8 +276,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
                 primaryTerm,
                 () -> currentPrimaryTerm.applyAsLong(shardId),
                 persistedSeqNoConsumer,
-                threadPool.getThreadContext(),
-                bigArrays
+                threadPool.getThreadContext()
             )
         );
         assert previous == null;
@@ -252,13 +292,40 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
     public void add(final ShardId shardId, final BytesReference data, final long seqNo, final Translog.Location location) {
         try {
             ShardSyncState shardSyncState = getShardSyncStateSafe(shardId);
-            shardSyncState.writeToBuffer(data, seqNo, location);
+            while (true) {
+                NodeTranslogBuffer nodeTranslogBuffer = getNodeTranslogBuffer();
+                if (nodeTranslogBuffer.writeToBuffer(shardSyncState, data, seqNo, location)) {
+                    if (nodeTranslogBuffer.shouldFlushBufferDueToSize()) {
+                        executor.execute(new FlushTask(nodeTranslogBuffer));
+                    }
+                    break;
+                } else {
+                    assert nodeTranslogBuffer != currentBuffer.get();
+                }
+            }
         } catch (IOException e) {
             // TODO: IOException is required by the interface of BytesReference#write. However, it should never throw. If it were to throw,
             // this exception would propogate to the TranslogWriter and I think fail the engine. However, we should discuss whether this is
             // enough protection.
             assert false;
             throw new UncheckedIOException(e);
+        }
+    }
+
+    private NodeTranslogBuffer getNodeTranslogBuffer() {
+        while (true) {
+            NodeTranslogBuffer current = currentBuffer.get();
+            if (current != null) {
+                return current;
+            } else if (isOpen.get() == false) {
+                // Do not set a new translog buffer if we are closed.
+                throw new AlreadyClosedException("Translog replicator has been closed");
+            }
+            NodeTranslogBuffer proposedBuffer = new NodeTranslogBuffer(bigArrays, flushSizeThreshold.getBytes());
+            if (currentBuffer.compareAndSet(null, proposedBuffer)) {
+                threadPool.schedule(new ScheduleFlush(proposedBuffer), flushInterval, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+                return proposedBuffer;
+            }
         }
     }
 
@@ -269,12 +336,28 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
 
     public void sync(final ShardId shardId, Translog.Location location, ActionListener<Void> listener) {
         ShardSyncState shardSyncState = getShardSyncStateSafe(shardId);
-        shardSyncState.ensureSynced(new Translog.Location(location.generation, location.translogLocation + location.size, 0), listener);
+        boolean completed = shardSyncState.ensureSynced(
+            new Translog.Location(location.generation, location.translogLocation + location.size, 0),
+            listener
+        );
+        if (completed == false) {
+            requestSyncFlush();
+        }
     }
 
     public void syncAll(final ShardId shardId, ActionListener<Void> listener) {
         ShardSyncState shardSyncState = getShardSyncStateSafe(shardId);
-        shardSyncState.waitForAllSynced(listener);
+        boolean completed = shardSyncState.waitForAllSynced(listener);
+        if (completed == false) {
+            requestSyncFlush();
+        }
+    }
+
+    private void requestSyncFlush() {
+        NodeTranslogBuffer buffer = currentBuffer.get();
+        if (buffer != null && buffer.markSyncRequested()) {
+            executor.execute(new FlushTask(buffer));
+        }
     }
 
     private ShardSyncState getShardSyncStateSafe(ShardId shardId) {
@@ -285,72 +368,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
         return shardSyncState;
     }
 
-    private long getCurrentTimeMillis() {
-        return threadPool.rawRelativeTimeInMillis();
-    }
-
-    private long getCurrentBufferSize() {
-        long size = 0;
-        for (ShardSyncState state : shardSyncStates.values()) {
-            size += state.currentBufferSize();
-        }
-        return size;
-    }
-
-    private UploadTranslogTask createCompoundTranslogSync() throws IOException {
-        synchronized (generateFlushLock) {
-            long fileName = nodeState.compoundTranslogGeneration.get();
-            lastFlushTime.set(getCurrentTimeMillis());
-            var metadata = new HashMap<ShardId, TranslogMetadata>();
-            var syncedLocations = new HashMap<ShardId, ShardSyncState.SyncMarker>();
-
-            var compoundTranslogStream = new ReleasableBytesStreamOutput(bigArrays);
-            var headerStream = new ReleasableBytesStreamOutput(bigArrays);
-
-            boolean dataToSync = false;
-            for (var entry : shardSyncStates.entrySet()) {
-                ShardId shardId = entry.getKey();
-                ShardSyncState state = entry.getValue();
-                ShardSyncState.SyncState syncState = state.pollSync(fileName);
-
-                long position = compoundTranslogStream.position();
-                if (syncState.buffer() != null) {
-                    dataToSync = true;
-                    ShardSyncState.BufferState buffer = syncState.buffer();
-                    buffer.data().bytes().writeTo(compoundTranslogStream);
-                    metadata.put(shardId, syncState.metadata(position, compoundTranslogStream.position() - position));
-                    syncedLocations.put(shardId, buffer.syncMarker());
-                    buffer.close();
-                } else {
-                    metadata.put(shardId, syncState.metadata(position, compoundTranslogStream.position() - position));
-                }
-            }
-
-            if (dataToSync == false) {
-                Releasables.close(headerStream, compoundTranslogStream);
-                return null;
-            }
-
-            // Write the header to the stream
-            new CompoundTranslogHeader(metadata).writeToStore(headerStream);
-
-            long beforeIncrement = nodeState.compoundTranslogGeneration.getAndIncrement();
-            assert beforeIncrement == fileName;
-            CompoundTranslogBytes compoundTranslogBytes = new CompoundTranslogBytes(
-                CompositeBytesReference.of(headerStream.bytes(), compoundTranslogStream.bytes()),
-                () -> Releasables.close(headerStream, compoundTranslogStream)
-            );
-            CompoundTranslogMetadata compoundMetadata = new CompoundTranslogMetadata(
-                Strings.format("%019d", fileName),
-                fileName,
-                metadata,
-                syncedLocations
-            );
-            return createUploadTask(new CompoundTranslog(compoundMetadata, compoundTranslogBytes));
-        }
-    }
-
-    private class UploadTranslogTask extends RetryableAction<UploadTranslogTask> implements Comparable<UploadTranslogTask> {
+    public class UploadTranslogTask extends RetryableAction<UploadTranslogTask> implements Comparable<UploadTranslogTask> {
 
         private final CompoundTranslog translog;
         private final RefCounted bytesToClose;
@@ -459,16 +477,16 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
 
     }
 
-    private record CompoundTranslog(CompoundTranslogMetadata metadata, CompoundTranslogBytes bytes) {}
+    public record CompoundTranslog(CompoundTranslogMetadata metadata, CompoundTranslogBytes bytes) {}
 
-    private record CompoundTranslogMetadata(
+    public record CompoundTranslogMetadata(
         String name,
         long generation,
         HashMap<ShardId, TranslogMetadata> checkpoints,
         Map<ShardId, ShardSyncState.SyncMarker> syncedLocations
     ) {}
 
-    private record CompoundTranslogBytes(BytesReference data, Releasable onComplete) implements Releasable {
+    public record CompoundTranslogBytes(BytesReference data, Releasable onComplete) implements Releasable {
 
         @Override
         public void close() {

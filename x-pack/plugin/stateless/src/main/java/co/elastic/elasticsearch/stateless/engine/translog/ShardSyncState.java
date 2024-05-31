@@ -22,10 +22,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
@@ -46,17 +44,12 @@ class ShardSyncState {
     private final LongSupplier currentPrimaryTerm;
     private final LongConsumer persistedSeqNoConsumer;
     private final ThreadContext threadContext;
-    private final BigArrays bigArrays;
     private final PriorityQueue<SyncListener> listeners = new PriorityQueue<>();
     private final TreeMap<Long, TranslogReplicator.BlobTranslogFile> translogFiles = new TreeMap<>();
     private long markedTranslogStartFile = -1;
     private long markedTranslogDeleteGeneration = -1;
     private volatile Translog.Location processedLocation = new Translog.Location(0, 0, 0);
     private volatile Translog.Location syncedLocation = new Translog.Location(0, 0, 0);
-    private final Object bufferLock = new Object();
-    // This resets to 0 after a recovery. However, this is fine because we will always force a flush prior to startig new indexing
-    // operations meaning that the translog start file will be marked.
-    private BufferState bufferState = null;
     private volatile boolean isClosed = false;
 
     ShardSyncState(
@@ -64,15 +57,21 @@ class ShardSyncState {
         long primaryTerm,
         LongSupplier currentPrimaryTerm,
         LongConsumer persistedSeqNoConsumer,
-        ThreadContext threadContext,
-        BigArrays bigArrays
+        ThreadContext threadContext
     ) {
         this.shardId = shardId;
         this.startingPrimaryTerm = primaryTerm;
         this.currentPrimaryTerm = currentPrimaryTerm;
         this.persistedSeqNoConsumer = persistedSeqNoConsumer;
         this.threadContext = threadContext;
-        this.bigArrays = bigArrays;
+    }
+
+    public ShardId getShardId() {
+        return shardId;
+    }
+
+    public long getStartingPrimaryTerm() {
+        return startingPrimaryTerm;
     }
 
     static AlreadyClosedException alreadyClosedException(ShardId shardId) {
@@ -83,21 +82,23 @@ class ShardSyncState {
         return processedLocation.compareTo(syncedLocation) > 0;
     }
 
-    void waitForAllSynced(ActionListener<Void> listener) {
+    boolean waitForAllSynced(ActionListener<Void> listener) {
         // Single volatile read
         Translog.Location processedLocationCopy = processedLocation;
         if (processedLocationCopy.compareTo(syncedLocation) > 0) {
-            ensureSynced(processedLocationCopy, listener);
+            return ensureSynced(processedLocationCopy, listener);
         } else {
             if (isClosed) {
                 listener.onFailure(alreadyClosedException(shardId));
             } else {
                 listener.onResponse(null);
             }
+            return true;
         }
     }
 
-    void ensureSynced(Translog.Location location, ActionListener<Void> listener) {
+    boolean ensureSynced(Translog.Location location, ActionListener<Void> listener) {
+        assert location.compareTo(processedLocation) <= 0;
         boolean completeListener = true;
         boolean alreadyClosed = false;
         if (location.compareTo(syncedLocation) > 0) {
@@ -119,6 +120,9 @@ class ShardSyncState {
             } else {
                 listener.onResponse(null);
             }
+            return true;
+        } else {
+            return false;
         }
     }
 
@@ -207,36 +211,14 @@ class ShardSyncState {
         ActionListener.onResponse(toComplete, null);
     }
 
-    public void writeToBuffer(BytesReference data, long seqNo, Translog.Location location) throws IOException {
-        synchronized (bufferLock) {
-            if (isClosed) {
-                throw alreadyClosedException(shardId);
-            }
-            Translog.Location newProcessedLocation = new Translog.Location(
-                location.generation,
-                location.translogLocation + location.size,
-                0
-            );
-            assert newProcessedLocation.compareTo(processedLocation) > 0;
-            processedLocation = newProcessedLocation;
-            if (bufferState == null) {
-                bufferState = new BufferState(new ReleasableBytesStreamOutput(bigArrays));
-            } else {
-                assert location.compareTo(bufferState.location) >= 0;
-            }
-            bufferState.append(data, seqNo, location);
-        }
+    public void updateProcessedLocation(Translog.Location newProcessedLocation) {
+        assert newProcessedLocation.compareTo(processedLocation) > 0;
+        processedLocation = newProcessedLocation;
     }
 
-    public long currentBufferSize() {
-        synchronized (bufferLock) {
-            return bufferState != null ? bufferState.data.size() : 0L;
-        }
-    }
-
-    public SyncState pollSync(long generation) {
+    public TranslogMetadata.Directory createDirectory(long generation, long currentOperations) {
         final int[] referencedTranslogFileOffsets;
-        long estimatedOps = 0;
+        long estimatedOps = currentOperations;
         synchronized (translogFiles) {
             referencedTranslogFileOffsets = new int[translogFiles.size()];
             int i = 0;
@@ -247,12 +229,12 @@ class ShardSyncState {
                 ++i;
             }
         }
-        synchronized (bufferLock) {
-            BufferState toReturn = bufferState;
-            bufferState = null;
-            estimatedOps += toReturn != null ? toReturn.totalOps() : 0;
-            return new SyncState(estimatedOps, referencedTranslogFileOffsets, toReturn);
-        }
+
+        return new TranslogMetadata.Directory(estimatedOps, referencedTranslogFileOffsets);
+    }
+
+    public boolean isClosed() {
+        return isClosed;
     }
 
     public void close() {
@@ -264,10 +246,6 @@ class ShardSyncState {
         synchronized (listeners) {
             toComplete = new ArrayList<>(listeners);
             listeners.clear();
-        }
-        synchronized (bufferLock) {
-            Releasables.close(bufferState);
-            bufferState = null;
         }
 
         // The relocation hand-off forces a flush while holding the operation permits to a clean relocation should fully release the files
@@ -297,34 +275,9 @@ class ShardSyncState {
         }
     }
 
-    record SyncState(long estimatedOps, int[] referencedTranslogFileOffsets, BufferState buffer) {
+    public static class BufferState implements Releasable {
 
-        TranslogMetadata metadata(long position, long size) {
-            if (size == 0) {
-                assert buffer == null;
-                return new TranslogMetadata(
-                    position,
-                    0,
-                    SequenceNumbers.NO_OPS_PERFORMED,
-                    SequenceNumbers.NO_OPS_PERFORMED,
-                    0,
-                    new TranslogMetadata.Directory(estimatedOps, referencedTranslogFileOffsets)
-                );
-            } else {
-                return new TranslogMetadata(
-                    position,
-                    size,
-                    buffer.minSeqNo(),
-                    buffer.maxSeqNo(),
-                    buffer.totalOps(),
-                    new TranslogMetadata.Directory(estimatedOps, referencedTranslogFileOffsets)
-                );
-            }
-        }
-    }
-
-    class BufferState implements Releasable {
-
+        private final long primaryTerm;
         private final ReleasableBytesStreamOutput data;
         private final ArrayList<Long> seqNos;
         private long minSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
@@ -333,7 +286,8 @@ class ShardSyncState {
 
         private Translog.Location location;
 
-        private BufferState(ReleasableBytesStreamOutput data) {
+        BufferState(long primaryTerm, ReleasableBytesStreamOutput data) {
+            this.primaryTerm = primaryTerm;
             this.data = data;
             this.seqNos = new ArrayList<>();
         }
@@ -368,7 +322,7 @@ class ShardSyncState {
         }
 
         public SyncMarker syncMarker() {
-            return new SyncMarker(startingPrimaryTerm, syncLocation(), seqNos);
+            return new SyncMarker(primaryTerm, syncLocation(), seqNos);
         }
 
         @Override
@@ -379,9 +333,4 @@ class ShardSyncState {
 
     record SyncMarker(long primaryTerm, Translog.Location location, List<Long> syncedSeqNos) {}
 
-    private enum State {
-        OPEN,
-        CLOSED,
-        CLOSED_NODE_STOPPING
-    }
 }

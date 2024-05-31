@@ -36,6 +36,7 @@ public final class CommonStatsFlags implements Writeable, Cloneable {
     private String[] completionDataFields = null;
     private boolean includeSegmentFileSizes = false;
     private boolean includeUnloadedSegments = false;
+    private boolean includeIgnoredFieldsStats = false;
 
     /**
      * @param flags flags to set. If no flags are supplied, default flags will be set.
@@ -63,6 +64,11 @@ public final class CommonStatsFlags implements Writeable, Cloneable {
         completionDataFields = in.readStringArray();
         includeSegmentFileSizes = in.readBoolean();
         includeUnloadedSegments = in.readBoolean();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.IGNORED_FIELDS_STATS)) {
+            includeIgnoredFieldsStats = in.readBoolean();
+        } else {
+            includeIgnoredFieldsStats = false;
+        }
     }
 
     @Override
@@ -81,6 +87,9 @@ public final class CommonStatsFlags implements Writeable, Cloneable {
         out.writeStringArrayNullable(completionDataFields);
         out.writeBoolean(includeSegmentFileSizes);
         out.writeBoolean(includeUnloadedSegments);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.IGNORED_FIELDS_STATS)) {
+            out.writeBoolean(includeIgnoredFieldsStats);
+        }
     }
 
     /**
@@ -93,6 +102,7 @@ public final class CommonStatsFlags implements Writeable, Cloneable {
         completionDataFields = null;
         includeSegmentFileSizes = false;
         includeUnloadedSegments = false;
+        includeIgnoredFieldsStats = false;
         return this;
     }
 
@@ -106,6 +116,7 @@ public final class CommonStatsFlags implements Writeable, Cloneable {
         completionDataFields = null;
         includeSegmentFileSizes = false;
         includeUnloadedSegments = false;
+        includeIgnoredFieldsStats = false;
         return this;
     }
 
@@ -162,12 +173,21 @@ public final class CommonStatsFlags implements Writeable, Cloneable {
         return this;
     }
 
+    public CommonStatsFlags includeIgnoredFieldsStats(boolean includeIgnoredFieldsStats) {
+        this.includeIgnoredFieldsStats = includeIgnoredFieldsStats;
+        return this;
+    }
+
     public boolean includeUnloadedSegments() {
         return this.includeUnloadedSegments;
     }
 
     public boolean includeSegmentFileSizes() {
         return this.includeSegmentFileSizes;
+    }
+
+    public boolean includeIgnoredFieldsStats() {
+        return this.includeIgnoredFieldsStats;
     }
 
     public boolean isSet(Flag flag) {

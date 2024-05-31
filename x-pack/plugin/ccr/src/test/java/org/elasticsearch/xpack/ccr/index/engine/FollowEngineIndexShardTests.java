@@ -104,7 +104,7 @@ public class FollowEngineIndexShardTests extends IndexShardTestCase {
         latch.await();
         assertThat(indexShard.getLocalCheckpoint(), equalTo(seqNoBeforeGap));
         indexShard.refresh("test");
-        assertThat(indexShard.docStats().getCount(), equalTo(9L));
+        assertThat(indexShard.docStats(false).getCount(), equalTo(9L));
         closeShards(indexShard);
     }
 

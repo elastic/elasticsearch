@@ -158,7 +158,7 @@ public class CommonStats implements Writeable, ToXContentFragment {
         for (CommonStatsFlags.Flag flag : filteredFlags.getFlags()) {
             try {
                 switch (flag) {
-                    case Docs -> stats.docs = indexShard.docStats();
+                    case Docs -> stats.docs = indexShard.docStats(flags.includeIgnoredFieldsStats());
                     case Store -> stats.store = indexShard.storeStats();
                     case Indexing -> stats.indexing = indexShard.indexingStats();
                     case Get -> stats.get = indexShard.getStats();

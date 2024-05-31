@@ -1,13 +1,4 @@
----
-"indices stats including documents with ignored fields":
-  - requires:
-      test_runner_features: [ capabilities ]
-      capabilities:
-        - method: GET
-          path: /{index}/_stats
-          capabilities: [ ignored_field_doc_stats_counter ]
-      reason: "Counting docs with ignored fields required"
-
+setup:
   - do:
       indices.create:
         index: test1
@@ -96,10 +87,20 @@
           - { "index": { "_id": "005" } }
           - { "email": "joe.tan@foobar.com", "date_of_birth": "04-05-1992", "ip_address": "123.77.18.488" }
 
+---
+"ignored fields stats with docs metric":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: GET
+          path: /{index}/_stats
+          capabilities: [ ignored_field_doc_stats_counter ]
+      reason: "Counting docs with ignored fields required"
+
   - do:
       indices.stats:
-        index: test*
-        metric: docs
+        metric: [ docs ]
+        include_ignored_fields: true
 
   - match: { _all.primaries.docs.count: 4 }
   - match: { _all.primaries.docs.docs_with_ignored_fields: 2 }
@@ -124,8 +125,96 @@
 
   # Not refreshed
   - match: { indices.test3.primaries.docs.count: 0 }
-  - match: { indices.test3.primaries.docs.docs_with_ignored_fields: 0 }
-  - match: { indices.test3.primaries.docs.sum_doc_freq_terms_ignored_field: 0 }
+  - match: { indices.test3.primaries.docs.docs_with_ignored_fields: null }
+  - match: { indices.test3.primaries.docs.sum_doc_freq_terms_ignored_field: null }
   - match: { indices.test3.total.docs.count: 0 }
-  - match: { indices.test3.total.docs.docs_with_ignored_fields: 0 }
-  - match: { indices.test3.total.docs.sum_doc_freq_terms_ignored_field: 0 }
+  - match: { indices.test3.total.docs.docs_with_ignored_fields: null }
+  - match: { indices.test3.total.docs.sum_doc_freq_terms_ignored_field: null }
+
+---
+"ignored fields stats with docs metric default":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: GET
+          path: /{index}/_stats
+          capabilities: [ ignored_field_doc_stats_counter ]
+      reason: "Counting docs with ignored fields required"
+
+  - do:
+      indices.stats:
+        metric: docs
+
+  - match: { _all.primaries.docs.count: 4 }
+  - match: { _all.primaries.docs.docs_with_ignored_fields: null }
+  - match: { _all.primaries.docs.sum_doc_freq_terms_ignored_field: null }
+  - match: { _all.total.docs.count: 4 }
+  - match: { _all.total.docs.docs_with_ignored_fields: null }
+  - match: { _all.total.docs.sum_doc_freq_terms_ignored_field: null }
+
+  - match: { indices.test1.primaries.docs.count: 2 }
+  - match: { indices.test1.primaries.docs.docs_with_ignored_fields: null }
+  - match: { indices.test1.primaries.docs.sum_doc_freq_terms_ignored_field: null }
+  - match: { indices.test1.total.docs.count: 2 }
+  - match: { indices.test1.total.docs.docs_with_ignored_fields: null }
+  - match: { indices.test1.total.docs.sum_doc_freq_terms_ignored_field: null }
+
+  - match: { indices.test2.primaries.docs.count: 2 }
+  - match: { indices.test2.primaries.docs.docs_with_ignored_fields: null }
+  - match: { indices.test2.primaries.docs.sum_doc_freq_terms_ignored_field: null }
+  - match: { indices.test2.total.docs.count: 2 }
+  - match: { indices.test2.total.docs.docs_with_ignored_fields: null }
+  - match: { indices.test2.total.docs.sum_doc_freq_terms_ignored_field: null }
+
+  # Not refreshed
+  - match: { indices.test3.primaries.docs.count: 0 }
+  - match: { indices.test3.primaries.docs.docs_with_ignored_fields: null }
+  - match: { indices.test3.primaries.docs.sum_doc_freq_terms_ignored_field: null }
+  - match: { indices.test3.total.docs.count: 0 }
+  - match: { indices.test3.total.docs.docs_with_ignored_fields: null }
+  - match: { indices.test3.total.docs.sum_doc_freq_terms_ignored_field: null }
+
+---
+"ignored fields stats with docs metric with all metrics":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: GET
+          path: /{index}/_stats
+          capabilities: [ ignored_field_doc_stats_counter ]
+      reason: "Counting docs with ignored fields required"
+
+  - do:
+      indices.stats:
+        index: test*
+        metric: _all
+
+  - match: { _all.primaries.docs.count: 4 }
+  - match: { _all.primaries.docs.docs_with_ignored_fields: null }
+  - match: { _all.primaries.docs.sum_doc_freq_terms_ignored_field: null }
+  - match: { _all.total.docs.count: 4 }
+  - match: { _all.total.docs.docs_with_ignored_fields: null }
+  - match: { _all.total.docs.sum_doc_freq_terms_ignored_field: null }
+
+  - match: { indices.test1.primaries.docs.count: 2 }
+  - match: { indices.test1.primaries.docs.docs_with_ignored_fields: null }
+  - match: { indices.test1.primaries.docs.sum_doc_freq_terms_ignored_field: null }
+  - match: { indices.test1.total.docs.count: 2 }
+  - match: { indices.test1.total.docs.docs_with_ignored_fields: null }
+  - match: { indices.test1.total.docs.sum_doc_freq_terms_ignored_field: null }
+
+  - match: { indices.test2.primaries.docs.count: 2 }
+  - match: { indices.test2.primaries.docs.docs_with_ignored_fields: null }
+  - match: { indices.test2.primaries.docs.sum_doc_freq_terms_ignored_field: null }
+  - match: { indices.test2.total.docs.count: 2 }
+  - match: { indices.test2.total.docs.docs_with_ignored_fields: null }
+  - match: { indices.test2.total.docs.sum_doc_freq_terms_ignored_field: null }
+
+  # Not refreshed
+  - match: { indices.test3.primaries.docs.count: 0 }
+  - match: { indices.test3.primaries.docs.docs_with_ignored_fields: null }
+  - match: { indices.test3.primaries.docs.sum_doc_freq_terms_ignored_field: null }
+  - match: { indices.test3.total.docs.count: 0 }
+  - match: { indices.test3.total.docs.docs_with_ignored_fields: null }
+  - match: { indices.test3.total.docs.sum_doc_freq_terms_ignored_field: null }
+

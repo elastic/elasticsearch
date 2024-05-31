@@ -132,6 +132,11 @@
         "description":"If set to true segment stats will include stats for segments that are not currently loaded into memory",
         "default":false
       },
+      "include_ignored_fields":{
+        "type":"boolean",
+        "description":"If set to true docs with include statistics about ignored fields",
+        "default":false
+      },
       "expand_wildcards":{
         "type":"enum",
         "options":[

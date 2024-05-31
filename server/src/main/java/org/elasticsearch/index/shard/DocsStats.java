@@ -24,8 +24,8 @@ public class DocsStats implements Writeable, ToXContentFragment {
     private long count = 0;
     private long deleted = 0;
     private long totalSizeInBytes = 0;
-    private long docsWithIgnoredFields = 0;
-    private long ignoredFieldTermsSumDocFreq = 0;
+    private long docsWithIgnoredFields = -1;
+    private long ignoredFieldTermsSumDocFreq = -1;
 
     public DocsStats() {
 
@@ -35,12 +35,9 @@ public class DocsStats implements Writeable, ToXContentFragment {
         count = in.readVLong();
         deleted = in.readVLong();
         totalSizeInBytes = in.readVLong();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.IGNORED_FIELD_DOC_STATS_COUNTER)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.IGNORED_FIELDS_STATS)) {
             docsWithIgnoredFields = in.readVLong();
             ignoredFieldTermsSumDocFreq = in.readVLong();
-        } else {
-            docsWithIgnoredFields = 0;
-            ignoredFieldTermsSumDocFreq = 0;
         }
     }
 
@@ -63,8 +60,16 @@ public class DocsStats implements Writeable, ToXContentFragment {
         }
         this.count += other.count;
         this.deleted += other.deleted;
-        this.docsWithIgnoredFields += other.docsWithIgnoredFields;
-        this.ignoredFieldTermsSumDocFreq += other.ignoredFieldTermsSumDocFreq;
+        if (this.docsWithIgnoredFields == -1) {
+            this.docsWithIgnoredFields = other.docsWithIgnoredFields;
+        } else if (other.docsWithIgnoredFields != -1) {
+            this.docsWithIgnoredFields += other.docsWithIgnoredFields;
+        }
+        if (this.ignoredFieldTermsSumDocFreq == -1) {
+            this.ignoredFieldTermsSumDocFreq = other.ignoredFieldTermsSumDocFreq;
+        } else if (other.ignoredFieldTermsSumDocFreq != -1) {
+            this.ignoredFieldTermsSumDocFreq += other.ignoredFieldTermsSumDocFreq;
+        }
     }
 
     public long getCount() {
@@ -83,18 +88,10 @@ public class DocsStats implements Writeable, ToXContentFragment {
         return totalSizeInBytes;
     }
 
-    /**
-     * Returns the total number of documents including at least one ignored field.
-     * This value only reflects documents already flushed to Lucene segments.
-     */
     public long getDocsWithIgnoredFields() {
         return docsWithIgnoredFields;
     }
 
-    /**
-     * Returns the sum of frequency of terms for the _ignored field.
-     * This value only reflects documents already flushed to Lucene segments.
-     */
     public long getIgnoredFieldTermsSumDocFreq() {
         return ignoredFieldTermsSumDocFreq;
     }
@@ -104,7 +101,7 @@ public class DocsStats implements Writeable, ToXContentFragment {
         out.writeVLong(count);
         out.writeVLong(deleted);
         out.writeVLong(totalSizeInBytes);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.IGNORED_FIELD_DOC_STATS_COUNTER)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.IGNORED_FIELDS_STATS)) {
             out.writeVLong(docsWithIgnoredFields);
             out.writeVLong(ignoredFieldTermsSumDocFreq);
         }
@@ -116,8 +113,12 @@ public class DocsStats implements Writeable, ToXContentFragment {
         builder.field(Fields.COUNT, count);
         builder.field(Fields.DELETED, deleted);
         builder.field(Fields.TOTAL_SIZE_IN_BYTES, totalSizeInBytes);
-        builder.field(Fields.DOCS_WITH_IGNORED_FIELDS, docsWithIgnoredFields);
-        builder.field(Fields.IGNORED_FIELD_TERMS_SUM_DOC_FREQ, ignoredFieldTermsSumDocFreq);
+        if (docsWithIgnoredFields != -1) {
+            builder.field(Fields.DOCS_WITH_IGNORED_FIELDS, docsWithIgnoredFields);
+        }
+        if (ignoredFieldTermsSumDocFreq != -1) {
+            builder.field(Fields.SUM_DOC_FREQ_TERMS_IGNORED_FIELD, ignoredFieldTermsSumDocFreq);
+        }
         builder.endObject();
         return builder;
     }
@@ -145,6 +146,6 @@ public class DocsStats implements Writeable, ToXContentFragment {
         static final String DELETED = "deleted";
         static final String TOTAL_SIZE_IN_BYTES = "total_size_in_bytes";
         static final String DOCS_WITH_IGNORED_FIELDS = "docs_with_ignored_fields";
-        static final String IGNORED_FIELD_TERMS_SUM_DOC_FREQ = "sum_doc_freq_terms_ignored_field";
+        static final String SUM_DOC_FREQ_TERMS_IGNORED_FIELD = "sum_doc_freq_terms_ignored_field";
     }
 }

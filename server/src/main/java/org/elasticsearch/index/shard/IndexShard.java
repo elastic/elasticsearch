@@ -1326,9 +1326,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         );
     }
 
-    public DocsStats docStats() {
+    public DocsStats docStats(boolean includeIgnoredFieldsStats) {
         readAllowed();
-        return getEngine().docStats();
+        return getEngine().docStats(includeIgnoredFieldsStats);
     }
 
     /**

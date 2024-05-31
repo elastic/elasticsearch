@@ -135,7 +135,7 @@ public class NoOpEngineTests extends EngineTestCase {
             boolean includeFileSize = randomBoolean();
             final SegmentsStats expectedSegmentStats;
             try (InternalEngine engine = createEngine(config)) {
-                expectedDocStats = engine.docStats();
+                expectedDocStats = engine.docStats(false);
                 expectedSegmentStats = engine.segmentsStats(includeFileSize, true);
             }
 

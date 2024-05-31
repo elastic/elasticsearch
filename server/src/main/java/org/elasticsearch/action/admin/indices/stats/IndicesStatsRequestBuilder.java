@@ -159,4 +159,9 @@ public class IndicesStatsRequestBuilder extends BroadcastOperationRequestBuilder
         request.denseVector(denseVector);
         return this;
     }
+
+    public IndicesStatsRequestBuilder setIncludeIgnoredFieldsStats(boolean includeIgnoredFieldsStats) {
+        request.includeIgnoredFieldsStats(includeIgnoredFieldsStats);
+        return this;
+    }
 }

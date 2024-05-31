@@ -1011,7 +1011,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
     ) {
         assertEquals(response.getNumIndexed(), task.getNumIndexed());
         assertEquals(task.getNumReceived(), totalShardDocCount);
-        assertEquals(indexService.getShard(shardNum).docStats().getCount(), task.getTotalShardDocCount());
+        assertEquals(indexService.getShard(shardNum).docStats(false).getCount(), task.getTotalShardDocCount());
         assertEquals(100.0D * task.getNumReceived() / task.getTotalShardDocCount(), task.getDocsProcessedPercentage(), 0.001);
         assertTrue(task.getDownsampleBulkInfo().bulkTookSumMillis() >= 0);
         assertEquals(task.getDownsampleBulkInfo().bulkIngestSumMillis(), task.getDownsampleBulkInfo().maxBulkIngestMillis());

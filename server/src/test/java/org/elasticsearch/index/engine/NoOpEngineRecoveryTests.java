@@ -37,12 +37,12 @@ public class NoOpEngineRecoveryTests extends IndexShardTestCase {
         );
         recoverShardFromStore(primary);
         assertEquals(primary.seqNoStats().getMaxSeqNo(), primary.getMaxSeqNoOfUpdatesOrDeletes());
-        assertEquals(nbDocs, primary.docStats().getCount());
+        assertEquals(nbDocs, primary.docStats(false).getCount());
 
         IndexShard replica = newShard(false, Settings.EMPTY, NoOpEngine::new);
         recoverReplica(replica, primary, true);
         assertEquals(replica.seqNoStats().getMaxSeqNo(), replica.getMaxSeqNoOfUpdatesOrDeletes());
-        assertEquals(nbDocs, replica.docStats().getCount());
+        assertEquals(nbDocs, replica.docStats(false).getCount());
         closeShards(primary, replica);
     }
 }

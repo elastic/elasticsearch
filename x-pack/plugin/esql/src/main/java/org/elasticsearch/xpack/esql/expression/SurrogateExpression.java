@@ -12,7 +12,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunct
 
 /**
  * Interface signaling to the planner that the declaring expression
- * has to be replaced by a different form: e.g. .
+ * has to be replaced by a different form.
  * Implement this on {@link AggregateFunction}s when either:
  * <ul>
  *     <li>The aggregation doesn't have a "native" implementation and instead

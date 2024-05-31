@@ -1450,4 +1450,19 @@ s:keyword | repeated:keyword
 cheese    | null
 ;
 
+repeatBothArgsFromIndex
+required_capability: repeat 
+FROM employees 
+| EVAL first_name=REPEAT(first_name, languages) 
+| KEEP emp_no, languages, first_name
+| WHERE emp_no < 10005 
+| SORT emp_no;
+
+emp_no:integer | languages:integer | first_name:keyword
+10001 | 2 | GeorgiGeorgi
+10002 | 5 | BezalelBezalelBezalelBezalelBezalel
+10003 | 4 | PartoPartoPartoParto
+10004 | 5 | ChirstianChirstianChirstianChirstianChirstian
+;
+
 

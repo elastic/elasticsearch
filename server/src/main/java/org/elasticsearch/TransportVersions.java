@@ -182,7 +182,6 @@ public class TransportVersions {
     public static final TransportVersion WATCHER_REQUEST_TIMEOUTS = def(8_673_00_0);
     public static final TransportVersion ML_INFERENCE_GOOGLE_AI_STUDIO_EMBEDDINGS_ADDED = def(8_674_00_0);
 
-
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

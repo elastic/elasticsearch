@@ -1372,7 +1372,7 @@ public class TransportService extends AbstractLifecycleComponent
             // we used to fork to a different thread always to avoid stack overflows, but we avoid doing that now, expecting handlers
             // to handle that themselves instead.
             var executor = handler.executor();
-            if (executor == EsExecutors.DIRECT_EXECUTOR_SERVICE) {
+            if (executor == EsExecutors.DIRECT_EXECUTOR_SERVICE && enableStackOverflowAvoidance) {
                 executor = threadPool.generic();
             }
             if (executor == EsExecutors.DIRECT_EXECUTOR_SERVICE) {

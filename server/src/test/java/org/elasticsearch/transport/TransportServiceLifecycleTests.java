@@ -236,7 +236,7 @@ public class TransportServiceLifecycleTests extends ESTestCase {
         }
     }
 
-    public void testOnConnetionCloseStackOverflowAvoidance() {
+    public void testOnConnectionCloseStackOverflowAvoidance() {
         onConnectionClosedUsesHandlerExecutor(
             Settings.builder().put(TransportService.ENABLE_STACK_OVERFLOW_AVOIDANCE.getKey(), true).build(),
             Executors.DIRECT,

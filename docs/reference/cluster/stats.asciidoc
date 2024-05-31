@@ -1613,9 +1613,7 @@ The API returns the following response:
       "docs": {
          "count": 10,
          "deleted": 0,
-         "total_size_in_bytes": 8833,
-         "docs_with_ignored_fields": 0,
-         "sum_doc_freq_terms_ignored_field": 0
+         "total_size_in_bytes": 8833
       },
       "store": {
          "size": "16.2kb",

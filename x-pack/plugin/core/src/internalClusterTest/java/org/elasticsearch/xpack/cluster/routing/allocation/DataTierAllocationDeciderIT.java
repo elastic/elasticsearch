@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.cluster.routing.allocation;
 
+import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplanationUtils;
 import org.elasticsearch.action.admin.cluster.desirednodes.UpdateDesiredNodesAction;
 import org.elasticsearch.action.admin.cluster.desirednodes.UpdateDesiredNodesRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
@@ -541,7 +542,7 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
 
     private String explainAllocation(int shard) {
         return Strings.toString(
-            clusterAdmin().prepareAllocationExplain().setIndex(index).setShard(shard).setPrimary(true).get().getExplanation(),
+            ClusterAllocationExplanationUtils.getClusterAllocationExplanation(client(), index, shard, true),
             true,
             true
         );

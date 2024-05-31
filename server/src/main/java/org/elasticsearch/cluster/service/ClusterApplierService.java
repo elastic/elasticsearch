@@ -552,7 +552,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         for (ClusterStateApplier applier : clusterStateAppliers) {
             logger.trace("calling [{}] with change to version [{}]", applier, clusterChangedEvent.state().version());
             final String name = applier.toString();
-            TracerSpan.span(threadPool, tracer, "ClusterStateApplier:" + name, () -> {
+            TracerSpan.span(threadPool, tracer, "cluster-state-applier:" + name, () -> {
                 try (Releasable ignored = stopWatch.record(name)) {
                     applier.applyClusterState(clusterChangedEvent);
                 }
@@ -574,7 +574,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         for (ClusterStateListener listener : listeners) {
             logger.trace("calling [{}] with change to version [{}]", listener, clusterChangedEvent.state().version());
             final String name = listener.toString();
-            TracerSpan.span(threadPool, tracer, "ClusterStateListener:" + name, () -> {
+            TracerSpan.span(threadPool, tracer, "cluster-state-listener:" + name, () -> {
                 try (Releasable ignored = stopWatch.record(name)) {
                     listener.clusterChanged(clusterChangedEvent);
                 } catch (Exception ex) {

@@ -179,7 +179,8 @@ public class ClusterStateChanges {
             SETTINGS,
             clusterSettings,
             threadPool,
-            new TaskManager(SETTINGS, threadPool, Collections.emptySet())
+            new TaskManager(SETTINGS, threadPool, Collections.emptySet()),
+            Tracer.NOOP
         ) {
             @Override
             protected ExecutorService createThreadPoolExecutor() {

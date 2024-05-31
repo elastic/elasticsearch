@@ -50,6 +50,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
@@ -155,7 +156,8 @@ public class MasterServiceTests extends ESTestCase {
             settings,
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             threadPool,
-            taskManager
+            taskManager,
+            Tracer.NOOP
         ) {
             @Override
             protected ExecutorService createThreadPoolExecutor() {
@@ -1114,7 +1116,8 @@ public class MasterServiceTests extends ESTestCase {
                 settings,
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
                 threadPool,
-                new TaskManager(settings, threadPool, emptySet())
+                new TaskManager(settings, threadPool, emptySet()),
+                Tracer.NOOP
             ) {
                 @Override
                 protected boolean publicationMayFail() {

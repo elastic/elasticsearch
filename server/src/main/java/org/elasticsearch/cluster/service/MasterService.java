@@ -52,6 +52,8 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskAwareRequest;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.telemetry.tracing.Tracer;
+import org.elasticsearch.telemetry.tracing.TracerSpan;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -108,6 +110,7 @@ public class MasterService extends AbstractLifecycleComponent {
 
     protected final ThreadPool threadPool;
     private final TaskManager taskManager;
+    private final Tracer tracer;
 
     private volatile ExecutorService threadPoolExecutor;
     private final AtomicInteger totalQueueSize = new AtomicInteger();
@@ -118,7 +121,13 @@ public class MasterService extends AbstractLifecycleComponent {
     private final ClusterStateUpdateStatsTracker clusterStateUpdateStatsTracker = new ClusterStateUpdateStatsTracker();
     private final StarvationWatcher starvationWatcher = new StarvationWatcher();
 
-    public MasterService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool, TaskManager taskManager) {
+    public MasterService(
+        Settings settings,
+        ClusterSettings clusterSettings,
+        ThreadPool threadPool,
+        TaskManager taskManager,
+        Tracer tracer
+    ) {
         this.nodeName = Objects.requireNonNull(Node.NODE_NAME_SETTING.get(settings));
 
         this.slowTaskLoggingThreshold = MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING.get(settings);
@@ -128,6 +137,7 @@ public class MasterService extends AbstractLifecycleComponent {
 
         this.threadPool = threadPool;
         this.taskManager = taskManager;
+        this.tracer = tracer;
 
         final var queuesByPriorityBuilder = new EnumMap<Priority, PerPriorityQueue>(Priority.class);
         for (final var priority : Priority.values()) {
@@ -228,9 +238,14 @@ public class MasterService extends AbstractLifecycleComponent {
         }
 
         final long computationStartTime = threadPool.rawRelativeTimeInMillis();
-        final var newClusterState = patchVersions(
-            previousClusterState,
-            executeTasks(previousClusterState, executionResults, executor, summary, threadPool.getThreadContext())
+        final var newClusterState = TracerSpan.span(
+            threadPool,
+            tracer,
+            "computing-cluster-state:" + executor,
+            () -> patchVersions(
+                previousClusterState,
+                executeTasks(previousClusterState, executionResults, executor, summary, threadPool.getThreadContext())
+            )
         );
         final TimeValue computationTime = getTimeSince(computationStartTime);
         logExecutionTime(computationTime, "compute cluster state update", summary);

@@ -26,6 +26,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -90,6 +91,17 @@ public class TransportService extends AbstractLifecycleComponent
     public static final String DIRECT_RESPONSE_PROFILE = ".direct";
     public static final String HANDSHAKE_ACTION_NAME = "internal:transport/handshake";
 
+    /**
+     * Undocumented on purpose, may be removed at any time. Only use this if instructed to do so, can have other unintended consequences
+     * including deadlocks.
+     */
+    public static final Setting<Boolean> ENABLE_STACK_OVERFLOW_AVOIDANCE = Setting.boolSetting(
+        "transport.enable_stack_protection",
+        false,
+        Setting.Property.NodeScope,
+        Setting.Property.Deprecated
+    );
+
     private final AtomicBoolean handleIncomingRequests = new AtomicBoolean();
     private final DelegatingTransportMessageListener messageListener = new DelegatingTransportMessageListener();
     protected final Transport transport;
@@ -104,6 +116,8 @@ public class TransportService extends AbstractLifecycleComponent
     private final TransportInterceptor interceptor;
 
     private final PendingDirectHandlers pendingDirectHandlers = new PendingDirectHandlers();
+
+    private final boolean enableStackOverflowAvoidance;
 
     // An LRU (don't really care about concurrency here) that holds the latest timed out requests so if they
     // do show up, we can print more descriptive information about them
@@ -281,6 +295,7 @@ public class TransportService extends AbstractLifecycleComponent
         this.interceptor = transportInterceptor;
         this.asyncSender = interceptor.interceptSender(this::sendRequestInternal);
         this.remoteClusterClient = DiscoveryNode.isRemoteClusterClient(settings);
+        this.enableStackOverflowAvoidance = ENABLE_STACK_OVERFLOW_AVOIDANCE.get(settings);
         remoteClusterService = new RemoteClusterService(settings, this);
         responseHandlers = transport.getResponseHandlers();
         if (clusterSettings != null) {
@@ -1358,7 +1373,27 @@ public class TransportService extends AbstractLifecycleComponent
             // to handle that themselves instead.
             final var executor = handler.executor();
             if (executor == EsExecutors.DIRECT_EXECUTOR_SERVICE) {
-                handler.handleException(exception);
+                if (enableStackOverflowAvoidance == false) {
+                    handler.handleException(exception);
+                } else {
+                    threadPool.generic().submit(new AbstractRunnable() {
+                        @Override
+                        protected void doRun() throws Exception {
+                            handler.handleException(exception);
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            assert false : e;
+                            logger.warn(() -> "failed to notify response handler on connection close [" + connection + "]", e);
+                        }
+
+                        @Override
+                        public String toString() {
+                            return "onConnectionClosed(" + connection.getNode() + ")";
+                        }
+                    });
+                }
             } else {
                 executor.execute(new ForkingResponseHandlerRunnable(handler, exception) {
                     @Override

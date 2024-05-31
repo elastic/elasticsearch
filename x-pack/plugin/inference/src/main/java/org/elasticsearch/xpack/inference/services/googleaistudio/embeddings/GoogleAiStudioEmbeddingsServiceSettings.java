@@ -99,10 +99,12 @@ public class GoogleAiStudioEmbeddingsServiceSettings extends FilteredXContentObj
         this.rateLimitSettings = new RateLimitSettings(in);
     }
 
+    @Override
     public String modelId() {
         return modelId;
     }
 
+    @Override
     public RateLimitSettings rateLimitSettings() {
         return rateLimitSettings;
     }

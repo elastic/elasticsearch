@@ -4554,7 +4554,6 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/108388")
     public void testSimplifyComparisonArithmeticsWithFloatingPoints() {
         doTestSimplifyComparisonArithmetics("float / 2 > 4", "float", GT, 8d);
     }

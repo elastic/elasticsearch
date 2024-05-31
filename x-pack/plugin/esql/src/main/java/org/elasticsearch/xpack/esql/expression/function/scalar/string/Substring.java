@@ -111,11 +111,11 @@ public class Substring extends EsqlScalarFunction implements OptionalArgument {
 
     @Evaluator
     static BytesRef process(BytesRef str, int start, int length) {
-        if (str.length == 0) {
-            return null;
-        }
         if (length < 0) {
             throw new IllegalArgumentException("Length parameter cannot be negative, found [" + length + "]");
+        }
+        if (str.length == 0) {
+            return str;
         }
         int codePointCount = UnicodeUtil.codePointCount(str);
         int indexStart = indexStart(codePointCount, start);

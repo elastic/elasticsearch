@@ -98,9 +98,36 @@ public class ShrinkStep extends AsyncActionStep {
         // Hard coding this to true as the resize request was executed and the corresponding cluster change was committed, so the
         // eventual retry will not be able to succeed anymore (shrunk index was created already)
         // The next step in the ShrinkAction will wait for the shrunk index to be created and for the shards to be allocated.
-        getClient().admin().indices().resizeIndex(resizeRequest, listener.delegateFailureAndWrap((l, response) -> l.onResponse(null)));
+        getClient().admin().indices().resizeIndex(resizeRequest, listener.delegateFailure((l, response) -> {
+            ClusterStateObserver.Listener clusterStateListener = new ClusterStateObserver.Listener() {
+                @Override
+                public void onNewClusterState(ClusterState state) {
+                    if (shrunkenIndexAllocated(state, shrunkenIndexName)) {
+                        l.onResponse(null);
+                    } else {
+                        observer.waitForNextChange(this);
+                    }
+                }
 
+                @Override
+                public void onClusterServiceClose() {
+                    l.onFailure(new IllegalStateException("Cluster service closed"));
+                }
+
+                @Override
+                public void onTimeout(TimeValue timeout) {
+                    l.onFailure(new IllegalStateException("Timed out waiting for shrunk index to be allocated"));
+                }
+            };
+
+            observer.waitForNextChange(clusterStateListener);
+        }));
     }
+    private boolean shrunkenIndexAllocated(ClusterState clusterState, String shrunkenIndexName) {
+        IndexMetadata indexMetadata = clusterState.metadata().index(shrunkenIndexName);
+        return indexMetadata != null && indexMetadata.getState() == IndexMetadata.State.OPEN;
+    }
+
 
     @Override
     public int hashCode() {

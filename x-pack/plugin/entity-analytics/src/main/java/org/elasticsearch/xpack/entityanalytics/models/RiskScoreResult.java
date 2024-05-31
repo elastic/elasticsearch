@@ -7,12 +7,28 @@
 
 package org.elasticsearch.xpack.entityanalytics.models;
 
-public class RiskScoreResult {
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+
+import java.io.IOException;
+
+public class RiskScoreResult implements ToXContentObject {
     public EntityScore[] userScores;
     public EntityScore[] hostScores;
 
     public RiskScoreResult(EntityScore[] userScores, EntityScore[] hostScores) {
         this.userScores = userScores;
         this.hostScores = hostScores;
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        builder.startObject("scores");
+        builder.field("user", userScores);
+        builder.field("host", hostScores);
+        builder.endObject();
+        builder.endObject();
+        return builder;
     }
 }

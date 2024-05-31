@@ -29,10 +29,6 @@ public class EntityRiskScoringResponse extends ActionResponse implements ToXCont
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        builder.field("hosts", result.hostScores);
-        builder.field("users", result.userScores);
-        builder.endObject();
-        return builder;
+        return result.toXContent(builder, params);
     }
 }

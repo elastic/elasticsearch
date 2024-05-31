@@ -12,6 +12,8 @@ import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainRequest;
+import org.elasticsearch.action.admin.cluster.allocation.TransportClusterAllocationExplainAction;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotIndexShardStatus;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
@@ -334,13 +336,11 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
         assertThat(indicesAdmin().prepareGetAliases(aliasName).get().getAliases().size(), equalTo(1));
         assertTotalHits(aliasName, originalAllHits, originalBarHits);
 
-        final Decision diskDeciderDecision = clusterAdmin().prepareAllocationExplain()
-            .setIndex(restoredIndexName)
+        final var request = new ClusterAllocationExplainRequest(TEST_REQUEST_TIMEOUT).setIndex(restoredIndexName)
             .setShard(0)
-            .setPrimary(true)
-            .setIncludeYesDecisions(true)
-            .get()
-            .getExplanation()
+            .setPrimary(true);
+        request.includeYesDecisions(true);
+        final var diskDeciderDecision = safeGet(client().execute(TransportClusterAllocationExplainAction.TYPE, request)).getExplanation()
             .getShardAllocationDecision()
             .getMoveDecision()
             .getCanRemainDecision()

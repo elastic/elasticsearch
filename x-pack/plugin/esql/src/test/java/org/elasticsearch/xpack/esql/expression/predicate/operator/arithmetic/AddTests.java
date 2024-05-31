@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
 import java.math.BigInteger;
 import java.time.Duration;
@@ -97,7 +96,7 @@ public class AddTests extends AbstractFunctionTestCase {
         suppliers.addAll(
             TestCaseSupplier.forBinaryNotCasting(
                 (lhs, rhs) -> ((Period) lhs).plus((Period) rhs),
-                EsqlDataTypes.DATE_PERIOD,
+                DataTypes.DATE_PERIOD,
                 TestCaseSupplier.datePeriodCases(),
                 TestCaseSupplier.datePeriodCases(),
                 startsWith("LiteralsEvaluator[lit="),  // lhs and rhs have to be literals, so we fold into a literal
@@ -108,7 +107,7 @@ public class AddTests extends AbstractFunctionTestCase {
         suppliers.addAll(
             TestCaseSupplier.forBinaryNotCasting(
                 (lhs, rhs) -> ((Duration) lhs).plus((Duration) rhs),
-                EsqlDataTypes.TIME_DURATION,
+                DataTypes.TIME_DURATION,
                 TestCaseSupplier.timeDurationCases(),
                 TestCaseSupplier.timeDurationCases(),
                 startsWith("LiteralsEvaluator[lit="), // lhs and rhs have to be literals, so we fold into a literal

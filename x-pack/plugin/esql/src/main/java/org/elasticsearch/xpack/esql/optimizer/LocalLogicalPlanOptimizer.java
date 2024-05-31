@@ -44,7 +44,6 @@ import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.planner.AbstractPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -137,7 +136,7 @@ public class LocalLogicalPlanOptimizer extends ParameterizedRuleExecutor<Logical
             else if (plan instanceof Project project) {
                 var projections = project.projections();
                 List<NamedExpression> newProjections = new ArrayList<>(projections.size());
-                Map<DataType, Alias> nullLiteral = Maps.newLinkedHashMapWithExpectedSize(EsqlDataTypes.types().size());
+                Map<DataType, Alias> nullLiteral = Maps.newLinkedHashMapWithExpectedSize(DataTypes.types().size());
 
                 for (NamedExpression projection : projections) {
                     if (projection instanceof FieldAttribute f && stats.exists(f.qualifiedName()) == false) {

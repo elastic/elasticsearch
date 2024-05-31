@@ -13,9 +13,9 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.expression.function.FunctionName;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -30,9 +30,9 @@ public class SpatialWithinTests extends SpatialRelatesFunctionTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
-        DataType[] geoDataTypes = { EsqlDataTypes.GEO_POINT, EsqlDataTypes.GEO_SHAPE };
+        DataType[] geoDataTypes = { DataTypes.GEO_POINT, DataTypes.GEO_SHAPE };
         SpatialRelatesFunctionTestCase.addSpatialCombinations(suppliers, geoDataTypes);
-        DataType[] cartesianDataTypes = { EsqlDataTypes.CARTESIAN_POINT, EsqlDataTypes.CARTESIAN_SHAPE };
+        DataType[] cartesianDataTypes = { DataTypes.CARTESIAN_POINT, DataTypes.CARTESIAN_SHAPE };
         SpatialRelatesFunctionTestCase.addSpatialCombinations(suppliers, cartesianDataTypes);
         return parameterSuppliersFromTypedData(
             errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers), SpatialWithinTests::typeErrorMessage)

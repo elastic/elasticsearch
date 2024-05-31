@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.shutdown;
 
-import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainResponse;
+import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplanationUtils;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.ClusterState;
@@ -148,15 +148,8 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
 
         ensureYellow("other");
 
-        // Explain the replica for the "other" index
-        ClusterAllocationExplainResponse explainResponse = clusterAdmin().prepareAllocationExplain()
-            .setIndex("other")
-            .setShard(0)
-            .setPrimary(false)
-            .get();
-
         // Validate that the replica cannot be allocated to nodeB because it's the target of a node replacement
-        explainResponse.getExplanation()
+        ClusterAllocationExplanationUtils.getClusterAllocationExplanation(client(), "other", 0, false)
             .getShardAllocationDecision()
             .getAllocateDecision()
             .getNodeDecisions()
@@ -209,15 +202,8 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
 
         ensureYellow("other");
 
-        // Explain the replica for the "other" index
-        ClusterAllocationExplainResponse explainResponse = clusterAdmin().prepareAllocationExplain()
-            .setIndex("other")
-            .setShard(0)
-            .setPrimary(false)
-            .get();
-
         // Validate that the replica cannot be allocated to nodeB because it's the target of a node replacement
-        explainResponse.getExplanation()
+        ClusterAllocationExplanationUtils.getClusterAllocationExplanation(client(), "other", 0, false)
             .getShardAllocationDecision()
             .getAllocateDecision()
             .getNodeDecisions()

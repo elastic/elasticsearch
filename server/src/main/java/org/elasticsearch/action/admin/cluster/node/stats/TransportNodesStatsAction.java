@@ -25,6 +25,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.node.NodeService;
+import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -37,6 +38,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 public class TransportNodesStatsAction extends TransportNodesAction<
@@ -89,7 +91,10 @@ public class TransportNodesStatsAction extends TransportNodesAction<
             || NodesStatsRequestParameters.Metric.FS.containedIn(metrics)) {
             client.execute(
                 TransportGetAllocationStatsAction.TYPE,
-                new TransportGetAllocationStatsAction.Request(new TaskId(clusterService.localNode().getId(), task.getId())),
+                new TransportGetAllocationStatsAction.Request(
+                    Objects.requireNonNullElse(request.timeout(), RestUtils.REST_MASTER_TIMEOUT_DEFAULT),
+                    new TaskId(clusterService.localNode().getId(), task.getId())
+                ),
                 listener.delegateFailure((l, r) -> {
                     ActionListener.respondAndRelease(
                         l,

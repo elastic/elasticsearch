@@ -48,8 +48,6 @@ public final class DataTypes {
     public static final DataType IP               = new DataType("ip",                45,                false, false, true);
     // version
     public static final DataType VERSION          = new DataType("version",           Integer.MAX_VALUE, false, false, true);
-    // binary
-    public static final DataType BINARY           = new DataType("binary",            Integer.MAX_VALUE, false, false, true);
     // complex types
     public static final DataType OBJECT           = new DataType("object",            0,                 false, false, false);
     public static final DataType NESTED           = new DataType("nested",            0,                 false, false, false);
@@ -62,6 +60,26 @@ public final class DataTypes {
         false,
         false
     );
+    public static final DataType DATE_PERIOD = new DataType("DATE_PERIOD", null, 3 * Integer.BYTES, false, false, false);
+    public static final DataType TIME_DURATION = new DataType("TIME_DURATION", null, Integer.BYTES + Long.BYTES, false, false, false);
+    public static final DataType GEO_POINT = new DataType("geo_point", Double.BYTES * 2, false, false, true);
+    public static final DataType CARTESIAN_POINT = new DataType("cartesian_point", Double.BYTES * 2, false, false, true);
+    public static final DataType GEO_SHAPE = new DataType("geo_shape", Integer.MAX_VALUE, false, false, true);
+    public static final DataType CARTESIAN_SHAPE = new DataType("cartesian_shape", Integer.MAX_VALUE, false, false, true);
+
+    /**
+     * These are numeric fields labeled as metric counters in time-series indices. Although stored
+     * internally as numeric fields, they represent cumulative metrics and must not be treated as regular
+     * numeric fields. Therefore, we define them differently and separately from their parent numeric field.
+     * These fields are strictly for use in retrieval from indices, rate aggregation, and casting to their
+     * parent numeric type.
+     */
+    public static final DataType COUNTER_LONG = new DataType("counter_long", Long.BYTES, false, false, true);
+    public static final DataType COUNTER_INTEGER = new DataType("counter_integer", Integer.BYTES, false, false, true);
+    public static final DataType COUNTER_DOUBLE = new DataType("counter_double", Double.BYTES, false, false, true);
+
+    public static final DataType DOC_DATA_TYPE = new DataType("_doc", Integer.BYTES * 3, false, false, false);
+    public static final DataType TSID_DATA_TYPE = new DataType("_tsid", Integer.MAX_VALUE, false, false, true);
 
     private static final Collection<DataType> TYPES = Stream.of(
         UNSUPPORTED,
@@ -81,9 +99,18 @@ public final class DataTypes {
         DATETIME,
         IP,
         VERSION,
-        BINARY,
         OBJECT,
-        NESTED
+        NESTED,
+        SOURCE,
+        DATE_PERIOD,
+        TIME_DURATION,
+        GEO_POINT,
+        CARTESIAN_POINT,
+        CARTESIAN_SHAPE,
+        GEO_SHAPE,
+        COUNTER_LONG,
+        COUNTER_INTEGER,
+        COUNTER_DOUBLE
     ).sorted(Comparator.comparing(DataType::typeName)).toList();
 
     private static final Map<String, DataType> NAME_TO_TYPE = TYPES.stream().collect(toUnmodifiableMap(DataType::typeName, t -> t));

@@ -23,7 +23,6 @@ import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
-import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
@@ -44,6 +43,7 @@ import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
+import static org.elasticsearch.xpack.inference.results.ChatCompletionResultsTests.buildExpectationCompletion;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -120,7 +120,7 @@ public class CohereCompletionActionTests extends ESTestCase {
 
             var result = listener.actionGet(TIMEOUT);
 
-            assertThat(result.asMap(), is(buildExpectedChatCompletionResultMap(List.of("result"))));
+            assertThat(result.asMap(), is(buildExpectationCompletion(List.of("result"))));
             assertThat(webServer.requests(), hasSize(1));
             assertNull(webServer.requests().get(0).getUri().getQuery());
             assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
@@ -181,7 +181,7 @@ public class CohereCompletionActionTests extends ESTestCase {
 
             var result = listener.actionGet(TIMEOUT);
 
-            assertThat(result.asMap(), is(buildExpectedChatCompletionResultMap(List.of("result"))));
+            assertThat(result.asMap(), is(buildExpectationCompletion(List.of("result"))));
             assertThat(webServer.requests(), hasSize(1));
             assertNull(webServer.requests().get(0).getUri().getQuery());
             assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
@@ -337,13 +337,6 @@ public class CohereCompletionActionTests extends ESTestCase {
             assertThat(thrownException.getMessage(), is("Cohere completion only accepts 1 input"));
             assertThat(thrownException.status(), is(RestStatus.BAD_REQUEST));
         }
-    }
-
-    public static Map<String, Object> buildExpectedChatCompletionResultMap(List<String> results) {
-        return Map.of(
-            ChatCompletionResults.COMPLETION,
-            results.stream().map(result -> Map.of(ChatCompletionResults.Result.RESULT, result)).toList()
-        );
     }
 
     private CohereCompletionAction createAction(String url, String apiKey, @Nullable String modelName, Sender sender) {

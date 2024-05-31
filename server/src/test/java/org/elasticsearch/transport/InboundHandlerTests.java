@@ -272,7 +272,12 @@ public class InboundHandlerTests extends ESTestCase {
             final TransportVersion remoteVersion = TransportVersion.current();
 
             mockLog.addExpectation(
-                new MockLog.SeenEventExpectation("expected slow request", EXPECTED_LOGGER_NAME, Level.WARN, "handling request ")
+                new MockLog.SeenEventExpectation(
+                    "expected slow request",
+                    EXPECTED_LOGGER_NAME,
+                    Level.WARN,
+                    "handling request*modules-network.html#modules-network-threading-model"
+                )
             );
 
             final long requestId = randomNonNegativeLong();
@@ -285,13 +290,11 @@ public class InboundHandlerTests extends ESTestCase {
             BytesStreamOutput byteData = new BytesStreamOutput();
             TaskId.EMPTY_TASK_ID.writeTo(byteData);
             TransportVersion.writeVersion(remoteVersion, byteData);
-            final InboundMessage requestMessage = new InboundMessage(requestHeader, ReleasableBytesReference.wrap(byteData.bytes()), () -> {
-                try {
-                    TimeUnit.SECONDS.sleep(1L);
-                } catch (InterruptedException e) {
-                    throw new AssertionError(e);
-                }
-            });
+            final InboundMessage requestMessage = new InboundMessage(
+                requestHeader,
+                ReleasableBytesReference.wrap(byteData.bytes()),
+                () -> safeSleep(TimeValue.timeValueSeconds(1))
+            );
             requestHeader.actionName = TransportHandshaker.HANDSHAKE_ACTION_NAME;
             requestHeader.headers = Tuple.tuple(Map.of(), Map.of());
             handler.inboundMessage(channel, requestMessage);
@@ -299,7 +302,12 @@ public class InboundHandlerTests extends ESTestCase {
             mockLog.assertAllExpectationsMatched();
 
             mockLog.addExpectation(
-                new MockLog.SeenEventExpectation("expected slow response", EXPECTED_LOGGER_NAME, Level.WARN, "handling response ")
+                new MockLog.SeenEventExpectation(
+                    "expected slow response",
+                    EXPECTED_LOGGER_NAME,
+                    Level.WARN,
+                    "handling response*modules-network.html#modules-network-threading-model"
+                )
             );
 
             final long responseId = randomNonNegativeLong();
@@ -310,11 +318,7 @@ public class InboundHandlerTests extends ESTestCase {
                 @SuppressWarnings("rawtypes")
                 public void onResponseReceived(long requestId, Transport.ResponseContext context) {
                     assertEquals(responseId, requestId);
-                    try {
-                        TimeUnit.SECONDS.sleep(1L);
-                    } catch (InterruptedException e) {
-                        throw new AssertionError(e);
-                    }
+                    safeSleep(TimeValue.timeValueSeconds(1));
                 }
             });
             handler.inboundMessage(channel, new InboundMessage(responseHeader, ReleasableBytesReference.empty(), () -> {}));

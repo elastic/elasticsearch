@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -39,10 +38,10 @@ public class MvFirstTests extends AbstractMultivalueFunctionTestCase {
         longs(cases, "mv_first", "MvFirst", DataTypes.LONG, (size, values) -> equalTo(values.findFirst().getAsLong()));
         unsignedLongs(cases, "mv_first", "MvFirst", DataTypes.UNSIGNED_LONG, (size, values) -> equalTo(values.findFirst().get()));
         dateTimes(cases, "mv_first", "MvFirst", DataTypes.DATETIME, (size, values) -> equalTo(values.findFirst().getAsLong()));
-        geoPoints(cases, "mv_first", "MvFirst", EsqlDataTypes.GEO_POINT, (size, values) -> equalTo(values.findFirst().get()));
-        cartesianPoints(cases, "mv_first", "MvFirst", EsqlDataTypes.CARTESIAN_POINT, (size, values) -> equalTo(values.findFirst().get()));
-        geoShape(cases, "mv_first", "MvFirst", EsqlDataTypes.GEO_SHAPE, (size, values) -> equalTo(values.findFirst().get()));
-        cartesianShape(cases, "mv_first", "MvFirst", EsqlDataTypes.CARTESIAN_SHAPE, (size, values) -> equalTo(values.findFirst().get()));
+        geoPoints(cases, "mv_first", "MvFirst", DataTypes.GEO_POINT, (size, values) -> equalTo(values.findFirst().get()));
+        cartesianPoints(cases, "mv_first", "MvFirst", DataTypes.CARTESIAN_POINT, (size, values) -> equalTo(values.findFirst().get()));
+        geoShape(cases, "mv_first", "MvFirst", DataTypes.GEO_SHAPE, (size, values) -> equalTo(values.findFirst().get()));
+        cartesianShape(cases, "mv_first", "MvFirst", DataTypes.CARTESIAN_SHAPE, (size, values) -> equalTo(values.findFirst().get()));
         return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(false, cases)));
     }
 

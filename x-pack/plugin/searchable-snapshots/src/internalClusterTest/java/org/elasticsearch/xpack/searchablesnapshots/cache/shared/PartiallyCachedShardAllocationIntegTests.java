@@ -91,6 +91,7 @@ public class PartiallyCachedShardAllocationIntegTests extends BaseFrozenSearchab
             .put(SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), true);
 
         return new MountSearchableSnapshotRequest(
+            TEST_REQUEST_TIMEOUT,
             indexName,
             fsRepoName,
             snapshotName,

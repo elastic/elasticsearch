@@ -15,15 +15,15 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Expression.TypeResolution;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Expression.TypeResolution;
-import org.elasticsearch.xpack.ql.expression.Literal;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.math.BigInteger;
 import java.util.List;
@@ -175,30 +175,30 @@ public class CaseTests extends AbstractFunctionTestCase {
                     DataTypes.VERSION,
                     nullValue()
                 );
-            }), new TestCaseSupplier("cartesian_point", List.of(DataTypes.BOOLEAN, EsqlDataTypes.CARTESIAN_POINT), () -> {
-                BytesRef value = (BytesRef) randomLiteral(EsqlDataTypes.CARTESIAN_POINT).value();
+            }), new TestCaseSupplier("cartesian_point", List.of(DataTypes.BOOLEAN, DataTypes.CARTESIAN_POINT), () -> {
+                BytesRef value = (BytesRef) randomLiteral(DataTypes.CARTESIAN_POINT).value();
                 List<TestCaseSupplier.TypedData> typedData = List.of(
                     new TestCaseSupplier.TypedData(false, DataTypes.BOOLEAN, "cond"),
-                    new TestCaseSupplier.TypedData(value, EsqlDataTypes.CARTESIAN_POINT, "trueValue")
+                    new TestCaseSupplier.TypedData(value, DataTypes.CARTESIAN_POINT, "trueValue")
                 );
                 return new TestCaseSupplier.TestCase(
                     typedData,
                     "CaseEvaluator[resultType=BYTES_REF, conditions=[ConditionEvaluator[condition=Attribute[channel=0], "
                         + "value=Attribute[channel=1]]], elseVal=LiteralsEvaluator[lit=null]]",
-                    EsqlDataTypes.CARTESIAN_POINT,
+                    DataTypes.CARTESIAN_POINT,
                     nullValue()
                 );
-            }), new TestCaseSupplier("geo_point", List.of(DataTypes.BOOLEAN, EsqlDataTypes.GEO_POINT), () -> {
-                BytesRef value = (BytesRef) randomLiteral(EsqlDataTypes.GEO_POINT).value();
+            }), new TestCaseSupplier("geo_point", List.of(DataTypes.BOOLEAN, DataTypes.GEO_POINT), () -> {
+                BytesRef value = (BytesRef) randomLiteral(DataTypes.GEO_POINT).value();
                 List<TestCaseSupplier.TypedData> typedData = List.of(
                     new TestCaseSupplier.TypedData(true, DataTypes.BOOLEAN, "cond"),
-                    new TestCaseSupplier.TypedData(value, EsqlDataTypes.GEO_POINT, "trueValue")
+                    new TestCaseSupplier.TypedData(value, DataTypes.GEO_POINT, "trueValue")
                 );
                 return new TestCaseSupplier.TestCase(
                     typedData,
                     "CaseEvaluator[resultType=BYTES_REF, conditions=[ConditionEvaluator[condition=Attribute[channel=0], "
                         + "value=Attribute[channel=1]]], elseVal=LiteralsEvaluator[lit=null]]",
-                    EsqlDataTypes.GEO_POINT,
+                    DataTypes.GEO_POINT,
                     equalTo(value)
                 );
             }))

@@ -13,14 +13,13 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.hamcrest.Matcher;
 
 import java.time.Duration;
@@ -45,7 +44,7 @@ public class BucketTests extends AbstractFunctionTestCase {
             suppliers,
             "fixed date with period",
             () -> DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2023-01-01T00:00:00.00Z"),
-            EsqlDataTypes.DATE_PERIOD,
+            DataTypes.DATE_PERIOD,
             Period.ofYears(1),
             "[YEAR_OF_CENTURY in Z][fixed to midnight]"
         );
@@ -53,7 +52,7 @@ public class BucketTests extends AbstractFunctionTestCase {
             suppliers,
             "fixed date with duration",
             () -> DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2023-02-17T09:00:00.00Z"),
-            EsqlDataTypes.TIME_DURATION,
+            DataTypes.TIME_DURATION,
             Duration.ofDays(1L),
             "[86400000 in Z][fixed]"
         );

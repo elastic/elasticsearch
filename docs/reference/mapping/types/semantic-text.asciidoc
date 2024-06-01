@@ -5,4 +5,135 @@
 <titleabbrev>Semantic text</titleabbrev>
 ++++
 
-The documentation page for the `semantic_text` field type.
+beta[]
+
+The `semantic_text` field type automatically generates embeddings for text
+content using an inference endpoint. 
+
+The `semantic_text` field type specifies an inference endpoint identifier that will be used to generate embeddings.
+You can create the inference endpoint by using the <<put-inference-api>>.
+This field type and the <<query-dsl-semantic-query,`semantic` query>> type make it simpler to perform semantic search on your data.
+
+Using `semantic_text`, you won't need to specify how to generate embeddings for
+your data, or how to index it. The inference endpoint automatically determines
+the embedding generation, indexing, and query to use.
+
+[source,console]
+------------------------------------------------------------
+PUT my-index-000001
+{
+  "mappings": {
+    "properties": {
+      "inference_field": { 
+        "type": "semantic_text",
+        "inference_id": "my-elser-endpoint"
+      }
+    }
+  }
+}
+------------------------------------------------------------
+// TEST[skip:TBD]
+
+
+[discrete]
+[[semantic-text-params]]
+==== Parameters for `semantic_text` fields
+
+`inference_id`::
+(Required, string)  
+Inference endpoint that will be used to generate the embeddings for the field.
+Use the <<put-inference-api>> to create the endpoint.
+
+
+[discrete]
+[[infer-endpoint-validation]]
+==== {infer-cap} endpoint validation
+
+The `inference_id` will not be validated when the mapping is created, but when documents are ingested into the index.
+When the first document is indexed, the `inference_id` will be used to generate underlying indexing structures for the field.
+
+
+[discrete]
+[[auto-text-chunking]]
+==== Automatic text chunking
+
+{infer-cap} endpoints have a limit on the amount of text they can process.
+To allow for large amounts of text to be used in semantic search, `semantic_text` automatically generates smaller passages if needed, called _chunks_.
+
+Each chunk will include the text subpassage and the corresponding embedding generated from it.
+When querying, the individual passages will be automatically searched for each document, and the most relevant passage will be used to compute a score.
+
+
+[discrete]
+[[semantic-text-structure]]
+==== `semantic_text` structure
+
+Once a document is ingested, a `semantic_text` field will have the following structure:
+
+[source,console-result]
+------------------------------------------------------------
+"inference_field": {
+  "text": "these are not the droids you're looking for", <1>
+  "inference": {
+    "inference_id": "my-elser-endpoint", <2>
+    "model_settings": { <3>
+      "task_type": "sparse_embedding"
+    },
+    "chunks": [ <4>
+      {
+        "text": "these are not the droids you're looking for",
+        "embeddings": {
+          (...)
+        }
+      }
+    ]
+  }
+}
+------------------------------------------------------------
+// TEST[skip:TBD]
+<1> The field will become an object structure to accommodate both the original
+text and the inference results.
+<2> The `inference_id` used to generate the embeddings.
+<3> Model settings, including the task type and dimensions/similarity if
+applicable.
+<4> Inference results will be grouped in chunks, each with its corresponding
+text and embeddings.
+
+Refer to <<semantic-search-semantic-text,this tutorial>> to learn more about
+semantic search using `semantic_text` and the `semantic` query.
+
+
+[discrete]
+[[custom-indexing]]
+==== Customizing `semantic_text` indexing
+
+`semantic_text` uses defaults for indexing data based on the {infer} endpoint
+specified. It enables you to quickstart your semantic search by providing
+automatic {infer} and a dedicated query so you don't need to provide further
+details.
+
+In case you want to customize data indexing, use the
+<<sparse-vector,`sparse_vector`>> or <<dense-vector,`dense_vector`>> field
+types and create an ingest pipeline with an
+<<inference-processor, {infer} processor>> to generate the embeddings.
+<<semantic-search-inference,This tutorial>> walks you through the process.
+
+[discrete]
+[[update-script]]
+==== Updates to `semantic_text` fields
+
+Updates that use scripts are not supported when the index contains a `semantic_text` field.
+
+
+[discrete]
+[[copy-to-support]]
+==== `copy_to` support
+
+The `semantic_text` field type can be the target of
+<<copy-to,`copy_to` fields>>. This means you can use a single `semantic_text`
+field to collect the values of other fields for semantic search. Each value has
+its embeddings calculated separately; each field value is a separate set of chunk(s) in
+the resulting embeddings.
+
+This imposes a restriction on bulk updates to documents with `semantic_text`. 
+In bulk requests, all fields that are copied to a `semantic_text` field must have a value to ensure every embedding is calculated correctly.

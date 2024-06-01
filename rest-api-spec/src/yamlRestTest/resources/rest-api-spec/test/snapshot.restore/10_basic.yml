@@ -54,6 +54,9 @@ setup:
         repository: test_repo_restore_1
         snapshot: test_snapshot_1
         wait_for_completion: true
+        body:
+          "index_settings":
+            "index.routing.rebalance.enable": "none"
 
   - do:
       indices.recovery:

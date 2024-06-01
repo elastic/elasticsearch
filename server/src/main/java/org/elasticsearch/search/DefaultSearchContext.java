@@ -9,7 +9,9 @@
 package org.elasticsearch.search;
 
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.OrdinalMap;
+import org.apache.lucene.index.PointValues;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
@@ -17,6 +19,7 @@ import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TotalHits;
+import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.routing.IndexRouting;
@@ -32,6 +35,7 @@ import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
 import org.elasticsearch.index.mapper.IdLoader;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
@@ -245,12 +249,34 @@ final class DefaultSearchContext extends SearchContext {
                 if (ordinalMap != null) {
                     return ordinalMap.getValueCount();
                 }
-                if (directoryReader.leaves().size() == 0) {
+                if (directoryReader.leaves().isEmpty()) {
                     return 0;
                 }
                 return global.load(directoryReader.leaves().get(0)).getOrdinalsValues().getValueCount();
             }
+        } else if (indexFieldData instanceof IndexNumericFieldData indexNumericFieldData) {
+            final IndexNumericFieldData.NumericType type = indexNumericFieldData.getNumericType();
+            try {
+                if (type == IndexNumericFieldData.NumericType.INT || type == IndexNumericFieldData.NumericType.SHORT) {
+                    final IndexReader reader = directoryReader.getContext().reader();
+                    final byte[] min = PointValues.getMinPackedValue(reader, indexFieldData.getFieldName());
+                    final byte[] max = PointValues.getMaxPackedValue(reader, indexFieldData.getFieldName());
+                    if (min != null && max != null) {
+                        return NumericUtils.sortableBytesToInt(max, 0) - NumericUtils.sortableBytesToInt(min, 0) + 1;
+                    }
+                } else if (type == IndexNumericFieldData.NumericType.LONG) {
+                    final IndexReader reader = directoryReader.getContext().reader();
+                    final byte[] min = PointValues.getMinPackedValue(reader, indexFieldData.getFieldName());
+                    final byte[] max = PointValues.getMaxPackedValue(reader, indexFieldData.getFieldName());
+                    if (min != null && max != null) {
+                        return NumericUtils.sortableBytesToLong(max, 0) - NumericUtils.sortableBytesToLong(min, 0) + 1;
+                    }
+                }
+            } catch (IOException ioe) {
+                return -1L;
+            }
         }
+        //
         return -1L;
     }
 

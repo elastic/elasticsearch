@@ -346,26 +346,6 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitIndexIdentifier(EsqlBaseParser.IndexIdentifierContext ctx);
   /**
-   * Enter a parse tree produced by {@link EsqlBaseParser#fromOptions}.
-   * @param ctx the parse tree
-   */
-  void enterFromOptions(EsqlBaseParser.FromOptionsContext ctx);
-  /**
-   * Exit a parse tree produced by {@link EsqlBaseParser#fromOptions}.
-   * @param ctx the parse tree
-   */
-  void exitFromOptions(EsqlBaseParser.FromOptionsContext ctx);
-  /**
-   * Enter a parse tree produced by {@link EsqlBaseParser#configOption}.
-   * @param ctx the parse tree
-   */
-  void enterConfigOption(EsqlBaseParser.ConfigOptionContext ctx);
-  /**
-   * Exit a parse tree produced by {@link EsqlBaseParser#configOption}.
-   * @param ctx the parse tree
-   */
-  void exitConfigOption(EsqlBaseParser.ConfigOptionContext ctx);
-  /**
    * Enter a parse tree produced by {@link EsqlBaseParser#metadata}.
    * @param ctx the parse tree
    */
@@ -455,6 +435,16 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    * @param ctx the parse tree
    */
   void exitQualifiedNamePattern(EsqlBaseParser.QualifiedNamePatternContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#qualifiedNamePatterns}.
+   * @param ctx the parse tree
+   */
+  void enterQualifiedNamePatterns(EsqlBaseParser.QualifiedNamePatternsContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#qualifiedNamePatterns}.
+   * @param ctx the parse tree
+   */
+  void exitQualifiedNamePatterns(EsqlBaseParser.QualifiedNamePatternsContext ctx);
   /**
    * Enter a parse tree produced by {@link EsqlBaseParser#identifier}.
    * @param ctx the parse tree
@@ -839,4 +829,14 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    * @param ctx the parse tree
    */
   void exitEnrichWithClause(EsqlBaseParser.EnrichWithClauseContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#lookupCommand}.
+   * @param ctx the parse tree
+   */
+  void enterLookupCommand(EsqlBaseParser.LookupCommandContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#lookupCommand}.
+   * @param ctx the parse tree
+   */
+  void exitLookupCommand(EsqlBaseParser.LookupCommandContext ctx);
 }

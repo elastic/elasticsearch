@@ -404,9 +404,9 @@ public final class RestoreService implements ClusterStateApplier {
                     .flatMap(ds -> ds.getFailureIndices().getIndices().stream().map(idx -> new Tuple<>(ds.isSystem(), idx.getName())))
                     .collect(Collectors.partitioningBy(Tuple::v1, Collectors.mapping(Tuple::v2, Collectors.toSet())));
             }
-            systemDataStreamIndices = Sets.union(backingIndices.get(true), failureIndices.get(true));
-            nonSystemDataStreamBackingIndices = backingIndices.get(false);
-            nonSystemDataStreamFailureIndices = failureIndices.get(false);
+            systemDataStreamIndices = Sets.union(backingIndices.getOrDefault(true, Set.of()), failureIndices.getOrDefault(true, Set.of()));
+            nonSystemDataStreamBackingIndices = backingIndices.getOrDefault(false, Set.of());
+            nonSystemDataStreamFailureIndices = failureIndices.getOrDefault(false, Set.of());
         }
         requestIndices.addAll(nonSystemDataStreamBackingIndices);
         requestIndices.addAll(nonSystemDataStreamFailureIndices);

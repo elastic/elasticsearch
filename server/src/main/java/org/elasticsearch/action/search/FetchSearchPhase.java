@@ -114,14 +114,14 @@ final class FetchSearchPhase extends SearchPhase {
         if (queryAndFetchOptimization) {
             assert assertConsistentWithQueryAndFetchOptimization();
             // query AND fetch optimization
-            moveToNextPhase(reducedQueryPhase, queryResults);
+            moveToNextPhase(queryResults);
         } else {
             ScoreDoc[] scoreDocs = reducedQueryPhase.sortedTopDocs().scoreDocs();
             // no docs to fetch -- sidestep everything and return
             if (scoreDocs.length == 0) {
                 // we have to release contexts here to free up resources
                 queryResults.asList().stream().map(SearchPhaseResult::queryResult).forEach(this::releaseIrrelevantSearchContext);
-                moveToNextPhase(reducedQueryPhase, fetchResults.getAtomicArray());
+                moveToNextPhase(fetchResults.getAtomicArray());
             } else {
                 final boolean shouldExplainRank = shouldExplainRankScores(context.getRequest());
                 final List<Map<Integer, RankDoc>> rankDocsPerShard = false == shouldExplainRank
@@ -134,7 +134,7 @@ final class FetchSearchPhase extends SearchPhase {
                 final CountedCollector<FetchSearchResult> counter = new CountedCollector<>(
                     fetchResults,
                     docIdsToLoad.length, // we count down every shard in the result no matter if we got any results or not
-                    () -> moveToNextPhase(reducedQueryPhase, fetchResults.getAtomicArray()),
+                    () -> moveToNextPhase(fetchResults.getAtomicArray()),
                     context
                 );
                 for (int i = 0; i < docIdsToLoad.length; i++) {
@@ -259,15 +259,12 @@ final class FetchSearchPhase extends SearchPhase {
                     context.getOriginalIndices(queryResult.getShardIndex())
                 );
             } catch (Exception e) {
-                context.getLogger().trace("failed to release context", e);
+                logger.trace("failed to release context", e);
             }
         }
     }
 
-    private void moveToNextPhase(
-        SearchPhaseController.ReducedQueryPhase reducedQueryPhase,
-        AtomicArray<? extends SearchPhaseResult> fetchResultsArr
-    ) {
+    private void moveToNextPhase(AtomicArray<? extends SearchPhaseResult> fetchResultsArr) {
         var resp = SearchPhaseController.merge(context.getRequest().scroll() != null, reducedQueryPhase, fetchResultsArr);
         context.addReleasable(resp::decRef);
         fetchResults.close();

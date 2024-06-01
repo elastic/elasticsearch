@@ -213,7 +213,10 @@ PUT example-index
                 "type": "dense_vector",
                 "dims": 1,
                 "index": true,
-                "similarity": "l2_norm"
+                "similarity": "l2_norm",
+                 "index_options": {
+                     "type": "hnsw"
+                 }
             },
             "integer" : {
                 "type" : "integer"
@@ -305,8 +308,8 @@ GET example-index/_search
 // TEST[continued]
 
 And we receive the response with ranked `hits` and the terms
-aggregation result. Note that `_score` is `null`, and we instead
-use `_rank` to show our top-ranked documents.
+aggregation result. We have both the ranker's `score`
+and the `_rank` option to show our top-ranked documents.
 
 [source,console-response]
 ----
@@ -329,7 +332,7 @@ use `_rank` to show our top-ranked documents.
             {
                 "_index" : "example-index",
                 "_id" : "3",
-                "_score" : null,
+                "_score" : 0.8333334,
                 "_rank" : 1,
                 "_source" : {
                     "integer" : 1,
@@ -342,7 +345,7 @@ use `_rank` to show our top-ranked documents.
             {
                 "_index" : "example-index",
                 "_id" : "2",
-                "_score" : null,
+                "_score" : 0.5833334,
                 "_rank" : 2,
                 "_source" : {
                     "integer" : 2,
@@ -355,7 +358,7 @@ use `_rank` to show our top-ranked documents.
             {
                 "_index" : "example-index",
                 "_id" : "4",
-                "_score" : null,
+                "_score" : 0.5,
                 "_rank" : 3,
                 "_source" : {
                     "integer" : 2,

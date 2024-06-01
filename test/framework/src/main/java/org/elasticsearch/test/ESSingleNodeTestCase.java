@@ -465,7 +465,6 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
     }
 
     protected void awaitIndexShardCloseAsyncTasks() {
-        // ES-8334 TODO build this wait into the relevant APIs (especially, delete-index and close-index)
         final var latch = new CountDownLatch(1);
         getInstanceFromNode(IndicesClusterStateService.class).onClusterStateShardsClosed(latch::countDown);
         safeAwait(latch);

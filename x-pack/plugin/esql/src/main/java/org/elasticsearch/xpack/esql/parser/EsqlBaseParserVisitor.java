@@ -210,18 +210,6 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitIndexIdentifier(EsqlBaseParser.IndexIdentifierContext ctx);
   /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#fromOptions}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitFromOptions(EsqlBaseParser.FromOptionsContext ctx);
-  /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#configOption}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitConfigOption(EsqlBaseParser.ConfigOptionContext ctx);
-  /**
    * Visit a parse tree produced by {@link EsqlBaseParser#metadata}.
    * @param ctx the parse tree
    * @return the visitor result
@@ -275,6 +263,12 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    * @return the visitor result
    */
   T visitQualifiedNamePattern(EsqlBaseParser.QualifiedNamePatternContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#qualifiedNamePatterns}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitQualifiedNamePatterns(EsqlBaseParser.QualifiedNamePatternsContext ctx);
   /**
    * Visit a parse tree produced by {@link EsqlBaseParser#identifier}.
    * @param ctx the parse tree
@@ -503,4 +497,10 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    * @return the visitor result
    */
   T visitEnrichWithClause(EsqlBaseParser.EnrichWithClauseContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#lookupCommand}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitLookupCommand(EsqlBaseParser.LookupCommandContext ctx);
 }

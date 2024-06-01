@@ -148,9 +148,7 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
     }
 
     protected final DocumentMapper createLogsModeDocumentMapper(XContentBuilder mappings) throws IOException {
-        Settings settings = Settings.builder()
-            .put(IndexSettings.MODE.getKey(), "logs")
-            .build();
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), "logs").build();
         return createMapperService(settings, mappings).documentMapper();
     }
 

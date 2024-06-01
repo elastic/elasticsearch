@@ -194,8 +194,7 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("response_size")), is(true));
     }
 
-    private PerFieldFormatSupplier createFormatSupplier(boolean enableES87TSDBCodec, IndexMode mode, String mapping)
-        throws IOException {
+    private PerFieldFormatSupplier createFormatSupplier(boolean enableES87TSDBCodec, IndexMode mode, String mapping) throws IOException {
         Settings.Builder settings = Settings.builder();
         settings.put(IndexSettings.MODE.getKey(), mode);
         if (mode == IndexMode.TIME_SERIES) {

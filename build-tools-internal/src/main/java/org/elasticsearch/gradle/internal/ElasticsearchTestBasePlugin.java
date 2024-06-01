@@ -100,6 +100,7 @@ public class ElasticsearchTestBasePlugin implements Plugin<Project> {
                 "-Xmx" + System.getProperty("tests.heap.size", "512m"),
                 "-Xms" + System.getProperty("tests.heap.size", "512m"),
                 "-Djava.security.manager=allow",
+                "--add-opens=java.base/java.util=ALL-UNNAMED",
                 // TODO: only open these for mockito when it is modularized
                 "--add-opens=java.base/java.security.cert=ALL-UNNAMED",
                 "--add-opens=java.base/java.nio.channels=ALL-UNNAMED",
@@ -197,6 +198,25 @@ public class ElasticsearchTestBasePlugin implements Plugin<Project> {
                     FileCollection testRuntime = sourceSets.getByName(SourceSet.TEST_SOURCE_SET_NAME).getRuntimeClasspath();
                     test.setClasspath(testRuntime.minus(mainRuntime).plus(shadowConfig).plus(shadowJar));
                 }
+            });
+        });
+        configureImmutableCollectionsPatch(project);
+    }
+
+    private void configureImmutableCollectionsPatch(Project project) {
+        String configurationName = "immutableCollectionsPatch";
+        var patchConfiguration = project.getConfigurations().register(configurationName, config -> {
+            config.setCanBeConsumed(false);
+        });
+        project.getDependencies().add(configurationName, project.getDependencies().project(
+            Map.of("path", ":test:immutable-collections-patch", "configuration", "patch")));
+        project.getTasks().withType(Test.class).configureEach(test -> {
+            // TODO: don't do this if some flag set, eg from mrjar plugin...
+            test.dependsOn(patchConfiguration);
+            test.doFirst(t -> {
+                test.jvmArgs(
+                    "--patch-module=java.base=" + patchConfiguration.get().getSingleFile() + "/java.base",
+                    "--add-opens=java.base/java.util=ALL-UNNAMED");
             });
         });
     }

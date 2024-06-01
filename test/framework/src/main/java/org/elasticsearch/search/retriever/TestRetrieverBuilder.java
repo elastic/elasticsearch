@@ -37,8 +37,8 @@ public class TestRetrieverBuilder extends RetrieverBuilder {
         return new TestRetrieverBuilder(ESTestCase.randomAlphaOfLengthBetween(5, 10));
     }
 
-    public static final String NAME = "test";
-    public static final ParseField TEST_FIELD = new ParseField(NAME);
+    public static final String TYPE = "test";
+    public static final ParseField TEST_FIELD = new ParseField(TYPE);
     public static final SearchPlugin.RetrieverSpec<TestRetrieverBuilder> TEST_SPEC = new SearchPlugin.RetrieverSpec<>(
         TEST_FIELD,
         TestRetrieverBuilder::fromXContent
@@ -47,7 +47,7 @@ public class TestRetrieverBuilder extends RetrieverBuilder {
     public static final ParseField VALUE_FIELD = new ParseField("value");
 
     public static final ConstructingObjectParser<TestRetrieverBuilder, RetrieverParserContext> PARSER = new ConstructingObjectParser<>(
-        NAME,
+        TYPE,
         args -> new TestRetrieverBuilder((String) args[0])
     );
 
@@ -71,8 +71,8 @@ public class TestRetrieverBuilder extends RetrieverBuilder {
     }
 
     @Override
-    public String getName() {
-        return NAME;
+    public String getType() {
+        return TYPE;
     }
 
     @Override

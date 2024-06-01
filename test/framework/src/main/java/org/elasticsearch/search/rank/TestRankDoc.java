@@ -40,6 +40,6 @@ public class TestRankDoc extends RankDoc {
 
     @Override
     public String getWriteableName() {
-        return "test-rank-doc";
+        return "test_rank_doc";
     }
 }

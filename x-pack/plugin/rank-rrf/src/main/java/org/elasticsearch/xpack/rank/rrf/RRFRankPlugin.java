@@ -28,24 +28,24 @@ public class RRFRankPlugin extends Plugin implements SearchPlugin {
         License.OperationMode.PLATINUM
     );
 
-    public static final String NAME = "rrf";
+    public static final String TYPE = "rrf";
 
     @Override
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         return List.of(
-            new NamedWriteableRegistry.Entry(RankBuilder.class, NAME, RRFRankBuilder::new),
-            new NamedWriteableRegistry.Entry(RankShardResult.class, NAME, RRFRankShardResult::new),
+            new NamedWriteableRegistry.Entry(RankBuilder.class, TYPE, RRFRankBuilder::new),
+            new NamedWriteableRegistry.Entry(RankShardResult.class, TYPE, RRFRankShardResult::new),
             new NamedWriteableRegistry.Entry(RankDoc.class, RRFRankDoc.NAME, RRFRankDoc::new)
         );
     }
 
     @Override
     public List<NamedXContentRegistry.Entry> getNamedXContent() {
-        return List.of(new NamedXContentRegistry.Entry(RankBuilder.class, new ParseField(NAME), RRFRankBuilder::fromXContent));
+        return List.of(new NamedXContentRegistry.Entry(RankBuilder.class, new ParseField(TYPE), RRFRankBuilder::fromXContent));
     }
 
     @Override
     public List<RetrieverSpec<?>> getRetrievers() {
-        return List.of(new RetrieverSpec<>(new ParseField(NAME), RRFRetrieverBuilder::fromXContent));
+        return List.of(new RetrieverSpec<>(new ParseField(TYPE), RRFRetrieverBuilder::fromXContent));
     }
 }

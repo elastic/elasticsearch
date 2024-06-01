@@ -581,48 +581,52 @@ the RRF scores for each document were computed. Working with the example above, 
 <5> standard `explain` output of the underlying query, describing matching terms and weights
 <6> the `value` heres specifies the `rank` of this document for the second (`knn`) query
 
-In addition to the above, explain in RRF also supports *named queries* using the `_name` parameter.
-This however is not available for retrievers yet, so it is only supported for RRF through the use of  `sub_searches`,
-and for top-level `query` and `knn` elements for now. Using named queries allows for easier and more intuitive understanding of the RRF score computation,
-especially when dealing with multiple queries. So, for the equivalent of the above example, we would now have:
+In addition to the above, explain in RRF also supports <<named-queries,named queries>> using the `_name` parameter.
+Using named queries allows for easier and more intuitive understanding of the RRF score computation,
+especially when dealing with multiple queries. So, we would now have:
 
 [source,js]
 ----
 GET example-index/_search
 {
-    "sub_searches": [
-        {
-            "query": {
-                "term": {
-                    "text": "rrf"
-                }
-            }
-        },
-        {
-            "query": {
-                "knn": {
-                    "field": "vector",
-                    "query_vector": [
-                        3
-                    ],
-                    "num_candidates": 5,
-                    "_name": "my_knn_query"                           <1>
-                }
-            }
-        }
-    ],
-    "rank": {
+    "retriever": {
         "rrf": {
+            "retrievers": [
+                {
+                    "standard": {
+                        "query": {
+                            "term": {
+                                "text": "rrf"
+                            }
+                        }
+                    }
+                },
+                {
+                    "knn": {
+                        "field": "vector",
+                        "query_vector": [3],
+                        "k": 5,
+                        "num_candidates": 5,
+                        "_name": "my_knn_query"                           <1>
+                    }
+                }
+            ],
             "rank_window_size": 5,
             "rank_constant": 1
         }
     },
     "size": 3,
-    "explain": true
+    "aggs": {
+        "int_count": {
+            "terms": {
+                "field": "integer"
+            }
+        }
+    }
 }
 ----
 // NOTCONSOLE
-<1> Here we specify a `_name` for the `knn` query
+<1> Here we specify a `_name` for the `knn` retriever
 
 The response would now include the named query in the explanation:
 [source,js]

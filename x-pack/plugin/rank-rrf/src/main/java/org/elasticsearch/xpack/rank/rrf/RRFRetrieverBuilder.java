@@ -24,7 +24,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.rank.rrf.RRFRankPlugin.NAME;
+import static org.elasticsearch.xpack.rank.rrf.RRFRankPlugin.TYPE;
 
 /**
  * An rrf retriever is used to represent an rrf rank element, but
@@ -42,7 +42,7 @@ public final class RRFRetrieverBuilder extends RetrieverBuilder {
     public static final ParseField RANK_CONSTANT_FIELD = new ParseField("rank_constant");
 
     public static final ObjectParser<RRFRetrieverBuilder, RetrieverParserContext> PARSER = new ObjectParser<>(
-        NAME,
+        TYPE,
         RRFRetrieverBuilder::new
     );
 
@@ -57,12 +57,12 @@ public final class RRFRetrieverBuilder extends RetrieverBuilder {
         PARSER.declareInt((r, v) -> r.rankWindowSize = v, RANK_WINDOW_SIZE_FIELD);
         PARSER.declareInt((r, v) -> r.rankConstant = v, RANK_CONSTANT_FIELD);
 
-        RetrieverBuilder.declareBaseParserFields(NAME, PARSER);
+        RetrieverBuilder.declareBaseParserFields(TYPE, PARSER);
     }
 
     public static RRFRetrieverBuilder fromXContent(XContentParser parser, RetrieverParserContext context) throws IOException {
         if (context.clusterSupportsFeature(RRF_RETRIEVER_SUPPORTED) == false) {
-            throw new ParsingException(parser.getTokenLocation(), "unknown retriever [" + NAME + "]");
+            throw new ParsingException(parser.getTokenLocation(), "unknown retriever [" + TYPE + "]");
         }
         if (RRFRankPlugin.RANK_RRF_FEATURE.check(XPackPlugin.getSharedLicenseState()) == false) {
             throw LicenseUtils.newComplianceException("Reciprocal Rank Fusion (RRF)");
@@ -94,8 +94,8 @@ public final class RRFRetrieverBuilder extends RetrieverBuilder {
     // ---- FOR TESTING XCONTENT PARSING ----
 
     @Override
-    public String getName() {
-        return NAME;
+    public String getType() {
+        return TYPE;
     }
 
     @Override
@@ -105,7 +105,7 @@ public final class RRFRetrieverBuilder extends RetrieverBuilder {
 
             for (RetrieverBuilder retrieverBuilder : retrieverBuilders) {
                 builder.startObject();
-                builder.field(retrieverBuilder.getName());
+                builder.field(retrieverBuilder.getType());
                 retrieverBuilder.toXContent(builder, params);
                 builder.endObject();
             }

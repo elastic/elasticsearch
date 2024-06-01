@@ -40,7 +40,7 @@ public class RRFRankBuilder extends RankBuilder {
 
     public static final ParseField RANK_CONSTANT_FIELD = new ParseField("rank_constant");
 
-    static final ConstructingObjectParser<RRFRankBuilder, Void> PARSER = new ConstructingObjectParser<>(RRFRankPlugin.NAME, args -> {
+    static final ConstructingObjectParser<RRFRankBuilder, Void> PARSER = new ConstructingObjectParser<>(RRFRankPlugin.TYPE, args -> {
         int windowSize = args[0] == null ? DEFAULT_WINDOW_SIZE : (int) args[0];
         int rankConstant = args[1] == null ? DEFAULT_RANK_CONSTANT : (int) args[1];
         if (rankConstant < 1) {
@@ -85,7 +85,7 @@ public class RRFRankBuilder extends RankBuilder {
 
     @Override
     public String getWriteableName() {
-        return RRFRankPlugin.NAME;
+        return RRFRankPlugin.TYPE;
     }
 
     @Override

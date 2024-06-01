@@ -34,7 +34,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  */
 public final class KnnRetrieverBuilder extends RetrieverBuilder {
 
-    public static final String NAME = "knn";
+    public static final String TYPE = "knn";
     public static final NodeFeature KNN_RETRIEVER_SUPPORTED = new NodeFeature("knn_retriever_supported");
 
     public static final ParseField FIELD_FIELD = new ParseField("field");
@@ -80,12 +80,12 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
         PARSER.declareInt(constructorArg(), K_FIELD);
         PARSER.declareInt(constructorArg(), NUM_CANDS_FIELD);
         PARSER.declareFloat(optionalConstructorArg(), VECTOR_SIMILARITY);
-        RetrieverBuilder.declareBaseParserFields(NAME, PARSER);
+        RetrieverBuilder.declareBaseParserFields(TYPE, PARSER);
     }
 
     public static KnnRetrieverBuilder fromXContent(XContentParser parser, RetrieverParserContext context) throws IOException {
         if (context.clusterSupportsFeature(KNN_RETRIEVER_SUPPORTED) == false) {
-            throw new ParsingException(parser.getTokenLocation(), "unknown retriever [" + NAME + "]");
+            throw new ParsingException(parser.getTokenLocation(), "unknown retriever [" + TYPE + "]");
         }
         return PARSER.apply(parser, context);
     }
@@ -116,8 +116,8 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
     // ---- FOR TESTING XCONTENT PARSING ----
 
     @Override
-    public String getName() {
-        return NAME;
+    public String getType() {
+        return TYPE;
     }
 
     @Override
@@ -132,6 +132,9 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
         );
         if (preFilterQueryBuilders != null) {
             knnSearchBuilder.addFilterQueries(preFilterQueryBuilders);
+        }
+        if (retrieverName != null) {
+            knnSearchBuilder.queryName(retrieverName);
         }
         List<KnnSearchBuilder> knnSearchBuilders = new ArrayList<>(searchSourceBuilder.knnSearch());
         knnSearchBuilders.add(knnSearchBuilder);

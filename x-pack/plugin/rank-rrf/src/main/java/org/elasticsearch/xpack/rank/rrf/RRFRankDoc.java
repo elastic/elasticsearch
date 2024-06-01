@@ -20,7 +20,7 @@ import java.util.Arrays;
  */
 public class RRFRankDoc extends RankDoc {
 
-    static final String NAME = "rrf-rank-doc";
+    static final String NAME = "rrf_rank_doc";
 
     /**
      * The position within each result set per query. The length

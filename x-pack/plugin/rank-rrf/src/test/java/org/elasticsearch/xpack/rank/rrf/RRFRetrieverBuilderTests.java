@@ -134,7 +134,7 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
         entries.add(
             new NamedXContentRegistry.Entry(
                 RetrieverBuilder.class,
-                new ParseField(RRFRankPlugin.NAME),
+                new ParseField(RRFRankPlugin.TYPE),
                 (p, c) -> RRFRetrieverBuilder.fromXContent(p, (RetrieverParserContext) c)
             )
         );
@@ -142,7 +142,7 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
         entries.add(
             new NamedXContentRegistry.Entry(
                 RetrieverBuilder.class,
-                new ParseField(RRFRankPlugin.NAME + "_nl"),
+                new ParseField(RRFRankPlugin.TYPE + "_nl"),
                 (p, c) -> RRFRetrieverBuilder.PARSER.apply(p, (RetrieverParserContext) c)
             )
         );

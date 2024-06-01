@@ -102,10 +102,10 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
     private final ToLongFunction<ShardId> currentPrimaryTerm;
     private final ThreadPool threadPool;
     private final Executor executor;
+    private final Object generateFlushLock = new Object();
+    private final AtomicReference<NodeTranslogBuffer> currentBuffer = new AtomicReference<>();
     private final NodeSyncState nodeState = new NodeSyncState();
     private final ConcurrentHashMap<ShardId, ShardSyncState> shardSyncStates = new ConcurrentHashMap<>();
-    private final AtomicReference<NodeTranslogBuffer> currentBuffer = new AtomicReference<>();
-    private final Object generateFlushLock = new Object();
     private final AtomicBoolean isOpen = new AtomicBoolean(true);
     private final TimeValue flushRetryInitialDelay;
     private final TimeValue flushInterval;
@@ -156,10 +156,6 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
         if (shardSyncState != null) {
             shardSyncState.markCommitUploaded(translogStartFile);
         }
-    }
-
-    public Set<BlobTranslogFile> getUploadingTranslogFiles() {
-        return Set.copyOf(nodeState.uploadingTranslogFiles.values());
     }
 
     public Set<BlobTranslogFile> getActiveTranslogFiles() {
@@ -218,10 +214,8 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
 
         @Override
         public void onFailure(Exception e) {
-            if (e instanceof AlreadyClosedException == false) {
-                logger.error("Unexpected exception when running translog flush task", e);
-                assert false;
-            }
+            logger.error("Unexpected exception when running translog flush task", e);
+            assert false;
         }
 
         @Override
@@ -238,10 +232,10 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
             UploadTranslogTask uploadTask = null;
             synchronized (generateFlushLock) {
                 if (currentBuffer.compareAndSet(buffer, null)) {
-                    long generation = nodeState.compoundTranslogGeneration.get();
+                    long generation = nodeState.currentGeneration.get();
                     CompoundTranslog translog = buffer.complete(generation, shardSyncStates.values());
                     if (translog != null) {
-                        long beforeIncrement = nodeState.compoundTranslogGeneration.getAndIncrement();
+                        long beforeIncrement = nodeState.currentGeneration.getAndIncrement();
                         assert beforeIncrement == generation;
                         uploadTask = createUploadTask(translog);
                     }
@@ -371,6 +365,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
     public class UploadTranslogTask extends RetryableAction<UploadTranslogTask> implements Comparable<UploadTranslogTask> {
 
         private final CompoundTranslog translog;
+        private final BlobTranslogFileImpl translogFile;
         private final RefCounted bytesToClose;
         private int uploadTryNumber = 0;
         private volatile boolean isUploaded = false;
@@ -386,6 +381,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
                 EsExecutors.DIRECT_EXECUTOR_SERVICE
             );
             this.translog = translog;
+            this.translogFile = new BlobTranslogFileImpl(translog.metadata());
             this.bytesToClose = new AbstractRefCounted() {
                 @Override
                 protected void closeInternal() {
@@ -494,13 +490,12 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
         }
     }
 
-    // TODO: Rename to reflect that this is for sync or combine with other task
-    private class ValidateClusterStateTask extends RetryableAction<Void> implements Comparable<ValidateClusterStateTask> {
+    private class ValidateClusterStateForUploadTask extends RetryableAction<Void> implements Comparable<ValidateClusterStateForUploadTask> {
 
         private final long validateGeneration;
-        private final ArrayList<CompoundTranslogMetadata> completedSyncs;
+        private final ArrayList<BlobTranslogFileImpl> completedUploads;
 
-        private ValidateClusterStateTask(long validateGeneration, ArrayList<CompoundTranslogMetadata> completedSyncs) {
+        private ValidateClusterStateForUploadTask(long validateGeneration, ArrayList<BlobTranslogFileImpl> completedUploads) {
             super(
                 org.apache.logging.log4j.LogManager.getLogger(TranslogReplicator.class),
                 threadPool,
@@ -514,7 +509,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
                             () -> format(
                                 "validated cluster state for translog file upload [validateGeneration=%s, files=%s]",
                                 validateGeneration,
-                                completedSyncs.stream().map(f -> f.name).toList()
+                                completedUploads.stream().map(BlobTranslogFile::blobName).toList()
                             )
                         );
                         nodeState.markClusterStateValidateFinished(validateGeneration);
@@ -529,11 +524,11 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
                 EsExecutors.DIRECT_EXECUTOR_SERVICE
             );
             this.validateGeneration = validateGeneration;
-            this.completedSyncs = completedSyncs;
+            this.completedUploads = completedUploads;
         }
 
         @Override
-        public int compareTo(ValidateClusterStateTask o) {
+        public int compareTo(ValidateClusterStateForUploadTask o) {
             return Long.compare(validateGeneration, o.validateGeneration);
         }
 
@@ -543,7 +538,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
                 () -> format(
                     "attempting to validate cluster state for translog file upload [validateGeneration=%s, files=%s]",
                     validateGeneration,
-                    completedSyncs.stream().map(f -> f.name).toList()
+                    completedUploads.stream().map(BlobTranslogFile::blobName).toList()
                 )
             );
             consistencyService.ensureClusterStateConsistentWithRootBlob(listener, TimeValue.MAX_VALUE);
@@ -622,6 +617,10 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
             return checkpoints;
         }
 
+        public Set<ShardId> includedShards() {
+            return includedShards;
+        }
+
         @Override
         public int compareTo(BlobTranslogFile o) {
             return Long.compare(generation(), o.generation());
@@ -644,13 +643,11 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
 
     private class BlobTranslogFileImpl extends BlobTranslogFile {
 
-        private BlobTranslogFileImpl(CompoundTranslogMetadata compoundTranslog) {
-            super(
-                compoundTranslog.generation(),
-                compoundTranslog.name(),
-                compoundTranslog.checkpoints(),
-                compoundTranslog.syncedLocations().keySet()
-            );
+        private final TranslogReplicator.CompoundTranslogMetadata metadata;
+
+        private BlobTranslogFileImpl(CompoundTranslogMetadata metadata) {
+            super(metadata.generation(), metadata.name(), metadata.checkpoints(), metadata.syncedLocations().keySet());
+            this.metadata = metadata;
         }
 
         @Override
@@ -663,13 +660,12 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
 
         private final AtomicLong maxUploadedGeneration = new AtomicLong(-1);
 
-        private final AtomicLong compoundTranslogGeneration = new AtomicLong(0);
+        private final AtomicLong currentGeneration = new AtomicLong(0);
         private final PriorityQueue<UploadTranslogTask> ongoingUploads = new PriorityQueue<>();
 
         private final AtomicLong validateClusterStateGeneration = new AtomicLong(0);
-        private final PriorityQueue<ValidateClusterStateTask> ongoingValidateClusterState = new PriorityQueue<>();
+        private final PriorityQueue<ValidateClusterStateForUploadTask> ongoingValidateClusterState = new PriorityQueue<>();
 
-        private final Map<Long, BlobTranslogFile> uploadingTranslogFiles = ConcurrentCollections.newConcurrentMap();
         private final Set<BlobTranslogFile> activeTranslogFiles = ConcurrentCollections.newConcurrentSet();
         private final Set<BlobTranslogFile> translogFilesToDelete = ConcurrentCollections.newConcurrentSet();
 
@@ -677,9 +673,8 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
             synchronized (ongoingUploads) {
                 ongoingUploads.add(uploadTranslogTask);
 
+                BlobTranslogFileImpl translogFile = uploadTranslogTask.translogFile;
                 CompoundTranslogMetadata metadata = uploadTranslogTask.translog.metadata();
-                BlobTranslogFileImpl translogFile = new BlobTranslogFileImpl(metadata);
-                uploadingTranslogFiles.put(metadata.generation(), translogFile);
                 for (Map.Entry<ShardId, ShardSyncState.SyncMarker> entry : metadata.syncedLocations().entrySet()) {
                     assert translogFile.checkpoints().get(entry.getKey()).totalOps() > 0;
                     ShardSyncState shardSyncState = shardSyncStates.get(entry.getKey());
@@ -700,12 +695,12 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
                 assert ongoingUploads.isEmpty() == false;
                 uploadTask.markUploaded();
                 if (ongoingUploads.peek() == uploadTask) {
-                    ArrayList<CompoundTranslogMetadata> completedSyncs = new ArrayList<>(2);
+                    ArrayList<BlobTranslogFileImpl> completedSyncs = new ArrayList<>(2);
                     Iterator<UploadTranslogTask> iterator = ongoingUploads.iterator();
                     while (iterator.hasNext()) {
                         UploadTranslogTask entry = iterator.next();
                         if (entry.isUploaded) {
-                            completedSyncs.add(entry.translog.metadata());
+                            completedSyncs.add(entry.translogFile);
                             iterator.remove();
                         } else {
                             break;
@@ -732,10 +727,13 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
                 .orElse(false);
         }
 
-        private void triggerClusterStateValidate(ArrayList<CompoundTranslogMetadata> completedSyncs) {
-            final ValidateClusterStateTask validateClusterStateTask;
+        private void triggerClusterStateValidate(ArrayList<BlobTranslogFileImpl> completedSyncs) {
+            final ValidateClusterStateForUploadTask validateClusterStateTask;
             synchronized (ongoingValidateClusterState) {
-                validateClusterStateTask = new ValidateClusterStateTask(validateClusterStateGeneration.getAndIncrement(), completedSyncs);
+                validateClusterStateTask = new ValidateClusterStateForUploadTask(
+                    validateClusterStateGeneration.getAndIncrement(),
+                    completedSyncs
+                );
                 ongoingValidateClusterState.add(validateClusterStateTask);
             }
 
@@ -745,17 +743,15 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
         private void markClusterStateValidateFinished(long validateGeneration) {
             HashSet<ShardSyncState> modifiedShardSyncedLocations = new HashSet<>();
             synchronized (ongoingValidateClusterState) {
-                Iterator<ValidateClusterStateTask> iterator = ongoingValidateClusterState.iterator();
+                Iterator<ValidateClusterStateForUploadTask> iterator = ongoingValidateClusterState.iterator();
                 while (iterator.hasNext()) {
-                    ValidateClusterStateTask task = iterator.next();
+                    ValidateClusterStateForUploadTask task = iterator.next();
                     // Complete any validate listeners with a generation less or equal to the completed generation
                     if (validateGeneration >= task.validateGeneration) {
-                        task.completedSyncs.forEach(sync -> {
-                            BlobTranslogFile translogFile = uploadingTranslogFiles.remove(sync.generation());
-                            assert translogFile != null;
+                        task.completedUploads.forEach(upload -> {
                             try {
-                                activeTranslogFiles.add(translogFile);
-                                for (Map.Entry<ShardId, ShardSyncState.SyncMarker> entry : sync.syncedLocations().entrySet()) {
+                                activeTranslogFiles.add(upload);
+                                for (Map.Entry<ShardId, ShardSyncState.SyncMarker> entry : upload.metadata.syncedLocations().entrySet()) {
                                     ShardSyncState shardSyncState = shardSyncStates.get(entry.getKey());
                                     // If the shard sync state has been deregistered we can just ignore
                                     if (shardSyncState != null) {
@@ -770,7 +766,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
                                                     "skipped shard %s sync notification after translog file [%s] upload "
                                                         + "because primary term advanced [syncPrimaryTerm=%s, currentPrimaryTerm=%s]",
                                                     entry.getKey(),
-                                                    translogFile.blobName(),
+                                                    upload.blobName(),
                                                     syncMarker.primaryTerm(),
                                                     shardSyncState.currentPrimaryTerm()
                                                 )
@@ -782,13 +778,13 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
                                                 "skipped shard %s sync notification after translog file [%s] upload because "
                                                     + "shard unregistered",
                                                 entry.getKey(),
-                                                translogFile.blobName()
+                                                upload.blobName()
                                             )
                                         );
                                     }
                                 }
                             } finally {
-                                translogFile.decRef();
+                                upload.decRef();
                             }
                         });
                         iterator.remove();

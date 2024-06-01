@@ -30,6 +30,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
@@ -43,7 +44,7 @@ public class NodeTranslogBuffer implements Releasable {
 
     private final BigArrays bigArrays;
     private final long flushSizeThreshold;
-    private final Map<ShardSyncState, ShardSyncState.BufferState> buffers = ConcurrentCollections.newConcurrentMap();
+    private final Map<ShardSyncState, ShardBuffer> buffers = ConcurrentCollections.newConcurrentMap();
     private final AtomicLong bufferSize = new AtomicLong();
     private final AtomicBoolean minimumIntervalExhausted = new AtomicBoolean(false);
     private final AtomicBoolean syncRequested = new AtomicBoolean(false);
@@ -89,14 +90,11 @@ public class NodeTranslogBuffer implements Releasable {
                     0
                 );
                 shardSyncState.updateProcessedLocation(newProcessedLocation);
-                ShardSyncState.BufferState bufferState = buffers.computeIfAbsent(
+                ShardBuffer shardBuffer = buffers.computeIfAbsent(
                     shardSyncState,
-                    (k) -> new ShardSyncState.BufferState(
-                        shardSyncState.getStartingPrimaryTerm(),
-                        new ReleasableBytesStreamOutput(bigArrays)
-                    )
+                    (k) -> new ShardBuffer(shardSyncState.getStartingPrimaryTerm(), new ReleasableBytesStreamOutput(bigArrays))
                 );
-                bufferState.append(data, seqNo, location);
+                shardBuffer.append(data, seqNo, location);
                 bufferSize.getAndAdd(data.length());
             } finally {
                 semaphore.release();
@@ -125,7 +123,7 @@ public class NodeTranslogBuffer implements Releasable {
                 ShardId shardId = state.getShardId();
 
                 long position = compoundTranslogStream.position();
-                ShardSyncState.BufferState buffer = buffers.get(state);
+                ShardBuffer buffer = buffers.get(state);
                 TranslogMetadata.Directory directory = state.createDirectory(generation, buffer == null ? 0 : buffer.totalOps());
 
                 // If the ShardSyncState is closed ignore. If shard has been closed, then there is a potentially a race with creating an
@@ -174,12 +172,68 @@ public class NodeTranslogBuffer implements Releasable {
         Releasables.close(buffers.values());
     }
 
-    private TranslogMetadata metadata(ShardSyncState.BufferState buffer, long position, long size, TranslogMetadata.Directory directory) {
+    private TranslogMetadata metadata(ShardBuffer buffer, long position, long size, TranslogMetadata.Directory directory) {
         if (size == 0) {
             assert buffer == null;
             return new TranslogMetadata(position, 0, SequenceNumbers.NO_OPS_PERFORMED, SequenceNumbers.NO_OPS_PERFORMED, 0, directory);
         } else {
             return new TranslogMetadata(position, size, buffer.minSeqNo(), buffer.maxSeqNo(), buffer.totalOps(), directory);
+        }
+    }
+
+    private static class ShardBuffer implements Releasable {
+
+        private final long primaryTerm;
+        private final ReleasableBytesStreamOutput data;
+        private final ArrayList<Long> seqNos;
+        private long minSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
+        private long maxSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
+        private long totalOps = 0;
+
+        private Translog.Location location;
+
+        private ShardBuffer(long primaryTerm, ReleasableBytesStreamOutput data) {
+            this.primaryTerm = primaryTerm;
+            this.data = data;
+            this.seqNos = new ArrayList<>();
+        }
+
+        private void append(BytesReference data, long seqNo, Translog.Location location) throws IOException {
+            data.writeTo(this.data);
+            seqNos.add(seqNo);
+            minSeqNo = SequenceNumbers.min(minSeqNo, seqNo);
+            maxSeqNo = SequenceNumbers.max(maxSeqNo, seqNo);
+            totalOps++;
+            this.location = location;
+        }
+
+        private ReleasableBytesStreamOutput data() {
+            return data;
+        }
+
+        private long minSeqNo() {
+            return minSeqNo;
+        }
+
+        private long maxSeqNo() {
+            return maxSeqNo;
+        }
+
+        private long totalOps() {
+            return totalOps;
+        }
+
+        private ShardSyncState.SyncMarker syncMarker() {
+            return new ShardSyncState.SyncMarker(
+                primaryTerm,
+                new Translog.Location(location.generation, location.translogLocation + location.size, 0),
+                seqNos
+            );
+        }
+
+        @Override
+        public void close() {
+            data.close();
         }
     }
 }

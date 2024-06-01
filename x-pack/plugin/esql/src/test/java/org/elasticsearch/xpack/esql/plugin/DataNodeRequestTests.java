@@ -59,6 +59,7 @@ public class DataNodeRequestTests extends AbstractWireSerializingTestCase<DataNo
         List<NamedWriteableRegistry.Entry> writeables = new ArrayList<>();
         writeables.addAll(new SearchModule(Settings.EMPTY, List.of()).getNamedWriteables());
         writeables.addAll(Block.getNamedWriteables());
+        writeables.addAll(EsField.getNamedWriteables());
         return new NamedWriteableRegistry(writeables);
     }
 

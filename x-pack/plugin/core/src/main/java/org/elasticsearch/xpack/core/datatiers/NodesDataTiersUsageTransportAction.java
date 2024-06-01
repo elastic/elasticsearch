@@ -28,6 +28,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.NodeIndicesStats;
@@ -137,8 +138,10 @@ public class NodesDataTiersUsageTransportAction extends TransportNodesAction<
                 List<IndexShardStats> allShardStats = nodeIndicesStats.getShardStats(indexMetadata.getIndex());
                 if (allShardStats != null) {
                     for (IndexShardStats indexShardStats : allShardStats) {
-                        usageStats.incrementTotalSize(indexShardStats.getTotal().getStore().totalDataSetSizeInBytes());
-                        usageStats.incrementDocCount(indexShardStats.getTotal().getDocs().getCount());
+                        final StoreStats storeStats = indexShardStats.getTotal().getStore();
+                        usageStats.incrementTotalSize(storeStats == null ? 0L : storeStats.totalDataSetSizeInBytes());
+                        final DocsStats docsStats = indexShardStats.getTotal().getDocs();
+                        usageStats.incrementDocCount(docsStats == null ? 0L : docsStats.getCount());
 
                         ShardRouting shardRouting = routingNode.getByShardId(indexShardStats.getShardId());
                         if (shardRouting != null && shardRouting.state() == ShardRoutingState.STARTED) {

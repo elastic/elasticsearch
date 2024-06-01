@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.ml.utils;
+package org.elasticsearch.xpack.core.ml.utils;
 
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -23,7 +23,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
-import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -217,15 +216,15 @@ public class InferenceProcessorInfoExtractorTests extends ESTestCase {
     }
 
     private static Map<String, Object> inferenceProcessorForModel(String modelId) {
-        return Collections.singletonMap(InferenceProcessor.TYPE, new HashMap<>() {
+        return Collections.singletonMap(InferenceProcessorConstants.TYPE, new HashMap<>() {
             {
                 put(InferenceResults.MODEL_ID_RESULTS_FIELD, modelId);
                 put(
-                    InferenceProcessor.INFERENCE_CONFIG,
+                    InferenceProcessorConstants.INFERENCE_CONFIG,
                     Collections.singletonMap(RegressionConfig.NAME.getPreferredName(), Collections.emptyMap())
                 );
-                put(InferenceProcessor.TARGET_FIELD, "new_field");
-                put(InferenceProcessor.FIELD_MAP, Collections.singletonMap("source", "dest"));
+                put(InferenceProcessorConstants.TARGET_FIELD, "new_field");
+                put(InferenceProcessorConstants.FIELD_MAP, Collections.singletonMap("source", "dest"));
             }
         });
     }

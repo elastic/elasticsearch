@@ -164,38 +164,14 @@ public final class BulkRequestParser {
                     continue;
                 }
                 if (token != XContentParser.Token.START_OBJECT) {
-                    throw new IllegalArgumentException(
-                        "Malformed action/metadata line ["
-                            + line
-                            + "], expected "
-                            + XContentParser.Token.START_OBJECT
-                            + " but found ["
-                            + token
-                            + "]"
-                    );
+                    throwOnMalformedStart(line, token);
                 }
                 // Move to FIELD_NAME, that's the action
-                token = parser.nextToken();
-                if (token != XContentParser.Token.FIELD_NAME) {
-                    throw new IllegalArgumentException(
-                        "Malformed action/metadata line ["
-                            + line
-                            + "], expected "
-                            + XContentParser.Token.FIELD_NAME
-                            + " but found ["
-                            + token
-                            + "]"
-                    );
-                }
-                String action = parser.currentName();
-                if (SUPPORTED_ACTIONS.contains(action) == false) {
-                    throw new IllegalArgumentException(
-                        "Malformed action/metadata line ["
-                            + line
-                            + "], expected field [create], [delete], [index] or [update] but found ["
-                            + action
-                            + "]"
-                    );
+                String action = parser.nextFieldName();
+                if (action == null) {
+                    throwOnMalformedLine(line, parser);
+                } else if (SUPPORTED_ACTIONS.contains(action) == false) {
+                    throwOnUnsupportedAction(line, action);
                 }
 
                 String index = defaultIndex;
@@ -442,6 +418,34 @@ public final class BulkRequestParser {
                 }
             }
         }
+    }
+
+    private static void throwOnMalformedStart(int line, XContentParser.Token token) {
+        throw new IllegalArgumentException(
+            "Malformed action/metadata line [" + line + "], expected " + XContentParser.Token.START_OBJECT + " but found [" + token + "]"
+        );
+    }
+
+    private static void throwOnMalformedLine(int line, XContentParser parser) {
+        throw new IllegalArgumentException(
+            "Malformed action/metadata line ["
+                + line
+                + "], expected "
+                + XContentParser.Token.FIELD_NAME
+                + " but found ["
+                + parser.currentToken()
+                + "]"
+        );
+    }
+
+    private static void throwOnUnsupportedAction(int line, String action) {
+        throw new IllegalArgumentException(
+            "Malformed action/metadata line ["
+                + line
+                + "], expected field [create], [delete], [index] or [update] but found ["
+                + action
+                + "]"
+        );
     }
 
     @UpdateForV9

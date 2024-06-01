@@ -607,15 +607,14 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     }
 
     static void prohibitCustomRoutingOnDataStream(DocWriteRequest<?> writeRequest, Metadata metadata) {
-        IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(writeRequest.index());
-        if (indexAbstraction == null) {
-            return;
-        }
-        if (indexAbstraction.getType() != IndexAbstraction.Type.DATA_STREAM) {
-            return;
-        }
-
         if (writeRequest.routing() != null) {
+            IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(writeRequest.index());
+            if (indexAbstraction == null) {
+                return;
+            }
+            if (indexAbstraction.getType() != IndexAbstraction.Type.DATA_STREAM) {
+                return;
+            }
             DataStream dataStream = (DataStream) indexAbstraction;
             if (dataStream.isAllowCustomRouting() == false) {
                 throw new IllegalArgumentException(

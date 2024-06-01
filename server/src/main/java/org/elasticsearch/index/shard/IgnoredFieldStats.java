@@ -15,6 +15,7 @@ import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Objects;
 
 public class IgnoredFieldStats implements Writeable, ToXContentFragment {
 
@@ -63,6 +64,19 @@ public class IgnoredFieldStats implements Writeable, ToXContentFragment {
 
         docsWithIgnoredFields += other.docsWithIgnoredFields;
         ignoredFieldTermsSumDocFreq += other.ignoredFieldTermsSumDocFreq;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        IgnoredFieldStats that = (IgnoredFieldStats) o;
+        return docsWithIgnoredFields == that.docsWithIgnoredFields && ignoredFieldTermsSumDocFreq == that.ignoredFieldTermsSumDocFreq;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(docsWithIgnoredFields, ignoredFieldTermsSumDocFreq);
     }
 
     static final class Fields {

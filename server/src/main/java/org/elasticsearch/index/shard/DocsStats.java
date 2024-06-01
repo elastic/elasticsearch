@@ -59,7 +59,7 @@ public class DocsStats implements Writeable, ToXContentFragment {
         this.deleted += other.deleted;
         if (ignoredFieldStats == null) {
             if (other.ignoredFieldStats != null) {
-                ignoredFieldStats = new IgnoredFieldStats(0, 0);
+                ignoredFieldStats = new IgnoredFieldStats();
                 ignoredFieldStats.add(other.ignoredFieldStats);
             }
         } else {

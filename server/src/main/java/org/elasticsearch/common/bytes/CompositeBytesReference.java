@@ -9,7 +9,6 @@
 package org.elasticsearch.common.bytes;
 
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.BytesRefIterator;
 import org.apache.lucene.util.RamUsageEstimator;
 
@@ -172,18 +171,22 @@ public final class CompositeBytesReference extends AbstractBytesReference {
 
     @Override
     public BytesRef toBytesRef() {
-        BytesRefBuilder builder = new BytesRefBuilder();
-        builder.grow(length());
-        BytesRef spare;
-        BytesRefIterator iterator = iterator();
+        final byte[] bytes = new byte[length];
+        int offset = 0;
         try {
-            while ((spare = iterator.next()) != null) {
-                builder.append(spare);
+            for (BytesReference reference : references) {
+                BytesRef spare;
+                final BytesRefIterator iterator = reference.iterator();
+                while ((spare = iterator.next()) != null) {
+                    final int len = spare.length;
+                    System.arraycopy(spare.bytes, spare.offset, bytes, offset, len);
+                    offset += len;
+                }
             }
         } catch (IOException ex) {
             throw new AssertionError("won't happen", ex); // this is really an error since we don't do IO in our bytesreferences
         }
-        return builder.toBytesRef();
+        return new BytesRef(bytes);
     }
 
     @Override

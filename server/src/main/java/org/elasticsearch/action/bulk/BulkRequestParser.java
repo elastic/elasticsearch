@@ -318,39 +318,22 @@ public final class BulkRequestParser {
                     // we use internalAdd so we don't fork here, this allows us not to copy over the big byte array to small chunks
                     // of index request.
                     if ("index".equals(action)) {
+                        IndexRequest indexRequest = new IndexRequest(index).id(id)
+                            .routing(routing)
+                            .version(version)
+                            .versionType(versionType)
+                            .setPipeline(pipeline)
+                            .setIfSeqNo(ifSeqNo)
+                            .setIfPrimaryTerm(ifPrimaryTerm)
+                            .source(sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType), xContentType)
+                            .setDynamicTemplates(dynamicTemplates)
+                            .setRequireAlias(requireAlias)
+                            .setRequireDataStream(requireDataStream)
+                            .setListExecutedPipelines(listExecutedPipelines);
                         if (opType == null) {
-                            indexRequestConsumer.accept(
-                                new IndexRequest(index).id(id)
-                                    .routing(routing)
-                                    .version(version)
-                                    .versionType(versionType)
-                                    .setPipeline(pipeline)
-                                    .setIfSeqNo(ifSeqNo)
-                                    .setIfPrimaryTerm(ifPrimaryTerm)
-                                    .source(sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType), xContentType)
-                                    .setDynamicTemplates(dynamicTemplates)
-                                    .setRequireAlias(requireAlias)
-                                    .setRequireDataStream(requireDataStream)
-                                    .setListExecutedPipelines(listExecutedPipelines),
-                                type
-                            );
+                            indexRequestConsumer.accept(indexRequest, type);
                         } else {
-                            indexRequestConsumer.accept(
-                                new IndexRequest(index).id(id)
-                                    .routing(routing)
-                                    .version(version)
-                                    .versionType(versionType)
-                                    .create("create".equals(opType))
-                                    .setPipeline(pipeline)
-                                    .setIfSeqNo(ifSeqNo)
-                                    .setIfPrimaryTerm(ifPrimaryTerm)
-                                    .source(sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType), xContentType)
-                                    .setDynamicTemplates(dynamicTemplates)
-                                    .setRequireAlias(requireAlias)
-                                    .setRequireDataStream(requireDataStream)
-                                    .setListExecutedPipelines(listExecutedPipelines),
-                                type
-                            );
+                            indexRequestConsumer.accept(indexRequest.create("create".equals(opType)), type);
                         }
                     } else if ("create".equals(action)) {
                         indexRequestConsumer.accept(

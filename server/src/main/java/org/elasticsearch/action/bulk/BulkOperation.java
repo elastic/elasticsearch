@@ -269,6 +269,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         // Group the requests by ShardId -> Operations mapping
         Map<ShardId, List<BulkItemRequest>> requestsByShard = new HashMap<>();
 
+        boolean hasIndicesNotCreated = indicesThatCannotBeCreated.isEmpty() == false;
         while (it.hasNext()) {
             BulkItemRequest bulkItemRequest = it.next();
             DocWriteRequest<?> docWriteRequest = bulkItemRequest.request();
@@ -280,7 +281,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
             if (addFailureIfRequiresAliasAndAliasIsMissing(docWriteRequest, bulkItemRequest.id(), metadata)) {
                 continue;
             }
-            if (addFailureIfIndexCannotBeCreated(docWriteRequest, bulkItemRequest.id())) {
+            if (hasIndicesNotCreated && addFailureIfIndexCannotBeCreated(docWriteRequest, bulkItemRequest.id())) {
                 continue;
             }
             if (addFailureIfRequiresDataStreamAndNoParentDataStream(docWriteRequest, bulkItemRequest.id(), metadata)) {
@@ -366,7 +367,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                 BulkShardRequest bulkShardRequest = new BulkShardRequest(
                     shardId,
                     bulkRequest.getRefreshPolicy(),
-                    requests.toArray(new BulkItemRequest[0]),
+                    requests.toArray(BulkItemRequest.EMPTY_ARRAY),
                     bulkRequest.isSimulated()
                 );
                 var indexMetadata = clusterState.getMetadata().index(shardId.getIndexName());
@@ -434,9 +435,10 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
 
             @Override
             public void onResponse(BulkShardResponse bulkShardResponse) {
-                for (int idx = 0; idx < bulkShardResponse.getResponses().length; idx++) {
+                BulkItemResponse[] shardResponses = bulkShardResponse.getResponses();
+                for (int idx = 0; idx < shardResponses.length; idx++) {
                     // We zip the requests and responses together so that we can identify failed documents and potentially store them
-                    BulkItemResponse bulkItemResponse = bulkShardResponse.getResponses()[idx];
+                    BulkItemResponse bulkItemResponse = shardResponses[idx];
 
                     if (bulkItemResponse.isFailed()) {
                         BulkItemRequest bulkItemRequest = bulkShardRequest.items()[idx];

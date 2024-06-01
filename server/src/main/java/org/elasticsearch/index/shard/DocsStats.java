@@ -12,6 +12,7 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -24,8 +25,8 @@ public class DocsStats implements Writeable, ToXContentFragment {
     private long count = 0;
     private long deleted = 0;
     private long totalSizeInBytes = 0;
-    private long docsWithIgnoredFields = -1;
-    private long ignoredFieldTermsSumDocFreq = -1;
+    @Nullable
+    private IgnoredFieldStats ignoredFieldStats;
 
     public DocsStats() {
 
@@ -35,18 +36,14 @@ public class DocsStats implements Writeable, ToXContentFragment {
         count = in.readVLong();
         deleted = in.readVLong();
         totalSizeInBytes = in.readVLong();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.IGNORED_FIELDS_STATS)) {
-            docsWithIgnoredFields = in.readLong();
-            ignoredFieldTermsSumDocFreq = in.readLong();
-        }
+        ignoredFieldStats = in.readOptionalWriteable(IgnoredFieldStats::new);
     }
 
-    public DocsStats(long count, long deleted, long totalSizeInBytes, long docsWithIgnoredFields, long ignoredFieldTermsSumDocFreq) {
+    public DocsStats(long count, long deleted, long totalSizeInBytes, @Nullable final IgnoredFieldStats ignoredFieldStats) {
         this.count = count;
         this.deleted = deleted;
         this.totalSizeInBytes = totalSizeInBytes;
-        this.docsWithIgnoredFields = docsWithIgnoredFields;
-        this.ignoredFieldTermsSumDocFreq = ignoredFieldTermsSumDocFreq;
+        this.ignoredFieldStats = ignoredFieldStats;
     }
 
     public void add(DocsStats other) {
@@ -60,15 +57,13 @@ public class DocsStats implements Writeable, ToXContentFragment {
         }
         this.count += other.count;
         this.deleted += other.deleted;
-        if (this.docsWithIgnoredFields == -1) {
-            this.docsWithIgnoredFields = other.docsWithIgnoredFields;
-        } else if (other.docsWithIgnoredFields != -1) {
-            this.docsWithIgnoredFields += other.docsWithIgnoredFields;
-        }
-        if (this.ignoredFieldTermsSumDocFreq == -1) {
-            this.ignoredFieldTermsSumDocFreq = other.ignoredFieldTermsSumDocFreq;
-        } else if (other.ignoredFieldTermsSumDocFreq != -1) {
-            this.ignoredFieldTermsSumDocFreq += other.ignoredFieldTermsSumDocFreq;
+        if (ignoredFieldStats == null) {
+            if (other.ignoredFieldStats != null) {
+                ignoredFieldStats = new IgnoredFieldStats(0, 0);
+                ignoredFieldStats.add(other.ignoredFieldStats);
+            }
+        } else {
+            ignoredFieldStats.add(other.ignoredFieldStats);
         }
     }
 
@@ -88,12 +83,8 @@ public class DocsStats implements Writeable, ToXContentFragment {
         return totalSizeInBytes;
     }
 
-    public long getDocsWithIgnoredFields() {
-        return docsWithIgnoredFields;
-    }
-
-    public long getIgnoredFieldTermsSumDocFreq() {
-        return ignoredFieldTermsSumDocFreq;
+    public IgnoredFieldStats getIgnoredFieldStats() {
+        return ignoredFieldStats;
     }
 
     @Override
@@ -102,8 +93,7 @@ public class DocsStats implements Writeable, ToXContentFragment {
         out.writeVLong(deleted);
         out.writeVLong(totalSizeInBytes);
         if (out.getTransportVersion().onOrAfter(TransportVersions.IGNORED_FIELDS_STATS)) {
-            out.writeLong(docsWithIgnoredFields);
-            out.writeLong(ignoredFieldTermsSumDocFreq);
+            out.writeOptionalWriteable(ignoredFieldStats);
         }
     }
 
@@ -113,8 +103,9 @@ public class DocsStats implements Writeable, ToXContentFragment {
         builder.field(Fields.COUNT, count);
         builder.field(Fields.DELETED, deleted);
         builder.field(Fields.TOTAL_SIZE_IN_BYTES, totalSizeInBytes);
-        builder.field(Fields.DOCS_WITH_IGNORED_FIELDS, docsWithIgnoredFields);
-        builder.field(Fields.SUM_DOC_FREQ_TERMS_IGNORED_FIELD, ignoredFieldTermsSumDocFreq);
+        if (ignoredFieldStats != null) {
+            ignoredFieldStats.toXContent(builder, params);
+        }
         builder.endObject();
         return builder;
     }
@@ -127,13 +118,12 @@ public class DocsStats implements Writeable, ToXContentFragment {
         return count == that.count
             && deleted == that.deleted
             && totalSizeInBytes == that.totalSizeInBytes
-            && docsWithIgnoredFields == that.docsWithIgnoredFields
-            && ignoredFieldTermsSumDocFreq == that.ignoredFieldTermsSumDocFreq;
+            && Objects.equals(ignoredFieldStats, that.ignoredFieldStats);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(count, deleted, totalSizeInBytes, docsWithIgnoredFields, ignoredFieldTermsSumDocFreq);
+        return Objects.hash(count, deleted, totalSizeInBytes, ignoredFieldStats);
     }
 
     static final class Fields {
@@ -141,7 +131,5 @@ public class DocsStats implements Writeable, ToXContentFragment {
         static final String COUNT = "count";
         static final String DELETED = "deleted";
         static final String TOTAL_SIZE_IN_BYTES = "total_size_in_bytes";
-        static final String DOCS_WITH_IGNORED_FIELDS = "docs_with_ignored_fields";
-        static final String SUM_DOC_FREQ_TERMS_IGNORED_FIELD = "sum_doc_freq_terms_ignored_field";
     }
 }

@@ -28,8 +28,7 @@ public class ResizeNumberOfShardsCalculatorTests extends ESTestCase {
             new ResizeNumberOfShardsCalculator.ShrinkShardsCalculator(
                 new StoreStats(between(1, 100), between(0, 100), between(1, 100)),
                 (i) -> {
-                    int docs = between(0, 10000);
-                    return new DocsStats(between(1, 1000), between(1, 1000), between(0, 10000), docs, docs + randomLongBetween(0, 100));
+                    return new DocsStats(between(1, 1000), between(1, 1000), between(0, 10000), null);
                 }
             );
         assertEquals(4, shrinkShardsCalculator.calculate(4, null, indexMetadata));
@@ -45,8 +44,7 @@ public class ResizeNumberOfShardsCalculatorTests extends ESTestCase {
                 () -> new ResizeNumberOfShardsCalculator.ShrinkShardsCalculator(
                     new StoreStats(between(1, 100), between(0, 100), between(1, 100)),
                     (i) -> {
-                        int docs = between(0, 10000);
-                        return new DocsStats(Integer.MAX_VALUE, between(1, 1000), between(1, 100), docs, docs + randomLongBetween(0, 100));
+                        return new DocsStats(Integer.MAX_VALUE, between(1, 1000), between(1, 100), null);
                     }
                 ).validate(1, indexMetadata)
             ).getMessage().startsWith("Can't merge index with more than [2147483519] docs - too many documents in shards ")

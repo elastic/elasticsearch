@@ -18,26 +18,24 @@ import static org.hamcrest.Matchers.equalTo;
 public class DocsStatsTests extends ESTestCase {
 
     public void testUninitialisedShards() {
-        DocsStats stats = new DocsStats(0, 0, -1, 0, 0);
+        DocsStats stats = new DocsStats(0, 0, -1, null);
         assertThat(stats.getTotalSizeInBytes(), equalTo(-1L));
-        stats.add(new DocsStats(0, 0, -1, 0, 0));
+        stats.add(new DocsStats(0, 0, -1, null));
         assertThat(stats.getTotalSizeInBytes(), equalTo(-1L));
-        stats.add(new DocsStats(1, 0, 10, 0, 0));
+        stats.add(new DocsStats(1, 0, 10, null));
         assertThat(stats.getTotalSizeInBytes(), equalTo(10L));
-        stats.add(new DocsStats(0, 0, -1, 0, 0));
+        stats.add(new DocsStats(0, 0, -1, null));
         assertThat(stats.getTotalSizeInBytes(), equalTo(10L));
-        stats.add(new DocsStats(1, 0, 20, 0, 0));
+        stats.add(new DocsStats(1, 0, 20, null));
         assertThat(stats.getTotalSizeInBytes(), equalTo(30L));
     }
 
     public void testSerialize() throws Exception {
-        boolean includeIgnoredFieldStats = randomBoolean();
         DocsStats originalStats = new DocsStats(
             randomNonNegativeLong(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
-            randomLong(),
-            randomLong()
+            randomBoolean() ? null : new IgnoredFieldStats(randomNonNegativeLong(), randomNonNegativeLong())
         );
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             originalStats.writeTo(out);
@@ -47,8 +45,16 @@ public class DocsStatsTests extends ESTestCase {
                 assertThat(cloneStats.getCount(), equalTo(originalStats.getCount()));
                 assertThat(cloneStats.getDeleted(), equalTo(originalStats.getDeleted()));
                 assertThat(cloneStats.getTotalSizeInBytes(), equalTo(originalStats.getTotalSizeInBytes()));
-                assertThat(cloneStats.getDocsWithIgnoredFields(), equalTo(originalStats.getDocsWithIgnoredFields()));
-                assertThat(cloneStats.getIgnoredFieldTermsSumDocFreq(), equalTo(originalStats.getIgnoredFieldTermsSumDocFreq()));
+                if (originalStats.getIgnoredFieldStats() != null) {
+                    assertThat(
+                        originalStats.getIgnoredFieldStats().getDocsWithIgnoredFields(),
+                        equalTo(cloneStats.getIgnoredFieldStats().getDocsWithIgnoredFields())
+                    );
+                    assertThat(
+                        originalStats.getIgnoredFieldStats().getIgnoredFieldTermsSumDocFreq(),
+                        equalTo(cloneStats.getIgnoredFieldStats().getIgnoredFieldTermsSumDocFreq())
+                    );
+                }
             }
         }
     }

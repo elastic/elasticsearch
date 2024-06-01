@@ -235,7 +235,7 @@ Total number of documents including at least one ignored field.
 This number is based on documents in Lucene segments and does not take
 into account deleted documents.
 
-`sum_doc_freq_terms_ignored_field`::
+`sum_doc_freq_terms_ignored_fields`::
 (integer)
 Sum of the terms frequencies for the _ignored field over all documents.
 +

@@ -71,6 +71,7 @@ import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.DenseVectorStats;
 import org.elasticsearch.index.shard.DocsStats;
+import org.elasticsearch.index.shard.IgnoredFieldStats;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.index.store.Store;
@@ -216,8 +217,8 @@ public abstract class Engine implements Closeable {
         long numDocs = 0;
         long numDeletedDocs = 0;
         long sizeInBytes = 0;
-        long docsWithIgnoredFields = -1;
-        long ignoredFieldTermsSumDocFreq = -1;
+        long docsWithIgnoredFields = 0;
+        long ignoredFieldTermsSumDocFreq = 0;
         // we don't wait for a pending refreshes here since it's a stats call instead we mark it as accessed only which will cause
         // the next scheduled refresh to go through and refresh the stats as well
         for (LeafReaderContext readerContext : indexReader.leaves()) {
@@ -232,19 +233,28 @@ public abstract class Engine implements Closeable {
                 logger.trace(() -> "failed to get size for [" + info.info.name + "]", e);
             }
             if (includeIgnoredFieldsStats) {
-                docsWithIgnoredFields = getValueOrZero(
+                docsWithIgnoredFields += getValueOrZero(
                     () -> (long) readerContext.reader().getDocCount(IgnoredFieldMapper.NAME),
                     "IO error while reading documents with ignored fields",
                     "Getting number of documents with ignored fields unsupported"
                 );
-                ignoredFieldTermsSumDocFreq = getValueOrZero(
+                ignoredFieldTermsSumDocFreq += getValueOrZero(
                     () -> readerContext.reader().getSumDocFreq(IgnoredFieldMapper.NAME),
                     "IO error while reading frequency of ignored terms",
                     "Getting frequency of ignored terms unsupported"
                 );
             }
         }
-        return new DocsStats(numDocs, numDeletedDocs, sizeInBytes, docsWithIgnoredFields, ignoredFieldTermsSumDocFreq);
+        if (includeIgnoredFieldsStats) {
+            return new DocsStats(
+                numDocs,
+                numDeletedDocs,
+                sizeInBytes,
+                new IgnoredFieldStats(docsWithIgnoredFields, ignoredFieldTermsSumDocFreq)
+            );
+        }
+
+        return new DocsStats(numDocs, numDeletedDocs, sizeInBytes, null);
     }
 
     @FunctionalInterface

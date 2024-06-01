@@ -20,15 +20,10 @@ package co.elastic.elasticsearch.stateless.engine.translog;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.core.Releasable;
-import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.NavigableMap;
@@ -272,62 +267,6 @@ class ShardSyncState {
         @Override
         public int compareTo(SyncListener o) {
             return location.compareTo(o.location);
-        }
-    }
-
-    public static class BufferState implements Releasable {
-
-        private final long primaryTerm;
-        private final ReleasableBytesStreamOutput data;
-        private final ArrayList<Long> seqNos;
-        private long minSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
-        private long maxSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
-        private long totalOps = 0;
-
-        private Translog.Location location;
-
-        BufferState(long primaryTerm, ReleasableBytesStreamOutput data) {
-            this.primaryTerm = primaryTerm;
-            this.data = data;
-            this.seqNos = new ArrayList<>();
-        }
-
-        public final void append(BytesReference data, long seqNo, Translog.Location location) throws IOException {
-            data.writeTo(this.data);
-            seqNos.add(seqNo);
-            minSeqNo = SequenceNumbers.min(minSeqNo, seqNo);
-            maxSeqNo = SequenceNumbers.max(maxSeqNo, seqNo);
-            totalOps++;
-            this.location = location;
-        }
-
-        public ReleasableBytesStreamOutput data() {
-            return data;
-        }
-
-        public long minSeqNo() {
-            return minSeqNo;
-        }
-
-        public long maxSeqNo() {
-            return maxSeqNo;
-        }
-
-        public long totalOps() {
-            return totalOps;
-        }
-
-        private Translog.Location syncLocation() {
-            return new Translog.Location(location.generation, location.translogLocation + location.size, 0);
-        }
-
-        public SyncMarker syncMarker() {
-            return new SyncMarker(primaryTerm, syncLocation(), seqNos);
-        }
-
-        @Override
-        public void close() {
-            data.close();
         }
     }
 

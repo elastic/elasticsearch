@@ -19,11 +19,13 @@ Security::
 Aggregations::
 * Cross check livedocs for terms aggs when index access control list is non-null {es-pull}105714[#105714]
 * ESQL: Enable VALUES agg for datetime {es-pull}107016[#107016]
+* Fix IOOBE in TTest aggregation when using filters {es-pull}109034[#109034]
 * Validate stats formatting in standard `InternalStats` constructor {es-pull}107678[#107678] (issue: {es-issue}107671[#107671])
 
 Application::
 * [Bugfix] Connector API - fix status serialisation issue in termquery {es-pull}108365[#108365]
 * [Connector API] Fix bug with filtering validation toXContent {es-pull}107467[#107467]
+* [Connector API] Fix bug with parsing *_doc_count nullable fields {es-pull}108854[#108854]
 
 Authorization::
 * Users with monitor privileges can access async_search/status endpoint even when setting keep_alive {es-pull}107383[#107383]
@@ -45,6 +47,7 @@ Data streams::
 * Add non-indexed fields to ecs templates {es-pull}106714[#106714]
 * Fix bulk NPE when retrying failure redirect after cluster block {es-pull}107598[#107598]
 * Improve error message when rolling over DS alias {es-pull}106708[#106708] (issue: {es-issue}106137[#106137])
+* Only skip deleting a downsampled index if downsampling is in progress as part of DSL retention {es-pull}109020[#109020]
 
 Downsampling::
 * Fix downsample action request serialization {es-pull}106919[#106919] (issue: {es-issue}106917[#106917])
@@ -64,6 +67,7 @@ ES|QL::
 * ES|QL: Fix usage of IN operator with TEXT fields {es-pull}106654[#106654] (issue: {es-issue}105379[#105379])
 * ES|QL: Improve support for TEXT fields in functions {es-pull}106810[#106810]
 * Fix docs generation of signatures for variadic functions {es-pull}107865[#107865]
+* [ESQL] Mark `date_diff` as requiring all three arguments {es-pull}108834[#108834] (issue: {es-issue}108383[#108383])
 
 Health::
 * Don't stop checking if the `HealthNode` persistent task is present {es-pull}105449[#105449] (issue: {es-issue}98926[#98926])
@@ -108,7 +112,6 @@ Machine Learning::
 * Fix `startOffset` must be non-negative error in XLMRoBERTa tokenizer {es-pull}107891[#107891] (issue: {es-issue}104626[#104626])
 * Fix the position of spike, dip and distribution changes bucket when the sibling aggregation includes empty buckets {es-pull}106472[#106472]
 * Make OpenAI embeddings parser more flexible {es-pull}106808[#106808]
-* Remove ineffective optimizations for duplicate strings. {ml-pull}2652[#2652] (issue: {ml-issue}2130[#2130])
 
 Mapping::
 * Dedupe terms in terms queries {es-pull}106381[#106381]
@@ -129,6 +132,7 @@ Search::
 * Fixing NPE when requesting [_none_] for `stored_fields` {es-pull}104711[#104711]
 * Fork when handling remote field-caps responses {es-pull}107370[#107370]
 * Handle parallel calls to `createWeight` when profiling is on {es-pull}108041[#108041] (issues: {es-issue}104131[#104131], {es-issue}104235[#104235])
+* Harden field-caps request dispatcher {es-pull}108736[#108736]
 * Replace `UnsupportedOperationException` with `IllegalArgumentException` for non-existing columns {es-pull}107038[#107038]
 * Unable to retrieve multiple stored field values {es-pull}106575[#106575]
 * Validate `model_id` is required when using the `learning_to_rank` rescorer {es-pull}107743[#107743]
@@ -138,6 +142,7 @@ Security::
 * Fix field caps and field level security {es-pull}106731[#106731]
 
 Snapshot/Restore::
+* Treat 404 as empty register in `AzureBlobStore` {es-pull}108900[#108900] (issue: {es-issue}108504[#108504])
 * `SharedBlobCacheService.maybeFetchRegion` should use `computeCacheFileRegionSize` {es-pull}106685[#106685]
 
 TSDB::
@@ -149,6 +154,10 @@ Transform::
 * Make force-stopping the transform always remove persistent task from cluster state {es-pull}106989[#106989] (issue: {es-issue}106811[#106811])
 * Only trigger action once per thread {es-pull}107232[#107232] (issue: {es-issue}107215[#107215])
 * [Transform] Auto retry Transform start {es-pull}106243[#106243]
+
+Vector Search::
+* Fix multithreading copies in lib vec {es-pull}108802[#108802]
+* [8.14] Fix multithreading copies in lib vec {es-pull}108810[#108810]
 
 [[deprecation-8.14.0]]
 [float]

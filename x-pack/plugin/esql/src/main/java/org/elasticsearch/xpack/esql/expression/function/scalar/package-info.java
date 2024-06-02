@@ -71,7 +71,8 @@
  *     <li>
  *         There are also methods annotated with {@link org.elasticsearch.compute.ann.Evaluator}
  *         that contain the actual inner implementation of the function. They are usually named
- *         "process" or "processInts" or "processBar". Modify those to look right and run the {@code CsvTests} again. This should generate an {@link org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator}
+ *         "process" or "processInts" or "processBar". Modify those to look right and run the {@code CsvTests}
+ *         again. This should generate an {@link org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator}
  *         implementation calling the method annotated with {@link org.elasticsearch.compute.ann.Evaluator}.
  *.        To make it work with IntelliJ, also click {@code Build->Recompile 'FunctionName.java'}.
  *         Please commit the generated evaluator before submitting your PR.

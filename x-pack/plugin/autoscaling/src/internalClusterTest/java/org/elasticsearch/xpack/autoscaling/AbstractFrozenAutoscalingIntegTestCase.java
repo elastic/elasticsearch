@@ -97,6 +97,7 @@ public abstract class AbstractFrozenAutoscalingIntegTestCase extends AbstractSna
         assertThat(total.storage(), equalTo(ByteSizeValue.ZERO));
 
         final MountSearchableSnapshotRequest req = new MountSearchableSnapshotRequest(
+            TEST_REQUEST_TIMEOUT,
             restoredIndexName,
             fsRepoName,
             snapshotInfo.snapshotId().getName(),

@@ -35,10 +35,6 @@ tests:
 - class: "org.elasticsearch.upgrades.MlTrainedModelsUpgradeIT"
   issue: "https://github.com/elastic/elasticsearch/issues/108993"
   method: "testTrainedModelInference"
-- class: "org.elasticsearch.datastreams.DataStreamsClientYamlTestSuiteIT"
-  issue: "https://github.com/elastic/elasticsearch/issues/109154"
-  method: "test {p0=data_stream/200_rollover_failure_store/Lazily roll over a data\
-    \ stream's failure store after an ingest failure}"
 - class: "org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT"
   issue: "https://github.com/elastic/elasticsearch/issues/109188"
   method: "test {yaml=search/180_locale_dependent_mapping/Test Index and Search locale\
@@ -46,15 +42,25 @@ tests:
 - class: "org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT"
   issue: "https://github.com/elastic/elasticsearch/issues/109189"
   method: "test {p0=esql/70_locale/Date format with Italian locale}"
-- class: "org.elasticsearch.upgrades.SearchStatesIT"
-  issue: "https://github.com/elastic/elasticsearch/issues/109190"
-  method: "testBWCSearchStates"
-- class: "org.elasticsearch.xpack.esql.CsvTests"
-  issue: "https://github.com/elastic/elasticsearch/issues/109198"
-  method: "test {ip.IpPrefixLengthFromColumn}"
 - class: "org.elasticsearch.xpack.test.rest.XPackRestIT"
   issue: "https://github.com/elastic/elasticsearch/issues/109200"
   method: "test {p0=esql/70_locale/Date format with Italian locale}"
+- class: org.elasticsearch.blobcache.common.SparseFileTrackerTests
+  method: testCallsListenerWhenRangeIsAvailable
+  issue: https://github.com/elastic/elasticsearch/issues/109259
+- class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
+  method: test {yaml=reference/esql/esql-async-query-api/line_17}
+  issue: https://github.com/elastic/elasticsearch/issues/109260
+- class: org.elasticsearch.xpack.ccr.LocalIndexFollowingIT
+  method: testRemoveRemoteConnection
+  issue: https://github.com/elastic/elasticsearch/issues/109163
+- class: org.elasticsearch.analysis.common.CommonAnalysisClientYamlTestSuiteIT
+  method: org.elasticsearch.analysis.common.CommonAnalysisClientYamlTestSuiteIT
+  issue: https://github.com/elastic/elasticsearch/issues/109266
+- class: "org.elasticsearch.xpack.sql.qa.single_node.JdbcDocCsvSpecIT"
+  issue: "https://github.com/elastic/elasticsearch/issues/109273"
+  method: "test {docs.testFilterToday}"
+
 # Examples:
 #
 #  Mute a single test case in a YAML test suite:

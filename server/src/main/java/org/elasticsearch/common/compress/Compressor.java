@@ -8,11 +8,11 @@
 
 package org.elasticsearch.common.compress;
 
+import org.apache.commons.io.input.UnsynchronizedBufferedInputStream;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
 
-import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -26,7 +26,12 @@ public interface Compressor {
      */
     default StreamInput threadLocalStreamInput(InputStream in) throws IOException {
         // wrap stream in buffer since InputStreamStreamInput doesn't do any buffering itself but does a lot of small reads
-        return new InputStreamStreamInput(new BufferedInputStream(threadLocalInputStream(in), DeflateCompressor.BUFFER_SIZE));
+        return new InputStreamStreamInput(
+            UnsynchronizedBufferedInputStream.builder()
+                .setInputStream(threadLocalInputStream(in))
+                .setBufferSize(DeflateCompressor.BUFFER_SIZE)
+                .get()
+        );
     }
 
     /**

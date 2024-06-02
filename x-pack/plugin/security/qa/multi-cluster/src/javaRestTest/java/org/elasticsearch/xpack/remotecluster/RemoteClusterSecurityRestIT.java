@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.remotecluster;
 
 import org.apache.http.util.EntityUtils;
+import org.apache.logging.log4j.Level;
+import org.elasticsearch.Build;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
@@ -15,13 +17,17 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.junit.RunnableTestRuleAdapter;
 import org.elasticsearch.xcontent.ObjectPath;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
@@ -59,8 +65,9 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
 
     static {
         fulfillingCluster = ElasticsearchCluster.local()
+            .distribution(DistributionType.DEFAULT)
             .name("fulfilling-cluster")
-            .nodes(3)
+            .nodes(1)
             .apply(commonClusterConfig)
             .setting("remote_cluster.port", "0")
             .setting("xpack.security.remote_cluster_server.ssl.enabled", () -> String.valueOf(SSL_ENABLED_REF.get()))
@@ -69,11 +76,12 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
             .setting("xpack.security.authc.token.enabled", "true")
             .keystore("xpack.security.remote_cluster_server.ssl.secure_key_passphrase", "remote-cluster-password")
             .node(0, spec -> spec.setting("remote_cluster_server.enabled", "true"))
-            .node(1, spec -> spec.setting("remote_cluster_server.enabled", () -> String.valueOf(NODE1_RCS_SERVER_ENABLED.get())))
-            .node(2, spec -> spec.setting("remote_cluster_server.enabled", () -> String.valueOf(NODE2_RCS_SERVER_ENABLED.get())))
+//            .node(1, spec -> spec.setting("remote_cluster_server.enabled", () -> String.valueOf(NODE1_RCS_SERVER_ENABLED.get())))
+//            .node(2, spec -> spec.setting("remote_cluster_server.enabled", () -> String.valueOf(NODE2_RCS_SERVER_ENABLED.get())))
             .build();
 
         queryCluster = ElasticsearchCluster.local()
+            .distribution(DistributionType.DEFAULT)
             .name("query-cluster")
             .apply(commonClusterConfig)
             .setting("xpack.security.remote_cluster_client.ssl.enabled", () -> String.valueOf(SSL_ENABLED_REF.get()))
@@ -137,6 +145,96 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
         NODE2_RCS_SERVER_ENABLED.set(randomBoolean());
         INVALID_SECRET_LENGTH.set(randomValueOtherThan(22, () -> randomIntBetween(0, 99)));
     })).around(fulfillingCluster).around(queryCluster);
+
+    public void testX() throws Exception {
+        assumeTrue("[error_query] is only available in snapshot builds", Build.current().isSnapshot());
+        configureRemoteCluster();
+
+        // fulfilling cluster
+        {
+            final Request bulkRequest = new Request("POST", "/_bulk?refresh=true");
+            bulkRequest.setJsonEntity(Strings.format("""
+                { "index": { "_index": "index_fulfilling" } }
+                { "foo": "bar" }
+                """));
+            assertOK(performRequestAgainstFulfillingCluster(bulkRequest));
+        }
+
+        // Create user role with privileges for remote and local indices
+        var putRoleRequest = new Request("PUT", "/_security/role/X");
+        putRoleRequest.setJsonEntity("""
+                {
+                  "description": "Role with privileges for remote indices for test X.",
+                  "remote_indices": [
+                    {
+                      "names": ["index_fulfilling"],
+                      "privileges": ["read", "read_cross_cluster"],
+                      "clusters": ["my_remote_cluster"]
+                    }
+                  ]
+                }""");
+        assertOK(adminClient().performRequest(putRoleRequest));
+        var putUserRequest = new Request("PUT", "/_security/user/userX");
+        putUserRequest.setJsonEntity("""
+                {
+                  "password": "x-pack-test-password",
+                  "roles" : ["X"]
+                }""");
+        assertOK(adminClient().performRequest(putUserRequest));
+        var submitAsyncSearchRequest = new Request(
+                "POST",
+                Strings.format(
+//                        "/%s:%s/_search?ccs_minimize_roundtrips=%s",
+                        "/%s:%s/_async_search?ccs_minimize_roundtrips=%s",
+//                        randomFrom("my_remote_cluster", "*", "my_remote_*"),
+                        "my_remote_cluster",
+//                        randomFrom("index1", "*"),
+                        "index_fulfilling",
+                        randomBoolean()
+                )
+        );
+        submitAsyncSearchRequest.setJsonEntity("""
+            {
+              "query": {
+                "error_query": {
+                  "indices": [
+                    {
+                      "name": "*:*",
+                      "error_type": "exception",
+                      "stall_time_seconds": 3000
+                    }
+                  ]
+                }
+              }
+            }""");
+        submitAsyncSearchRequest.setOptions(
+                RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", headerFromRandomAuthMethod("userX", PASS))
+        );
+        Response submitAsyncSearchResponse = client().performRequest(submitAsyncSearchRequest);
+        assertOK(submitAsyncSearchResponse);
+        Map<String, Object> submitAsyncSearchResponseMap = XContentHelper.convertToMap(
+                JsonXContent.jsonXContent,
+                EntityUtils.toString(submitAsyncSearchResponse.getEntity()),
+                false
+        );
+        String asyncSearchId = (String) submitAsyncSearchResponseMap.get("id");
+        var deleteAsyncSearchRequest = new Request("DELETE", Strings.format("/_async_search/%s", asyncSearchId));
+        deleteAsyncSearchRequest.setOptions(
+                RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", headerFromRandomAuthMethod("userX", PASS))
+        );
+        Response deleteAsyncSearchResponse = client().performRequest(deleteAsyncSearchRequest);
+        assertOK(deleteAsyncSearchResponse);
+        {
+            Response queryingClusterTasks = adminClient().performRequest(new Request("GET", "/_tasks"));
+            assertOK(queryingClusterTasks);
+            logger.log(Level.ERROR, EntityUtils.toString(queryingClusterTasks.getEntity()));
+        }
+        {
+            Response fulfillingClusterTasks = performRequestAgainstFulfillingCluster(new Request("GET", "/_tasks"));
+            assertOK(fulfillingClusterTasks);
+            logger.log(Level.ERROR, EntityUtils.toString(fulfillingClusterTasks.getEntity()));
+        }
+    }
 
     public void testCrossClusterSearch() throws Exception {
         configureRemoteCluster();

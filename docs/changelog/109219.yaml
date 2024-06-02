@@ -1,0 +1,5 @@
+pr: 109219
+summary: Update Lucene version to 9.11
+area: Search
+type: feature
+issues: []

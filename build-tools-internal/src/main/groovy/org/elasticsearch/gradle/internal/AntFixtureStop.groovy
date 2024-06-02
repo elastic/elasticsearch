@@ -20,21 +20,18 @@ import javax.inject.Inject
 
 abstract class AntFixtureStop extends LoggedExec implements FixtureStop {
 
-    @Internal
-    AntFixture fixture
-
     @Inject
     AntFixtureStop(ProjectLayout projectLayout, ExecOperations execOperations, FileSystemOperations fileSystemOperations) {
        super(projectLayout, execOperations, fileSystemOperations)
     }
 
     void setFixture(AntFixture fixture) {
-        assert this.fixture == null
-        this.fixture = fixture;
-        final Object pid = "${ -> this.fixture.pid }"
-        onlyIf("pidFile exists") { fixture.pidFile.exists() }
+        def pidFile = fixture.pidFile
+        def fixtureName = fixture.name
+        final Object pid = "${ -> Integer.parseInt(pidFile.getText('UTF-8').trim()) }"
+        onlyIf("pidFile exists") { pidFile.exists() }
         doFirst {
-            logger.info("Shutting down ${fixture.name} with pid ${pid}")
+            logger.info("Shutting down ${fixtureName} with pid ${pid}")
         }
 
         if (OS.current() == OS.WINDOWS) {
@@ -46,9 +43,8 @@ abstract class AntFixtureStop extends LoggedExec implements FixtureStop {
         }
         doLast {
             fileSystemOperations.delete {
-                it.delete(fixture.pidFile)
+                it.delete(pidFile)
             }
         }
-        this.fixture = fixture
     }
 }

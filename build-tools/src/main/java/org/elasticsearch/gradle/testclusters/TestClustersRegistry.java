@@ -92,8 +92,12 @@ public abstract class TestClustersRegistry implements BuildService<BuildServiceP
         }
     }
 
-    public TestClusterInfo getClusterDetails(String clusterName) {
-        ElasticsearchCluster cluster = runningClusters.stream().filter(c -> c.getName().equals(clusterName)).findFirst().orElseThrow();
+    public TestClusterInfo getClusterDetails(String path, String clusterName) {
+        ElasticsearchCluster cluster = runningClusters.stream()
+            .filter(c -> c.getPath().equals(path))
+            .filter(c -> c.getName().equals(clusterName))
+            .findFirst()
+            .orElseThrow();
         return new TestClusterInfo(
             cluster.getAllHttpSocketURI(),
             cluster.getAllTransportPortURI(),
@@ -101,8 +105,12 @@ public abstract class TestClustersRegistry implements BuildService<BuildServiceP
         );
     }
 
-    public void restart(String clusterName) {
-        ElasticsearchCluster cluster = runningClusters.stream().filter(c -> c.getName().equals(clusterName)).findFirst().orElseThrow();
+    public void restart(String path, String clusterName) {
+        ElasticsearchCluster cluster = runningClusters.stream()
+            .filter(c -> c.getPath().equals(path))
+            .filter(c -> c.getName().equals(clusterName))
+            .findFirst()
+            .orElseThrow();
         cluster.restart();
     }
 

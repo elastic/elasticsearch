@@ -15,7 +15,10 @@ dependencies {
 
 Project mainProject = project
 
+
 subprojects {
+  def clusterPath = getPath()
+
   // Use tests from the root security qa project in subprojects
   configurations.create('testArtifacts').transitive(false)
 
@@ -54,6 +57,7 @@ subprojects {
       TestClustersPlugin.REGISTRY_SERVICE_NAME
     )
     def clusterInfo = project.getProviders().of(TestClusterValueSource.class) {
+      it.parameters.path.set(clusterPath)
       it.parameters.clusterName.set("javaRestTest")
       it.parameters.service = serviceProvider
     }

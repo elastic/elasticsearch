@@ -13,6 +13,8 @@ dependencies {
   testImplementation project(':x-pack:plugin:ccr:qa')
 }
 
+def clusterPath = getPath()
+
 def leaderCluster = testClusters.register('leader-cluster') {
   testDistribution = 'DEFAULT'
   setting 'xpack.license.self_generated.type', 'trial'
@@ -32,6 +34,7 @@ def followCluster = testClusters.register('follow-cluster') {
     TestClustersPlugin.REGISTRY_SERVICE_NAME
   )
   def leaderInfo = project.getProviders().of(TestClusterValueSource.class) {
+    it.parameters.path.set(clusterPath)
     it.parameters.clusterName.set("leader-cluster")
     it.parameters.service = serviceProvider
   }
@@ -57,6 +60,7 @@ tasks.register('follow-cluster', RestIntegTestTask) {
     TestClustersPlugin.REGISTRY_SERVICE_NAME
   )
   def leaderUri = project.getProviders().of(TestClusterValueSource.class) {
+    it.parameters.path.set(clusterPath)
     it.parameters.clusterName.set("leader-cluster")
     it.parameters.service = serviceProvider
   }.map { it.allHttpSocketURI.get(0) }
@@ -77,11 +81,13 @@ tasks.register("followClusterRestartTest", StandaloneRestIntegTestTask) {
     TestClustersPlugin.REGISTRY_SERVICE_NAME
   )
   def leaderUri = project.getProviders().of(TestClusterValueSource.class) {
+    it.parameters.path.set(clusterPath)
     it.parameters.clusterName.set("leader-cluster")
     it.parameters.service = serviceProvider
   }.map { it.allHttpSocketURI.get(0) }
 
   def followUris = project.getProviders().of(TestClusterValueSource.class) {
+    it.parameters.path.set(clusterPath)
     it.parameters.clusterName.set("follow-cluster")
     it.parameters.service = serviceProvider
   }.map { it.allHttpSocketURI.join(",") }
@@ -90,7 +96,7 @@ tasks.register("followClusterRestartTest", StandaloneRestIntegTestTask) {
   nonInputProperties.systemProperty 'tests.rest.cluster', followUris
 
   doFirst {
-    serviceProvider.get().restart("follow-cluster")
+    serviceProvider.get().restart(clusterPath, "follow-cluster")
   }
 }
 

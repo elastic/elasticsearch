@@ -15,6 +15,8 @@ dependencies {
   testImplementation project(':x-pack:plugin:ccr:qa')
 }
 
+def clusterPath = getPath()
+
 def leaderCluster = testClusters.register("leader-cluster") {
   testDistribution = 'DEFAULT'
   setting 'xpack.license.self_generated.type', 'trial'
@@ -33,6 +35,7 @@ def followCluster = testClusters.register("follow-cluster") {
     TestClustersPlugin.REGISTRY_SERVICE_NAME
   )
   def leaderInfo = project.getProviders().of(TestClusterValueSource.class) {
+    it.parameters.path.set(clusterPath)
     it.parameters.clusterName.set("leader-cluster")
     it.parameters.service = serviceProvider
   }
@@ -73,10 +76,12 @@ tasks.register("follow-cluster", RestIntegTestTask) {
     TestClustersPlugin.REGISTRY_SERVICE_NAME
   )
   def leaderInfo = project.getProviders().of(TestClusterValueSource.class) {
+    it.parameters.path.set(clusterPath)
     it.parameters.clusterName.set("leader-cluster")
     it.parameters.service = serviceProvider
   }
   def followInfo = project.getProviders().of(TestClusterValueSource.class) {
+    it.parameters.path.set(clusterPath)
     it.parameters.clusterName.set("follow-cluster")
     it.parameters.service = serviceProvider
   }

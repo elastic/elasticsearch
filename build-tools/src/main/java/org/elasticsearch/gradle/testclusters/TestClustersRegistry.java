@@ -19,6 +19,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import javax.inject.Inject;
 
@@ -85,19 +86,32 @@ public abstract class TestClustersRegistry implements BuildService<BuildServiceP
             claimsInventory.put(cluster, currentClaims);
             cluster.setClaims(currentClaims);
             if (currentClaims <= 0 && runningClusters.contains(cluster)) {
+                System.out.println("TestClustersRegistry.stopCluster " + cluster.getName() + " stopping...");
                 cluster.stop(false);
                 runningClusters.remove(cluster);
             }
         }
     }
 
-    public TestClusterInfo getClusterDetails(String clusterName) {
-        ElasticsearchCluster cluster = runningClusters.stream().filter(c -> c.getName().equals(clusterName)).findFirst().orElseThrow();
-        return new TestClusterInfo(cluster.getAllHttpSocketURI(), cluster.getAllTransportPortURI());
+    public TestClusterInfo getClusterDetails(String path, String clusterName) {
+        ElasticsearchCluster cluster = runningClusters.stream()
+            .filter(c -> c.getPath().equals(path))
+            .filter(c -> c.getName().equals(clusterName))
+            .findFirst()
+            .orElseThrow();
+        return new TestClusterInfo(
+            cluster.getAllHttpSocketURI(),
+            cluster.getAllTransportPortURI(),
+            cluster.getNodes().stream().map(n -> n.getAuditLog()).collect(Collectors.toList())
+        );
     }
 
-    public void restart(String clusterName) {
-        ElasticsearchCluster cluster = runningClusters.stream().filter(c -> c.getName().equals(clusterName)).findFirst().orElseThrow();
+    public void restart(String path, String clusterName) {
+        ElasticsearchCluster cluster = runningClusters.stream()
+            .filter(c -> c.getPath().equals(path))
+            .filter(c -> c.getName().equals(clusterName))
+            .findFirst()
+            .orElseThrow();
         cluster.restart();
     }
 

@@ -20,11 +20,14 @@ public abstract class TestClusterValueSource implements ValueSource<TestClusterI
     @Override
     public TestClusterInfo obtain() {
         String clusterName = getParameters().getClusterName().get();
-        return getParameters().getService().get().getClusterDetails(clusterName);
+        String path = getParameters().getPath().get();
+        return getParameters().getService().get().getClusterDetails(path, clusterName);
     }
 
     interface Parameters extends ValueSourceParameters {
         Property<String> getClusterName();
+
+        Property<String> getPath();
 
         Property<TestClustersRegistry> getService();
     }

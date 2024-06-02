@@ -16,6 +16,7 @@ dependencies {
   testImplementation project(':x-pack:plugin:ccr:qa')
 }
 
+def clusterPath = getPath()
 def leaderCluster = testClusters.register('leader-cluster') {
   testDistribution = 'DEFAULT'
   setting 'xpack.license.self_generated.type', 'trial'
@@ -35,6 +36,7 @@ def middleCluster = testClusters.register('middle-cluster') {
     TestClustersPlugin.REGISTRY_SERVICE_NAME
   )
   def leaderInfo = project.getProviders().of(TestClusterValueSource.class) {
+    it.parameters.path.set(clusterPath)
     it.parameters.clusterName.set("leader-cluster")
     it.parameters.service = serviceProvider
   }
@@ -61,6 +63,7 @@ tasks.register("middle-cluster", RestIntegTestTask) {
   )
 
   def leaderUri = project.getProviders().of(TestClusterValueSource.class) {
+    it.parameters.path.set(clusterPath)
     it.parameters.clusterName.set("leader-cluster")
     it.parameters.service = serviceProvider
   }.map { it.allHttpSocketURI.get(0) }
@@ -80,11 +83,13 @@ tasks.register('follow-cluster', RestIntegTestTask) {
   )
 
   def leaderUri = project.getProviders().of(TestClusterValueSource.class) {
+    it.parameters.path.set(clusterPath)
     it.parameters.clusterName.set("leader-cluster")
     it.parameters.service = serviceProvider
   }.map { it.allHttpSocketURI.get(0) }
 
   def middleUri = project.getProviders().of(TestClusterValueSource.class) {
+    it.parameters.path.set(clusterPath)
     it.parameters.clusterName.set("middle-cluster")
     it.parameters.service = serviceProvider
   }.map { it.allHttpSocketURI.get(0) }
@@ -104,11 +109,13 @@ testClusters.matching { it.name == "follow-cluster" }.configureEach {
     TestClustersPlugin.REGISTRY_SERVICE_NAME
   )
   def leaderUris = project.getProviders().of(TestClusterValueSource.class) {
+    it.parameters.path.set(clusterPath)
     it.parameters.clusterName.set("leader-cluster")
     it.parameters.service = serviceProvider
   }.map { it.getAllTransportPortURI() }
 
   def middleUris = project.getProviders().of(TestClusterValueSource.class) {
+    it.parameters.path.set(clusterPath)
     it.parameters.clusterName.set("middle-cluster")
     it.parameters.service = serviceProvider
   }.map { it.getAllTransportPortURI() }

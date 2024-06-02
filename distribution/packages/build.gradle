@@ -42,20 +42,9 @@ import java.util.regex.Pattern
  *    dpkg -c path/to/elasticsearch.deb
  */
 
-buildscript {
-  repositories {
-    maven {
-      url 'https://jitpack.io'
-    }
-    mavenCentral()
-  }
-  dependencies {
-//    classpath "com.github.breskeby:gradle-ospackage-plugin:2200b9e10a"
-    classpath "com.github.breskeby:gradle-ospackage-plugin:2674a36"
-  }
+plugins {
+  id "com.netflix.nebula.ospackage-base" version "11.9.1"
 }
-
-apply plugin: "com.netflix.nebula.ospackage-base"
 
 ['deb', 'rpm'].each { type ->
   String packagingFiles = "build/packaging/${type}"

@@ -6,14 +6,11 @@
  */
 package org.elasticsearch.xpack.spatial.index.mapper;
 
-import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.document.XYDocValuesField;
 import org.apache.lucene.document.XYPointField;
 import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
@@ -465,12 +462,21 @@ public class PointFieldMapperTests extends CartesianFieldMapperTests {
 
                 if (columnReader) {
                     // When reading doc-values, the block is a list of encoded longs
-                    List<Long> outBlockList = values.stream().map(Value::point).filter(Objects::nonNull).map(this::encode).sorted().toList();
+                    List<Long> outBlockList = values.stream()
+                        .map(Value::point)
+                        .filter(Objects::nonNull)
+                        .map(this::encode)
+                        .sorted()
+                        .toList();
                     Object outBlock = outBlockList.size() == 1 ? outBlockList.get(0) : outBlockList;
                     return new SyntheticSourceExample(representations, representations, outBlock, this::mapping);
                 } else {
                     // When reading row-stride, the block is a list of WKT encoded BytesRefs
-                    List<String> outBlockList = values.stream().map(Value::point).filter(Objects::nonNull).map(CartesianPoint::toWKT).toList();
+                    List<String> outBlockList = values.stream()
+                        .map(Value::point)
+                        .filter(Objects::nonNull)
+                        .map(CartesianPoint::toWKT)
+                        .toList();
                     Object outBlock = outBlockList.size() == 1 ? outBlockList.get(0) : outBlockList;
                     return new SyntheticSourceExample(representations, representations, outBlock, this::mapping);
                 }
@@ -487,10 +493,7 @@ public class PointFieldMapperTests extends CartesianFieldMapperTests {
                     // #exampleMalformedValues() covers a lot of cases
 
                     // nice complex object
-                    return new Value(
-                        null,
-                        Map.of("one", 1, "two", List.of(2, 22,222), "three", Map.of("three", 33))
-                    );
+                    return new Value(null, Map.of("one", 1, "two", List.of(2, 22, 222), "three", Map.of("three", 33)));
                 }
 
                 CartesianPoint point = randomCartesianPoint();

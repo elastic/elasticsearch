@@ -119,6 +119,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinType;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
@@ -5012,10 +5013,22 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var limit = as(left.child(), Limit.class);
         assertThat(limit.limit().fold(), equalTo(1000));
 
+        assertThat(join.config().type(), equalTo(JoinType.LEFT));
+        assertThat(join.config().matchFields().stream().map(Object::toString).toList(), matchesList().item(startsWith("int{r}")));
+        assertThat(join.config().conditions().size(), equalTo(1));
+        Equals eq = (Equals) join.config().conditions().get(0);
+        assertThat(eq.left().toString(), startsWith("int{r}"));
+        assertThat(eq.right().toString(), startsWith("int{r}"));
+
         // Join's output looks sensible too
         assertMap(
             join.output().stream().map(Object::toString).filter(s -> s.startsWith("int") || s.startsWith("name")).toList(),
             matchesList()
+                /*
+                 * Int is a reference here because we renamed it in project.
+                 * If we hadn't it'd be a field and that'd be fine.
+                 */
+                .item(containsString("int{r}"))
                 /*
                  * It's important that name is returned as a *reference* here
                  * instead of a field. If it were a field we'd use SearchStats
@@ -5023,11 +5036,6 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
                  * We don't expect it to. It exists only in the lookup table.
                  */
                 .item(containsString("name{r}"))
-                /*
-                 * Int is a reference here because we renamed it in project.
-                 * If we hadn't it'd be a field and that'd be fine.
-                 */
-                .item(containsString("int{r}"))
         );
     }
 
@@ -5072,6 +5080,13 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var left = as(join.left(), EsqlProject.class);
         assertThat(left.output().toString(), containsString("int{r}"));
         as(left.child(), EsRelation.class);
+
+        assertThat(join.config().type(), equalTo(JoinType.LEFT));
+        assertThat(join.config().matchFields().stream().map(Object::toString).toList(), matchesList().item(startsWith("int{r}")));
+        assertThat(join.config().conditions().size(), equalTo(1));
+        Equals eq = (Equals) join.config().conditions().get(0);
+        assertThat(eq.left().toString(), startsWith("int{r}"));
+        assertThat(eq.right().toString(), startsWith("int{r}"));
     }
 
     private Literal nullOf(DataType dataType) {

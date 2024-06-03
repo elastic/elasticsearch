@@ -120,12 +120,12 @@ basic:
   - do:
       esql.query:
         body:
-          query: 'FROM test | LOOKUP colors ON color | SORT time | KEEP color, rgb | LIMIT 2'
+          query: 'FROM test | SORT time | KEEP color | LOOKUP colors ON color | LIMIT 2'
           columnar: true
           version: 2024.04.01
           tables:
             colors:
-              "color:keyword": ["red", "green", "blue"]
+              "color:keyword":  ["red", "green", "blue"]
               "rgb:integer": [16711680,   65280,    255]
 
   - match: {columns.0.name: "color"}
@@ -149,7 +149,7 @@ read multivalue keyword:
   - do:
       esql.query:
         body:
-          query: 'FROM test | LOOKUP color_associations ON color | SORT time | KEEP color, association | LIMIT 2'
+          query: 'FROM test | SORT time | KEEP color | LOOKUP color_associations ON color | LIMIT 2'
           columnar: true
           version: 2024.04.01
           tables:

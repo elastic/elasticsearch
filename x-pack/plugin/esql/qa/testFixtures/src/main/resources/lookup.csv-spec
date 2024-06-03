@@ -22,8 +22,8 @@ ROW int=[1, 2, 3]
 | LOOKUP int_number_names ON int
 ;
 
-   name:keyword   | int:integer
-[one, two, three] | [1, 2, 3]
+int:integer | name:keyword
+  [1, 2, 3] | [one, two, three]
 ;
 
 intByKeyword
@@ -32,8 +32,8 @@ ROW name="two"
 | LOOKUP int_number_names ON name
 ;
 
-int:integer | name:keyword
-          2 | two
+name:keyword | int:integer 
+         two | 2
 ;
 
 
@@ -61,8 +61,8 @@ ROW name="two"
 | LOOKUP long_number_names ON name
 ;
 
-long:long | name:keyword
-        2 | two
+name:keyword | long:long
+         two |         2
 ;
 
 keywordByFloat
@@ -89,8 +89,8 @@ ROW name="two point zero eight"
 | LOOKUP double_number_names ON name
 ;
 
-double:double | name:keyword
-         2.08 | two point zero eight
+    name:keyword     | double:double
+two point zero eight |          2.08
 ;
 
 intIntByKeywordKeyword
@@ -99,8 +99,8 @@ ROW aa="foo", ab="zoo"
 | LOOKUP big ON aa, ab
 ;
 
-na:integer | nb:integer | aa:keyword | ab:keyword
-         1 |         -1 |        foo | zoo
+aa:keyword | ab:keyword | na:integer | nb:integer
+foo        | zoo        |          1 |         -1
 ;
 
 intIntByKeywordKeywordMissing
@@ -109,8 +109,8 @@ ROW aa="foo", ab="zoi"
 | LOOKUP big ON aa, ab
 ;
 
-na:integer | nb:integer | aa:keyword | ab:keyword
-      null |       null |        foo | zoi
+aa:keyword | ab:keyword | na:integer | nb:integer
+foo        | zoi        |       null |       null
 ;
 
 //

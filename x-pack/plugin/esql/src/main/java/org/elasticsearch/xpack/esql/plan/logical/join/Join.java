@@ -7,7 +7,9 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.join;
 
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.plan.logical.BinaryPlan;
@@ -21,6 +23,7 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 public class Join extends BinaryPlan {
@@ -75,14 +78,37 @@ public class Join extends BinaryPlan {
         List<Attribute> right = makeReference(right().output());
         return switch (config.type()) {
             case LEFT -> // right side becomes nullable
-                NamedExpressions.mergeOutputAttributes(left().output(), makeNullable(right));
+                mergeOutput(left().output(), makeNullable(right));
             case RIGHT -> // left side becomes nullable
-                NamedExpressions.mergeOutputAttributes(makeNullable(left().output()), right);
+                mergeOutput(makeNullable(left().output()), right);
             case FULL -> // both sides become nullable
-                NamedExpressions.mergeOutputAttributes(makeNullable(left().output()), makeNullable(right));
+                mergeOutput(makeNullable(left().output()), makeNullable(right));
             default -> // neither side becomes nullable
-                NamedExpressions.mergeOutputAttributes(left().output(), right);
+                mergeOutput(left().output(), right);
         };
+    }
+
+    /**
+     * Merge output fields, left hand side wins in name conflicts <strong>except</strong>
+     * for fields defined in {@link JoinConfig#matchFields()}.
+     */
+    List<Attribute> mergeOutput(
+        List<? extends Attribute> lhs,
+        List<? extends Attribute> rhs
+    ) {
+        List<Attribute> results = new ArrayList<>(lhs.size() + rhs.size());
+
+        for (Attribute a :lhs) {
+            if (rhs.contains(a) == false || config.matchFields().stream().anyMatch(m -> m.name().equals(a.name()))) {
+                results.add(a);
+            }
+        }
+        for (Attribute a: rhs) {
+            if (false == config.matchFields().stream().anyMatch(m -> m.name().equals(a.name()))) {
+                results.add(a);
+            }
+        }
+        return results;
     }
 
     /**

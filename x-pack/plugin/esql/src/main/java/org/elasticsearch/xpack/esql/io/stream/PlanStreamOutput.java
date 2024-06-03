@@ -19,7 +19,6 @@ import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.LongBigArrayBlock;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.Column;
-import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
@@ -100,10 +99,6 @@ public final class PlanStreamOutput extends StreamOutput {
 
     public void writeNamedExpression(NamedExpression namedExpression) throws IOException {
         writeNamed(NamedExpression.class, namedExpression);
-    }
-
-    public void writeAttribute(Attribute attribute) throws IOException {
-        writeNamed(Attribute.class, attribute);
     }
 
     public void writeOptionalExpression(Expression expression) throws IOException {

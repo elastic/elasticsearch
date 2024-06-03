@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.core.type;
 
-import java.io.IOException;
 import java.util.Map;
 
 public class InvalidMappedFieldTests extends AbstractEsFieldTypeTests<InvalidMappedField> {
@@ -24,7 +23,7 @@ public class InvalidMappedFieldTests extends AbstractEsFieldTypeTests<InvalidMap
     }
 
     @Override
-    protected InvalidMappedField mutate(InvalidMappedField instance) throws IOException {
+    protected InvalidMappedField mutate(InvalidMappedField instance) {
         String name = instance.getName();
         String errorMessage = instance.errorMessage();
         Map<String, EsField> properties = instance.getProperties();

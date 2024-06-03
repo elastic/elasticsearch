@@ -94,7 +94,7 @@ setup:
       capabilities:
         - method: GET
           path: /{index}/_stats
-          capabilities: [ ignored_field_doc_stats_counter ]
+          capabilities: [ ignored_field_stats ]
       reason: "Counting docs with ignored fields required"
 
   - do:
@@ -137,7 +137,7 @@ setup:
       capabilities:
         - method: GET
           path: /{index}/_stats
-          capabilities: [ ignored_field_doc_stats_counter ]
+          capabilities: [ ignored_field_stats ]
       reason: "Counting docs with ignored fields required"
 
   - do:

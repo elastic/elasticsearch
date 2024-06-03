@@ -12,7 +12,7 @@ import java.util.Set;
 
 public class RestIndicesStatsCapabilities {
 
-    private static final String IGNORED_FIELD_DOC_STATS_COUNTER = "ignored_field_doc_stats_counter";
+    private static final String IGNORED_FIELD_STATS = "ignored_field_stats";
 
-    public static final Set<String> CAPABILITIES = Set.of(IGNORED_FIELD_DOC_STATS_COUNTER);
+    public static final Set<String> CAPABILITIES = Set.of(IGNORED_FIELD_STATS);
 }

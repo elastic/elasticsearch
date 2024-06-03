@@ -67,9 +67,9 @@ public class MetadataAttribute extends TypedAttribute {
     }
 
     @SuppressWarnings("unchecked")
-    public <S extends StreamInput & PlanStreamInput> MetadataAttribute(StreamInput in) throws IOException {
+    public MetadataAttribute(StreamInput in) throws IOException {
         /*
-         * The funny casting dance with `<S extends...>` and `(S) in` is required
+         * The funny casting dance with `(StreamInput & PlanStreamInput) in` is required
          * because we're in esql-core here and the real PlanStreamInput is in
          * esql-proper. And because NamedWriteableRegistry.Entry needs StreamInput,
          * not a PlanStreamInput. And we need PlanStreamInput to handle Source
@@ -77,12 +77,12 @@ public class MetadataAttribute extends TypedAttribute {
          * of esql-core.
          */
         this(
-            Source.readFrom((S) in),
+            Source.readFrom((StreamInput & PlanStreamInput) in),
             in.readString(),
             DataType.readFrom(in),
             in.readOptionalString(),
             in.readEnum(Nullability.class),
-            NameId.readFrom((S) in),
+            NameId.readFrom((StreamInput & PlanStreamInput) in),
             in.readBoolean(),
             in.readBoolean()
         );

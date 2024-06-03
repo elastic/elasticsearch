@@ -265,12 +265,12 @@ public class Mapper {
     private PhysicalPlan map(BinaryPlan p, PhysicalPlan lhs, PhysicalPlan rhs) {
         if (p instanceof Join join) {
             if (join.config().type() != JoinType.LEFT) {
-                throw new EsqlIllegalArgumentException("unsupported unary logical plan node [" + p.nodeName() + "]");
+                throw new EsqlIllegalArgumentException("unsupported logical plan node [" + p.nodeName() + "]");
             }
             if (rhs instanceof LocalSourceExec local) {
                 return new HashJoinExec(local.source(), lhs, local, join.config().unionFields(), join.output());
             }
         }
-        throw new EsqlIllegalArgumentException("unsupported unary logical plan node [" + p.nodeName() + "]");
+        throw new EsqlIllegalArgumentException("unsupported logical plan node [" + p.nodeName() + "]");
     }
 }

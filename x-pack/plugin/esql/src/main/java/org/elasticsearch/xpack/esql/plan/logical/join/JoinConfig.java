@@ -17,7 +17,7 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import java.io.IOException;
 import java.util.List;
 
-public record JoinConfig(JoinType type, List<NamedExpression> unionFields) implements Writeable {
+public record JoinConfig(JoinType type, List<NamedExpression> matchFields) implements Writeable {
     public JoinConfig(StreamInput in) throws IOException {
         this(JoinType.readFrom(in), in.readCollectionAsList(i -> ((PlanStreamInput) i).readNamedExpression()));
     }

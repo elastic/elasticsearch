@@ -328,7 +328,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
     }
 
-    private static class ResolveLookup extends ParameterizedAnalyzerRule<Lookup, AnalyzerContext> {
+    private static class ResolveLookupTables extends ParameterizedAnalyzerRule<Lookup, AnalyzerContext> {
 
         @Override
         protected LogicalPlan rule(Lookup lookup, AnalyzerContext context) {

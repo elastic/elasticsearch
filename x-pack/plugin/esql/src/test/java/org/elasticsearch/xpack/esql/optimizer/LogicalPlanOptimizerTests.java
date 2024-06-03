@@ -5033,7 +5033,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
     /**
      * Expects
-     * <pre>{@code
+     * {@code
      * Limit[1000[INTEGER]]
      * \_Aggregate[[name{f}#20],[MIN(emp_no{f}#10) AS MIN(emp_no), name{f}#20]]
      *   \_Join[JoinConfig[type=LEFT OUTER, unionFields=[int{r}#4]]]
@@ -5041,7 +5041,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
      *     | \_EsRelation[test][_meta_field{f}#16, emp_no{f}#10, first_name{f}#11, ..]
      *     \_LocalRelation[[name{f}#20, int{f}#21],[BytesRefVectorBlock[vector=BytesRefArrayVector[positions=10]], IntVectorBlock[vector=I
      * ntArrayVector[positions=10, values=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9]]]]]
-     * }</pre>
+     * }
      */
     public void testLookupStats() {
         var plan = optimizedPlan("""

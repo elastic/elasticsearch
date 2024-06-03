@@ -34,7 +34,6 @@ import org.elasticsearch.xpack.esql.core.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DataTypes;
-import org.elasticsearch.xpack.esql.core.type.DateEsField;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
@@ -106,7 +105,6 @@ import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.RowExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -247,7 +245,7 @@ public class PlanNamedTypesTests extends ESTestCase {
         var in = planStreamInput(bso);
         var deser = PlanNamedTypes.readUnsupportedAttr(in);
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(orig, unused -> deser);
-        assertThat(deser.id(), equalTo(in.nameIdFromLongValue(Long.parseLong(orig.id().toString()))));
+        assertThat(deser.id(), equalTo(in.mapNameId(Long.parseLong(orig.id().toString()))));
     }
 
     public void testUnsupportedAttribute() {
@@ -272,71 +270,11 @@ public class PlanNamedTypesTests extends ESTestCase {
         var in = planStreamInput(bso);
         var deser = PlanNamedTypes.readFieldAttribute(in);
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(orig, unused -> deser);
-        assertThat(deser.id(), equalTo(in.nameIdFromLongValue(Long.parseLong(orig.id().toString()))));
+        assertThat(deser.id(), equalTo(in.mapNameId(Long.parseLong(orig.id().toString()))));
     }
 
     public void testFieldAttribute() {
         Stream.generate(PlanNamedTypesTests::randomFieldAttribute).limit(100).forEach(PlanNamedTypesTests::assertNamedExpression);
-    }
-
-    public void testKeywordEsFieldSimple() throws IOException {
-        var orig = new KeywordEsField(
-            "BarKeyField", // name
-            Map.of(), // no properties
-            true, // hasDocValues
-            5, // precision
-            true, // normalized
-            true // alias
-        );
-        BytesStreamOutput bso = new BytesStreamOutput();
-        PlanStreamOutput out = new PlanStreamOutput(bso, planNameRegistry, null);
-        PlanNamedTypes.writeKeywordEsField(out, orig);
-        var deser = PlanNamedTypes.readKeywordEsField(planStreamInput(bso));
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(orig, unused -> deser);
-    }
-
-    public void testKeywordEsField() {
-        Stream.generate(PlanNamedTypesTests::randomKeywordEsField).limit(100).forEach(PlanNamedTypesTests::assertNamedEsField);
-    }
-
-    public void testTextdEsFieldSimple() throws IOException {
-        var orig = new TextEsField(
-            "BarKeyField", // name
-            Map.of(), // no properties
-            true, // hasDocValues
-            true // alias
-        );
-        BytesStreamOutput bso = new BytesStreamOutput();
-        PlanStreamOutput out = new PlanStreamOutput(bso, planNameRegistry, null);
-        PlanNamedTypes.writeTextEsField(out, orig);
-        var deser = PlanNamedTypes.readTextEsField(planStreamInput(bso));
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(orig, unused -> deser);
-    }
-
-    public void testTextEsField() {
-        Stream.generate(PlanNamedTypesTests::randomTextEsField).limit(100).forEach(PlanNamedTypesTests::assertNamedEsField);
-    }
-
-    public void testInvalidMappedFieldSimple() throws IOException {
-        var orig = new InvalidMappedField("foo", "bar");
-        BytesStreamOutput bso = new BytesStreamOutput();
-        PlanStreamOutput out = new PlanStreamOutput(bso, planNameRegistry, null);
-        PlanNamedTypes.writeInvalidMappedField(out, orig);
-        var deser = PlanNamedTypes.readInvalidMappedField(planStreamInput(bso));
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(orig, unused -> deser);
-    }
-
-    public void testInvalidMappedField() {
-        Stream.generate(PlanNamedTypesTests::randomInvalidMappedField).limit(100).forEach(PlanNamedTypesTests::assertNamedEsField);
-    }
-
-    public void testEsDateFieldSimple() throws IOException {
-        var orig = DateEsField.dateEsField("birth_date", Map.of(), false);
-        BytesStreamOutput bso = new BytesStreamOutput();
-        PlanStreamOutput out = new PlanStreamOutput(bso, planNameRegistry, null);
-        PlanNamedTypes.writeDateEsField(out, orig);
-        var deser = PlanNamedTypes.readDateEsField(planStreamInput(bso));
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(orig, unused -> deser);
     }
 
     public void testBinComparisonSimple() throws IOException {
@@ -426,7 +364,7 @@ public class PlanNamedTypesTests extends ESTestCase {
         var in = planStreamInput(bso);
         var deser = PlanNamedTypes.readAlias(in);
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(orig, unused -> deser);
-        assertThat(deser.id(), equalTo(in.nameIdFromLongValue(Long.parseLong(orig.id().toString()))));
+        assertThat(deser.id(), equalTo(in.mapNameId(Long.parseLong(orig.id().toString()))));
     }
 
     public void testLiteralSimple() throws IOException {
@@ -526,11 +464,6 @@ public class PlanNamedTypesTests extends ESTestCase {
 
     private static <T> void assertNamedType(Class<T> type, T origObj) {
         var deserObj = serializeDeserialize(origObj, (o, v) -> o.writeNamed(type, origObj), i -> i.readNamed(type));
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(origObj, unused -> deserObj);
-    }
-
-    private static void assertNamedEsField(EsField origObj) {
-        var deserObj = serializeDeserialize(origObj, (o, v) -> o.writeNamed(EsField.class, v), PlanStreamInput::readEsFieldNamed);
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(origObj, unused -> deserObj);
     }
 
@@ -702,7 +635,7 @@ public class PlanNamedTypesTests extends ESTestCase {
         return Map.copyOf(map);
     }
 
-    static List<DataType> DATA_TYPES = EsqlDataTypes.types().stream().toList();
+    static List<DataType> DATA_TYPES = DataTypes.types().stream().toList();
 
     static DataType randomDataType() {
         return DATA_TYPES.get(randomIntBetween(0, DATA_TYPES.size() - 1));

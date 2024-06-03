@@ -34,13 +34,14 @@ public class EsqlBaseParser extends Parser {
     RENAME_MULTILINE_COMMENT=85, RENAME_WS=86, ON=87, WITH=88, ENRICH_POLICY_NAME=89, 
     ENRICH_LINE_COMMENT=90, ENRICH_MULTILINE_COMMENT=91, ENRICH_WS=92, ENRICH_FIELD_LINE_COMMENT=93, 
     ENRICH_FIELD_MULTILINE_COMMENT=94, ENRICH_FIELD_WS=95, LOOKUP_LINE_COMMENT=96, 
-    LOOKUP_MULTILINE_COMMENT=97, LOOKUP_WS=98, MVEXPAND_LINE_COMMENT=99, MVEXPAND_MULTILINE_COMMENT=100, 
-    MVEXPAND_WS=101, INFO=102, SHOW_LINE_COMMENT=103, SHOW_MULTILINE_COMMENT=104, 
-    SHOW_WS=105, FUNCTIONS=106, META_LINE_COMMENT=107, META_MULTILINE_COMMENT=108, 
-    META_WS=109, COLON=110, SETTING=111, SETTING_LINE_COMMENT=112, SETTTING_MULTILINE_COMMENT=113, 
-    SETTING_WS=114, METRICS_LINE_COMMENT=115, METRICS_MULTILINE_COMMENT=116, 
-    METRICS_WS=117, CLOSING_METRICS_LINE_COMMENT=118, CLOSING_METRICS_MULTILINE_COMMENT=119, 
-    CLOSING_METRICS_WS=120;
+    LOOKUP_MULTILINE_COMMENT=97, LOOKUP_WS=98, LOOKUP_FIELD_LINE_COMMENT=99, 
+    LOOKUP_FIELD_MULTILINE_COMMENT=100, LOOKUP_FIELD_WS=101, MVEXPAND_LINE_COMMENT=102, 
+    MVEXPAND_MULTILINE_COMMENT=103, MVEXPAND_WS=104, INFO=105, SHOW_LINE_COMMENT=106, 
+    SHOW_MULTILINE_COMMENT=107, SHOW_WS=108, FUNCTIONS=109, META_LINE_COMMENT=110, 
+    META_MULTILINE_COMMENT=111, META_WS=112, COLON=113, SETTING=114, SETTING_LINE_COMMENT=115, 
+    SETTTING_MULTILINE_COMMENT=116, SETTING_WS=117, METRICS_LINE_COMMENT=118, 
+    METRICS_MULTILINE_COMMENT=119, METRICS_WS=120, CLOSING_METRICS_LINE_COMMENT=121, 
+    CLOSING_METRICS_MULTILINE_COMMENT=122, CLOSING_METRICS_WS=123;
   public static final int
     RULE_singleStatement = 0, RULE_query = 1, RULE_sourceCommand = 2, RULE_processingCommand = 3, 
     RULE_whereCommand = 4, RULE_booleanExpression = 5, RULE_regexBooleanExpression = 6, 
@@ -91,8 +92,8 @@ public class EsqlBaseParser extends Parser {
       "'-'", "'*'", "'/'", "'%'", null, "']'", null, null, null, null, null, 
       "'metadata'", null, null, null, null, null, null, null, "'as'", null, 
       null, null, "'on'", "'with'", null, null, null, null, null, null, null, 
-      null, null, null, null, null, null, "'info'", null, null, null, "'functions'", 
-      null, null, null, "':'"
+      null, null, null, null, null, null, null, null, null, "'info'", null, 
+      null, null, "'functions'", null, null, null, "':'"
     };
   }
   private static final String[] _LITERAL_NAMES = makeLiteralNames();
@@ -115,12 +116,14 @@ public class EsqlBaseParser extends Parser {
       "ON", "WITH", "ENRICH_POLICY_NAME", "ENRICH_LINE_COMMENT", "ENRICH_MULTILINE_COMMENT", 
       "ENRICH_WS", "ENRICH_FIELD_LINE_COMMENT", "ENRICH_FIELD_MULTILINE_COMMENT", 
       "ENRICH_FIELD_WS", "LOOKUP_LINE_COMMENT", "LOOKUP_MULTILINE_COMMENT", 
-      "LOOKUP_WS", "MVEXPAND_LINE_COMMENT", "MVEXPAND_MULTILINE_COMMENT", "MVEXPAND_WS", 
-      "INFO", "SHOW_LINE_COMMENT", "SHOW_MULTILINE_COMMENT", "SHOW_WS", "FUNCTIONS", 
-      "META_LINE_COMMENT", "META_MULTILINE_COMMENT", "META_WS", "COLON", "SETTING", 
-      "SETTING_LINE_COMMENT", "SETTTING_MULTILINE_COMMENT", "SETTING_WS", "METRICS_LINE_COMMENT", 
-      "METRICS_MULTILINE_COMMENT", "METRICS_WS", "CLOSING_METRICS_LINE_COMMENT", 
-      "CLOSING_METRICS_MULTILINE_COMMENT", "CLOSING_METRICS_WS"
+      "LOOKUP_WS", "LOOKUP_FIELD_LINE_COMMENT", "LOOKUP_FIELD_MULTILINE_COMMENT", 
+      "LOOKUP_FIELD_WS", "MVEXPAND_LINE_COMMENT", "MVEXPAND_MULTILINE_COMMENT", 
+      "MVEXPAND_WS", "INFO", "SHOW_LINE_COMMENT", "SHOW_MULTILINE_COMMENT", 
+      "SHOW_WS", "FUNCTIONS", "META_LINE_COMMENT", "META_MULTILINE_COMMENT", 
+      "META_WS", "COLON", "SETTING", "SETTING_LINE_COMMENT", "SETTTING_MULTILINE_COMMENT", 
+      "SETTING_WS", "METRICS_LINE_COMMENT", "METRICS_MULTILINE_COMMENT", "METRICS_WS", 
+      "CLOSING_METRICS_LINE_COMMENT", "CLOSING_METRICS_MULTILINE_COMMENT", 
+      "CLOSING_METRICS_WS"
     };
   }
   private static final String[] _SYMBOLIC_NAMES = makeSymbolicNames();
@@ -4851,13 +4854,11 @@ public class EsqlBaseParser extends Parser {
 
   @SuppressWarnings("CheckReturnValue")
   public static class LookupCommandContext extends ParserRuleContext {
-    public QualifiedNamePatternContext tableName;
+    public Token tableName;
     public QualifiedNamePatternsContext matchFields;
     public TerminalNode LOOKUP() { return getToken(EsqlBaseParser.LOOKUP, 0); }
     public TerminalNode ON() { return getToken(EsqlBaseParser.ON, 0); }
-    public QualifiedNamePatternContext qualifiedNamePattern() {
-      return getRuleContext(QualifiedNamePatternContext.class,0);
-    }
+    public TerminalNode INDEX_UNQUOTED_IDENTIFIER() { return getToken(EsqlBaseParser.INDEX_UNQUOTED_IDENTIFIER, 0); }
     public QualifiedNamePatternsContext qualifiedNamePatterns() {
       return getRuleContext(QualifiedNamePatternsContext.class,0);
     }
@@ -4890,7 +4891,7 @@ public class EsqlBaseParser extends Parser {
       setState(542);
       match(LOOKUP);
       setState(543);
-      ((LookupCommandContext)_localctx).tableName = qualifiedNamePattern();
+      ((LookupCommandContext)_localctx).tableName = match(INDEX_UNQUOTED_IDENTIFIER);
       setState(544);
       match(ON);
       setState(545);
@@ -4955,7 +4956,7 @@ public class EsqlBaseParser extends Parser {
   }
 
   public static final String _serializedATN =
-    "\u0004\u0001x\u0224\u0002\u0000\u0007\u0000\u0002\u0001\u0007\u0001\u0002"+
+    "\u0004\u0001{\u0224\u0002\u0000\u0007\u0000\u0002\u0001\u0007\u0001\u0002"+
     "\u0002\u0007\u0002\u0002\u0003\u0007\u0003\u0002\u0004\u0007\u0004\u0002"+
     "\u0005\u0007\u0005\u0002\u0006\u0007\u0006\u0002\u0007\u0007\u0007\u0002"+
     "\b\u0007\b\u0002\t\u0007\t\u0002\n\u0007\n\u0002\u000b\u0007\u000b\u0002"+
@@ -5282,8 +5283,8 @@ public class EsqlBaseParser extends Parser {
     "b1\u0000\u01fba\u0001\u0000\u0000\u0000\u01fc\u01fd\u0005D\u0000\u0000"+
     "\u01fd\u01fe\u0003\u0002\u0001\u0000\u01fe\u01ff\u0005E\u0000\u0000\u01ff"+
     "c\u0001\u0000\u0000\u0000\u0200\u0201\u0005\u0011\u0000\u0000\u0201\u0202"+
-    "\u0005f\u0000\u0000\u0202e\u0001\u0000\u0000\u0000\u0203\u0204\u0005\f"+
-    "\u0000\u0000\u0204\u0205\u0005j\u0000\u0000\u0205g\u0001\u0000\u0000\u0000"+
+    "\u0005i\u0000\u0000\u0202e\u0001\u0000\u0000\u0000\u0203\u0204\u0005\f"+
+    "\u0000\u0000\u0204\u0205\u0005m\u0000\u0000\u0205g\u0001\u0000\u0000\u0000"+
     "\u0206\u0207\u0005\u0003\u0000\u0000\u0207\u020a\u0005Y\u0000\u0000\u0208"+
     "\u0209\u0005W\u0000\u0000\u0209\u020b\u00032\u0019\u0000\u020a\u0208\u0001"+
     "\u0000\u0000\u0000\u020a\u020b\u0001\u0000\u0000\u0000\u020b\u0215\u0001"+
@@ -5297,13 +5298,13 @@ public class EsqlBaseParser extends Parser {
     "$\u0000\u0000\u0219\u021b\u0001\u0000\u0000\u0000\u021a\u0217\u0001\u0000"+
     "\u0000\u0000\u021a\u021b\u0001\u0000\u0000\u0000\u021b\u021c\u0001\u0000"+
     "\u0000\u0000\u021c\u021d\u00032\u0019\u0000\u021dk\u0001\u0000\u0000\u0000"+
-    "\u021e\u021f\u0005\u000b\u0000\u0000\u021f\u0220\u00032\u0019\u0000\u0220"+
-    "\u0221\u0005W\u0000\u0000\u0221\u0222\u00034\u001a\u0000\u0222m\u0001"+
-    "\u0000\u0000\u00004y\u0082\u0092\u009e\u00a7\u00af\u00b3\u00bb\u00bd\u00c2"+
-    "\u00c9\u00ce\u00d5\u00db\u00e3\u00e5\u00f0\u00f7\u0102\u0105\u0113\u011b"+
-    "\u0123\u0127\u012d\u0135\u0142\u0146\u014a\u0151\u0155\u015b\u0162\u016a"+
-    "\u0172\u0188\u0193\u019e\u01a3\u01ae\u01b3\u01b7\u01c5\u01d0\u01de\u01e9"+
-    "\u01ec\u01f1\u020a\u0212\u0215\u021a";
+    "\u021e\u021f\u0005\u000b\u0000\u0000\u021f\u0220\u0005\u0019\u0000\u0000"+
+    "\u0220\u0221\u0005W\u0000\u0000\u0221\u0222\u00034\u001a\u0000\u0222m"+
+    "\u0001\u0000\u0000\u00004y\u0082\u0092\u009e\u00a7\u00af\u00b3\u00bb\u00bd"+
+    "\u00c2\u00c9\u00ce\u00d5\u00db\u00e3\u00e5\u00f0\u00f7\u0102\u0105\u0113"+
+    "\u011b\u0123\u0127\u012d\u0135\u0142\u0146\u014a\u0151\u0155\u015b\u0162"+
+    "\u016a\u0172\u0188\u0193\u019e\u01a3\u01ae\u01b3\u01b7\u01c5\u01d0\u01de"+
+    "\u01e9\u01ec\u01f1\u020a\u0212\u0215\u021a";
   public static final ATN _ATN =
     new ATNDeserializer().deserialize(_serializedATN.toCharArray());
   static {

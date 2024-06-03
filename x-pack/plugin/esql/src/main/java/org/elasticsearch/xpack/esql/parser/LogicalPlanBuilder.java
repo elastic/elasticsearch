@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.core.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.parser.EsqlBaseParser.MetadataOptionContext;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
@@ -443,12 +444,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             }
         });
 
-        Literal tableName = new Literal(source, visitQualifiedNamePattern(ctx.tableName, ne -> {
-            if (ne instanceof UnresolvedNamePattern || ne instanceof UnresolvedStar) {
-                var src = ne.source();
-                throw new ParsingException(src, "Wildcards [*] not allowed in LOOKUP table [{}]", src.text());
-            }
-        }).name(), DataTypes.KEYWORD);
+        Literal tableName = new Literal(source, ctx.tableName.getText(), DataTypes.KEYWORD);
 
         return p -> new Lookup(source, p, tableName, matchFields, null /* localRelation will be resolved later*/);
     }

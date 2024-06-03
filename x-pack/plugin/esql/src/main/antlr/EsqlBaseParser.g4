@@ -275,5 +275,5 @@ enrichWithClause
     ;
 
 lookupCommand
-    : LOOKUP tableName=qualifiedNamePattern ON matchFields=qualifiedNamePatterns
+    : LOOKUP tableName=INDEX_UNQUOTED_IDENTIFIER ON matchFields=qualifiedNamePatterns
     ;

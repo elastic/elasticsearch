@@ -494,7 +494,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
             assertThat(
                 result.asMap(),
                 Matchers.is(
-                    SparseEmbeddingResultsTests.buildExpectation(
+                    SparseEmbeddingResultsTests.buildExpectationSparseEmbeddings(
                         List.of(new SparseEmbeddingResultsTests.EmbeddingExpectation(Map.of(".", 0.13315596f), false))
                     )
                 )

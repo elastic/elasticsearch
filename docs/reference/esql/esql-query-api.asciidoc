@@ -16,8 +16,7 @@ POST /_query
     | STATS MAX(page_count) BY year
     | SORT year
     | LIMIT 5
-  """,
-  "version": "2024.04.01"
+  """
 }
 ----
 // TEST[setup:library]
@@ -83,10 +82,6 @@ ifeval::["{release-state}"=="unreleased"]
 `table`::
 (Optional, object) Named "table" parameters that can be referenced by the <<esql-lookup>> command.
 endif::[]
-
-`version`::
-(Required, string) {esql} language version. Can be sent in short or long form, e.g.
-`2024.04.01` or `2024.04.01.🚀`. See <<esql-version>> for details.
 
 [discrete]
 [role="child_attributes"]

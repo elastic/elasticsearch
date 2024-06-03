@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
 import java.time.ZoneId;
 import java.util.Map;
@@ -28,10 +27,10 @@ public class Equals extends EsqlBinaryComparison implements Negatable<EsqlBinary
         Map.entry(DataTypes.LONG, EqualsLongsEvaluator.Factory::new),
         Map.entry(DataTypes.UNSIGNED_LONG, EqualsLongsEvaluator.Factory::new),
         Map.entry(DataTypes.DATETIME, EqualsLongsEvaluator.Factory::new),
-        Map.entry(EsqlDataTypes.GEO_POINT, EqualsGeometriesEvaluator.Factory::new),
-        Map.entry(EsqlDataTypes.CARTESIAN_POINT, EqualsGeometriesEvaluator.Factory::new),
-        Map.entry(EsqlDataTypes.GEO_SHAPE, EqualsGeometriesEvaluator.Factory::new),
-        Map.entry(EsqlDataTypes.CARTESIAN_SHAPE, EqualsGeometriesEvaluator.Factory::new),
+        Map.entry(DataTypes.GEO_POINT, EqualsGeometriesEvaluator.Factory::new),
+        Map.entry(DataTypes.CARTESIAN_POINT, EqualsGeometriesEvaluator.Factory::new),
+        Map.entry(DataTypes.GEO_SHAPE, EqualsGeometriesEvaluator.Factory::new),
+        Map.entry(DataTypes.CARTESIAN_SHAPE, EqualsGeometriesEvaluator.Factory::new),
         Map.entry(DataTypes.KEYWORD, EqualsKeywordsEvaluator.Factory::new),
         Map.entry(DataTypes.TEXT, EqualsKeywordsEvaluator.Factory::new),
         Map.entry(DataTypes.VERSION, EqualsKeywordsEvaluator.Factory::new),

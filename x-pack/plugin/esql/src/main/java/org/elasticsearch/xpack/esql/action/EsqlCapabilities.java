@@ -28,29 +28,42 @@ public class EsqlCapabilities {
     private static final String FN_CBRT = "fn_cbrt";
 
     /**
+     * Support for function {@code IP_PREFIX}.
+     */
+    private static final String FN_IP_PREFIX = "fn_ip_prefix";
+
+    /**
+     * Fix on function {@code SUBSTRING} that makes it not return null on empty strings.
+     */
+    private static final String FN_SUBSTRING_EMPTY_NULL = "fn_substring_empty_null";
+
+    /**
      * Optimization for ST_CENTROID changed some results in cartesian data. #108713
      */
     private static final String ST_CENTROID_AGG_OPTIMIZED = "st_centroid_agg_optimized";
-
-    /**
-     * Support for {@code LOOKUP} command.
-     */
-    public static final String LOOKUP_COMMAND = "lookup_command";
 
     /**
      * Support for requesting the "_ignored" metadata field.
      */
     private static final String METADATA_IGNORED_FIELD = "metadata_field_ignored";
 
+    /**
+     * Support for requesting the "LOOKUP" command.
+     */
+    private static final String LOOKUP = "lookup";
+
     public static final Set<String> CAPABILITIES = capabilities();
 
     private static Set<String> capabilities() {
         List<String> caps = new ArrayList<>();
         caps.add(FN_CBRT);
+        caps.add(FN_IP_PREFIX);
+        caps.add(FN_SUBSTRING_EMPTY_NULL);
         caps.add(ST_CENTROID_AGG_OPTIMIZED);
         caps.add(METADATA_IGNORED_FIELD);
+
         if (Build.current().isSnapshot()) {
-            caps.add(LOOKUP_COMMAND);
+            caps.add(LOOKUP);
         }
 
         /*

@@ -138,12 +138,15 @@ public class DocValuesCodecDuelTests extends ESTestCase {
             var baseline = baselineReader.getSortedDocValues(FIELD_1);
             var contender = contenderReader.getSortedDocValues(FIELD_1);
             assertEquals(baseline.getValueCount(), contender.getValueCount());
-            for (int docId : docIdsToAdvanceTo) {
-                int baselineTarget = baseline.advance(docId);
-                int contenderTarget = contender.advance(docId);
-                assertDocIds(baseline, baselineTarget, contender, contenderTarget);
+            for (int i = 0; i < docIdsToAdvanceTo.length; i++) {
+                int docId = docIdsToAdvanceTo[i];
+                int baselineTarget = assertAdvance(docId, baselineReader, contenderReader, baseline, contender);
                 assertEquals(baseline.ordValue(), contender.ordValue());
                 assertEquals(baseline.lookupOrd(baseline.ordValue()), contender.lookupOrd(contender.ordValue()));
+                i = shouldSkipDocIds(i, docId, baselineTarget, docIdsToAdvanceTo);
+                if (i == -1) {
+                    break;
+                }
             }
         }
         // test advanceExact()
@@ -226,16 +229,19 @@ public class DocValuesCodecDuelTests extends ESTestCase {
             var baseline = baselineReader.getSortedSetDocValues(FIELD_2);
             var contender = contenderReader.getSortedSetDocValues(FIELD_2);
             assertEquals(baseline.getValueCount(), contender.getValueCount());
-            for (int docId : docIdsToAdvanceTo) {
-                int baselineTarget = baseline.advance(docId);
-                int contenderTarget = contender.advance(docId);
-                assertDocIds(baseline, baselineTarget, contender, contenderTarget);
+            for (int i = 0; i < docIdsToAdvanceTo.length; i++) {
+                int docId = docIdsToAdvanceTo[i];
+                int baselineTarget = assertAdvance(docId, baselineReader, contenderReader, baseline, contender);
                 assertEquals(baseline.docValueCount(), contender.docValueCount());
-                for (int i = 0; i < baseline.docValueCount(); i++) {
+                for (int j = 0; j < baseline.docValueCount(); j++) {
                     long baselineOrd = baseline.nextOrd();
                     long contenderOrd = contender.nextOrd();
                     assertEquals(baselineOrd, contenderOrd);
                     assertEquals(baseline.lookupOrd(baselineOrd), contender.lookupOrd(contenderOrd));
+                }
+                i = shouldSkipDocIds(i, docId, baselineTarget, docIdsToAdvanceTo);
+                if (i == -1) {
+                    break;
                 }
             }
         }
@@ -319,15 +325,18 @@ public class DocValuesCodecDuelTests extends ESTestCase {
         {
             var baseline = baselineReader.getSortedNumericDocValues(FIELD_3);
             var contender = contenderReader.getSortedNumericDocValues(FIELD_3);
-            for (int docId : docIdsToAdvanceTo) {
-                int baselineTarget = baseline.advance(docId);
-                int contenderTarget = contender.advance(docId);
-                assertDocIds(baseline, baselineTarget, contender, contenderTarget);
+            for (int i = 0; i < docIdsToAdvanceTo.length; i++) {
+                int docId = docIdsToAdvanceTo[i];
+                int baselineTarget = assertAdvance(docId, baselineReader, contenderReader, baseline, contender);
                 assertEquals(baseline.docValueCount(), contender.docValueCount());
-                for (int i = 0; i < baseline.docValueCount(); i++) {
+                for (int j = 0; j < baseline.docValueCount(); j++) {
                     long baselineValue = baseline.nextValue();
                     long contenderValue = contender.nextValue();
                     assertEquals(baselineValue, contenderValue);
+                }
+                i = shouldSkipDocIds(i, docId, baselineTarget, docIdsToAdvanceTo);
+                if (i == -1) {
+                    break;
                 }
             }
         }
@@ -366,11 +375,14 @@ public class DocValuesCodecDuelTests extends ESTestCase {
         {
             var baseline = baselineReader.getNumericDocValues(FIELD_4);
             var contender = contenderReader.getNumericDocValues(FIELD_4);
-            for (int docId : docIdsToAdvanceTo) {
-                int baselineTarget = baseline.advance(docId);
-                int contenderTarget = contender.advance(docId);
-                assertDocIds(baseline, baselineTarget, contender, contenderTarget);
+            for (int i = 0; i < docIdsToAdvanceTo.length; i++) {
+                int docId = docIdsToAdvanceTo[i];
+                int baselineTarget = assertAdvance(docId, baselineReader, contenderReader, baseline, contender);
                 assertEquals(baseline.longValue(), contender.longValue());
+                i = shouldSkipDocIds(i, docId, baselineTarget, docIdsToAdvanceTo);
+                if (i == -1) {
+                    break;
+                }
             }
         }
         // test advanceExact()
@@ -403,11 +415,14 @@ public class DocValuesCodecDuelTests extends ESTestCase {
         {
             var baseline = baselineReader.getBinaryDocValues(FIELD_5);
             var contender = contenderReader.getBinaryDocValues(FIELD_5);
-            for (int docId : docIdsToAdvanceTo) {
-                int baselineTarget = baseline.advance(docId);
-                int contenderTarget = contender.advance(docId);
-                assertDocIds(baseline, baselineTarget, contender, contenderTarget);
+            for (int i = 0; i < docIdsToAdvanceTo.length; i++) {
+                int docId = docIdsToAdvanceTo[i];
+                int baselineTarget = assertAdvance(docId, baselineReader, contenderReader, baseline, contender);
                 assertEquals(baseline.binaryValue(), contender.binaryValue());
+                i = shouldSkipDocIds(i, docId, baselineTarget, docIdsToAdvanceTo);
+                if (i == -1) {
+                    break;
+                }
             }
         }
         // test advanceExact()
@@ -421,6 +436,39 @@ public class DocValuesCodecDuelTests extends ESTestCase {
                 assertEquals(baseline.docID(), contender.docID());
                 assertEquals(baseline.binaryValue(), contender.binaryValue());
             }
+        }
+    }
+
+    private static int assertAdvance(
+        int docId,
+        LeafReader baselineReader,
+        LeafReader contenderReader,
+        DocIdSetIterator baseline,
+        DocIdSetIterator contender
+    ) throws IOException {
+        assert docId < baselineReader.maxDoc() : "exhausted DocIdSetIterator yields undefined behaviour";
+        assert docId > baseline.docID()
+            : "target must be greater then the current docId in DocIdSetIterator, otherwise this can yield undefined behaviour";
+        int baselineTarget = baseline.advance(docId);
+        assert docId < contenderReader.maxDoc() : "exhausted DocIdSetIterator yields undefined behaviour";
+        assert docId > contender.docID()
+            : "target must be greater then the current docId in DocIdSetIterator, otherwise this can yield undefined behaviour";
+        int contenderTarget = contender.advance(docId);
+        assertDocIds(baseline, baselineTarget, contender, contenderTarget);
+        return baselineTarget;
+    }
+
+    private static int shouldSkipDocIds(int i, int docId, int baselineTarget, Integer[] docIdsToAdvanceTo) {
+        if (i < (docIdsToAdvanceTo.length - 1) && baselineTarget > docId) {
+            for (int j = i + 1; j < docIdsToAdvanceTo.length; j++) {
+                int nextDocId = docIdsToAdvanceTo[j];
+                if (nextDocId > baselineTarget) {
+                    return j - 1; // -1 because the loop from which this method is invoked executes: i++
+                }
+            }
+            return -1;
+        } else {
+            return i;
         }
     }
 

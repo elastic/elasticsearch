@@ -7,12 +7,16 @@
 
 package org.elasticsearch.xpack.esql.core.type;
 
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.sort.ScriptSortBuilder;
 
+import java.io.IOException;
 import java.util.Locale;
 import java.util.Objects;
 
-public class DataType {
+public class DataType implements Writeable {
 
     private final String typeName;
 
@@ -117,5 +121,22 @@ public class DataType {
     @Override
     public String toString() {
         return name;
+    }
+
+    public static DataType readFrom(StreamInput in) throws IOException {
+        String name = in.readString();
+        if (name.equalsIgnoreCase(DataTypes.DOC_DATA_TYPE.name())) {
+            return DataTypes.DOC_DATA_TYPE;
+        }
+        DataType dataType = DataTypes.fromTypeName(name);
+        if (dataType == null) {
+            throw new IOException("Unknown DataType for type name: " + name);
+        }
+        return dataType;
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(typeName);
     }
 }

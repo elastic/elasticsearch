@@ -36,13 +36,13 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.CARTESIAN_POINT;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.CARTESIAN_SHAPE;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.GEO_POINT;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.GEO_SHAPE;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.asGeometryDocValueReader;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.asLuceneComponent2Ds;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.makeGeometryFromLiteral;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.CARTESIAN_POINT;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.CARTESIAN_SHAPE;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_POINT;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_SHAPE;
 
 /**
  * This is the primary class for supporting the function ST_CONTAINS.

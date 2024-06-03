@@ -1938,6 +1938,19 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("Unknown table [garbage]"));
     }
 
+    public void testLookupMatchTypeWrong() {
+        var e = expectThrows(VerificationException.class, () -> analyze("""
+              FROM test
+            | RENAME last_name AS int
+            | LOOKUP int_number_names ON int
+            """));
+        if (Build.current().isProductionRelease()) {
+            assertThat(e.getMessage(), containsString("line 3:4: LOOKUP is in preview and only available in SNAPSHOT build"));
+            return;
+        }
+        assertThat(e.getMessage(), containsString("column type mismatch, table column was [integer] and original column was [keyword]"));
+    }
+
     private void verifyUnsupported(String query, String errorMessage) {
         verifyUnsupported(query, errorMessage, "mapping-multi-field-variation.json");
     }

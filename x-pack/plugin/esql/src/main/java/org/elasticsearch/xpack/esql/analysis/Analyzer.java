@@ -517,17 +517,34 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             for (NamedExpression ne : l.matchFields()) {
                 if (ne instanceof UnresolvedAttribute ua && ua.customMessage() == false) {
                     modified = true;
-                    ne = maybeResolveAttribute(ua, localOutput);
+                    Attribute joinedAttribute = maybeResolveAttribute(ua, localOutput);
                     // can't find the field inside the local relation
-                    if (ne instanceof UnresolvedAttribute lua) {
+                    if (joinedAttribute instanceof UnresolvedAttribute lua) {
                         // adjust message
                         ne = lua.withUnresolvedMessage(
                             lua.unresolvedMessage().replace("Unknown column", "Unknown column in lookup target")
                         );
-                    }
-                    // check also the child output by resolving to it
-                    else {
-                        ne = maybeResolveAttribute(ua, childrenOutput);
+                    } else {
+                        // check also the child output by resolving to it
+                        Attribute attr = maybeResolveAttribute(ua, childrenOutput);
+                        ne = attr;
+                        if (attr instanceof UnresolvedAttribute == false) {
+                            // If they do, make sure the data types line up
+                            if (joinedAttribute.dataType().equals(ne.dataType()) == false) {
+                                ne = new UnresolvedAttribute(
+                                    attr.source(),
+                                    attr.name(),
+                                    attr.qualifier(),
+                                    attr.id(),
+                                    "column type mismatch, table column was ["
+                                        + joinedAttribute.dataType().typeName()
+                                        + "] and original column was ["
+                                        + attr.dataType().typeName()
+                                        + "]",
+                                    null
+                                );
+                            }
+                        }
                     }
                 }
 

@@ -107,7 +107,7 @@ public class Lookup extends UnaryPlan {
 
     @Override
     public boolean expressionsResolved() {
-        return tableName.resolved() && Resolvables.resolved(matchFields);
+        return tableName.resolved() && Resolvables.resolved(matchFields) && localRelation != null;
     }
 
     @Override

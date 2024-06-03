@@ -74,6 +74,7 @@ import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason;
+import org.elasticsearch.myprofiler.ProfilerState;
 import org.elasticsearch.node.ResponseCollectorService;
 import org.elasticsearch.script.FieldScript;
 import org.elasticsearch.script.ScriptService;
@@ -669,6 +670,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      * when the object is no longer needed.
      */
     private SearchPhaseResult executeQueryPhase(ShardSearchRequest request, SearchShardTask task) throws Exception {
+        ProfilerState.getInstance().incrementQueryCount();
         final ReaderContext readerContext = createOrGetReaderContext(request);
         try (
             Releasable scope = tracer.withScope(task);

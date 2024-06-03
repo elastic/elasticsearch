@@ -13,6 +13,9 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 
 public class RiskInput implements ToXContentObject {
     private final String id;
@@ -43,10 +46,15 @@ public class RiskInput implements ToXContentObject {
 
     public static RiskInput fromAlertHit(SearchHit alert, double contribution) {
         var source = alert.getSourceAsMap();
+
+        long unixTimestamp = Long.parseLong(source.get("@timestamp").toString());
+        Instant timestamp = Instant.ofEpochMilli(unixTimestamp);
+        String formattedTimestamp = DateTimeFormatter.ISO_INSTANT.withZone(ZoneOffset.UTC).format(timestamp);
+
         return new RiskInput(
             source.get("kibana.alert.uuid").toString(),
             alert.getIndex(),
-            source.get("@timestamp").toString(),
+            formattedTimestamp,
             source.get("kibana.alert.rule.name").toString(),
             source.get("event.kind").toString(),
             Double.parseDouble(source.get("kibana.alert.risk_score").toString()),

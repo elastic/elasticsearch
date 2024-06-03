@@ -83,7 +83,7 @@ Cohere service.
 * `elasticsearch`: specify the `text_embedding` task type to use the E5
 built-in model or text embedding models uploaded by Eland.
 * `elser`: specify the `sparse_embedding` task type to use the ELSER service.
-* `googleaistudio`: specify the `completion` task to use the Google AI Studio service.
+* `googleaistudio`: specify the `completion` or `text_embedding` task type to use the Google AI Studio service.
 * `hugging_face`: specify the `text_embedding` task type to use the Hugging Face
 service.
 * `openai`: specify the `completion` or `text_embedding` task type to use the

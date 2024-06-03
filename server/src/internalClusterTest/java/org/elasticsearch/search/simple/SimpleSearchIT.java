@@ -494,7 +494,9 @@ public class SimpleSearchIT extends ESIntegTestCase {
         createIndex("idx");
 
         // Ensure the field `num` exists in the mapping
-        client().admin().indices().preparePutMapping("idx")
+        client().admin()
+            .indices()
+            .preparePutMapping("idx")
             .setSource("{\"properties\":{\"num\":{\"type\":\"keyword\"}}}", XContentType.JSON)
             .get();
 

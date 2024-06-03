@@ -61,7 +61,7 @@ public class GoogleAiStudioService extends SenderService {
         String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> config,
-        Set<String> platfromArchitectures,
+        Set<String> platformArchitectures,
         ActionListener<Model> parsedModelListener
     ) {
         try {

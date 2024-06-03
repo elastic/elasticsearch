@@ -10,7 +10,10 @@ package org.elasticsearch.upgrades;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+
+import java.io.IOException;
 
 public class MappingIT extends AbstractRollingTestCase {
     /**
@@ -48,4 +51,18 @@ public class MappingIT extends AbstractRollingTestCase {
                 break;
         }
     }
+
+    public void testMapperDynamicIndexSetting() throws IOException {
+        switch (CLUSTER_TYPE) {
+            case OLD:
+                createIndex("my-index", Settings.EMPTY);
+                updateIndexSettings("my-index", Settings.builder().put("index.mapper.dynamic", true));
+                break;
+            case MIXED:
+            case UPGRADED:
+                ensureGreen("my-index");
+                break;
+        }
+    }
+
 }

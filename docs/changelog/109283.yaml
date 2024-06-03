@@ -1,0 +1,5 @@
+pr: 109283
+summary: Fix allocationId newTargetRelocation para passing error
+area: AllocationID
+type: bug
+issues: []

@@ -214,7 +214,7 @@ public abstract class Engine implements Closeable {
     }
 
     public IgnoredFieldStats ignoredFieldStats() {
-        try (Searcher searcher = acquireSearcher("ignored_field", SearcherScope.INTERNAL)) {
+        try (Searcher searcher = acquireSearcher("ignored_source", SearcherScope.INTERNAL)) {
             return ignoredFieldStats(searcher.getIndexReader());
         }
     }

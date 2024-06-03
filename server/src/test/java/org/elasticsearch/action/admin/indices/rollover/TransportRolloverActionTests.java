@@ -583,7 +583,6 @@ public class TransportRolloverActionTests extends ESTestCase {
         when(primaryStats.getDocs()).thenReturn(new DocsStats(primariesDocs, 0, between(1, 10000)));
 
         final CommonStats totalStats = mock(CommonStats.class);
-        long docsTotal = randomLongBetween(0, totalDocs);
         when(totalStats.getDocs()).thenReturn(new DocsStats(totalDocs, 0, between(1, 10000)));
 
         final IndicesStatsResponse response = mock(IndicesStatsResponse.class);

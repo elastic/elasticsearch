@@ -87,9 +87,7 @@ public class TransportResizeActionTests extends ESTestCase {
                     "target",
                     new ResizeNumberOfShardsCalculator.ShrinkShardsCalculator(
                         new StoreStats(between(1, 100), between(0, 100), between(1, 100)),
-                        (i) -> {
-                            return new DocsStats(Integer.MAX_VALUE, between(1, 1000), between(1, 100));
-                        }
+                        (i) -> new DocsStats(Integer.MAX_VALUE, between(1, 1000), between(1, 100))
                     )
                 )
             ).getMessage().startsWith("Can't merge index with more than [2147483519] docs - too many documents in shards ")
@@ -104,9 +102,7 @@ public class TransportResizeActionTests extends ESTestCase {
                 "target",
                 new ResizeNumberOfShardsCalculator.ShrinkShardsCalculator(
                     new StoreStats(between(1, 100), between(0, 100), between(1, 100)),
-                    (i) -> {
-                        return i == 2 || i == 3 ? new DocsStats(Integer.MAX_VALUE / 2, between(1, 1000), between(1, 10000)) : null;
-                    }
+                    (i) -> i == 2 || i == 3 ? new DocsStats(Integer.MAX_VALUE / 2, between(1, 1000), between(1, 10000)) : null
                 )
             );
         }).getMessage().startsWith("Can't merge index with more than [2147483519] docs - too many documents in shards "));
@@ -125,9 +121,7 @@ public class TransportResizeActionTests extends ESTestCase {
                 "target",
                 new ResizeNumberOfShardsCalculator.ShrinkShardsCalculator(
                     new StoreStats(between(1, 100), between(0, 100), between(1, 100)),
-                    (i) -> {
-                        return new DocsStats(between(10, 1000), between(1, 10), between(1, 10000));
-                    }
+                    (i) -> new DocsStats(between(10, 1000), between(1, 10), between(1, 10000))
                 )
             );
         });
@@ -158,9 +152,7 @@ public class TransportResizeActionTests extends ESTestCase {
             "target",
             new ResizeNumberOfShardsCalculator.ShrinkShardsCalculator(
                 new StoreStats(between(1, 100), between(0, 100), between(1, 100)),
-                (i) -> {
-                    return new DocsStats(between(1, 1000), between(1, 1000), between(0, 10000));
-                }
+                (i) -> new DocsStats(between(1, 1000), between(1, 1000), between(0, 10000))
             )
         );
     }
@@ -315,9 +307,7 @@ public class TransportResizeActionTests extends ESTestCase {
                     "target",
                     new ResizeNumberOfShardsCalculator.ShrinkShardsCalculator(
                         new StoreStats(between(1, 100), between(0, 100), between(1, 100)),
-                        (i) -> {
-                            return new DocsStats(Integer.MAX_VALUE, between(1, 1000), between(1, 100));
-                        }
+                        (i) -> new DocsStats(Integer.MAX_VALUE, between(1, 1000), between(1, 100))
                     )
                 )
             ).getMessage().startsWith("Cannot set both index.number_of_shards and max_primary_shard_size for the target index")

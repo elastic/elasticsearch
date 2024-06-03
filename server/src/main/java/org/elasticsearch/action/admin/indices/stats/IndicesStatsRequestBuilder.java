@@ -161,7 +161,7 @@ public class IndicesStatsRequestBuilder extends BroadcastOperationRequestBuilder
     }
 
     public IndicesStatsRequestBuilder setIncludeIgnoredFieldsStats(boolean includeIgnoredFieldsStats) {
-        request.includeIgnoredFieldsStats(includeIgnoredFieldsStats);
+        request.ignoredFieldsStats(includeIgnoredFieldsStats);
         return this;
     }
 }

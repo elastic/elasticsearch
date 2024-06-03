@@ -67,7 +67,7 @@ public final class NoOpEngine extends ReadOnlyEngine {
                 SegmentReader segmentReader = Lucene.segmentReader(ctx.reader());
                 fillSegmentStats(segmentReader, true, segmentsStats);
             }
-            this.docsStats = docsStats(reader, false);
+            this.docsStats = docsStats(reader);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -134,7 +134,7 @@ public final class NoOpEngine extends ReadOnlyEngine {
     }
 
     @Override
-    public DocsStats docStats(boolean notUsed) {
+    public DocsStats docStats() {
         return docsStats;
     }
 

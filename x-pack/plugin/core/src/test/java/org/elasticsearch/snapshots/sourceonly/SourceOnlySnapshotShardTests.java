@@ -390,7 +390,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
         assertEquals(restoredShard.recoveryState().getTranslog().recoveredOperations(), 0);
         assertEquals(IndexShardState.POST_RECOVERY, restoredShard.state());
         restoredShard.refresh("test");
-        assertEquals(restoredShard.docStats(false).getCount(), shard.docStats(false).getCount());
+        assertEquals(restoredShard.docStats().getCount(), shard.docStats(false).getCount());
         EngineException engineException = expectThrows(
             EngineException.class,
             () -> restoredShard.get(new Engine.Get(false, false, Integer.toString(0)))

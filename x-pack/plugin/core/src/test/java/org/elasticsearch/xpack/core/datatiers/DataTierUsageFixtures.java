@@ -84,7 +84,7 @@ class DataTierUsageFixtures extends ESTestCase {
 
     private static ShardStats shardStat(long byteCount, long docCount, ShardRouting routing) {
         StoreStats storeStats = new StoreStats(randomNonNegativeLong(), byteCount, 0L);
-        DocsStats docsStats = new DocsStats(docCount, 0L, byteCount, null);
+        DocsStats docsStats = new DocsStats(docCount, 0L, byteCount);
         Path fakePath = PathUtils.get("test/dir/" + routing.shardId().getIndex().getUUID() + "/" + routing.shardId().id());
         ShardPath fakeShardPath = new ShardPath(false, fakePath, fakePath, routing.shardId());
         CommonStats commonStats = new CommonStats(CommonStatsFlags.ALL);

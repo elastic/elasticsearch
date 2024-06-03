@@ -202,23 +202,27 @@ public abstract class Engine implements Closeable {
     /**
      * Returns the {@link DocsStats} for this engine
      */
-    public DocsStats docStats(boolean includeIgnoredFieldsStats) {
+    public DocsStats docStats() {
         // we calculate the doc stats based on the internal searcher that is more up-to-date and not subject
         // to external refreshes. For instance we don't refresh an external searcher if we flush and indices with
         // index.refresh_interval=-1 won't see any doc stats updates at all. This change will give more accurate statistics
         // when indexing but not refreshing in general. Yet, if a refresh happens the internal searcher is refresh as well so we are
         // safe here.
         try (Searcher searcher = acquireSearcher(DOC_STATS_SOURCE, SearcherScope.INTERNAL)) {
-            return docsStats(searcher.getIndexReader(), includeIgnoredFieldsStats);
+            return docsStats(searcher.getIndexReader());
         }
     }
 
-    protected final DocsStats docsStats(IndexReader indexReader, boolean includeIgnoredFieldsStats) {
+    public IgnoredFieldStats ignoredFieldStats() {
+        try (Searcher searcher = acquireSearcher(DOC_STATS_SOURCE, SearcherScope.INTERNAL)) {
+            return ignoredFieldStats(searcher.getIndexReader());
+        }
+    }
+
+    protected final DocsStats docsStats(IndexReader indexReader) {
         long numDocs = 0;
         long numDeletedDocs = 0;
         long sizeInBytes = 0;
-        long docsWithIgnoredFields = 0;
-        long ignoredFieldTermsSumDocFreq = 0;
         // we don't wait for a pending refreshes here since it's a stats call instead we mark it as accessed only which will cause
         // the next scheduled refresh to go through and refresh the stats as well
         for (LeafReaderContext readerContext : indexReader.leaves()) {
@@ -232,25 +236,31 @@ public abstract class Engine implements Closeable {
             } catch (IOException e) {
                 logger.trace(() -> "failed to get size for [" + info.info.name + "]", e);
             }
-            if (includeIgnoredFieldsStats) {
-                docsWithIgnoredFields += getValueOrZero(
-                    () -> (long) readerContext.reader().getDocCount(IgnoredFieldMapper.NAME),
-                    "IO error while reading documents with ignored fields",
-                    "Getting number of documents with ignored fields unsupported"
-                );
-                ignoredFieldTermsSumDocFreq += getValueOrZero(
-                    () -> readerContext.reader().getSumDocFreq(IgnoredFieldMapper.NAME),
-                    "IO error while reading frequency of ignored terms",
-                    "Getting frequency of ignored terms unsupported"
-                );
-            }
         }
-        return new DocsStats(
-            numDocs,
-            numDeletedDocs,
-            sizeInBytes,
-            includeIgnoredFieldsStats ? new IgnoredFieldStats(docsWithIgnoredFields, ignoredFieldTermsSumDocFreq) : null
-        );
+        return new DocsStats(numDocs, numDeletedDocs, sizeInBytes);
+    }
+
+    protected final IgnoredFieldStats ignoredFieldStats(final IndexReader indexReader) {
+        long numDocs = 0;
+        long docsWithIgnoredFields = 0;
+        long ignoredFieldTermsSumDocFreq = 0;
+        for (LeafReaderContext readerContext : indexReader.leaves()) {
+            // we go on the segment level here to get accurate numbers
+            final SegmentReader segmentReader = Lucene.segmentReader(readerContext.reader());
+            SegmentCommitInfo info = segmentReader.getSegmentInfo();
+            numDocs += readerContext.reader().numDocs();
+            docsWithIgnoredFields += getValueOrZero(
+                () -> (long) readerContext.reader().getDocCount(IgnoredFieldMapper.NAME),
+                "IO error while reading documents with ignored fields",
+                "Getting number of documents with ignored fields unsupported"
+            );
+            ignoredFieldTermsSumDocFreq += getValueOrZero(
+                () -> readerContext.reader().getSumDocFreq(IgnoredFieldMapper.NAME),
+                "IO error while reading frequency of ignored terms",
+                "Getting frequency of ignored terms unsupported"
+            );
+        }
+        return new IgnoredFieldStats(numDocs, docsWithIgnoredFields, ignoredFieldTermsSumDocFreq);
     }
 
     @FunctionalInterface

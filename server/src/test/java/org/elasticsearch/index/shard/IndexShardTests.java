@@ -3263,7 +3263,7 @@ public class IndexShardTests extends IndexShardTestCase {
                     assertThat(threadPool.relativeTimeInMillis(), greaterThan(shard.getLastSearcherAccess()));
                 });
                 long prevAccessTime = shard.getLastSearcherAccess();
-                final DocsStats docsStats = indexShard.docStats(false);
+                final DocsStats docsStats = indexShard.docStats();
                 assertThat("searcher was marked as accessed", shard.getLastSearcherAccess(), equalTo(prevAccessTime));
                 assertThat(docsStats.getCount(), equalTo(numDocs));
                 try (Engine.Searcher searcher = indexShard.acquireSearcher("test")) {
@@ -3324,7 +3324,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 indexShard.refresh("test");
             }
             {
-                final DocsStats docStats = indexShard.docStats(false);
+                final DocsStats docStats = indexShard.docStats();
                 try (Engine.Searcher searcher = indexShard.acquireSearcher("test")) {
                     assertTrue(searcher.getIndexReader().numDocs() <= docStats.getCount());
                 }
@@ -3342,7 +3342,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 indexShard.flush(new FlushRequest());
             }
             {
-                final DocsStats docStats = indexShard.docStats(false);
+                final DocsStats docStats = indexShard.docStats();
                 assertThat(docStats.getCount(), equalTo(numDocs));
                 assertThat(docStats.getDeleted(), equalTo(0L));
                 assertThat(docStats.getTotalSizeInBytes(), greaterThan(0L));
@@ -3370,7 +3370,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 indexDoc(indexShard, "_doc", Integer.toString(i), doc);
             }
 
-            assertThat("Without flushing, segment sizes should be zero", indexShard.docStats(false).getTotalSizeInBytes(), equalTo(0L));
+            assertThat("Without flushing, segment sizes should be zero", indexShard.docStats().getTotalSizeInBytes(), equalTo(0L));
 
             if (randomBoolean()) {
                 indexShard.flush(new FlushRequest());
@@ -3378,7 +3378,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 indexShard.refresh("test");
             }
             {
-                final DocsStats docsStats = indexShard.docStats(false);
+                final DocsStats docsStats = indexShard.docStats();
                 final StoreStats storeStats = indexShard.storeStats();
                 assertThat(storeStats.sizeInBytes(), greaterThan(numDoc * 100L)); // A doc should be more than 100 bytes.
 
@@ -3408,7 +3408,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 indexShard.refresh("test");
             }
             {
-                final DocsStats docsStats = indexShard.docStats(false);
+                final DocsStats docsStats = indexShard.docStats();
                 final StoreStats storeStats = indexShard.storeStats();
                 assertThat(
                     "Estimated total document size is too small compared with the stored size",
@@ -4759,7 +4759,7 @@ public class IndexShardTests extends IndexShardTestCase {
             seqNo++;
         }
         shard.flush(new FlushRequest());
-        assertThat(shard.docStats(false).getCount(), equalTo(numDocs));
+        assertThat(shard.docStats().getCount(), equalTo(numDocs));
         final ShardRouting replicaRouting = shard.routingEntry();
         ShardRouting readonlyShardRouting = shardRoutingBuilder(
             replicaRouting.shardId(),
@@ -4781,7 +4781,7 @@ public class IndexShardTests extends IndexShardTestCase {
         DiscoveryNode localNode = DiscoveryNodeUtils.builder("foo").roles(emptySet()).build();
         readonlyShard.markAsRecovering("store", new RecoveryState(readonlyShard.routingEntry(), localNode, null));
         recoverFromStore(readonlyShard);
-        assertThat(readonlyShard.docStats(false).getCount(), equalTo(numDocs));
+        assertThat(readonlyShard.docStats().getCount(), equalTo(numDocs));
         closeShards(readonlyShard);
     }
 

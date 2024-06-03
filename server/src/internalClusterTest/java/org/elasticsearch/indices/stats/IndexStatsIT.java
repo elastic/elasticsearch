@@ -834,7 +834,8 @@ public class IndexStatsIT extends ESIntegTestCase {
             Flag.Bulk,
             Flag.Shards,
             Flag.Mappings,
-            Flag.DenseVector };
+            Flag.DenseVector,
+            Flag.IgnoredFieldStats };
 
         assertThat(flags.length, equalTo(Flag.values().length));
         for (int i = 0; i < flags.length; i++) {
@@ -1000,6 +1001,7 @@ public class IndexStatsIT extends ESIntegTestCase {
                 // We don't actually expose shards in IndexStats, but this test fails if it isn't handled
                 builder.request().flags().set(Flag.Shards, set);
             case DenseVector -> builder.setDenseVector(set);
+            case IgnoredFieldStats -> builder.setIncludeIgnoredFieldsStats(set);
             default -> fail("new flag? " + flag);
         }
     }
@@ -1046,6 +1048,8 @@ public class IndexStatsIT extends ESIntegTestCase {
                 return response.getNodeMappings() != null;
             case DenseVector:
                 return response.getDenseVectorStats() != null;
+            case IgnoredFieldStats:
+                return response.getIgnoredFieldStats() != null;
             default:
                 fail("new flag? " + flag);
                 return false;

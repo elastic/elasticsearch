@@ -91,7 +91,7 @@ public final class FrozenEngine extends ReadOnlyEngine {
                 SegmentReader segmentReader = Lucene.segmentReader(ctx.reader());
                 fillSegmentStats(segmentReader, true, segmentsStats);
             }
-            this.docsStats = docsStats(reader, false);
+            this.docsStats = docsStats(reader);
             this.denseVectorStats = denseVectorStats(reader);
             canMatchReader = ElasticsearchDirectoryReader.wrap(
                 new RewriteCachingDirectoryReader(directory, reader.leaves(), null),
@@ -325,7 +325,7 @@ public final class FrozenEngine extends ReadOnlyEngine {
     }
 
     @Override
-    public DocsStats docStats(boolean notUsed) {
+    public DocsStats docStats() {
         return docsStats;
     }
 

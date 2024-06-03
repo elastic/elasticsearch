@@ -270,18 +270,22 @@ public class IndicesStatsRequest extends BroadcastRequest<IndicesStatsRequest> {
         return this;
     }
 
-    public IndicesStatsRequest includeIgnoredFieldsStats(boolean includeIgnoredFieldsStats) {
-        flags.includeIgnoredFieldsStats(includeIgnoredFieldsStats);
-        return this;
-    }
-
     public IndicesStatsRequest denseVector(boolean denseVector) {
         flags.set(Flag.DenseVector, denseVector);
         return this;
     }
 
+    public IndicesStatsRequest ignoredFieldsStats(boolean ignoredField) {
+        flags.set(Flag.IgnoredFieldStats, ignoredField);
+        return this;
+    }
+
     public boolean denseVector() {
         return flags.isSet(Flag.DenseVector);
+    }
+
+    public boolean ignoredField() {
+        return flags.isSet(Flag.IgnoredFieldStats);
     }
 
     @Override

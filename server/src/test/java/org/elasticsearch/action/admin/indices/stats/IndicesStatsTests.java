@@ -32,6 +32,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.notNullValue;
@@ -100,6 +101,19 @@ public class IndicesStatsTests extends ESSingleNodeTestCase {
             assertThat(commitStats.getId(), notNullValue());
             assertThat(commitStats.getUserData(), hasKey(Translog.TRANSLOG_UUID_KEY));
         }
+    }
+
+    public void testIgnoredFieldStats() throws Exception {
+        createIndex("test");
+        final IndicesStatsResponse indicesStatsResponse = indicesAdmin().prepareStats("test")
+            .clear()
+            .setIncludeIgnoredFieldsStats(true)
+            .get();
+        final CommonStats commonStats = indicesStatsResponse.getIndices().get("test").getTotal();
+
+        assertThat(commonStats.ignoredFieldStats.getTotalNumberOfDocuments(), equalTo(0L));
+        assertThat(commonStats.ignoredFieldStats.getDocsWithIgnoredFields(), equalTo(0L));
+        assertThat(commonStats.ignoredFieldStats.getIgnoredFieldTermsSumDocFreq(), equalTo(0L));
     }
 
     public void testRefreshListeners() throws Exception {

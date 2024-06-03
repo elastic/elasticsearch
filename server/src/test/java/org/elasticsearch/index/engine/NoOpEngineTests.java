@@ -135,14 +135,14 @@ public class NoOpEngineTests extends EngineTestCase {
             boolean includeFileSize = randomBoolean();
             final SegmentsStats expectedSegmentStats;
             try (InternalEngine engine = createEngine(config)) {
-                expectedDocStats = engine.docStats(false);
+                expectedDocStats = engine.docStats();
                 expectedSegmentStats = engine.segmentsStats(includeFileSize, true);
             }
 
             try (NoOpEngine noOpEngine = new NoOpEngine(config)) {
-                assertEquals(expectedDocStats.getCount(), noOpEngine.docStats(false).getCount());
-                assertEquals(expectedDocStats.getDeleted(), noOpEngine.docStats(false).getDeleted());
-                assertEquals(expectedDocStats.getTotalSizeInBytes(), noOpEngine.docStats(false).getTotalSizeInBytes());
+                assertEquals(expectedDocStats.getCount(), noOpEngine.docStats().getCount());
+                assertEquals(expectedDocStats.getDeleted(), noOpEngine.docStats().getDeleted());
+                assertEquals(expectedDocStats.getTotalSizeInBytes(), noOpEngine.docStats().getTotalSizeInBytes());
                 assertEquals(expectedSegmentStats.getCount(), noOpEngine.segmentsStats(includeFileSize, true).getCount());
                 // don't compare memory in bytes since we load the index with term-dict off-heap
                 assertEquals(expectedSegmentStats.getFiles().size(), noOpEngine.segmentsStats(includeFileSize, true).getFiles().size());

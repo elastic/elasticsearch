@@ -30,6 +30,7 @@ import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.shard.DenseVectorStats;
 import org.elasticsearch.index.shard.DocsStats;
+import org.elasticsearch.index.shard.IgnoredFieldStats;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexingStats;
 import org.elasticsearch.index.shard.ShardCountStats;
@@ -109,6 +110,8 @@ public class CommonStats implements Writeable, ToXContentFragment {
 
     @Nullable
     public DenseVectorStats denseVectorStats;
+    @Nullable
+    public IgnoredFieldStats ignoredFieldStats;
 
     public CommonStats() {
         this(CommonStatsFlags.NONE);
@@ -139,6 +142,7 @@ public class CommonStats implements Writeable, ToXContentFragment {
                 case Shards -> shards = new ShardCountStats();
                 case Mappings -> nodeMappings = new NodeMappingStats();
                 case DenseVector -> denseVectorStats = new DenseVectorStats();
+                case IgnoredFieldStats -> ignoredFieldStats = new IgnoredFieldStats();
                 default -> throw new IllegalStateException("Unknown Flag: " + flag);
             }
         }
@@ -158,7 +162,7 @@ public class CommonStats implements Writeable, ToXContentFragment {
         for (CommonStatsFlags.Flag flag : filteredFlags.getFlags()) {
             try {
                 switch (flag) {
-                    case Docs -> stats.docs = indexShard.docStats(flags.includeIgnoredFieldsStats());
+                    case Docs -> stats.docs = indexShard.docStats();
                     case Store -> stats.store = indexShard.storeStats();
                     case Indexing -> stats.indexing = indexShard.indexingStats();
                     case Get -> stats.get = indexShard.getStats();
@@ -182,6 +186,7 @@ public class CommonStats implements Writeable, ToXContentFragment {
                         // Setting to 1 because the single IndexShard passed to this method implies 1 shard
                         stats.shards = new ShardCountStats(1);
                     case DenseVector -> stats.denseVectorStats = indexShard.denseVectorStats();
+                    case IgnoredFieldStats -> stats.ignoredFieldStats = indexShard.ignoredFieldStats();
                     default -> throw new IllegalStateException("Unknown or invalid flag for shard-level stats: " + flag);
                 }
             } catch (AlreadyClosedException e) {
@@ -219,6 +224,9 @@ public class CommonStats implements Writeable, ToXContentFragment {
         if (in.getTransportVersion().onOrAfter(VERSION_SUPPORTING_DENSE_VECTOR_STATS)) {
             denseVectorStats = in.readOptionalWriteable(DenseVectorStats::new);
         }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.IGNORED_FIELDS_STATS)) {
+            ignoredFieldStats = in.readOptionalWriteable(IgnoredFieldStats::new);
+        }
     }
 
     @Override
@@ -249,6 +257,9 @@ public class CommonStats implements Writeable, ToXContentFragment {
         if (out.getTransportVersion().onOrAfter(VERSION_SUPPORTING_DENSE_VECTOR_STATS)) {
             out.writeOptionalWriteable(denseVectorStats);
         }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.IGNORED_FIELDS_STATS)) {
+            out.writeOptionalWriteable(ignoredFieldStats);
+        }
     }
 
     @Override
@@ -275,7 +286,8 @@ public class CommonStats implements Writeable, ToXContentFragment {
             && Objects.equals(bulk, that.bulk)
             && Objects.equals(shards, that.shards)
             && Objects.equals(nodeMappings, that.nodeMappings)
-            && Objects.equals(denseVectorStats, that.denseVectorStats);
+            && Objects.equals(denseVectorStats, that.denseVectorStats)
+            && Objects.equals(ignoredFieldStats, that.ignoredFieldStats);
     }
 
     @Override
@@ -300,7 +312,8 @@ public class CommonStats implements Writeable, ToXContentFragment {
             bulk,
             shards,
             nodeMappings,
-            denseVectorStats
+            denseVectorStats,
+            ignoredFieldStats
         );
     }
 
@@ -465,6 +478,14 @@ public class CommonStats implements Writeable, ToXContentFragment {
         } else {
             denseVectorStats.add(stats.getDenseVectorStats());
         }
+        if (ignoredFieldStats == null) {
+            if (stats.getIgnoredFieldStats() != null) {
+                ignoredFieldStats = new IgnoredFieldStats();
+                ignoredFieldStats.add(stats.ignoredFieldStats);
+            }
+        } else {
+            ignoredFieldStats.add(stats.getIgnoredFieldStats());
+        }
     }
 
     @Nullable
@@ -567,6 +588,11 @@ public class CommonStats implements Writeable, ToXContentFragment {
         return denseVectorStats;
     }
 
+    @Nullable
+    public IgnoredFieldStats getIgnoredFieldStats() {
+        return ignoredFieldStats;
+    }
+
     /**
      * Utility method which computes total memory by adding
      * FieldData, PercolatorCache, Segments (index writer, version map)
@@ -609,6 +635,7 @@ public class CommonStats implements Writeable, ToXContentFragment {
         addIfNonNull(builder, params, bulk);
         addIfNonNull(builder, params, nodeMappings);
         addIfNonNull(builder, params, denseVectorStats);
+        addIfNonNull(builder, params, ignoredFieldStats);
         return builder;
     }
 

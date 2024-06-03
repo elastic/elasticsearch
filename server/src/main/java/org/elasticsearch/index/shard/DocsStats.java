@@ -8,11 +8,9 @@
 
 package org.elasticsearch.index.shard;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -25,8 +23,6 @@ public class DocsStats implements Writeable, ToXContentFragment {
     private long count = 0;
     private long deleted = 0;
     private long totalSizeInBytes = 0;
-    @Nullable
-    private IgnoredFieldStats ignoredFieldStats;
 
     public DocsStats() {
 
@@ -36,14 +32,12 @@ public class DocsStats implements Writeable, ToXContentFragment {
         count = in.readVLong();
         deleted = in.readVLong();
         totalSizeInBytes = in.readVLong();
-        ignoredFieldStats = in.readOptionalWriteable(IgnoredFieldStats::new);
     }
 
-    public DocsStats(long count, long deleted, long totalSizeInBytes, @Nullable final IgnoredFieldStats ignoredFieldStats) {
+    public DocsStats(long count, long deleted, long totalSizeInBytes) {
         this.count = count;
         this.deleted = deleted;
         this.totalSizeInBytes = totalSizeInBytes;
-        this.ignoredFieldStats = ignoredFieldStats;
     }
 
     public void add(DocsStats other) {
@@ -57,14 +51,6 @@ public class DocsStats implements Writeable, ToXContentFragment {
         }
         this.count += other.count;
         this.deleted += other.deleted;
-        if (ignoredFieldStats == null) {
-            if (other.ignoredFieldStats != null) {
-                ignoredFieldStats = new IgnoredFieldStats();
-                ignoredFieldStats.add(other.ignoredFieldStats);
-            }
-        } else {
-            ignoredFieldStats.add(other.ignoredFieldStats);
-        }
     }
 
     public long getCount() {
@@ -83,19 +69,11 @@ public class DocsStats implements Writeable, ToXContentFragment {
         return totalSizeInBytes;
     }
 
-    @Nullable
-    public IgnoredFieldStats getIgnoredFieldStats() {
-        return ignoredFieldStats;
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(count);
         out.writeVLong(deleted);
         out.writeVLong(totalSizeInBytes);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.IGNORED_FIELDS_STATS)) {
-            out.writeOptionalWriteable(ignoredFieldStats);
-        }
     }
 
     @Override
@@ -104,9 +82,6 @@ public class DocsStats implements Writeable, ToXContentFragment {
         builder.field(Fields.COUNT, count);
         builder.field(Fields.DELETED, deleted);
         builder.field(Fields.TOTAL_SIZE_IN_BYTES, totalSizeInBytes);
-        if (ignoredFieldStats != null) {
-            ignoredFieldStats.toXContent(builder, params);
-        }
         builder.endObject();
         return builder;
     }
@@ -116,15 +91,12 @@ public class DocsStats implements Writeable, ToXContentFragment {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         DocsStats that = (DocsStats) o;
-        return count == that.count
-            && deleted == that.deleted
-            && totalSizeInBytes == that.totalSizeInBytes
-            && Objects.equals(ignoredFieldStats, that.ignoredFieldStats);
+        return count == that.count && deleted == that.deleted && totalSizeInBytes == that.totalSizeInBytes;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(count, deleted, totalSizeInBytes, ignoredFieldStats);
+        return Objects.hash(count, deleted, totalSizeInBytes);
     }
 
     static final class Fields {

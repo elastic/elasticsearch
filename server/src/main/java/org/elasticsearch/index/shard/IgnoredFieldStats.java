@@ -18,17 +18,20 @@ import java.io.IOException;
 import java.util.Objects;
 
 public class IgnoredFieldStats implements Writeable, ToXContentFragment {
+    private long totalNumberOfDocuments;
     private long docsWithIgnoredFields = 0;
     private long ignoredFieldTermsSumDocFreq = 0;
 
     public IgnoredFieldStats() {}
 
-    public IgnoredFieldStats(long docsWithIgnoredFields, long ignoredFieldTermsSumDocFreq) {
+    public IgnoredFieldStats(long totalNumberOfDocuments, long docsWithIgnoredFields, long ignoredFieldTermsSumDocFreq) {
+        this.totalNumberOfDocuments = totalNumberOfDocuments;
         this.docsWithIgnoredFields = docsWithIgnoredFields;
         this.ignoredFieldTermsSumDocFreq = ignoredFieldTermsSumDocFreq;
     }
 
     public IgnoredFieldStats(final StreamInput in) throws IOException {
+        totalNumberOfDocuments = in.readVLong();
         docsWithIgnoredFields = in.readVLong();
         ignoredFieldTermsSumDocFreq = in.readVLong();
     }
@@ -36,6 +39,7 @@ public class IgnoredFieldStats implements Writeable, ToXContentFragment {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         return builder.startObject(Fields.IGNORED_FIELD_STATS)
+            .field(Fields.TOTAL_NUMBER_OF_DOCUMENTS, totalNumberOfDocuments)
             .field(Fields.DOCS_WITH_IGNORED_FIELDS, docsWithIgnoredFields)
             .field(Fields.SUM_DOC_FREQ_TERMS_IGNORED_FIELDS, ignoredFieldTermsSumDocFreq)
             .endObject();
@@ -43,8 +47,13 @@ public class IgnoredFieldStats implements Writeable, ToXContentFragment {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        out.writeVLong(totalNumberOfDocuments);
         out.writeVLong(docsWithIgnoredFields);
         out.writeVLong(ignoredFieldTermsSumDocFreq);
+    }
+
+    public long getTotalNumberOfDocuments() {
+        return totalNumberOfDocuments;
     }
 
     public long getDocsWithIgnoredFields() {
@@ -60,6 +69,7 @@ public class IgnoredFieldStats implements Writeable, ToXContentFragment {
             return;
         }
 
+        totalNumberOfDocuments += other.totalNumberOfDocuments;
         docsWithIgnoredFields += other.docsWithIgnoredFields;
         ignoredFieldTermsSumDocFreq += other.ignoredFieldTermsSumDocFreq;
     }
@@ -69,16 +79,19 @@ public class IgnoredFieldStats implements Writeable, ToXContentFragment {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         IgnoredFieldStats that = (IgnoredFieldStats) o;
-        return docsWithIgnoredFields == that.docsWithIgnoredFields && ignoredFieldTermsSumDocFreq == that.ignoredFieldTermsSumDocFreq;
+        return totalNumberOfDocuments == that.totalNumberOfDocuments
+            && docsWithIgnoredFields == that.docsWithIgnoredFields
+            && ignoredFieldTermsSumDocFreq == that.ignoredFieldTermsSumDocFreq;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(docsWithIgnoredFields, ignoredFieldTermsSumDocFreq);
+        return Objects.hash(totalNumberOfDocuments, docsWithIgnoredFields, ignoredFieldTermsSumDocFreq);
     }
 
     static final class Fields {
-        static final String IGNORED_FIELD_STATS = "ignored_fields";
+        static final String IGNORED_FIELD_STATS = "ignored_field";
+        static final String TOTAL_NUMBER_OF_DOCUMENTS = "total_docs";
         static final String DOCS_WITH_IGNORED_FIELDS = "docs_with_ignored_fields";
         static final String SUM_DOC_FREQ_TERMS_IGNORED_FIELDS = "sum_doc_freq_terms_ignored_fields";
     }

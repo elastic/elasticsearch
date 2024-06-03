@@ -144,10 +144,6 @@ public class RestIndicesStatsAction extends BaseRestHandler {
             indicesStatsRequest.includeUnloadedSegments(request.paramAsBoolean("include_unloaded_segments", false));
         }
 
-        if (indicesStatsRequest.docs()) {
-            indicesStatsRequest.includeIgnoredFieldsStats(request.paramAsBoolean("include_ignored_fields", false));
-        }
-
         return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).admin()
             .indices()
             .stats(indicesStatsRequest, new RestRefCountedChunkedToXContentListener<>(channel));

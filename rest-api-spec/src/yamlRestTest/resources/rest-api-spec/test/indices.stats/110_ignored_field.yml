@@ -99,80 +99,36 @@ setup:
 
   - do:
       indices.stats:
-        metric: [ docs ]
-        include_ignored_fields: true
+        metric: [ ignored_field ]
 
-  - match: { _all.primaries.docs.count: 4 }
-  - match: { _all.primaries.docs.ignored_fields.docs_with_ignored_fields: 2 }
-  - match: { _all.primaries.docs.ignored_fields.sum_doc_freq_terms_ignored_fields: 3 }
-  - match: { _all.total.docs.count: 4 }
-  - match: { _all.total.docs.ignored_fields.docs_with_ignored_fields: 2 }
-  - match: { _all.total.docs.ignored_fields.sum_doc_freq_terms_ignored_fields: 3 }
+  - match: { _all.primaries.ignored_field.total_docs: 4 }
+  - match: { _all.primaries.ignored_field.docs_with_ignored_fields: 2 }
+  - match: { _all.primaries.ignored_field.sum_doc_freq_terms_ignored_fields: 3 }
+  - match: { _all.total.ignored_field.total_docs: 4 }
+  - match: { _all.total.ignored_field.docs_with_ignored_fields: 2 }
+  - match: { _all.total.ignored_field.sum_doc_freq_terms_ignored_fields: 3 }
 
-  - match: { indices.test1.primaries.docs.count: 2 }
-  - match: { indices.test1.primaries.docs.ignored_fields.docs_with_ignored_fields: 0 }
-  - match: { indices.test1.primaries.docs.ignored_fields.sum_doc_freq_terms_ignored_fields: 0 }
-  - match: { indices.test1.total.docs.count: 2 }
-  - match: { indices.test1.total.docs.ignored_fields.docs_with_ignored_fields: 0 }
-  - match: { indices.test1.total.docs.ignored_fields.sum_doc_freq_terms_ignored_fields: 0 }
+  - match: { indices.test1.primaries.ignored_field.total_docs: 2 }
+  - match: { indices.test1.primaries.ignored_field.docs_with_ignored_fields: 0 }
+  - match: { indices.test1.primaries.ignored_field.sum_doc_freq_terms_ignored_fields: 0 }
+  - match: { indices.test1.total.ignored_field.total_docs: 2 }
+  - match: { indices.test1.total.ignored_field.docs_with_ignored_fields: 0 }
+  - match: { indices.test1.total.ignored_field.sum_doc_freq_terms_ignored_fields: 0 }
 
-  - match: { indices.test2.primaries.docs.count: 2 }
-  - match: { indices.test2.primaries.docs.ignored_fields.docs_with_ignored_fields: 2 }
-  - match: { indices.test2.primaries.docs.ignored_fields.sum_doc_freq_terms_ignored_fields: 3 }
-  - match: { indices.test2.total.docs.count: 2 }
-  - match: { indices.test2.total.docs.ignored_fields.docs_with_ignored_fields: 2 }
-  - match: { indices.test2.total.docs.ignored_fields.sum_doc_freq_terms_ignored_fields: 3 }
-
-  # Not refreshed
-  - match: { indices.test3.primaries.docs.count: 0 }
-  - match: { indices.test3.primaries.docs.ignored_fields.docs_with_ignored_fields: 0 }
-  - match: { indices.test3.primaries.docs.ignored_fields.sum_doc_freq_terms_ignored_fields: 0 }
-  - match: { indices.test3.total.docs.count: 0 }
-  - match: { indices.test3.total.docs.ignored_fields.docs_with_ignored_fields: 0 }
-  - match: { indices.test3.total.docs.ignored_fields.sum_doc_freq_terms_ignored_fields: 0 }
-
----
-"ignored fields stats with docs metric default":
-  - requires:
-      test_runner_features: [ capabilities ]
-      capabilities:
-        - method: GET
-          path: /{index}/_stats
-          capabilities: [ ignored_field_doc_stats_counter ]
-      reason: "Counting docs with ignored fields required"
-
-  - do:
-      indices.stats:
-        metric: docs
-
-  - match: { _all.primaries.docs.count: 4 }
-  - match: { _all.primaries.docs.ignored_fields: null }
-  - match: { _all.primaries.docs.ignored_fields: null }
-  - match: { _all.total.docs.count: 4 }
-  - match: { _all.total.docs.ignored_fields: null }
-  - match: { _all.total.docs.ignored_fields: null }
-
-  - match: { indices.test1.primaries.docs.count: 2 }
-  - match: { indices.test1.primaries.docs.ignored_fields: null }
-  - match: { indices.test1.primaries.docs.ignored_fields: null }
-  - match: { indices.test1.total.docs.count: 2 }
-  - match: { indices.test1.total.docs.ignored_fields: null }
-  - match: { indices.test1.total.docs.ignored_fields: null }
-
-  - match: { indices.test2.primaries.docs.count: 2 }
-  - match: { indices.test2.primaries.docs.ignored_fields: null }
-  - match: { indices.test2.primaries.docs.ignored_fields: null}
-  - match: { indices.test2.total.docs.count: 2 }
-  - match: { indices.test2.total.docs.ignored_fields: null }
-  - match: { indices.test2.total.docs.ignored_fields: null }
+  - match: { indices.test2.primaries.ignored_field.total_docs: 2 }
+  - match: { indices.test2.primaries.ignored_field.docs_with_ignored_fields: 2 }
+  - match: { indices.test2.primaries.ignored_field.sum_doc_freq_terms_ignored_fields: 3 }
+  - match: { indices.test2.total.ignored_field.total_docs: 2 }
+  - match: { indices.test2.total.ignored_field.docs_with_ignored_fields: 2 }
+  - match: { indices.test2.total.ignored_field.sum_doc_freq_terms_ignored_fields: 3 }
 
   # Not refreshed
-  - match: { indices.test3.primaries.docs.count: 0 }
-  - match: { indices.test3.primaries.docs.ignored_fields: null }
-  - match: { indices.test3.primaries.docs.ignored_fields: null }
-  - match: { indices.test3.total.docs.count: 0 }
-  - match: { indices.test3.total.docs.ignored_fields: null }
-  - match: { indices.test3.total.docs.ignored_fields: null }
+  - match: { indices.test3.primaries.ignored_field.total_docs: 0 }
+  - match: { indices.test3.primaries.ignored_field.docs_with_ignored_fields: 0 }
+  - match: { indices.test3.primaries.ignored_field.sum_doc_freq_terms_ignored_fields: 0 }
+  - match: { indices.test3.total.ignored_field.total_docs: 0 }
+  - match: { indices.test3.total.ignored_field.docs_with_ignored_fields: 0 }
+  - match: { indices.test3.total.ignored_field.sum_doc_freq_terms_ignored_fields: 0 }
 
 ---
 "ignored fields stats with docs metric with all metrics":
@@ -189,32 +145,32 @@ setup:
         index: test*
         metric: _all
 
-  - match: { _all.primaries.docs.count: 4 }
-  - match: { _all.primaries.docs.ignored_fields: null }
-  - match: { _all.primaries.docs.ignored_fields: null }
-  - match: { _all.total.docs.count: 4 }
-  - match: { _all.total.docs.ignored_fields: null }
-  - match: { _all.total.docs.ignored_fields: null }
+  - match: { _all.primaries.ignored_field.total_docs: 4 }
+  - match: { _all.primaries.ignored_field.docs_with_ignored_fields: 2 }
+  - match: { _all.primaries.ignored_field.sum_doc_freq_terms_ignored_fields: 3 }
+  - match: { _all.total.ignored_field.total_docs: 4 }
+  - match: { _all.total.ignored_field.docs_with_ignored_fields: 2 }
+  - match: { _all.total.ignored_field.sum_doc_freq_terms_ignored_fields: 3 }
 
-  - match: { indices.test1.primaries.docs.count: 2 }
-  - match: { indices.test1.primaries.docs.ignored_fields: null }
-  - match: { indices.test1.primaries.docs.ignored_fields: null }
-  - match: { indices.test1.total.docs.count: 2 }
-  - match: { indices.test1.total.docs.ignored_fields: null }
-  - match: { indices.test1.total.docs.ignored_fields: null }
+  - match: { indices.test1.primaries.ignored_field.total_docs: 2 }
+  - match: { indices.test1.primaries.ignored_field.docs_with_ignored_fields: 0 }
+  - match: { indices.test1.primaries.ignored_field.sum_doc_freq_terms_ignored_fields: 0 }
+  - match: { indices.test1.total.ignored_field.total_docs: 2 }
+  - match: { indices.test1.total.ignored_field.docs_with_ignored_fields: 0 }
+  - match: { indices.test1.total.ignored_field.sum_doc_freq_terms_ignored_fields: 0 }
 
-  - match: { indices.test2.primaries.docs.count: 2 }
-  - match: { indices.test2.primaries.docs.ignored_fields: null }
-  - match: { indices.test2.primaries.docs.ignored_fields: null }
-  - match: { indices.test2.total.docs.count: 2 }
-  - match: { indices.test2.total.docs.ignored_fields: null }
-  - match: { indices.test2.total.docs.ignored_fields: null }
+  - match: { indices.test2.primaries.ignored_field.total_docs: 2 }
+  - match: { indices.test2.primaries.ignored_field.docs_with_ignored_fields: 2 }
+  - match: { indices.test2.primaries.ignored_field.sum_doc_freq_terms_ignored_fields: 3 }
+  - match: { indices.test2.total.ignored_field.total_docs: 2 }
+  - match: { indices.test2.total.ignored_field.docs_with_ignored_fields: 2 }
+  - match: { indices.test2.total.ignored_field.sum_doc_freq_terms_ignored_fields: 3 }
 
   # Not refreshed
-  - match: { indices.test3.primaries.docs.count: 0 }
-  - match: { indices.test3.primaries.docs.ignored_fields: null }
-  - match: { indices.test3.primaries.docs.ignored_fields: null }
-  - match: { indices.test3.total.docs.count: 0 }
-  - match: { indices.test3.total.docs.ignored_fields: null }
-  - match: { indices.test3.total.docs.ignored_fields: null }
+  - match: { indices.test3.primaries.ignored_field.total_docs: 0 }
+  - match: { indices.test3.primaries.ignored_field.docs_with_ignored_fields: 0 }
+  - match: { indices.test3.primaries.ignored_field.sum_doc_freq_terms_ignored_fields: 0 }
+  - match: { indices.test3.total.ignored_field.total_docs: 0 }
+  - match: { indices.test3.total.ignored_field.docs_with_ignored_fields: 0 }
+  - match: { indices.test3.total.ignored_field.sum_doc_freq_terms_ignored_fields: 0 }
 

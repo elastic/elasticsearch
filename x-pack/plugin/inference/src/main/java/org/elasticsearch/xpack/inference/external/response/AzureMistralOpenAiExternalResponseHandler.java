@@ -29,7 +29,7 @@ import static org.elasticsearch.xpack.inference.external.http.retry.ResponseHand
  * This currently covers response handling for Azure AI Studio, however this pattern
  * can be used to simplify and refactor handling for Azure OpenAI and OpenAI responses.
  */
-public class AzureAndOpenAiExternalResponseHandler extends BaseResponseHandler {
+public class AzureMistralOpenAiExternalResponseHandler extends BaseResponseHandler {
 
     // The maximum number of requests that are permitted before exhausting the rate limit.
     static final String REQUESTS_LIMIT = "x-ratelimit-limit-requests";
@@ -43,7 +43,7 @@ public class AzureAndOpenAiExternalResponseHandler extends BaseResponseHandler {
     static final String CONTENT_TOO_LARGE_MESSAGE = "Please reduce your prompt; or completion length.";
     static final String SERVER_BUSY_ERROR = "Received a server busy error status code";
 
-    public AzureAndOpenAiExternalResponseHandler(
+    public AzureMistralOpenAiExternalResponseHandler(
         String requestType,
         ResponseParser parseFunction,
         Function<HttpResult, ErrorMessage> errorParseFunction
@@ -116,7 +116,7 @@ public class AzureAndOpenAiExternalResponseHandler extends BaseResponseHandler {
         }
 
         if (statusCode == 400) {
-            var errorEntity = AzureAndOpenAiErrorResponseEntity.fromResponse(result);
+            var errorEntity = AzureMistralOpenAiErrorResponseEntity.fromResponse(result);
             return errorEntity != null && errorEntity.getErrorMessage().contains(CONTENT_TOO_LARGE_MESSAGE);
         }
 

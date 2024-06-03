@@ -181,6 +181,7 @@ public class TransportVersions {
     public static final TransportVersion ML_INFERENCE_GOOGLE_AI_STUDIO_COMPLETION_ADDED = def(8_672_00_0);
     public static final TransportVersion WATCHER_REQUEST_TIMEOUTS = def(8_673_00_0);
     public static final TransportVersion ML_INFERENCE_ENHANCE_DELETE_ENDPOINT = def(8_674_00_0);
+    public static final TransportVersion FAILURE_STORE_LAZY_CREATION = def(8_675_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

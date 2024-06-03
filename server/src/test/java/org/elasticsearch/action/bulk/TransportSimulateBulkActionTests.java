@@ -11,6 +11,7 @@ package org.elasticsearch.action.bulk;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.SimulateIndexResponse;
@@ -22,7 +23,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.indices.EmptySystemIndices;
@@ -83,7 +83,7 @@ public class TransportSimulateBulkActionTests extends ESTestCase {
         }
 
         @Override
-        void createIndex(String index, boolean requireDataStream, TimeValue timeout, ActionListener<CreateIndexResponse> listener) {
+        void createIndex(CreateIndexRequest requireDataStream, ActionListener<CreateIndexResponse> listener) {
             indexCreated = true;
             if (beforeIndexCreation != null) {
                 beforeIndexCreation.run();
@@ -192,7 +192,7 @@ public class TransportSimulateBulkActionTests extends ESTestCase {
                 fail(e, "Unexpected error");
             }
         };
-        Map<String, Boolean> indicesToAutoCreate = Map.of(); // unused
+        Map<String, CreateIndexRequest> indicesToAutoCreate = Map.of(); // unused
         Set<String> dataStreamsToRollover = Set.of(); // unused
         Set<String> failureStoresToRollover = Set.of(); // unused
         long startTime = 0;

@@ -20,7 +20,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.inference.common.TruncatorTests;
-import org.elasticsearch.xpack.inference.external.action.openai.OpenAiChatCompletionActionTests;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
@@ -46,6 +45,7 @@ import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.external.http.retry.RetrySettingsTests.buildSettingsWithRetryFields;
 import static org.elasticsearch.xpack.inference.external.request.azureaistudio.AzureAiStudioRequestFields.API_KEY_HEADER;
+import static org.elasticsearch.xpack.inference.results.ChatCompletionResultsTests.buildExpectationCompletion;
 import static org.elasticsearch.xpack.inference.results.TextEmbeddingResultsTests.buildExpectationFloat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -163,10 +163,7 @@ public class AzureAiStudioActionAndCreatorTests extends ESTestCase {
 
             var result = listener.actionGet(TIMEOUT);
 
-            assertThat(
-                result.asMap(),
-                is(OpenAiChatCompletionActionTests.buildExpectedChatCompletionResultMap(List.of("test input string")))
-            );
+            assertThat(result.asMap(), is(buildExpectationCompletion(List.of("test input string"))));
             assertThat(webServer.requests(), hasSize(1));
 
             MockRequest request = webServer.requests().get(0);

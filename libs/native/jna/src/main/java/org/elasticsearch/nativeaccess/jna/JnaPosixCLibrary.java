@@ -46,6 +46,8 @@ class JnaPosixCLibrary implements PosixCLibrary {
 
         int getrlimit(int resource, JnaRLimit rlimit);
 
+        int mlockall(int flags);
+
         String strerror(int errno);
     }
 
@@ -70,6 +72,11 @@ class JnaPosixCLibrary implements PosixCLibrary {
         assert rlimit instanceof JnaRLimit;
         var jnaRlimit = (JnaRLimit) rlimit;
         return functions.getrlimit(resource, jnaRlimit);
+    }
+
+    @Override
+    public int mlockall(int flags) {
+        return functions.mlockall(flags);
     }
 
     @Override

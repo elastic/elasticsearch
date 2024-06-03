@@ -184,7 +184,7 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
     }
 
     public void testAbortRequestStats() throws Exception {
-        final String repository = createRepository(randomRepositoryName());
+        final String repository = createRepository(randomRepositoryName(), false);
 
         final String index = "index-no-merges";
         createIndex(index, 1, 0);
@@ -225,9 +225,10 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
     }
 
     @TestIssueLogging(issueUrl = "https://github.com/elastic/elasticsearch/issues/101608", value = "com.amazonaws.request:DEBUG")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/101608")
     public void testMetrics() throws Exception {
         // Create the repository and perform some activities
-        final String repository = createRepository(randomRepositoryName());
+        final String repository = createRepository(randomRepositoryName(), false);
         final String index = "index-no-merges";
         createIndex(index, 1, 0);
 
@@ -626,6 +627,8 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
                 trackRequest("HeadObject");
                 metricsCount.computeIfAbsent(new S3BlobStore.StatsKey(S3BlobStore.Operation.HEAD_OBJECT, purpose), k -> new AtomicLong())
                     .incrementAndGet();
+            } else {
+                logger.info("--> rawRequest not tracked [{}] with parsed purpose [{}]", request, purpose.getKey());
             }
         }
 

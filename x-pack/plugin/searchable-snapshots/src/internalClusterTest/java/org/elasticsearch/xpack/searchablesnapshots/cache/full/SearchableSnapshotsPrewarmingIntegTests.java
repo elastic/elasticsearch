@@ -215,6 +215,7 @@ public class SearchableSnapshotsPrewarmingIntegTests extends ESSingleNodeTestCas
                     final RestoreSnapshotResponse restoreSnapshotResponse = client().execute(
                         MountSearchableSnapshotAction.INSTANCE,
                         new MountSearchableSnapshotRequest(
+                            TEST_REQUEST_TIMEOUT,
                             indexName,
                             "repository",
                             "snapshot",

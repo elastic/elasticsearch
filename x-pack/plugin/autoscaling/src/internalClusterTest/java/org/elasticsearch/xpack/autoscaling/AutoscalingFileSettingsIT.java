@@ -16,7 +16,6 @@ import org.elasticsearch.cluster.metadata.ReservedStateHandlerMetadata;
 import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.Strings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.reservedstate.service.FileSettingsService;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -226,8 +225,8 @@ public class AutoscalingFileSettingsIT extends AutoscalingIntegTestCase {
             return PutAutoscalingPolicyAction.Request.parse(
                 parser,
                 (roles, deciders) -> new PutAutoscalingPolicyAction.Request(
-                    TimeValue.THIRTY_SECONDS,
-                    TimeValue.THIRTY_SECONDS,
+                    TEST_REQUEST_TIMEOUT,
+                    TEST_REQUEST_TIMEOUT,
                     name,
                     roles,
                     deciders

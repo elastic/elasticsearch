@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.autoscaling.action;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.autoscaling.AutoscalingIntegTestCase;
 import org.elasticsearch.xpack.autoscaling.AutoscalingMetadata;
 import org.elasticsearch.xpack.autoscaling.policy.AutoscalingPolicy;
@@ -99,8 +98,8 @@ public class TransportPutAutoscalingPolicyActionIT extends AutoscalingIntegTestC
 
     private void putAutoscalingPolicy(final AutoscalingPolicy policy) {
         final PutAutoscalingPolicyAction.Request request = new PutAutoscalingPolicyAction.Request(
-            TimeValue.THIRTY_SECONDS,
-            TimeValue.THIRTY_SECONDS,
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
             policy.name(),
             policy.roles(),
             policy.deciders()

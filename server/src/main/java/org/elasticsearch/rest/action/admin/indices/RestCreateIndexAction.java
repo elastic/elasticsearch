@@ -28,6 +28,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
@@ -144,5 +145,10 @@ public class RestCreateIndexAction extends BaseRestHandler {
 
         newSource.put("mappings", singletonMap(MapperService.SINGLE_MAPPING_NAME, mappings));
         return newSource;
+    }
+
+    @Override
+    public Set<String> supportedCapabilities() {
+        return CreateIndexCapabilities.CAPABILITIES;
     }
 }

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.autoscaling.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 public class GetAutoscalingPolicyActionRequestWireSerializingTests extends AbstractWireSerializingTestCase<
@@ -21,7 +20,7 @@ public class GetAutoscalingPolicyActionRequestWireSerializingTests extends Abstr
 
     @Override
     protected GetAutoscalingPolicyAction.Request createTestInstance() {
-        return new GetAutoscalingPolicyAction.Request(TimeValue.THIRTY_SECONDS, randomAlphaOfLength(8));
+        return new GetAutoscalingPolicyAction.Request(TEST_REQUEST_TIMEOUT, randomAlphaOfLength(8));
     }
 
     @Override

@@ -46,10 +46,10 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.TestBlockFactory;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.versionfield.Version;
 import org.junit.After;
 import org.junit.Before;
@@ -67,8 +67,8 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryResponse.DROP_NULL_COLUMNS_OPTION;
 import static org.elasticsearch.xpack.esql.action.ResponseValueUtils.valuesToPage;
-import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.CARTESIAN;
-import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.GEO;
+import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
+import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -125,8 +125,8 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
 
     private ColumnInfo randomColumnInfo() {
         DataType type = randomValueOtherThanMany(
-            t -> false == DataTypes.isPrimitive(t) || t == EsqlDataTypes.DATE_PERIOD || t == EsqlDataTypes.TIME_DURATION,
-            () -> randomFrom(EsqlDataTypes.types())
+            t -> false == DataTypes.isPrimitive(t) || t == DataTypes.DATE_PERIOD || t == DataTypes.TIME_DURATION,
+            () -> randomFrom(DataTypes.types())
         );
         type = EsqlDataTypes.widenSmallNumericTypes(type);
         return new ColumnInfo(randomAlphaOfLength(10), type.esType());

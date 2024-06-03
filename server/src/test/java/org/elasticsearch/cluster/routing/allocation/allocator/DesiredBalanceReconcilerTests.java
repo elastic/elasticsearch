@@ -1229,7 +1229,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
             }
             for (ShardRouting shardRouting : initializing) {
                 totalOutgoingMoves.get(shardRouting.relocatingNodeId()).incrementAndGet();
-                allocation.routingNodes().startShard(logger, shardRouting, allocation.changes(), 0L);
+                allocation.routingNodes().startShard(shardRouting, allocation.changes(), 0L);
             }
 
             var summary = totalOutgoingMoves.values().stream().mapToInt(AtomicInteger::get).summaryStatistics();

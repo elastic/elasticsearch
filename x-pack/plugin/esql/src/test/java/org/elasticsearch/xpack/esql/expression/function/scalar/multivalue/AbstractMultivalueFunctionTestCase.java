@@ -13,15 +13,15 @@ import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.util.NumericUtils;
+import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.elasticsearch.xpack.ql.util.NumericUtils;
-import org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes;
 import org.hamcrest.Matcher;
 
 import java.math.BigInteger;
@@ -37,8 +37,8 @@ import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.CARTESIAN;
-import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.GEO;
+import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
+import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 
 public abstract class AbstractMultivalueFunctionTestCase extends AbstractFunctionTestCase {
     /**
@@ -400,7 +400,7 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractFunctio
         String evaluatorName,
         BiFunction<Integer, Stream<BytesRef>, Matcher<Object>> matcher
     ) {
-        geoPoints(cases, name, evaluatorName, EsqlDataTypes.GEO_POINT, matcher);
+        geoPoints(cases, name, evaluatorName, DataTypes.GEO_POINT, matcher);
     }
 
     /**
@@ -415,7 +415,7 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractFunctio
         DataType expectedDataType,
         BiFunction<Integer, Stream<BytesRef>, Matcher<Object>> matcher
     ) {
-        spatial(cases, name, evaluatorName, EsqlDataTypes.GEO_POINT, expectedDataType, GEO, GeometryTestUtils::randomPoint, matcher);
+        spatial(cases, name, evaluatorName, DataTypes.GEO_POINT, expectedDataType, GEO, GeometryTestUtils::randomPoint, matcher);
     }
 
     /**
@@ -428,7 +428,7 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractFunctio
         String evaluatorName,
         BiFunction<Integer, Stream<BytesRef>, Matcher<Object>> matcher
     ) {
-        cartesianPoints(cases, name, evaluatorName, EsqlDataTypes.CARTESIAN_POINT, matcher);
+        cartesianPoints(cases, name, evaluatorName, DataTypes.CARTESIAN_POINT, matcher);
     }
 
     /**
@@ -443,16 +443,7 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractFunctio
         DataType expectedDataType,
         BiFunction<Integer, Stream<BytesRef>, Matcher<Object>> matcher
     ) {
-        spatial(
-            cases,
-            name,
-            evaluatorName,
-            EsqlDataTypes.CARTESIAN_POINT,
-            expectedDataType,
-            CARTESIAN,
-            ShapeTestUtils::randomPoint,
-            matcher
-        );
+        spatial(cases, name, evaluatorName, DataTypes.CARTESIAN_POINT, expectedDataType, CARTESIAN, ShapeTestUtils::randomPoint, matcher);
     }
 
     /**
@@ -471,7 +462,7 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractFunctio
             cases,
             name,
             evaluatorName,
-            EsqlDataTypes.GEO_SHAPE,
+            DataTypes.GEO_SHAPE,
             expectedDataType,
             GEO,
             () -> rarely() ? GeometryTestUtils.randomGeometry(randomBoolean()) : GeometryTestUtils.randomPoint(),
@@ -495,7 +486,7 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractFunctio
             cases,
             name,
             evaluatorName,
-            EsqlDataTypes.CARTESIAN_SHAPE,
+            DataTypes.CARTESIAN_SHAPE,
             expectedDataType,
             CARTESIAN,
             () -> rarely() ? ShapeTestUtils.randomGeometry(randomBoolean()) : ShapeTestUtils.randomPoint(),
@@ -630,7 +621,7 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractFunctio
 
     protected final DataType[] representableNumerics() {
         // TODO numeric should only include representable numbers but that is a change for a followup
-        return EsqlDataTypes.types().stream().filter(DataType::isNumeric).filter(EsqlDataTypes::isRepresentable).toArray(DataType[]::new);
+        return DataTypes.types().stream().filter(DataType::isNumeric).filter(EsqlDataTypes::isRepresentable).toArray(DataType[]::new);
     }
 
     protected DataType expectedType(List<DataType> argTypes) {

@@ -245,9 +245,6 @@ public abstract class Engine implements Closeable {
         long docsWithIgnoredFields = 0;
         long ignoredFieldTermsSumDocFreq = 0;
         for (LeafReaderContext readerContext : indexReader.leaves()) {
-            // we go on the segment level here to get accurate numbers
-            final SegmentReader segmentReader = Lucene.segmentReader(readerContext.reader());
-            SegmentCommitInfo info = segmentReader.getSegmentInfo();
             numDocs += readerContext.reader().numDocs();
             docsWithIgnoredFields += getValueOrZero(
                 () -> (long) readerContext.reader().getDocCount(IgnoredFieldMapper.NAME),

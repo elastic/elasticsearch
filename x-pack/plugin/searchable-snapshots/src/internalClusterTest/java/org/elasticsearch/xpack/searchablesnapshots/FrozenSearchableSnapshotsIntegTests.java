@@ -225,6 +225,7 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
         statsWatcher.start();
 
         final MountSearchableSnapshotRequest req = new MountSearchableSnapshotRequest(
+            TEST_REQUEST_TIMEOUT,
             restoredIndexName,
             fsRepoName,
             snapshotInfo.snapshotId().getName(),
@@ -453,6 +454,7 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
 
         Settings.Builder indexSettingsBuilder = Settings.builder().put(SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), true);
         final MountSearchableSnapshotRequest req = new MountSearchableSnapshotRequest(
+            TEST_REQUEST_TIMEOUT,
             "test-index",
             "repo",
             "snap",
@@ -565,6 +567,7 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
             .putNull(DataTier.TIER_PREFERENCE);
 
         final MountSearchableSnapshotRequest req = new MountSearchableSnapshotRequest(
+            TEST_REQUEST_TIMEOUT,
             restoredIndexName,
             fsRepoName,
             snapshotInfo.snapshotId().getName(),

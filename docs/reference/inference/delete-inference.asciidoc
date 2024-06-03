@@ -43,6 +43,20 @@ The unique identifier of the {infer} endpoint to delete.
 The type of {infer} task that the model performs.
 
 
+[[delete-inference-query-parms]]
+== {api-query-parms-title}
+
+`dry_run`::
+(Optional, Boolean)
+When `true`, checks the {infer} processors that reference the endpoint and
+returns them in a list, but does not deletes the endpoint. Defaults to `false`.
+
+`force`::
+(Optional, Boolean)
+Deletes the endpoint regardless if it's used in an {infer} pipeline or a in a
+`semantic_text` field.
+
+
 [discrete]
 [[delete-inference-api-example]]
 ==== {api-examples-title}

@@ -11,6 +11,7 @@ package org.elasticsearch.cluster.action.shard;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterState;
@@ -61,6 +62,8 @@ import java.util.function.LongConsumer;
 
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
+import static org.elasticsearch.test.TransportVersionUtils.getFirstVersion;
+import static org.elasticsearch.test.TransportVersionUtils.getPreviousVersion;
 import static org.elasticsearch.test.TransportVersionUtils.randomCompatibleVersion;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
@@ -591,6 +594,30 @@ public class ShardStateActionTests extends ESTestCase {
         final String message = randomRealisticUnicodeOfCodepointLengthBetween(10, 100);
 
         final TransportVersion version = randomFrom(randomCompatibleVersion(random()));
+        final ShardLongFieldRange timestampRange = ShardLongFieldRangeWireTests.randomRange();
+        final ShardLongFieldRange eventIngestedRange = ShardLongFieldRangeWireTests.randomRange();
+        var startedShardEntry = new StartedShardEntry(shardId, allocationId, primaryTerm, message, timestampRange, eventIngestedRange);
+        try (StreamInput in = serialize(startedShardEntry, version).streamInput()) {
+            in.setTransportVersion(version);
+            final StartedShardEntry deserialized = new StartedShardEntry(in);
+            assertThat(deserialized.shardId, equalTo(shardId));
+            assertThat(deserialized.allocationId, equalTo(allocationId));
+            assertThat(deserialized.primaryTerm, equalTo(primaryTerm));
+            assertThat(deserialized.message, equalTo(message));
+            assertThat(deserialized.timestampRange, equalTo(timestampRange));
+        }
+    }
+
+    public void testStartedShardEntrySerializationWithOlderTransportVersion() throws Exception {
+        final ShardId shardId = new ShardId(randomRealisticUnicodeOfLengthBetween(10, 100), UUID.randomUUID().toString(), between(0, 1000));
+        final String allocationId = randomRealisticUnicodeOfCodepointLengthBetween(10, 100);
+        final long primaryTerm = randomIntBetween(0, 100);
+        final String message = randomRealisticUnicodeOfCodepointLengthBetween(10, 100);
+        final TransportVersion version = randomFrom(
+            getFirstVersion(),
+            getPreviousVersion(TransportVersions.MINIMUM_COMPATIBLE),
+            getPreviousVersion(TransportVersions.EVENT_INGESTED_RANGE_IN_CLUSTER_STATE)
+        );
         final ShardLongFieldRange timestampRange = ShardLongFieldRangeWireTests.randomRange();
         final ShardLongFieldRange eventIngestedRange = ShardLongFieldRangeWireTests.randomRange();
         var startedShardEntry = new StartedShardEntry(shardId, allocationId, primaryTerm, message, timestampRange, eventIngestedRange);

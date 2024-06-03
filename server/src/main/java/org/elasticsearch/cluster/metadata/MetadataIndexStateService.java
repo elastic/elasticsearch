@@ -11,6 +11,7 @@ package org.elasticsearch.cluster.metadata;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
@@ -885,14 +886,9 @@ public class MetadataIndexStateService {
                 blocks.removeIndexBlockWithId(index.getName(), INDEX_CLOSED_BLOCK_ID);
                 blocks.addIndexBlock(index.getName(), INDEX_CLOSED_BLOCK);
                 final IndexMetadata.Builder updatedMetadata = IndexMetadata.builder(indexMetadata).state(IndexMetadata.State.CLOSE);
-                IndexLongFieldRange eventIngestedDefault = IndexLongFieldRange.NO_SHARDS;
-                if (currentState.getMinTransportVersion().before(TransportVersions.EVENT_INGESTED_RANGE_IN_CLUSTER_STATE)) {
-                    // promote to UNKNOWN for older versions since they don't know how to handle event.ingested in cluster state
-                    eventIngestedDefault = IndexLongFieldRange.UNKNOWN;
-                }
                 metadata.put(
                     updatedMetadata.timestampRange(IndexLongFieldRange.NO_SHARDS)
-                        .eventIngestedRange(eventIngestedDefault)
+                        .eventIngestedRange(getEventIngestedDefaultValue(currentState.getMinTransportVersion()))
                         .settingsVersion(indexMetadata.getSettingsVersion() + 1)
                         .settings(Settings.builder().put(indexMetadata.getSettings()).put(VERIFIED_BEFORE_CLOSE_SETTING.getKey(), true))
                 );
@@ -1134,21 +1130,13 @@ public class MetadataIndexStateService {
                     final Settings.Builder updatedSettings = Settings.builder().put(indexMetadata.getSettings());
                     updatedSettings.remove(VERIFIED_BEFORE_CLOSE_SETTING.getKey());
 
-                    IndexMetadata.Builder builder = IndexMetadata.builder(indexMetadata)
+                    IndexMetadata newIndexMetadata = IndexMetadata.builder(indexMetadata)
                         .state(IndexMetadata.State.OPEN)
                         .settingsVersion(indexMetadata.getSettingsVersion() + 1)
                         .settings(updatedSettings)
-                        .timestampRange(IndexLongFieldRange.NO_SHARDS);
-
-                    if (currentState.getMinTransportVersion().before(TransportVersions.EVENT_INGESTED_RANGE_IN_CLUSTER_STATE)) {
-                        // for versions for we added event.ingested range to cluster state, default to UNKNOWN since it will
-                        // not be handled properly for older clusters in a mixed-cluster env
-                        builder.eventIngestedRange(IndexLongFieldRange.UNKNOWN);
-                    } else {
-                        builder.eventIngestedRange(IndexLongFieldRange.NO_SHARDS);
-                    }
-
-                    IndexMetadata newIndexMetadata = builder.build();
+                        .timestampRange(IndexLongFieldRange.NO_SHARDS)
+                        .eventIngestedRange(getEventIngestedDefaultValue(currentState.getMinTransportVersion()))
+                        .build();
 
                     // The index might be closed because we couldn't import it due to an old incompatible
                     // version, so we need to verify its compatibility.
@@ -1178,6 +1166,16 @@ public class MetadataIndexStateService {
             }
             return ClusterState.builder(updatedState).routingTable(routingTable).build();
         }
+    }
+
+    private static IndexLongFieldRange getEventIngestedDefaultValue(TransportVersion currentMinTransportVersion) {
+        IndexLongFieldRange eventIngestedDefault = IndexLongFieldRange.NO_SHARDS;
+        if (currentMinTransportVersion.before(TransportVersions.EVENT_INGESTED_RANGE_IN_CLUSTER_STATE)) {
+            // for versions before we added event.ingested range to cluster state, default to UNKNOWN since it will
+            // not be handled properly in older clusters in a mixed-cluster env
+            eventIngestedDefault = IndexLongFieldRange.UNKNOWN;
+        }
+        return eventIngestedDefault;
     }
 
     private record OpenIndicesTask(OpenIndexClusterStateUpdateRequest request, ActionListener<AcknowledgedResponse> listener)

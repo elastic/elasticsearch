@@ -2325,6 +2325,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             final boolean isSearchableSnapshot = SearchableSnapshotsSettings.isSearchableSnapshotStore(settings);
             final String indexMode = settings.get(IndexSettings.MODE.getKey());
             final boolean isTsdb = indexMode != null && IndexMode.TIME_SERIES.getName().equals(indexMode.toLowerCase(Locale.ROOT));
+            assert eventIngestedRange != null : "eventIngestedRange must be set (non-null) when building IndexMetadata";
             return new IndexMetadata(
                 new Index(index, uuid),
                 version,
@@ -2525,7 +2526,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             }
             XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser);
             Builder builder = new Builder(parser.currentName());
-            // default to UNKNOWN so that older versions without that range handle it properly
+            // default to UNKNOWN so that reading 'event.ingested' range content works in older versions
             builder.eventIngestedRange(IndexLongFieldRange.UNKNOWN);
             String currentFieldName;
             XContentParser.Token token = parser.nextToken();

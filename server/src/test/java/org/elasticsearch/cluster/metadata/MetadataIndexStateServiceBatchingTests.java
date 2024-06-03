@@ -17,11 +17,13 @@ import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.cluster.service.PendingClusterTask;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
@@ -100,7 +102,7 @@ public class MetadataIndexStateServiceBatchingTests extends ESSingleNodeTestCase
         createIndex("test-3", indicesAdmin().prepareCreate("test-3"));
         ensureGreen("test-1", "test-2", "test-3");
 
-        final List<String[]> observedClosedIndices = new ArrayList<>();
+        final List<String[]> observedClosedIndices = Collections.synchronizedList(new ArrayList<>());
         final ClusterStateListener closedIndicesStateListener = event -> observedClosedIndices.add(
             event.state().metadata().getConcreteAllClosedIndices()
         );

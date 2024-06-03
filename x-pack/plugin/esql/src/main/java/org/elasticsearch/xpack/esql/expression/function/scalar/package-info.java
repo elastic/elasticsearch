@@ -8,7 +8,7 @@
 /**
  * Functions that take a row of data and produce a row of data without holding
  * any state between rows. This includes both the {@link org.elasticsearch.xpack.esql.core.expression.function.scalar.ScalarFunction}
- * subclass to link into the QL infrastructure and the {@link org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator}
+ * subclass to link into the ESQL core infrastructure and the {@link org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator}
  * implementation to run the actual function.
  *
  * <h2>Guide to adding new function</h2>

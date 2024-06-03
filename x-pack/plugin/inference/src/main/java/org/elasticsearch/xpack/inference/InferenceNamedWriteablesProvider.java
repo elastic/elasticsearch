@@ -45,6 +45,7 @@ import org.elasticsearch.xpack.inference.services.elasticsearch.MultilingualE5Sm
 import org.elasticsearch.xpack.inference.services.elser.ElserInternalServiceSettings;
 import org.elasticsearch.xpack.inference.services.elser.ElserMlNodeTaskSettings;
 import org.elasticsearch.xpack.inference.services.googleaistudio.completion.GoogleAiStudioCompletionServiceSettings;
+import org.elasticsearch.xpack.inference.services.googleaistudio.embeddings.GoogleAiStudioEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceServiceSettings;
 import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserSecretSettings;
 import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserServiceSettings;
@@ -262,6 +263,13 @@ public class InferenceNamedWriteablesProvider {
                 ServiceSettings.class,
                 GoogleAiStudioCompletionServiceSettings.NAME,
                 GoogleAiStudioCompletionServiceSettings::new
+            )
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                ServiceSettings.class,
+                GoogleAiStudioEmbeddingsServiceSettings.NAME,
+                GoogleAiStudioEmbeddingsServiceSettings::new
             )
         );
     }

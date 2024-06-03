@@ -66,7 +66,7 @@ public class CustomElandRerankTaskSettings implements TaskSettings {
     }
 
     /**
-     * Return either the request or orignal settings by preferring non-null fields
+     * Return either the request or original settings by preferring non-null fields
      * from the request settings over the original settings.
      *
      * @param originalSettings    the settings stored as part of the inference entity configuration

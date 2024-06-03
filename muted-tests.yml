@@ -49,6 +49,8 @@ tests:
 - class: "org.elasticsearch.index.engine.frozen.FrozenIndexIT"
   issue: "https://github.com/elastic/elasticsearch/issues/109315"
   method: "testTimestampFieldTypeExposedByAllIndicesServices"
+- class: "org.elasticsearch.analysis.common.CommonAnalysisClientYamlTestSuiteIT"
+  issue: "https://github.com/elastic/elasticsearch/issues/109318"
 
 # Examples:
 #

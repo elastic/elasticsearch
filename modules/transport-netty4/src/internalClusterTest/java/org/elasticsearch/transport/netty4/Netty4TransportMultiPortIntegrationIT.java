@@ -72,7 +72,7 @@ public class Netty4TransportMultiPortIntegrationIT extends ESNetty4IntegTestCase
             .build();
         // we have to test all the ports that the data node might be bound to
         try (TransportClient transportClient = new MockTransportClient(settings, Arrays.asList(Netty4Plugin.class))) {
-            for (int i = 0; i <= 10; i++) {
+            for (int i = 0; i <= NUMBER_OF_CLIENT_PORTS; i++) {
                 transportClient.addTransportAddress(new TransportAddress(InetAddress.getByName("127.0.0.1"), randomPort + i));
             }
             ClusterHealthResponse response = transportClient.admin().cluster().prepareHealth().get();

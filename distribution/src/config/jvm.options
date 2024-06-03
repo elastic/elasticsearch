@@ -94,3 +94,7 @@
 
 # JDK 9+ GC logging
 9-:-Xlog:gc*,gc+age=trace,safepoint:file=@loggc@:utctime,pid,tags:filecount=32,filesize=64m
+
+# workaround G1 bug, see https://bugs.openjdk.org/browse/JDK-8329528
+22:-XX:+UnlockDiagnosticVMOptions
+22:-XX:G1NumCollectionsKeepPinned=10000000

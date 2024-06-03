@@ -24,8 +24,9 @@ class OracleOpenJdkToolchainResolverSpec extends AbstractToolchainResolverSpec {
                 return null
             }
         }
-        toolChain.bundledJdkVersion = "20+36@bdc68b4b9cbc4ebcb30745c85038d91d"
-        toolChain.bundledJdkMajorVersion = JavaLanguageVersion.of(20)
+        toolChain.builds = [
+            new OracleOpenJdkToolchainResolver.JdkBuild(JavaLanguageVersion.of(20), "20", "36", "bdc68b4b9cbc4ebcb30745c85038d91d")
+        ]
         toolChain
     }
 

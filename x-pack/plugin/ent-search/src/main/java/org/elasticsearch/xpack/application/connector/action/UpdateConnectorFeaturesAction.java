@@ -15,7 +15,12 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.xcontent.*;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.application.connector.Connector;
 import org.elasticsearch.xpack.application.connector.ConnectorFeatures;
 
@@ -68,12 +73,11 @@ public class UpdateConnectorFeaturesAction {
             return validationException;
         }
 
-        private static final ConstructingObjectParser<UpdateConnectorFeaturesAction.Request, String> PARSER =
-            new ConstructingObjectParser<>(
-                "connector_update_features_request",
-                false,
-                ((args, connectorId) -> new UpdateConnectorFeaturesAction.Request(connectorId, (ConnectorFeatures) args[0]))
-            );
+        private static final ConstructingObjectParser<Request, String> PARSER = new ConstructingObjectParser<>(
+            "connector_update_features_request",
+            false,
+            ((args, connectorId) -> new UpdateConnectorFeaturesAction.Request(connectorId, (ConnectorFeatures) args[0]))
+        );
 
         static {
             PARSER.declareObject(optionalConstructorArg(), (p, c) -> ConnectorFeatures.fromXContent(p), Connector.FEATURES_FIELD);
@@ -124,5 +128,6 @@ public class UpdateConnectorFeaturesAction {
         public int hashCode() {
             return Objects.hash(connectorId, features);
         }
+
     }
 }

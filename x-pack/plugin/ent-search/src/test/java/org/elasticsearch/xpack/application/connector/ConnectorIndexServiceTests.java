@@ -56,7 +56,9 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.xpack.application.connector.ConnectorTestUtils.getRandomConnectorFeatures;
 import static org.elasticsearch.xpack.application.connector.ConnectorTestUtils.getRandomCronExpression;
+import static org.elasticsearch.xpack.application.connector.ConnectorTestUtils.randomConnectorFeatureEnabled;
 import static org.elasticsearch.xpack.application.connector.ConnectorTestUtils.registerSimplifiedConnectorIndexTemplates;
 import static org.hamcrest.CoreMatchers.anyOf;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -247,6 +249,13 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
         ConnectorCreateActionResponse resp = awaitCreateConnector(connectorId, connector);
         assertThat(resp.status(), anyOf(equalTo(RestStatus.CREATED), equalTo(RestStatus.OK)));
 
+        ConnectorFeatures newFeatures = getRandomConnectorFeatures();
+
+        DocWriteResponse updateResponse = awaitUpdateConnectorFeatures(connectorId, newFeatures);
+        assertThat(updateResponse.status(), equalTo(RestStatus.OK));
+        Connector indexedConnector = awaitGetConnector(connectorId);
+        assertThat(newFeatures, equalTo(indexedConnector.getFeatures()));
+
     }
 
     public void testUpdateConnectorFeatures_partialUpdate() throws Exception {
@@ -256,6 +265,26 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
         ConnectorCreateActionResponse resp = awaitCreateConnector(connectorId, connector);
         assertThat(resp.status(), anyOf(equalTo(RestStatus.CREATED), equalTo(RestStatus.OK)));
 
+        ConnectorFeatures features = getRandomConnectorFeatures();
+
+        awaitUpdateConnectorFeatures(connectorId, features);
+
+        Connector indexedConnector = awaitGetConnector(connectorId);
+        assertThat(features, equalTo(indexedConnector.getFeatures()));
+
+        // Partial update of DLS feature
+        ConnectorFeatures dlsFeature = new ConnectorFeatures.Builder().setDocumentLevelSecurityEnabled(randomConnectorFeatureEnabled())
+            .build();
+        awaitUpdateConnectorFeatures(connectorId, dlsFeature);
+        indexedConnector = awaitGetConnector(connectorId);
+
+        // Assert that partial update was applied
+        assertThat(dlsFeature.getDocumentLevelSecurityEnabled(), equalTo(indexedConnector.getFeatures().getDocumentLevelSecurityEnabled()));
+
+        // Assert other features are unchanged
+        assertThat(features.getSyncRulesFeatures(), equalTo(indexedConnector.getFeatures().getSyncRulesFeatures()));
+        assertThat(features.getNativeConnectorAPIKeysEnabled(), equalTo(indexedConnector.getFeatures().getNativeConnectorAPIKeysEnabled()));
+        assertThat(features.getIncrementalSyncEnabled(), equalTo(indexedConnector.getFeatures().getIncrementalSyncEnabled()));
     }
 
     public void testUpdateConnectorFiltering() throws Exception {
@@ -905,6 +934,32 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
             throw exc.get();
         }
         assertNotNull("Received null response from update configuration request", resp.get());
+        return resp.get();
+    }
+
+    private UpdateResponse awaitUpdateConnectorFeatures(String connectorId, ConnectorFeatures features) throws Exception {
+        CountDownLatch latch = new CountDownLatch(1);
+        final AtomicReference<UpdateResponse> resp = new AtomicReference<>(null);
+        final AtomicReference<Exception> exc = new AtomicReference<>(null);
+        connectorIndexService.updateConnectorFeatures(connectorId, features, new ActionListener<>() {
+            @Override
+            public void onResponse(UpdateResponse indexResponse) {
+                resp.set(indexResponse);
+                latch.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                exc.set(e);
+                latch.countDown();
+            }
+        });
+
+        assertTrue("Timeout waiting for update features request", latch.await(REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+        if (exc.get() != null) {
+            throw exc.get();
+        }
+        assertNotNull("Received null response from update features request", resp.get());
         return resp.get();
     }
 

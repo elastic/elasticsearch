@@ -9,8 +9,6 @@ package org.elasticsearch.xpack.esql.tree;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import com.carrotsearch.randomizedtesting.annotations.Seed;
-
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.dissect.DissectParser;
 import org.elasticsearch.xpack.esql.core.capabilities.UnresolvedException;

@@ -51,6 +51,9 @@ tests:
   method: "testTimestampFieldTypeExposedByAllIndicesServices"
 - class: "org.elasticsearch.analysis.common.CommonAnalysisClientYamlTestSuiteIT"
   issue: "https://github.com/elastic/elasticsearch/issues/109318"
+- class: "org.elasticsearch.upgrades.AggregationsIT"
+  issue: "https://github.com/elastic/elasticsearch/issues/109322"
+  method: "testTerms"
 
 # Examples:
 #

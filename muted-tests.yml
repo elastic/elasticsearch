@@ -43,9 +43,6 @@ tests:
 - class: "org.elasticsearch.xpack.test.rest.XPackRestIT"
   issue: "https://github.com/elastic/elasticsearch/issues/109200"
   method: "test {p0=esql/70_locale/Date format with Italian locale}"
-- class: org.elasticsearch.blobcache.common.SparseFileTrackerTests
-  method: testCallsListenerWhenRangeIsAvailable
-  issue: https://github.com/elastic/elasticsearch/issues/109259
 - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
   method: test {yaml=reference/esql/esql-async-query-api/line_17}
   issue: https://github.com/elastic/elasticsearch/issues/109260

@@ -339,23 +339,6 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
                 Map.entry("name:keyword", List.of("two point zero three", "two point zero eight"))
             )
         );
-        /*
-            aa.appendBytesRef(new BytesRef("foo"));
-            ab.appendBytesRef(new BytesRef("zoo"));
-            na.appendInt(1);
-            nb.appendInt(-1);
-
-            aa.appendBytesRef(new BytesRef("bar"));
-            ab.appendBytesRef(new BytesRef("zop"));
-            na.appendInt(10);
-            na.appendInt(-10);
-
-            aa.appendBytesRef(new BytesRef("baz"));
-            ab.appendBytesRef(new BytesRef("zoi"));
-            na.appendInt(100);
-            na.appendInt(-100);
-
-         */
         tables.put(
             "big",
             Map.ofEntries(

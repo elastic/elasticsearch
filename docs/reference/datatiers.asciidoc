@@ -69,6 +69,13 @@ The hot tier is required. New indices that are part of a <<data-streams,
 data stream>> are automatically allocated to the hot tier.
 // end::hot-tier[]
 
+[TIP]
+====
+The performance of an {es} cluster is often limited by the performance of the
+underlying storage. 
+include::../how-to/remote-storage.asciidoc[]
+===
+
 [discrete]
 [[warm-tier]]
 === Warm tier

@@ -471,11 +471,12 @@ properly-configured remote block devices (e.g. a SAN) and remote filesystems
 storage. You can run multiple {es} nodes on the same filesystem, but each {es}
 node must have its own data path.
 
+[TIP]
+====
 The performance of an {es} cluster is often limited by the performance of the
-underlying storage, so you must ensure that your storage supports acceptable
-performance. Some remote storage performs very poorly, especially under the
-kind of load that {es} imposes, so make sure to benchmark your system carefully
-before committing to a particular storage architecture.
+underlying storage. 
+include::../how-to/remote-storage.asciidoc[]
+===
 
 TIP: When using the `.zip` or `.tar.gz` distributions, the `path.data` setting
 should be configured to locate the data directory outside the {es} home

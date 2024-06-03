@@ -134,7 +134,7 @@ public class Join extends BinaryPlan {
 
     @Override
     public boolean expressionsResolved() {
-        return true;
+        return config.expressionsResolved();
     }
 
     public boolean duplicatesResolved() {

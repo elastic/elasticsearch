@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.plan.logical.join;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
@@ -37,5 +38,9 @@ public record JoinConfig(JoinType type, List<NamedExpression> matchFields, List<
         type.writeTo(out);
         out.writeCollection(matchFields, (o, v) -> ((PlanStreamOutput) o).writeNamedExpression(v));
         out.writeCollection(conditions, (o, v) -> ((PlanStreamOutput) o).writeExpression(v));
+    }
+
+    public boolean expressionsResolved() {
+        return Resolvables.resolved(matchFields) && Resolvables.resolved(conditions);
     }
 }

@@ -48,6 +48,7 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -57,6 +58,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 
@@ -422,6 +424,14 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
                                 throw error;
                             }
                             return super.addDocument(doc);
+                        }
+
+                        @Override
+                        public long addDocuments(Iterable<? extends Iterable<? extends IndexableField>> docs) throws IOException {
+                            @SuppressWarnings("unchecked")
+                            Collection<Iterable<? extends IndexableField>> col = asInstanceOf(Collection.class, docs);
+                            assertThat(col, hasSize(1));
+                            return addDocument(col.iterator().next());
                         }
                     }, null, null, config);
                 }

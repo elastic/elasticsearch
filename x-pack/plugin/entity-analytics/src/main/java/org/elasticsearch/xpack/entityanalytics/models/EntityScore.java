@@ -49,7 +49,7 @@ public class EntityScore implements ToXContentObject {
         builder.field("category_1_count", category1count);
         builder.field("calculated_score", calculatedScore);
         builder.field("calculated_score_norm", calculatedScoreNorm);
-        builder.field("risk_inputs", riskInputs);
+        builder.field("inputs", riskInputs);
         builder.endObject();
         return builder;
     }

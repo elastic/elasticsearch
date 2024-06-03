@@ -10,6 +10,7 @@ package org.elasticsearch.upgrades;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 
@@ -56,7 +57,17 @@ public class MappingIT extends AbstractRollingTestCase {
         switch (CLUSTER_TYPE) {
             case OLD:
                 createIndex("my-index", Settings.EMPTY);
-                updateIndexSettings("my-index", Settings.builder().put("index.mapper.dynamic", true));
+
+                Request request = new Request("PUT", "/my-index/_settings");
+                request.setJsonEntity(Strings.toString(Settings.builder().put("index.mapper.dynamic", true).build()));
+                request.setOptions(
+                    expectWarnings(
+                        "[index.mapper.dynamic] setting was deprecated in Elasticsearch and will be removed in a future release! "
+                            + "See the breaking changes documentation for the next major version."
+                    )
+                );
+                client().performRequest(request);
+
                 break;
             case MIXED:
             case UPGRADED:

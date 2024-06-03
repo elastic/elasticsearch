@@ -13,6 +13,7 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
@@ -121,6 +122,11 @@ public class GoogleAiStudioEmbeddingsServiceSettings extends FilteredXContentObj
     @Override
     public SimilarityMeasure similarity() {
         return similarity;
+    }
+
+    @Override
+    public DenseVectorFieldMapper.ElementType elementType() {
+        return DenseVectorFieldMapper.ElementType.FLOAT;
     }
 
     @Override

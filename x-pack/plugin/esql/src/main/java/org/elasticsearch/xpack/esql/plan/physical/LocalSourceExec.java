@@ -31,13 +31,13 @@ public class LocalSourceExec extends LeafExec {
 
     public LocalSourceExec(PlanStreamInput in) throws IOException {
         super(Source.readFrom(in));
-        this.output = in.readCollectionAsList(i -> ((PlanStreamInput) i).readAttribute());
+        this.output = in.readNamedWriteableCollectionAsList(Attribute.class);
         this.supplier = LocalSupplier.readFrom(in);
     }
 
     public void writeTo(PlanStreamOutput out) throws IOException {
         source().writeTo(out);
-        out.writeCollection(output, (o, v) -> ((PlanStreamOutput) o).writeAttribute(v));
+        out.writeNamedWriteableCollection(output);
         supplier.writeTo(out);
     }
 

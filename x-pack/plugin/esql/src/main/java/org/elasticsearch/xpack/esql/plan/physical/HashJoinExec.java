@@ -43,7 +43,7 @@ public class HashJoinExec extends UnaryExec implements EstimatesRowSize {
         super(Source.readFrom(in), in.readPhysicalPlanNode());
         this.joinData = new LocalSourceExec(in);
         this.unionFields = in.readCollectionAsList(i -> in.readNamedExpression());
-        this.output = in.readCollectionAsList(i -> in.readAttribute());
+        this.output = in.readNamedWriteableCollectionAsList(Attribute.class);
     }
 
     public void writeTo(PlanStreamOutput out) throws IOException {
@@ -51,7 +51,7 @@ public class HashJoinExec extends UnaryExec implements EstimatesRowSize {
         out.writePhysicalPlanNode(child());
         joinData.writeTo(out);
         out.writeCollection(unionFields, (o, v) -> out.writeNamedExpression(v));
-        out.writeCollection(output, (o, v) -> out.writeAttribute(v));
+        out.writeNamedWriteableCollection(output);
     }
 
     public LocalSourceExec joinData() {

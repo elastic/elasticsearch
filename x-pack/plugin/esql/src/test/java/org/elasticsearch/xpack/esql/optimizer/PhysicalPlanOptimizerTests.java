@@ -149,6 +149,7 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.matchesRegex;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
@@ -4100,10 +4101,17 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var join = as(plan, HashJoinExec.class);
         assertMap(join.unionFields().stream().map(Object::toString).toList(), matchesList().item(startsWith("int{r}")));
         assertMap(
-            join.output().stream().map(Object::toString).filter(s -> s.contains("int") || s.contains("name")).sorted().toList(),
-            matchesList().item(startsWith("first_name{f}"))
+            join.output().stream().map(Object::toString).toList(),
+            matchesList().item(startsWith("_meta_field{f}"))
+                .item(startsWith("emp_no{f}"))
+                .item(startsWith("first_name{f}"))
+                .item(startsWith("gender{f}"))
+                .item(startsWith("job{f}"))
+                .item(startsWith("job.raw{f}"))
                 .item(startsWith("int{r}"))
                 .item(startsWith("last_name{f}"))
+                .item(startsWith("long_noidx{f}"))
+                .item(startsWith("salary{f}"))
                 .item(startsWith("name{r}"))
         );
     }
@@ -4139,10 +4147,17 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var join = as(outerProject.child(), HashJoinExec.class);
         assertMap(join.unionFields().stream().map(Object::toString).toList(), matchesList().item(startsWith("int{r}")));
         assertMap(
-            join.output().stream().map(Object::toString).filter(s -> s.contains("int") || s.contains("name")).sorted().toList(),
-            matchesList().item(startsWith("first_name{f}"))
+            join.output().stream().map(Object::toString).toList(),
+            matchesList().item(startsWith("_meta_field{f}"))
+                .item(startsWith("emp_no{f}"))
+                .item(startsWith("first_name{f}"))
+                .item(startsWith("gender{f}"))
+                .item(startsWith("job{f}"))
+                .item(startsWith("job.raw{f}"))
                 .item(startsWith("int{r}"))
                 .item(startsWith("last_name{f}"))
+                .item(startsWith("long_noidx{f}"))
+                .item(startsWith("salary{f}"))
                 .item(startsWith("name{r}"))
         );
 
@@ -4197,8 +4212,17 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         Project innerProject = as(join.left(), Project.class);
         assertThat(innerProject.projections(), hasSize(10));
         assertMap(
-            innerProject.projections().stream().map(Object::toString).filter(s -> s.contains("AS int")).toList(),
-            matchesList().item(startsWith("languages{f}"))
+            innerProject.projections().stream().map(Object::toString).toList(),
+            matchesList().item(startsWith("_meta_field{f}"))
+                .item(startsWith("emp_no{f}"))
+                .item(startsWith("first_name{f}"))
+                .item(startsWith("gender{f}"))
+                .item(startsWith("job{f}"))
+                .item(startsWith("job.raw{f}"))
+                .item(matchesRegex("languages\\{f}#\\d+ AS int#\\d+"))
+                .item(startsWith("last_name{f}"))
+                .item(startsWith("long_noidx{f}"))
+                .item(startsWith("salary{f}"))
         );
 
         LocalRelation lookup = as(join.right(), LocalRelation.class);

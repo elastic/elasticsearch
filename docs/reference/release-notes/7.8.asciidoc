@@ -18,6 +18,8 @@ see {es-issue}65488[#65488].
 
 include::7.7.asciidoc[tag=jackson-filtering-bug]
 
+include::7.7.asciidoc[tag=index-mapper-dynamic-bug]
+
 [[breaking-7.8.1]]
 [discrete]
 === Breaking changes
@@ -176,6 +178,8 @@ We have fixed this issue in {es} 7.10.1 and later versions. For more details,
 see {es-issue}65488[#65488].
 
 include::7.7.asciidoc[tag=jackson-filtering-bug]
+
+include::7.7.asciidoc[tag=index-mapper-dynamic-bug]
 
 [[breaking-7.8.0]]
 [discrete]

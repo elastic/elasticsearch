@@ -31,6 +31,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.network.NetworkAddress;
+import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.network.NetworkUtils;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -151,6 +152,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     protected Set<Setting<?>> getSupportedSettings() {
         return ClusterSettings.BUILT_IN_CLUSTER_SETTINGS;
     }
+
+    protected static final NetworkService networkService = new NetworkService(List.of());
 
     @Override
     @Before

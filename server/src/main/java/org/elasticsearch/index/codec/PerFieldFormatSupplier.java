@@ -107,7 +107,9 @@ public class PerFieldFormatSupplier {
             return false;
         }
 
-        return mapperService != null && isTimeSeriesModeIndex() && mapperService.getIndexSettings().isES87TSDBCodecEnabled();
+        return mapperService != null
+            && (isTimeSeriesModeIndex() || isLogsModeIndex())
+            && mapperService.getIndexSettings().isES87TSDBCodecEnabled();
     }
 
     private boolean excludeFields(String fieldName) {
@@ -118,6 +120,10 @@ public class PerFieldFormatSupplier {
 
     private boolean isTimeSeriesModeIndex() {
         return mapperService != null && IndexMode.TIME_SERIES == mapperService.getIndexSettings().getMode();
+    }
+
+    private boolean isLogsModeIndex() {
+        return mapperService != null && IndexMode.LOGS == mapperService.getIndexSettings().getMode();
     }
 
 }

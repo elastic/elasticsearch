@@ -97,6 +97,7 @@ public class SearchableSnapshotsUuidValidationIntegTests extends BaseFrozenSearc
         createFullSnapshot(fsRepoName, snapshotName);
 
         final MountSearchableSnapshotRequest req = new MountSearchableSnapshotRequest(
+            TEST_REQUEST_TIMEOUT,
             restoredIndexName,
             fsRepoName,
             snapshotName,

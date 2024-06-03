@@ -54,6 +54,7 @@ public class MappingIT extends AbstractRollingTestCase {
     }
 
     public void testMapperDynamicIndexSetting() throws IOException {
+        assumeTrue("Setting not removed before 7.0", UPGRADE_FROM_VERSION.onOrAfter(Version.V_7_0_0));
         switch (CLUSTER_TYPE) {
             case OLD:
                 createIndex("my-index", Settings.EMPTY);

@@ -1278,7 +1278,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         @Override
         protected LogicalPlan rule(Lookup lookup) {
             // left join between the main relation and the local, lookup relation
-            return new Join(lookup.source(), lookup.child(), lookup.localRelation(), new JoinConfig(JoinType.LEFT, lookup.matchFields()));
+            return new Join(lookup.source(), lookup.child(), lookup.localRelation(), lookup.joinConfig());
         }
     }
 

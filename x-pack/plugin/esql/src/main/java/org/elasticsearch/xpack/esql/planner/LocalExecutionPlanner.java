@@ -63,6 +63,7 @@ import org.elasticsearch.xpack.esql.enrich.EnrichLookupOperator;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.evaluator.command.GrokEvaluatorExtracter;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
 import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
@@ -498,19 +499,25 @@ public class LocalExecutionPlanner {
             layoutBuilder.append(f);
         }
         Layout layout = layoutBuilder.build();
-
         Block[] localData = join.joinData().supplier().get();
-        Map<String, Block> fieldToLocalData = new HashMap<>(join.joinData().output().size());
-        for (int c = 0; c < join.joinData().output().size(); c++) {
-            fieldToLocalData.put(join.joinData().output().get(c).name(), localData[c]);
-        }
 
-        RowInTableLookupOperator.Key[] keys = new RowInTableLookupOperator.Key[join.unionFields().size()];
-        int[] blockMapping = new int[join.unionFields().size()];
-        for (int k = 0; k < join.unionFields().size(); k++) {
-            NamedExpression unionField = join.unionFields().get(k);
-            keys[k] = new RowInTableLookupOperator.Key(unionField.name(), fieldToLocalData.get(unionField.name()));
-            Layout.ChannelAndType input = source.layout.get(unionField.id());
+        RowInTableLookupOperator.Key[] keys = new RowInTableLookupOperator.Key[join.conditions().size()];
+        int[] blockMapping = new int[join.conditions().size()];
+        for (int k = 0; k < join.conditions().size(); k++) {
+            Equals cond = join.conditions().get(k);
+            Block localField = null;
+            for (int l = 0; l < join.joinData().output().size(); l++) {
+                if (join.joinData().output().get(l).name().equals((((NamedExpression) cond.right()).name()))) {
+                    localField = localData[l];
+                }
+            }
+            if (localField == null) {
+                throw new IllegalArgumentException("can't find local data for [" + cond.right() + "]");
+            }
+
+            NamedExpression left = (NamedExpression) cond.left();
+            keys[k] = new RowInTableLookupOperator.Key(left.name(), localField);
+            Layout.ChannelAndType input = source.layout.get(left.id());
             blockMapping[k] = input.channel();
         }
 
@@ -519,8 +526,17 @@ public class LocalExecutionPlanner {
 
         // Load the "values" from each match
         for (Attribute f : join.addedFields()) {
+            Block localField = null;
+            for (int l = 0; l < join.joinData().output().size(); l++) {
+                if (join.joinData().output().get(l).name().equals(f.name())) {
+                    localField = localData[l];
+                }
+            }
+            if (localField == null) {
+                throw new IllegalArgumentException("can't find local data for [" + f + "]");
+            }
             source = source.with(
-                new ColumnLoadOperator.Factory(new ColumnLoadOperator.Values(f.name(), fieldToLocalData.get(f.name())), positionsChannel),
+                new ColumnLoadOperator.Factory(new ColumnLoadOperator.Values(f.name(), localField), positionsChannel),
                 layout
             );
         }
@@ -574,6 +590,9 @@ public class LocalExecutionPlanner {
                 inputId = ne.id();
             }
             Layout.ChannelAndType input = source.layout.get(inputId);
+            if (input == null) {
+                throw new IllegalStateException("can't find input for [" + ne + "]");
+            }
             Layout.ChannelSet channelSet = inputChannelToOutputIds.get(input.channel());
             if (channelSet == null) {
                 channelSet = new Layout.ChannelSet(new HashSet<>(), input.type());

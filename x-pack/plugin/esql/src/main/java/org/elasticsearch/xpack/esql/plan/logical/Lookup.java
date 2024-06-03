@@ -16,14 +16,19 @@ import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.core.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinType;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 
@@ -33,6 +38,9 @@ import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutp
  */
 public class Lookup extends UnaryPlan {
     private final Expression tableName;
+    /**
+     * References to the input fields to match against the {@link #localRelation}.
+     */
     private final List<NamedExpression> matchFields;
     // initialized during the analysis phase for output and validation
     // afterward, it is converted into a Join (BinaryPlan) hence why here it is not a child
@@ -82,6 +90,20 @@ public class Lookup extends UnaryPlan {
 
     public LocalRelation localRelation() {
         return localRelation;
+    }
+
+    public JoinConfig joinConfig() {
+        List<Expression> conditions = new ArrayList<>(matchFields.size());
+        List<Attribute> rhsOutput = Join.makeReference(localRelation.output());
+        for (NamedExpression lhs : matchFields) {
+            for (Attribute rhs : rhsOutput) {
+                if (lhs.name().equals(rhs.name())) {
+                    conditions.add(new Equals(source(), lhs, rhs));
+                    break;
+                }
+            }
+        }
+        return new JoinConfig(JoinType.LEFT, matchFields, conditions);
     }
 
     @Override

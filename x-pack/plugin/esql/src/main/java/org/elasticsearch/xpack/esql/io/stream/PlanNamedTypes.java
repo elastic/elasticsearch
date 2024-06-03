@@ -1086,7 +1086,7 @@ public final class PlanNamedTypes {
 
     // -- BinaryComparison
 
-    static EsqlBinaryComparison readBinComparison(PlanStreamInput in, String name) throws IOException {
+    public static EsqlBinaryComparison readBinComparison(PlanStreamInput in, String name) throws IOException {
         var source = Source.readFrom(in);
         EsqlBinaryComparison.BinaryComparisonOperation operation = EsqlBinaryComparison.BinaryComparisonOperation.readFromStream(in);
         var left = in.readExpression();
@@ -1096,7 +1096,7 @@ public final class PlanNamedTypes {
         return operation.buildNewInstance(source, left, right);
     }
 
-    static void writeBinComparison(PlanStreamOutput out, EsqlBinaryComparison binaryComparison) throws IOException {
+    public static void writeBinComparison(PlanStreamOutput out, EsqlBinaryComparison binaryComparison) throws IOException {
         binaryComparison.source().writeTo(out);
         binaryComparison.getFunctionType().writeTo(out);
         out.writeExpression(binaryComparison.left());

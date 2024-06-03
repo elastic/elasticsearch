@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.planner;
 
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.esql.core.plan.logical.BinaryPlan;
 import org.elasticsearch.xpack.esql.core.plan.logical.Filter;
@@ -16,6 +17,7 @@ import org.elasticsearch.xpack.esql.core.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.core.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.core.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -50,6 +52,9 @@ import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.RowExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
+
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.elasticsearch.xpack.esql.plan.physical.AggregateExec.Mode;
 import static org.elasticsearch.xpack.esql.plan.physical.AggregateExec.Mode.FINAL;
@@ -264,13 +269,29 @@ public class Mapper {
 
     private PhysicalPlan map(BinaryPlan p, PhysicalPlan lhs, PhysicalPlan rhs) {
         if (p instanceof Join join) {
-            if (join.config().type() != JoinType.LEFT) {
-                throw new EsqlIllegalArgumentException("unsupported logical plan node [" + p.nodeName() + "]");
-            }
-            if (rhs instanceof LocalSourceExec local) {
-                return new HashJoinExec(local.source(), lhs, local, join.config().matchFields(), join.output());
+            PhysicalPlan hash = tryHashJoin(join, lhs, rhs);
+            if (hash != null) {
+                return hash;
             }
         }
         throw new EsqlIllegalArgumentException("unsupported logical plan node [" + p.nodeName() + "]");
+    }
+
+    private PhysicalPlan tryHashJoin(Join join, PhysicalPlan lhs, PhysicalPlan rhs) {
+        if (join.config().type() != JoinType.LEFT) {
+            return null;
+        }
+        List<Equals> conditions = new ArrayList<>(join.config().conditions().size());
+        for (Expression cond : join.config().conditions()) {
+            if (cond instanceof Equals eq) {
+                conditions.add(eq);
+            } else {
+                return null;
+            }
+        }
+        if (rhs instanceof LocalSourceExec local) {
+            return new HashJoinExec(local.source(), lhs, local, join.config().matchFields(), conditions, join.output());
+        }
+        return null;
     }
 }

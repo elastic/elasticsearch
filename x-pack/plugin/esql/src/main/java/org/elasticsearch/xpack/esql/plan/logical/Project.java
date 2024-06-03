@@ -27,6 +27,9 @@ public class Project extends UnaryPlan {
 
     public Project(Source source, LogicalPlan child, List<? extends NamedExpression> projections) {
         super(source, child);
+        if (projections.stream().anyMatch(n -> n.name().equals("int"))) {
+            System.err.println(projections);
+        }
         this.projections = projections;
     }
 

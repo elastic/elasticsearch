@@ -88,7 +88,11 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         } else if (argClass == Integer.class) {
             return randomInt();
         } else if (argClass == JoinConfig.class) {
-            return new JoinConfig(randomFrom(JoinType.values()), randomList(0, 10, () -> (NamedExpression) makeArg(NamedExpression.class)));
+            return new JoinConfig(
+                randomFrom(JoinType.values()),
+                randomList(0, 10, () -> (NamedExpression) makeArg(NamedExpression.class)),
+                randomList(0, 10, () -> (NamedExpression) makeArg(Expression.class))
+            );
         }
 
         return null;

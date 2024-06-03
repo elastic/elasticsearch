@@ -13,7 +13,7 @@ import java.util.Map;
 public class EsFieldTests extends AbstractEsFieldTypeTests<EsField> {
     static EsField randomEsField(int maxPropertiesDepth) {
         String name = randomAlphaOfLength(4);
-        DataType esDataType = randomFrom(DataTypes.types());
+        DataType esDataType = randomFrom(DataType.types());
         Map<String, EsField> properties = randomProperties(maxPropertiesDepth);
         boolean aggregatable = randomBoolean();
         boolean isAlias = randomBoolean();
@@ -34,7 +34,7 @@ public class EsFieldTests extends AbstractEsFieldTypeTests<EsField> {
         boolean isAlias = instance.isAlias();
         switch (between(0, 4)) {
             case 0 -> name = randomAlphaOfLength(name.length() + 1);
-            case 1 -> esDataType = randomValueOtherThan(esDataType, () -> randomFrom(DataTypes.types()));
+            case 1 -> esDataType = randomValueOtherThan(esDataType, () -> randomFrom(DataType.types()));
             case 2 -> properties = randomValueOtherThan(properties, () -> randomProperties(4));
             case 3 -> aggregatable = false == aggregatable;
             case 4 -> isAlias = false == isAlias;

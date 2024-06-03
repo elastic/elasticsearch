@@ -28,7 +28,7 @@ public class DateEsField extends EsField {
     }
 
     private DateEsField(StreamInput in) throws IOException {
-        this(in.readString(), DataTypes.DATETIME, in.readMap(i -> i.readNamedWriteable(EsField.class)), in.readBoolean());
+        this(in.readString(), DataType.DATETIME, in.readMap(i -> i.readNamedWriteable(EsField.class)), in.readBoolean());
     }
 
     @Override

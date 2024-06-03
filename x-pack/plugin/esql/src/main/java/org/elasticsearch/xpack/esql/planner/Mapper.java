@@ -268,7 +268,7 @@ public class Mapper {
                 throw new EsqlIllegalArgumentException("unsupported logical plan node [" + p.nodeName() + "]");
             }
             if (rhs instanceof LocalSourceExec local) {
-                return new HashJoinExec(local.source(), lhs, local, join.config().unionFields(), join.output());
+                return new HashJoinExec(local.source(), lhs, local, join.config().matchFields(), join.output());
             }
         }
         throw new EsqlIllegalArgumentException("unsupported logical plan node [" + p.nodeName() + "]");

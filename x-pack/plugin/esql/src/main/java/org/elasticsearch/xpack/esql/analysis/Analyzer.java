@@ -128,7 +128,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             Limiter.ONCE,
             new ResolveTable(),
             new ResolveEnrich(),
-            new ResolveLookup(),
+            new ResolveLookupTables(),
             new ResolveFunctions()
         );
         var resolution = new Batch<>("Resolution", new ResolveRefs(), new ImplicitCasting());

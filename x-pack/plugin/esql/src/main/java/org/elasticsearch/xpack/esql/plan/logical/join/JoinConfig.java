@@ -25,6 +25,6 @@ public record JoinConfig(JoinType type, List<NamedExpression> matchFields) imple
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         type.writeTo(out);
-        out.writeCollection(unionFields, (o, v) -> ((PlanStreamOutput) o).writeNamedExpression(v));
+        out.writeCollection(matchFields, (o, v) -> ((PlanStreamOutput) o).writeNamedExpression(v));
     }
 }

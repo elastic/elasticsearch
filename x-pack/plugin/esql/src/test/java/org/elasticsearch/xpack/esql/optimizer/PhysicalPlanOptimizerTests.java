@@ -4192,7 +4192,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         );
         Join join = as(innerTopN.child(), Join.class);
         assertThat(join.config().type(), equalTo(JoinType.LEFT));
-        assertMap(join.config().unionFields().stream().map(Objects::toString).toList(), matchesList().item(startsWith("int{r}")));
+        assertMap(join.config().matchFields().stream().map(Objects::toString).toList(), matchesList().item(startsWith("int{r}")));
 
         Project innerProject = as(join.left(), Project.class);
         assertThat(innerProject.projections(), hasSize(10));

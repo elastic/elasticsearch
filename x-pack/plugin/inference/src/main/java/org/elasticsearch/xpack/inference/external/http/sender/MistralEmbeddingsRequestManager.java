@@ -16,28 +16,38 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
-import org.elasticsearch.xpack.inference.external.request.azureaistudio.AzureAiStudioEmbeddingsRequest;
+import org.elasticsearch.xpack.inference.external.request.mistral.MistralEmbeddingsRequest;
 import org.elasticsearch.xpack.inference.external.response.AzureMistralOpenAiErrorResponseEntity;
 import org.elasticsearch.xpack.inference.external.response.AzureMistralOpenAiExternalResponseHandler;
-import org.elasticsearch.xpack.inference.external.response.azureaistudio.AzureAiStudioEmbeddingsResponseEntity;
-import org.elasticsearch.xpack.inference.services.azureaistudio.embeddings.AzureAiStudioEmbeddingsModel;
+import org.elasticsearch.xpack.inference.external.response.mistral.MistralEmbeddingsResponseEntity;
+import org.elasticsearch.xpack.inference.services.mistral.embeddings.MistralEmbeddingsModel;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.inference.common.Truncator.truncate;
 
-public class AzureAiStudioEmbeddingsRequestManager extends AzureAiStudioRequestManager {
-    private static final Logger logger = LogManager.getLogger(AzureAiStudioEmbeddingsRequestManager.class);
+public class MistralEmbeddingsRequestManager extends BaseRequestManager {
+    private static final Logger logger = LogManager.getLogger(AzureOpenAiEmbeddingsRequestManager.class);
     private static final ResponseHandler HANDLER = createEmbeddingsHandler();
 
-    private final AzureAiStudioEmbeddingsModel model;
     private final Truncator truncator;
+    private final MistralEmbeddingsModel model;
 
-    public AzureAiStudioEmbeddingsRequestManager(AzureAiStudioEmbeddingsModel model, Truncator truncator, ThreadPool threadPool) {
-        super(threadPool, model);
-        this.model = model;
-        this.truncator = truncator;
+    private static ResponseHandler createEmbeddingsHandler() {
+        return new AzureMistralOpenAiExternalResponseHandler(
+            "mistral text embedding",
+            new MistralEmbeddingsResponseEntity(),
+            AzureMistralOpenAiErrorResponseEntity::fromResponse
+        );
+    }
+
+    public MistralEmbeddingsRequestManager(MistralEmbeddingsModel model, Truncator truncator, ThreadPool threadPool) {
+        super(threadPool, model.getInferenceEntityId(), RateLimitGrouping.of(model), model.rateLimitSettings());
+        this.model = Objects.requireNonNull(model);
+        this.truncator = Objects.requireNonNull(truncator);
+
     }
 
     @Override
@@ -50,16 +60,16 @@ public class AzureAiStudioEmbeddingsRequestManager extends AzureAiStudioRequestM
         ActionListener<InferenceServiceResults> listener
     ) {
         var truncatedInput = truncate(input, model.getServiceSettings().maxInputTokens());
-        AzureAiStudioEmbeddingsRequest request = new AzureAiStudioEmbeddingsRequest(truncator, truncatedInput, model);
+        MistralEmbeddingsRequest request = new MistralEmbeddingsRequest(truncator, truncatedInput, model);
+
         return new ExecutableInferenceRequest(requestSender, logger, request, context, HANDLER, hasRequestCompletedFunction, listener);
     }
 
-    private static ResponseHandler createEmbeddingsHandler() {
-        return new AzureMistralOpenAiExternalResponseHandler(
-            "azure ai studio text embedding",
-            new AzureAiStudioEmbeddingsResponseEntity(),
-            AzureMistralOpenAiErrorResponseEntity::fromResponse
-        );
-    }
+    record RateLimitGrouping(int keyHashCode) {
+        public static RateLimitGrouping of(MistralEmbeddingsModel model) {
+            Objects.requireNonNull(model);
 
+            return new RateLimitGrouping(model.getSecretSettings().apiKey().hashCode());
+        }
+    }
 }

@@ -21,9 +21,6 @@ public class ProjectExec extends UnaryExec {  // TODO implement EstimatesRowSize
 
     public ProjectExec(Source source, PhysicalPlan child, List<? extends NamedExpression> projections) {
         super(source, child);
-        if (projections.stream().anyMatch(n -> n.toString().equals("int{r}#39"))) {
-            System.err.println(projections);
-        }
         this.projections = projections;
     }
 

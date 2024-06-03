@@ -31,7 +31,7 @@ public class HashJoinExec extends UnaryExec implements EstimatesRowSize {
      * {@link #joinData()}.
      */
     private final List<Equals> conditions;
-    private final List<Attribute> output; // NOCOMMIT why don't calculate this?
+    private final List<Attribute> output;
     private AttributeSet lazyAddedFields;
 
     public HashJoinExec(

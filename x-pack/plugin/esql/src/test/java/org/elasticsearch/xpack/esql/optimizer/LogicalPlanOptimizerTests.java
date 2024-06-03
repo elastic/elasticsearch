@@ -5023,8 +5023,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         // Join's output looks sensible too
         assertMap(
             join.output().stream().map(Object::toString).toList(),
-            matchesList()
-                .item(startsWith("_meta_field{f}"))
+            matchesList().item(startsWith("_meta_field{f}"))
                 .item(startsWith("emp_no{f}"))
                 .item(startsWith("first_name{f}"))
                 .item(startsWith("gender{f}"))

@@ -91,7 +91,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
             return new JoinConfig(
                 randomFrom(JoinType.values()),
                 randomList(0, 10, () -> (NamedExpression) makeArg(NamedExpression.class)),
-                randomList(0, 10, () -> (NamedExpression) makeArg(Expression.class))
+                randomList(0, 10, () -> (Expression) makeArg(Expression.class))
             );
         }
 

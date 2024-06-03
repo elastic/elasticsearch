@@ -78,7 +78,6 @@ public class DataStreamRestIT extends ESRestTestCase {
         rollover = new Request("POST", "/fs/_rollover?target_failure_store=true");
         client().performRequest(rollover);
 
-
         dataStreams = (Map<?, ?>) getLocation("/_xpack/usage").get("data_streams");
         assertNotNull(dataStreams);
         assertTrue((boolean) dataStreams.get("available"));

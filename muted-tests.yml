@@ -21,8 +21,7 @@ tests:
   method: "testGuessIsDayFirstFromLocale"
 - class: "org.elasticsearch.test.rest.ClientYamlTestSuiteIT"
   issue: "https://github.com/elastic/elasticsearch/issues/108857"
-  method: "test {yaml=search/180_locale_dependent_mapping/Test Index and Search locale\
-    \ dependent mappings / dates}"
+  method: "test {yaml=search/180_locale_dependent_mapping/Test Index and Search locale dependent mappings / dates}"
 - class: "org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT"
   issue: "https://github.com/elastic/elasticsearch/issues/108950"
   method: "test {p0=health/10_basic/cluster health basic test}"
@@ -37,17 +36,13 @@ tests:
   method: "testTrainedModelInference"
 - class: "org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT"
   issue: "https://github.com/elastic/elasticsearch/issues/109188"
-  method: "test {yaml=search/180_locale_dependent_mapping/Test Index and Search locale\
-    \ dependent mappings / dates}"
+  method: "test {yaml=search/180_locale_dependent_mapping/Test Index and Search locale dependent mappings / dates}"
 - class: "org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT"
   issue: "https://github.com/elastic/elasticsearch/issues/109189"
   method: "test {p0=esql/70_locale/Date format with Italian locale}"
 - class: "org.elasticsearch.xpack.test.rest.XPackRestIT"
   issue: "https://github.com/elastic/elasticsearch/issues/109200"
   method: "test {p0=esql/70_locale/Date format with Italian locale}"
-- class: org.elasticsearch.blobcache.common.SparseFileTrackerTests
-  method: testCallsListenerWhenRangeIsAvailable
-  issue: https://github.com/elastic/elasticsearch/issues/109259
 - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
   method: test {yaml=reference/esql/esql-async-query-api/line_17}
   issue: https://github.com/elastic/elasticsearch/issues/109260
@@ -57,9 +52,6 @@ tests:
 - class: org.elasticsearch.analysis.common.CommonAnalysisClientYamlTestSuiteIT
   method: org.elasticsearch.analysis.common.CommonAnalysisClientYamlTestSuiteIT
   issue: https://github.com/elastic/elasticsearch/issues/109266
-- class: "org.elasticsearch.xpack.sql.qa.single_node.JdbcDocCsvSpecIT"
-  issue: "https://github.com/elastic/elasticsearch/issues/109273"
-  method: "test {docs.testFilterToday}"
 
 # Examples:
 #

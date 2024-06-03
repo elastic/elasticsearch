@@ -82,7 +82,8 @@ final class SystemJvmOptions {
                 "-Djava.library.path=" + libraryPath,
                 "-Djna.library.path=" + libraryPath,
                 // Pass through distribution type
-                "-Des.distribution.type=" + distroType
+                "-Des.distribution.type=" + distroType,
+                "-Djava.util.logging.manager=org.apache.logging.log4j.jul.LogManager"
             ),
             maybeWorkaroundG1Bug()
         ).filter(e -> e.isEmpty() == false).collect(Collectors.toList());

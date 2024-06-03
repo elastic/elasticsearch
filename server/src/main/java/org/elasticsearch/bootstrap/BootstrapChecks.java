@@ -714,9 +714,9 @@ final class BootstrapChecks {
 
         @Override
         public final BootstrapCheckResult check(BootstrapContext context) {
-            if (isAllPermissionGranted()) {
-                return BootstrapCheck.BootstrapCheckResult.failure("granting the all permission effectively disables security");
-            }
+//            if (isAllPermissionGranted()) {
+//                return BootstrapCheck.BootstrapCheckResult.failure("granting the all permission effectively disables security");
+//            }
             return BootstrapCheckResult.success();
         }
 

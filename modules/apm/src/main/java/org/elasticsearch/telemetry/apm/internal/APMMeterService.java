@@ -86,8 +86,10 @@ public class APMMeterService extends AbstractLifecycleComponent {
 
     // to be used within doPrivileged block
     private static Supplier<Meter> otelMeter() {
-        var openTelemetry = GlobalOpenTelemetry.get();
-        var meter = openTelemetry.getMeter("elasticsearch");
-        return () -> meter;
+
+        return () -> {
+            var openTelemetry = GlobalOpenTelemetry.get();
+            return openTelemetry.getMeter("elasticsearch");
+        };
     }
 }

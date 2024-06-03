@@ -147,8 +147,8 @@ public abstract class RunTask extends DefaultTestClustersTask {
 
     @Override
     public void beforeStart() {
-        int httpPort = 9200;
-        int transportPort = 9300;
+        int httpPort = 19200;
+        int transportPort = 19300;
         Map<String, String> additionalSettings = System.getProperties()
             .entrySet()
             .stream()
@@ -197,17 +197,17 @@ public abstract class RunTask extends DefaultTestClustersTask {
                 }
 
                 if (apmServerEnabled) {
-                    mockServer = new MockApmServer(9999);
-                    try {
-                        mockServer.start();
+//                    mockServer = new MockApmServer(9999);
+//                    try {
+//                        mockServer.start();
                         node.setting("telemetry.metrics.enabled", "true");
                         node.setting("telemetry.tracing.enabled", "true");
-                        node.setting("telemetry.agent.transaction_sample_rate", "0.10");
-                        node.setting("telemetry.agent.metrics_interval", "10s");
-                        node.setting("telemetry.agent.server_url", "http://127.0.0.1:" + mockServer.getPort());
-                    } catch (IOException e) {
-                        logger.warn("Unable to start APM server", e);
-                    }
+//                        node.setting("telemetry.agent.transaction_sample_rate", "0.10");
+//                        node.setting("telemetry.agent.metrics_interval", "10s");
+//                        node.setting("telemetry.agent.server_url", "http://127.0.0.1:" + mockServer.getPort());
+//                    } catch (IOException e) {
+//                        logger.warn("Unable to start APM server", e);
+//                    }
                 }
                 // in serverless metrics are enabled by default
                 // if metrics were not enabled explicitly for gradlew run we should disable them

@@ -135,44 +135,44 @@ class APMJvmOptions {
      */
     static List<String> apmJvmOptions(Settings settings, @Nullable SecureSettings secrets, Path logsDir, Path tmpdir) throws UserException,
         IOException {
-        final Path agentJar = findAgentJar();
-
-        if (agentJar == null) {
-            return List.of();
-        }
-
-        final Map<String, String> propertiesMap = extractApmSettings(settings);
-
-        // Configures a log file to write to. Don't disable writing to a log file,
-        // as the agent will then require extra Security Manager permissions when
-        // it tries to do something else, and it's just painful.
-        propertiesMap.put("log_file", logsDir.resolve("apm-agent.json").toString());
-
-        // No point doing anything if we don't have a destination for the trace data, and it can't be configured dynamically
-        if (propertiesMap.containsKey("server_url") == false && propertiesMap.containsKey("server_urls") == false) {
-            return List.of();
-        }
-
-        if (propertiesMap.containsKey("service_node_name") == false) {
-            final String nodeName = settings.get("node.name");
-            if (nodeName != null) {
-                propertiesMap.put("service_node_name", nodeName);
-            }
-        }
-
-        if (secrets != null) {
-            extractSecureSettings(secrets, propertiesMap);
-        }
-        final Map<String, String> dynamicSettings = extractDynamicSettings(propertiesMap);
-
-        final Path tmpProperties = writeApmProperties(tmpdir, propertiesMap);
+//        final Path agentJar = findAgentJar();
+//
+//        if (agentJar == null) {
+//            return List.of();
+//        }
+//
+//        final Map<String, String> propertiesMap = extractApmSettings(settings);
+//
+//        // Configures a log file to write to. Don't disable writing to a log file,
+//        // as the agent will then require extra Security Manager permissions when
+//        // it tries to do something else, and it's just painful.
+//        propertiesMap.put("log_file", logsDir.resolve("apm-agent.json").toString());
+//
+//        // No point doing anything if we don't have a destination for the trace data, and it can't be configured dynamically
+//        if (propertiesMap.containsKey("server_url") == false && propertiesMap.containsKey("server_urls") == false) {
+//            return List.of();
+//        }
+//
+//        if (propertiesMap.containsKey("service_node_name") == false) {
+//            final String nodeName = settings.get("node.name");
+//            if (nodeName != null) {
+//                propertiesMap.put("service_node_name", nodeName);
+//            }
+//        }
+//
+//        if (secrets != null) {
+//            extractSecureSettings(secrets, propertiesMap);
+//        }
+//        final Map<String, String> dynamicSettings = extractDynamicSettings(propertiesMap);
+//
+//        final Path tmpProperties = writeApmProperties(tmpdir, propertiesMap);
 
         final List<String> options = new ArrayList<>();
         // Use an agent argument to specify the config file instead of e.g. `-Delastic.apm.config_file=...`
         // because then the agent won't try to reload the file, and we can remove it after startup.
-        options.add(agentCommandLineOption(agentJar, tmpProperties));
+      //  options.add(agentCommandLineOption(agentJar, tmpProperties));
 
-        dynamicSettings.forEach((key, value) -> options.add("-Delastic.apm." + key + "=" + value));
+//        dynamicSettings.forEach((key, value) -> options.add("-Delastic.apm." + key + "=" + value));
 
         return options;
     }

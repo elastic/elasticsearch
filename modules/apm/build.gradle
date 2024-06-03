@@ -12,16 +12,68 @@ esplugin {
   classname 'org.elasticsearch.telemetry.apm.APM'
 }
 
-def otelVersion = '1.31.0'
+def otelVersion = '1.38.0'
 def otelSemconvVersion = '1.21.0-alpha'
 
 dependencies {
-  implementation "io.opentelemetry:opentelemetry-api:${otelVersion}"
-  implementation "io.opentelemetry:opentelemetry-context:${otelVersion}"
-  implementation "io.opentelemetry:opentelemetry-semconv:${otelSemconvVersion}"
-  runtimeOnly    "co.elastic.apm:elastic-apm-agent:1.44.0"
-}
+  implementation("org.apache.logging.log4j:log4j-jul:2.19.0")
 
+  implementation ("io.opentelemetry:opentelemetry-api:${otelVersion}")
+  implementation ("io.opentelemetry:opentelemetry-sdk-common:${otelVersion}")
+  implementation ("io.opentelemetry:opentelemetry-sdk-trace:${otelVersion}")
+  implementation ("io.opentelemetry:opentelemetry-sdk-metrics:${otelVersion}")
+  implementation ("io.opentelemetry:opentelemetry-sdk-logs:${otelVersion}")
+  implementation ("io.opentelemetry:opentelemetry-sdk:${otelVersion}")
+  implementation ("io.opentelemetry:opentelemetry-context:${otelVersion}")
+  implementation ("io.opentelemetry:opentelemetry-semconv:${otelSemconvVersion}")
+
+  // OTLP Exporter (for sending traces to OTel Collector)
+  implementation("io.opentelemetry:opentelemetry-exporter-common:${otelVersion}")
+  implementation("io.opentelemetry:opentelemetry-exporter-otlp-common:${otelVersion}")
+  implementation("io.opentelemetry:opentelemetry-sdk-extension-autoconfigure-spi:${otelVersion}")
+//  implementation("io.opentelemetry:opentelemetry-exporter-otlp:${otelVersion}")
+
+  implementation("io.opentelemetry:opentelemetry-exporter-otlp:${otelVersion}") {
+//    exclude ("io.opentelemetry:opentelemetry-exporter-sender-okhttp")
+       exclude group: 'io.opentelemetry', module: 'opentelemetry-exporter-sender-okhttp'
+
+  }
+  implementation("io.opentelemetry:opentelemetry-exporter-sender-grpc-managed-channel:${otelVersion}")
+  implementation("io.grpc:grpc-stub:1.63.0")
+  implementation("io.grpc:grpc-api:1.63.0")
+  implementation("com.google.code.findbugs:jsr305:3.0.2")
+//    implementation("com.google.guava:guava:32.1.3-android")
+
+
+//  implementation("io.opentelemetry:opentelemetry-exporter-sender-jdk:${otelVersion}")
+  runtimeOnly("io.opentelemetry:opentelemetry-api-incubator:1.38.0-alpha")
+
+  implementation("io.grpc:grpc-netty:1.60.2")
+  implementation("io.grpc:grpc-core:1.60.2")
+
+  implementation("io.netty:netty-codec-http2:4.1.109.Final")
+  implementation("io.netty:netty-common:4.1.109.Final")
+  implementation("io.netty:netty-buffer:4.1.109.Final")
+  implementation("io.netty:netty-transport:4.1.109.Final")
+  implementation("io.netty:netty-codec:4.1.109.Final")
+  implementation("io.netty:netty-handler:4.1.109.Final")
+  implementation("io.netty:netty-codec-http:4.1.109.Final")
+  implementation("io.netty:netty-resolver:4.1.109.Final")
+
+//    implementation("io.grpc:grpc-core:1.64.0")
+  runtimeOnly("io.perfmark:perfmark-api:0.26.0")
+  runtimeOnly("io.netty:netty-handler-proxy:4.1.109.Final")
+  runtimeOnly("io.netty:netty-transport-native-unix-common:4.1.109.Final")
+  runtimeOnly("io.netty:netty-transport-native-unix-common:4.1.109.Final")
+  runtimeOnly("com.google.errorprone:error_prone_annotations:2.20.0")
+  runtimeOnly("com.google.guava:guava:32.0.1-android")
+  runtimeOnly("com.google.guava:failureaccess:1.0.2")
+
+
+}
+esplugin.bundleSpec.from('config/') {
+  into 'config'
+}
 tasks.named("dependencyLicenses").configure {
   mapping from: /opentelemetry-.*/, to: 'opentelemetry'
 }

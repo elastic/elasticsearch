@@ -5,6 +5,36 @@ coming[7.17.22]
 
 Also see <<breaking-changes-7.17,Breaking changes in 7.17>>.
 
+[[breaking-7.17.22]]
+[float]
+=== Breaking changes
+
+[discrete]
+[[breaking_7_17_22_dls_changes]]
+==== Stricter Document Level Security (DLS)
+
+[[stricter_dls_7_17_22]]
+.Document Level Security (DLS) applies stricter checks for the validate query API and for terms aggregations when min_doc_count is set to 0.
+
+[%collapsible]
+====
+*Details* +
+When Document Level Security (DLS) is applied to terms aggregations and min_doc_count is set to 0, stricter security rules apply.
+When Document Level Security (DLS) is applied to the validate query API with the rewrite parameter, stricter security rules apply.
+
+*Impact* +
+If needed, test workflows with DLS enabled to ensure that the stricter security rules do not impact your application.
+
+*Remediation* +
+Set min_doc_count to a value greater than 0 in terms aggregations or use an account not constrained by DLS for the validate query API calls.
+
+Set `xpack.security.dls.force_terms_aggs_to_exclude_deleted_docs.enabled` to `false` in the Elasticsearch configuration
+to revert to the previous behavior.
+
+Set `xpack.security.dls.error_when_validate_query_with_rewrite.enabled` to `false` in the Elasticsearch configuration
+to revert to the previous behavior.
+====
+
 [[bug-7.17.22]]
 [float]
 === Bug fixes

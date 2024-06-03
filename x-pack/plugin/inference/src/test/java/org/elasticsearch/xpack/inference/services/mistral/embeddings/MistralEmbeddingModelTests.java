@@ -18,7 +18,7 @@ import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 public class MistralEmbeddingModelTests extends ESTestCase {
     public static MistralEmbeddingsModel createModel(String inferenceId, String model, String apiKey) {
-        return createModel(inferenceId, model, apiKey, null, false, null, null, null);
+        return createModel(inferenceId, model, apiKey, null, null, null, null);
     }
 
     public static MistralEmbeddingsModel createModel(
@@ -26,7 +26,6 @@ public class MistralEmbeddingModelTests extends ESTestCase {
         String model,
         String apiKey,
         @Nullable Integer dimensions,
-        boolean dimensionsSetByUser,
         @Nullable Integer maxTokens,
         @Nullable SimilarityMeasure similarity,
         RateLimitSettings rateLimitSettings
@@ -35,8 +34,8 @@ public class MistralEmbeddingModelTests extends ESTestCase {
             inferenceId,
             TaskType.TEXT_EMBEDDING,
             "mistral",
-            new MistralEmbeddingsServiceSettings(model, dimensions, dimensionsSetByUser, maxTokens, similarity, rateLimitSettings),
-            new EmptyTaskSettings(),
+            new MistralEmbeddingsServiceSettings(model, dimensions, maxTokens, similarity, rateLimitSettings),
+            EmptyTaskSettings.INSTANCE,
             new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
         );
     }

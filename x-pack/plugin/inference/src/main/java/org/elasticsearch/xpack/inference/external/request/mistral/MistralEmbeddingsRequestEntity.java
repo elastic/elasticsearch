@@ -14,9 +14,9 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.inference.services.mistral.MistralConstants.MISTRAL_ENCODING_FORMAT_FIELD;
-import static org.elasticsearch.xpack.inference.services.mistral.MistralConstants.MISTRAL_INPUT_FIELD;
-import static org.elasticsearch.xpack.inference.services.mistral.MistralConstants.MISTRAL_MODEL_FIELD;
+import static org.elasticsearch.xpack.inference.services.mistral.MistralConstants.ENCODING_FORMAT_FIELD;
+import static org.elasticsearch.xpack.inference.services.mistral.MistralConstants.INPUT_FIELD;
+import static org.elasticsearch.xpack.inference.services.mistral.MistralConstants.MODEL_FIELD;
 
 public record MistralEmbeddingsRequestEntity(String model, List<String> input) implements ToXContentObject {
     public MistralEmbeddingsRequestEntity {
@@ -28,9 +28,9 @@ public record MistralEmbeddingsRequestEntity(String model, List<String> input) i
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
 
-        builder.field(MISTRAL_MODEL_FIELD, model);
-        builder.field(MISTRAL_INPUT_FIELD, input);
-        builder.field(MISTRAL_ENCODING_FORMAT_FIELD, "float");
+        builder.field(MODEL_FIELD, model);
+        builder.field(INPUT_FIELD, input);
+        builder.field(ENCODING_FORMAT_FIELD, "float");
 
         builder.endObject();
 

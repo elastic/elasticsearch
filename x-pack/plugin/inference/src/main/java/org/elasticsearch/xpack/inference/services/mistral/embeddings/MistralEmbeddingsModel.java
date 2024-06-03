@@ -25,7 +25,7 @@ import java.net.URISyntaxException;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.inference.services.mistral.MistralConstants.MISTRAL_API_EMBEDDINGS_PATH;
+import static org.elasticsearch.xpack.inference.services.mistral.MistralConstants.API_EMBEDDINGS_PATH;
 
 public class MistralEmbeddingsModel extends Model {
     protected String model;
@@ -46,7 +46,7 @@ public class MistralEmbeddingsModel extends Model {
             taskType,
             service,
             MistralEmbeddingsServiceSettings.fromMap(serviceSettings, context),
-            new EmptyTaskSettings(),    // no task settings for Mistral embeddings
+            EmptyTaskSettings.INSTANCE,    // no task settings for Mistral embeddings
             DefaultSecretSettings.fromMap(secrets)
         );
     }
@@ -108,7 +108,7 @@ public class MistralEmbeddingsModel extends Model {
 
     private void setEndpointUrl() {
         try {
-            this.uri = new URI(MISTRAL_API_EMBEDDINGS_PATH);
+            this.uri = new URI(API_EMBEDDINGS_PATH);
         } catch (URISyntaxException e) {
             throw new RuntimeException(e);
         }

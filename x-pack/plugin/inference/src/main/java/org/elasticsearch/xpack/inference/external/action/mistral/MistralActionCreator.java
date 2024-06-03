@@ -34,7 +34,7 @@ public class MistralActionCreator implements MistralActionVisitor {
             serviceComponents.truncator(),
             serviceComponents.threadPool()
         );
-        var errorMessage = constructFailedToSendRequestMessage(embeddingsModel.uri(), "Azure AI Studio embeddings");
+        var errorMessage = constructFailedToSendRequestMessage(embeddingsModel.uri(), "Mistral embeddings");
         return new MistralAction(sender, requestManager, errorMessage);
     }
 }

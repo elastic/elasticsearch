@@ -29,7 +29,7 @@ public class MistralEmbeddingsRequestTests extends ESTestCase {
     public void testCreateRequest_Works() throws IOException {
         var request = createRequest("mistral-embed", "apikey", "abcd");
         var httpRequest = request.createHttpRequest();
-        var httpPost = validateRequestUrlAndContentType(httpRequest, MistralConstants.MISTRAL_API_EMBEDDINGS_PATH);
+        var httpPost = validateRequestUrlAndContentType(httpRequest, MistralConstants.API_EMBEDDINGS_PATH);
         assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer apikey"));
 
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
@@ -71,7 +71,7 @@ public class MistralEmbeddingsRequestTests extends ESTestCase {
     }
 
     public static MistralEmbeddingsRequest createRequest(String model, String apiKey, String input) {
-        var embeddingsModel = MistralEmbeddingModelTests.createModel("id", model, apiKey, null, false, null, null, null);
+        var embeddingsModel = MistralEmbeddingModelTests.createModel("id", model, apiKey, null, null, null, null);
         return new MistralEmbeddingsRequest(
             TruncatorTests.createTruncator(),
             new Truncator.TruncationResult(List.of(input), new boolean[] { false }),

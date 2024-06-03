@@ -8,12 +8,14 @@
 package org.elasticsearch.xpack.inference.services.mistral;
 
 public class MistralConstants {
-    public static final String MISTRAL_API_EMBEDDINGS_PATH = "https://api.mistral.ai/v1/embeddings";
+    public static final String API_EMBEDDINGS_PATH = "https://api.mistral.ai/v1/embeddings";
 
-    public static final String MISTRAL_API_KEY_FIELD = "api_key";
-    public static final String DIMENSIONS_SET_BY_USER = "dimensions_set_by_user";
+    // note - there is no bounds information available from Mistral,
+    // so we'll use a sane default here which is the same as Cohere's
+    public static final int MAX_BATCH_SIZE = 96;
 
-    public static final String MISTRAL_MODEL_FIELD = "model";
-    public static final String MISTRAL_INPUT_FIELD = "input";
-    public static final String MISTRAL_ENCODING_FORMAT_FIELD = "encoding_format";
+    public static final String API_KEY_FIELD = "api_key";
+    public static final String MODEL_FIELD = "model";
+    public static final String INPUT_FIELD = "input";
+    public static final String ENCODING_FORMAT_FIELD = "encoding_format";
 }

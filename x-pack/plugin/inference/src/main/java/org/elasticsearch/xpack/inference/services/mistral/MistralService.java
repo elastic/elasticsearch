@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.inference.services.mistral;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
@@ -27,6 +26,7 @@ import org.elasticsearch.xpack.core.inference.results.ChunkedTextEmbeddingResult
 import org.elasticsearch.xpack.core.inference.results.ErrorChunkedInferenceResults;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
+import org.elasticsearch.xpack.inference.common.EmbeddingRequestChunker;
 import org.elasticsearch.xpack.inference.external.action.mistral.MistralActionCreator;
 import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
@@ -41,6 +41,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.TransportVersions.ADD_MISTRAL_EMBEDDINGS_INFERENCE;
 import static org.elasticsearch.xpack.core.inference.results.ResultUtils.createInvalidChunkedResultException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.parsePersistedConfigErrorMsg;
@@ -72,7 +73,6 @@ public class MistralService extends SenderService {
         } else {
             listener.onFailure(createInvalidModelException(model));
         }
-
     }
 
     @Override
@@ -99,11 +99,18 @@ public class MistralService extends SenderService {
         TimeValue timeout,
         ActionListener<List<ChunkedInferenceServiceResults>> listener
     ) {
-        ActionListener<InferenceServiceResults> inferListener = listener.delegateFailureAndWrap(
-            (delegate, response) -> delegate.onResponse(translateToChunkedResults(input, response))
-        );
+        var actionCreator = new MistralActionCreator(getSender(), getServiceComponents());
 
-        doInfer(model, input, taskSettings, inputType, timeout, inferListener);
+        if (model instanceof MistralEmbeddingsModel mistralEmbeddingsModel) {
+            var batchedRequests = new EmbeddingRequestChunker(input, MistralConstants.MAX_BATCH_SIZE).batchRequestsWithListeners(listener);
+
+            for (var request : batchedRequests) {
+                var action = mistralEmbeddingsModel.accept(actionCreator, taskSettings);
+                action.execute(new DocumentsOnlyInput(request.batch().inputs()), timeout, request.listener());
+            }
+        } else {
+            listener.onFailure(createInvalidModelException(model));
+        }
     }
 
     private static List<ChunkedInferenceServiceResults> translateToChunkedResults(
@@ -194,7 +201,7 @@ public class MistralService extends SenderService {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return null;
+        return ADD_MISTRAL_EMBEDDINGS_INFERENCE;
     }
 
     private static MistralEmbeddingsModel createModel(
@@ -248,27 +255,12 @@ public class MistralService extends SenderService {
     private MistralEmbeddingsModel updateEmbeddingModelConfig(MistralEmbeddingsModel embeddingsModel, int embeddingsSize) {
         var embeddingServiceSettings = embeddingsModel.getServiceSettings();
 
-        if (embeddingServiceSettings.dimensionsSetByUser()
-            && embeddingServiceSettings.dimensions() != null
-            && embeddingServiceSettings.dimensions() != embeddingsSize) {
-            throw new ElasticsearchStatusException(
-                Strings.format(
-                    "The retrieved embeddings size [%s] does not match the size specified in the settings [%s]. "
-                        + "Please recreate the [%s] configuration with the correct dimensions",
-                    embeddingsSize,
-                    embeddingServiceSettings.dimensions(),
-                    embeddingsModel.getConfigurations().getInferenceEntityId()
-                ),
-                RestStatus.BAD_REQUEST
-            );
-        }
         var similarityFromModel = embeddingsModel.getServiceSettings().similarity();
         var similarityToUse = similarityFromModel == null ? SimilarityMeasure.DOT_PRODUCT : similarityFromModel;
 
         MistralEmbeddingsServiceSettings serviceSettings = new MistralEmbeddingsServiceSettings(
             embeddingServiceSettings.model(),
             embeddingsSize,
-            embeddingServiceSettings.dimensionsSetByUser(),
             embeddingServiceSettings.maxInputTokens(),
             similarityToUse,
             embeddingServiceSettings.rateLimitSettings()

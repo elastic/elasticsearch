@@ -47,6 +47,7 @@ import java.util.IntSummaryStatistics;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ENT_SEARCH_ORIGIN;
 import static org.elasticsearch.xpack.core.application.EnterpriseSearchFeatureSetUsage.MAX_RULE_COUNT;
@@ -175,7 +176,9 @@ public class EnterpriseSearchUsageTransportAction extends XPackUsageFeatureTrans
                     Map<String, IndexStats> indicesStats = indicesStatsResponse.getIndices();
                     int queryRulesetCount = indicesStats.values()
                         .stream()
-                        .mapToInt(indexShardStats -> (int) indexShardStats.getPrimaries().getDocs().getCount())
+                        .map(indexShardStats -> indexShardStats.getPrimaries().getDocs())
+                        .filter(Objects::nonNull)
+                        .mapToInt(docsStats -> (int) docsStats.getCount())
                         .sum();
 
                     ListQueryRulesetsAction.Request queryRulesetsCountRequest = new ListQueryRulesetsAction.Request(

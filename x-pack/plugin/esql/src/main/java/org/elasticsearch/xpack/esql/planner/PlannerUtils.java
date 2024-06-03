@@ -39,7 +39,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
-import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
@@ -268,10 +267,10 @@ public class PlannerUtils {
         if (dataType == DataTypes.BOOLEAN) {
             return ElementType.BOOLEAN;
         }
-        if (dataType == EsQueryExec.DOC_DATA_TYPE) {
+        if (dataType == DataTypes.DOC_DATA_TYPE) {
             return ElementType.DOC;
         }
-        if (dataType == EsQueryExec.TSID_DATA_TYPE) {
+        if (dataType == DataTypes.TSID_DATA_TYPE) {
             return ElementType.BYTES_REF;
         }
         if (EsqlDataTypes.isSpatialPoint(dataType)) {

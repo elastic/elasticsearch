@@ -1333,7 +1333,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public IgnoredFieldStats ignoredFieldStats() {
         readAllowed();
-        ;
         return getEngine().ignoredFieldStats();
     }
 

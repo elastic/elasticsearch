@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanWriter;
+import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 
@@ -76,6 +77,7 @@ public final class PlanStreamOutput extends StreamOutput {
     }
 
     public void writeLogicalPlanNode(LogicalPlan logicalPlan) throws IOException {
+        assert logicalPlan.children().size() <= 1 || (logicalPlan instanceof Join && logicalPlan.children().size() == 2);
         writeNamed(LogicalPlan.class, logicalPlan);
     }
 

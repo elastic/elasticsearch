@@ -87,6 +87,9 @@ public interface Layout {
          * Appends a new channel to the layout. The channel is mapped to a single attribute id.
          */
         public Builder append(NamedExpression attribute) {
+            if (attribute.toString().equals("int{r}#39")) {
+                System.err.println(attribute);
+            }
             return append(new ChannelSet(Set.of(attribute.id()), attribute.dataType()));
         }
 
@@ -95,6 +98,9 @@ public interface Layout {
          */
         public Builder append(Collection<? extends NamedExpression> attributes) {
             for (NamedExpression attribute : attributes) {
+                if (attribute.toString().equals("int{r}#39")) {
+                    System.err.println(attribute);
+                }
                 append(new ChannelSet(Set.of(attribute.id()), attribute.dataType()));
             }
             return this;

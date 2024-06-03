@@ -290,7 +290,7 @@ public class Mapper {
             }
         }
         if (rhs instanceof LocalSourceExec local) {
-            return new HashJoinExec(local.source(), lhs, local, join.config().matchFields(), conditions, join.output());
+            return new HashJoinExec(join.source(), lhs, local, join.config().matchFields(), conditions, join.output());
         }
         return null;
     }

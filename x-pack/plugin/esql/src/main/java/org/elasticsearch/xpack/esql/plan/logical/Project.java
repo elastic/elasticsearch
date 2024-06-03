@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.plan.logical;
 
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
@@ -27,7 +28,7 @@ public class Project extends UnaryPlan {
 
     public Project(Source source, LogicalPlan child, List<? extends NamedExpression> projections) {
         super(source, child);
-        if (projections.stream().anyMatch(n -> n.name().equals("int"))) {
+        if (projections.stream().anyMatch(n -> n.toString().equals("int{r}#39"))) {
             System.err.println(projections);
         }
         this.projections = projections;

@@ -79,6 +79,14 @@ public class FieldAttribute extends TypedAttribute {
 
     @SuppressWarnings("unchecked")
     public <S extends StreamInput & PlanStreamInput> FieldAttribute(StreamInput in) throws IOException {
+        /*
+         * The funny casting dance with `<S extends...>` and `(S) in` is required
+         * because we're in esql-core here and the real PlanStreamInput is in
+         * esql-proper. And because NamedWriteableRegistry.Entry needs StreamInput,
+         * not a PlanStreamInput. And we need PlanStreamInput to handle Source
+         * and NameId. This should become a hard cast when we move everything out
+         * of esql-core.
+         */
         this(
             Source.readFrom((S) in),
             in.readOptionalWriteable(FieldAttribute::new),

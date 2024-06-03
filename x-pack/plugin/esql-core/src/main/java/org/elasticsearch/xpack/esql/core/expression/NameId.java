@@ -55,6 +55,11 @@ public class NameId implements Writeable {
     }
 
     public static <S extends StreamInput & PlanStreamInput> NameId readFrom(S in) throws IOException {
+        /*
+         * The funny typing dance with `<S extends...>` is required we're in esql-core
+         * here and the real PlanStreamInput is in esql-proper. And we need PlanStreamInput
+         * to properly map NameIds.
+         */
         long unmappedId = in.readLong();
         return in.mapNameId(unmappedId);
     }

@@ -67,8 +67,7 @@ public class MappingIT extends AbstractRollingTestCase {
                             + "See the breaking changes documentation for the next major version."
                     )
                 );
-                client().performRequest(request);
-
+                assertOK(client().performRequest(request));
                 break;
             case MIXED:
             case UPGRADED:

@@ -1001,7 +1001,7 @@ public class IndexStatsIT extends ESIntegTestCase {
                 // We don't actually expose shards in IndexStats, but this test fails if it isn't handled
                 builder.request().flags().set(Flag.Shards, set);
             case DenseVector -> builder.setDenseVector(set);
-            case IgnoredFieldStats -> builder.setIncludeIgnoredFieldsStats(set);
+            case IgnoredFieldStats -> builder.setIncludeIgnoredField(set);
             default -> fail("new flag? " + flag);
         }
     }

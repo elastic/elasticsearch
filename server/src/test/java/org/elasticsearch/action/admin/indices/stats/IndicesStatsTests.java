@@ -105,10 +105,7 @@ public class IndicesStatsTests extends ESSingleNodeTestCase {
 
     public void testIgnoredFieldStats() throws Exception {
         createIndex("test");
-        final IndicesStatsResponse indicesStatsResponse = indicesAdmin().prepareStats("test")
-            .clear()
-            .setIncludeIgnoredFieldsStats(true)
-            .get();
+        final IndicesStatsResponse indicesStatsResponse = indicesAdmin().prepareStats("test").clear().setIncludeIgnoredField(true).get();
         final CommonStats commonStats = indicesStatsResponse.getIndices().get("test").getTotal();
 
         assertThat(commonStats.ignoredFieldStats.getTotalNumberOfDocuments(), equalTo(0L));

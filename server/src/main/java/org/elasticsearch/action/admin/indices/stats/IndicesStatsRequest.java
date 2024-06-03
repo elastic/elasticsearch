@@ -275,7 +275,7 @@ public class IndicesStatsRequest extends BroadcastRequest<IndicesStatsRequest> {
         return this;
     }
 
-    public IndicesStatsRequest ignoredFieldsStats(boolean ignoredField) {
+    public IndicesStatsRequest ignoredField(boolean ignoredField) {
         flags.set(Flag.IgnoredFieldStats, ignoredField);
         return this;
     }

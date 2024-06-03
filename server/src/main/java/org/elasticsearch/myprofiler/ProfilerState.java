@@ -8,14 +8,19 @@
 
 package org.elasticsearch.myprofiler;
 
+import java.util.HashMap;
+import java.util.Map;
+
 public class ProfilerState {
     private static ProfilerState instance;
     private boolean profiling;
     private int queryCount;
+    private Map<String,Integer> index_query_count;
 
     private ProfilerState() {
         this.profiling = false;
         this.queryCount = 0;
+        this.index_query_count = new HashMap<>();
     }
 
     public static synchronized ProfilerState getInstance() {
@@ -52,5 +57,8 @@ public class ProfilerState {
 
     public synchronized void resetQueryCount() {
         queryCount = 0;
+    }
+    public synchronized Map<String,Integer> getIndex_query_count(){
+        return index_query_count;
     }
 }

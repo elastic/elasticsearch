@@ -30,7 +30,6 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanNamedReader;
 import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanReader;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -109,10 +108,6 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput
 
     public Attribute readAttribute() throws IOException {
         return readNamed(Attribute.class);
-    }
-
-    public EsField readEsFieldNamed() throws IOException {
-        return readNamed(EsField.class);
     }
 
     public <T> T readNamed(Class<T> type) throws IOException {

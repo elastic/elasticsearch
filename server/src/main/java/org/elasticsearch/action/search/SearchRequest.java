@@ -28,6 +28,7 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.rescore.RescorerBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.ShardDocSortField;
 import org.elasticsearch.search.sort.SortBuilder;
@@ -438,6 +439,12 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
                 }
                 if (source.explain() != null && source.explain()) {
                     validationException = addValidationError("[rank] requires [explain] is [false]", validationException);
+                }
+            }
+            if (source.rescores() != null) {
+                for (@SuppressWarnings("rawtypes")
+                RescorerBuilder rescoreBuilder : source.rescores()) {
+                    validationException = rescoreBuilder.validate(this, validationException);
                 }
             }
         }

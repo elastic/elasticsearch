@@ -44,12 +44,12 @@ import java.util.stream.IntStream;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.core.expression.function.FunctionResolutionStrategy.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.DATE_PERIOD;
 import static org.elasticsearch.xpack.esql.core.type.DataTypes.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataTypes.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataTypes.LONG;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.DATE_PERIOD;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.TIME_DURATION;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.TIME_DURATION;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -608,7 +608,7 @@ public class ExpressionTests extends ESTestCase {
     }
 
     public void testForbidWildcardProjectRename() {
-        assertParsingException(() -> renameExpression("b* AS a*"), "line 1:18: Using wildcards (*) in RENAME is not allowed [b* AS a*]");
+        assertParsingException(() -> renameExpression("b* AS a*"), "line 1:18: Using wildcards [*] in RENAME is not allowed [b* AS a*]");
     }
 
     public void testSimplifyInWithSingleElementList() {

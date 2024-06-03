@@ -99,7 +99,7 @@ public class FrozenExistenceDeciderIT extends AbstractFrozenAutoscalingIntegTest
             singletonMap(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(fsRepoName, randomBoolean()))
         );
         LifecyclePolicy lifecyclePolicy = new LifecyclePolicy("policy", Map.of("hot", hotPhase, "frozen", frozenPhase));
-        PutLifecycleRequest putLifecycleRequest = new PutLifecycleRequest(lifecyclePolicy);
+        PutLifecycleRequest putLifecycleRequest = new PutLifecycleRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, lifecyclePolicy);
         assertAcked(client().execute(ILMActions.PUT, putLifecycleRequest).get());
 
         Settings settings = Settings.builder()

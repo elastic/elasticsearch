@@ -908,14 +908,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
 
     private static final Map<Set<DataType>, String> NAMED_EXPECTED_TYPES = Map.ofEntries(
         Map.entry(
-            Set.of(
-                EsqlDataTypes.DATE_PERIOD,
-                DataTypes.DOUBLE,
-                DataTypes.INTEGER,
-                DataTypes.LONG,
-                EsqlDataTypes.TIME_DURATION,
-                DataTypes.NULL
-            ),
+            Set.of(DataTypes.DATE_PERIOD, DataTypes.DOUBLE, DataTypes.INTEGER, DataTypes.LONG, DataTypes.TIME_DURATION, DataTypes.NULL),
             "numeric, date_period or time_duration"
         ),
         Map.entry(Set.of(DataTypes.DATETIME, DataTypes.NULL), "datetime"),
@@ -958,13 +951,13 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         // What Add accepts
         Map.entry(
             Set.of(
-                EsqlDataTypes.DATE_PERIOD,
+                DataTypes.DATE_PERIOD,
                 DataTypes.DATETIME,
                 DataTypes.DOUBLE,
                 DataTypes.INTEGER,
                 DataTypes.LONG,
                 DataTypes.NULL,
-                EsqlDataTypes.TIME_DURATION,
+                DataTypes.TIME_DURATION,
                 DataTypes.UNSIGNED_LONG
             ),
             "datetime or numeric"
@@ -987,7 +980,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         Map.entry(
             Set.of(
                 DataTypes.BOOLEAN,
-                EsqlDataTypes.COUNTER_INTEGER,
+                DataTypes.COUNTER_INTEGER,
                 DataTypes.DATETIME,
                 DataTypes.DOUBLE,
                 DataTypes.INTEGER,
@@ -1003,8 +996,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         Map.entry(
             Set.of(
                 DataTypes.BOOLEAN,
-                EsqlDataTypes.COUNTER_INTEGER,
-                EsqlDataTypes.COUNTER_LONG,
+                DataTypes.COUNTER_INTEGER,
+                DataTypes.COUNTER_LONG,
                 DataTypes.DATETIME,
                 DataTypes.DOUBLE,
                 DataTypes.INTEGER,
@@ -1020,9 +1013,9 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         Map.entry(
             Set.of(
                 DataTypes.BOOLEAN,
-                EsqlDataTypes.COUNTER_DOUBLE,
-                EsqlDataTypes.COUNTER_INTEGER,
-                EsqlDataTypes.COUNTER_LONG,
+                DataTypes.COUNTER_DOUBLE,
+                DataTypes.COUNTER_INTEGER,
+                DataTypes.COUNTER_LONG,
                 DataTypes.DATETIME,
                 DataTypes.DOUBLE,
                 DataTypes.INTEGER,
@@ -1037,10 +1030,10 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         Map.entry(
             Set.of(
                 DataTypes.BOOLEAN,
-                EsqlDataTypes.CARTESIAN_POINT,
+                DataTypes.CARTESIAN_POINT,
                 DataTypes.DATETIME,
                 DataTypes.DOUBLE,
-                EsqlDataTypes.GEO_POINT,
+                DataTypes.GEO_POINT,
                 DataTypes.INTEGER,
                 DataTypes.KEYWORD,
                 DataTypes.LONG,
@@ -1070,8 +1063,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                 DataTypes.BOOLEAN,
                 DataTypes.DATETIME,
                 DataTypes.DOUBLE,
-                EsqlDataTypes.GEO_POINT,
-                EsqlDataTypes.GEO_SHAPE,
+                DataTypes.GEO_POINT,
+                DataTypes.GEO_SHAPE,
                 DataTypes.INTEGER,
                 DataTypes.IP,
                 DataTypes.KEYWORD,
@@ -1083,18 +1076,18 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             ),
             "cartesian_point or datetime or geo_point or numeric or string"
         ),
-        Map.entry(Set.of(EsqlDataTypes.GEO_POINT, DataTypes.KEYWORD, DataTypes.TEXT, DataTypes.NULL), "geo_point or string"),
-        Map.entry(Set.of(EsqlDataTypes.CARTESIAN_POINT, DataTypes.KEYWORD, DataTypes.TEXT, DataTypes.NULL), "cartesian_point or string"),
+        Map.entry(Set.of(DataTypes.GEO_POINT, DataTypes.KEYWORD, DataTypes.TEXT, DataTypes.NULL), "geo_point or string"),
+        Map.entry(Set.of(DataTypes.CARTESIAN_POINT, DataTypes.KEYWORD, DataTypes.TEXT, DataTypes.NULL), "cartesian_point or string"),
         Map.entry(
-            Set.of(EsqlDataTypes.GEO_POINT, EsqlDataTypes.GEO_SHAPE, DataTypes.KEYWORD, DataTypes.TEXT, DataTypes.NULL),
+            Set.of(DataTypes.GEO_POINT, DataTypes.GEO_SHAPE, DataTypes.KEYWORD, DataTypes.TEXT, DataTypes.NULL),
             "geo_point or geo_shape or string"
         ),
         Map.entry(
-            Set.of(EsqlDataTypes.CARTESIAN_POINT, EsqlDataTypes.CARTESIAN_SHAPE, DataTypes.KEYWORD, DataTypes.TEXT, DataTypes.NULL),
+            Set.of(DataTypes.CARTESIAN_POINT, DataTypes.CARTESIAN_SHAPE, DataTypes.KEYWORD, DataTypes.TEXT, DataTypes.NULL),
             "cartesian_point or cartesian_shape or string"
         ),
-        Map.entry(Set.of(EsqlDataTypes.GEO_POINT, EsqlDataTypes.CARTESIAN_POINT, DataTypes.NULL), "geo_point or cartesian_point"),
-        Map.entry(Set.of(EsqlDataTypes.DATE_PERIOD, EsqlDataTypes.TIME_DURATION, DataTypes.NULL), "dateperiod or timeduration")
+        Map.entry(Set.of(DataTypes.GEO_POINT, DataTypes.CARTESIAN_POINT, DataTypes.NULL), "geo_point or cartesian_point"),
+        Map.entry(Set.of(DataTypes.DATE_PERIOD, DataTypes.TIME_DURATION, DataTypes.NULL), "dateperiod or timeduration")
     );
 
     // TODO: generate this message dynamically, a la AbstractConvertFunction#supportedTypesNames()?
@@ -1114,7 +1107,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     protected static Stream<DataType> representable() {
-        return EsqlDataTypes.types().stream().filter(EsqlDataTypes::isRepresentable);
+        return DataTypes.types().stream().filter(EsqlDataTypes::isRepresentable);
     }
 
     protected static DataType[] representableTypes() {
@@ -1609,6 +1602,6 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
      * All string types (keyword, text, match_only_text, etc).
      */
     protected static DataType[] strings() {
-        return EsqlDataTypes.types().stream().filter(DataTypes::isString).toArray(DataType[]::new);
+        return DataTypes.types().stream().filter(DataTypes::isString).toArray(DataType[]::new);
     }
 }

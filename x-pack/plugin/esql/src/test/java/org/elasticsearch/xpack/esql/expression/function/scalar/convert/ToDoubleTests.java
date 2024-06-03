@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
@@ -118,7 +117,7 @@ public class ToDoubleTests extends AbstractFunctionTestCase {
         TestCaseSupplier.unary(
             suppliers,
             "Attribute[channel=0]",
-            List.of(new TestCaseSupplier.TypedDataSupplier("counter", ESTestCase::randomDouble, EsqlDataTypes.COUNTER_DOUBLE)),
+            List.of(new TestCaseSupplier.TypedDataSupplier("counter", ESTestCase::randomDouble, DataTypes.COUNTER_DOUBLE)),
             DataTypes.DOUBLE,
             l -> l,
             List.of()
@@ -126,7 +125,7 @@ public class ToDoubleTests extends AbstractFunctionTestCase {
         TestCaseSupplier.unary(
             suppliers,
             evaluatorName.apply("Integer"),
-            List.of(new TestCaseSupplier.TypedDataSupplier("counter", () -> randomInt(1000), EsqlDataTypes.COUNTER_INTEGER)),
+            List.of(new TestCaseSupplier.TypedDataSupplier("counter", () -> randomInt(1000), DataTypes.COUNTER_INTEGER)),
             DataTypes.DOUBLE,
             l -> ((Integer) l).doubleValue(),
             List.of()
@@ -134,7 +133,7 @@ public class ToDoubleTests extends AbstractFunctionTestCase {
         TestCaseSupplier.unary(
             suppliers,
             evaluatorName.apply("Long"),
-            List.of(new TestCaseSupplier.TypedDataSupplier("counter", () -> randomLongBetween(1, 1000), EsqlDataTypes.COUNTER_LONG)),
+            List.of(new TestCaseSupplier.TypedDataSupplier("counter", () -> randomLongBetween(1, 1000), DataTypes.COUNTER_LONG)),
             DataTypes.DOUBLE,
             l -> ((Long) l).doubleValue(),
             List.of()

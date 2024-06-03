@@ -12,6 +12,7 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 
@@ -45,8 +46,7 @@ public class CustomElandInternalServiceSettings extends ElasticsearchInternalSer
 
         validateParameters(numAllocations, validationException, numThreads);
 
-        String modelId = ServiceUtils.extractRequiredString(map, MODEL_ID, "ServiceSettings", validationException); // TODO check if this is
-                                                                                                                    // the correct scope
+        String modelId = ServiceUtils.extractRequiredString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
 
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;

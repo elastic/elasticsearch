@@ -8,19 +8,22 @@
 
 package org.elasticsearch.vec;
 
+import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.FilterIndexInput;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.MemorySegmentAccessInput;
+import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.quantization.RandomAccessQuantizedByteVectorValues;
 import org.elasticsearch.nativeaccess.NativeAccess;
+import org.elasticsearch.vec.internal.Int7SQVectorScorer;
 import org.elasticsearch.vec.internal.Int7SQVectorScorerSupplier.DotProductSupplier;
 import org.elasticsearch.vec.internal.Int7SQVectorScorerSupplier.EuclideanSupplier;
 import org.elasticsearch.vec.internal.Int7SQVectorScorerSupplier.MaxInnerProductSupplier;
 
 import java.util.Optional;
 
-class VectorScorerFactoryImpl implements VectorScorerFactory {
+final class VectorScorerFactoryImpl implements VectorScorerFactory {
 
     static final VectorScorerFactoryImpl INSTANCE;
 
@@ -31,7 +34,7 @@ class VectorScorerFactoryImpl implements VectorScorerFactory {
     }
 
     @Override
-    public Optional<RandomVectorScorerSupplier> getInt7ScalarQuantizedVectorScorer(
+    public Optional<RandomVectorScorerSupplier> getInt7SQVectorScorerSupplier(
         VectorSimilarityType similarityType,
         IndexInput input,
         RandomAccessQuantizedByteVectorValues values,
@@ -48,6 +51,15 @@ class VectorScorerFactoryImpl implements VectorScorerFactory {
             case EUCLIDEAN -> Optional.of(new EuclideanSupplier(msInput, values, scoreCorrectionConstant));
             case MAXIMUM_INNER_PRODUCT -> Optional.of(new MaxInnerProductSupplier(msInput, values, scoreCorrectionConstant));
         };
+    }
+
+    @Override
+    public Optional<RandomVectorScorer> getInt7SQVectorScorer(
+        VectorSimilarityFunction sim,
+        RandomAccessQuantizedByteVectorValues values,
+        float[] queryVector
+    ) {
+        return Int7SQVectorScorer.create(sim, values, queryVector);
     }
 
     static void checkInvariants(int maxOrd, int vectorByteLength, IndexInput input) {

@@ -49,6 +49,10 @@ public class GoogleAiStudioEmbeddingsModel extends GoogleAiStudioModel {
         );
     }
 
+    public GoogleAiStudioEmbeddingsModel(GoogleAiStudioEmbeddingsModel model, GoogleAiStudioEmbeddingsServiceSettings serviceSettings) {
+        super(model, serviceSettings);
+    }
+
     // Should only be used directly for testing
     GoogleAiStudioEmbeddingsModel(
         String inferenceEntityId,

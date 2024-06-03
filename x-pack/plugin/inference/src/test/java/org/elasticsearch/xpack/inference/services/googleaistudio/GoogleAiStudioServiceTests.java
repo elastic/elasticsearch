@@ -23,6 +23,7 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
+import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
@@ -784,6 +785,132 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
             assertThat(error.getMessage(), containsString("Resource not found at "));
             assertThat(error.getMessage(), containsString("Error message: [error]"));
             assertThat(webServer.requests(), hasSize(1));
+        }
+    }
+
+    public void testCheckModelConfig_UpdatesDimensions() throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+        var similarityMeasure = SimilarityMeasure.DOT_PRODUCT;
+        var modelId = "model";
+        var apiKey = "apiKey";
+
+        try (var service = new GoogleAiStudioService(senderFactory, createWithEmptySettings(threadPool))) {
+            String responseJson = """
+                {
+                     "embeddings": [
+                         {
+                             "values": [
+                                 0.0123,
+                                 -0.0123
+                             ]
+                         }
+                     ]
+                 }
+                """;
+
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+            var model = GoogleAiStudioEmbeddingsModelTests.createModel(getUrl(webServer), modelId, apiKey, 1, similarityMeasure);
+
+            PlainActionFuture<Model> listener = new PlainActionFuture<>();
+            service.checkModelConfig(model, listener);
+            var result = listener.actionGet(TIMEOUT);
+
+            // Updates dimensions to two as two embeddings were returned instead of one as specified before
+            assertThat(
+                result,
+                is(GoogleAiStudioEmbeddingsModelTests.createModel(getUrl(webServer), modelId, apiKey, 2, similarityMeasure))
+            );
+        }
+    }
+
+    public void testCheckModelConfig_UpdatesSimilarityToDotProduct_WhenItIsNull() throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+        var oneDimension = 1;
+        var modelId = "model";
+        var apiKey = "apiKey";
+
+        try (var service = new GoogleAiStudioService(senderFactory, createWithEmptySettings(threadPool))) {
+            String responseJson = """
+                {
+                     "embeddings": [
+                         {
+                             "values": [
+                                 0.0123
+                             ]
+                         }
+                     ]
+                 }
+                """;
+
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+            var model = GoogleAiStudioEmbeddingsModelTests.createModel(getUrl(webServer), modelId, apiKey, oneDimension, null);
+
+            PlainActionFuture<Model> listener = new PlainActionFuture<>();
+            service.checkModelConfig(model, listener);
+            var result = listener.actionGet(TIMEOUT);
+
+            assertThat(
+                result,
+                is(
+                    GoogleAiStudioEmbeddingsModelTests.createModel(
+                        getUrl(webServer),
+                        modelId,
+                        apiKey,
+                        oneDimension,
+                        SimilarityMeasure.DOT_PRODUCT
+                    )
+                )
+            );
+        }
+    }
+
+    public void testCheckModelConfig_DoesNotUpdateSimilarity_WhenItIsSpecifiedAsCosine() throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+        var oneDimension = 1;
+        var modelId = "model";
+        var apiKey = "apiKey";
+
+        try (var service = new GoogleAiStudioService(senderFactory, createWithEmptySettings(threadPool))) {
+            String responseJson = """
+                {
+                     "embeddings": [
+                         {
+                             "values": [
+                                 0.0123
+                             ]
+                         }
+                     ]
+                 }
+                """;
+
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+            var model = GoogleAiStudioEmbeddingsModelTests.createModel(
+                getUrl(webServer),
+                modelId,
+                apiKey,
+                oneDimension,
+                SimilarityMeasure.COSINE
+            );
+
+            PlainActionFuture<Model> listener = new PlainActionFuture<>();
+            service.checkModelConfig(model, listener);
+            var result = listener.actionGet(TIMEOUT);
+
+            assertThat(
+                result,
+                is(
+                    GoogleAiStudioEmbeddingsModelTests.createModel(
+                        getUrl(webServer),
+                        modelId,
+                        apiKey,
+                        oneDimension,
+                        SimilarityMeasure.COSINE
+                    )
+                )
+            );
         }
     }
 

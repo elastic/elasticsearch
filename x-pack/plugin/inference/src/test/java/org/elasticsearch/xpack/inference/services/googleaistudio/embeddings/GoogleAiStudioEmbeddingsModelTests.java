@@ -30,6 +30,24 @@ public class GoogleAiStudioEmbeddingsModelTests extends ESTestCase {
     }
 
     public static GoogleAiStudioEmbeddingsModel createModel(
+        String url,
+        String model,
+        String apiKey,
+        Integer dimensions,
+        @Nullable SimilarityMeasure similarityMeasure
+    ) {
+        return new GoogleAiStudioEmbeddingsModel(
+            "id",
+            TaskType.TEXT_EMBEDDING,
+            "service",
+            url,
+            new GoogleAiStudioEmbeddingsServiceSettings(model, null, dimensions, similarityMeasure, null),
+            EmptyTaskSettings.INSTANCE,
+            new GoogleAiStudioSecretSettings(new SecureString(apiKey.toCharArray()))
+        );
+    }
+
+    public static GoogleAiStudioEmbeddingsModel createModel(
         String model,
         String apiKey,
         @Nullable Integer tokenLimit,

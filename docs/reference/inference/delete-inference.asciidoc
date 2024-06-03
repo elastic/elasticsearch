@@ -43,6 +43,7 @@ The unique identifier of the {infer} endpoint to delete.
 The type of {infer} task that the model performs.
 
 
+[discrete]
 [[delete-inference-query-parms]]
 == {api-query-parms-title}
 

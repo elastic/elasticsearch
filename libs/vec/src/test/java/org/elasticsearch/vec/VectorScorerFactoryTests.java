@@ -223,7 +223,6 @@ public class VectorScorerFactoryTests extends AbstractVectorTestCase {
     }
 
     public void testRandomScorerChunkSizeSmall() throws IOException {
-        assumeTrue(notSupportedMsg(), supported());
         long maxChunkSize = randomLongBetween(32, 128);
         logger.info("maxChunkSize=" + maxChunkSize);
         testRandomScorerImpl(maxChunkSize, FLOAT_ARRAY_RANDOM_FUNC);
@@ -231,6 +230,7 @@ public class VectorScorerFactoryTests extends AbstractVectorTestCase {
 
     void testRandomScorerImpl(long maxChunkSize, Function<Integer, float[]> floatArraySupplier) throws IOException {
         assumeTrue("scorer only supported on JDK 22+", Runtime.version().feature() >= 22);
+        assumeTrue(notSupportedMsg(), supported());
         var factory = AbstractVectorTestCase.factory.get();
         var scalarQuantizer = new ScalarQuantizer(0.1f, 0.9f, (byte) 7);
 
@@ -321,6 +321,7 @@ public class VectorScorerFactoryTests extends AbstractVectorTestCase {
     // Tests with a large amount of data (> 2GB), which ensures that data offsets do not overflow
     @Nightly
     public void testLarge() throws IOException {
+        assumeTrue(notSupportedMsg(), supported());
         var factory = AbstractVectorTestCase.factory.get();
 
         try (Directory dir = new MMapDirectory(createTempDir("testLarge"))) {

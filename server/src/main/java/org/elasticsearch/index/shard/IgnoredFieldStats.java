@@ -18,8 +18,6 @@ import java.io.IOException;
 import java.util.Objects;
 
 public class IgnoredFieldStats implements Writeable, ToXContentFragment {
-
-    public static final String NAME = "ignored_field_stats";
     private long docsWithIgnoredFields = 0;
     private long ignoredFieldTermsSumDocFreq = 0;
 

@@ -245,16 +245,12 @@ public abstract class Engine implements Closeable {
                 );
             }
         }
-        if (includeIgnoredFieldsStats) {
-            return new DocsStats(
-                numDocs,
-                numDeletedDocs,
-                sizeInBytes,
-                new IgnoredFieldStats(docsWithIgnoredFields, ignoredFieldTermsSumDocFreq)
-            );
-        }
-
-        return new DocsStats(numDocs, numDeletedDocs, sizeInBytes, null);
+        return new DocsStats(
+            numDocs,
+            numDeletedDocs,
+            sizeInBytes,
+            includeIgnoredFieldsStats ? new IgnoredFieldStats(docsWithIgnoredFields, ignoredFieldTermsSumDocFreq) : null
+        );
     }
 
     @FunctionalInterface

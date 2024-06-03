@@ -83,6 +83,7 @@ public class DocsStats implements Writeable, ToXContentFragment {
         return totalSizeInBytes;
     }
 
+    @Nullable
     public IgnoredFieldStats getIgnoredFieldStats() {
         return ignoredFieldStats;
     }

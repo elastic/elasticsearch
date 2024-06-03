@@ -3,3 +3,11 @@ summary: Add support for the 'Enterprise' database to the geoip processor
 area: Ingest Node
 type: enhancement
 issues: []
+highlight:
+  title: "Preview: Support for the 'Anonymous IP' and 'Enterprise' databases to the geoip processor"
+  body: |-
+    As a Technical Preview, the `geoip` processor can now use the commercial
+    https://www.maxmind.com/en/solutions/geoip2-enterprise-product-suite/enterprise-database[GeoIP2 'Enterprise']
+    and
+    https://www.maxmind.com/en/solutions/geoip2-enterprise-product-suite/anonymous-ip-database[GeoIP2 'Anonymous IP']
+    databases from MaxMind.

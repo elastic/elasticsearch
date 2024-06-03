@@ -343,9 +343,17 @@ public class ApiKeyService implements Closeable {
         ActionListener<CreateApiKeyResponse> listener
     ) {
         assert request.getType() != ApiKey.Type.CROSS_CLUSTER || false == authentication.isApiKey()
-            : "cannot create derived cross-cluster API keys (type=[" + request.getType() + "], auth=[" + authentication + "])";
+            : "cannot create derived cross-cluster API keys (name=["
+                + request.getName()
+                + "], type=["
+                + request.getType()
+                + "], auth=["
+                + authentication
+                + "])";
         assert request.getType() != ApiKey.Type.CROSS_CLUSTER || userRoleDescriptors.isEmpty()
-            : "owner user role descriptor must be empty for cross-cluster API keys (type=["
+            : "owner user role descriptor must be empty for cross-cluster API keys (name=["
+                + request.getName()
+                + "], type=["
                 + request.getType()
                 + "], roles=["
                 + userRoleDescriptors
@@ -497,7 +505,7 @@ public class ApiKeyService implements Closeable {
         final Instant expiration = getApiKeyExpiration(created, request.getExpiration());
         final SecureString apiKey = UUIDs.randomBase64UUIDSecureString();
         assert ApiKey.Type.CROSS_CLUSTER != request.getType() || API_KEY_SECRET_LENGTH == apiKey.length()
-            : "Invalid API key (type=[" + request.getType() + "], length=[" + apiKey.length() + "])";
+            : "Invalid API key (name=[" + request.getName() + "], type=[" + request.getType() + "], length=[" + apiKey.length() + "])";
 
         computeHashForApiKey(apiKey, listener.delegateFailure((l, apiKeyHashChars) -> {
             try (
@@ -534,7 +542,13 @@ public class ApiKeyService implements Closeable {
                         bulkRequest,
                         TransportBulkAction.<IndexResponse>unwrappingSingleItemBulkResponse(ActionListener.wrap(indexResponse -> {
                             assert request.getId().equals(indexResponse.getId())
-                                : "Mismatched API key (request=[" + request.getId() + "], index=[" + indexResponse.getId() + "])";
+                                : "Mismatched API key (request=["
+                                    + request.getId()
+                                    + "](name=["
+                                    + request.getName()
+                                    + "]) index=["
+                                    + indexResponse.getId()
+                                    + "])";
                             assert indexResponse.getResult() == DocWriteResponse.Result.CREATED
                                 : "Index response was [" + indexResponse.getResult() + "]";
                             final ListenableFuture<CachedApiKeyHashResult> listenableFuture = new ListenableFuture<>();
@@ -559,7 +573,11 @@ public class ApiKeyService implements Closeable {
         final ActionListener<BulkUpdateApiKeyResponse> listener
     ) {
         assert request.getType() != ApiKey.Type.CROSS_CLUSTER || userRoleDescriptors.isEmpty()
-            : "owner user role descriptor must be empty for cross-cluster API keys (type=["
+            : "owner user role descriptor must be empty for cross-cluster API keys (ids=["
+                + (request.getIds().size() <= 10
+                    ? request.getIds()
+                    : (request.getIds().size() + " including " + request.getIds().subList(0, 10)))
+                + "], type=["
                 + request.getType()
                 + "], roles=["
                 + userRoleDescriptors
@@ -695,7 +713,13 @@ public class ApiKeyService implements Closeable {
         final ApiKeyDoc apiKeyDoc
     ) {
         assert authentication.getEffectiveSubject().getUser().principal().equals(apiKeyDoc.creator.get("principal"))
-            : "Authenticated user should be owner (authentication=[" + authentication + "], owner=[" + apiKeyDoc.creator + "])";
+            : "Authenticated user should be owner (authentication=["
+                + authentication
+                + "], owner=["
+                + apiKeyDoc.creator
+                + "], id=["
+                + apiKeyId
+                + "])";
 
         if (apiKeyDoc.invalidated) {
             throw new IllegalArgumentException("cannot update invalidated API key [" + apiKeyId + "]");
@@ -876,7 +900,13 @@ public class ApiKeyService implements Closeable {
         final Clock clock
     ) throws IOException {
         assert currentApiKeyDoc.type == request.getType()
-            : "API Key doc does not match request type (doc=[" + currentApiKeyDoc.type + "], request=[" + request.getType() + "])";
+            : "API Key doc does not match request type (key-id=["
+                + apiKeyId
+                + "], doc=["
+                + currentApiKeyDoc.type
+                + "], request=["
+                + request.getType()
+                + "])";
         if (isNoop(apiKeyId, currentApiKeyDoc, targetDocVersion, authentication, request, userRoleDescriptors)) {
             return null;
         }
@@ -1887,14 +1917,17 @@ public class ApiKeyService implements Closeable {
                     apiKeyIdsToInvalidate.add(apiKeyId);
                 }
             }
+
+            // noinspection ConstantValue
             assert false == apiKeyIdsToInvalidate.isEmpty() || false == crossClusterApiKeyIdsToSkip.isEmpty()
                 : "There are no API keys but that should never happen, original=["
-                    + apiKeys
+                    + (apiKeys.size() > 10 ? ("size=" + apiKeys.size() + " including " + apiKeys.iterator().next()) : apiKeys)
                     + "], to-invalidate=["
                     + apiKeyIdsToInvalidate
                     + "], to-skip=["
                     + crossClusterApiKeyIdsToSkip
                     + "]";
+
             if (apiKeyIdsToInvalidate.isEmpty()) {
                 listener.onResponse(new InvalidateApiKeyResponse(Collections.emptyList(), Collections.emptyList(), failedRequestResponses));
                 return;

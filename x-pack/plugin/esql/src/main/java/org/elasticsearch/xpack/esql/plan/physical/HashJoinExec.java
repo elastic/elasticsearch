@@ -7,6 +7,11 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 
@@ -35,14 +40,14 @@ public class HashJoinExec extends UnaryExec implements EstimatesRowSize {
     }
 
     public HashJoinExec(PlanStreamInput in) throws IOException {
-        super(in.readSource(), in.readPhysicalPlanNode());
+        super(Source.readFrom(in), in.readPhysicalPlanNode());
         this.joinData = new LocalSourceExec(in);
         this.unionFields = in.readCollectionAsList(i -> in.readNamedExpression());
         this.output = in.readCollectionAsList(i -> in.readAttribute());
     }
 
     public void writeTo(PlanStreamOutput out) throws IOException {
-        out.writeSource(source());
+        source().writeTo(out);
         out.writePhysicalPlanNode(child());
         joinData.writeTo(out);
         out.writeCollection(unionFields, (o, v) -> out.writeNamedExpression(v));

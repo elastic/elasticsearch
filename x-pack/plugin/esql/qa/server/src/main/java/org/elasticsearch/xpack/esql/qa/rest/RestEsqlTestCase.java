@@ -113,7 +113,6 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         private final XContentBuilder builder;
         private boolean isBuilt = false;
 
-        private String version;
         private Map<String, Map<String, List<?>>> tables;
 
         private Boolean keepOnCompletion = null;
@@ -129,11 +128,6 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
 
         public RequestObjectBuilder query(String query) throws IOException {
             builder.field("query", query);
-            return this;
-        }
-
-        public RequestObjectBuilder version(String version) throws IOException {
-            this.version = version;
             return this;
         }
 

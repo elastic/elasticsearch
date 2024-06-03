@@ -1,5 +1,5 @@
 keywordByInt
-required_capability: lookup_command
+required_capability: lookup
 FROM employees
 | SORT emp_no
 | LIMIT 4
@@ -17,7 +17,7 @@ emp_no:integer | languages:integer | lang_name:keyword
 ;
 
 keywordByMvInt
-required_capability: lookup_command
+required_capability: lookup
 ROW int=[1, 2, 3]
 | LOOKUP int_number_names ON int
 ;
@@ -27,7 +27,7 @@ ROW int=[1, 2, 3]
 ;
 
 intByKeyword
-required_capability: lookup_command
+required_capability: lookup
 ROW name="two"
 | LOOKUP int_number_names ON name
 ;
@@ -38,7 +38,7 @@ int:integer | name:keyword
 
 
 keywordByLong
-required_capability: lookup_command
+required_capability: lookup
 FROM employees
 | SORT emp_no
 | LIMIT 4
@@ -56,7 +56,7 @@ emp_no:integer | languages:long | lang_name:keyword
 ;
 
 longByKeyword
-required_capability: lookup_command
+required_capability: lookup
 ROW name="two"
 | LOOKUP long_number_names ON name
 ;
@@ -66,7 +66,7 @@ long:long | name:keyword
 ;
 
 keywordByFloat
-required_capability: lookup_command
+required_capability: lookup
 FROM employees
 | SORT emp_no
 | LIMIT 4
@@ -84,7 +84,7 @@ emp_no:integer | height:double | height_name:keyword
 ;
 
 floatByKeyword
-required_capability: lookup_command
+required_capability: lookup
 ROW name="two point zero eight"
 | LOOKUP double_number_names ON name
 ;
@@ -94,7 +94,7 @@ double:double | name:keyword
 ;
 
 intIntByKeywordKeyword
-required_capability: lookup_command
+required_capability: lookup
 ROW aa="foo", ab="zoo"
 | LOOKUP big ON aa, ab
 ;
@@ -103,8 +103,8 @@ na:integer | nb:integer | aa:keyword | ab:keyword
          1 |         -1 |        foo | zoo
 ;
 
-intIntByKeywordKeywordMising
-required_capability: lookup_command
+intIntByKeywordKeywordMissing
+required_capability: lookup
 ROW aa="foo", ab="zoi"
 | LOOKUP big ON aa, ab
 ;

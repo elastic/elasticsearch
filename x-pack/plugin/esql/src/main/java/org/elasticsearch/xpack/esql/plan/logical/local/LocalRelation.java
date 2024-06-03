@@ -29,13 +29,13 @@ public class LocalRelation extends LeafPlan {
     }
 
     public LocalRelation(PlanStreamInput in) throws IOException {
-        super(in.readSource());
+        super(Source.readFrom(in));
         this.output = in.readCollectionAsList(i -> ((PlanStreamInput) i).readAttribute());
         this.supplier = LocalSupplier.readFrom(in);
     }
 
     public void writeTo(PlanStreamOutput out) throws IOException {
-        out.writeSource(source());
+        source().writeTo(out);
         out.writeCollection(output, (o, v) -> ((PlanStreamOutput) o).writeAttribute(v));
         supplier.writeTo(out);
     }

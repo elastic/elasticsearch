@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.planner;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.function.FunctionRegistry;
+import org.elasticsearch.xpack.esql.core.plan.logical.BinaryPlan;
 import org.elasticsearch.xpack.esql.core.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.core.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;

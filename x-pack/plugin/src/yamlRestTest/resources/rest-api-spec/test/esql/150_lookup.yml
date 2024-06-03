@@ -1,4 +1,245 @@
-index named lookup:
+---
+setup:
+  - do:
+      indices.create:
+        index:  test
+        body:
+          settings:
+            number_of_shards: 5
+          mappings:
+            properties:
+              data:
+                type: long
+              data_d:
+                type: double
+              count:
+                type: long
+              count_d:
+                type: double
+              time:
+                type: long
+              color:
+                type: keyword
+  - do:
+      bulk:
+        index: "test"
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "data": 1, "count": 40, "data_d": 1, "count_d": 40, "time": 1674835275187, "color": "red" }
+          - { "index": { } }
+          - { "data": 2, "count": 42, "data_d": 2, "count_d": 42, "time": 1674835275188, "color": "blue" }
+          - { "index": { } }
+          - { "data": 1, "count": 44, "data_d": 1, "count_d": 44, "time": 1674835275189, "color": "green" }
+          - { "index": { } }
+          - { "data": 2, "count": 46, "data_d": 2, "count_d": 46, "time": 1674835275190, "color": "red" }
+          - { "index": { } }
+          - { "data": 1, "count": 40, "data_d": 1, "count_d": 40, "time": 1674835275191, "color": "red" }
+          - { "index": { } }
+          - { "data": 2, "count": 42, "data_d": 2, "count_d": 42, "time": 1674835275192, "color": "blue" }
+          - { "index": { } }
+          - { "data": 1, "count": 44, "data_d": 1, "count_d": 44, "time": 1674835275193, "color": "green" }
+          - { "index": { } }
+          - { "data": 2, "count": 46, "data_d": 2, "count_d": 46, "time": 1674835275194, "color": "red" }
+          - { "index": { } }
+          - { "data": 1, "count": 40, "data_d": 1, "count_d": 40, "time": 1674835275195, "color": "red" }
+          - { "index": { } }
+          - { "data": 2, "count": 42, "data_d": 2, "count_d": 42, "time": 1674835275196, "color": "blue" }
+          - { "index": { } }
+          - { "data": 1, "count": 44, "data_d": 1, "count_d": 44, "time": 1674835275197, "color": "green" }
+          - { "index": { } }
+          - { "data": 2, "count": 46, "data_d": 2, "count_d": 46, "time": 1674835275198, "color": "red" }
+          - { "index": { } }
+          - { "data": 1, "count": 40, "data_d": 1, "count_d": 40, "time": 1674835275199, "color": "red" }
+          - { "index": { } }
+          - { "data": 2, "count": 42, "data_d": 2, "count_d": 42, "time": 1674835275200, "color": "blue" }
+          - { "index": { } }
+          - { "data": 1, "count": 44, "data_d": 1, "count_d": 44, "time": 1674835275201, "color": "green" }
+          - { "index": { } }
+          - { "data": 2, "count": 46, "data_d": 2, "count_d": 46, "time": 1674835275202, "color": "red" }
+          - { "index": { } }
+          - { "data": 1, "count": 40, "data_d": 1, "count_d": 40, "time": 1674835275203, "color": "red" }
+          - { "index": { } }
+          - { "data": 2, "count": 42, "data_d": 2, "count_d": 42, "time": 1674835275204, "color": "blue" }
+          - { "index": { } }
+          - { "data": 1, "count": 44, "data_d": 1, "count_d": 44, "time": 1674835275205, "color": "green" }
+          - { "index": { } }
+          - { "data": 2, "count": 46, "data_d": 2, "count_d": 46, "time": 1674835275206, "color": "red" }
+          - { "index": { } }
+          - { "data": 1, "count": 40, "data_d": 1, "count_d": 40, "time": 1674835275207, "color": "red" }
+          - { "index": { } }
+          - { "data": 2, "count": 42, "data_d": 2, "count_d": 42, "time": 1674835275208, "color": "blue" }
+          - { "index": { } }
+          - { "data": 1, "count": 44, "data_d": 1, "count_d": 44, "time": 1674835275209, "color": "green" }
+          - { "index": { } }
+          - { "data": 2, "count": 46, "data_d": 2, "count_d": 46, "time": 1674835275210, "color": "red" }
+          - { "index": { } }
+          - { "data": 1, "count": 40, "data_d": 1, "count_d": 40, "time": 1674835275211, "color": "red" }
+          - { "index": { } }
+          - { "data": 2, "count": 42, "data_d": 2, "count_d": 42, "time": 1674835275212, "color": "blue" }
+          - { "index": { } }
+          - { "data": 1, "count": 44, "data_d": 1, "count_d": 44, "time": 1674835275213, "color": "green" }
+          - { "index": { } }
+          - { "data": 2, "count": 46, "data_d": 2, "count_d": 46, "time": 1674835275214, "color": "red" }
+          - { "index": { } }
+          - { "data": 1, "count": 40, "data_d": 1, "count_d": 40, "time": 1674835275215, "color": "red" }
+          - { "index": { } }
+          - { "data": 2, "count": 42, "data_d": 2, "count_d": 42, "time": 1674835275216, "color": "blue" }
+          - { "index": { } }
+          - { "data": 1, "count": 44, "data_d": 1, "count_d": 44, "time": 1674835275217, "color": "green" }
+          - { "index": { } }
+          - { "data": 2, "count": 46, "data_d": 2, "count_d": 46, "time": 1674835275218, "color": "red" }
+          - { "index": { } }
+          - { "data": 1, "count": 40, "data_d": 1, "count_d": 40, "time": 1674835275219, "color": "red" }
+          - { "index": { } }
+          - { "data": 2, "count": 42, "data_d": 2, "count_d": 42, "time": 1674835275220, "color": "blue" }
+          - { "index": { } }
+          - { "data": 1, "count": 44, "data_d": 1, "count_d": 44, "time": 1674835275221, "color": "green" }
+          - { "index": { } }
+          - { "data": 2, "count": 46, "data_d": 2, "count_d": 46, "time": 1674835275222, "color": "red" }
+          - { "index": { } }
+          - { "data": 1, "count": 40, "data_d": 1, "count_d": 40, "time": 1674835275223, "color": "red" }
+          - { "index": { } }
+          - { "data": 2, "count": 42, "data_d": 2, "count_d": 42, "time": 1674835275224, "color": "blue" }
+          - { "index": { } }
+          - { "data": 1, "count": 44, "data_d": 1, "count_d": 44, "time": 1674835275225, "color": "green" }
+          - { "index": { } }
+          - { "data": 2, "count": 46, "data_d": 2, "count_d": 46, "time": 1674835275226, "color": "red" }
+
+---
+basic:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [lookup]
+      reason: "uses LOOKUP"
+
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test | LOOKUP colors ON color | SORT time | KEEP color, rgb | LIMIT 2'
+          columnar: true
+          version: 2024.04.01
+          tables:
+            colors:
+              "color:keyword": ["red", "green", "blue"]
+              "rgb:integer": [16711680,   65280,    255]
+
+  - match: {columns.0.name: "color"}
+  - match: {columns.0.type: "keyword"}
+  - match: {columns.1.name: "rgb"}
+  - match: {columns.1.type: "integer"}
+  - match: {values.0: ["red", "blue"]}
+  - match: {values.1: [16711680, 255]}
+
+---
+read multivalue keyword:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [lookup]
+      reason: "uses LOOKUP"
+
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test | LOOKUP color_associations ON color | SORT time | KEEP color, association | LIMIT 2'
+          columnar: true
+          version: 2024.04.01
+          tables:
+            color_associations:
+              "color:keyword":  ["red", "green", "blue"]
+              "association:keyword":
+                - ["love", "passion", "blood", "happiness"]
+                - ["nature", "healing", "health", "youth"]
+                - ["serenity", "wisdom", "ocean", "sky"]
+
+  - match: {columns.0.name: "color"}
+  - match: {columns.0.type: "keyword"}
+  - match: {columns.1.name: "association"}
+  - match: {columns.1.type: "keyword"}
+  - match: {values.0: ["red", "blue"]}
+  - match: {values.1: [["love", "passion", "blood", "happiness"], ["serenity", "wisdom", "ocean", "sky"]]}
+
+---
+duplicate column names in table:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [lookup]
+      reason: "uses LOOKUP"
+
+  - do:
+      catch: /duplicate column name \[color\]/
+      esql.query:
+        body:
+          query: 'FROM test | LOOKUP colors ON color | SORT time | KEEP color, rgb | LIMIT 2'
+          columnar: true
+          version: 2024.04.01
+          tables:
+            colors:
+              "color:keyword":    ["red", "green", "blue"]
+              "color:integer": [16711680,   65280,    255]
+
+---
+duplicate keys:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [lookup]
+      reason: "uses LOOKUP"
+
+  - do:
+      # TODO improve this error message
+      catch: /found a duplicate row/
+      esql.query:
+        body:
+          query: 'FROM test | LOOKUP colors ON color | SORT time | KEEP color, rgb | LIMIT 2'
+          columnar: true
+          version: 2024.04.01
+          tables:
+            colors:
+              "color:keyword":  ["red",   "red", "blue"]
+              "rgb:integer": [16711680,   65280,    255]
+
+---
+multivalued keys:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [lookup]
+      reason: "uses LOOKUP"
+
+  - do:
+      # TODO improve this error message
+      catch: /only single valued keys are supported/
+      esql.query:
+        body:
+          query: 'FROM test | LOOKUP colors ON color | SORT time | KEEP color, rgb | LIMIT 2'
+          columnar: true
+          version: 2024.04.01
+          tables:
+            colors:
+              "color:keyword":  [["red", "blue"],   "white", "blue"]
+              "rgb:integer":           [16711680,     65280,    255]
+
+---
+index named lookup still works:
   - do:
       bulk:
         index: lookup
@@ -15,28 +256,3 @@ index named lookup:
   - match: { columns.0.type: long }
   - length: { values: 1 }
   - match: { values.0.0: 1 }
-
----
-lookup command unsupported:
-  - requires:
-      test_runner_features: [capabilities]
-      capabilities:
-        - method: POST
-          path: /_query
-          parameters: [method, path, parameters, capabilities]
-          capabilities: [lookup]
-      reason: "LOOKUP command required"
-
-  - do:
-      bulk:
-        index: lookup
-        refresh: true
-        body:
-          - { index: { } }
-          - { f: 1 }
-
-  - do:
-      catch: /LOOKUP not yet supported/
-      esql.query:
-        body:
-          query: 'FROM lookup | LOOKUP a ON foo'

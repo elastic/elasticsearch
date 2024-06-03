@@ -123,7 +123,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     private static final Iterable<RuleExecutor.Batch<LogicalPlan>> rules;
 
     static {
-<<<<<<< HEAD
         var init = new Batch<>(
             "Initialize",
             Limiter.ONCE,
@@ -132,15 +131,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             new ResolveLookup(),
             new ResolveFunctions()
         );
-
         var resolution = new Batch<>("Resolution", new ResolveRefs(), new ImplicitCasting());
         var finish = new Batch<>("Finish Analysis", Limiter.ONCE, new AddImplicitLimit());
-
-=======
-        var init = new Batch<>("Initialize", Limiter.ONCE, new ResolveTable(), new ResolveEnrich(), new ResolveFunctions());
-        var resolution = new Batch<>("Resolution", new ResolveRefs(), new ImplicitCasting());
-        var finish = new Batch<>("Finish Analysis", Limiter.ONCE, new AddImplicitLimit());
->>>>>>> main
         rules = List.of(init, resolution, finish);
     }
 

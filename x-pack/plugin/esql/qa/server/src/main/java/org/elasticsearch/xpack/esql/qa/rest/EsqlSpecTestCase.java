@@ -195,21 +195,10 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
 
     protected final void doTest() throws Throwable {
         RequestObjectBuilder builder = new RequestObjectBuilder(randomFrom(XContentType.values()));
-        builder.query(testCase.query);
-
-        String versionString = null;
-        // TODO: Read version range from csv-spec and skip if none of the versions are available.
-        if (availableVersions().isEmpty() == false) {
-            EsqlVersion version = randomFrom(availableVersions());
-            versionString = randomBoolean() ? version.toString() : version.versionStringWithoutEmoji();
-        }
-        builder.version(versionString);
 
         if (testCase.query.toUpperCase(Locale.ROOT).contains("LOOKUP")) {
             builder.tables(tables());
         }
-
-        Map<String, Object> answer = runEsql(builder, testCase.expectedWarnings(false), testCase.expectedWarningsRegex());
 
         Map<String, Object> answer = runEsql(
             builder.query(testCase.query),

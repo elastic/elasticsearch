@@ -34,12 +34,12 @@ public class Join extends BinaryPlan {
     }
 
     public Join(PlanStreamInput in) throws IOException {
-        super(in.readSource(), in.readLogicalPlanNode(), in.readLogicalPlanNode());
+        super(Source.readFrom(in), in.readLogicalPlanNode(), in.readLogicalPlanNode());
         this.config = new JoinConfig(in);
     }
 
     public void writeTo(PlanStreamOutput out) throws IOException {
-        out.writeSource(source());
+        source().writeTo(out);
         out.writeLogicalPlanNode(left());
         out.writeLogicalPlanNode(right());
         config.writeTo(out);

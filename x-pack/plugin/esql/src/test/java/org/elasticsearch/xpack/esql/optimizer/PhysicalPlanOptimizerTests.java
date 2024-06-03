@@ -47,6 +47,7 @@ import org.elasticsearch.xpack.esql.core.index.EsIndex;
 import org.elasticsearch.xpack.esql.core.index.IndexResolution;
 import org.elasticsearch.xpack.esql.core.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.core.plan.logical.Limit;
+import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.core.type.EsField;

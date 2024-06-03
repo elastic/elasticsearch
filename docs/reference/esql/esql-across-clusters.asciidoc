@@ -62,7 +62,7 @@ This may be the preferred model when you have different administrators for diffe
 You will need to:
 
 * Create an API key on the *remote cluster* using the <<security-api-create-cross-cluster-api-key,Create cross-cluster API key>> API or using the {kibana-ref}/api-keys.html[Kibana API keys UI].
-* Add the API key to the `elasticsearch.yml` file on the *local cluster*, as part of the steps in <<remote-clusters-security-api-key-local-actions,configuring the local cluster>>. All cross-cluster requests from the local cluster are bound by the API key’s privileges.
+* Add the API key to the keystore on the *local cluster*, as part of the steps in <<remote-clusters-security-api-key-local-actions,configuring the local cluster>>. All cross-cluster requests from the local cluster are bound by the API key’s privileges.
 
 Using {esql} with the API key based security model requires some additional permissions that may not be needed when using the traditional query DSL based search. 
 The following example API call creates a role that can query remote indices using {esql} when using the API key based security model.
@@ -96,7 +96,7 @@ POST /_security/role/remote1
 This remote cluster must be configured with a <<security-api-create-cross-cluster-api-key,cross-cluster API key>> and connected to the remote cluster before the remote index can be queried. 
 Verify connection using the <<cluster-remote-info, Remote cluster info>> API.
 
-You will then need to create a user with the role you created above. The following example API call creates a user with the `remote1` role.
+You will then need a user or API key with the permissions you created above. The following example API call creates a user with the `remote1` role.
 
 [source,console]
 ----
@@ -107,7 +107,7 @@ POST /_security/user/remote_user
 }
 ----
 
-Remember that all cross-cluster requests from the local cluster are bound by the API key’s privileges, which are controlled by the remote cluster's administrator.
+Remember that all cross-cluster requests from the local cluster are bound by the cross cluster API key’s privileges, which are controlled by the remote cluster's administrator.
 
 [discrete]
 [[ccq-remote-cluster-setup]]

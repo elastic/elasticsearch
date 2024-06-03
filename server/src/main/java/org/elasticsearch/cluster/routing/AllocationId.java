@@ -100,7 +100,7 @@ public class AllocationId implements ToXContentObject, Writeable {
      */
     public static AllocationId newTargetRelocation(AllocationId allocationId) {
         assert allocationId.getRelocationId() != null;
-        return new AllocationId(allocationId.getRelocationId(), allocationId.getId());
+        return new AllocationId(allocationId.getId(), allocationId.getRelocationId());
     }
 
     /**

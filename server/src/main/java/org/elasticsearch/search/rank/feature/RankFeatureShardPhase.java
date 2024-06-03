@@ -30,15 +30,15 @@ import java.util.Collections;
  */
 public final class RankFeatureShardPhase {
 
-    private static final Logger LOGGER = LogManager.getLogger(RankFeatureShardPhase.class);
+    private static final Logger logger = LogManager.getLogger(RankFeatureShardPhase.class);
 
     public static final RankFeatureShardResult EMPTY_RESULT = new RankFeatureShardResult(new RankFeatureDoc[0]);
 
     public RankFeatureShardPhase() {}
 
     public void prepareForFetch(SearchContext searchContext, RankFeatureShardRequest request) {
-        if (LOGGER.isTraceEnabled()) {
-            LOGGER.trace("{}", new SearchContextSourcePrinter(searchContext));
+        if (logger.isTraceEnabled()) {
+            logger.trace("{}", new SearchContextSourcePrinter(searchContext));
         }
 
         if (searchContext.isCancelled()) {
@@ -58,8 +58,8 @@ public final class RankFeatureShardPhase {
     }
 
     public void processFetch(SearchContext searchContext) {
-        if (LOGGER.isTraceEnabled()) {
-            LOGGER.trace("{}", new SearchContextSourcePrinter(searchContext));
+        if (logger.isTraceEnabled()) {
+            logger.trace("{}", new SearchContextSourcePrinter(searchContext));
         }
 
         if (searchContext.isCancelled()) {

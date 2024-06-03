@@ -86,7 +86,11 @@ public abstract class RankFeaturePhaseRankCoordinatorContext {
         List<RankFeatureDoc> docFeatures = new ArrayList<>();
         for (RankFeatureResult rankFeatureResult : rankSearchResults) {
             RankFeatureShardResult shardResult = rankFeatureResult.shardResult();
-            docFeatures.addAll(Arrays.stream(shardResult.rankFeatureDocs).filter(x -> Objects.nonNull(x.featureData)).toList());
+            for (RankFeatureDoc rankFeatureDoc : shardResult.rankFeatureDocs) {
+                if (Objects.nonNull(rankFeatureDoc.featureData)) {
+                    docFeatures.add(rankFeatureDoc);
+                }
+            }
         }
         return docFeatures.toArray(new RankFeatureDoc[0]);
     }

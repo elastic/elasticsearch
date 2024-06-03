@@ -10,13 +10,10 @@ package org.elasticsearch.search.rank.feature;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.core.RefCounted;
-import org.elasticsearch.core.SimpleRefCounted;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
-import org.elasticsearch.transport.LeakTracker;
 
 import java.io.IOException;
 
@@ -27,8 +24,6 @@ import java.io.IOException;
 public class RankFeatureResult extends SearchPhaseResult {
 
     private RankFeatureShardResult rankShardResult;
-
-    private final RefCounted refCounted = LeakTracker.wrap(new SimpleRefCounted());
 
     public RankFeatureResult() {}
 
@@ -61,35 +56,11 @@ public class RankFeatureResult extends SearchPhaseResult {
     }
 
     public void shardResult(RankFeatureShardResult shardResult) {
-        assert hasReferences();
         this.rankShardResult = shardResult;
     }
 
     public RankFeatureShardResult shardResult() {
         return rankShardResult;
-    }
-
-    @Override
-    public void incRef() {
-        refCounted.incRef();
-    }
-
-    @Override
-    public boolean tryIncRef() {
-        return refCounted.tryIncRef();
-    }
-
-    @Override
-    public boolean decRef() {
-        if (refCounted.decRef()) {
-            return true;
-        }
-        return false;
-    }
-
-    @Override
-    public boolean hasReferences() {
-        return refCounted.hasReferences();
     }
 
     @Override

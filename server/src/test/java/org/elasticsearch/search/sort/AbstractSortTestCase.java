@@ -196,7 +196,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
         };
         NestedLookup nestedLookup = NestedLookup.build(
             List.of(
-                new NestedObjectMapper.Builder("path", IndexVersion.current(), query -> bitsetFilterCache.getBitSetProducer(query)).build(
+                new NestedObjectMapper.Builder("path", IndexVersion.current()).build(
                     MapperBuilderContext.root(false, false)
                 )
             )

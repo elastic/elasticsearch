@@ -211,6 +211,13 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
         ).getMapperRegistry();
 
         SimilarityService similarityService = new SimilarityService(indexSettings, null, Map.of());
+        BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(indexSettings, new BitsetFilterCache.Listener() {
+            @Override
+            public void onCache(ShardId shardId, Accountable accountable) {}
+
+            @Override
+            public void onRemoval(ShardId shardId, Accountable accountable) {}
+        });
         return new MapperService(
             () -> TransportVersion.current(),
             indexSettings,
@@ -223,8 +230,8 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
             },
             indexSettings.getMode().buildIdFieldMapper(idFieldDataEnabled),
             this::compileScript,
+            bitsetFilterCache::getBitSetProducer,
             MapperMetrics.NOOP
-
         );
     }
 

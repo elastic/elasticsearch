@@ -83,7 +83,7 @@ public class MapperServiceFactory {
                     throw new UnsupportedOperationException();
                 }
             },
-            query -> bitsetFilterCache.getBitSetProducer(query),
+            bitsetFilterCache::getBitSetProducer,
             MapperMetrics.NOOP
         );
 

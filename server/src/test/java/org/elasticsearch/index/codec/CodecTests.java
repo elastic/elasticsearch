@@ -127,7 +127,7 @@ public class CodecTests extends ESTestCase {
             () -> null,
             settings.getMode().idFieldMapperWithoutFieldData(),
             ScriptCompiler.NONE,
-            query -> bitsetFilterCache.getBitSetProducer(query),
+            bitsetFilterCache::getBitSetProducer,
             MapperMetrics.NOOP
         );
         return new CodecService(service, BigArrays.NON_RECYCLING_INSTANCE);

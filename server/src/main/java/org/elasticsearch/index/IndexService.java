@@ -224,7 +224,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 () -> newSearchExecutionContext(0, 0, null, System::currentTimeMillis, null, emptyMap()),
                 idFieldMapper,
                 scriptService,
-                query -> bitsetFilterCache.getBitSetProducer(query),
+                bitsetFilterCache::getBitSetProducer,
                 mapperMetrics
             );
             this.indexFieldData = new IndexFieldDataService(indexSettings, indicesFieldDataCache, circuitBreakerService);

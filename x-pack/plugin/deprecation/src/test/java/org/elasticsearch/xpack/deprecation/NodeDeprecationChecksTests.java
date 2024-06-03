@@ -2569,4 +2569,40 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             assertThat(noIssues, hasSize(0));
         }
     }
+
+    public void testDLSSetting() {
+        boolean settingValue = randomBoolean();
+        List<String> settingsToCheck = Arrays.asList(
+            "xpack.security.dls.force_terms_aggs_to_exclude_deleted_docs.enabled",
+            "xpack.security.dls.error_when_validate_query_with_rewrite.enabled"
+        );
+        settingsToCheck.forEach(settingName -> {
+            Settings settings = Settings.builder().put(settingName, settingValue).build();
+            final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
+            final XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY, () -> 0);
+            final List<DeprecationIssue> issues = getDeprecationIssues(settings, pluginsAndModules, licenseState);
+            final DeprecationIssue expected = new DeprecationIssue(
+                DeprecationIssue.Level.CRITICAL,
+                String.format(Locale.ROOT, "Setting [%s] is deprecated", settingName),
+                "https://www.elastic.co/guide/en/elasticsearch/reference/7.17/migrating-7.17.html#deprecation_for_dls_settings",
+                String.format(
+                    Locale.ROOT,
+                    "Remove the [%s] setting. " + "Stricter DLS rules are the default and are not configurable in newer versions.",
+                    settingName
+                ),
+                false,
+                null
+            );
+            assertThat(issues, hasItem(expected));
+            assertWarnings(
+                String.format(
+                    Locale.ROOT,
+                    "[%s] setting was deprecated in Elasticsearch and will be "
+                        + "removed in a future release! See the breaking changes documentation for the next major version.",
+                    settingName
+                )
+            );
+        });
+    }
+
 }

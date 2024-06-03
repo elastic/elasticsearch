@@ -18,7 +18,7 @@ import java.io.IOException;
 import java.util.Objects;
 
 public class IgnoredFieldStats implements Writeable, ToXContentFragment {
-    private long totalNumberOfDocuments;
+    private long totalNumberOfDocuments = 0;
     private long docsWithIgnoredFields = 0;
     private long ignoredFieldTermsSumDocFreq = 0;
 

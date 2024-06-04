@@ -31,10 +31,10 @@ import java.util.Map;
  * This currently covers error handling for Azure AI Studio, however this pattern
  * can be used to simplify and refactor handling for Azure OpenAI and OpenAI responses.
  */
-public class AzureAndOpenAiErrorResponseEntity implements ErrorMessage {
+public class AzureMistralOpenAiErrorResponseEntity implements ErrorMessage {
     protected String errorMessage;
 
-    public AzureAndOpenAiErrorResponseEntity(String errorMessage) {
+    public AzureMistralOpenAiErrorResponseEntity(String errorMessage) {
         this.errorMessage = errorMessage;
     }
 
@@ -62,7 +62,7 @@ public class AzureAndOpenAiErrorResponseEntity implements ErrorMessage {
             if (error != null) {
                 var message = (String) error.get("message");
                 if (message != null) {
-                    return new AzureAndOpenAiErrorResponseEntity(message);
+                    return new AzureMistralOpenAiErrorResponseEntity(message);
                 }
             }
         } catch (Exception e) {

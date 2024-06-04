@@ -61,6 +61,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.TelemetryPlugin;
 import org.elasticsearch.plugins.internal.DocumentSizeObserver;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
@@ -198,41 +199,85 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
         BooleanSupplier idFieldDataEnabled,
         XContentBuilder mapping
     ) throws IOException {
-
         MapperService mapperService = createMapperService(version, settings, idFieldDataEnabled);
-        merge(mapperService, mapping);
-        return mapperService;
+        return withMapping(mapperService, mapping);
     }
 
     protected final MapperService createMapperService(IndexVersion version, Settings settings, BooleanSupplier idFieldDataEnabled) {
-        IndexSettings indexSettings = createIndexSettings(version, settings);
-        MapperRegistry mapperRegistry = new IndicesModule(
-            getPlugins().stream().filter(p -> p instanceof MapperPlugin).map(p -> (MapperPlugin) p).collect(toList())
-        ).getMapperRegistry();
+        return new TestMapperServiceBuilder().indexVersion(version).settings(settings).idFieldDataEnabled(idFieldDataEnabled).build();
+    }
 
-        SimilarityService similarityService = new SimilarityService(indexSettings, null, Map.of());
-        BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(indexSettings, new BitsetFilterCache.Listener() {
-            @Override
-            public void onCache(ShardId shardId, Accountable accountable) {}
+    protected final MapperService withMapping(MapperService mapperService, XContentBuilder mapping) throws IOException {
+        merge(mapperService, mapping);
+        return mapperService;
+    };
 
-            @Override
-            public void onRemoval(ShardId shardId, Accountable accountable) {}
-        });
-        return new MapperService(
-            () -> TransportVersion.current(),
-            indexSettings,
-            createIndexAnalyzers(indexSettings),
-            parserConfig(),
-            similarityService,
-            mapperRegistry,
-            () -> {
-                throw new UnsupportedOperationException();
-            },
-            indexSettings.getMode().buildIdFieldMapper(idFieldDataEnabled),
-            this::compileScript,
-            bitsetFilterCache::getBitSetProducer,
-            MapperMetrics.NOOP
-        );
+    protected class TestMapperServiceBuilder {
+        private IndexVersion indexVersion;
+        private Settings settings;
+        private BooleanSupplier idFieldDataEnabled;
+        private ScriptCompiler scriptCompiler;
+        private MapperMetrics mapperMetrics;
+
+        public TestMapperServiceBuilder() {
+            indexVersion = getVersion();
+            settings = getIndexSettings();
+            idFieldDataEnabled = () -> true;
+            scriptCompiler = MapperServiceTestCase.this::compileScript;
+            mapperMetrics = MapperMetrics.NOOP;
+        }
+
+        public TestMapperServiceBuilder indexVersion(IndexVersion indexVersion) {
+            this.indexVersion = indexVersion;
+            return this;
+        }
+
+        public TestMapperServiceBuilder settings(Settings settings) {
+            this.settings = settings;
+            return this;
+        }
+
+        public TestMapperServiceBuilder idFieldDataEnabled(BooleanSupplier idFieldDataEnabled) {
+            this.idFieldDataEnabled = idFieldDataEnabled;
+            return this;
+        }
+
+        public TestMapperServiceBuilder mapperMetrics(MapperMetrics mapperMetrics) {
+            this.mapperMetrics = mapperMetrics;
+            return this;
+        }
+
+        public MapperService build() {
+            IndexSettings indexSettings = createIndexSettings(indexVersion, settings);
+            SimilarityService similarityService = new SimilarityService(indexSettings, null, Map.of());
+            MapperRegistry mapperRegistry = new IndicesModule(
+                getPlugins().stream().filter(p -> p instanceof MapperPlugin).map(p -> (MapperPlugin) p).collect(toList())
+            ).getMapperRegistry();
+
+            BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(indexSettings, new BitsetFilterCache.Listener() {
+                @Override
+                public void onCache(ShardId shardId, Accountable accountable) {}
+
+                @Override
+                public void onRemoval(ShardId shardId, Accountable accountable) {}
+            });
+
+            return new MapperService(
+                () -> TransportVersion.current(),
+                indexSettings,
+                createIndexAnalyzers(indexSettings),
+                parserConfig(),
+                similarityService,
+                mapperRegistry,
+                () -> {
+                    throw new UnsupportedOperationException();
+                },
+                indexSettings.getMode().buildIdFieldMapper(idFieldDataEnabled),
+                scriptCompiler,
+                bitsetFilterCache::getBitSetProducer,
+                mapperMetrics
+            );
+        }
     }
 
     /**

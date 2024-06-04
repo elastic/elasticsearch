@@ -853,20 +853,20 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             DataType targetDataType = DataTypes.NULL;
             Expression from = Literal.NULL;
 
-            if (left.dataType() == KEYWORD && left.foldable() && ((left instanceof EsqlScalarFunction) == false)) {
+            if (left.dataType() == KEYWORD && left.foldable() && (left instanceof EsqlScalarFunction == false)) {
                 if (supportsImplicitCasting(right.dataType())) {
                     targetDataType = right.dataType();
                     from = left;
-                } else if (isTemporalAmount(right.dataType()) && (o instanceof DateTimeArithmeticOperation)) {
+                } else if (supportsImplicitTemporalCasting(right, o)) {
                     targetDataType = DATETIME;
                     from = left;
                 }
             }
-            if (right.dataType() == KEYWORD && right.foldable() && ((right instanceof EsqlScalarFunction) == false)) {
+            if (right.dataType() == KEYWORD && right.foldable() && (right instanceof EsqlScalarFunction == false)) {
                 if (supportsImplicitCasting(left.dataType())) {
                     targetDataType = left.dataType();
                     from = right;
-                } else if (isTemporalAmount(left.dataType()) && (o instanceof DateTimeArithmeticOperation)) {
+                } else if (supportsImplicitTemporalCasting(left, o)) {
                     targetDataType = DATETIME;
                     from = right;
                 }
@@ -901,6 +901,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
             newChildren.add(left);
             return childrenChanged ? in.replaceChildren(newChildren) : in;
+        }
+
+        private static boolean supportsImplicitTemporalCasting(Expression e, BinaryOperator<?, ?, ?, ?> o) {
+            return isTemporalAmount(e.dataType()) && (o instanceof DateTimeArithmeticOperation);
         }
 
         private static boolean supportsImplicitCasting(DataType type) {

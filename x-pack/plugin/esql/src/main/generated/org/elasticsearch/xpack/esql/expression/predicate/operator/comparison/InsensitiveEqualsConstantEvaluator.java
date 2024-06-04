@@ -36,10 +36,10 @@ public final class InsensitiveEqualsConstantEvaluator implements EvalOperator.Ex
 
   public InsensitiveEqualsConstantEvaluator(Source source, EvalOperator.ExpressionEvaluator lhs,
       ByteRunAutomaton rhs, DriverContext driverContext) {
-    this.warnings = new Warnings(source);
     this.lhs = lhs;
     this.rhs = rhs;
     this.driverContext = driverContext;
+    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override

@@ -1,6 +1,6 @@
 pr: 109317
 summary: Add new int4 quantization to dense_vector
-area: Search/Vectors
+area: Search
 type: feature
 issues: []
 highlight:

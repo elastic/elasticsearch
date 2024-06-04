@@ -20,6 +20,8 @@ include::7.9.asciidoc[tag=snapshot-repo-corruption-73456-known-issue]
 
 include::7.7.asciidoc[tag=jackson-filtering-bug]
 
+include::7.7.asciidoc[tag=index-mapper-dynamic-bug]
+
 [[bug-7.9.3]]
 [float]
 === Bug fixes
@@ -101,6 +103,8 @@ see {es-issue}65488[#65488].
 include::7.9.asciidoc[tag=snapshot-repo-corruption-73456-known-issue]
 
 include::7.7.asciidoc[tag=jackson-filtering-bug]
+
+include::7.7.asciidoc[tag=index-mapper-dynamic-bug]
 
 [[deprecation-7.9.2]]
 [float]
@@ -398,6 +402,8 @@ details, see {es-issue}73456[#73456].
 // end::snapshot-repo-corruption-73456-known-issue[]
 
 include::7.7.asciidoc[tag=jackson-filtering-bug]
+
+include::7.7.asciidoc[tag=index-mapper-dynamic-bug]
 
 [[breaking-7.9.0]]
 [discrete]

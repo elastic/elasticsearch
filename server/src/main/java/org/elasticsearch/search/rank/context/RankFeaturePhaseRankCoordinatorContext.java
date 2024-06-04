@@ -87,7 +87,7 @@ public abstract class RankFeaturePhaseRankCoordinatorContext {
         for (RankFeatureResult rankFeatureResult : rankSearchResults) {
             RankFeatureShardResult shardResult = rankFeatureResult.shardResult();
             for (RankFeatureDoc rankFeatureDoc : shardResult.rankFeatureDocs) {
-                if (Objects.nonNull(rankFeatureDoc.featureData)) {
+                if (rankFeatureDoc.featureData != null) {
                     docFeatures.add(rankFeatureDoc);
                 }
             }

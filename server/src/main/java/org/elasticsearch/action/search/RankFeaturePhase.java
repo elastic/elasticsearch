@@ -197,10 +197,11 @@ public class RankFeaturePhase extends SearchPhase {
         SearchPhaseController.ReducedQueryPhase reducedQueryPhase,
         ScoreDoc[] scoreDocs
     ) {
+
         return new SearchPhaseController.ReducedQueryPhase(
             reducedQueryPhase.totalHits(),
             reducedQueryPhase.fetchHits(),
-            Arrays.stream(scoreDocs).map(x -> x.score).max(Comparator.comparingDouble(x -> x)).orElse(Float.NaN),
+            maxScore(scoreDocs),
             reducedQueryPhase.timedOut(),
             reducedQueryPhase.terminatedEarly(),
             reducedQueryPhase.suggest(),
@@ -214,6 +215,16 @@ public class RankFeaturePhase extends SearchPhase {
             reducedQueryPhase.from(),
             reducedQueryPhase.isEmptyResult()
         );
+    }
+
+    private float maxScore(ScoreDoc[] scoreDocs) {
+        float maxScore = Float.NaN;
+        for(ScoreDoc scoreDoc : scoreDocs) {
+            if (Float.isNaN(maxScore) || scoreDoc.score > maxScore) {
+                maxScore = scoreDoc.score;
+            }
+        }
+        return maxScore;
     }
 
     void moveToNextPhase(SearchPhaseResults<SearchPhaseResult> phaseResults, SearchPhaseController.ReducedQueryPhase reducedQueryPhase) {

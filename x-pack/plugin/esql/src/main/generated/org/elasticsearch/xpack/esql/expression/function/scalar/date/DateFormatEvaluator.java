@@ -38,11 +38,11 @@ public final class DateFormatEvaluator implements EvalOperator.ExpressionEvaluat
 
   public DateFormatEvaluator(Source source, EvalOperator.ExpressionEvaluator val,
       EvalOperator.ExpressionEvaluator formatter, Locale locale, DriverContext driverContext) {
-    this.warnings = new Warnings(source);
     this.val = val;
     this.formatter = formatter;
     this.locale = locale;
     this.driverContext = driverContext;
+    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override

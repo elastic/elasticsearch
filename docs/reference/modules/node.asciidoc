@@ -14,6 +14,10 @@ All nodes know about all the other nodes in the cluster and can forward client
 requests to the appropriate node.
 // end::modules-node-description-tag[]
 
+TIP: The performance of an {es} node is often limited by the performance of the underlying storage. 
+Review our recommendations for optimizing your storage for <<indexing-use-faster-hardware,indexing>> and 
+<<search-use-faster-hardware,search>>.
+
 [[node-roles]]
 ==== Node roles
 
@@ -470,13 +474,6 @@ properly-configured remote block devices (e.g. a SAN) and remote filesystems
 (e.g. NFS) as long as the remote storage behaves no differently from local
 storage. You can run multiple {es} nodes on the same filesystem, but each {es}
 node must have its own data path.
-
-[TIP]
-====
-The performance of an {es} cluster is often limited by the performance of the
-underlying storage. 
-include::../how-to/remote-storage.asciidoc[]
-===
 
 TIP: When using the `.zip` or `.tar.gz` distributions, the `path.data` setting
 should be configured to locate the data directory outside the {es} home

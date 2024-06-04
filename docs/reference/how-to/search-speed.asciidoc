@@ -38,6 +38,7 @@ for `/dev/nvme0n1`, specify `blockdev --setra 256 /dev/nvme0n1`.
 // end::readahead[]
 
 [discrete]
+[[search-use-faster-hardware]]
 === Use faster hardware
 
 If your searches are I/O-bound, consider increasing the size of the filesystem
@@ -49,7 +50,7 @@ better than spinning disks.
 If your searches are CPU-bound, consider using a larger number of faster CPUs.
 
 [discrete]
-=== Use local storage
+==== Local vs. remote storage
 
 include::./remote-storage.asciidoc[]
 

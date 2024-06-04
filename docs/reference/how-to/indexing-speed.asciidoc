@@ -94,6 +94,7 @@ auto-generated ids, Elasticsearch can skip this check, which makes indexing
 faster.
 
 [discrete]
+[[indexing-use-faster-hardware]]
 === Use faster hardware
 
 If indexing is I/O-bound, consider increasing the size of the filesystem cache
@@ -111,7 +112,7 @@ different nodes so there's redundancy for any node failures. You can also use
 insurance.
 
 [discrete]
-=== Use local storage
+==== Local vs.remote storage
 
 include::./remote-storage.asciidoc[]
 

@@ -64,7 +64,7 @@ depend on what has been found and which properties were configured in `propertie
 `organization_name`, `network`, `hosting_provider`, `tor_exit_node`, `anonymous_vpn`, `anonymous`, `public_proxy`, and `residential_proxy`.
 The fields actually added depend on what has been found and which properties were configured in `properties`.
 
-preview::["Do not use the GeoIP2 Anonymous IP and GeoIP2 Enterprise databases on production environments. This functionality is in technical preview and may be changed or removed in a future release. Elastic will work to fix any issues, but features in technical preview are not subject to the support SLA of official GA features."]
+preview::["Do not use the GeoIP2 Anonymous IP and GeoIP2 Enterprise databases in production environments. This functionality is in technical preview and may be changed or removed in a future release. Elastic will work to fix any issues, but features in technical preview are not subject to the support SLA of official GA features."]
 
 Here is an example that uses the default city database and adds the geographical information to the `geoip` field based on the `ip` field:
 

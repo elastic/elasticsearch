@@ -1454,3 +1454,108 @@ emp_no:integer | first_name:keyword | e:keyword    | d:keyword
 10030          | null               | null         | null
 10031          | null               | null         | null
 ;
+
+repeat
+required_capability: repeat 
+// tag::repeat[]
+ROW a = "Hello!"
+| EVAL triple_a = REPEAT(a, 3);
+// end::repeat[]
+
+// tag::repeat-result[]
+a:keyword | triple_a:keyword
+Hello! | Hello!Hello!Hello!
+// end::repeat-result[]
+;
+
+repeatUtf16Emoji
+required_capability: repeat 
+row a = "🐱Meow!🐶Woof!" | eval repeated = repeat(a, 2);
+
+a:keyword | repeated:keyword
+🐱Meow!🐶Woof! | 🐱Meow!🐶Woof!🐱Meow!🐶Woof!
+;
+
+repeatLength
+required_capability: repeat 
+row a = "cheese" | eval repeated_len = length(repeat(a, 5));
+
+a:keyword | repeated_len:integer
+cheese | 30
+;
+
+repeatSubstring
+required_capability: repeat 
+row a = "catcat" | eval repeated = repeat(substring(a, 4), 2);
+
+a:keyword | repeated:keyword
+catcat | catcat
+;
+
+repeatZero
+required_capability: repeat 
+row a = "cheese" | eval repeated = repeat(a, 0);
+
+a:keyword | repeated:keyword
+cheese | ""
+;
+
+repeatNegative
+required_capability: repeat 
+
+from employees | sort emp_no | limit 1 | eval repeated = repeat(first_name, emp_no - 10002) | keep first_name, repeated;
+
+warning:Line 1:58: evaluation of [repeat(first_name, emp_no - 10002)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:58: java.lang.IllegalArgumentException: Number parameter cannot be negative, found [-1]
+
+first_name:keyword | repeated:keyword
+Georgi | null
+;
+
+repeatVariableNumber
+required_capability: repeat 
+from employees 
+| sort emp_no 
+| limit 4 
+| eval first_repeated = repeat(first_name, emp_no - 10001) 
+| keep emp_no, first_name, first_repeated;
+
+emp_no:integer | first_name:keyword  | first_repeated:keyword
+10001 | Georgi    | ""
+10002 | Bezalel   | Bezalel   
+10003 | Parto     | PartoParto 
+10004 | Chirstian | ChirstianChirstianChirstian   
+;
+
+repeatStringNull
+required_capability: repeat 
+row n = 2 | eval repeated = repeat(null, n);
+
+n:integer | repeated:keyword
+2 | null
+;
+
+repeatNumberNull
+required_capability: repeat 
+row s = "cheese" | eval repeated = repeat(s, null);
+
+s:keyword | repeated:keyword
+cheese    | null
+;
+
+repeatBothArgsFromIndex
+required_capability: repeat 
+FROM employees 
+| EVAL first_name=REPEAT(first_name, languages) 
+| KEEP emp_no, languages, first_name
+| WHERE emp_no < 10005 
+| SORT emp_no;
+
+emp_no:integer | languages:integer | first_name:keyword
+10001 | 2 | GeorgiGeorgi
+10002 | 5 | BezalelBezalelBezalelBezalelBezalel
+10003 | 4 | PartoPartoPartoParto
+10004 | 5 | ChirstianChirstianChirstianChirstianChirstian
+;
+
+

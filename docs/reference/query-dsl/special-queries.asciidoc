@@ -32,6 +32,9 @@ This query allows a script to act as a filter. Also see the
 <<query-dsl-script-score-query,`script_score` query>>::
 A query that allows to modify the score of a sub-query with a script.
 
+<<query-dsl-semantic-query,`semantic` query>>::
+A query that allows you to perform semantic search.
+
 <<query-dsl-wrapper-query,`wrapper` query>>::
 A query that accepts other queries as json or yaml string.
 
@@ -54,6 +57,8 @@ include::rank-feature-query.asciidoc[]
 include::script-query.asciidoc[]
 
 include::script-score-query.asciidoc[]
+
+include::semantic-query.asciidoc[]
 
 include::wrapper-query.asciidoc[]
 

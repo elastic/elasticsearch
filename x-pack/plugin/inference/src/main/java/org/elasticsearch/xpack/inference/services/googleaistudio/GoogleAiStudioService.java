@@ -20,15 +20,20 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
+import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xpack.inference.common.EmbeddingRequestChunker;
 import org.elasticsearch.xpack.inference.external.action.googleaistudio.GoogleAiStudioActionCreator;
 import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
+import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.googleaistudio.completion.GoogleAiStudioCompletionModel;
+import org.elasticsearch.xpack.inference.services.googleaistudio.embeddings.GoogleAiStudioEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.googleaistudio.embeddings.GoogleAiStudioEmbeddingsServiceSettings;
 
 import java.util.List;
 import java.util.Map;
@@ -39,6 +44,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.parsePersi
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
+import static org.elasticsearch.xpack.inference.services.googleaistudio.GoogleAiStudioServiceFields.EMBEDDING_MAX_BATCH_SIZE;
 
 public class GoogleAiStudioService extends SenderService {
 
@@ -58,7 +64,7 @@ public class GoogleAiStudioService extends SenderService {
         String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> config,
-        Set<String> platfromArchitectures,
+        Set<String> platformArchitectures,
         ActionListener<Model> parsedModelListener
     ) {
         try {
@@ -104,6 +110,14 @@ public class GoogleAiStudioService extends SenderService {
                 taskSettings,
                 secretSettings,
                 context
+            );
+            case TEXT_EMBEDDING -> new GoogleAiStudioEmbeddingsModel(
+                inferenceEntityId,
+                taskType,
+                NAME,
+                serviceSettings,
+                taskSettings,
+                secretSettings
             );
             default -> throw new ElasticsearchStatusException(failureMessage, RestStatus.BAD_REQUEST);
         };
@@ -170,6 +184,34 @@ public class GoogleAiStudioService extends SenderService {
     }
 
     @Override
+    public void checkModelConfig(Model model, ActionListener<Model> listener) {
+        if (model instanceof GoogleAiStudioEmbeddingsModel embeddingsModel) {
+            ServiceUtils.getEmbeddingSize(
+                model,
+                this,
+                listener.delegateFailureAndWrap((l, size) -> l.onResponse(updateModelWithEmbeddingDetails(embeddingsModel, size)))
+            );
+        } else {
+            listener.onResponse(model);
+        }
+    }
+
+    private GoogleAiStudioEmbeddingsModel updateModelWithEmbeddingDetails(GoogleAiStudioEmbeddingsModel model, int embeddingSize) {
+        var similarityFromModel = model.getServiceSettings().similarity();
+        var similarityToUse = similarityFromModel == null ? SimilarityMeasure.DOT_PRODUCT : similarityFromModel;
+
+        GoogleAiStudioEmbeddingsServiceSettings serviceSettings = new GoogleAiStudioEmbeddingsServiceSettings(
+            model.getServiceSettings().modelId(),
+            model.getServiceSettings().maxInputTokens(),
+            embeddingSize,
+            similarityToUse,
+            model.getServiceSettings().rateLimitSettings()
+        );
+
+        return new GoogleAiStudioEmbeddingsModel(model, serviceSettings);
+    }
+
+    @Override
     protected void doInfer(
         Model model,
         List<String> input,
@@ -214,6 +256,13 @@ public class GoogleAiStudioService extends SenderService {
         TimeValue timeout,
         ActionListener<List<ChunkedInferenceServiceResults>> listener
     ) {
-        throw new UnsupportedOperationException("Chunked inference not supported yet for Google AI Studio");
+        GoogleAiStudioModel googleAiStudioModel = (GoogleAiStudioModel) model;
+        var actionCreator = new GoogleAiStudioActionCreator(getSender(), getServiceComponents());
+
+        var batchedRequests = new EmbeddingRequestChunker(input, EMBEDDING_MAX_BATCH_SIZE).batchRequestsWithListeners(listener);
+        for (var request : batchedRequests) {
+            var action = googleAiStudioModel.accept(actionCreator, taskSettings, inputType);
+            action.execute(new DocumentsOnlyInput(request.batch().inputs()), timeout, request.listener());
+        }
     }
 }

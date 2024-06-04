@@ -36,6 +36,7 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -153,4 +154,9 @@ public final class Utils {
 
         return mockModel;
     }
+
+    public static SimilarityMeasure randomSimilarityMeasure() {
+        return randomFrom(SimilarityMeasure.values());
+    }
+
 }

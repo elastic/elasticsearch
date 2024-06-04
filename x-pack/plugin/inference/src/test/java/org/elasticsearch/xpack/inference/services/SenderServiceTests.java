@@ -151,7 +151,7 @@ public class SenderServiceTests extends ESTestCase {
             String inferenceEntityId,
             TaskType taskType,
             Map<String, Object> config,
-            Set<String> platfromArchitectures,
+            Set<String> platformArchitectures,
             ActionListener<Model> parsedModelListener
         ) {
             parsedModelListener.onResponse(null);

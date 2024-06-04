@@ -42,7 +42,7 @@ public class CohereCompletionModelTests extends ESTestCase {
             TaskType.COMPLETION,
             "service",
             new CohereCompletionServiceSettings(url, model, null),
-            new EmptyTaskSettings(),
+            EmptyTaskSettings.INSTANCE,
             new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
         );
     }

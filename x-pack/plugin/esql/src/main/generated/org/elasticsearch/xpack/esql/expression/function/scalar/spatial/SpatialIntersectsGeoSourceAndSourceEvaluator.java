@@ -36,10 +36,10 @@ public final class SpatialIntersectsGeoSourceAndSourceEvaluator implements EvalO
   public SpatialIntersectsGeoSourceAndSourceEvaluator(Source source,
       EvalOperator.ExpressionEvaluator leftValue, EvalOperator.ExpressionEvaluator rightValue,
       DriverContext driverContext) {
-    this.warnings = new Warnings(source);
     this.leftValue = leftValue;
     this.rightValue = rightValue;
     this.driverContext = driverContext;
+    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override

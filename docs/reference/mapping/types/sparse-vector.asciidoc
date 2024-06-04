@@ -40,7 +40,7 @@ Below is an example of passing in a document with overlapping feature names.
 Consider that in this example two categories exist for positive sentiment and negative sentiment.
 However, for the purposes of retrieval we also want the overall impact rather than specific sentiment.
 In the example `impact` is stored as a multi-value sparse vector and only the max values of overlapping names are stored.
-More specifically the final `GET` query here returns a `_score` of ~1.2 (which is the `max(impact.delicious[0], impact.delicious[1]` and is approximate because we have a relative error of 0.4% as explained below)
+More specifically the final `GET` query here returns a `_score` of ~1.2 (which is the `max(impact.delicious[0], impact.delicious[1])` and is approximate because we have a relative error of 0.4% as explained below)
 
 [source,console]
 --------------------------------

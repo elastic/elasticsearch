@@ -15,8 +15,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DataTypes;
 
 public class ReferenceAttributeTests extends AbstractAttributeTestCase<ReferenceAttribute> {
-    @Override
-    protected ReferenceAttribute create() {
+    public static ReferenceAttribute randomReferenceAttribute() {
         Source source = Source.EMPTY;
         String name = randomAlphaOfLength(5);
         DataType type = randomFrom(DataTypes.types());
@@ -24,6 +23,11 @@ public class ReferenceAttributeTests extends AbstractAttributeTestCase<Reference
         Nullability nullability = randomFrom(Nullability.values());
         boolean synthetic = randomBoolean();
         return new ReferenceAttribute(source, name, type, qualifier, nullability, new NameId(), synthetic);
+    }
+
+    @Override
+    protected ReferenceAttribute create() {
+        return randomReferenceAttribute();
     }
 
     @Override

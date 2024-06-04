@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.core.expression;
 
+import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 import java.util.List;
@@ -15,7 +16,7 @@ import java.util.Objects;
  * An expression that has a name. Named expressions can be used as a result
  * (by converting to an attribute).
  */
-public abstract class NamedExpression extends Expression {
+public abstract class NamedExpression extends Expression implements NamedWriteable {
 
     private final String name;
     private final NameId id;

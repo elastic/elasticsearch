@@ -297,17 +297,6 @@ public class PlanNamedTypesTests extends ESTestCase {
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(orig, unused -> deser);
     }
 
-    public void testAliasSimple() throws IOException {
-        var orig = new Alias(Source.EMPTY, "alias_name", field("a", DataTypes.LONG));
-        BytesStreamOutput bso = new BytesStreamOutput();
-        PlanStreamOutput out = new PlanStreamOutput(bso, planNameRegistry, null);
-        PlanNamedTypes.writeAlias(out, orig);
-        var in = planStreamInput(bso);
-        var deser = PlanNamedTypes.readAlias(in);
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(orig, unused -> deser);
-        assertThat(deser.id(), equalTo(in.mapNameId(Long.parseLong(orig.id().toString()))));
-    }
-
     public void testLiteralSimple() throws IOException {
         var orig = new Literal(Source.EMPTY, 1, DataTypes.INTEGER);
         BytesStreamOutput bso = new BytesStreamOutput();

@@ -7,16 +7,28 @@
 
 package org.elasticsearch.xpack.esql.expression;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
 public class NamedExpressions {
+    public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
+        List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
+        for (NamedWriteableRegistry.Entry e : Attribute.getNamedWriteables()) {
+            entries.add(new NamedWriteableRegistry.Entry(NamedExpression.class, e.name, in -> (NamedExpression) e.reader.read(in)));
+        }
+        entries.add(new NamedWriteableRegistry.Entry(NamedExpression.class, UnsupportedAttribute.ENTRY.name, UnsupportedAttribute::new));
+        entries.add(Alias.ENTRY);
+        return entries;
+    }
 
     /**
      * Calculates the actual output of a command given the new attributes plus the existing inputs that are emitted as outputs

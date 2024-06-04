@@ -133,6 +133,7 @@ public class Constants {
         "indices:data/write/xpack/connector/update_api_key_id",
         "indices:data/write/xpack/connector/update_configuration",
         "indices:data/write/xpack/connector/update_error",
+        "indices:data/write/xpack/connector/update_features",
         "indices:data/write/xpack/connector/update_filtering",
         "indices:data/write/xpack/connector/update_filtering/activate",
         "indices:data/write/xpack/connector/update_filtering/draft_validation",

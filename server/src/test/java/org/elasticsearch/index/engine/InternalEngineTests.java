@@ -145,6 +145,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -3737,6 +3738,14 @@ public class InternalEngineTests extends EngineTestCase {
             return super.addDocument(doc);
         }
 
+        @Override
+        public long addDocuments(Iterable<? extends Iterable<? extends IndexableField>> docs) throws IOException {
+            @SuppressWarnings("unchecked")
+            Collection<Iterable<? extends IndexableField>> col = asInstanceOf(Collection.class, docs);
+            assertThat(col, hasSize(1));
+            return addDocument(col.iterator().next());
+        }
+
         private void maybeThrowFailure() throws IOException {
             if (failureToThrow.get() != null) {
                 Exception failure = failureToThrow.get().get();
@@ -6991,6 +7000,14 @@ public class InternalEngineTests extends EngineTestCase {
                     throw ex;
                 }
                 return super.addDocument(doc);
+            }
+
+            @Override
+            public long addDocuments(Iterable<? extends Iterable<? extends IndexableField>> docs) throws IOException {
+                @SuppressWarnings("unchecked")
+                Collection<Iterable<? extends IndexableField>> col = asInstanceOf(Collection.class, docs);
+                assertThat(col, hasSize(1));
+                return addDocument(col.iterator().next());
             }
         };
         try (

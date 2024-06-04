@@ -14,7 +14,6 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -47,16 +46,16 @@ public class Sqrt extends UnaryScalarFunction {
         var field = toEvaluator.apply(field());
         var fieldType = field().dataType();
 
-        if (fieldType == DataTypes.DOUBLE) {
+        if (fieldType == DataType.DOUBLE) {
             return new SqrtDoubleEvaluator.Factory(source(), field);
         }
-        if (fieldType == DataTypes.INTEGER) {
+        if (fieldType == DataType.INTEGER) {
             return new SqrtIntEvaluator.Factory(source(), field);
         }
-        if (fieldType == DataTypes.LONG) {
+        if (fieldType == DataType.LONG) {
             return new SqrtLongEvaluator.Factory(source(), field);
         }
-        if (fieldType == DataTypes.UNSIGNED_LONG) {
+        if (fieldType == DataType.UNSIGNED_LONG) {
             return new SqrtUnsignedLongEvaluator.Factory(source(), field);
         }
 
@@ -104,7 +103,7 @@ public class Sqrt extends UnaryScalarFunction {
 
     @Override
     public DataType dataType() {
-        return DataTypes.DOUBLE;
+        return DataType.DOUBLE;
     }
 
     @Override

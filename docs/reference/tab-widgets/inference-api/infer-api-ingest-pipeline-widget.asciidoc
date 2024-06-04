@@ -31,6 +31,12 @@
             id="infer-api-ingest-azure-ai-studio">
       Azure AI Studio
     </button>
+    <button role="tab"
+            aria-selected="false"
+            aria-controls="infer-api-ingest-mistral-tab"
+            id="infer-api-ingest-mistral">
+      Mistral
+    </button>
   </div>
   <div tabindex="0"
        role="tabpanel"
@@ -77,12 +83,12 @@ include::infer-api-ingest-pipeline.asciidoc[tag=azure-openai]
   </div>
   <div tabindex="0"
        role="tabpanel"
-       id="infer-api-ingest-azure-ai-studio-tab"
-       aria-labelledby="infer-api-ingest-azure-ai-studio"
+       id="infer-api-ingest-mistral-tab"
+       aria-labelledby="infer-api-ingest-mistral"
        hidden="">
 ++++
 
-include::infer-api-ingest-pipeline.asciidoc[tag=azure-ai-studio]
+include::infer-api-ingest-pipeline.asciidoc[tag=mistral]
 
 ++++
   </div>

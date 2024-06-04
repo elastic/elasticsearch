@@ -58,7 +58,7 @@ public abstract class AbstractConvertFunction extends UnaryScalarFunction {
     /**
      * Build the evaluator given the evaluator a multivalued field.
      */
-    protected ExpressionEvaluator.Factory evaluator(ExpressionEvaluator.Factory fieldEval) {
+    protected final ExpressionEvaluator.Factory evaluator(ExpressionEvaluator.Factory fieldEval) {
         DataType sourceType = field().dataType();
         var factory = factories().get(sourceType);
         if (factory == null) {
@@ -98,6 +98,21 @@ public abstract class AbstractConvertFunction extends UnaryScalarFunction {
         ExpressionEvaluator.Factory build(ExpressionEvaluator.Factory field, Source source);
     }
 
+    /**
+     * A map from input type to {@link ExpressionEvaluator} ctor. Usually implemented like:
+     * <pre>{@code
+     *     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
+     *         Map.entry(BOOLEAN, (field, source) -> field),
+     *         Map.entry(KEYWORD, ToBooleanFromStringEvaluator.Factory::new),
+     *         ...
+     *     );
+     *
+     *     @Override
+     *     protected Map<DataType, BuildFactory> factories() {
+     *         return EVALUATORS;
+     *     }
+     * }</pre>
+     */
     protected abstract Map<DataType, BuildFactory> factories();
 
     @Override

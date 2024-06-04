@@ -11,6 +11,7 @@ package org.elasticsearch.cluster.metadata;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
@@ -1106,6 +1107,32 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             sourceIndexMetadata,
             false,
             TransportVersion.current()
+        );
+
+        assertThat(indexMetadata.getAliases().size(), is(1));
+        assertThat(indexMetadata.getAliases().keySet().iterator().next(), is("alias1"));
+        assertThat("The source index primary term must be used", indexMetadata.primaryTerm(0), is(3L));
+    }
+
+    public void testBuildIndexMetadataWithTransportVersionBeforeEventIngestedRangeAdded() {
+        IndexMetadata sourceIndexMetadata = IndexMetadata.builder("parent")
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build())
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .primaryTerm(0, 3L)
+            .build();
+
+        Settings indexSettings = indexSettings(IndexVersion.current(), 1, 0).build();
+        List<AliasMetadata> aliases = List.of(AliasMetadata.builder("alias1").build());
+        IndexMetadata indexMetadata = buildIndexMetadata(
+            "test",
+            aliases,
+            () -> null,
+            indexSettings,
+            4,
+            sourceIndexMetadata,
+            false,
+            randomFrom(TransportVersions.V_7_0_0, TransportVersions.V_8_0_0)
         );
 
         assertThat(indexMetadata.getAliases().size(), is(1));

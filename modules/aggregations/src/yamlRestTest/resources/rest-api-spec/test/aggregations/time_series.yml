@@ -294,8 +294,12 @@ setup:
 ---
 "Configure with no synthetic source":
   - requires:
-      cluster_features: ["gte_v8.15.0"]
-      reason: "Error message changed in 8.15.0"
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ logs_index_mode ]
+      reason: "The error for only supporting synthetic source changes when the logs index mode was added"
 
   - do:
       catch: '/Indices with with index mode \[time_series\] only support synthetic source/'

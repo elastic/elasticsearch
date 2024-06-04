@@ -41,7 +41,9 @@ public class AutoscalerService {
             long newSuccessCount = successCount + value.successCount;
             long newPendingCount = pendingCount + value.pendingCount;
             long newFailedCount = failedCount + value.failedCount;
-            double newInferenceTime = newSuccessCount > 0 ? (totalInferenceTime() + value.totalInferenceTime()) / newSuccessCount : Double.NaN;
+            double newInferenceTime = newSuccessCount > 0
+                ? (totalInferenceTime() + value.totalInferenceTime()) / newSuccessCount
+                : Double.NaN;
             return new Stats(newSuccessCount, newPendingCount, newFailedCount, newInferenceTime);
         }
 
@@ -49,7 +51,9 @@ public class AutoscalerService {
             long newSuccessCount = successCount - value.successCount;
             long newPendingCount = pendingCount - value.pendingCount;
             long newFailedCount = failedCount - value.failedCount;
-            double newInferenceTime = newSuccessCount > 0 ? (totalInferenceTime() - value.totalInferenceTime()) / newSuccessCount : Double.NaN;
+            double newInferenceTime = newSuccessCount > 0
+                ? (totalInferenceTime() - value.totalInferenceTime()) / newSuccessCount
+                : Double.NaN;
             return new Stats(newSuccessCount, newPendingCount, newFailedCount, newInferenceTime);
         }
     }
@@ -82,7 +86,7 @@ public class AutoscalerService {
         if (isNlpEnabled == false) {
             return;
         }
-        logger.info("Starting ML inference autoscaler");
+        logger.debug("Starting ML inference autoscaler");
         scheduleNextTrigger();
     }
 
@@ -105,16 +109,14 @@ public class AutoscalerService {
 
     private synchronized void trigger() {
         scheduleNextTrigger();
-        getDeploymentStats(ActionListener.wrap(
-            this::processDeploymentStats,
-            e -> logger.warn("Error in inference autoscaling", e))
-        );
+        getDeploymentStats(ActionListener.wrap(this::processDeploymentStats, e -> logger.warn("Error in inference autoscaling", e)));
     }
 
     private void getDeploymentStats(ActionListener<GetDeploymentStatsAction.Response> processDeploymentStats) {
         TrainedModelAssignmentMetadata assignmentMetadata = TrainedModelAssignmentMetadata.fromState(clusterService.state());
         String deploymentIds = String.join(",", assignmentMetadata.allAssignments().keySet());
-        ClientHelper.executeAsyncWithOrigin(client,
+        ClientHelper.executeAsyncWithOrigin(
+            client,
             ClientHelper.ML_ORIGIN,
             GetDeploymentStatsAction.INSTANCE,
             new GetDeploymentStatsAction.Request(deploymentIds),
@@ -141,10 +143,10 @@ public class AutoscalerService {
                 lastInferenceStatsByDeploymentNode.put(statsId, nextStats);
 
                 Stats recentStats = (lastStats == null ? nextStats : nextStats.sub(lastStats));
-                recentStatsByDeployment.compute(assignmentStats.getDeploymentId(),
+                recentStatsByDeployment.compute(
+                    assignmentStats.getDeploymentId(),
                     (key, value) -> value == null ? recentStats : value.add(recentStats)
                 );
-                logger.info("inference deployment node stats: {} {}", statsId, recentStats);
             }
         }
 
@@ -152,19 +154,27 @@ public class AutoscalerService {
             String deploymentId = deploymentAndStats.getKey();
             Stats stats = deploymentAndStats.getValue();
 
-            Autoscaler autoscaler = autoscalers.computeIfAbsent(deploymentId, key -> new Autoscaler(deploymentId, numberOfAllocations.get(deploymentId)));
+            Autoscaler autoscaler = autoscalers.computeIfAbsent(
+                deploymentId,
+                key -> new Autoscaler(deploymentId, numberOfAllocations.get(deploymentId))
+            );
             autoscaler.process(stats, TIME_INTERVAL_SECONDS, numberOfAllocations.get(deploymentId));
             Integer newNumberOfAllocations = autoscaler.autoscale();
             if (newNumberOfAllocations != null) {
                 UpdateTrainedModelDeploymentAction.Request updateRequest = new UpdateTrainedModelDeploymentAction.Request(deploymentId);
                 updateRequest.setNumberOfAllocations(newNumberOfAllocations);
-                ClientHelper.executeAsyncWithOrigin(client,
+                ClientHelper.executeAsyncWithOrigin(
+                    client,
                     ClientHelper.ML_ORIGIN,
                     UpdateTrainedModelDeploymentAction.INSTANCE,
                     updateRequest,
                     ActionListener.wrap(
-                        updateResponse -> logger.info("Autoscaled deployment [{}] to [{}] allocations.", deploymentId, newNumberOfAllocations),
-                        e -> logger.warn("Autoscaling deployment [{}] failed", deploymentId, e)
+                        updateResponse -> logger.info(
+                            "Autoscaled deployment [{}] to [{}] allocations.",
+                            deploymentId,
+                            newNumberOfAllocations
+                        ),
+                        e -> logger.warn("Autoscaling deployment [{}] to [{}] allocations failed.", deploymentId, newNumberOfAllocations, e)
                     )
                 );
             }

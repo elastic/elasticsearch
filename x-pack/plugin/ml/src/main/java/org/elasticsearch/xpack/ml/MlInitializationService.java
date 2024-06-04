@@ -84,12 +84,7 @@ public final class MlInitializationService implements ClusterStateListener {
                 isDataFrameAnalyticsEnabled,
                 isNlpEnabled
             ),
-            new AutoscalerService(
-                threadPool,
-                clusterService,
-                client,
-                isNlpEnabled
-            ),
+            new AutoscalerService(threadPool, clusterService, client, isNlpEnabled),
             clusterService
         );
     }

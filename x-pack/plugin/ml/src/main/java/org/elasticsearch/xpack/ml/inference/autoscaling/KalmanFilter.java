@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.ml.inference.autoscaling;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 /**
  * Estimator for the mean value and stderr of a series of measurements.
  * <br>
@@ -16,6 +19,9 @@ package org.elasticsearch.xpack.ml.inference.autoscaling;
  */
 class KalmanFilter {
 
+    private static final Logger logger = LogManager.getLogger(KalmanFilter.class);
+
+    private final String name;
     private final double smoothingFactor;
     private final boolean autodetectDynamicsChange;
 
@@ -23,7 +29,8 @@ class KalmanFilter {
     private double variance;
     private boolean dynamicsChangedLastTime;
 
-    KalmanFilter(double smoothingFactor, boolean autodetectDynamicsChange) {
+    KalmanFilter(String name, double smoothingFactor, boolean autodetectDynamicsChange) {
+        this.name = name;
         this.smoothingFactor = smoothingFactor;
         this.autodetectDynamicsChange = autodetectDynamicsChange;
         this.value = Double.MAX_VALUE;
@@ -35,31 +42,38 @@ class KalmanFilter {
      * Adds a measurement (value, variance) to the estimator.
      * dynamicChangedExternal indicates whether the underlying possibly changed before this measurement.
      */
-     void add(double value, double variance, boolean dynamicChangedExternal) {
-         if (hasValue() == false) {
-             this.value = value;
-             this.variance = variance;
-             this.dynamicsChangedLastTime = true;
-             return;
-         }
+    void add(double value, double variance, boolean dynamicChangedExternal) {
+        boolean dynamicChanged;
+        if (hasValue() == false) {
+            dynamicChanged = true;
+            this.value = value;
+            this.variance = variance;
+        } else {
+            double processVariance = variance / smoothingFactor;
+            dynamicChanged = dynamicChangedExternal || detectDynamicsChange(value, variance);
+            if (dynamicChanged || dynamicsChangedLastTime) {
+                // If we know we likely had a change in the quantity we're estimating or the prediction
+                // is 10 stddev off, we inject extra noise in the dynamics for this step.
+                processVariance = Math.pow(value, 2);
+            }
 
-         System.out.println("ADDING: " + value + " +/- " + Math.sqrt(variance));
-         double processVariance = variance / smoothingFactor;
-         boolean dynamicChanged = dynamicChangedExternal || detectDynamicsChange(value, variance);
-         if (dynamicChanged || dynamicsChangedLastTime) {
-             // If we know we likely had a change in the quantity we're estimating or the prediction
-             // is 10 stddev off, we inject extra noise in the dynamics for this step.
-             System.out.println("DYNAMIC CHANGE external=" + dynamicChangedExternal);
-             processVariance = Math.pow(value, 2);
-         }
-         dynamicsChangedLastTime = dynamicChanged;
-
-         System.out.println("OLDVAL: " + this.value + " +/- " + Math.sqrt(this.variance));
-         double gain = (this.variance + processVariance) / (this.variance + processVariance + variance);
-         this.value += gain * (value - this.value);
-         this.variance = (1 - gain) * (this.variance + processVariance);
-         System.out.println("NEWVAL: " + this.value + " +/- " + Math.sqrt(this.variance));
-     }
+            double gain = (this.variance + processVariance) / (this.variance + processVariance + variance);
+            this.value += gain * (value - this.value);
+            this.variance = (1 - gain) * (this.variance + processVariance);
+        }
+        dynamicsChangedLastTime = dynamicChanged;
+        logger.debug(
+            () -> String.format(
+                "[%s] measurement %.3f ± %.3f: estimate %.3f ± %.3f (dynamic changed: %s).",
+                name,
+                value,
+                Math.sqrt(variance),
+                this.value,
+                Math.sqrt(this.variance),
+                dynamicChanged
+            )
+        );
+    }
 
     /**
      * Returns whether the estimator has received data and contains a value.
@@ -83,14 +97,14 @@ class KalmanFilter {
     }
 
     /**
-     * Returns the lowerbound of the 95% confidence interval of the estimate.
+     * Returns the lowerbound of the 1 stddev confidence interval of the estimate.
      */
     double lower() {
         return value - error();
     }
 
     /**
-     * Returns the upperbound of the 95% confidence interval of the estimate.
+     * Returns the upperbound of the 1 stddev confidence interval of the estimate.
      */
     double upper() {
         return value + error();
@@ -101,7 +115,6 @@ class KalmanFilter {
      * the underlying dynamics have changed.
      */
     private boolean detectDynamicsChange(double value, double variance) {
-        return hasValue() && autodetectDynamicsChange
-            && Math.pow(Math.abs(value - this.value), 2) / (variance + this.variance) > 100.0;
+        return hasValue() && autodetectDynamicsChange && Math.pow(Math.abs(value - this.value), 2) / (variance + this.variance) > 100.0;
     }
 }

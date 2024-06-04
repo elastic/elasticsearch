@@ -26,8 +26,8 @@ public class Autoscaler {
 
     Autoscaler(String deploymentId, int numberOfAllocations) {
         this.deploymentId = deploymentId;
-        requestRateEstimator = new KalmanFilter(100, true);
-        inferenceTimeEstimator = new KalmanFilter(100, false);
+        requestRateEstimator = new KalmanFilter(deploymentId + ":rate", 100, true);
+        inferenceTimeEstimator = new KalmanFilter(deploymentId + ":time", 100, false);
         this.numberOfAllocations = numberOfAllocations;
         this.dynamicsChanged = false;
     }
@@ -71,20 +71,24 @@ public class Autoscaler {
         }
 
         if (numberOfAllocations != oldNumberOfAllocations) {
-            logger.info(
-                "Inference autoscaling [{}]: load in [{}, {}], scale to {} allocations.",
-                deploymentId,
-                loadLower,
-                loadUpper,
-                numberOfAllocations
+            logger.debug(
+                () -> String.format(
+                    "[%s] Inference autoscaling: load in [%.3f, %.3f], scaling to %d allocations.",
+                    deploymentId,
+                    loadLower,
+                    loadUpper,
+                    numberOfAllocations
+                )
             );
         } else {
-            logger.info(
-                "Inference autoscaling [{}]: load in [{}, {}], keep {} allocations.",
-                deploymentId,
-                loadLower,
-                loadUpper,
-                numberOfAllocations
+            logger.debug(
+                () -> String.format(
+                    "[%s] Inference autoscaling: load in [%.3f, %.3f], keeping %d allocations.",
+                    deploymentId,
+                    loadLower,
+                    loadUpper,
+                    numberOfAllocations
+                )
             );
         }
 

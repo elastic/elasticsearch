@@ -58,7 +58,6 @@ import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
 import java.io.IOException;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
@@ -364,7 +363,6 @@ public class DeploymentManager {
         }
 
         final long requestId = requestIdCounter.getAndIncrement();
-        //System.out.println("INFER(" + requestId + "): " + input.extractInput(new TrainedModelInput(List.of("text_field"))));
         InferencePyTorchAction inferenceAction = new InferencePyTorchAction(
             task.getDeploymentId(),
             requestId,

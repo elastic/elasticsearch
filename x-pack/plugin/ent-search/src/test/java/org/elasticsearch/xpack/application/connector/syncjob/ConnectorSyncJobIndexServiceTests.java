@@ -56,6 +56,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xpack.application.connector.ConnectorTemplateRegistry.ACCESS_CONTROL_INDEX_PREFIX;
 import static org.elasticsearch.xpack.application.connector.ConnectorTestUtils.registerSimplifiedConnectorIndexTemplates;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -129,6 +130,18 @@ public class ConnectorSyncJobIndexServiceTests extends ESSingleNodeTestCase {
         assertThat(connectorSyncJob.getIndexedDocumentCount(), equalTo(0L));
         assertThat(connectorSyncJob.getIndexedDocumentVolume(), equalTo(0L));
         assertThat(connectorSyncJob.getDeletedDocumentCount(), equalTo(0L));
+    }
+
+    public void testCreateConnectorSyncJob_WithAccessControlJobType_IndexIsPrefixed() throws Exception {
+        PostConnectorSyncJobAction.Request createAccessControlJobRequest = ConnectorSyncJobTestUtils
+            .getRandomPostConnectorSyncJobActionRequest(connectorOneId, ConnectorSyncJobType.ACCESS_CONTROL);
+
+        PostConnectorSyncJobAction.Response createAccessControlJobResponse = awaitPutConnectorSyncJob(createAccessControlJobRequest);
+
+        ConnectorSyncJob connectorSyncJob = awaitGetConnectorSyncJob(createAccessControlJobResponse.getId());
+
+        assertThat(connectorSyncJob.getJobType(), equalTo(ConnectorSyncJobType.ACCESS_CONTROL));
+        assertTrue(connectorSyncJob.getConnector().getIndexName().startsWith(ACCESS_CONTROL_INDEX_PREFIX));
     }
 
     public void testCreateConnectorSyncJob_WithMissingJobType_ExpectDefaultJobTypeToBeSet() throws Exception {

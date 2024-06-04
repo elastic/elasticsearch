@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
 import java.time.ZoneId;
 import java.util.Map;
@@ -28,10 +27,10 @@ public class NotEquals extends EsqlBinaryComparison implements Negatable<EsqlBin
         Map.entry(DataTypes.LONG, NotEqualsLongsEvaluator.Factory::new),
         Map.entry(DataTypes.UNSIGNED_LONG, NotEqualsLongsEvaluator.Factory::new),
         Map.entry(DataTypes.DATETIME, NotEqualsLongsEvaluator.Factory::new),
-        Map.entry(EsqlDataTypes.GEO_POINT, NotEqualsGeometriesEvaluator.Factory::new),
-        Map.entry(EsqlDataTypes.CARTESIAN_POINT, NotEqualsGeometriesEvaluator.Factory::new),
-        Map.entry(EsqlDataTypes.GEO_SHAPE, NotEqualsGeometriesEvaluator.Factory::new),
-        Map.entry(EsqlDataTypes.CARTESIAN_SHAPE, NotEqualsGeometriesEvaluator.Factory::new),
+        Map.entry(DataTypes.GEO_POINT, NotEqualsGeometriesEvaluator.Factory::new),
+        Map.entry(DataTypes.CARTESIAN_POINT, NotEqualsGeometriesEvaluator.Factory::new),
+        Map.entry(DataTypes.GEO_SHAPE, NotEqualsGeometriesEvaluator.Factory::new),
+        Map.entry(DataTypes.CARTESIAN_SHAPE, NotEqualsGeometriesEvaluator.Factory::new),
         Map.entry(DataTypes.KEYWORD, NotEqualsKeywordsEvaluator.Factory::new),
         Map.entry(DataTypes.TEXT, NotEqualsKeywordsEvaluator.Factory::new),
         Map.entry(DataTypes.VERSION, NotEqualsKeywordsEvaluator.Factory::new),

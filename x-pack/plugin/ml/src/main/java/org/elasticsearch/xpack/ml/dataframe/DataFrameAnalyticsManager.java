@@ -297,7 +297,7 @@ public class DataFrameAnalyticsManager {
             config,
             listener.delegateFailureAndWrap((delegate, extractedFieldsDetector) -> {
                 ExtractedFields extractedFields = extractedFieldsDetector.detect().v1();
-                InferenceRunner inferenceRunner = new InferenceRunner(
+                InferenceRunner inferenceRunner = InferenceRunner.create(
                     settings,
                     parentTaskClient,
                     modelLoadingService,

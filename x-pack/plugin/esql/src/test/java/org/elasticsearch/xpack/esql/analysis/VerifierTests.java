@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.analysis;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.QueryParam;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
@@ -310,7 +311,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testUnsignedLongTypeMixInComparisons() {
-        List<String> types = EsqlDataTypes.types()
+        List<String> types = DataTypes.types()
             .stream()
             .filter(dt -> dt.isNumeric() && EsqlDataTypes.isRepresentable(dt) && dt != UNSIGNED_LONG)
             .map(DataType::typeName)
@@ -348,7 +349,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testUnsignedLongTypeMixInArithmetics() {
-        List<String> types = EsqlDataTypes.types()
+        List<String> types = DataTypes.types()
             .stream()
             .filter(dt -> dt.isNumeric() && EsqlDataTypes.isRepresentable(dt) && dt != UNSIGNED_LONG)
             .map(DataType::typeName)

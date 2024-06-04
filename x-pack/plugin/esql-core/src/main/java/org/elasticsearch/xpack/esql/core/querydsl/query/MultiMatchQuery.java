@@ -21,7 +21,7 @@ import java.util.function.BiConsumer;
 
 import static java.util.Map.entry;
 
-public class MultiMatchQuery extends LeafQuery {
+public class MultiMatchQuery extends Query {
 
     private static final Map<String, BiConsumer<MultiMatchQueryBuilder, String>> BUILDER_APPLIERS;
 

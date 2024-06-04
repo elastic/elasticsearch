@@ -51,7 +51,6 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Gre
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
 import java.time.Duration;
 import java.time.ZoneOffset;
@@ -84,7 +83,7 @@ public class EvalMapperTests extends ESTestCase {
     public static List<Object[]> params() {
         Literal literal = new Literal(Source.EMPTY, new BytesRef("something"), DataTypes.KEYWORD);
         Literal datePattern = new Literal(Source.EMPTY, new BytesRef("yyyy"), DataTypes.KEYWORD);
-        Literal dateInterval = new Literal(Source.EMPTY, Duration.ofHours(1), EsqlDataTypes.TIME_DURATION);
+        Literal dateInterval = new Literal(Source.EMPTY, Duration.ofHours(1), DataTypes.TIME_DURATION);
 
         List<Object[]> params = new ArrayList<>();
         for (Expression e : new Expression[] {

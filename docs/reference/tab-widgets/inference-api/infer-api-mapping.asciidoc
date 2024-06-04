@@ -184,7 +184,7 @@ PUT mistral-embeddings
     "properties": {
       "content_embedding": { <1>
         "type": "dense_vector", <2>
-        "dims": 1536, <3>
+        "dims": 1024, <3>
         "element_type": "float",
         "similarity": "dot_product" <4>
       },

@@ -7,11 +7,13 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
+import java.util.function.Function;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasables;
@@ -25,14 +27,17 @@ import org.elasticsearch.xpack.esql.expression.function.Warnings;
 public final class RepeatConstantEvaluator implements EvalOperator.ExpressionEvaluator {
   private final Warnings warnings;
 
+  private final BreakingBytesRefBuilder scratch;
+
   private final EvalOperator.ExpressionEvaluator str;
 
   private final int number;
 
   private final DriverContext driverContext;
 
-  public RepeatConstantEvaluator(Source source, EvalOperator.ExpressionEvaluator str, int number,
-      DriverContext driverContext) {
+  public RepeatConstantEvaluator(Source source, BreakingBytesRefBuilder scratch,
+      EvalOperator.ExpressionEvaluator str, int number, DriverContext driverContext) {
+    this.scratch = scratch;
     this.str = str;
     this.number = number;
     this.driverContext = driverContext;
@@ -66,7 +71,7 @@ public final class RepeatConstantEvaluator implements EvalOperator.ExpressionEva
           continue position;
         }
         try {
-          result.appendBytesRef(Repeat.processConstantNumber(strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch), number));
+          result.appendBytesRef(Repeat.processConstantNumber(scratch, strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch), number));
         } catch (IllegalArgumentException e) {
           warnings.registerException(e);
           result.appendNull();
@@ -81,7 +86,7 @@ public final class RepeatConstantEvaluator implements EvalOperator.ExpressionEva
       BytesRef strScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         try {
-          result.appendBytesRef(Repeat.processConstantNumber(strVector.getBytesRef(p, strScratch), number));
+          result.appendBytesRef(Repeat.processConstantNumber(scratch, strVector.getBytesRef(p, strScratch), number));
         } catch (IllegalArgumentException e) {
           warnings.registerException(e);
           result.appendNull();
@@ -98,25 +103,29 @@ public final class RepeatConstantEvaluator implements EvalOperator.ExpressionEva
 
   @Override
   public void close() {
-    Releasables.closeExpectNoException(str);
+    Releasables.closeExpectNoException(scratch, str);
   }
 
   static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
     private final Source source;
 
+    private final Function<DriverContext, BreakingBytesRefBuilder> scratch;
+
     private final EvalOperator.ExpressionEvaluator.Factory str;
 
     private final int number;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory str, int number) {
+    public Factory(Source source, Function<DriverContext, BreakingBytesRefBuilder> scratch,
+        EvalOperator.ExpressionEvaluator.Factory str, int number) {
       this.source = source;
+      this.scratch = scratch;
       this.str = str;
       this.number = number;
     }
 
     @Override
     public RepeatConstantEvaluator get(DriverContext context) {
-      return new RepeatConstantEvaluator(source, str.get(context), number, context);
+      return new RepeatConstantEvaluator(source, scratch.apply(context), str.get(context), number, context);
     }
 
     @Override

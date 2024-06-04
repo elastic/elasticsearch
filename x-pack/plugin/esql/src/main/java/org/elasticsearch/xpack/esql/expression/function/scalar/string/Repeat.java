@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
+import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.function.OptionalArgument;
@@ -79,31 +80,35 @@ public class Repeat extends EsqlScalarFunction implements OptionalArgument {
     }
 
     @Evaluator(extraName = "Constant", warnExceptions = { IllegalArgumentException.class })
-    static BytesRef processConstantNumber(BytesRef str, @Fixed int number) {
-        return processInner(str, number);
+    static BytesRef processConstantNumber(
+        @Fixed(includeInToString = false, build = true) BreakingBytesRefBuilder scratch,
+        BytesRef str,
+        @Fixed int number
+    ) {
+        return processInner(scratch, str, number);
     }
 
     @Evaluator(warnExceptions = { IllegalArgumentException.class })
-    static BytesRef process(BytesRef str, int number) {
+    static BytesRef process(@Fixed(includeInToString = false, build = true) BreakingBytesRefBuilder scratch, BytesRef str, int number) {
         if (number < 0) {
             throw new IllegalArgumentException("Number parameter cannot be negative, found [" + number + "]");
         }
-        return processInner(str, number);
+        return processInner(scratch, str, number);
     }
 
-    static BytesRef processInner(BytesRef str, int number) {
+    static BytesRef processInner(BreakingBytesRefBuilder scratch, BytesRef str, int number) {
         int repeatedLen = str.length * number;
         if (repeatedLen > MAX_REPEATED_LENGTH) {
             throw new IllegalArgumentException(
                 "Creating repeated strings with more than [" + MAX_REPEATED_LENGTH + "] bytes is not supported"
             );
         }
-
-        byte[] repeated = new byte[repeatedLen];
-        for (int offset = 0; offset < repeatedLen; offset += str.length) {
-            System.arraycopy(str.bytes, str.offset, repeated, offset, str.length);
+        scratch.grow(repeatedLen);
+        scratch.clear();
+        for (int i = 0; i < number; ++i) {
+            scratch.append(str);
         }
-        return new BytesRef(repeated);
+        return scratch.bytesRefView();
     }
 
     @Override
@@ -125,10 +130,20 @@ public class Repeat extends EsqlScalarFunction implements OptionalArgument {
             if (num < 0) {
                 throw new IllegalArgumentException("Number parameter cannot be negative, found [" + number + "]");
             }
-            return new RepeatConstantEvaluator.Factory(source(), strExpr, num);
+            return new RepeatConstantEvaluator.Factory(
+                source(),
+                context -> new BreakingBytesRefBuilder(context.breaker(), "repeat"),
+                strExpr,
+                num
+            );
         }
 
         ExpressionEvaluator.Factory numberExpr = toEvaluator.apply(number);
-        return new RepeatEvaluator.Factory(source(), strExpr, numberExpr);
+        return new RepeatEvaluator.Factory(
+            source(),
+            context -> new BreakingBytesRefBuilder(context.breaker(), "repeat"),
+            strExpr,
+            numberExpr
+        );
     }
 }

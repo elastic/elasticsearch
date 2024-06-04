@@ -15,7 +15,7 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractConfigurationFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.Now;
@@ -42,7 +42,7 @@ public class NowTests extends AbstractConfigurationFunctionTestCase {
                     () -> new TestCaseSupplier.TestCase(
                         List.of(),
                         matchesPattern("LiteralsEvaluator\\[lit=.*\\]"),
-                        DataTypes.DATETIME,
+                        DataType.DATETIME,
                         equalTo(EsqlTestUtils.TEST_CFG.now().toInstant().toEpochMilli())
                     )
                 )

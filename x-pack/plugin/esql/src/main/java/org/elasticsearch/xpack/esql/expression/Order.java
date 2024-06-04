@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.esql.expression;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.util.List;
 
@@ -21,7 +21,7 @@ public class Order extends org.elasticsearch.xpack.esql.core.expression.Order {
 
     @Override
     protected TypeResolution resolveType() {
-        if (DataTypes.isString(child().dataType())) {
+        if (DataType.isString(child().dataType())) {
             return TypeResolution.TYPE_RESOLVED;
         }
         return super.resolveType();

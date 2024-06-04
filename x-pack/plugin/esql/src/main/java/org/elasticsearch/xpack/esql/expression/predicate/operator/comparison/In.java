@@ -66,7 +66,6 @@ public class In extends org.elasticsearch.xpack.esql.core.expression.predicate.o
         Function<Expression, EvalOperator.ExpressionEvaluator.Factory> toEvaluator) {
         var commonType = commonType();
         EvalOperator.ExpressionEvaluator.Factory lhs;
-        EvalOperator.ExpressionEvaluator.Factory rhs;
         EvalOperator.ExpressionEvaluator.Factory[] factories;
         if (commonType.isNumeric()) {
             lhs = Cast.cast(source(), value().dataType(), commonType, toEvaluator.apply(value()));
@@ -108,6 +107,9 @@ public class In extends org.elasticsearch.xpack.esql.core.expression.predicate.o
     private DataType commonType() {
         DataType commonType = value().dataType();
         for (Expression e : list()) {
+            if (e.dataType() == DataTypes.NULL && value().dataType() != DataTypes.NULL) {
+                continue;
+            }
             commonType = EsqlDataTypeRegistry.INSTANCE.commonType(commonType, e.dataType());
         }
         return commonType;

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.core.type;
 
-import java.io.IOException;
 import java.util.Map;
 
 public class TextEsFieldTests extends AbstractEsFieldTypeTests<TextEsField> {
@@ -25,7 +24,7 @@ public class TextEsFieldTests extends AbstractEsFieldTypeTests<TextEsField> {
     }
 
     @Override
-    protected TextEsField mutate(TextEsField instance) throws IOException {
+    protected TextEsField mutate(TextEsField instance) {
         String name = instance.getName();
         Map<String, EsField> properties = instance.getProperties();
         boolean hasDocValues = instance.isAggregatable();

@@ -209,6 +209,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         }
 
         final MountSearchableSnapshotRequest req = new MountSearchableSnapshotRequest(
+            TEST_REQUEST_TIMEOUT,
             restoredIndexName,
             fsRepoName,
             snapshotInfo.snapshotId().getName(),
@@ -398,6 +399,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
 
         Settings.Builder indexSettingsBuilder = Settings.builder().put(SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), true);
         final MountSearchableSnapshotRequest req = new MountSearchableSnapshotRequest(
+            TEST_REQUEST_TIMEOUT,
             restoredIndexName,
             fsRepoName,
             snapshotName,
@@ -466,6 +468,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
 
         logger.info("--> restoring index [{}] using rate limits [{}]", restoredIndexName, useRateLimits);
         final MountSearchableSnapshotRequest mount = new MountSearchableSnapshotRequest(
+            TEST_REQUEST_TIMEOUT,
             restoredIndexName,
             repositoryName,
             snapshotName,
@@ -550,6 +553,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
             Settings.Builder indexSettingsBuilder = Settings.builder()
                 .put(SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), true);
             final MountSearchableSnapshotRequest req = new MountSearchableSnapshotRequest(
+                TEST_REQUEST_TIMEOUT,
                 restoredIndexName,
                 fsRepoName,
                 snapshotName,
@@ -582,6 +586,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
                 .put(SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), true)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, replicaCount);
             final MountSearchableSnapshotRequest req = new MountSearchableSnapshotRequest(
+                TEST_REQUEST_TIMEOUT,
                 restoredIndexName,
                 fsRepoName,
                 snapshotName,
@@ -613,6 +618,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
                 .put(SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), true)
                 .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, replicaLimit == dataNodesCount ? "0-all" : "0-" + replicaLimit);
             final MountSearchableSnapshotRequest req = new MountSearchableSnapshotRequest(
+                TEST_REQUEST_TIMEOUT,
                 restoredIndexName,
                 fsRepoName,
                 snapshotName,
@@ -1191,6 +1197,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         ActionFuture<RestoreSnapshotResponse> response = null;
         try {
             final MountSearchableSnapshotRequest mountRequest = new MountSearchableSnapshotRequest(
+                TEST_REQUEST_TIMEOUT,
                 indexName,
                 repositoryName,
                 snapshotOne.getName(),

@@ -5,12 +5,13 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.core.expression;
+package org.elasticsearch.xpack.esql.expression;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.TestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression.TypeResolution;
-import org.elasticsearch.xpack.esql.core.expression.predicate.operator.arithmetic.Mul;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
 
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 

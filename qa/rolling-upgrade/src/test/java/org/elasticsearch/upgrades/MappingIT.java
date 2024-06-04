@@ -10,7 +10,11 @@ package org.elasticsearch.upgrades;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+
+import java.io.IOException;
 
 public class MappingIT extends AbstractRollingTestCase {
     /**
@@ -48,4 +52,28 @@ public class MappingIT extends AbstractRollingTestCase {
                 break;
         }
     }
+
+    public void testMapperDynamicIndexSetting() throws IOException {
+        assumeTrue("Setting not removed before 7.0", UPGRADE_FROM_VERSION.onOrAfter(Version.V_7_0_0));
+        switch (CLUSTER_TYPE) {
+            case OLD:
+                createIndex("my-index", Settings.EMPTY);
+
+                Request request = new Request("PUT", "/my-index/_settings");
+                request.setJsonEntity(Strings.toString(Settings.builder().put("index.mapper.dynamic", true).build()));
+                request.setOptions(
+                    expectWarnings(
+                        "[index.mapper.dynamic] setting was deprecated in Elasticsearch and will be removed in a future release! "
+                            + "See the breaking changes documentation for the next major version."
+                    )
+                );
+                assertOK(client().performRequest(request));
+                break;
+            case MIXED:
+            case UPGRADED:
+                ensureGreen("my-index");
+                break;
+        }
+    }
+
 }

@@ -26,7 +26,7 @@ public class AzureAndOpenAiErrorResponseEntityTests extends ESTestCase {
         var result = getMockResult("""
             {"error":{"message":"test_error_message"}}""");
 
-        var error = AzureAndOpenAiErrorResponseEntity.fromResponse(result);
+        var error = AzureMistralOpenAiErrorResponseEntity.fromResponse(result);
         assertNotNull(error);
         assertThat(error.getErrorMessage(), is("test_error_message"));
     }
@@ -35,14 +35,14 @@ public class AzureAndOpenAiErrorResponseEntityTests extends ESTestCase {
         var result = getMockResult("""
             {"noerror":true}""");
 
-        var error = AzureAndOpenAiErrorResponseEntity.fromResponse(result);
+        var error = AzureMistralOpenAiErrorResponseEntity.fromResponse(result);
         assertNull(error);
     }
 
     public void testErrorResponse_ReturnsNullIfNotJson() {
         var result = getMockResult("not a json string");
 
-        var error = AzureAndOpenAiErrorResponseEntity.fromResponse(result);
+        var error = AzureMistralOpenAiErrorResponseEntity.fromResponse(result);
         assertNull(error);
     }
 }

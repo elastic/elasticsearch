@@ -7,6 +7,8 @@
 
 package org.elasticsearch.blobcache.common;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -25,6 +27,8 @@ import java.util.function.Supplier;
  * the progress value passed to the listeners on execution is the last updated value.
  */
 class ProgressListenableActionFuture extends PlainActionFuture<Long> {
+
+    private static final Logger logger = LogManager.getLogger(ProgressListenableActionFuture.class);
 
     private record PositionAndListener(long position, ActionListener<Long> listener) {}
 
@@ -208,7 +212,7 @@ class ProgressListenableActionFuture extends PlainActionFuture<Long> {
             consumer.accept(progress);
         } catch (Exception e) {
             assert false : e;
-            throw e;
+            logger.warn("Failed to consume progress value", e);
         }
     }
 

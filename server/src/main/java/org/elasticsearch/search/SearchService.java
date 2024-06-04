@@ -672,7 +672,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     private SearchPhaseResult executeQueryPhase(ShardSearchRequest request, SearchShardTask task) throws Exception {
         ProfilerState.getInstance().incrementQueryCount();
         if(ProfilerState.getInstance().getStatus() == 1){
-            ProfilerState.getInstance().getIndex_query_count().merge(request.indices()[0],1,Integer::sum);
+            ProfilerState.getInstance().getIndex_query_count().computeIfAbsent(request.indices()[0],k->new AtomicLong(0)).addAndGet(1);
         }
 
        // ProfilerState.getInstance().getIndex_query_count().merge(request.indices()[0],1,Integer::sum);

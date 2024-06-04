@@ -8,19 +8,20 @@
 
 package org.elasticsearch.myprofiler;
 
-import java.util.HashMap;
-import java.util.Map;
+
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 
 public class ProfilerState {
     private static ProfilerState instance;
     private boolean profiling;
-    private int queryCount;
-    private Map<String,Integer> index_query_count;
+    private AtomicLong queryCount;
+    private ConcurrentHashMap<String,AtomicLong> index_query_count;
 
     private ProfilerState() {
         this.profiling = false;
-        this.queryCount = 0;
-        this.index_query_count = new HashMap<>();
+        this.queryCount = new AtomicLong(0);
+        this.index_query_count = new ConcurrentHashMap<>();
     }
 
     public static synchronized ProfilerState getInstance() {
@@ -30,35 +31,32 @@ public class ProfilerState {
         return instance;
     }
 
-    public synchronized void enableProfiling() {
+    public void enableProfiling() {
         this.profiling = true;
     }
 
-    public synchronized void disableProfiling() {
+    public void disableProfiling() {
         this.profiling = false;
     }
 
-    public synchronized void incrementQueryCount() {
+    public void incrementQueryCount() {
         if (profiling) {
-            queryCount++;
+            queryCount.incrementAndGet();
         }
     }
 
     public synchronized int getStatus(){
-        if(profiling){
-            return 1;
-        }
-        else return 0;
+        return profiling ? 1:0;
     }
 
-    public synchronized int getQueryCount() {
-        return queryCount;
+    public long getQueryCount() {
+        return queryCount.get();
     }
 
-    public synchronized void resetQueryCount() {
-        queryCount = 0;
+    public void resetQueryCount() {
+        queryCount.set(0);
     }
-    public synchronized Map<String,Integer> getIndex_query_count(){
+    public synchronized ConcurrentHashMap<String, AtomicLong> getIndex_query_count(){
         return index_query_count;
     }
 }

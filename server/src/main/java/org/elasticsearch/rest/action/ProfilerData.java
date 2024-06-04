@@ -18,6 +18,8 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 
 public class ProfilerData extends BaseRestHandler {
     @Override
@@ -40,14 +42,14 @@ public class ProfilerData extends BaseRestHandler {
         // int count = 2;
         return channel -> {
             try {
-                Map<String, Integer> indexquerycount = ProfilerState.getInstance().getIndex_query_count();
+                ConcurrentHashMap<String, AtomicLong> indexquerycount = ProfilerState.getInstance().getIndex_query_count();
                 XContentBuilder builder = channel.newBuilder();
                 builder.startObject();
                 builder.startArray("indices");
-                for (Map.Entry<String, Integer> entry : indexquerycount.entrySet()) {
+                for (Map.Entry<String, AtomicLong> entry : indexquerycount.entrySet()) {
                     builder.startObject();
                     builder.field("index", entry.getKey());
-                    builder.field("search_query_count", entry.getValue());
+                    builder.field("search_query_count", entry.getValue().get());
                     builder.endObject();
                 }
                 builder.endArray();

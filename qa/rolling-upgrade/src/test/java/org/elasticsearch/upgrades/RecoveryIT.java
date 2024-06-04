@@ -831,8 +831,10 @@ public class RecoveryIT extends AbstractRollingTestCase {
             // There is a bug (fixed in 7.17.9 and 8.7.0 where deprecation warnings could leak into ClusterApplierService#applyChanges)
             // Below warnings are set (and leaking) from an index in this test case
             request.setOptions(expectVersionSpecificWarnings(v -> {
-                v.compatible("[index.mapper.dynamic] setting was deprecated in Elasticsearch and will be removed in a future release! "
-                    + "See the breaking changes documentation for the next major version.");
+                v.compatible(
+                    "[index.mapper.dynamic] setting was deprecated in Elasticsearch and will be removed in a future release! "
+                        + "See the breaking changes documentation for the next major version."
+                );
             }));
         }
         assertOK(client().performRequest(request));

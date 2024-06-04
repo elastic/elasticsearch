@@ -21,30 +21,6 @@ and prevent them from operating normally.
 Before upgrading to 8.14, review these changes and take the described steps
 to mitigate the impact.
 
-[discrete]
-[[breaking-changes-8.14-0]][[migrating-8.14]]
-== Migrating to 8.14
-++++
-<titleabbrev>8.14</titleabbrev>
-++++
-
-This section discusses the changes that you need to be aware of when migrating
-your application to {es} 8.14.
-
-See also <<release-highlights>> and <<es-release-notes>>.
-
-coming::[8.14.0]
-
-
-[discrete]
-[[breaking-changes-8.14]]
-=== Breaking changes
-
-The following changes in {es} 8.14 might affect your applications
-and prevent them from operating normally.
-Before upgrading to 8.14, review these changes and take the described steps
-to mitigate the impact.
-
 
 There are no notable breaking changes in {es} 8.14.
 But there are some less critical breaking changes.
@@ -112,22 +88,3 @@ The following mapped types have always ignored `fields` when using multi-fields.
 In the future, `join`, `aggregate_metric_double`, and `constant_keyword`, will all disallow supplying `fields` as a parameter in the mapping.
 ====
 
-
-
-[discrete]
-[[breaking_814_dls_changes]]
-==== Stricter Document Level Security (DLS)
-
-[[stricter_dls_814]]
-.Document Level Security (DLS) applies stricter checks for the validate query API and for terms aggregations when min_doc_count is set to 0.
-
-[%collapsible]
-====
-*Details* +
-When Document Level Security (DLS) is applied to terms aggregations and min_doc_count is set to 0, stricter security rules apply.
-
-When Document Level Security (DLS) is applied to the validate query API with the rewrite parameter, stricter security rules apply.
-
-*Impact* +
-If needed, test workflows with DLS enabled to ensure that the stricter security rules do not impact your application.
-====

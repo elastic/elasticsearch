@@ -365,13 +365,13 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void enterIndexIdentifier(EsqlBaseParser.IndexIdentifierContext ctx) { }
+  @Override public void enterIndexString(EsqlBaseParser.IndexStringContext ctx) { }
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void exitIndexIdentifier(EsqlBaseParser.IndexIdentifierContext ctx) { }
+  @Override public void exitIndexString(EsqlBaseParser.IndexStringContext ctx) { }
   /**
    * {@inheritDoc}
    *

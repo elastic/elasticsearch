@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.esql.parser;
 import org.antlr.v4.runtime.tree.TerminalNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.esql.parser.EsqlBaseParser.IdentifierContext;
-import org.elasticsearch.xpack.esql.parser.EsqlBaseParser.IndexIdentifierContext;
+import org.elasticsearch.xpack.esql.parser.EsqlBaseParser.IndexStringContext;
 
 import java.util.List;
 
@@ -21,11 +21,6 @@ abstract class IdentifierBuilder extends AbstractBuilder {
     @Override
     public String visitIdentifier(IdentifierContext ctx) {
         return ctx == null ? null : unquoteIdentifier(ctx.QUOTED_IDENTIFIER(), ctx.UNQUOTED_IDENTIFIER());
-    }
-
-    @Override
-    public String visitIndexIdentifier(IndexIdentifierContext ctx) {
-        return ctx == null ? null : unquoteIdentifier(null, ctx.INDEX_UNQUOTED_IDENTIFIER());
     }
 
     protected static String unquoteIdentifier(TerminalNode quotedNode, TerminalNode unquotedNode) {
@@ -42,11 +37,13 @@ abstract class IdentifierBuilder extends AbstractBuilder {
         return quotedString.substring(1, quotedString.length() - 1).replace("``", "`");
     }
 
-    public String visitIndexIdentifiers(List<IndexIdentifierContext> ctx) {
-        return Strings.collectionToDelimitedString(visitList(this, ctx, String.class), ",");
+    @Override
+    public String visitIndexString(IndexStringContext ctx) {
+        TerminalNode n = ctx.UNQUOTED_SOURCE();
+        return n != null ? n.getText() : unquoteString(ctx.QUOTED_STRING().getText());
     }
 
-    public String visitFromSource(List<EsqlBaseParser.FromSourceContext> ctx) {
-        return Strings.collectionToDelimitedString(ParserUtils.visitList(this, ctx, String.class), ",");
+    public String visitIndexString(List<IndexStringContext> ctx) {
+        return Strings.collectionToDelimitedString(visitList(this, ctx, String.class), ",");
     }
 }

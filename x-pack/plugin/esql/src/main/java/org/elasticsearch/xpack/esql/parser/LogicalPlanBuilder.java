@@ -206,7 +206,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public LogicalPlan visitFromCommand(EsqlBaseParser.FromCommandContext ctx) {
         Source source = source(ctx);
-        TableIdentifier table = new TableIdentifier(source, null, visitIndexIdentifiers(ctx.indexIdentifier()));
+        TableIdentifier table = new TableIdentifier(source, null, visitIndexString(ctx.indexString()));
         Map<String, Attribute> metadataMap = new LinkedHashMap<>();
         if (ctx.metadata() != null) {
             var deprecatedContext = ctx.metadata().deprecated_metadata();
@@ -223,8 +223,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 metadataOptionContext = ctx.metadata().metadataOption();
 
             }
-            for (var c : metadataOptionContext.indexIdentifier()) {
-                String id = visitIndexIdentifier(c);
+            for (var c : metadataOptionContext.UNQUOTED_SOURCE()) {
+                String id = c.getText();
                 Source src = source(c);
                 if (MetadataAttribute.isSupported(id) == false) {
                     throw new ParsingException(src, "unsupported metadata field [" + id + "]");
@@ -236,17 +236,17 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             }
         }
         return new EsqlUnresolvedRelation(source, table, Arrays.asList(metadataMap.values().toArray(Attribute[]::new)), IndexMode.STANDARD);
-                }
+    }
 
     @Override
     public PlanFactory visitStatsCommand(EsqlBaseParser.StatsCommandContext ctx) {
         final Stats stats = stats(source(ctx), ctx.grouping, ctx.stats);
         return input -> new EsqlAggregate(source(ctx), input, stats.groupings, stats.aggregates);
-            }
+    }
 
     private record Stats(List<Expression> groupings, List<? extends NamedExpression> aggregates) {
 
-        }
+    }
 
     private Stats stats(Source source, EsqlBaseParser.FieldsContext groupingsCtx, EsqlBaseParser.FieldsContext aggregatesCtx) {
         List<NamedExpression> groupings = visitGrouping(groupingsCtx);
@@ -420,7 +420,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             throw new IllegalArgumentException("METRICS command currently requires a snapshot build");
         }
         Source source = source(ctx);
-        TableIdentifier table = new TableIdentifier(source, null, visitIndexIdentifiers(ctx.indexIdentifier()));
+        TableIdentifier table = new TableIdentifier(source, null, visitIndexString(ctx.indexString()));
         var unresolvedRelation = new EsqlUnresolvedRelation(source, table, List.of(), IndexMode.TIME_SERIES);
         if (ctx.aggregates == null && ctx.grouping == null) {
             return unresolvedRelation;

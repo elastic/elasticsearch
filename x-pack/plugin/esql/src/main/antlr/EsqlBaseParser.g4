@@ -106,11 +106,12 @@ field
     ;
 
 fromCommand
-    : FROM indexIdentifier (COMMA indexIdentifier)* metadata?
+    : FROM indexString (COMMA indexString)* metadata?
     ;
 
-indexIdentifier
-    : INDEX_UNQUOTED_IDENTIFIER
+indexString
+    : UNQUOTED_SOURCE
+    | QUOTED_STRING
     ;
 
 metadata
@@ -119,7 +120,7 @@ metadata
     ;
 
 metadataOption
-    : METADATA indexIdentifier (COMMA indexIdentifier)*
+    : METADATA UNQUOTED_SOURCE (COMMA UNQUOTED_SOURCE)*
     ;
 
 deprecated_metadata
@@ -127,7 +128,7 @@ deprecated_metadata
     ;
 
 metricsCommand
-    : METRICS indexIdentifier (COMMA indexIdentifier)* aggregates=fields? (BY grouping=fields)?
+    : METRICS indexString (COMMA indexString)* aggregates=fields? (BY grouping=fields)?
     ;
 
 evalCommand
@@ -275,5 +276,5 @@ enrichWithClause
     ;
 
 lookupCommand
-    : LOOKUP tableName=INDEX_UNQUOTED_IDENTIFIER ON matchFields=qualifiedNamePatterns
+    : LOOKUP tableName=indexString ON matchFields=qualifiedNamePatterns
     ;

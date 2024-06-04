@@ -204,11 +204,11 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitFromCommand(EsqlBaseParser.FromCommandContext ctx);
   /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#indexIdentifier}.
+   * Visit a parse tree produced by {@link EsqlBaseParser#indexString}.
    * @param ctx the parse tree
    * @return the visitor result
    */
-  T visitIndexIdentifier(EsqlBaseParser.IndexIdentifierContext ctx);
+  T visitIndexString(EsqlBaseParser.IndexStringContext ctx);
   /**
    * Visit a parse tree produced by {@link EsqlBaseParser#metadata}.
    * @param ctx the parse tree

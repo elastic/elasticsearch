@@ -25,23 +25,26 @@ abstract class AbstractBuilder extends EsqlBaseParserBaseVisitor<Object> {
     }
 
     static String unquoteString(Source source) {
-        String text = source.text();
-        if (text == null) {
+        return unquoteString(source.text());
+    }
+
+    static String unquoteString(String string) {
+        if (string == null) {
             return null;
         }
 
         // unescaped strings can be interpreted directly
-        if (text.startsWith("\"\"\"")) {
-            return text.substring(3, text.length() - 3);
+        if (string.startsWith("\"\"\"")) {
+            return string.substring(3, string.length() - 3);
         }
 
-        text = text.substring(1, text.length() - 1);
+        string = string.substring(1, string.length() - 1);
         StringBuilder sb = new StringBuilder();
 
-        for (int i = 0; i < text.length();) {
-            if (text.charAt(i) == '\\') {
+        for (int i = 0; i < string.length();) {
+            if (string.charAt(i) == '\\') {
                 // ANTLR4 Grammar guarantees there is always a character after the `\`
-                switch (text.charAt(++i)) {
+                switch (string.charAt(++i)) {
                     case 't' -> sb.append('\t');
                     case 'n' -> sb.append('\n');
                     case 'r' -> sb.append('\r');
@@ -51,11 +54,11 @@ abstract class AbstractBuilder extends EsqlBaseParserBaseVisitor<Object> {
                     // will be interpreted as regex, so we have to escape it
                     default ->
                         // unknown escape sequence, pass through as-is, e.g: `...\w...`
-                        sb.append('\\').append(text.charAt(i));
+                        sb.append('\\').append(string.charAt(i));
                 }
                 i++;
             } else {
-                sb.append(text.charAt(i++));
+                sb.append(string.charAt(i++));
             }
         }
         return sb.toString();

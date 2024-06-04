@@ -1,7 +1,7 @@
 setup:
   - requires:
-      cluster_features: ["mapper.track_ignored_source"]
-      reason: requires tracking ignored source
+      cluster_features: ["mapper.source.synthetic_source_fallback"]
+      reason: introduced in 8.15.0
 
   - do:
       indices.create:

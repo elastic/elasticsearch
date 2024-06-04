@@ -291,7 +291,7 @@ for the list of available text embedding models.
 (Optional, integer) Allows you to specify the maximum number of tokens per input before chunking occurs.
 
 `rate_limit`:::
-(Optional, object) By default, the `mistra` service sets the number of requests allowed per minute to `240`.
+(Optional, object) By default, the `mistral` service sets the number of requests allowed per minute to `240`.
 This helps to minimize the number of rate limit errors returned from the Mistral API.
 To modify this, set the `requests_per_minute` setting of this object in your service settings:
 +

@@ -664,9 +664,9 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
 
     @SuppressWarnings("unchecked")
     private static void selectTasksWithOpaqueId(
-            Map<String, Object> tasksResponse,
-            String opaqueId,
-            Consumer<Map<String, Object>> taskConsumer
+        Map<String, Object> tasksResponse,
+        String opaqueId,
+        Consumer<Map<String, Object>> taskConsumer
     ) {
         Map<String, Map<String, Object>> nodes = (Map<String, Map<String, Object>>) tasksResponse.get("nodes");
         for (Map<String, Object> node : nodes.values()) {

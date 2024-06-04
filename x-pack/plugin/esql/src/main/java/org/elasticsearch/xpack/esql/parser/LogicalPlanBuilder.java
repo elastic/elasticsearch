@@ -54,6 +54,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedMetrics;
 import org.elasticsearch.xpack.esql.plan.logical.meta.MetaFunctions;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
 
@@ -416,17 +417,17 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     @Override
     public LogicalPlan visitMetricsCommand(EsqlBaseParser.MetricsCommandContext ctx) {
-        if (Build.current().isSnapshot() == false) {
-            throw new IllegalArgumentException("METRICS command currently requires a snapshot build");
-        }
         Source source = source(ctx);
+        if (Build.current().isSnapshot() == false) {
+            throw new ParsingException(source, "METRICS is in preview and only available in SNAPSHOT build");
+        }
         TableIdentifier table = new TableIdentifier(source, null, visitIndexIdentifiers(ctx.indexIdentifier()));
-        var unresolvedRelation = new EsqlUnresolvedRelation(source, table, List.of(), IndexMode.TIME_SERIES);
         if (ctx.aggregates == null && ctx.grouping == null) {
-            return unresolvedRelation;
+            return new EsqlUnresolvedRelation(source, table, List.of(), IndexMode.TIME_SERIES);
         }
         final Stats stats = stats(source, ctx.grouping, ctx.aggregates);
-        return new EsqlAggregate(source, unresolvedRelation, stats.groupings, stats.aggregates);
+        UnresolvedAttribute timestamp = new UnresolvedAttribute(source, "@timestamp");
+        return new UnresolvedMetrics(source, table, null, timestamp, stats.groupings, stats.aggregates);
     }
 
     @Override

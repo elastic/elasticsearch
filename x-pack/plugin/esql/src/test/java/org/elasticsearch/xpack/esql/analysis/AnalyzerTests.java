@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
+import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -58,6 +59,7 @@ import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -1889,6 +1891,21 @@ public class AnalyzerTests extends ESTestCase {
             return;
         }
         assertThat(e.getMessage(), containsString("LOOKUP not yet supported"));
+    }
+
+    public void testMetricsWithTimeBucket() {
+        assumeTrue("METRICS requires snapshot builds", Build.current().isSnapshot());
+        Analyzer analyzer = analyzer(tsdbIndexResolution());
+        LogicalPlan metrics = analyze("METRICS test sum(network.connections) BY ts(2minute)", analyzer);
+        Limit limit = as(metrics, Limit.class);
+        Aggregate aggregate = as(limit.child(), Aggregate.class);
+        assertThat(aggregate.groupings(), hasSize(1));
+        Alias ts = (Alias) aggregate.groupings().get(0);
+        Bucket bucket = (Bucket) ts.child();
+        FieldAttribute timestamp = (FieldAttribute) bucket.field();
+        assertThat(timestamp.name(), equalTo("@timestamp"));
+        Literal interval = (Literal) bucket.buckets();
+        assertThat(interval.value(), equalTo(Duration.ofMinutes(2)));
     }
 
     private void verifyUnsupported(String query, String errorMessage) {

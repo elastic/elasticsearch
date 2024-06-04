@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.Order;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
+import org.elasticsearch.xpack.esql.core.expression.function.FunctionResolutionStrategy;
 import org.elasticsearch.xpack.esql.core.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
@@ -52,6 +53,7 @@ import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedMetrics;
 import org.elasticsearch.xpack.versionfield.Version;
 
 import java.math.BigInteger;
@@ -999,27 +1001,33 @@ public class StatementParserTests extends ESTestCase {
         assumeTrue("requires snapshot build", Build.current().isSnapshot());
         assertStatement(
             "METRICS foo load=avg(cpu) BY ts",
-            new EsqlAggregate(
+            new UnresolvedMetrics(
                 EMPTY,
-                new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo"), List.of(), IndexMode.TIME_SERIES),
+                new TableIdentifier(EMPTY, null, "foo"),
+                null,
+                new UnresolvedAttribute(EMPTY, "@timestamp"),
                 List.of(attribute("ts")),
                 List.of(new Alias(EMPTY, "load", new UnresolvedFunction(EMPTY, "avg", DEFAULT, List.of(attribute("cpu")))), attribute("ts"))
             )
         );
         assertStatement(
             "METRICS foo,bar load=avg(cpu) BY ts",
-            new EsqlAggregate(
+            new UnresolvedMetrics(
                 EMPTY,
-                new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo,bar"), List.of(), IndexMode.TIME_SERIES),
+                new TableIdentifier(EMPTY, null, "foo,bar"),
+                null,
+                new UnresolvedAttribute(EMPTY, "@timestamp"),
                 List.of(attribute("ts")),
                 List.of(new Alias(EMPTY, "load", new UnresolvedFunction(EMPTY, "avg", DEFAULT, List.of(attribute("cpu")))), attribute("ts"))
             )
         );
         assertStatement(
             "METRICS foo,bar load=avg(cpu),max(rate(requests)) BY ts",
-            new EsqlAggregate(
+            new UnresolvedMetrics(
                 EMPTY,
-                new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo,bar"), List.of(), IndexMode.TIME_SERIES),
+                new TableIdentifier(EMPTY, null, "foo,bar"),
+                null,
+                new UnresolvedAttribute(EMPTY, "@timestamp"),
                 List.of(attribute("ts")),
                 List.of(
                     new Alias(EMPTY, "load", new UnresolvedFunction(EMPTY, "avg", DEFAULT, List.of(attribute("cpu")))),
@@ -1039,50 +1047,142 @@ public class StatementParserTests extends ESTestCase {
         );
         assertStatement(
             "METRICS foo* count(errors)",
-            new EsqlAggregate(
+            new UnresolvedMetrics(
                 EMPTY,
-                new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo*"), List.of(), IndexMode.TIME_SERIES),
+                new TableIdentifier(EMPTY, null, "foo*"),
+                null,
+                new UnresolvedAttribute(EMPTY, "@timestamp"),
                 List.of(),
                 List.of(new Alias(EMPTY, "count(errors)", new UnresolvedFunction(EMPTY, "count", DEFAULT, List.of(attribute("errors")))))
             )
         );
         assertStatement(
             "METRICS foo* a(b)",
-            new EsqlAggregate(
+            new UnresolvedMetrics(
                 EMPTY,
-                new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo*"), List.of(), IndexMode.TIME_SERIES),
+                new TableIdentifier(EMPTY, null, "foo*"),
+                null,
+                new UnresolvedAttribute(EMPTY, "@timestamp"),
                 List.of(),
                 List.of(new Alias(EMPTY, "a(b)", new UnresolvedFunction(EMPTY, "a", DEFAULT, List.of(attribute("b")))))
             )
         );
         assertStatement(
             "METRICS foo* a(b)",
-            new EsqlAggregate(
+            new UnresolvedMetrics(
                 EMPTY,
-                new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo*"), List.of(), IndexMode.TIME_SERIES),
+                new TableIdentifier(EMPTY, null, "foo*"),
+                null,
+                new UnresolvedAttribute(EMPTY, "@timestamp"),
                 List.of(),
                 List.of(new Alias(EMPTY, "a(b)", new UnresolvedFunction(EMPTY, "a", DEFAULT, List.of(attribute("b")))))
             )
         );
         assertStatement(
             "METRICS foo* a1(b2)",
-            new EsqlAggregate(
+            new UnresolvedMetrics(
                 EMPTY,
-                new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo*"), List.of(), IndexMode.TIME_SERIES),
+                new TableIdentifier(EMPTY, null, "foo*"),
+                null,
+                new UnresolvedAttribute(EMPTY, "@timestamp"),
                 List.of(),
                 List.of(new Alias(EMPTY, "a1(b2)", new UnresolvedFunction(EMPTY, "a1", DEFAULT, List.of(attribute("b2")))))
             )
         );
         assertStatement(
             "METRICS foo*,bar* b = min(a) by c, d.e",
-            new EsqlAggregate(
+            new UnresolvedMetrics(
                 EMPTY,
-                new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo*,bar*"), List.of(), IndexMode.TIME_SERIES),
+                new TableIdentifier(EMPTY, null, "foo*,bar*"),
+                null,
+                new UnresolvedAttribute(EMPTY, "@timestamp"),
                 List.of(attribute("c"), attribute("d.e")),
                 List.of(
                     new Alias(EMPTY, "b", new UnresolvedFunction(EMPTY, "min", DEFAULT, List.of(attribute("a")))),
                     attribute("c"),
                     attribute("d.e")
+                )
+            )
+        );
+    }
+
+    public void testMetricsWithTimeBucket() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        Function<Duration, Literal> timeLiteral = duration -> new Literal(EMPTY, duration, DataTypes.TIME_DURATION);
+        assertStatement(
+            "METRICS foo load=avg(cpu) BY ts(5minute)",
+            new UnresolvedMetrics(
+                EMPTY,
+                new TableIdentifier(EMPTY, null, "foo"),
+                null,
+                new UnresolvedAttribute(EMPTY, "@timestamp"),
+                List.of(
+                    new Alias(
+                        EMPTY,
+                        "ts(5minute)",
+                        new UnresolvedFunction(
+                            EMPTY,
+                            "ts",
+                            FunctionResolutionStrategy.DEFAULT,
+                            List.of(timeLiteral.apply(Duration.ofMinutes(5)))
+                        )
+                    )
+                ),
+                List.of(
+                    new Alias(EMPTY, "load", new UnresolvedFunction(EMPTY, "avg", DEFAULT, List.of(attribute("cpu")))),
+                    attribute("ts(5minute)")
+                )
+            )
+        );
+        assertStatement(
+            "METRICS foo load=avg(cpu) BY bucket=ts(10 minute)",
+            new UnresolvedMetrics(
+                EMPTY,
+                new TableIdentifier(EMPTY, null, "foo"),
+                null,
+                new UnresolvedAttribute(EMPTY, "@timestamp"),
+                List.of(
+                    new Alias(
+                        EMPTY,
+                        "bucket",
+                        new UnresolvedFunction(
+                            EMPTY,
+                            "ts",
+                            FunctionResolutionStrategy.DEFAULT,
+                            List.of(timeLiteral.apply(Duration.ofMinutes(10)))
+                        )
+                    )
+                ),
+                List.of(
+                    new Alias(EMPTY, "load", new UnresolvedFunction(EMPTY, "avg", DEFAULT, List.of(attribute("cpu")))),
+                    attribute("bucket")
+                )
+            )
+        );
+        assertStatement(
+            "METRICS foo max(memory) BY host,ts=ts(1hour)",
+            new UnresolvedMetrics(
+                EMPTY,
+                new TableIdentifier(EMPTY, null, "foo"),
+                null,
+                new UnresolvedAttribute(EMPTY, "@timestamp"),
+                List.of(
+                    attribute("host"),
+                    new Alias(
+                        EMPTY,
+                        "ts",
+                        new UnresolvedFunction(
+                            EMPTY,
+                            "ts",
+                            FunctionResolutionStrategy.DEFAULT,
+                            List.of(timeLiteral.apply(Duration.ofHours(1)))
+                        )
+                    )
+                ),
+                List.of(
+                    new Alias(EMPTY, "max(memory)", new UnresolvedFunction(EMPTY, "max", DEFAULT, List.of(attribute("memory")))),
+                    attribute("host"),
+                    attribute("ts")
                 )
             )
         );

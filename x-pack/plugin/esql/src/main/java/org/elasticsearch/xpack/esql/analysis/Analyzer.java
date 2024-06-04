@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.VerificationException;
@@ -57,9 +58,11 @@ import org.elasticsearch.xpack.esql.expression.NamedExpressions;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
+import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
+import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -71,6 +74,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedMetrics;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.stats.FeatureMetric;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
@@ -118,7 +122,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     private static final Iterable<RuleExecutor.Batch<LogicalPlan>> rules;
 
     static {
-        var init = new Batch<>("Initialize", Limiter.ONCE, new ResolveTable(), new ResolveEnrich(), new ResolveFunctions());
+        var init = new Batch<>(
+            "Initialize",
+            Limiter.ONCE,
+            new ResolveMetrics(),
+            new ResolveTable(),
+            new ResolveEnrich(),
+            new ResolveFunctions()
+        );
         var resolution = new Batch<>("Resolution", new ResolveRefs(), new ImplicitCasting());
         var finish = new Batch<>("Finish Analysis", Limiter.ONCE, new AddImplicitLimit());
         rules = List.of(init, resolution, finish);
@@ -147,6 +158,69 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     @Override
     protected Iterable<RuleExecutor.Batch<LogicalPlan>> batches() {
         return rules;
+    }
+
+    private static class ResolveMetrics extends ParameterizedAnalyzerRule<UnresolvedMetrics, AnalyzerContext> {
+
+        private record TimeBucket(Expression interval, Expression from, Expression to) {
+            static TimeBucket from(UnresolvedFunction ts) {
+                List<Expression> args = ts.arguments();
+                return switch (args.size()) {
+                    case 1 -> new TimeBucket(args.get(0), null, null);
+                    case 2, 3 -> throw new ParsingException(ts.source(), "ts() does not currently support filtered intervals");
+                    default -> throw new ParsingException(ts.source(), "ts() requires 1 or 2 or 3 arguments");
+                };
+            }
+        }
+
+        @Override
+        protected LogicalPlan rule(UnresolvedMetrics metrics, AnalyzerContext context) {
+            if (context.indexResolution().isValid() == false) {
+                return metrics.unresolvedMessage().equals(context.indexResolution().toString())
+                    ? metrics
+                    : new UnresolvedMetrics(
+                        metrics.source(),
+                        metrics.table(),
+                        context.indexResolution().toString(),
+                        metrics.timestamp(),
+                        metrics.groupings(),
+                        metrics.aggregates()
+                    );
+            }
+            List<Expression> groupings = new ArrayList<>(metrics.groupings().size());
+            boolean foundTimeBucket = false;
+            for (Expression g : metrics.groupings()) {
+                // convert `ts()` to a bucket grouping function and a filter
+                if (g instanceof Alias alias && alias.child() instanceof UnresolvedFunction uf && uf.name().equals("ts")) {
+                    if (foundTimeBucket) {
+                        throw new ParsingException(metrics.source(), "at most one ts() grouping is allowed");
+                    }
+                    foundTimeBucket = true;
+                    final TimeBucket timeBucket = TimeBucket.from((UnresolvedFunction) alias.child());
+                    groupings.add(
+                        new Alias(
+                            alias.source(),
+                            alias.name(),
+                            new Bucket(g.source(), metrics.timestamp(), timeBucket.interval, timeBucket.from, timeBucket.to)
+                        )
+                    );
+                } else {
+                    groupings.add(g);
+                }
+            }
+            final EsIndex esIndex = context.indexResolution().get();
+            var attributes = mappingAsAttributes(metrics.source(), esIndex.mapping());
+            final EsRelation relation = new EsRelation(
+                metrics.source(),
+                esIndex,
+                attributes.isEmpty() ? NO_FIELDS : attributes,
+                IndexMode.TIME_SERIES
+            );
+            if (metrics.aggregates().isEmpty() && groupings.isEmpty()) {
+                return relation;
+            }
+            return new EsqlAggregate(metrics.source(), relation, groupings, metrics.aggregates());
+        }
     }
 
     private static class ResolveTable extends ParameterizedAnalyzerRule<EsqlUnresolvedRelation, AnalyzerContext> {

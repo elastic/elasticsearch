@@ -19,3 +19,26 @@ max_bytes:long | cluster: keyword
 10277          | prod
 7403           | staging
 ;
+
+
+metricsWithBucket
+required_capability: metrics_syntax
+METRICS k8s max_bytes=max(to_long(network.total_bytes_in)) BY cluster, ts=ts(5minute) | SORT ts DESC, cluster;
+
+max_bytes:long | cluster: keyword | ts: datetime
+10277          | prod             | 2024-05-10T00:20:00.000Z
+10797          | qa               | 2024-05-10T00:20:00.000Z
+7403           | staging          | 2024-05-10T00:20:00.000Z
+9254           | prod             | 2024-05-10T00:15:00.000Z
+8830           | qa               | 2024-05-10T00:15:00.000Z
+6532           | staging          | 2024-05-10T00:15:00.000Z
+5940           | prod             | 2024-05-10T00:10:00.000Z
+6943           | qa               | 2024-05-10T00:10:00.000Z
+5130           | staging          | 2024-05-10T00:10:00.000Z
+4169           | prod             | 2024-05-10T00:05:00.000Z
+7900           | qa               | 2024-05-10T00:05:00.000Z
+3442           | staging          | 2024-05-10T00:05:00.000Z
+2250           | prod             | 2024-05-10T00:00:00.000Z
+4024           | qa               | 2024-05-10T00:00:00.000Z
+3718           | staging          | 2024-05-10T00:00:00.000Z
+;

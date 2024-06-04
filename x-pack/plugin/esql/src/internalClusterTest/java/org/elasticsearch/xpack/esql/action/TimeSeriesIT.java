@@ -8,13 +8,20 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -31,7 +38,7 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
         Settings settings = Settings.builder().put("mode", "time_series").putList("routing_path", List.of("pod")).build();
         client().admin()
             .indices()
-            .prepareCreate("pods")
+            .prepareCreate("empty_index")
             .setSettings(settings)
             .setMapping(
                 "@timestamp",
@@ -42,10 +49,15 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
                 "type=long,time_series_metric=gauge"
             )
             .get();
-        run("METRICS pods | LIMIT 1").close();
+        run("METRICS empty_index | LIMIT 1").close();
     }
 
-    public void testSimpleMetrics() {
+    record Doc(String pod, long timestamp, double cpu) {}
+
+    final List<Doc> docs = new ArrayList<>();
+
+    @Before
+    public void populateIndex() {
         Settings settings = Settings.builder().put("mode", "time_series").putList("routing_path", List.of("pod")).build();
         client().admin()
             .indices()
@@ -60,18 +72,25 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
                 "type=double,time_series_metric=gauge"
             )
             .get();
-        List<String> pods = List.of("p1", "p2", "p3");
-        long startTime = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2024-04-15T00:00:00Z");
-        int numDocs = between(10, 100);
-        record Doc(String pod, long timestamp, double cpu) {}
-        List<Doc> docs = new ArrayList<>();
+        List<String> allPods = IntStream.rangeClosed(1, 9).mapToObj(n -> "p" + n).toList();
+        long timestamp = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2024-04-15T00:00:00Z");
+        int numDocs = between(10, 500);
+        docs.clear();
         for (int i = 0; i < numDocs; i++) {
-            String pod = randomFrom(pods);
-            int cpu = randomIntBetween(0, 100);
-            long timestamp = startTime + (1000L * i);
-            docs.add(new Doc(pod, timestamp, cpu));
-            client().prepareIndex("pods").setSource("@timestamp", timestamp, "pod", pod, "cpu", cpu).get();
+            List<String> pods = randomSubsetOf(between(1, allPods.size()), allPods);
+            timestamp += between(1, 10) * 1000L;
+            for (String pod : pods) {
+                int cpu = randomIntBetween(0, 100);
+                docs.add(new Doc(pod, timestamp, cpu));
+            }
         }
+        Randomness.shuffle(docs);
+        for (Doc doc : docs) {
+            client().prepareIndex("pods").setSource("@timestamp", doc.timestamp, "pod", doc.pod, "cpu", doc.cpu).get();
+        }
+    }
+
+    public void testSimpleMetrics() {
         List<String> sortedGroups = docs.stream().map(d -> d.pod).distinct().sorted().toList();
         client().admin().indices().prepareRefresh("pods").get();
         try (EsqlQueryResponse resp = run("METRICS pods load=avg(cpu) BY pod | SORT pod")) {
@@ -86,9 +105,12 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
                 assertThat((double) r.get(0), equalTo(avg));
             }
         }
-        try (EsqlQueryResponse resp = run("METRICS pods | SORT @timestamp DESC | KEEP @timestamp, pod, cpu | LIMIT 5")) {
+        try (EsqlQueryResponse resp = run("METRICS pods | SORT @timestamp DESC, pod | KEEP @timestamp, pod, cpu | LIMIT 5")) {
             List<List<Object>> rows = EsqlTestUtils.getValuesList(resp);
-            List<Doc> topDocs = docs.stream().sorted(Comparator.comparingLong(Doc::timestamp).reversed()).limit(5).toList();
+            List<Doc> topDocs = docs.stream()
+                .sorted(Comparator.comparingLong(Doc::timestamp).reversed().thenComparing(Doc::pod))
+                .limit(5)
+                .toList();
             assertThat(rows, hasSize(topDocs.size()));
             for (int i = 0; i < rows.size(); i++) {
                 List<Object> r = rows.get(i);
@@ -98,6 +120,40 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
                 assertThat(topDocs.get(i).timestamp, equalTo(timestamp));
                 assertThat(topDocs.get(i).pod, equalTo(pod));
                 assertThat(topDocs.get(i).cpu, equalTo(cpu));
+            }
+        }
+    }
+
+    public void testTimeBucket() {
+        record Key(String pod, long interval) {
+
+        }
+        var rounding = Rounding.builder(TimeValue.timeValueSeconds(60)).build().prepare(0, Long.MAX_VALUE);
+        Map<Key, List<Double>> groups = new HashMap<>();
+        for (Doc doc : docs) {
+            Key key = new Key(doc.pod, rounding.round(doc.timestamp));
+            groups.computeIfAbsent(key, k -> new ArrayList<>()).add(doc.cpu);
+        }
+        client().admin().indices().prepareRefresh("pods").get();
+        try (EsqlQueryResponse resp = run("METRICS pods load=avg(cpu) BY pod,ts=ts(1minute) | SORT ts DESC, pod")) {
+            List<Key> sortedGroups = groups.keySet()
+                .stream()
+                .sorted(Comparator.comparingLong(Key::interval).reversed().thenComparing(Key::pod))
+                .toList();
+            List<List<Object>> rows = EsqlTestUtils.getValuesList(resp);
+            assertThat(rows, hasSize(sortedGroups.size()));
+            for (int i = 0; i < rows.size(); i++) {
+                Key key = sortedGroups.get(i);
+                List<Object> r = rows.get(i);
+                double avgLoad = (double) r.get(0);
+                String pod = (String) r.get(1);
+                long interval = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis((String) r.get(2));
+
+                assertThat(pod, equalTo(key.pod));
+                assertThat(interval, equalTo(key.interval));
+                List<Double> values = groups.get(key);
+                double expectedAvg = values.stream().mapToDouble(n -> n).sum() / values.size();
+                assertThat(avgLoad, equalTo(expectedAvg));
             }
         }
     }

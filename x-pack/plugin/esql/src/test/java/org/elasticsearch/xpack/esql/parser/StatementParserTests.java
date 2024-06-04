@@ -361,6 +361,8 @@ public class StatementParserTests extends ESTestCase {
         );
 
         assertStringAsIndexPattern("foo,test,xyz", "from \"\"\"foo\"\"\",   test,\"xyz\"");
+
+        assertStringAsIndexPattern("`backtick`,``multiple`back``ticks```", "from `backtick`, ``multiple`back``ticks```");
     }
 
     public void testIdentifierAsFieldName() {

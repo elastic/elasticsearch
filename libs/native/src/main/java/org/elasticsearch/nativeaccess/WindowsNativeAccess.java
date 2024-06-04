@@ -115,6 +115,7 @@ class WindowsNativeAccess extends AbstractNativeAccess {
             kernel.CloseHandle(job);
         }
 
+        execSandboxState = ExecSandboxState.ALL_THREADS;
         logger.debug("Windows ActiveProcessLimit initialization successful");
     }
 

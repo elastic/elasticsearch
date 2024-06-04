@@ -271,7 +271,6 @@ class JnaKernel32Library implements Kernel32Library {
         var jnaJob = (JnaHandle) job;
         var jnaInfo = (JnaJobObjectBasicLimitInformation) info;
         var ret = functions.QueryInformationJobObject(jnaJob.pointer, infoClass, jnaInfo, jnaInfo.size(), null);
-        jnaInfo.read(); // sync object from native memory
         return ret;
     }
 
@@ -281,7 +280,6 @@ class JnaKernel32Library implements Kernel32Library {
         assert info instanceof JnaJobObjectBasicLimitInformation;
         var jnaJob = (JnaHandle) job;
         var jnaInfo = (JnaJobObjectBasicLimitInformation) info;
-        jnaInfo.write(); // sync object to native memory
         return functions.SetInformationJobObject(jnaJob.pointer, infoClass, jnaInfo, jnaInfo.size());
     }
 }

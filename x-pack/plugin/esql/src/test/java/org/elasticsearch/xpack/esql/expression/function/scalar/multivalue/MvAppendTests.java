@@ -15,7 +15,7 @@ import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
@@ -50,245 +50,245 @@ public class MvAppendTests extends AbstractFunctionTestCase {
     }
 
     private static void booleans(List<TestCaseSupplier> suppliers) {
-        suppliers.add(new TestCaseSupplier(List.of(DataTypes.BOOLEAN, DataTypes.BOOLEAN), () -> {
+        suppliers.add(new TestCaseSupplier(List.of(DataType.BOOLEAN, DataType.BOOLEAN), () -> {
             List<Boolean> field1 = randomList(1, 10, () -> randomBoolean());
             List<Boolean> field2 = randomList(1, 10, () -> randomBoolean());
             var result = new ArrayList<>(field1);
             result.addAll(field2);
             return new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(field1, DataTypes.BOOLEAN, "field1"),
-                    new TestCaseSupplier.TypedData(field2, DataTypes.BOOLEAN, "field2")
+                    new TestCaseSupplier.TypedData(field1, DataType.BOOLEAN, "field1"),
+                    new TestCaseSupplier.TypedData(field2, DataType.BOOLEAN, "field2")
                 ),
                 "MvAppendBooleanEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
-                DataTypes.BOOLEAN,
+                DataType.BOOLEAN,
                 equalTo(result)
             );
         }));
     }
 
     private static void ints(List<TestCaseSupplier> suppliers) {
-        suppliers.add(new TestCaseSupplier(List.of(DataTypes.INTEGER, DataTypes.INTEGER), () -> {
+        suppliers.add(new TestCaseSupplier(List.of(DataType.INTEGER, DataType.INTEGER), () -> {
             List<Integer> field1 = randomList(1, 10, () -> randomInt());
             List<Integer> field2 = randomList(1, 10, () -> randomInt());
             var result = new ArrayList<>(field1);
             result.addAll(field2);
             return new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(field1, DataTypes.INTEGER, "field1"),
-                    new TestCaseSupplier.TypedData(field2, DataTypes.INTEGER, "field2")
+                    new TestCaseSupplier.TypedData(field1, DataType.INTEGER, "field1"),
+                    new TestCaseSupplier.TypedData(field2, DataType.INTEGER, "field2")
                 ),
                 "MvAppendIntEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
-                DataTypes.INTEGER,
+                DataType.INTEGER,
                 equalTo(result)
             );
         }));
     }
 
     private static void longs(List<TestCaseSupplier> suppliers) {
-        suppliers.add(new TestCaseSupplier(List.of(DataTypes.LONG, DataTypes.LONG), () -> {
+        suppliers.add(new TestCaseSupplier(List.of(DataType.LONG, DataType.LONG), () -> {
             List<Long> field1 = randomList(1, 10, () -> randomLong());
             List<Long> field2 = randomList(1, 10, () -> randomLong());
             var result = new ArrayList<>(field1);
             result.addAll(field2);
             return new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(field1, DataTypes.LONG, "field1"),
-                    new TestCaseSupplier.TypedData(field2, DataTypes.LONG, "field2")
+                    new TestCaseSupplier.TypedData(field1, DataType.LONG, "field1"),
+                    new TestCaseSupplier.TypedData(field2, DataType.LONG, "field2")
                 ),
                 "MvAppendLongEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
-                DataTypes.LONG,
+                DataType.LONG,
                 equalTo(result)
             );
         }));
 
-        suppliers.add(new TestCaseSupplier(List.of(DataTypes.DATETIME, DataTypes.DATETIME), () -> {
+        suppliers.add(new TestCaseSupplier(List.of(DataType.DATETIME, DataType.DATETIME), () -> {
             List<Long> field1 = randomList(1, 10, () -> randomLong());
             List<Long> field2 = randomList(1, 10, () -> randomLong());
             var result = new ArrayList<>(field1);
             result.addAll(field2);
             return new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(field1, DataTypes.DATETIME, "field1"),
-                    new TestCaseSupplier.TypedData(field2, DataTypes.DATETIME, "field2")
+                    new TestCaseSupplier.TypedData(field1, DataType.DATETIME, "field1"),
+                    new TestCaseSupplier.TypedData(field2, DataType.DATETIME, "field2")
                 ),
                 "MvAppendLongEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
-                DataTypes.DATETIME,
+                DataType.DATETIME,
                 equalTo(result)
             );
         }));
     }
 
     private static void doubles(List<TestCaseSupplier> suppliers) {
-        suppliers.add(new TestCaseSupplier(List.of(DataTypes.DOUBLE, DataTypes.DOUBLE), () -> {
+        suppliers.add(new TestCaseSupplier(List.of(DataType.DOUBLE, DataType.DOUBLE), () -> {
             List<Double> field1 = randomList(1, 10, () -> randomDouble());
             List<Double> field2 = randomList(1, 10, () -> randomDouble());
             var result = new ArrayList<>(field1);
             result.addAll(field2);
             return new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(field1, DataTypes.DOUBLE, "field1"),
-                    new TestCaseSupplier.TypedData(field2, DataTypes.DOUBLE, "field2")
+                    new TestCaseSupplier.TypedData(field1, DataType.DOUBLE, "field1"),
+                    new TestCaseSupplier.TypedData(field2, DataType.DOUBLE, "field2")
                 ),
                 "MvAppendDoubleEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
-                DataTypes.DOUBLE,
+                DataType.DOUBLE,
                 equalTo(result)
             );
         }));
     }
 
     private static void bytesRefs(List<TestCaseSupplier> suppliers) {
-        suppliers.add(new TestCaseSupplier(List.of(DataTypes.KEYWORD, DataTypes.KEYWORD), () -> {
-            List<Object> field1 = randomList(1, 10, () -> randomLiteral(DataTypes.KEYWORD).value());
-            List<Object> field2 = randomList(1, 10, () -> randomLiteral(DataTypes.KEYWORD).value());
+        suppliers.add(new TestCaseSupplier(List.of(DataType.KEYWORD, DataType.KEYWORD), () -> {
+            List<Object> field1 = randomList(1, 10, () -> randomLiteral(DataType.KEYWORD).value());
+            List<Object> field2 = randomList(1, 10, () -> randomLiteral(DataType.KEYWORD).value());
             var result = new ArrayList<>(field1);
             result.addAll(field2);
             return new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(field1, DataTypes.KEYWORD, "field1"),
-                    new TestCaseSupplier.TypedData(field2, DataTypes.KEYWORD, "field2")
+                    new TestCaseSupplier.TypedData(field1, DataType.KEYWORD, "field1"),
+                    new TestCaseSupplier.TypedData(field2, DataType.KEYWORD, "field2")
                 ),
                 "MvAppendBytesRefEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
-                DataTypes.KEYWORD,
+                DataType.KEYWORD,
                 equalTo(result)
             );
         }));
 
-        suppliers.add(new TestCaseSupplier(List.of(DataTypes.TEXT, DataTypes.TEXT), () -> {
-            List<Object> field1 = randomList(1, 10, () -> randomLiteral(DataTypes.TEXT).value());
-            List<Object> field2 = randomList(1, 10, () -> randomLiteral(DataTypes.TEXT).value());
+        suppliers.add(new TestCaseSupplier(List.of(DataType.TEXT, DataType.TEXT), () -> {
+            List<Object> field1 = randomList(1, 10, () -> randomLiteral(DataType.TEXT).value());
+            List<Object> field2 = randomList(1, 10, () -> randomLiteral(DataType.TEXT).value());
             var result = new ArrayList<>(field1);
             result.addAll(field2);
             return new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(field1, DataTypes.TEXT, "field1"),
-                    new TestCaseSupplier.TypedData(field2, DataTypes.TEXT, "field2")
+                    new TestCaseSupplier.TypedData(field1, DataType.TEXT, "field1"),
+                    new TestCaseSupplier.TypedData(field2, DataType.TEXT, "field2")
                 ),
                 "MvAppendBytesRefEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
-                DataTypes.TEXT,
+                DataType.TEXT,
                 equalTo(result)
             );
         }));
 
-        suppliers.add(new TestCaseSupplier(List.of(DataTypes.IP, DataTypes.IP), () -> {
-            List<Object> field1 = randomList(1, 10, () -> randomLiteral(DataTypes.IP).value());
-            List<Object> field2 = randomList(1, 10, () -> randomLiteral(DataTypes.IP).value());
+        suppliers.add(new TestCaseSupplier(List.of(DataType.IP, DataType.IP), () -> {
+            List<Object> field1 = randomList(1, 10, () -> randomLiteral(DataType.IP).value());
+            List<Object> field2 = randomList(1, 10, () -> randomLiteral(DataType.IP).value());
             var result = new ArrayList<>(field1);
             result.addAll(field2);
             return new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(field1, DataTypes.IP, "field"),
-                    new TestCaseSupplier.TypedData(field2, DataTypes.IP, "field")
+                    new TestCaseSupplier.TypedData(field1, DataType.IP, "field"),
+                    new TestCaseSupplier.TypedData(field2, DataType.IP, "field")
                 ),
                 "MvAppendBytesRefEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
-                DataTypes.IP,
+                DataType.IP,
                 equalTo(result)
             );
         }));
 
-        suppliers.add(new TestCaseSupplier(List.of(DataTypes.VERSION, DataTypes.VERSION), () -> {
-            List<Object> field1 = randomList(1, 10, () -> randomLiteral(DataTypes.VERSION).value());
-            List<Object> field2 = randomList(1, 10, () -> randomLiteral(DataTypes.VERSION).value());
+        suppliers.add(new TestCaseSupplier(List.of(DataType.VERSION, DataType.VERSION), () -> {
+            List<Object> field1 = randomList(1, 10, () -> randomLiteral(DataType.VERSION).value());
+            List<Object> field2 = randomList(1, 10, () -> randomLiteral(DataType.VERSION).value());
             var result = new ArrayList<>(field1);
             result.addAll(field2);
             return new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(field1, DataTypes.VERSION, "field"),
-                    new TestCaseSupplier.TypedData(field2, DataTypes.VERSION, "field")
+                    new TestCaseSupplier.TypedData(field1, DataType.VERSION, "field"),
+                    new TestCaseSupplier.TypedData(field2, DataType.VERSION, "field")
                 ),
                 "MvAppendBytesRefEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
-                DataTypes.VERSION,
+                DataType.VERSION,
                 equalTo(result)
             );
         }));
 
-        suppliers.add(new TestCaseSupplier(List.of(DataTypes.GEO_POINT, DataTypes.GEO_POINT), () -> {
+        suppliers.add(new TestCaseSupplier(List.of(DataType.GEO_POINT, DataType.GEO_POINT), () -> {
             List<Object> field1 = randomList(1, 10, () -> new BytesRef(GEO.asWkt(GeometryTestUtils.randomPoint())));
             List<Object> field2 = randomList(1, 10, () -> new BytesRef(GEO.asWkt(GeometryTestUtils.randomPoint())));
             var result = new ArrayList<>(field1);
             result.addAll(field2);
             return new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(field1, DataTypes.GEO_POINT, "field1"),
-                    new TestCaseSupplier.TypedData(field2, DataTypes.GEO_POINT, "field2")
+                    new TestCaseSupplier.TypedData(field1, DataType.GEO_POINT, "field1"),
+                    new TestCaseSupplier.TypedData(field2, DataType.GEO_POINT, "field2")
                 ),
                 "MvAppendBytesRefEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
-                DataTypes.GEO_POINT,
+                DataType.GEO_POINT,
                 equalTo(result)
             );
         }));
 
-        suppliers.add(new TestCaseSupplier(List.of(DataTypes.CARTESIAN_POINT, DataTypes.CARTESIAN_POINT), () -> {
+        suppliers.add(new TestCaseSupplier(List.of(DataType.CARTESIAN_POINT, DataType.CARTESIAN_POINT), () -> {
             List<Object> field1 = randomList(1, 10, () -> new BytesRef(CARTESIAN.asWkt(ShapeTestUtils.randomPoint())));
             List<Object> field2 = randomList(1, 10, () -> new BytesRef(CARTESIAN.asWkt(ShapeTestUtils.randomPoint())));
             var result = new ArrayList<>(field1);
             result.addAll(field2);
             return new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(field1, DataTypes.CARTESIAN_POINT, "field1"),
-                    new TestCaseSupplier.TypedData(field2, DataTypes.CARTESIAN_POINT, "field2")
+                    new TestCaseSupplier.TypedData(field1, DataType.CARTESIAN_POINT, "field1"),
+                    new TestCaseSupplier.TypedData(field2, DataType.CARTESIAN_POINT, "field2")
                 ),
                 "MvAppendBytesRefEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
-                DataTypes.CARTESIAN_POINT,
+                DataType.CARTESIAN_POINT,
                 equalTo(result)
             );
         }));
 
-        suppliers.add(new TestCaseSupplier(List.of(DataTypes.GEO_SHAPE, DataTypes.GEO_SHAPE), () -> {
+        suppliers.add(new TestCaseSupplier(List.of(DataType.GEO_SHAPE, DataType.GEO_SHAPE), () -> {
             List<Object> field1 = randomList(1, 10, () -> new BytesRef(GEO.asWkt(GeometryTestUtils.randomGeometry(randomBoolean()))));
             List<Object> field2 = randomList(1, 10, () -> new BytesRef(GEO.asWkt(GeometryTestUtils.randomGeometry(randomBoolean()))));
             var result = new ArrayList<>(field1);
             result.addAll(field2);
             return new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(field1, DataTypes.GEO_SHAPE, "field1"),
-                    new TestCaseSupplier.TypedData(field2, DataTypes.GEO_SHAPE, "field2")
+                    new TestCaseSupplier.TypedData(field1, DataType.GEO_SHAPE, "field1"),
+                    new TestCaseSupplier.TypedData(field2, DataType.GEO_SHAPE, "field2")
                 ),
                 "MvAppendBytesRefEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
-                DataTypes.GEO_SHAPE,
+                DataType.GEO_SHAPE,
                 equalTo(result)
             );
         }));
 
-        suppliers.add(new TestCaseSupplier(List.of(DataTypes.CARTESIAN_SHAPE, DataTypes.CARTESIAN_SHAPE), () -> {
+        suppliers.add(new TestCaseSupplier(List.of(DataType.CARTESIAN_SHAPE, DataType.CARTESIAN_SHAPE), () -> {
             List<Object> field1 = randomList(1, 10, () -> new BytesRef(CARTESIAN.asWkt(ShapeTestUtils.randomGeometry(randomBoolean()))));
             List<Object> field2 = randomList(1, 10, () -> new BytesRef(CARTESIAN.asWkt(ShapeTestUtils.randomGeometry(randomBoolean()))));
             var result = new ArrayList<>(field1);
             result.addAll(field2);
             return new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(field1, DataTypes.CARTESIAN_SHAPE, "field1"),
-                    new TestCaseSupplier.TypedData(field2, DataTypes.CARTESIAN_SHAPE, "field2")
+                    new TestCaseSupplier.TypedData(field1, DataType.CARTESIAN_SHAPE, "field1"),
+                    new TestCaseSupplier.TypedData(field2, DataType.CARTESIAN_SHAPE, "field2")
                 ),
                 "MvAppendBytesRefEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
-                DataTypes.CARTESIAN_SHAPE,
+                DataType.CARTESIAN_SHAPE,
                 equalTo(result)
             );
         }));
     }
 
     private static void nulls(List<TestCaseSupplier> suppliers) {
-        suppliers.add(new TestCaseSupplier(List.of(DataTypes.INTEGER, DataTypes.INTEGER), () -> {
+        suppliers.add(new TestCaseSupplier(List.of(DataType.INTEGER, DataType.INTEGER), () -> {
             List<Integer> field2 = randomList(2, 10, () -> randomInt());
             return new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(null, DataTypes.INTEGER, "field1"),
-                    new TestCaseSupplier.TypedData(field2, DataTypes.INTEGER, "field2")
+                    new TestCaseSupplier.TypedData(null, DataType.INTEGER, "field1"),
+                    new TestCaseSupplier.TypedData(field2, DataType.INTEGER, "field2")
                 ),
                 "MvAppendIntEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
-                DataTypes.INTEGER,
+                DataType.INTEGER,
                 equalTo(null)
             );
         }));
-        suppliers.add(new TestCaseSupplier(List.of(DataTypes.INTEGER, DataTypes.INTEGER), () -> {
+        suppliers.add(new TestCaseSupplier(List.of(DataType.INTEGER, DataType.INTEGER), () -> {
             List<Integer> field1 = randomList(2, 10, () -> randomInt());
             return new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(field1, DataTypes.INTEGER, "field1"),
-                    new TestCaseSupplier.TypedData(null, DataTypes.INTEGER, "field2")
+                    new TestCaseSupplier.TypedData(field1, DataType.INTEGER, "field1"),
+                    new TestCaseSupplier.TypedData(null, DataType.INTEGER, "field2")
                 ),
                 "MvAppendIntEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
-                DataTypes.INTEGER,
+                DataType.INTEGER,
                 equalTo(null)
             );
         }));

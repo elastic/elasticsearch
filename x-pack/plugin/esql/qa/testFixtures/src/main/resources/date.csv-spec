@@ -1122,3 +1122,52 @@ emp_no:integer | birth_date:datetime
 10003          | 1959-12-03T00:00:00Z
 10008          | 1958-02-19T00:00:00Z
 ;
+
+implicitCastingArithmeticOperationAdd
+required_capability: string_literal_auto_casting_to_datetime_add_sub
+from employees
+| eval a =  1 day + "2024-01-01", b = 1 year + "2024-04-01" + 1 month, c = "2024-01-01" + 3600 seconds,
+       d = "2024-04-01" + (1 year + 1 day)
+| keep a, b, c, d
+| limit 1
+;
+
+a:datetime | b:datetime | c:datetime               | d:datetime
+2024-01-02 | 2025-05-01 | 2024-01-01T01:00:00.000Z | 2025-04-02
+;
+
+implicitCastingArithmeticOperationSub
+required_capability: string_literal_auto_casting_to_datetime_add_sub
+from employees
+| eval a =  "2024-01-01" - 1 day, b = "2024-04-01" - 1 month, c = "2024-01-01" - 3600 seconds,
+       d = "2024-04-01" - (1 year + 1 day)
+| keep a, b, c, d
+| limit 1
+;
+
+a:datetime | b:datetime | c:datetime               | d:datetime
+2023-12-31 | 2024-03-01 | 2023-12-31T23:00:00.000Z | 2023-03-31
+;
+
+implicitCastingArithmeticOperationAddSub
+required_capability: string_literal_auto_casting_to_datetime_add_sub
+from employees
+| eval a = 1 month + "2024-01-01" - 1 day, b = - 1 year + "2024-04-01" + 1 month,
+       c = 1 hour + "2024-01-01" - 3600 seconds, d = "2024-04-01" - (1 year + 1 day)
+| keep a, b, c, d
+| limit 1
+;
+
+a:datetime | b:datetime | c:datetime | d:datetime
+2024-01-31 | 2023-05-01 | 2024-01-01 | 2023-03-31
+;
+
+temporalAmountWithNulls
+from employees
+| eval a = to_dt(null) - 1 day
+| keep a
+| limit 1;
+
+a:datetime
+null
+;

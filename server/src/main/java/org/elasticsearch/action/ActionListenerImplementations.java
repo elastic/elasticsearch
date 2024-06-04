@@ -8,12 +8,14 @@
 
 package org.elasticsearch.action;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
+import java.lang.ref.Cleaner;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -23,6 +25,8 @@ import java.util.function.Function;
  * Internal implementation details of the various utility methods on {@link ActionListener}.
  */
 class ActionListenerImplementations {
+
+    private static final Cleaner cleaner = Cleaner.create();
 
     private ActionListenerImplementations() {
         // no instances
@@ -351,6 +355,86 @@ class ActionListenerImplementations {
         @Override
         public String toString() {
             return "notifyOnce[" + get() + "]";
+        }
+    }
+
+    /**
+     * An {@link ActionListener} that wraps a delegate, registering itself with a {@link Cleaner} that will check that
+     * the delegate was called at least once prior to being garbage collected.
+     * If the listener was not completed prior to becoming unreachable it will invoke the passed {@link NotCalledListener}
+     * from the Cleaner thread.
+     */
+    static final class AssertAtLeastOnceActionListener<Response> extends DelegatingActionListener<Response, Response> {
+
+        interface NotCalledListener {
+
+            /**
+             * Called when {@link CallTrackingActionListener#run()} is called prior to the listener being
+             * called at least once.
+             *
+             * @param listener The listener that was not called at least once
+             * @param createdAt The stack trace of where the listener was created
+             */
+            void onListenerNotCalled(ActionListener<?> listener, ElasticsearchException createdAt);
+        }
+
+        /**
+         * This is the delegate that keeps track of whether {@link #onResponse(Object)} or {@link #onFailure(Exception)}
+         * were called, and invokes the {@link NotCalledListener} if neither was called.
+         * Because it is used as the "cleanup" action by the cleaner, it must be static, so it does not hold a reference
+         * to the wrapper and prevent it becoming "phantom reachable".
+         * See <a href="https://inside.java/2022/05/25/clean-cleaner/">the guidelines</a> for more details.
+         */
+        private static final class CallTrackingActionListener<R> implements Runnable, ActionListener<R> {
+
+            private final ActionListener<R> delegate;
+            private final ElasticsearchException created;
+            private final NotCalledListener listener;
+            private volatile boolean wasCalled = false;
+
+            private CallTrackingActionListener(ActionListener<R> delegate, NotCalledListener listener) {
+                this.delegate = delegate;
+                this.created = new ElasticsearchException("Listener created at...");
+                this.listener = listener;
+            }
+
+            @Override
+            public void run() {
+                if (wasCalled == false) {
+                    listener.onListenerNotCalled(delegate, created);
+                }
+            }
+
+            @Override
+            public void onResponse(R r) {
+                wasCalled = true;
+                delegate.onResponse(r);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                wasCalled = true;
+                delegate.onFailure(e);
+            }
+        }
+
+        /**
+         * @param delegate The listener to wrap
+         * @param listener The action to perform if we detect that it wasn't called (called on the Cleaner thread)
+         */
+        AssertAtLeastOnceActionListener(ActionListener<Response> delegate, NotCalledListener listener) {
+            super(new CallTrackingActionListener<>(delegate, listener));
+            cleaner.register(this, (Runnable) this.delegate);
+        }
+
+        @Override
+        public void onResponse(Response response) {
+            delegate.onResponse(response);
+        }
+
+        @Override
+        public String toString() {
+            return delegate.toString();
         }
     }
 }

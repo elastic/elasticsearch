@@ -426,6 +426,28 @@ public interface ActionListener<Response> {
     }
 
     /**
+     * @return A listener which (if assertions are enabled) wraps around the given delegate and asserts that it is called at least once.
+     */
+    static <Response> ActionListener<Response> assertAtLeastOnce(ActionListener<Response> delegate) {
+        if (Assertions.ENABLED) {
+            return new ActionListenerImplementations.AssertAtLeastOnceActionListener<>(
+                delegate,
+                // We use maybeDieOnAnotherThread here because this will get executed
+                // on the Cleaner thread, which silently swallows Throwable
+                (listener, createdAt) -> ExceptionsHelper.maybeDieOnAnotherThread(
+                    new AssertionError(
+                        "Expected listener "
+                            + delegate
+                            + " to be called at least once, but it was never called. Created:"
+                            + ExceptionsHelper.formatStackTrace(createdAt.getStackTrace())
+                    )
+                )
+            );
+        }
+        return delegate;
+    }
+
+    /**
      * Execute the given action in a {@code try/catch} block which feeds all exceptions to the given listener's {@link #onFailure} method.
      */
     static <T, L extends ActionListener<T>> void run(L listener, CheckedConsumer<L, ? extends Exception> action) {

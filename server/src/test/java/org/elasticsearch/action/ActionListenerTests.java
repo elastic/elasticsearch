@@ -7,8 +7,10 @@
  */
 package org.elasticsearch.action;
 
+import org.apache.logging.log4j.Level;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.Assertions;
@@ -16,6 +18,7 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.ReachabilityChecker;
 import org.hamcrest.Matcher;
 
@@ -28,6 +31,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
@@ -368,6 +372,75 @@ public class ActionListenerTests extends ESTestCase {
         }));
         assertThat(assertionError.getCause(), instanceOf(IllegalArgumentException.class));
         assertThat(exReference.get(), instanceOf(IllegalArgumentException.class));
+    }
+
+    public void testAssertAtLeastOnceWillLogAssertionErrorWhenNotResolved() throws Exception {
+        try (MockLog mockLog = MockLog.capture(ExceptionsHelper.class)) {
+            mockLog.addExpectation(
+                new MockLog.PatternSeenEventExpectation(
+                    "action listener not called",
+                    ExceptionsHelper.class.getName(),
+                    Level.ERROR,
+                    ".*Expected listener NoopActionListener to be called at least once, " + "but it was never called\\. Created\\:(.*|\\s)*"
+                )
+            );
+            final AtomicReference<ActionListener<Object>> listenerRef = new AtomicReference<>(
+                ActionListener.assertAtLeastOnce(ActionListener.noop())
+            );
+            assertBusy(() -> {
+                // Nullify reference so it becomes unreachable
+                listenerRef.set(null);
+                System.gc();
+                mockLog.assertAllExpectationsMatched();
+            });
+        }
+    }
+
+    public void testAssertAtLeastOnceWillInvokeListenerWhenNotResolved() throws Exception {
+        AtomicReference<Exception> listenerCreatedAt = new AtomicReference<>();
+        AtomicReference<ActionListener<?>> notCalledListener = new AtomicReference<>();
+        AtomicReference<ActionListener<Object>> listenerRef = new AtomicReference<>(
+            new ActionListenerImplementations.AssertAtLeastOnceActionListener<>(ActionListener.noop(), (listener, createdAt) -> {
+                logger.info("NotCalledListener called!");
+                notCalledListener.set(listener);
+                listenerCreatedAt.set(createdAt);
+            })
+        );
+        assertBusy(() -> {
+            // Nullify reference so it becomes unreachable
+            listenerRef.set(null);
+            System.gc();
+            assertNotNull(notCalledListener.get());
+            assertNotNull(listenerCreatedAt.get());
+        });
+    }
+
+    public void testAssertAtLeastOnceWillNotLogWhenResolvedOrFailed() throws Exception {
+        final ReachabilityChecker reachabilityChecker = new ReachabilityChecker();
+        final AtomicBoolean notCalledListenerCalled = new AtomicBoolean();
+        AtomicReference<ActionListener<Object>> listenerRef = new AtomicReference<>(
+            reachabilityChecker.register(
+                new ActionListenerImplementations.AssertAtLeastOnceActionListener<>(
+                    ActionListener.noop(),
+                    (listener, createdAt) -> notCalledListenerCalled.set(true)
+                )
+            )
+        );
+        // Call onResponse and/or onFailure at least once
+        IntStream.range(0, 1 + randomInt(3)).forEach(i -> {
+            if (randomBoolean()) {
+                listenerRef.get().onResponse("succeeded");
+            } else {
+                listenerRef.get().onFailure(new RuntimeException("Failed"));
+            }
+        });
+        assertBusy(() -> {
+            // Nullify reference so it becomes unreachable
+            listenerRef.set(null);
+            System.gc();
+            reachabilityChecker.ensureUnreachable();    // Only proceed once we know the object isn't reachable
+            assertFalse(notCalledListenerCalled.get());
+        });
     }
 
     /**

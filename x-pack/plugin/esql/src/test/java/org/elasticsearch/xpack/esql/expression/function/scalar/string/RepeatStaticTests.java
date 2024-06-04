@@ -18,19 +18,14 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.TestBlockFactory;
-import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
-import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.core.type.EsField;
-import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
-import org.elasticsearch.xpack.esql.optimizer.FoldNull;
-import org.elasticsearch.xpack.esql.planner.Layout;
+import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.junit.After;
 
 import java.util.ArrayList;
@@ -69,9 +64,9 @@ public class RepeatStaticTests extends ESTestCase {
 
     public String process(String str, int number) {
         try (
-            var eval = evaluator(new Repeat(Source.EMPTY, field("string", DataTypes.KEYWORD), field("number", DataTypes.INTEGER))).get(
-                driverContext()
-            );
+            var eval = AbstractFunctionTestCase.evaluator(
+                new Repeat(Source.EMPTY, field("string", DataTypes.KEYWORD), field("number", DataTypes.INTEGER))
+            ).get(driverContext());
             Block block = eval.eval(row(List.of(new BytesRef(str), number)));
         ) {
             return block.isNull(0) ? null : ((BytesRef) BlockUtils.toJavaObject(block, 0)).utf8ToString();
@@ -82,30 +77,6 @@ public class RepeatStaticTests extends ESTestCase {
      * The following fields and methods were borrowed from AbstractFunctionTestCase
      */
     private final List<CircuitBreaker> breakers = Collections.synchronizedList(new ArrayList<>());
-
-    private static EvalOperator.ExpressionEvaluator.Factory evaluator(Expression e) {
-        e = new FoldNull().rule(e);
-        if (e.foldable()) {
-            e = new Literal(e.source(), e.fold(), e.dataType());
-        }
-        Layout.Builder builder = new Layout.Builder();
-        buildLayout(builder, e);
-        Expression.TypeResolution resolution = e.typeResolved();
-        if (resolution.unresolved()) {
-            throw new AssertionError("expected resolved " + resolution.message());
-        }
-        return EvalMapper.toEvaluator(e, builder.build());
-    }
-
-    private static void buildLayout(Layout.Builder builder, Expression e) {
-        if (e instanceof FieldAttribute f) {
-            builder.append(f);
-            return;
-        }
-        for (Expression c : e.children()) {
-            buildLayout(builder, c);
-        }
-    }
 
     private static Page row(List<Object> values) {
         return new Page(1, BlockUtils.fromListRow(TestBlockFactory.getNonBreakingInstance(), values));

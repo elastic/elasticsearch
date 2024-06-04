@@ -15,6 +15,7 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType
 import org.elasticsearch.index.mapper.vectors.KnnDenseVectorScriptDocValuesTests;
 import org.elasticsearch.script.VectorScoreScriptUtils.CosineSimilarity;
 import org.elasticsearch.script.VectorScoreScriptUtils.DotProduct;
+import org.elasticsearch.script.VectorScoreScriptUtils.Hamming;
 import org.elasticsearch.script.VectorScoreScriptUtils.L1Norm;
 import org.elasticsearch.script.VectorScoreScriptUtils.L2Norm;
 import org.elasticsearch.script.field.vectors.BinaryDenseVectorDocValuesField;
@@ -111,6 +112,12 @@ public class VectorScoreScriptUtilsTests extends ESTestCase {
                 containsString("query vector has a different number of dimensions [2] than the document vectors [5]")
             );
 
+            e = expectThrows(IllegalArgumentException.class, () -> new Hamming(scoreScript, queryVector, fieldName));
+            assertThat(e.getMessage(), containsString("hamming distance is only supported for byte vectors"));
+
+            e = expectThrows(IllegalArgumentException.class, () -> new Hamming(scoreScript, invalidQueryVector, fieldName));
+            assertThat(e.getMessage(), containsString("hamming distance is only supported for byte vectors"));
+
             // Check scripting infrastructure integration
             DotProduct dotProduct = new DotProduct(scoreScript, queryVector, fieldName);
             assertEquals(65425.6249, dotProduct.dotProduct(), 0.001);
@@ -189,12 +196,18 @@ public class VectorScoreScriptUtilsTests extends ESTestCase {
                 e.getMessage(),
                 containsString("query vector has a different number of dimensions [2] than the document vectors [5]")
             );
+            e = expectThrows(IllegalArgumentException.class, () -> new Hamming(scoreScript, invalidQueryVector, fieldName));
+            assertThat(
+                e.getMessage(),
+                containsString("query vector has a different number of dimensions [2] than the document vectors [5]")
+            );
 
             // Check scripting infrastructure integration
             DotProduct dotProduct = new DotProduct(scoreScript, queryVector, fieldName);
             assertEquals(17382.0, dotProduct.dotProduct(), 0.001);
             assertEquals(135.0, new L1Norm(scoreScript, queryVector, fieldName).l1norm(), 0.001);
             assertEquals(116.897, new L2Norm(scoreScript, queryVector, fieldName).l2norm(), 0.001);
+            assertEquals(13.0, new Hamming(scoreScript, queryVector, fieldName).hamming(), 0.001);
             when(scoreScript._getDocId()).thenReturn(1);
             e = expectThrows(IllegalArgumentException.class, dotProduct::dotProduct);
             assertEquals("A document doesn't have a value for a vector field!", e.getMessage());

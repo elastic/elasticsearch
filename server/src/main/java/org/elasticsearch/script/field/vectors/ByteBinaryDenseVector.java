@@ -8,6 +8,7 @@
 
 package org.elasticsearch.script.field.vectors;
 
+import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.core.SuppressForbidden;
@@ -98,6 +99,30 @@ public class ByteBinaryDenseVector implements DenseVector {
             result += abs(vectorValue[i] - queryVector.get(i).intValue());
         }
         return result;
+    }
+
+    @Override
+    public int hamming(byte[] queryVector) {
+        int distance = 0, i = 0;
+        for (final int upperBound = queryVector.length & ~(Long.BYTES - 1); i < upperBound; i += Long.BYTES) {
+            distance += Long.bitCount(
+                (long) BitUtil.VH_NATIVE_LONG.get(queryVector, i) ^ (long) BitUtil.VH_NATIVE_LONG.get(vectorValue, i)
+            );
+        }
+        // tail:
+        for (; i < queryVector.length; i++) {
+            distance += Integer.bitCount((queryVector[i] ^ vectorValue[i]) & 0xFF);
+        }
+        return distance;
+    }
+
+    @Override
+    public int hamming(List<Number> queryVector) {
+        int distance = 0;
+        for (int i = 0; i < queryVector.size(); i++) {
+            distance += Integer.bitCount((queryVector.get(i).intValue() ^ vectorValue[i]) & 0xFF);
+        }
+        return distance;
     }
 
     @Override

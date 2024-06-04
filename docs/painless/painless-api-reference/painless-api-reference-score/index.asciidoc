@@ -23,6 +23,7 @@ The following methods are directly callable without a class/instance qualifier. 
 * double dotProduct(List *, String *)
 * double l1norm(List *, String *)
 * double l2norm(List *, String *)
+* double hamming(List *, String *)
 * double randomScore(int *)
 * double randomScore(int *, String *)
 * double saturation(double, double)

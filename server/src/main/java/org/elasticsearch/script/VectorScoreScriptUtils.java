@@ -9,6 +9,7 @@
 package org.elasticsearch.script;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.script.field.vectors.DenseVector;
 import org.elasticsearch.script.field.vectors.DenseVectorDocValuesField;
 
@@ -148,6 +149,40 @@ public class VectorScoreScriptUtils {
 
         public double l1norm() {
             return function.l1norm();
+        }
+    }
+
+    // Calculate Hamming distances between a query's dense vector and documents' dense vectors
+    public interface HammingDistanceInterface {
+        int hamming();
+    }
+
+    public static class ByteHammingDistance extends ByteDenseVectorFunction implements HammingDistanceInterface {
+
+        public ByteHammingDistance(ScoreScript scoreScript, DenseVectorDocValuesField field, List<Number> queryVector) {
+            super(scoreScript, field, queryVector);
+        }
+
+        public int hamming() {
+            setNextVector();
+            return field.get().hamming(queryVector);
+        }
+    }
+
+    public static final class Hamming {
+
+        private final HammingDistanceInterface function;
+
+        public Hamming(ScoreScript scoreScript, List<Number> queryVector, String fieldName) {
+            DenseVectorDocValuesField field = (DenseVectorDocValuesField) scoreScript.field(fieldName);
+            if (field.getElementType() != DenseVectorFieldMapper.ElementType.BYTE) {
+                throw new IllegalArgumentException("hamming distance is only supported for byte vectors");
+            }
+            function = new ByteHammingDistance(scoreScript, field, queryVector);
+        }
+
+        public double hamming() {
+            return function.hamming();
         }
     }
 

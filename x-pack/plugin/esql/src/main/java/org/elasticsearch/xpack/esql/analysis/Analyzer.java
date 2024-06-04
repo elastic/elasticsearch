@@ -57,6 +57,7 @@ import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.DateTimeArithmeticOperation;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
@@ -107,6 +108,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.NESTED;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
 import static org.elasticsearch.xpack.esql.stats.FeatureMetric.LIMIT;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isTemporalAmount;
 
 public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerContext> {
     // marker list of attributes for plans that do not have any concrete fields to return, but have other computed columns to return
@@ -850,19 +852,23 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             DataType targetDataType = DataType.NULL;
             Expression from = Literal.NULL;
 
-            if (left.dataType() == KEYWORD
-                && left.foldable()
-                && (supportsImplicitCasting(right.dataType()))
-                && ((left instanceof EsqlScalarFunction) == false)) {
-                targetDataType = right.dataType();
-                from = left;
+            if (left.dataType() == KEYWORD && left.foldable() && (left instanceof EsqlScalarFunction == false)) {
+                if (supportsImplicitCasting(right.dataType())) {
+                    targetDataType = right.dataType();
+                    from = left;
+                } else if (supportsImplicitTemporalCasting(right, o)) {
+                    targetDataType = DATETIME;
+                    from = left;
+                }
             }
-            if (right.dataType() == KEYWORD
-                && right.foldable()
-                && (supportsImplicitCasting(left.dataType()))
-                && ((right instanceof EsqlScalarFunction) == false)) {
-                targetDataType = left.dataType();
-                from = right;
+            if (right.dataType() == KEYWORD && right.foldable() && (right instanceof EsqlScalarFunction == false)) {
+                if (supportsImplicitCasting(left.dataType())) {
+                    targetDataType = left.dataType();
+                    from = right;
+                } else if (supportsImplicitTemporalCasting(left, o)) {
+                    targetDataType = DATETIME;
+                    from = right;
+                }
             }
             if (from != Literal.NULL) {
                 Expression e = castStringLiteral(from, targetDataType);
@@ -894,6 +900,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
             newChildren.add(left);
             return childrenChanged ? in.replaceChildren(newChildren) : in;
+        }
+
+        private static boolean supportsImplicitTemporalCasting(Expression e, BinaryOperator<?, ?, ?, ?> o) {
+            return isTemporalAmount(e.dataType()) && (o instanceof DateTimeArithmeticOperation);
         }
 
         private static boolean supportsImplicitCasting(DataType type) {

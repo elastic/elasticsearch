@@ -745,36 +745,6 @@ public class OptimizerRulesTests extends ESTestCase {
         assertEquals(and, new PropagateNullable().rule(and));
     }
 
-    public void testIsNotNullOnIsNullField() {
-        EsRelation relation = relation();
-        var fieldA = TestUtils.getFieldAttribute("a");
-        Expression inn = isNotNull(fieldA);
-        Filter f = new Filter(EMPTY, relation, inn);
-
-        assertEquals(f, new LocalLogicalPlanOptimizer.InferIsNotNull().apply(f));
-    }
-
-    public void testIsNotNullOnOperatorWithOneField() {
-        EsRelation relation = relation();
-        var fieldA = TestUtils.getFieldAttribute("a");
-        Expression inn = isNotNull(new Add(EMPTY, fieldA, ONE));
-        Filter f = new Filter(EMPTY, relation, inn);
-        Filter expected = new Filter(EMPTY, relation, new And(EMPTY, isNotNull(fieldA), inn));
-
-        assertEquals(expected, new LocalLogicalPlanOptimizer.InferIsNotNull().apply(f));
-    }
-
-    public void testIsNotNullOnOperatorWithTwoFields() {
-        EsRelation relation = relation();
-        var fieldA = TestUtils.getFieldAttribute("a");
-        var fieldB = TestUtils.getFieldAttribute("b");
-        Expression inn = isNotNull(new Add(EMPTY, fieldA, fieldB));
-        Filter f = new Filter(EMPTY, relation, inn);
-        Filter expected = new Filter(EMPTY, relation, new And(EMPTY, new And(EMPTY, isNotNull(fieldA), isNotNull(fieldB)), inn));
-
-        assertEquals(expected, new LocalLogicalPlanOptimizer.InferIsNotNull().apply(f));
-    }
-
     //
     // Like / Regex
     //

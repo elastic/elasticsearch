@@ -436,7 +436,6 @@ public class ActionListenerTests extends ESTestCase {
         });
         // Nullify reference so it becomes unreachable
         listenerRef.set(null);
-        System.gc();
         reachabilityChecker.ensureUnreachable();    // Only proceed once we know the object isn't reachable
         assertFalse(notCalledListenerCalled.get());
     }

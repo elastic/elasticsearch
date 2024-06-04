@@ -1887,18 +1887,18 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testMvAppendValidation() {
         String[][] fields = {
-            {"bool", "boolean"},
-            {"int", "integer"},
-            {"unsigned_long", "unsigned_long"},
-            {"float", "double"},
-            {"text", "text"},
-            {"keyword", "keyword"},
-            {"date", "datetime"},
-            {"point", "geo_point"},
-            {"shape", "geo_shape"},
-            {"long", "long"},
-            {"ip", "ip"},
-            {"version", "version"}};
+            { "bool", "boolean" },
+            { "int", "integer" },
+            { "unsigned_long", "unsigned_long" },
+            { "float", "double" },
+            { "text", "text" },
+            { "keyword", "keyword" },
+            { "date", "datetime" },
+            { "point", "geo_point" },
+            { "shape", "geo_shape" },
+            { "long", "long" },
+            { "ip", "ip" },
+            { "version", "version" } };
 
         Supplier<Integer> supplier = () -> randomInt(fields.length - 1);
         int first = supplier.get();
@@ -1918,6 +1918,7 @@ public class AnalyzerTests extends ESTestCase {
                 + "]"
         );
     }
+
     public void testLookup() {
         var e = expectThrows(ParsingException.class, () -> analyze("""
               FROM test

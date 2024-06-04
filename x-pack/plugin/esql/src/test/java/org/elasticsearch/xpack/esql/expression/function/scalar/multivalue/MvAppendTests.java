@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -203,66 +202,66 @@ public class MvAppendTests extends AbstractFunctionTestCase {
             );
         }));
 
-        suppliers.add(new TestCaseSupplier(List.of(EsqlDataTypes.GEO_POINT, EsqlDataTypes.GEO_POINT), () -> {
+        suppliers.add(new TestCaseSupplier(List.of(DataTypes.GEO_POINT, DataTypes.GEO_POINT), () -> {
             List<Object> field1 = randomList(1, 10, () -> new BytesRef(GEO.asWkt(GeometryTestUtils.randomPoint())));
             List<Object> field2 = randomList(1, 10, () -> new BytesRef(GEO.asWkt(GeometryTestUtils.randomPoint())));
             var result = new ArrayList<>(field1);
             result.addAll(field2);
             return new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(field1, EsqlDataTypes.GEO_POINT, "field1"),
-                    new TestCaseSupplier.TypedData(field2, EsqlDataTypes.GEO_POINT, "field2")
+                    new TestCaseSupplier.TypedData(field1, DataTypes.GEO_POINT, "field1"),
+                    new TestCaseSupplier.TypedData(field2, DataTypes.GEO_POINT, "field2")
                 ),
                 "MvAppendBytesRefEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
-                EsqlDataTypes.GEO_POINT,
+                DataTypes.GEO_POINT,
                 equalTo(result)
             );
         }));
 
-        suppliers.add(new TestCaseSupplier(List.of(EsqlDataTypes.CARTESIAN_POINT, EsqlDataTypes.CARTESIAN_POINT), () -> {
+        suppliers.add(new TestCaseSupplier(List.of(DataTypes.CARTESIAN_POINT, DataTypes.CARTESIAN_POINT), () -> {
             List<Object> field1 = randomList(1, 10, () -> new BytesRef(CARTESIAN.asWkt(ShapeTestUtils.randomPoint())));
             List<Object> field2 = randomList(1, 10, () -> new BytesRef(CARTESIAN.asWkt(ShapeTestUtils.randomPoint())));
             var result = new ArrayList<>(field1);
             result.addAll(field2);
             return new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(field1, EsqlDataTypes.CARTESIAN_POINT, "field1"),
-                    new TestCaseSupplier.TypedData(field2, EsqlDataTypes.CARTESIAN_POINT, "field2")
+                    new TestCaseSupplier.TypedData(field1, DataTypes.CARTESIAN_POINT, "field1"),
+                    new TestCaseSupplier.TypedData(field2, DataTypes.CARTESIAN_POINT, "field2")
                 ),
                 "MvAppendBytesRefEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
-                EsqlDataTypes.CARTESIAN_POINT,
+                DataTypes.CARTESIAN_POINT,
                 equalTo(result)
             );
         }));
 
-        suppliers.add(new TestCaseSupplier(List.of(EsqlDataTypes.GEO_SHAPE, EsqlDataTypes.GEO_SHAPE), () -> {
+        suppliers.add(new TestCaseSupplier(List.of(DataTypes.GEO_SHAPE, DataTypes.GEO_SHAPE), () -> {
             List<Object> field1 = randomList(1, 10, () -> new BytesRef(GEO.asWkt(GeometryTestUtils.randomGeometry(randomBoolean()))));
             List<Object> field2 = randomList(1, 10, () -> new BytesRef(GEO.asWkt(GeometryTestUtils.randomGeometry(randomBoolean()))));
             var result = new ArrayList<>(field1);
             result.addAll(field2);
             return new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(field1, EsqlDataTypes.GEO_SHAPE, "field1"),
-                    new TestCaseSupplier.TypedData(field2, EsqlDataTypes.GEO_SHAPE, "field2")
+                    new TestCaseSupplier.TypedData(field1, DataTypes.GEO_SHAPE, "field1"),
+                    new TestCaseSupplier.TypedData(field2, DataTypes.GEO_SHAPE, "field2")
                 ),
                 "MvAppendBytesRefEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
-                EsqlDataTypes.GEO_SHAPE,
+                DataTypes.GEO_SHAPE,
                 equalTo(result)
             );
         }));
 
-        suppliers.add(new TestCaseSupplier(List.of(EsqlDataTypes.CARTESIAN_SHAPE, EsqlDataTypes.CARTESIAN_SHAPE), () -> {
+        suppliers.add(new TestCaseSupplier(List.of(DataTypes.CARTESIAN_SHAPE, DataTypes.CARTESIAN_SHAPE), () -> {
             List<Object> field1 = randomList(1, 10, () -> new BytesRef(CARTESIAN.asWkt(ShapeTestUtils.randomGeometry(randomBoolean()))));
             List<Object> field2 = randomList(1, 10, () -> new BytesRef(CARTESIAN.asWkt(ShapeTestUtils.randomGeometry(randomBoolean()))));
             var result = new ArrayList<>(field1);
             result.addAll(field2);
             return new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(field1, EsqlDataTypes.CARTESIAN_SHAPE, "field1"),
-                    new TestCaseSupplier.TypedData(field2, EsqlDataTypes.CARTESIAN_SHAPE, "field2")
+                    new TestCaseSupplier.TypedData(field1, DataTypes.CARTESIAN_SHAPE, "field1"),
+                    new TestCaseSupplier.TypedData(field2, DataTypes.CARTESIAN_SHAPE, "field2")
                 ),
                 "MvAppendBytesRefEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
-                EsqlDataTypes.CARTESIAN_SHAPE,
+                DataTypes.CARTESIAN_SHAPE,
                 equalTo(result)
             );
         }));

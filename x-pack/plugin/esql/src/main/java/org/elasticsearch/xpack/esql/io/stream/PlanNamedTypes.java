@@ -1861,11 +1861,11 @@ public final class PlanNamedTypes {
     }
 
     static MvAppend readMvAppend(PlanStreamInput in) throws IOException {
-        return new MvAppend(in.readSource(), in.readExpression(), in.readExpression());
+        return new MvAppend(Source.readFrom(in), in.readExpression(), in.readExpression());
     }
 
     static void writeMvAppend(PlanStreamOutput out, MvAppend fn) throws IOException {
-        out.writeNoSource();
+        Source.EMPTY.writeTo(out);
         List<Expression> fields = fn.children();
         assert fields.size() == 2;
         out.writeExpression(fields.get(0));

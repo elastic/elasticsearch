@@ -14,10 +14,9 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
@@ -39,16 +38,16 @@ public class ToIntegerTests extends AbstractFunctionTestCase {
         Function<String, String> evaluatorName = s -> "ToIntegerFrom" + s + "Evaluator[field=" + read + "]";
         List<TestCaseSupplier> suppliers = new ArrayList<>();
 
-        TestCaseSupplier.forUnaryInt(suppliers, read, DataTypes.INTEGER, i -> i, Integer.MIN_VALUE, Integer.MAX_VALUE, List.of());
+        TestCaseSupplier.forUnaryInt(suppliers, read, DataType.INTEGER, i -> i, Integer.MIN_VALUE, Integer.MAX_VALUE, List.of());
 
-        TestCaseSupplier.forUnaryBoolean(suppliers, evaluatorName.apply("Boolean"), DataTypes.INTEGER, b -> b ? 1 : 0, List.of());
+        TestCaseSupplier.forUnaryBoolean(suppliers, evaluatorName.apply("Boolean"), DataType.INTEGER, b -> b ? 1 : 0, List.of());
 
         // datetimes that fall within Integer's range
         TestCaseSupplier.unary(
             suppliers,
             evaluatorName.apply("Long"),
             dateCases(0, Integer.MAX_VALUE),
-            DataTypes.INTEGER,
+            DataType.INTEGER,
             l -> ((Long) l).intValue(),
             List.of()
         );
@@ -57,7 +56,7 @@ public class ToIntegerTests extends AbstractFunctionTestCase {
             suppliers,
             evaluatorName.apply("Long"),
             dateCases(Integer.MAX_VALUE + 1L, Long.MAX_VALUE),
-            DataTypes.INTEGER,
+            DataType.INTEGER,
             l -> null,
             l -> List.of(
                 "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
@@ -68,7 +67,7 @@ public class ToIntegerTests extends AbstractFunctionTestCase {
         TestCaseSupplier.forUnaryStrings(
             suppliers,
             evaluatorName.apply("String"),
-            DataTypes.INTEGER,
+            DataType.INTEGER,
             bytesRef -> null,
             bytesRef -> List.of(
                 "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
@@ -81,7 +80,7 @@ public class ToIntegerTests extends AbstractFunctionTestCase {
         TestCaseSupplier.forUnaryDouble(
             suppliers,
             evaluatorName.apply("Double"),
-            DataTypes.INTEGER,
+            DataType.INTEGER,
             d -> safeToInt(Math.round(d)),
             Integer.MIN_VALUE,
             Integer.MAX_VALUE,
@@ -91,7 +90,7 @@ public class ToIntegerTests extends AbstractFunctionTestCase {
         TestCaseSupplier.forUnaryDouble(
             suppliers,
             evaluatorName.apply("Double"),
-            DataTypes.INTEGER,
+            DataType.INTEGER,
             d -> null,
             Double.NEGATIVE_INFINITY,
             Integer.MIN_VALUE - 1d,
@@ -104,7 +103,7 @@ public class ToIntegerTests extends AbstractFunctionTestCase {
         TestCaseSupplier.forUnaryDouble(
             suppliers,
             evaluatorName.apply("Double"),
-            DataTypes.INTEGER,
+            DataType.INTEGER,
             d -> null,
             Integer.MAX_VALUE + 1d,
             Double.POSITIVE_INFINITY,
@@ -118,7 +117,7 @@ public class ToIntegerTests extends AbstractFunctionTestCase {
         TestCaseSupplier.forUnaryUnsignedLong(
             suppliers,
             evaluatorName.apply("UnsignedLong"),
-            DataTypes.INTEGER,
+            DataType.INTEGER,
             BigInteger::intValue,
             BigInteger.ZERO,
             BigInteger.valueOf(Integer.MAX_VALUE),
@@ -128,7 +127,7 @@ public class ToIntegerTests extends AbstractFunctionTestCase {
         TestCaseSupplier.forUnaryUnsignedLong(
             suppliers,
             evaluatorName.apply("UnsignedLong"),
-            DataTypes.INTEGER,
+            DataType.INTEGER,
             ul -> null,
             BigInteger.valueOf(Integer.MAX_VALUE).add(BigInteger.ONE),
             UNSIGNED_LONG_MAX,
@@ -143,7 +142,7 @@ public class ToIntegerTests extends AbstractFunctionTestCase {
         TestCaseSupplier.forUnaryLong(
             suppliers,
             evaluatorName.apply("Long"),
-            DataTypes.INTEGER,
+            DataType.INTEGER,
             l -> (int) l,
             Integer.MIN_VALUE,
             Integer.MAX_VALUE,
@@ -153,7 +152,7 @@ public class ToIntegerTests extends AbstractFunctionTestCase {
         TestCaseSupplier.forUnaryLong(
             suppliers,
             evaluatorName.apply("Long"),
-            DataTypes.INTEGER,
+            DataType.INTEGER,
             l -> null,
             Long.MIN_VALUE,
             Integer.MIN_VALUE - 1L,
@@ -167,7 +166,7 @@ public class ToIntegerTests extends AbstractFunctionTestCase {
         TestCaseSupplier.forUnaryLong(
             suppliers,
             evaluatorName.apply("Long"),
-            DataTypes.INTEGER,
+            DataType.INTEGER,
             l -> null,
             Integer.MAX_VALUE + 1L,
             Long.MAX_VALUE,
@@ -187,11 +186,11 @@ public class ToIntegerTests extends AbstractFunctionTestCase {
                     tds -> new TestCaseSupplier.TypedDataSupplier(
                         tds.name() + "as string",
                         () -> new BytesRef(tds.supplier().get().toString()),
-                        DataTypes.KEYWORD
+                        DataType.KEYWORD
                     )
                 )
                 .toList(),
-            DataTypes.INTEGER,
+            DataType.INTEGER,
             bytesRef -> Integer.valueOf(((BytesRef) bytesRef).utf8ToString()),
             List.of()
         );
@@ -205,11 +204,11 @@ public class ToIntegerTests extends AbstractFunctionTestCase {
                     tds -> new TestCaseSupplier.TypedDataSupplier(
                         tds.name() + "as string",
                         () -> new BytesRef(tds.supplier().get().toString()),
-                        DataTypes.KEYWORD
+                        DataType.KEYWORD
                     )
                 )
                 .toList(),
-            DataTypes.INTEGER,
+            DataType.INTEGER,
             bytesRef -> safeToInt(Math.round(Double.parseDouble(((BytesRef) bytesRef).utf8ToString()))),
             List.of()
         );
@@ -223,11 +222,11 @@ public class ToIntegerTests extends AbstractFunctionTestCase {
                     tds -> new TestCaseSupplier.TypedDataSupplier(
                         tds.name() + "as string",
                         () -> new BytesRef(tds.supplier().get().toString()),
-                        DataTypes.KEYWORD
+                        DataType.KEYWORD
                     )
                 )
                 .toList(),
-            DataTypes.INTEGER,
+            DataType.INTEGER,
             bytesRef -> null,
             bytesRef -> List.of(
                 "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
@@ -246,11 +245,11 @@ public class ToIntegerTests extends AbstractFunctionTestCase {
                     tds -> new TestCaseSupplier.TypedDataSupplier(
                         tds.name() + "as string",
                         () -> new BytesRef(tds.supplier().get().toString()),
-                        DataTypes.KEYWORD
+                        DataType.KEYWORD
                     )
                 )
                 .toList(),
-            DataTypes.INTEGER,
+            DataType.INTEGER,
             bytesRef -> null,
             bytesRef -> List.of(
                 "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
@@ -263,8 +262,8 @@ public class ToIntegerTests extends AbstractFunctionTestCase {
         TestCaseSupplier.unary(
             suppliers,
             "Attribute[channel=0]",
-            List.of(new TestCaseSupplier.TypedDataSupplier("counter", ESTestCase::randomInt, EsqlDataTypes.COUNTER_INTEGER)),
-            DataTypes.INTEGER,
+            List.of(new TestCaseSupplier.TypedDataSupplier("counter", ESTestCase::randomInt, DataType.COUNTER_INTEGER)),
+            DataType.INTEGER,
             l -> l,
             List.of()
         );
@@ -280,13 +279,13 @@ public class ToIntegerTests extends AbstractFunctionTestCase {
     private static List<TestCaseSupplier.TypedDataSupplier> dateCases(long min, long max) {
         List<TestCaseSupplier.TypedDataSupplier> dataSuppliers = new ArrayList<>(2);
         if (min == 0L) {
-            dataSuppliers.add(new TestCaseSupplier.TypedDataSupplier("<1970-01-01T00:00:00Z>", () -> 0L, DataTypes.DATETIME));
+            dataSuppliers.add(new TestCaseSupplier.TypedDataSupplier("<1970-01-01T00:00:00Z>", () -> 0L, DataType.DATETIME));
         }
         if (max <= Integer.MAX_VALUE) {
-            dataSuppliers.add(new TestCaseSupplier.TypedDataSupplier("<1970-01-25T20:31:23.647Z>", () -> 2147483647L, DataTypes.DATETIME));
+            dataSuppliers.add(new TestCaseSupplier.TypedDataSupplier("<1970-01-25T20:31:23.647Z>", () -> 2147483647L, DataType.DATETIME));
         }
         dataSuppliers.add(
-            new TestCaseSupplier.TypedDataSupplier("<date>", () -> ESTestCase.randomLongBetween(min, max), DataTypes.DATETIME)
+            new TestCaseSupplier.TypedDataSupplier("<date>", () -> ESTestCase.randomLongBetween(min, max), DataType.DATETIME)
         );
         return dataSuppliers;
     }

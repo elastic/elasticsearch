@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.expression.function.Warnings;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
 
@@ -26,8 +25,8 @@ import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.DATE_PERIOD;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.TIME_DURATION;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
+import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isTemporalAmount;
 
 public class Neg extends UnaryScalarFunction {
@@ -47,13 +46,13 @@ public class Neg extends UnaryScalarFunction {
             var f = toEvaluator.apply(field());
             ExpressionEvaluator.Factory factory = null;
 
-            if (type == DataTypes.INTEGER) {
+            if (type == DataType.INTEGER) {
                 factory = new NegIntsEvaluator.Factory(source(), f);
             }
             // Unsigned longs are unsupported by choice; negating them would require implicitly converting to long.
-            else if (type == DataTypes.LONG) {
+            else if (type == DataType.LONG) {
                 factory = new NegLongsEvaluator.Factory(source(), f);
-            } else if (type == DataTypes.DOUBLE) {
+            } else if (type == DataType.DOUBLE) {
                 factory = new NegDoublesEvaluator.Factory(source(), f);
             }
 
@@ -98,7 +97,7 @@ public class Neg extends UnaryScalarFunction {
     protected TypeResolution resolveType() {
         return isType(
             field(),
-            dt -> dt != DataTypes.UNSIGNED_LONG && (dt.isNumeric() || isTemporalAmount(dt)),
+            dt -> dt != DataType.UNSIGNED_LONG && (dt.isNumeric() || isTemporalAmount(dt)),
             sourceText(),
             DEFAULT,
             "numeric",

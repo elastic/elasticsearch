@@ -115,7 +115,6 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
     @Override
     protected Transport build(Settings settings, TransportVersion version, ClusterSettings clusterSettings, boolean doHandshake) {
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
-        NetworkService networkService = new NetworkService(Collections.emptyList());
         Settings settings1 = Settings.builder().put(settings).put("xpack.security.transport.ssl.enabled", true).build();
         return new TestSecurityNetty4ServerTransport(
             settings1,

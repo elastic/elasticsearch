@@ -28,7 +28,6 @@ import org.elasticsearch.xpack.esql.core.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.core.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.core.util.Queries;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
@@ -39,7 +38,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
-import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
@@ -241,37 +239,37 @@ public class PlannerUtils {
      * For example, spatial types can be extracted into doc-values under specific conditions, otherwise they extract as BytesRef.
      */
     public static ElementType toElementType(DataType dataType, MappedFieldType.FieldExtractPreference fieldExtractPreference) {
-        if (dataType == DataTypes.LONG
-            || dataType == DataTypes.DATETIME
-            || dataType == DataTypes.UNSIGNED_LONG
-            || dataType == EsqlDataTypes.COUNTER_LONG) {
+        if (dataType == DataType.LONG
+            || dataType == DataType.DATETIME
+            || dataType == DataType.UNSIGNED_LONG
+            || dataType == DataType.COUNTER_LONG) {
             return ElementType.LONG;
         }
-        if (dataType == DataTypes.INTEGER || dataType == EsqlDataTypes.COUNTER_INTEGER) {
+        if (dataType == DataType.INTEGER || dataType == DataType.COUNTER_INTEGER) {
             return ElementType.INT;
         }
-        if (dataType == DataTypes.DOUBLE || dataType == EsqlDataTypes.COUNTER_DOUBLE) {
+        if (dataType == DataType.DOUBLE || dataType == DataType.COUNTER_DOUBLE) {
             return ElementType.DOUBLE;
         }
         // unsupported fields are passed through as a BytesRef
-        if (dataType == DataTypes.KEYWORD
-            || dataType == DataTypes.TEXT
-            || dataType == DataTypes.IP
-            || dataType == DataTypes.SOURCE
-            || dataType == DataTypes.VERSION
-            || dataType == DataTypes.UNSUPPORTED) {
+        if (dataType == DataType.KEYWORD
+            || dataType == DataType.TEXT
+            || dataType == DataType.IP
+            || dataType == DataType.SOURCE
+            || dataType == DataType.VERSION
+            || dataType == DataType.UNSUPPORTED) {
             return ElementType.BYTES_REF;
         }
-        if (dataType == DataTypes.NULL) {
+        if (dataType == DataType.NULL) {
             return ElementType.NULL;
         }
-        if (dataType == DataTypes.BOOLEAN) {
+        if (dataType == DataType.BOOLEAN) {
             return ElementType.BOOLEAN;
         }
-        if (dataType == EsQueryExec.DOC_DATA_TYPE) {
+        if (dataType == DataType.DOC_DATA_TYPE) {
             return ElementType.DOC;
         }
-        if (dataType == EsQueryExec.TSID_DATA_TYPE) {
+        if (dataType == DataType.TSID_DATA_TYPE) {
             return ElementType.BYTES_REF;
         }
         if (EsqlDataTypes.isSpatialPoint(dataType)) {

@@ -38,8 +38,8 @@
           "type": "keyword"
         },
         "@timestamp": {
-          "type": "date",
-          "format": "epoch_second"
+          "type": "date_nanos",
+          "format": "strict_date_optional_time_nanos||epoch_second"
         },
         "host.id": {
           "type": "keyword"

@@ -101,7 +101,7 @@ public final class CsvTestUtils {
         Map<String, String> pairs = extractInstructions(testName);
         String versionRange = pairs.get("skip");
         if (versionRange != null) {
-            String[] skipVersions = versionRange.split("-");
+            String[] skipVersions = versionRange.split("-", Integer.MAX_VALUE);
             if (skipVersions.length != 2) {
                 throw new IllegalArgumentException("malformed version range : " + versionRange);
             }
@@ -354,7 +354,8 @@ public final class CsvTestUtils {
                 for (int i = 0; i < row.size(); i++) {
                     String value = row.get(i);
                     if (value == null) {
-                        rowValues.add(null);
+                        // Empty cells are converted to null by SuperCSV. We convert them back to empty strings.
+                        rowValues.add("");
                         continue;
                     }
 
@@ -502,6 +503,7 @@ public final class CsvTestUtils {
                 case BYTES_REF -> bytesRefBlockType(actualType);
                 case BOOLEAN -> BOOLEAN;
                 case DOC -> throw new IllegalArgumentException("can't assert on doc blocks");
+                case COMPOSITE -> throw new IllegalArgumentException("can't assert on composite blocks");
                 case UNKNOWN -> throw new IllegalArgumentException("Unknown block types cannot be handled");
             };
         }

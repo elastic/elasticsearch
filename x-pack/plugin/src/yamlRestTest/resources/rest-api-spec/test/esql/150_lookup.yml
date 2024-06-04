@@ -1,0 +1,42 @@
+index named lookup:
+  - do:
+      bulk:
+        index: lookup
+        refresh: true
+        body:
+          - { index: { } }
+          - { f: 1 }
+
+  - do:
+      esql.query:
+        body:
+          query: 'FROM lookup | LIMIT 1'
+  - match: { columns.0.name: f }
+  - match: { columns.0.type: long }
+  - length: { values: 1 }
+  - match: { values.0.0: 1 }
+
+---
+lookup command unsupported:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [method, path, parameters, capabilities]
+          capabilities: [lookup]
+      reason: "LOOKUP command required"
+
+  - do:
+      bulk:
+        index: lookup
+        refresh: true
+        body:
+          - { index: { } }
+          - { f: 1 }
+
+  - do:
+      catch: /LOOKUP not yet supported/
+      esql.query:
+        body:
+          query: 'FROM lookup | LOOKUP a ON foo'

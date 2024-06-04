@@ -15,7 +15,7 @@ relevant considerations in this guide to improve performance. It also helps to
 understand how {transforms} work as different considerations apply depending on 
 whether or not your transform is running in continuous mode or in batch.
 
-In this guide, you’ll learn how to:
+In this guide, you'll learn how to:
 
 * Understand the impact of configuration options on the performance of 
   {transforms}.
@@ -111,10 +111,17 @@ group of IPs, in order to calculate the total `bytes_sent`. If this second
 search matches many shards, then this could be resource intensive. Consider 
 limiting the scope that the source index pattern and query will match.
 
-Use an absolute time value as a date range filter in your source query (for 
-example, greater than `2020-01-01T00:00:00`) to limit which historical indices 
-are accessed. If you use a relative time value (for example, `now-30d`) then 
-this date range is re-evaluated at the point of each checkpoint execution.
+To limit which historical indices are accessed, exclude certain tiers (for
+example `"must_not": { "terms": { "_tier": [ "data_frozen", "data_cold" ] } }`
+and/or use an absolute time value as a date range filter in your source query
+(for example, greater than 2024-01-01T00:00:00). If you use a relative time
+value (for example, gte now-30d/d) then ensure date rounding is applied to take
+advantage of query caching and ensure that the relative time is much larger than
+the largest of `frequency` or `time.sync.delay` or the date histogram bucket,
+otherwise data may be missed. Do not use date filters which are less than a date
+value (for example, `lt`: less than  or `lte`: less than or equal to) as this
+conflicts with the logic applied at each checkpoint execution and data may be
+missed.
 
 Consider using <<api-date-math-index-names,date math>> in your index names to 
 reduce the number of indices to resolve in your queries. Add a date pattern 

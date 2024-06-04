@@ -403,7 +403,7 @@ public class CsvTests extends ESTestCase {
         List<Type> columnTypes = coordinatorPlan.output()
             .stream()
             .peek(o -> dataTypes.add(EsqlDataTypes.outputType(o.dataType())))
-            .map(o -> Type.asType(o.dataType().name()))
+            .map(o -> Type.asType(o.dataType().nameUpper()))
             .toList();
 
         List<Driver> drivers = new ArrayList<>();

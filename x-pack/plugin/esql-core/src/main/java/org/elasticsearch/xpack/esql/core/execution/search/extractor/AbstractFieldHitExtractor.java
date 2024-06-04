@@ -14,7 +14,6 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -85,7 +84,7 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
     }
 
     protected DataType loadTypeFromName(String typeName) {
-        return DataTypes.fromTypeName(typeName);
+        return DataType.fromTypeName(typeName);
     }
 
     protected abstract ZoneId readZoneId(StreamInput in) throws IOException;

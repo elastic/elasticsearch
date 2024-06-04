@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.esql.core.expression;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression.TypeResolution;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 
 import java.util.Locale;
@@ -18,10 +17,10 @@ import java.util.function.Predicate;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.core.expression.Expressions.name;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.BOOLEAN;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.DATETIME;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.IP;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.NULL;
+import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
+import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 
 public final class TypeResolutions {
 
@@ -60,7 +59,7 @@ public final class TypeResolutions {
     }
 
     public static TypeResolution isString(Expression e, String operationName, ParamOrdinal paramOrd) {
-        return isType(e, DataTypes::isString, operationName, paramOrd, "string");
+        return isType(e, DataType::isString, operationName, paramOrd, "string");
     }
 
     public static TypeResolution isIP(Expression e, String operationName, ParamOrdinal paramOrd) {

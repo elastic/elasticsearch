@@ -15,7 +15,7 @@ import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -57,7 +57,7 @@ public class MvSum extends AbstractMultivalueFunction {
         return switch (PlannerUtils.toElementType(field().dataType())) {
             case DOUBLE -> new MvSumDoubleEvaluator.Factory(fieldEval);
             case INT -> new MvSumIntEvaluator.Factory(source(), fieldEval);
-            case LONG -> field().dataType() == DataTypes.UNSIGNED_LONG
+            case LONG -> field().dataType() == DataType.UNSIGNED_LONG
                 ? new MvSumUnsignedLongEvaluator.Factory(source(), fieldEval)
                 : new MvSumLongEvaluator.Factory(source(), fieldEval);
             case NULL -> EvalOperator.CONSTANT_NULL_FACTORY;

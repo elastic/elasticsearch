@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.esql.core.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
@@ -69,7 +68,7 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
 
     @Override
     public DataType dataType() {
-        return DataTypes.LONG;
+        return DataType.LONG;
     }
 
     @Override
@@ -86,7 +85,7 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
         boolean resolved = resolution.resolved();
         resolution = isType(
             field(),
-            dt -> resolved && dt != DataTypes.UNSIGNED_LONG,
+            dt -> resolved && dt != DataType.UNSIGNED_LONG,
             sourceText(),
             DEFAULT,
             "any exact type except unsigned_long or counter types"
@@ -101,20 +100,20 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
     public AggregatorFunctionSupplier supplier(List<Integer> inputChannels) {
         DataType type = field().dataType();
         int precision = this.precision == null ? DEFAULT_PRECISION : ((Number) this.precision.fold()).intValue();
-        if (type == DataTypes.BOOLEAN) {
+        if (type == DataType.BOOLEAN) {
             // Booleans ignore the precision because there are only two possible values anyway
             return new CountDistinctBooleanAggregatorFunctionSupplier(inputChannels);
         }
-        if (type == DataTypes.DATETIME || type == DataTypes.LONG) {
+        if (type == DataType.DATETIME || type == DataType.LONG) {
             return new CountDistinctLongAggregatorFunctionSupplier(inputChannels, precision);
         }
-        if (type == DataTypes.INTEGER) {
+        if (type == DataType.INTEGER) {
             return new CountDistinctIntAggregatorFunctionSupplier(inputChannels, precision);
         }
-        if (type == DataTypes.DOUBLE) {
+        if (type == DataType.DOUBLE) {
             return new CountDistinctDoubleAggregatorFunctionSupplier(inputChannels, precision);
         }
-        if (type == DataTypes.KEYWORD || type == DataTypes.IP || type == DataTypes.VERSION || type == DataTypes.TEXT) {
+        if (type == DataType.KEYWORD || type == DataType.IP || type == DataType.VERSION || type == DataType.TEXT) {
             return new CountDistinctBytesRefAggregatorFunctionSupplier(inputChannels, precision);
         }
         throw EsqlIllegalArgumentException.illegalDataType(type);
@@ -126,7 +125,7 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
         var field = field();
 
         return field.foldable()
-            ? new ToLong(s, new Coalesce(s, new MvCount(s, new MvDedupe(s, field)), List.of(new Literal(s, 0, DataTypes.INTEGER))))
+            ? new ToLong(s, new Coalesce(s, new MvCount(s, new MvDedupe(s, field)), List.of(new Literal(s, 0, DataType.INTEGER))))
             : null;
     }
 }

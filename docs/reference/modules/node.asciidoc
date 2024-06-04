@@ -1,5 +1,5 @@
 [[modules-node]]
-=== Node
+=== Nodes
 
 Any time that you start an instance of {es}, you are starting a _node_. A
 collection of connected nodes is called a <<modules-cluster,cluster>>. If you
@@ -239,6 +239,8 @@ assign data nodes to specific tiers: `data_content`,`data_hot`, `data_warm`,
 `data_cold`, or `data_frozen`. A node can belong to multiple tiers. 
 
 If you want to include a node in all tiers, or if your cluster does not use multiple tiers, then you can use the generic `data` role.
+
+include::../how-to/shard-limits.asciidoc[]
 
 WARNING: If you assign a node to a specific tier using a specialized data role, then you shouldn't also assign it the generic `data` role. The generic `data` role takes precedence over specialized data roles.
 

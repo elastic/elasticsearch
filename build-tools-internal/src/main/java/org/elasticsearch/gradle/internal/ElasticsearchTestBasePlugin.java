@@ -30,6 +30,7 @@ import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.testing.Test;
 
 import java.io.File;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.gradle.util.FileUtils.mkdirs;
@@ -204,23 +205,22 @@ public class ElasticsearchTestBasePlugin implements Plugin<Project> {
     }
 
     private void configureImmutableCollectionsPatch(Project project) {
+        String patchProject = ":test:immutable-collections-patch";
+        if (project.findProject(patchProject) == null) {
+            return;
+        }
         String configurationName = "immutableCollectionsPatch";
         FileCollection patchedFileCollection = project.getConfigurations()
-            .create(configurationName, config -> { config.setCanBeConsumed(false); });
-        project.getDependencies()
-            .add(
-                configurationName,
-                project.getDependencies().project(Map.of("path", ":test:immutable-collections-patch", "configuration", "patch"))
-            );
-        project.getTasks().withType(Test.class).named("test").configure(test -> {
+            .create(configurationName, config -> config.setCanBeConsumed(false));
+        var deps = project.getDependencies();
+        deps.add(configurationName, deps.project(Map.of("path", patchProject, "configuration", "patch")));
+        project.getTasks().withType(Test.class).matching(task -> task.getName().equals("test")).configureEach(test -> {
             test.getInputs().files(patchedFileCollection);
             test.systemProperty("tests.hackImmutableCollections", "true");
-            test.doFirst(t -> {
-                test.jvmArgs(
-                    "--patch-module=java.base=" + patchedFileCollection.getSingleFile() + "/java.base",
-                    "--add-opens=java.base/java.util=ALL-UNNAMED"
-                );
-            });
+            test.getJvmArgumentProviders().add(() ->
+                List.of("--patch-module=java.base=" + patchedFileCollection.getSingleFile() + "/java.base",
+                "--add-opens=java.base/java.util=ALL-UNNAMED"
+            ));
         });
     }
 }

@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.Negatable;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation;
 
 import java.time.ZoneId;
@@ -21,15 +20,15 @@ import java.util.Map;
 
 public class GreaterThan extends EsqlBinaryComparison implements Negatable<EsqlBinaryComparison> {
     private static final Map<DataType, EsqlArithmeticOperation.BinaryEvaluator> evaluatorMap = Map.ofEntries(
-        Map.entry(DataTypes.INTEGER, GreaterThanIntsEvaluator.Factory::new),
-        Map.entry(DataTypes.DOUBLE, GreaterThanDoublesEvaluator.Factory::new),
-        Map.entry(DataTypes.LONG, GreaterThanLongsEvaluator.Factory::new),
-        Map.entry(DataTypes.UNSIGNED_LONG, GreaterThanLongsEvaluator.Factory::new),
-        Map.entry(DataTypes.DATETIME, GreaterThanLongsEvaluator.Factory::new),
-        Map.entry(DataTypes.KEYWORD, GreaterThanKeywordsEvaluator.Factory::new),
-        Map.entry(DataTypes.TEXT, GreaterThanKeywordsEvaluator.Factory::new),
-        Map.entry(DataTypes.VERSION, GreaterThanKeywordsEvaluator.Factory::new),
-        Map.entry(DataTypes.IP, GreaterThanKeywordsEvaluator.Factory::new)
+        Map.entry(DataType.INTEGER, GreaterThanIntsEvaluator.Factory::new),
+        Map.entry(DataType.DOUBLE, GreaterThanDoublesEvaluator.Factory::new),
+        Map.entry(DataType.LONG, GreaterThanLongsEvaluator.Factory::new),
+        Map.entry(DataType.UNSIGNED_LONG, GreaterThanLongsEvaluator.Factory::new),
+        Map.entry(DataType.DATETIME, GreaterThanLongsEvaluator.Factory::new),
+        Map.entry(DataType.KEYWORD, GreaterThanKeywordsEvaluator.Factory::new),
+        Map.entry(DataType.TEXT, GreaterThanKeywordsEvaluator.Factory::new),
+        Map.entry(DataType.VERSION, GreaterThanKeywordsEvaluator.Factory::new),
+        Map.entry(DataType.IP, GreaterThanKeywordsEvaluator.Factory::new)
     );
 
     public GreaterThan(Source source, Expression left, Expression right) {

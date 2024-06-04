@@ -29,7 +29,7 @@ import java.util.List;
 import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 
 public class FromBase64 extends UnaryScalarFunction {
 

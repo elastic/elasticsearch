@@ -57,7 +57,6 @@ import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer.ReplaceRegexM
 import java.util.List;
 
 import static java.util.Arrays.asList;
-import static org.elasticsearch.xpack.esql.core.TestUtils.fieldAttribute;
 import static org.elasticsearch.xpack.esql.core.TestUtils.nullEqualsOf;
 import static org.elasticsearch.xpack.esql.core.TestUtils.of;
 import static org.elasticsearch.xpack.esql.core.TestUtils.rangeOf;

@@ -52,11 +52,11 @@ public class ConcatTests extends AbstractFunctionTestCase {
         }
         Set<DataType> supported = Set.of(DataTypes.NULL, DataTypes.KEYWORD, DataTypes.TEXT);
         List<Set<DataType>> supportedPerPosition = List.of(supported, supported);
-        for (DataType lhs : EsqlDataTypes.types()) {
+        for (DataType lhs : DataTypes.types()) {
             if (lhs == DataTypes.NULL || EsqlDataTypes.isRepresentable(lhs) == false) {
                 continue;
             }
-            for (DataType rhs : EsqlDataTypes.types()) {
+            for (DataType rhs : DataTypes.types()) {
                 if (rhs == DataTypes.NULL || EsqlDataTypes.isRepresentable(rhs) == false) {
                     continue;
                 }

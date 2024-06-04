@@ -177,6 +177,7 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
             client().execute(
                 MountSearchableSnapshotAction.INSTANCE,
                 new MountSearchableSnapshotRequest(
+                    TEST_REQUEST_TIMEOUT,
                     prefix + index,
                     repositoryName,
                     snapshotName,

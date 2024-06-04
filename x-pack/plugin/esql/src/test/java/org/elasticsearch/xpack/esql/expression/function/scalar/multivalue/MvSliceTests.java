@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -272,70 +271,70 @@ public class MvSliceTests extends AbstractFunctionTestCase {
             );
         }));
 
-        suppliers.add(new TestCaseSupplier(List.of(EsqlDataTypes.GEO_POINT, DataTypes.INTEGER, DataTypes.INTEGER), () -> {
+        suppliers.add(new TestCaseSupplier(List.of(DataTypes.GEO_POINT, DataTypes.INTEGER, DataTypes.INTEGER), () -> {
             List<Object> field = randomList(1, 5, () -> new BytesRef(GEO.asWkt(GeometryTestUtils.randomPoint())));
             int length = field.size();
             int start = randomIntBetween(0, length - 1);
             int end = randomIntBetween(start, length - 1);
             return new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(field, EsqlDataTypes.GEO_POINT, "field"),
+                    new TestCaseSupplier.TypedData(field, DataTypes.GEO_POINT, "field"),
                     new TestCaseSupplier.TypedData(start, DataTypes.INTEGER, "start"),
                     new TestCaseSupplier.TypedData(end, DataTypes.INTEGER, "end")
                 ),
                 "MvSliceBytesRefEvaluator[field=Attribute[channel=0], start=Attribute[channel=1], end=Attribute[channel=2]]",
-                EsqlDataTypes.GEO_POINT,
+                DataTypes.GEO_POINT,
                 equalTo(start == end ? field.get(start) : field.subList(start, end + 1))
             );
         }));
 
-        suppliers.add(new TestCaseSupplier(List.of(EsqlDataTypes.CARTESIAN_POINT, DataTypes.INTEGER, DataTypes.INTEGER), () -> {
+        suppliers.add(new TestCaseSupplier(List.of(DataTypes.CARTESIAN_POINT, DataTypes.INTEGER, DataTypes.INTEGER), () -> {
             List<Object> field = randomList(1, 5, () -> new BytesRef(CARTESIAN.asWkt(ShapeTestUtils.randomPoint())));
             int length = field.size();
             int start = randomIntBetween(0, length - 1);
             int end = randomIntBetween(start, length - 1);
             return new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(field, EsqlDataTypes.CARTESIAN_POINT, "field"),
+                    new TestCaseSupplier.TypedData(field, DataTypes.CARTESIAN_POINT, "field"),
                     new TestCaseSupplier.TypedData(start, DataTypes.INTEGER, "start"),
                     new TestCaseSupplier.TypedData(end, DataTypes.INTEGER, "end")
                 ),
                 "MvSliceBytesRefEvaluator[field=Attribute[channel=0], start=Attribute[channel=1], end=Attribute[channel=2]]",
-                EsqlDataTypes.CARTESIAN_POINT,
+                DataTypes.CARTESIAN_POINT,
                 equalTo(start == end ? field.get(start) : field.subList(start, end + 1))
             );
         }));
 
-        suppliers.add(new TestCaseSupplier(List.of(EsqlDataTypes.GEO_SHAPE, DataTypes.INTEGER, DataTypes.INTEGER), () -> {
+        suppliers.add(new TestCaseSupplier(List.of(DataTypes.GEO_SHAPE, DataTypes.INTEGER, DataTypes.INTEGER), () -> {
             List<Object> field = randomList(1, 5, () -> new BytesRef(GEO.asWkt(GeometryTestUtils.randomGeometry(randomBoolean()))));
             int length = field.size();
             int start = randomIntBetween(0, length - 1);
             int end = randomIntBetween(start, length - 1);
             return new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(field, EsqlDataTypes.GEO_SHAPE, "field"),
+                    new TestCaseSupplier.TypedData(field, DataTypes.GEO_SHAPE, "field"),
                     new TestCaseSupplier.TypedData(start, DataTypes.INTEGER, "start"),
                     new TestCaseSupplier.TypedData(end, DataTypes.INTEGER, "end")
                 ),
                 "MvSliceBytesRefEvaluator[field=Attribute[channel=0], start=Attribute[channel=1], end=Attribute[channel=2]]",
-                EsqlDataTypes.GEO_SHAPE,
+                DataTypes.GEO_SHAPE,
                 equalTo(start == end ? field.get(start) : field.subList(start, end + 1))
             );
         }));
 
-        suppliers.add(new TestCaseSupplier(List.of(EsqlDataTypes.CARTESIAN_SHAPE, DataTypes.INTEGER, DataTypes.INTEGER), () -> {
+        suppliers.add(new TestCaseSupplier(List.of(DataTypes.CARTESIAN_SHAPE, DataTypes.INTEGER, DataTypes.INTEGER), () -> {
             List<Object> field = randomList(1, 5, () -> new BytesRef(CARTESIAN.asWkt(ShapeTestUtils.randomGeometry(randomBoolean()))));
             int length = field.size();
             int start = randomIntBetween(0, length - 1);
             int end = randomIntBetween(start, length - 1);
             return new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(field, EsqlDataTypes.CARTESIAN_SHAPE, "field"),
+                    new TestCaseSupplier.TypedData(field, DataTypes.CARTESIAN_SHAPE, "field"),
                     new TestCaseSupplier.TypedData(start, DataTypes.INTEGER, "start"),
                     new TestCaseSupplier.TypedData(end, DataTypes.INTEGER, "end")
                 ),
                 "MvSliceBytesRefEvaluator[field=Attribute[channel=0], start=Attribute[channel=1], end=Attribute[channel=2]]",
-                EsqlDataTypes.CARTESIAN_SHAPE,
+                DataTypes.CARTESIAN_SHAPE,
                 equalTo(start == end ? field.get(start) : field.subList(start, end + 1))
             );
         }));

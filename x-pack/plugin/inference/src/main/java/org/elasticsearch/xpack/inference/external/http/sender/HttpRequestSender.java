@@ -73,7 +73,7 @@ public class HttpRequestSender implements Sender {
     private final HttpClientManager manager;
     private final RequestExecutorService service;
     private final AtomicBoolean started = new AtomicBoolean(false);
-    private final CountDownLatch startCompleted = new CountDownLatch(2);
+    private final CountDownLatch startCompleted = new CountDownLatch(1);
 
     private HttpRequestSender(
         String serviceName,
@@ -103,7 +103,17 @@ public class HttpRequestSender implements Sender {
             // is ready prior to the service attempting to use the http client to send a request
             manager.start();
             threadPool.executor(UTILITY_THREAD_POOL_NAME).execute(service::start);
-            startCompleted.countDown();
+            waitForStartToComplete();
+        }
+    }
+
+    private void waitForStartToComplete() {
+        try {
+            if (startCompleted.await(START_COMPLETED_WAIT_TIME.getSeconds(), TimeUnit.SECONDS) == false) {
+                throw new IllegalStateException("Http sender startup did not complete in time");
+            }
+        } catch (InterruptedException e) {
+            throw new IllegalStateException("Http sender interrupted while waiting for startup to complete");
         }
     }
 
@@ -132,15 +142,5 @@ public class HttpRequestSender implements Sender {
         assert started.get() : "call start() before sending a request";
         waitForStartToComplete();
         service.execute(requestCreator, inferenceInputs, timeout, listener);
-    }
-
-    private void waitForStartToComplete() {
-        try {
-            if (startCompleted.await(START_COMPLETED_WAIT_TIME.getSeconds(), TimeUnit.SECONDS) == false) {
-                throw new IllegalStateException("Http sender startup did not complete in time");
-            }
-        } catch (InterruptedException e) {
-            throw new IllegalStateException("Http sender interrupted while waiting for startup to complete");
-        }
     }
 }

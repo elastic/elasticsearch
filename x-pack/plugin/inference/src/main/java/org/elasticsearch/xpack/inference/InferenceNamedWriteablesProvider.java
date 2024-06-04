@@ -44,9 +44,11 @@ import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInt
 import org.elasticsearch.xpack.inference.services.elasticsearch.MultilingualE5SmallInternalServiceSettings;
 import org.elasticsearch.xpack.inference.services.elser.ElserInternalServiceSettings;
 import org.elasticsearch.xpack.inference.services.elser.ElserMlNodeTaskSettings;
+import org.elasticsearch.xpack.inference.services.googleaistudio.completion.GoogleAiStudioCompletionServiceSettings;
+import org.elasticsearch.xpack.inference.services.googleaistudio.embeddings.GoogleAiStudioEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceServiceSettings;
-import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserSecretSettings;
 import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserServiceSettings;
+import org.elasticsearch.xpack.inference.services.mistral.embeddings.MistralEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionTaskSettings;
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsServiceSettings;
@@ -106,8 +108,22 @@ public class InferenceNamedWriteablesProvider {
         addCohereNamedWriteables(namedWriteables);
         addAzureOpenAiNamedWriteables(namedWriteables);
         addAzureAiStudioNamedWriteables(namedWriteables);
+        addGoogleAiStudioNamedWritables(namedWriteables);
+        addMistralNamedWriteables(namedWriteables);
 
         return namedWriteables;
+    }
+
+    private static void addMistralNamedWriteables(List<NamedWriteableRegistry.Entry> namedWriteables) {
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                ServiceSettings.class,
+                MistralEmbeddingsServiceSettings.NAME,
+                MistralEmbeddingsServiceSettings::new
+            )
+        );
+
+        // note - no task settings for Mistral embeddings...
     }
 
     private static void addAzureAiStudioNamedWriteables(List<NamedWriteableRegistry.Entry> namedWriteables) {
@@ -249,8 +265,22 @@ public class InferenceNamedWriteablesProvider {
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(ServiceSettings.class, HuggingFaceServiceSettings.NAME, HuggingFaceServiceSettings::new)
         );
+    }
+
+    private static void addGoogleAiStudioNamedWritables(List<NamedWriteableRegistry.Entry> namedWriteables) {
         namedWriteables.add(
-            new NamedWriteableRegistry.Entry(SecretSettings.class, HuggingFaceElserSecretSettings.NAME, HuggingFaceElserSecretSettings::new)
+            new NamedWriteableRegistry.Entry(
+                ServiceSettings.class,
+                GoogleAiStudioCompletionServiceSettings.NAME,
+                GoogleAiStudioCompletionServiceSettings::new
+            )
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                ServiceSettings.class,
+                GoogleAiStudioEmbeddingsServiceSettings.NAME,
+                GoogleAiStudioEmbeddingsServiceSettings::new
+            )
         );
     }
 
@@ -318,4 +348,5 @@ public class InferenceNamedWriteablesProvider {
             new NamedWriteableRegistry.Entry(InferenceServiceResults.class, RankedDocsResults.NAME, RankedDocsResults::new)
         );
     }
+
 }

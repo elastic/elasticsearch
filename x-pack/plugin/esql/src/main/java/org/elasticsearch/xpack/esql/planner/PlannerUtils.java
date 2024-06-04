@@ -39,7 +39,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
-import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
@@ -244,13 +243,13 @@ public class PlannerUtils {
         if (dataType == DataTypes.LONG
             || dataType == DataTypes.DATETIME
             || dataType == DataTypes.UNSIGNED_LONG
-            || dataType == EsqlDataTypes.COUNTER_LONG) {
+            || dataType == DataTypes.COUNTER_LONG) {
             return ElementType.LONG;
         }
-        if (dataType == DataTypes.INTEGER || dataType == EsqlDataTypes.COUNTER_INTEGER) {
+        if (dataType == DataTypes.INTEGER || dataType == DataTypes.COUNTER_INTEGER) {
             return ElementType.INT;
         }
-        if (dataType == DataTypes.DOUBLE || dataType == EsqlDataTypes.COUNTER_DOUBLE) {
+        if (dataType == DataTypes.DOUBLE || dataType == DataTypes.COUNTER_DOUBLE) {
             return ElementType.DOUBLE;
         }
         // unsupported fields are passed through as a BytesRef
@@ -268,10 +267,10 @@ public class PlannerUtils {
         if (dataType == DataTypes.BOOLEAN) {
             return ElementType.BOOLEAN;
         }
-        if (dataType == EsQueryExec.DOC_DATA_TYPE) {
+        if (dataType == DataTypes.DOC_DATA_TYPE) {
             return ElementType.DOC;
         }
-        if (dataType == EsQueryExec.TSID_DATA_TYPE) {
+        if (dataType == DataTypes.TSID_DATA_TYPE) {
             return ElementType.BYTES_REF;
         }
         if (EsqlDataTypes.isSpatialPoint(dataType)) {

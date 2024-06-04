@@ -32,9 +32,9 @@ public final class CastIntToLongEvaluator implements EvalOperator.ExpressionEval
 
   public CastIntToLongEvaluator(Source source, EvalOperator.ExpressionEvaluator v,
       DriverContext driverContext) {
-    this.warnings = new Warnings(source);
     this.v = v;
     this.driverContext = driverContext;
+    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override

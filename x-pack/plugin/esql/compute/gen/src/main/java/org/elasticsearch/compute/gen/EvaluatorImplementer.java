@@ -121,11 +121,11 @@ public class EvaluatorImplementer {
     private MethodSpec ctor() {
         MethodSpec.Builder builder = MethodSpec.constructorBuilder().addModifiers(Modifier.PUBLIC);
         builder.addParameter(SOURCE, "source");
-        builder.addStatement("this.warnings = new Warnings(source)");
         processFunction.args.stream().forEach(a -> a.implementCtor(builder));
 
         builder.addParameter(DRIVER_CONTEXT, "driverContext");
         builder.addStatement("this.driverContext = driverContext");
+        builder.addStatement("this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source)");
         return builder.build();
     }
 

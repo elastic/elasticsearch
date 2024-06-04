@@ -35,10 +35,10 @@ public final class StartsWithEvaluator implements EvalOperator.ExpressionEvaluat
 
   public StartsWithEvaluator(Source source, EvalOperator.ExpressionEvaluator str,
       EvalOperator.ExpressionEvaluator prefix, DriverContext driverContext) {
-    this.warnings = new Warnings(source);
     this.str = str;
     this.prefix = prefix;
     this.driverContext = driverContext;
+    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override

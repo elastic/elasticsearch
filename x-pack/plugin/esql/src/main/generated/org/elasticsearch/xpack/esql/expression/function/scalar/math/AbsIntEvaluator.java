@@ -30,9 +30,9 @@ public final class AbsIntEvaluator implements EvalOperator.ExpressionEvaluator {
 
   public AbsIntEvaluator(Source source, EvalOperator.ExpressionEvaluator fieldVal,
       DriverContext driverContext) {
-    this.warnings = new Warnings(source);
     this.fieldVal = fieldVal;
     this.driverContext = driverContext;
+    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override

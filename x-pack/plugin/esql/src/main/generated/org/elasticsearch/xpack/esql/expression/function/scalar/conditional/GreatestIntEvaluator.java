@@ -32,9 +32,9 @@ public final class GreatestIntEvaluator implements EvalOperator.ExpressionEvalua
 
   public GreatestIntEvaluator(Source source, EvalOperator.ExpressionEvaluator[] values,
       DriverContext driverContext) {
-    this.warnings = new Warnings(source);
     this.values = values;
     this.driverContext = driverContext;
+    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override

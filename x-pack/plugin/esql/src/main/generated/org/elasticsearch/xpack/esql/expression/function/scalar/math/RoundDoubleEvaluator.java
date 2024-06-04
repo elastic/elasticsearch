@@ -34,10 +34,10 @@ public final class RoundDoubleEvaluator implements EvalOperator.ExpressionEvalua
 
   public RoundDoubleEvaluator(Source source, EvalOperator.ExpressionEvaluator val,
       EvalOperator.ExpressionEvaluator decimals, DriverContext driverContext) {
-    this.warnings = new Warnings(source);
     this.val = val;
     this.decimals = decimals;
     this.driverContext = driverContext;
+    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override

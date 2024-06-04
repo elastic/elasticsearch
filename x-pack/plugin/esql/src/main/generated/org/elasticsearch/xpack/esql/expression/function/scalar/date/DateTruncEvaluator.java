@@ -33,10 +33,10 @@ public final class DateTruncEvaluator implements EvalOperator.ExpressionEvaluato
 
   public DateTruncEvaluator(Source source, EvalOperator.ExpressionEvaluator fieldVal,
       Rounding.Prepared rounding, DriverContext driverContext) {
-    this.warnings = new Warnings(source);
     this.fieldVal = fieldVal;
     this.rounding = rounding;
     this.driverContext = driverContext;
+    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override

@@ -30,10 +30,10 @@ public final class MvAppendLongEvaluator implements EvalOperator.ExpressionEvalu
 
   public MvAppendLongEvaluator(Source source, EvalOperator.ExpressionEvaluator field1,
       EvalOperator.ExpressionEvaluator field2, DriverContext driverContext) {
-    this.warnings = new Warnings(source);
     this.field1 = field1;
     this.field2 = field2;
     this.driverContext = driverContext;
+    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override

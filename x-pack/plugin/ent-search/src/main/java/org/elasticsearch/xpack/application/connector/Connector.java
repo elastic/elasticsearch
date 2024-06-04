@@ -34,6 +34,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xpack.application.connector.ConnectorTemplateRegistry.ACCESS_CONTROL_INDEX_PREFIX;
 
 /**
  * Represents a Connector in the Elasticsearch ecosystem. Connectors are used for integrating
@@ -212,7 +213,7 @@ public class Connector implements NamedWriteable, ToXContentObject {
     static final ParseField CUSTOM_SCHEDULING_FIELD = new ParseField("custom_scheduling");
     public static final ParseField DESCRIPTION_FIELD = new ParseField("description");
     public static final ParseField ERROR_FIELD = new ParseField("error");
-    static final ParseField FEATURES_FIELD = new ParseField("features");
+    public static final ParseField FEATURES_FIELD = new ParseField("features");
     public static final ParseField FILTERING_FIELD = new ParseField("filtering");
     public static final ParseField INDEX_NAME_FIELD = new ParseField("index_name");
     public static final ParseField IS_NATIVE_FIELD = new ParseField("is_native");
@@ -268,6 +269,10 @@ public class Connector implements NamedWriteable, ToXContentObject {
                 .build();
         }
     );
+
+    public String getAccessControlIndexName() {
+        return ACCESS_CONTROL_INDEX_PREFIX + this.indexName;
+    }
 
     static {
         PARSER.declareStringOrNull(optionalConstructorArg(), API_KEY_ID_FIELD);

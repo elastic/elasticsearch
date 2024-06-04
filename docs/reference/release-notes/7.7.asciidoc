@@ -24,10 +24,10 @@ Fixed in {es} 8.6.1 ({es-pull}92480[#91456])
 // end::jackson-filtering-bug[]
 
 // tag::index-mapper-dynamic-bug[]
-* The usage of the `index.mapper.dynamic` deprecated index setting can cause your cluster
-to be broken. This index setting could only be set using the index setting update API.
-The symptoms are nodes fail startup or shards will fail to allocate. Don't use this
-index setting in any version before 7.17.22. The bug has been fixed in 7.17.22.
+* The deprecated `index.mapper.dynamic` setting can break your cluster. It can only 
+be set using the *Update index settings API*. Symptoms include nodes failing to start 
+or shards failing to allocate. Do not use this setting in versions prior to 7.17.22. 
+The bug is fixed in 7.17.22.
 (issue: {es-issue}109160[#109160])
 // end::index-mapper-dynamic-bug[]
 

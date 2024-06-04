@@ -7,6 +7,14 @@
 
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
+import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.TopValuesListLongAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.ValuesBooleanAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.ValuesBytesRefAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.ValuesDoubleAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.ValuesIntAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.ValuesLongAggregatorFunctionSupplier;
+import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -20,6 +28,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSlic
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSort;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
+import org.elasticsearch.xpack.esql.planner.ToAggregator;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
 import java.io.IOException;
@@ -34,7 +43,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isFol
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
-public class TopValuesList extends AggregateFunction implements SurrogateExpression {
+public class TopValuesList extends AggregateFunction implements ToAggregator, SurrogateExpression {
     private static final String ORDER_ASC = "ASC";
     private static final String ORDER_DESC = "DESC";
 
@@ -81,6 +90,14 @@ public class TopValuesList extends AggregateFunction implements SurrogateExpress
         return parameters().get(1);
     }
 
+    private int limitValue() {
+        return (int) limitField().fold();
+    }
+
+    private boolean orderValue() {
+        return orderField().fold().toString().equalsIgnoreCase(ORDER_ASC);
+    }
+
     @Override
     protected TypeResolution resolveType() {
         if (childrenResolved() == false) {
@@ -98,7 +115,7 @@ public class TopValuesList extends AggregateFunction implements SurrogateExpress
             return typeResolution;
         }
 
-        var limit = (int) limitField().fold();
+        var limit = limitValue();
         var order = orderField().fold().toString();
 
         if (limit <= 0) {
@@ -128,10 +145,21 @@ public class TopValuesList extends AggregateFunction implements SurrogateExpress
     }
 
     @Override
+    public AggregatorFunctionSupplier supplier(List<Integer> inputChannels) {
+        DataType type = field().dataType();
+        if (type == DataTypes.LONG || type == DataTypes.DATETIME) {
+            return new TopValuesListLongAggregatorFunctionSupplier(inputChannels, limitValue(), orderValue());
+        }
+        throw EsqlIllegalArgumentException.illegalDataType(type);
+    }
+
+    @Override
     public Expression surrogate() {
         var s = source();
 
-        var mvSliceEnd = (int) limitField().fold() - 1;
+        if (field().dataType() == DataTypes.LONG) {
+            return null;
+        }
 
         // Base, unoptimized implementation
         // TODO: VALUES() doesn't keep duplicates! So we can't surrogate this for foldable expressions
@@ -139,7 +167,7 @@ public class TopValuesList extends AggregateFunction implements SurrogateExpress
             s,
             new MvSort(s, new Values(s, field()), orderField()),
             new Literal(s, 0, DataTypes.INTEGER),
-            new Literal(s, mvSliceEnd, DataTypes.INTEGER)
+            new Literal(s, limitValue() - 1, DataTypes.INTEGER)
         );
     }
 }

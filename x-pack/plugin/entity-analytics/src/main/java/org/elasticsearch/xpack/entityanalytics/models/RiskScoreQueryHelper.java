@@ -54,7 +54,7 @@ public class RiskScoreQueryHelper {
         sources.add(new TermsValuesSourceBuilder(identifierField).field(identifierField));
 
         CompositeAggregationBuilder compositeAggregationBuilder = AggregationBuilders.composite(aggregationName, sources)
-            .size(1000) // TODO: page size
+            .size(500) // TODO: page size
             .subAggregation(
                 AggregationBuilders.topHits("top_inputs")
                     .size(100)

@@ -162,8 +162,7 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
                 SubAggCollectionMode.BREADTH_FIRST,
                 false,
                 cardinality,
-                metadata,
-                false
+                metadata
             );
             success = true;
             return mapStringTermsAggregator;

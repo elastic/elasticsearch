@@ -35,7 +35,7 @@
             aria-selected="false"
             aria-controls="infer-api-reindex-mistral"
             id="infer-api-reindex-mistral">
-      Azure AI Studio
+      Mistral
     </button>
   </div>
   <div tabindex="0"

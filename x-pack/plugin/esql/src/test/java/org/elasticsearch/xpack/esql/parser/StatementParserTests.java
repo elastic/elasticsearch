@@ -338,19 +338,29 @@ public class StatementParserTests extends ESTestCase {
         );
     }
 
-    public void testIdentifiersAsIndexPattern() {
-        // assertIdentifierAsIndexPattern("foo", "from `foo`");
-        // assertIdentifierAsIndexPattern("foo,test-*", "from `foo`,`test-*`");
-        assertIdentifierAsIndexPattern("foo,test-*", "from foo,test-*");
-        assertIdentifierAsIndexPattern("123-test@foo_bar+baz1", "from 123-test@foo_bar+baz1");
-        // assertIdentifierAsIndexPattern("foo,test-*,abc", "from `foo`,`test-*`,abc");
-        // assertIdentifierAsIndexPattern("foo, test-*, abc, xyz", "from `foo, test-*, abc, xyz`");
-        // assertIdentifierAsIndexPattern("foo, test-*, abc, xyz,test123", "from `foo, test-*, abc, xyz`, test123");
-        assertIdentifierAsIndexPattern("foo,test,xyz", "from foo,   test,xyz");
-        assertIdentifierAsIndexPattern(
-            "<logstash-{now/M{yyyy.MM}}>", // ,<logstash-{now/d{yyyy.MM.dd|+12:00}}>
-            "from <logstash-{now/M{yyyy.MM}}>" // , `<logstash-{now/d{yyyy.MM.dd|+12:00}}>`
+    public void testStringAsIndexPattern() {
+        assertStringAsIndexPattern("foo", "from \"foo\"");
+        assertStringAsIndexPattern("foo,test-*", """
+            from "foo","test-*"
+            """);
+        assertStringAsIndexPattern("foo,test-*", "from foo,test-*");
+        assertStringAsIndexPattern("123-test@foo_bar+baz1", "from 123-test@foo_bar+baz1");
+        assertStringAsIndexPattern("foo,test-*,abc", """
+            from "foo","test-*",abc
+            """);
+        assertStringAsIndexPattern("foo, test-*, abc, xyz", """
+            from "foo, test-*, abc, xyz"
+        """);
+        assertStringAsIndexPattern("foo, test-*, abc, xyz,test123", """
+            from "foo, test-*, abc, xyz", test123
+        """);
+        assertStringAsIndexPattern("foo,test,xyz", "from foo,   test,xyz");
+        assertStringAsIndexPattern(
+            "<logstash-{now/M{yyyy.MM}}>,<logstash-{now/d{yyyy.MM.dd|+12:00}}>",
+            "from <logstash-{now/M{yyyy.MM}}>, \"<logstash-{now/d{yyyy.MM.dd|+12:00}}>\""
         );
+
+        assertStringAsIndexPattern("foo,test,xyz", "from \"\"\"foo\"\"\",   test,\"xyz\"");
     }
 
     public void testIdentifierAsFieldName() {
@@ -884,11 +894,11 @@ public class StatementParserTests extends ESTestCase {
         assertThat(Expressions.names(project.projections()), contains("count(`my-field`)"));
     }
 
-    private void assertIdentifierAsIndexPattern(String identifier, String statement) {
+    private void assertStringAsIndexPattern(String string, String statement) {
         LogicalPlan from = statement(statement);
         assertThat(from, instanceOf(EsqlUnresolvedRelation.class));
         EsqlUnresolvedRelation table = (EsqlUnresolvedRelation) from;
-        assertThat(table.table().index(), is(identifier));
+        assertThat(table.table().index(), is(string));
     }
 
     public void testIdPatternUnquoted() throws Exception {

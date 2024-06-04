@@ -45,7 +45,7 @@ double e()
 "double mv_avg(number:double|integer|long|unsigned_long)"
 "keyword mv_concat(string:text|keyword, delim:text|keyword)"
 "integer mv_count(field:boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|unsigned_long|version)"
-"boolean|date|double|integer|ip|keyword|long|text|version mv_dedupe(field:boolean|date|double|integer|ip|keyword|long|text|version)"
+"boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|version mv_dedupe(field:boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|version)"
 "boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|unsigned_long|version mv_first(field:boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|unsigned_long|version)"
 "boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|unsigned_long|version mv_last(field:boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|unsigned_long|version)"
 "boolean|date|double|integer|ip|keyword|long|text|unsigned_long|version mv_max(field:boolean|date|double|integer|ip|keyword|long|text|unsigned_long|version)"
@@ -160,7 +160,7 @@ min           |number                              |"double|integer|long"       
 mv_avg        |number                              |"double|integer|long|unsigned_long"                                                                                               |Multivalue expression.
 mv_concat     |[string, delim]                     |["text|keyword", "text|keyword"]                                                                                                  |[Multivalue expression., Delimiter.]
 mv_count      |field                               |"boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|unsigned_long|version"      |Multivalue expression.
-mv_dedupe     |field                               |"boolean|date|double|integer|ip|keyword|long|text|version"                                                                        |Multivalue expression.
+mv_dedupe     |field                               |"boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|version"                    |Multivalue expression.
 mv_first      |field                               |"boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|unsigned_long|version"      |Multivalue expression.
 mv_last       |field                               |"boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|unsigned_long|version"      |Multivalue expression.
 mv_max        |field                               |"boolean|date|double|integer|ip|keyword|long|text|unsigned_long|version"                                                          |Multivalue expression.
@@ -393,7 +393,7 @@ min           |"double|integer|long"                                            
 mv_avg        |double                                                                                                                      |false                       |false           |false
 mv_concat     |keyword                                                                                                                     |[false, false]              |false           |false
 mv_count      |integer                                                                                                                     |false                       |false           |false
-mv_dedupe     |"boolean|date|double|integer|ip|keyword|long|text|version"                                                                  |false                       |false           |false
+mv_dedupe     |"boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|version"              |false                       |false           |false
 mv_first      |"boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|unsigned_long|version"|false                       |false           |false
 mv_last       |"boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|unsigned_long|version"|false                       |false           |false
 mv_max        |"boolean|date|double|integer|ip|keyword|long|text|unsigned_long|version"                                                    |false                       |false           |false

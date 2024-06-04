@@ -558,7 +558,7 @@ Size of the index in <<byte-units, byte units>>.
 <<index-modules-translog,Translog>> statistics.
 
 `ignored_field`::
-Includes statistics about the number of documents including the number of total documents,
+Includes statistics about the number of documents including the total number of documents,
 the number of documents with at least one ignored field and the sum of term frequencies
 for the `_ignored` field over all documents in the index.
 --

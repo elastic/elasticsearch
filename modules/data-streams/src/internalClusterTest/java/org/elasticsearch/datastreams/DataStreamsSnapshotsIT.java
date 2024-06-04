@@ -128,7 +128,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         response = client.execute(CreateDataStreamAction.INSTANCE, request).get();
         assertTrue(response.isAcknowledged());
 
-	// Initialize the failure store.
+        // Initialize the failure store.
         RolloverRequest rolloverRequest = new RolloverRequest("with-fs", null);
         rolloverRequest.setIndicesOptions(
             IndicesOptions.builder(rolloverRequest.indicesOptions())

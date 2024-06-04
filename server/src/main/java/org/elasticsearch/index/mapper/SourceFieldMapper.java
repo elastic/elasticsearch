@@ -348,7 +348,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         final BytesReference adaptedSource = applyFilters(originalSource, contentType);
 
         if (adaptedSource != null) {
-            assert indexMode == null || indexMode.isSyntheticSourceEnabled() == false;
+            assert indexMode == null || indexMode.isSyntheticSourceEnabled() == false : indexMode;
             final BytesRef ref = adaptedSource.toBytesRef();
             context.doc().add(new StoredField(fieldType().name(), ref.bytes, ref.offset, ref.length));
         }

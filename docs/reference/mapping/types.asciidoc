@@ -75,7 +75,7 @@ markup. Used for identifying named entities.
 <<completion-suggester,`completion`>>:: Used for auto-complete suggestions.
 <<search-as-you-type,`search_as_you_type`>>:: `text`-like type for
 as-you-type completion.
-<<semantic-text, `semantic_text`>>:: 
+<<semantic-text, `semantic_text`>>:: Used for performing <<semantic-search,semantic search>>.
 <<token-count,`token_count`>>:: A count of tokens in a text.
 
 

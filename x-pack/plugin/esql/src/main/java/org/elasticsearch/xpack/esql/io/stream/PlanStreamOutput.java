@@ -19,11 +19,9 @@ import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.LongBigArrayBlock;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.Column;
-import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanWriter;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
@@ -32,8 +30,6 @@ import java.io.IOException;
 import java.util.IdentityHashMap;
 import java.util.Map;
 import java.util.function.Function;
-
-import static org.elasticsearch.xpack.esql.core.util.SourceUtils.writeSourceNoText;
 
 /**
  * A customized stream output used to serialize ESQL physical plan fragments. Complements stream
@@ -98,25 +94,12 @@ public final class PlanStreamOutput extends StreamOutput {
         }
     }
 
-    public void writeSource(Source source) throws IOException {
-        writeBoolean(true);
-        writeSourceNoText(this, source);
-    }
-
-    public void writeNoSource() throws IOException {
-        writeBoolean(false);
-    }
-
     public void writeExpression(Expression expression) throws IOException {
         writeNamed(Expression.class, expression);
     }
 
     public void writeNamedExpression(NamedExpression namedExpression) throws IOException {
         writeNamed(NamedExpression.class, namedExpression);
-    }
-
-    public void writeAttribute(Attribute attribute) throws IOException {
-        writeNamed(Attribute.class, attribute);
     }
 
     public void writeOptionalExpression(Expression expression) throws IOException {

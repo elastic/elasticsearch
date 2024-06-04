@@ -70,7 +70,7 @@ public class RLikeTests extends AbstractFunctionTestCase {
         casesForString(cases, "3 bytes, 1 code point", () -> "☕", false, escapeString, optionalPattern);
         casesForString(cases, "6 bytes, 2 code points", () -> "❗️", false, escapeString, optionalPattern);
         casesForString(cases, "100 random code points", () -> randomUnicodeOfCodepointLength(100), true, escapeString, optionalPattern);
-        for (DataType type : EsqlDataTypes.types()) {
+        for (DataType type : DataTypes.types()) {
             if (type == DataTypes.KEYWORD || type == DataTypes.TEXT || type == DataTypes.NULL) {
                 continue;
             }

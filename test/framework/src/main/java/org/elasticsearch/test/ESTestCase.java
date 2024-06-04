@@ -41,6 +41,7 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.RequestBuilder;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.bootstrap.BootstrapForTesting;
@@ -374,6 +375,15 @@ public abstract class ESTestCase extends LuceneTestCase {
         // We have to disable setting the number of available processors as tests in the same JVM randomize processors and will step on each
         // other if we allow them to set the number of available processors as it's set-once in Netty.
         System.setProperty("es.set.netty.runtime.available.processors", "false");
+
+        // sometimes use the java.time date formatters
+        // we can't use randomBoolean here, the random context isn't set properly
+        // so read it directly from the test seed in an unfortunately hacky way
+        String testSeed = System.getProperty("tests.seed", "0");
+        boolean firstBit = (Integer.parseInt(testSeed.substring(testSeed.length() - 1), 16) & 1) == 1;
+        if (firstBit) {
+            System.setProperty("es.datetime.java_time_parsers", "true");
+        }
     }
 
     protected final Logger logger = LogManager.getLogger(getClass());
@@ -2176,6 +2186,18 @@ public abstract class ESTestCase extends LuceneTestCase {
         } catch (TimeoutException e) {
             throw new AssertionError("safeGet: listener was not completed within the timeout", e);
         }
+    }
+
+    public static Exception safeAwaitFailure(SubscribableListener<?> listener) {
+        return safeAwait(
+            SubscribableListener.newForked(
+                exceptionListener -> listener.addListener(ActionTestUtils.assertNoSuccessListener(exceptionListener::onResponse))
+            )
+        );
+    }
+
+    public static void safeSleep(TimeValue timeValue) {
+        safeSleep(timeValue.millis());
     }
 
     public static void safeSleep(long millis) {

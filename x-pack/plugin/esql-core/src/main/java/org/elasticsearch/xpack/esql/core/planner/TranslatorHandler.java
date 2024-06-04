@@ -27,7 +27,7 @@ public interface TranslatorHandler {
 
     default Query wrapFunctionQuery(ScalarFunction sf, Expression field, Supplier<Query> querySupplier) {
         if (field instanceof FieldAttribute) {
-            return ExpressionTranslator.wrapIfNested(querySupplier.get(), field);
+            return querySupplier.get();
         }
         throw new QlIllegalArgumentException("Cannot translate expression:[" + sf.sourceText() + "]");
     }

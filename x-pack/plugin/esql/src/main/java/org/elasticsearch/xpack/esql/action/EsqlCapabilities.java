@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesCapabilitiesAction;
 import org.elasticsearch.xpack.esql.plugin.EsqlFeatures;
@@ -32,6 +33,16 @@ public class EsqlCapabilities {
     private static final String FN_MV_APPEND = "fn_mv_append";
 
     /**
+     * Support for function {@code IP_PREFIX}.
+     */
+    private static final String FN_IP_PREFIX = "fn_ip_prefix";
+
+    /**
+     * Fix on function {@code SUBSTRING} that makes it not return null on empty strings.
+     */
+    private static final String FN_SUBSTRING_EMPTY_NULL = "fn_substring_empty_null";
+
+    /**
      * Optimization for ST_CENTROID changed some results in cartesian data. #108713
      */
     private static final String ST_CENTROID_AGG_OPTIMIZED = "st_centroid_agg_optimized";
@@ -41,10 +52,25 @@ public class EsqlCapabilities {
      */
     private static final String METADATA_IGNORED_FIELD = "metadata_field_ignored";
 
+    /**
+     * Support for requesting the "LOOKUP" command.
+     */
+    private static final String LOOKUP = "lookup";
+
     public static final Set<String> CAPABILITIES = capabilities();
 
     private static Set<String> capabilities() {
-        List<String> caps = new ArrayList<>(List.of(FN_CBRT, ST_CENTROID_AGG_OPTIMIZED, METADATA_IGNORED_FIELD, FN_MV_APPEND));
+        List<String> caps = new ArrayList<>();
+        caps.add(FN_CBRT);
+        caps.add(FN_IP_PREFIX);
+        caps.add(FN_SUBSTRING_EMPTY_NULL);
+        caps.add(ST_CENTROID_AGG_OPTIMIZED);
+        caps.add(METADATA_IGNORED_FIELD);
+        caps.add(FN_MV_APPEND);
+
+        if (Build.current().isSnapshot()) {
+            caps.add(LOOKUP);
+        }
 
         /*
          * Add all of our cluster features without the leading "esql."

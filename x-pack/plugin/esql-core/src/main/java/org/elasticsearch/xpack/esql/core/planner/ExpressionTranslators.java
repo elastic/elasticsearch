@@ -16,8 +16,6 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TypedAttribute;
-import org.elasticsearch.xpack.esql.core.expression.function.scalar.ScalarFunction;
-import org.elasticsearch.xpack.esql.core.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.core.expression.predicate.Range;
 import org.elasticsearch.xpack.esql.core.expression.predicate.fulltext.MatchQueryPredicate;
 import org.elasticsearch.xpack.esql.core.expression.predicate.fulltext.MultiMatchQueryPredicate;
@@ -45,7 +43,6 @@ import org.elasticsearch.xpack.esql.core.querydsl.query.ExistsQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.MatchQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.MultiMatchQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.NotQuery;
-import org.elasticsearch.xpack.esql.core.querydsl.query.PrefixQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.querydsl.query.QueryStringQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.RangeQuery;
@@ -80,37 +77,6 @@ public final class ExpressionTranslators {
     public static final String DATE_FORMAT = "strict_date_optional_time_nanos";
     public static final String TIME_FORMAT = "strict_hour_minute_second_fraction";
 
-    public static final List<ExpressionTranslator<?>> QUERY_TRANSLATORS = List.of(
-        new BinaryComparisons(),
-        new Ranges(),
-        new BinaryLogic(),
-        new IsNulls(),
-        new IsNotNulls(),
-        new Nots(),
-        new Likes(),
-        new InComparisons(),
-        new StringQueries(),
-        new Matches(),
-        new MultiMatches(),
-        new Scalars()
-    );
-
-    public static Query toQuery(Expression e) {
-        return toQuery(e, new QlTranslatorHandler());
-    }
-
-    public static Query toQuery(Expression e, TranslatorHandler handler) {
-        Query translation = null;
-        for (ExpressionTranslator<?> translator : QUERY_TRANSLATORS) {
-            translation = translator.translate(e, handler);
-            if (translation != null) {
-                return translation;
-            }
-        }
-
-        throw new QlIllegalArgumentException("Don't know how to translate {} {}", e.nodeName(), e);
-    }
-
     public static Object valueOf(Expression e) {
         if (e.foldable()) {
             return e.fold();
@@ -139,7 +105,7 @@ public final class ExpressionTranslators {
                 throw new QlIllegalArgumentException("Cannot translate query for " + e);
             }
 
-            return wrapIfNested(q, field);
+            return q;
         }
 
         private static Query translateField(RegexMatch e, String targetFieldName) {
@@ -216,10 +182,9 @@ public final class ExpressionTranslators {
         }
 
         public static Query doTranslate(Not not, TranslatorHandler handler) {
-            Expression e = not.field();
             Query wrappedQuery = handler.asQuery(not.field());
             Query q = wrappedQuery.negate(not.source());
-            return wrapIfNested(q, e);
+            return q;
         }
     }
 
@@ -449,39 +414,11 @@ public final class ExpressionTranslators {
         }
     }
 
-    public static class Scalars extends ExpressionTranslator<ScalarFunction> {
-
-        @Override
-        protected Query asQuery(ScalarFunction f, TranslatorHandler handler) {
-            return doTranslate(f, handler);
-        }
-
-        public static Query doTranslate(ScalarFunction f, TranslatorHandler handler) {
-            Query q = doKnownTranslate(f, handler);
-            if (q != null) {
-                return q;
-            }
-            throw new QlIllegalArgumentException("Cannot translate expression:[" + f.sourceText() + "]");
-        }
-
-        public static Query doKnownTranslate(ScalarFunction f, TranslatorHandler handler) {
-            if (f instanceof StartsWith sw) {
-                if (sw.input() instanceof FieldAttribute && sw.pattern().foldable()) {
-                    String targetFieldName = handler.nameOf(((FieldAttribute) sw.input()).exactAttribute());
-                    String pattern = (String) sw.pattern().fold();
-
-                    return new PrefixQuery(f.source(), targetFieldName, pattern, sw.isCaseInsensitive());
-                }
-            }
-            return null;
-        }
-    }
-
-    public static Query or(Source source, Query left, Query right) {
+    private static Query or(Source source, Query left, Query right) {
         return boolQuery(source, left, right, false);
     }
 
-    public static Query and(Source source, Query left, Query right) {
+    private static Query and(Source source, Query left, Query right) {
         return boolQuery(source, left, right, true);
     }
 

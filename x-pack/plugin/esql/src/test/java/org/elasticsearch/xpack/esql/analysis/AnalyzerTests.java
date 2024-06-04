@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesIndexResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -54,7 +55,6 @@ import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.session.EsqlIndexResolver;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -1662,9 +1662,9 @@ public class AnalyzerTests extends ESTestCase {
             equalTo(Set.of("network.connections", "network.bytes_in", "network.bytes_out", "network.message_in"))
         );
         assertThat(attributes.get("network.connections").dataType(), equalTo(DataTypes.LONG));
-        assertThat(attributes.get("network.bytes_in").dataType(), equalTo(EsqlDataTypes.COUNTER_LONG));
-        assertThat(attributes.get("network.bytes_out").dataType(), equalTo(EsqlDataTypes.COUNTER_LONG));
-        assertThat(attributes.get("network.message_in").dataType(), equalTo(EsqlDataTypes.COUNTER_DOUBLE));
+        assertThat(attributes.get("network.bytes_in").dataType(), equalTo(DataTypes.COUNTER_LONG));
+        assertThat(attributes.get("network.bytes_out").dataType(), equalTo(DataTypes.COUNTER_LONG));
+        assertThat(attributes.get("network.message_in").dataType(), equalTo(DataTypes.COUNTER_DOUBLE));
     }
 
     public void testMissingAttributeException_InChainedEval() {
@@ -1887,18 +1887,18 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testMvAppendValidation() {
         String[][] fields = {
-            { "bool", "boolean" },
-            { "int", "integer" },
-            { "unsigned_long", "unsigned_long" },
-            { "float", "double" },
-            { "text", "text" },
-            { "keyword", "keyword" },
-            { "date", "datetime" },
-            { "point", "geo_point" },
-            { "shape", "geo_shape" },
-            { "long", "long" },
-            { "ip", "ip" },
-            { "version", "version" } };
+            {"bool", "boolean"},
+            {"int", "integer"},
+            {"unsigned_long", "unsigned_long"},
+            {"float", "double"},
+            {"text", "text"},
+            {"keyword", "keyword"},
+            {"date", "datetime"},
+            {"point", "geo_point"},
+            {"shape", "geo_shape"},
+            {"long", "long"},
+            {"ip", "ip"},
+            {"version", "version"}};
 
         Supplier<Integer> supplier = () -> randomInt(fields.length - 1);
         int first = supplier.get();
@@ -1917,6 +1917,18 @@ public class AnalyzerTests extends ESTestCase {
                 + fields[second][1]
                 + "]"
         );
+    }
+    public void testLookup() {
+        var e = expectThrows(ParsingException.class, () -> analyze("""
+              FROM test
+            | RENAME languages AS int
+            | LOOKUP int_number_names ON int
+            """));
+        if (Build.current().isProductionRelease()) {
+            assertThat(e.getMessage(), containsString("line 3:4: LOOKUP is in preview and only available in SNAPSHOT build"));
+            return;
+        }
+        assertThat(e.getMessage(), containsString("LOOKUP not yet supported"));
     }
 
     private void verifyUnsupported(String query, String errorMessage) {

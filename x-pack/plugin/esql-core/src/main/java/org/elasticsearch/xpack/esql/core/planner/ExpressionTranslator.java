@@ -11,7 +11,6 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TypedAttribute;
-import org.elasticsearch.xpack.esql.core.querydsl.query.NestedQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.core.util.ReflectionUtils;
@@ -26,15 +25,6 @@ public abstract class ExpressionTranslator<E extends Expression> {
     }
 
     protected abstract Query asQuery(E e, TranslatorHandler handler);
-
-    public static Query wrapIfNested(Query query, Expression exp) {
-        if (query != null && exp instanceof FieldAttribute fa) {
-            if (fa.isNested()) {
-                return new NestedQuery(fa.source(), fa.nestedParent().name(), query);
-            }
-        }
-        return query;
-    }
 
     public static FieldAttribute checkIsFieldAttribute(Expression e) {
         Check.isTrue(e instanceof FieldAttribute, "Expected a FieldAttribute but received [{}]", e);

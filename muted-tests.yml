@@ -1,6 +1,4 @@
 tests:
-- class: "org.elasticsearch.xpack.transform.transforms.scheduling.MonotonicClockTests"
-  issue: "https://github.com/elastic/elasticsearch/issues/108529"
 - class: "org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterTests"
   issue: "https://github.com/elastic/elasticsearch/issues/108649"
   method: "testManyRandomDocs"
@@ -23,6 +21,40 @@ tests:
   issue: "https://github.com/elastic/elasticsearch/issues/108857"
   method: "test {yaml=search/180_locale_dependent_mapping/Test Index and Search locale\
     \ dependent mappings / dates}"
+- class: "org.elasticsearch.upgrades.SearchStatesIT"
+  issue: "https://github.com/elastic/elasticsearch/issues/108991"
+  method: "testCanMatch"
+- class: "org.elasticsearch.upgrades.MlTrainedModelsUpgradeIT"
+  issue: "https://github.com/elastic/elasticsearch/issues/108993"
+  method: "testTrainedModelInference"
+- class: "org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT"
+  issue: "https://github.com/elastic/elasticsearch/issues/109188"
+  method: "test {yaml=search/180_locale_dependent_mapping/Test Index and Search locale\
+    \ dependent mappings / dates}"
+- class: "org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT"
+  issue: "https://github.com/elastic/elasticsearch/issues/109189"
+  method: "test {p0=esql/70_locale/Date format with Italian locale}"
+- class: "org.elasticsearch.xpack.test.rest.XPackRestIT"
+  issue: "https://github.com/elastic/elasticsearch/issues/109200"
+  method: "test {p0=esql/70_locale/Date format with Italian locale}"
+- class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
+  method: test {yaml=reference/esql/esql-async-query-api/line_17}
+  issue: https://github.com/elastic/elasticsearch/issues/109260
+- class: org.elasticsearch.xpack.ccr.LocalIndexFollowingIT
+  method: testRemoveRemoteConnection
+  issue: https://github.com/elastic/elasticsearch/issues/109163
+- class: org.elasticsearch.analysis.common.CommonAnalysisClientYamlTestSuiteIT
+  method: org.elasticsearch.analysis.common.CommonAnalysisClientYamlTestSuiteIT
+  issue: https://github.com/elastic/elasticsearch/issues/109266
+- class: "org.elasticsearch.index.engine.frozen.FrozenIndexIT"
+  issue: "https://github.com/elastic/elasticsearch/issues/109315"
+  method: "testTimestampFieldTypeExposedByAllIndicesServices"
+- class: "org.elasticsearch.analysis.common.CommonAnalysisClientYamlTestSuiteIT"
+  issue: "https://github.com/elastic/elasticsearch/issues/109318"
+- class: "org.elasticsearch.upgrades.AggregationsIT"
+  issue: "https://github.com/elastic/elasticsearch/issues/109322"
+  method: "testTerms"
+
 # Examples:
 #
 #  Mute a single test case in a YAML test suite:

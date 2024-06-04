@@ -366,8 +366,10 @@ public abstract class ESTestCase extends LuceneTestCase {
         String inputSeed = System.getProperty("tests.seed");
         long seed;
         if (inputSeed == null) {
+            // when running tests in intellij, we don't have a seed. Setup the seed early here, before getting to RandomizedRunner,
+            // so that we can use it in ESTestCase static init
             seed = System.nanoTime();
-            System.setProperty("tests.seed", Long.toHexString(seed));
+            setTestSeed(Long.toHexString(seed));
         } else {
             String[] seedParts = inputSeed.split("[\\:]");
             seed = Long.parseUnsignedLong(seedParts[0], 16);
@@ -378,6 +380,11 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
 
         return new Random(seed);
+    }
+
+    @SuppressForbidden(reason = "set tests.seed for intellij")
+    static void setTestSeed(String seed) {
+        System.setProperty("tests.seed", seed);
     }
 
     private static void forceImmutableCollectionsSeed(long seed) {

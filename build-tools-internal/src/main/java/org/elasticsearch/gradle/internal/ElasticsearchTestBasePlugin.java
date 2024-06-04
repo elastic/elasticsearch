@@ -207,7 +207,7 @@ public class ElasticsearchTestBasePlugin implements Plugin<Project> {
     private void configureImmutableCollectionsPatch(Project project) {
         String patchProject = ":test:immutable-collections-patch";
         if (project.findProject(patchProject) == null) {
-            return;
+            return; // build tests may not have this project, just skip
         }
         String configurationName = "immutableCollectionsPatch";
         FileCollection patchedFileCollection = project.getConfigurations()

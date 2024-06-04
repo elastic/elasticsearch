@@ -4099,7 +4099,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             RENAME languages AS int |
             LOOKUP int_number_names ON int""");
         var join = as(plan, HashJoinExec.class);
-        assertMap(join.unionFields().stream().map(Object::toString).toList(), matchesList().item(startsWith("int{r}")));
+        assertMap(join.matchFields().stream().map(Object::toString).toList(), matchesList().item(startsWith("int{r}")));
         assertMap(
             join.output().stream().map(Object::toString).toList(),
             matchesList().item(startsWith("_meta_field{f}"))
@@ -4145,7 +4145,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var outerProject = as(plan, ProjectExec.class);
         assertThat(outerProject.projections().toString(), containsString("AS lang_name"));
         var join = as(outerProject.child(), HashJoinExec.class);
-        assertMap(join.unionFields().stream().map(Object::toString).toList(), matchesList().item(startsWith("int{r}")));
+        assertMap(join.matchFields().stream().map(Object::toString).toList(), matchesList().item(startsWith("int{r}")));
         assertMap(
             join.output().stream().map(Object::toString).toList(),
             matchesList().item(startsWith("_meta_field{f}"))

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.plan.logical.join;
 
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.plan.logical.BinaryPlan;
@@ -74,13 +75,13 @@ public class Join extends BinaryPlan {
         List<Attribute> right = makeReference(right().output());
         return switch (config.type()) {
             case LEFT -> // right side becomes nullable
-                mergeOutput(left().output(), makeNullable(right));
+                mergeOutput(left().output(), makeNullable(right), config.matchFields());
             case RIGHT -> // left side becomes nullable
-                mergeOutput(makeNullable(left().output()), right);
+                mergeOutput(makeNullable(left().output()), right, config.matchFields());
             case FULL -> // both sides become nullable
-                mergeOutput(makeNullable(left().output()), makeNullable(right));
+                mergeOutput(makeNullable(left().output()), makeNullable(right), config.matchFields());
             default -> // neither side becomes nullable
-                mergeOutput(left().output(), right);
+                mergeOutput(left().output(), right, config.matchFields());
         };
     }
 
@@ -88,16 +89,20 @@ public class Join extends BinaryPlan {
      * Merge output fields, left hand side wins in name conflicts <strong>except</strong>
      * for fields defined in {@link JoinConfig#matchFields()}.
      */
-    List<Attribute> mergeOutput(List<? extends Attribute> lhs, List<? extends Attribute> rhs) {
+    public static List<Attribute> mergeOutput(
+        List<? extends Attribute> lhs,
+        List<? extends Attribute> rhs,
+        List<NamedExpression> matchFields
+    ) {
         List<Attribute> results = new ArrayList<>(lhs.size() + rhs.size());
 
         for (Attribute a : lhs) {
-            if (rhs.contains(a) == false || config.matchFields().stream().anyMatch(m -> m.name().equals(a.name()))) {
+            if (rhs.contains(a) == false || matchFields.stream().anyMatch(m -> m.name().equals(a.name()))) {
                 results.add(a);
             }
         }
         for (Attribute a : rhs) {
-            if (false == config.matchFields().stream().anyMatch(m -> m.name().equals(a.name()))) {
+            if (false == matchFields.stream().anyMatch(m -> m.name().equals(a.name()))) {
                 results.add(a);
             }
         }
@@ -107,7 +112,13 @@ public class Join extends BinaryPlan {
     /**
      * Make fields references, so we don't check if they exist in the index.
      * We do this for fields that we know don't come from the index.
-     * TODO we should rework stats so we don't have to do this
+     * <p>
+     *   It's important that name is returned as a *reference* here
+     *   instead of a field. If it were a field we'd use SearchStats
+     *   on it and discover that it doesn't exist in the index. It doesn't!
+     *   We don't expect it to. It exists only in the lookup table.
+     *   TODO we should rework stats so we don't have to do this
+     * </p>
      */
     public static List<Attribute> makeReference(List<Attribute> output) {
         List<Attribute> out = new ArrayList<>(output.size());

@@ -70,7 +70,7 @@ public class HashJoinExec extends UnaryExec implements EstimatesRowSize {
         return joinData;
     }
 
-    public List<NamedExpression> unionFields() {
+    public List<NamedExpression> matchFields() {
         return matchFields;
     }
 

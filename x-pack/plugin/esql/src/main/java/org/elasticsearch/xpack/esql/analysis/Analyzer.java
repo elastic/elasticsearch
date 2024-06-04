@@ -515,23 +515,24 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             boolean modified = false;
 
             for (NamedExpression ne : l.matchFields()) {
+                NamedExpression matchFieldChildReference = ne;
                 if (ne instanceof UnresolvedAttribute ua && ua.customMessage() == false) {
                     modified = true;
                     Attribute joinedAttribute = maybeResolveAttribute(ua, localOutput);
                     // can't find the field inside the local relation
                     if (joinedAttribute instanceof UnresolvedAttribute lua) {
                         // adjust message
-                        ne = lua.withUnresolvedMessage(
+                        matchFieldChildReference = lua.withUnresolvedMessage(
                             lua.unresolvedMessage().replace("Unknown column", "Unknown column in lookup target")
                         );
                     } else {
                         // check also the child output by resolving to it
                         Attribute attr = maybeResolveAttribute(ua, childrenOutput);
-                        ne = attr;
+                        matchFieldChildReference = attr;
                         if (attr instanceof UnresolvedAttribute == false) {
                             // If they do, make sure the data types line up
-                            if (joinedAttribute.dataType().equals(ne.dataType()) == false) {
-                                ne = new UnresolvedAttribute(
+                            if (joinedAttribute.dataType().equals(attr.dataType()) == false) {
+                                matchFieldChildReference = new UnresolvedAttribute(
                                     attr.source(),
                                     attr.name(),
                                     attr.qualifier(),
@@ -548,7 +549,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     }
                 }
 
-                matchFields.add(ne);
+                matchFields.add(matchFieldChildReference);
             }
             if (modified) {
                 return new Lookup(l.source(), l.child(), l.tableName(), matchFields, l.localRelation());

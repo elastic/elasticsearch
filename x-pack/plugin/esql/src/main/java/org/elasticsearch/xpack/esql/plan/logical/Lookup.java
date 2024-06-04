@@ -11,6 +11,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.core.plan.logical.UnaryPlan;
@@ -123,10 +124,10 @@ public class Lookup extends UnaryPlan {
     @Override
     public List<Attribute> output() {
         if (lazyOutput == null) {
-            List<? extends NamedExpression> rightSide = localRelation != null
+            List<Attribute> rightSide = localRelation != null
                 ? Join.makeNullable(Join.makeReference(localRelation.output()))
-                : matchFields;
-            lazyOutput = mergeOutputAttributes(child().output(), rightSide);
+                : Expressions.asAttributes(matchFields);
+            lazyOutput = Join.mergeOutput(child().output(), rightSide, matchFields);
         }
         return lazyOutput;
     }

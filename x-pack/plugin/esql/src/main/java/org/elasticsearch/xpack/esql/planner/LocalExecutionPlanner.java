@@ -518,6 +518,7 @@ public class LocalExecutionPlanner {
             NamedExpression left = (NamedExpression) cond.left();
             keys[k] = new RowInTableLookupOperator.Key(left.name(), localField);
             Layout.ChannelAndType input = source.layout.get(left.id());
+            System.err.println(input);
             blockMapping[k] = input.channel();
         }
 

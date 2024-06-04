@@ -4979,14 +4979,15 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
     /**
      * Expects
-     * <pre>{@code
-     * Limit[1000[INTEGER]]
-     * \_Join[JoinConfig[type=LEFT OUTER, unionFields=[int{r}#4]]]
-     *   |_EsqlProject[[...]]
-     *   | \_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
-     *   \_LocalRelation[[int{f}#17, name{f}#18],[IntVectorBlock[vector=IntArrayVector[positions=10, values=[0, 1, 2, 3, 4, 5, 6, 7, 8,
+     * {@code
+     * Join[JoinConfig[type=LEFT OUTER, matchFields=[int{r}#4], conditions=[LOOKUP int_number_names ON int]]]
+     * |_EsqlProject[[_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, gender{f}#8, job{f}#13, job.raw{f}#14, languages{f}#9 AS int
+     * , last_name{f}#10, long_noidx{f}#15, salary{f}#11]]
+     * | \_Limit[1000[INTEGER]]
+     * |   \_EsRelation[test][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
+     * \_LocalRelation[[int{f}#16, name{f}#17],[IntVectorBlock[vector=IntArrayVector[positions=10, values=[0, 1, 2, 3, 4, 5, 6, 7, 8,
      * 9]]], BytesRefVectorBlock[vector=BytesRefArrayVector[positions=10]]]]
-     * }</pre>
+     * }
      */
     public void testLookupSimple() {
         var plan = optimizedPlan("""
@@ -5012,14 +5013,16 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(join.config().type(), equalTo(JoinType.LEFT));
         assertThat(join.config().matchFields().stream().map(Object::toString).toList(), matchesList().item(startsWith("int{r}")));
         assertThat(join.config().conditions().size(), equalTo(1));
-        Equals eq = (Equals) join.config().conditions().get(0);
+        Equals eq = as(join.config().conditions().get(0), Equals.class);
         assertThat(eq.left().toString(), startsWith("int{r}"));
         assertThat(eq.right().toString(), startsWith("int{r}"));
+        assertThat(eq.left().semanticEquals(eq.right()), equalTo(true));
 
         // Join's output looks sensible too
         assertMap(
             join.output().stream().map(Object::toString).toList(),
             matchesList().item(startsWith("_meta_field{f}"))
+                // TODO prune unused columns down through the join
                 .item(startsWith("emp_no{f}"))
                 .item(startsWith("first_name{f}"))
                 .item(startsWith("gender{f}"))
@@ -5047,12 +5050,13 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
      * Expects
      * {@code
      * Limit[1000[INTEGER]]
-     * \_Aggregate[[name{f}#20],[MIN(emp_no{f}#10) AS MIN(emp_no), name{f}#20]]
-     *   \_Join[JoinConfig[type=LEFT OUTER, unionFields=[int{r}#4]]]
-     *     |_EsqlProject[[_meta_field{f}#16, ...]]
-     *     | \_EsRelation[test][_meta_field{f}#16, emp_no{f}#10, first_name{f}#11, ..]
-     *     \_LocalRelation[[name{f}#20, int{f}#21],[BytesRefVectorBlock[vector=BytesRefArrayVector[positions=10]], IntVectorBlock[vector=I
-     * ntArrayVector[positions=10, values=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9]]]]]
+     * \_Aggregate[[name{r}#20],[MIN(emp_no{f}#9) AS MIN(emp_no), name{r}#20]]
+     *   \_Join[JoinConfig[type=LEFT OUTER, matchFields=[int{r}#4], conditions=[LOOKUP int_number_names ON int]]]
+     *     |_EsqlProject[[_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, gender{f}#11, job{f}#16, job.raw{f}#17, languages{f}#12 AS
+     * int, last_name{f}#13, long_noidx{f}#18, salary{f}#14]]
+     *     | \_EsRelation[test][_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, g..]
+     *     \_LocalRelation[[int{f}#19, name{f}#20],[IntVectorBlock[vector=IntArrayVector[positions=10, values=[0, 1, 2, 3, 4, 5, 6, 7, 8,
+     * 9]]], BytesRefVectorBlock[vector=BytesRefArrayVector[positions=10]]]]
      * }
      */
     public void testLookupStats() {
@@ -5088,9 +5092,36 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(join.config().type(), equalTo(JoinType.LEFT));
         assertThat(join.config().matchFields().stream().map(Object::toString).toList(), matchesList().item(startsWith("int{r}")));
         assertThat(join.config().conditions().size(), equalTo(1));
-        Equals eq = (Equals) join.config().conditions().get(0);
+        Equals eq = as(join.config().conditions().get(0), Equals.class);
         assertThat(eq.left().toString(), startsWith("int{r}"));
         assertThat(eq.right().toString(), startsWith("int{r}"));
+
+        // Join's output looks sensible too
+        assertMap(
+            join.output().stream().map(Object::toString).toList(),
+            matchesList().item(startsWith("_meta_field{f}"))
+                // TODO prune unused columns down through the join
+                .item(startsWith("emp_no{f}"))
+                .item(startsWith("first_name{f}"))
+                .item(startsWith("gender{f}"))
+                .item(startsWith("job{f}"))
+                .item(startsWith("job.raw{f}"))
+                /*
+                 * Int is a reference here because we renamed it in project.
+                 * If we hadn't it'd be a field and that'd be fine.
+                 */
+                .item(containsString("int{r}"))
+                .item(startsWith("last_name{f}"))
+                .item(startsWith("long_noidx{f}"))
+                .item(startsWith("salary{f}"))
+                /*
+                 * It's important that name is returned as a *reference* here
+                 * instead of a field. If it were a field we'd use SearchStats
+                 * on it and discover that it doesn't exist in the index. It doesn't!
+                 * We don't expect it to. It exists only in the lookup table.
+                 */
+                .item(containsString("name{r}"))
+        );
     }
 
     private Literal nullOf(DataType dataType) {

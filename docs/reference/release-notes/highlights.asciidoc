@@ -68,7 +68,7 @@ significant improvements in merge times, approximately 3 times faster.
 [discrete]
 [[preview_support_for_anonymous_ip_enterprise_databases_in_geoip_processor]]
 === Preview: Support for the 'Anonymous IP' and 'Enterprise' databases in the geoip processor
-As a Technical Preview, the `geoip` processor can now use the commercial
+As a Technical Preview, the {ref}/geoip-processor.html[`geoip`] processor can now use the commercial
 https://www.maxmind.com/en/solutions/geoip2-enterprise-product-suite/enterprise-database[GeoIP2 'Enterprise']
 and
 https://www.maxmind.com/en/solutions/geoip2-enterprise-product-suite/anonymous-ip-database[GeoIP2 'Anonymous IP']

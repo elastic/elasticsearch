@@ -43,6 +43,16 @@ top_asc:integer | top_desc:integer
 
 topValuesListEmpty
 required_capability: agg_top_values_list
+FROM all_types
+| STATS boolean = TOP_VALUES_LIST(boolean, 3, "asc")
+;
+
+boolean:boolean
+[false, true, true]
+;
+
+topValuesListDuplicates
+required_capability: agg_top_values_list
 FROM employees
 | WHERE salary < 0
 | STATS top = TOP_VALUES_LIST(salary, 3, "asc")

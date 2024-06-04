@@ -349,11 +349,11 @@ public class StatementParserTests extends ESTestCase {
             from "foo","test-*",abc
             """);
         assertStringAsIndexPattern("foo, test-*, abc, xyz", """
-            from "foo, test-*, abc, xyz"
-        """);
+                from "foo, test-*, abc, xyz"
+            """);
         assertStringAsIndexPattern("foo, test-*, abc, xyz,test123", """
-            from "foo, test-*, abc, xyz", test123
-        """);
+                from "foo, test-*, abc, xyz", test123
+            """);
         assertStringAsIndexPattern("foo,test,xyz", "from foo,   test,xyz");
         assertStringAsIndexPattern(
             "<logstash-{now/M{yyyy.MM}}>,<logstash-{now/d{yyyy.MM.dd|+12:00}}>",

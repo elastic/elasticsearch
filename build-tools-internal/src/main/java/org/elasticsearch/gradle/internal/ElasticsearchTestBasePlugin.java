@@ -217,10 +217,13 @@ public class ElasticsearchTestBasePlugin implements Plugin<Project> {
         project.getTasks().withType(Test.class).matching(task -> task.getName().equals("test")).configureEach(test -> {
             test.getInputs().files(patchedFileCollection);
             test.systemProperty("tests.hackImmutableCollections", "true");
-            test.getJvmArgumentProviders().add(() ->
-                List.of("--patch-module=java.base=" + patchedFileCollection.getSingleFile() + "/java.base",
-                "--add-opens=java.base/java.util=ALL-UNNAMED"
-            ));
+            test.getJvmArgumentProviders()
+                .add(
+                    () -> List.of(
+                        "--patch-module=java.base=" + patchedFileCollection.getSingleFile() + "/java.base",
+                        "--add-opens=java.base/java.util=ALL-UNNAMED"
+                    )
+                );
         });
     }
 }

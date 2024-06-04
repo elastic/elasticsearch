@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.planner;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.function.FunctionRegistry;
+import org.elasticsearch.xpack.esql.core.index.IndexResolver;
 import org.elasticsearch.xpack.esql.core.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.core.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
@@ -27,7 +28,10 @@ import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.meta.MetaFunctions;
+import org.elasticsearch.xpack.esql.plan.logical.show.ShowClusters;
+import org.elasticsearch.xpack.esql.plan.logical.show.ShowFields;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
+import org.elasticsearch.xpack.esql.plan.logical.show.ShowTargets;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
 import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
@@ -54,16 +58,25 @@ import static org.elasticsearch.xpack.esql.plan.physical.AggregateExec.Mode.PART
 public class Mapper {
 
     private final FunctionRegistry functionRegistry;
+    private final IndexResolver indexResolver;
     private final boolean localMode; // non-coordinator (data node) mode
 
-    public Mapper(FunctionRegistry functionRegistry) {
+    private Mapper(FunctionRegistry functionRegistry, IndexResolver indexResolver, boolean localMode) {
         this.functionRegistry = functionRegistry;
-        localMode = false;
+        this.indexResolver = indexResolver;
+        this.localMode = localMode;
+    }
+
+    public Mapper(FunctionRegistry functionRegistry, IndexResolver indexResolver) {
+        this(functionRegistry, indexResolver, false);
+    }
+
+    public Mapper(FunctionRegistry functionRegistry) {
+        this(functionRegistry, null, false);
     }
 
     public Mapper(boolean localMode) {
-        this.functionRegistry = null;
-        this.localMode = localMode;
+        this(null, null, localMode);
     }
 
     public PhysicalPlan map(LogicalPlan p) {
@@ -90,6 +103,15 @@ public class Mapper {
         }
         if (p instanceof ShowInfo showInfo) {
             return new ShowExec(showInfo.source(), showInfo.output(), showInfo.values());
+        }
+        if (p instanceof ShowClusters showClusters) {
+            return new ShowExec(showClusters.source(), showClusters.output(), showClusters.values(indexResolver));
+        }
+        if (p instanceof ShowTargets showTargets) {
+            return new ShowExec(showTargets.source(), showTargets.output(), showTargets.supplier(indexResolver));
+        }
+        if (p instanceof ShowFields showFields) {
+            return new ShowExec(showFields.source(), showFields.output(), showFields.supplier(indexResolver));
         }
 
         //

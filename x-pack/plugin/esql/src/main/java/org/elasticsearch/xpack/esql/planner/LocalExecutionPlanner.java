@@ -209,9 +209,7 @@ public class LocalExecutionPlanner {
         } else if (node instanceof RowExec row) {
             return planRow(row, context);
         } else if (node instanceof LocalSourceExec localSource) {
-            return planLocal(localSource, context);
-        } else if (node instanceof ShowExec show) {
-            return planShow(show);
+            return localSource instanceof ShowExec showExec ? planShow(showExec) : planLocal(localSource, context);
         } else if (node instanceof ExchangeSourceExec exchangeSource) {
             return planExchangeSource(exchangeSource, context);
         }
@@ -502,7 +500,11 @@ public class LocalExecutionPlanner {
     private PhysicalOperation planShow(ShowExec showExec) {
         Layout.Builder layout = new Layout.Builder();
         layout.append(showExec.output());
-        return PhysicalOperation.fromSource(new ShowOperator.ShowOperatorFactory(showExec.values()), layout.build());
+
+        return PhysicalOperation.fromSource(
+            new ShowOperator.Factory(() -> showExec.supplier().get(), showExec.sourceText()),
+            layout.build()
+        );
     }
 
     private PhysicalOperation planProject(ProjectExec project, LocalExecutionPlannerContext context) {

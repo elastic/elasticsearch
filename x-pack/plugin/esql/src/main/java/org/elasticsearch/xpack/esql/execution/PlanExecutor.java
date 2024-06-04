@@ -42,7 +42,7 @@ public class PlanExecutor {
         this.esqlIndexResolver = esqlIndexResolver;
         this.preAnalyzer = new PreAnalyzer();
         this.functionRegistry = new EsqlFunctionRegistry();
-        this.mapper = new Mapper(functionRegistry);
+        this.mapper = new Mapper(functionRegistry, indexResolver);
         this.metrics = new Metrics();
         this.verifier = new Verifier(metrics);
     }

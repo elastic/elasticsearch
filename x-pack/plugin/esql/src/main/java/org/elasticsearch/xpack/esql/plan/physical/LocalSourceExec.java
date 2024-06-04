@@ -36,7 +36,7 @@ public class LocalSourceExec extends LeafExec {
     }
 
     @Override
-    protected NodeInfo<LocalSourceExec> info() {
+    protected NodeInfo<? extends PhysicalPlan> info() {
         return NodeInfo.create(this, LocalSourceExec::new, output, supplier);
     }
 

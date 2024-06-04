@@ -55,7 +55,10 @@ import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.meta.MetaFunctions;
+import org.elasticsearch.xpack.esql.plan.logical.show.ShowClusters;
+import org.elasticsearch.xpack.esql.plan.logical.show.ShowFields;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
+import org.elasticsearch.xpack.esql.plan.logical.show.ShowTargets;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -353,6 +356,23 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public LogicalPlan visitShowInfo(EsqlBaseParser.ShowInfoContext ctx) {
         return new ShowInfo(source(ctx));
+    }
+
+    @Override
+    public LogicalPlan visitShowClusters(EsqlBaseParser.ShowClustersContext ctx) {
+        return new ShowClusters(source(ctx));
+    }
+
+    @Override
+    public LogicalPlan visitShowTargets(EsqlBaseParser.ShowTargetsContext ctx) {
+        String pattern = ctx.indexIdentifier() != null ? typedParsing(this, ctx.indexIdentifier(), String.class) : null;
+        return new ShowTargets(source(ctx), pattern);
+    }
+
+    @Override
+    public LogicalPlan visitShowFields(EsqlBaseParser.ShowFieldsContext ctx) {
+        String pattern = ctx.indexIdentifier() != null ? typedParsing(this, ctx.indexIdentifier(), String.class) : null;
+        return new ShowFields(source(ctx), pattern);
     }
 
     @Override

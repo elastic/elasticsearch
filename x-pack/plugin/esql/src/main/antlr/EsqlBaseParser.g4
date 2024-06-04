@@ -260,6 +260,9 @@ subqueryExpression
 
 showCommand
     : SHOW INFO                                                           #showInfo
+    | SHOW CLUSTERS                                                       #showClusters
+    | SHOW TARGETS (indexIdentifier)?                                     #showTargets
+    | SHOW FIELDS (indexIdentifier)?                                      #showFields
     ;
 
 metaCommand

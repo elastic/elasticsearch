@@ -10,6 +10,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -57,6 +58,7 @@ import org.elasticsearch.xpack.esql.action.RestEsqlGetAsyncResultAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlQueryAction;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.index.IndexResolver;
+import org.elasticsearch.xpack.esql.core.index.RemoteClusterResolver;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupOperator;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
@@ -70,7 +72,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
@@ -100,7 +101,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
     public Collection<?> createComponents(PluginServices services) {
         CircuitBreaker circuitBreaker = services.indicesService().getBigArrays().breakerService().getBreaker("request");
         Objects.requireNonNull(circuitBreaker, "request circuit breaker wasn't set");
-        Settings settings = services.clusterService().getSettings();
+        ClusterService clusterService = services.clusterService();
+        Settings settings = clusterService.getSettings();
         ByteSizeValue maxPrimitiveArrayBlockSize = settings.getAsBytesSize(
             BlockFactory.MAX_BLOCK_PRIMITIVE_ARRAY_SIZE_SETTING,
             BlockFactory.DEFAULT_MAX_BLOCK_PRIMITIVE_ARRAY_SIZE
@@ -112,13 +114,13 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
             new PlanExecutor(
                 new IndexResolver(
                     services.client(),
-                    services.clusterService().getClusterName().value(),
+                    clusterService.getClusterName().value(),
                     EsqlDataTypeRegistry.INSTANCE,
-                    Set::of
+                    new RemoteClusterResolver(settings, clusterService.getClusterSettings())::remoteClusters
                 ),
                 new EsqlIndexResolver(services.client(), EsqlDataTypeRegistry.INSTANCE)
             ),
-            new ExchangeService(services.clusterService().getSettings(), services.threadPool(), ThreadPool.Names.SEARCH, blockFactory),
+            new ExchangeService(clusterService.getSettings(), services.threadPool(), ThreadPool.Names.SEARCH, blockFactory),
             blockFactory
         );
     }

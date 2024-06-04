@@ -798,6 +798,42 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitShowInfo(EsqlBaseParser.ShowInfoContext ctx);
   /**
+   * Enter a parse tree produced by the {@code showClusters}
+   * labeled alternative in {@link EsqlBaseParser#showCommand}.
+   * @param ctx the parse tree
+   */
+  void enterShowClusters(EsqlBaseParser.ShowClustersContext ctx);
+  /**
+   * Exit a parse tree produced by the {@code showClusters}
+   * labeled alternative in {@link EsqlBaseParser#showCommand}.
+   * @param ctx the parse tree
+   */
+  void exitShowClusters(EsqlBaseParser.ShowClustersContext ctx);
+  /**
+   * Enter a parse tree produced by the {@code showTargets}
+   * labeled alternative in {@link EsqlBaseParser#showCommand}.
+   * @param ctx the parse tree
+   */
+  void enterShowTargets(EsqlBaseParser.ShowTargetsContext ctx);
+  /**
+   * Exit a parse tree produced by the {@code showTargets}
+   * labeled alternative in {@link EsqlBaseParser#showCommand}.
+   * @param ctx the parse tree
+   */
+  void exitShowTargets(EsqlBaseParser.ShowTargetsContext ctx);
+  /**
+   * Enter a parse tree produced by the {@code showFields}
+   * labeled alternative in {@link EsqlBaseParser#showCommand}.
+   * @param ctx the parse tree
+   */
+  void enterShowFields(EsqlBaseParser.ShowFieldsContext ctx);
+  /**
+   * Exit a parse tree produced by the {@code showFields}
+   * labeled alternative in {@link EsqlBaseParser#showCommand}.
+   * @param ctx the parse tree
+   */
+  void exitShowFields(EsqlBaseParser.ShowFieldsContext ctx);
+  /**
    * Enter a parse tree produced by the {@code metaFunctions}
    * labeled alternative in {@link EsqlBaseParser#metaCommand}.
    * @param ctx the parse tree

@@ -79,11 +79,12 @@ public class IndexResolver {
         STANDARD_INDEX(SQL_TABLE, "INDEX"),
         ALIAS(SQL_VIEW, "ALIAS"),
         FROZEN_INDEX(SQL_TABLE, "FROZEN INDEX"),
+        DATA_STREAM(SQL_VIEW, "DATA_STREAM"),
         // value for user types unrecognized
         UNKNOWN("UNKNOWN", "UNKNOWN");
 
         public static final EnumSet<IndexType> VALID_INCLUDE_FROZEN = EnumSet.of(STANDARD_INDEX, ALIAS, FROZEN_INDEX);
-        public static final EnumSet<IndexType> VALID_REGULAR = EnumSet.of(STANDARD_INDEX, ALIAS);
+        public static final EnumSet<IndexType> VALID_REGULAR = EnumSet.of(STANDARD_INDEX, ALIAS, DATA_STREAM);
 
         private final String toSql;
         private final String toNative;
@@ -223,7 +224,7 @@ public class IndexResolver {
                     indexInfos.add(new IndexInfo(clusterName, alias.getName(), IndexType.ALIAS));
                 }
                 for (ResolveIndexAction.ResolvedDataStream dataStream : response.getDataStreams()) {
-                    indexInfos.add(new IndexInfo(clusterName, dataStream.getName(), IndexType.ALIAS));
+                    indexInfos.add(new IndexInfo(clusterName, dataStream.getName(), IndexType.DATA_STREAM));
                 }
                 resolveIndices(clusterWildcard, indexWildcards, javaRegex, retrieveIndices, retrieveFrozenIndices, indexInfos, listener);
             }, ex -> {

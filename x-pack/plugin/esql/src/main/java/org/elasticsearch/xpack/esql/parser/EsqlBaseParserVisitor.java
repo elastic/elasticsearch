@@ -479,6 +479,27 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitShowInfo(EsqlBaseParser.ShowInfoContext ctx);
   /**
+   * Visit a parse tree produced by the {@code showClusters}
+   * labeled alternative in {@link EsqlBaseParser#showCommand}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitShowClusters(EsqlBaseParser.ShowClustersContext ctx);
+  /**
+   * Visit a parse tree produced by the {@code showTargets}
+   * labeled alternative in {@link EsqlBaseParser#showCommand}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitShowTargets(EsqlBaseParser.ShowTargetsContext ctx);
+  /**
+   * Visit a parse tree produced by the {@code showFields}
+   * labeled alternative in {@link EsqlBaseParser#showCommand}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitShowFields(EsqlBaseParser.ShowFieldsContext ctx);
+  /**
    * Visit a parse tree produced by the {@code metaFunctions}
    * labeled alternative in {@link EsqlBaseParser#metaCommand}.
    * @param ctx the parse tree

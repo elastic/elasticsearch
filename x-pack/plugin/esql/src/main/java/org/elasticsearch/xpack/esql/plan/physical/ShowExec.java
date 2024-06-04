@@ -7,32 +7,39 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
+import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
+import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
 import java.util.List;
 import java.util.Objects;
 
-public class ShowExec extends LeafExec {
+public class ShowExec extends LocalSourceExec {
 
     private final List<Attribute> attributes;
-    private final List<List<Object>> values;
+    private final LocalSupplier localSupplier;
 
     public ShowExec(Source source, List<Attribute> attributes, List<List<Object>> values) {
-        super(source);
+        this(source, attributes, LocalSupplier.of(BlockUtils.fromList(PlannerUtils.NON_BREAKING_BLOCK_FACTORY, values)));
+    }
+
+    public ShowExec(Source source, List<Attribute> attributes, LocalSupplier localSupplier) {
+        super(source, attributes, localSupplier);
         this.attributes = attributes;
-        this.values = values;
+        this.localSupplier = localSupplier;
     }
 
     @Override
     protected NodeInfo<? extends PhysicalPlan> info() {
-        return NodeInfo.create(this, ShowExec::new, attributes, values);
+        return NodeInfo.create(this, ShowExec::new, attributes, localSupplier);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(attributes, values);
+        return Objects.hash(attributes, localSupplier);
     }
 
     @Override
@@ -40,15 +47,8 @@ public class ShowExec extends LeafExec {
         if (this == obj) {
             return true;
         }
-        return obj instanceof ShowExec other && Objects.equals(attributes, other.attributes) && Objects.equals(values, other.values);
-    }
-
-    @Override
-    public List<Attribute> output() {
-        return attributes;
-    }
-
-    public List<List<Object>> values() {
-        return values;
+        return obj instanceof ShowExec other
+            && Objects.equals(attributes, other.attributes)
+            && Objects.equals(localSupplier, other.localSupplier);
     }
 }

@@ -419,7 +419,10 @@ MVEXPAND_WS
 mode SHOW_MODE;
 SHOW_PIPE : PIPE -> type(PIPE), popMode;
 
+CLUSTERS : 'clusters';
+FIELDS : 'fields';
 INFO : 'info';
+TARGETS : 'targets';
 
 SHOW_LINE_COMMENT
     : LINE_COMMENT -> channel(HIDDEN)
@@ -431,6 +434,10 @@ SHOW_MULTILINE_COMMENT
 
 SHOW_WS
     : WS -> channel(HIDDEN)
+    ;
+
+SHOW_INDEX_UNQUOTED_IDENTIFIER
+    : INDEX_UNQUOTED_IDENTIFIER -> type(INDEX_UNQUOTED_IDENTIFIER)
     ;
 
 //

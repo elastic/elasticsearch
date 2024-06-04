@@ -203,7 +203,6 @@ import org.elasticsearch.xpack.esql.plan.physical.OrderExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.RowExec;
-import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 
 import java.io.IOException;
@@ -282,7 +281,6 @@ public final class PlanNamedTypes {
             of(PhysicalPlan.class, OrderExec.class, PlanNamedTypes::writeOrderExec, PlanNamedTypes::readOrderExec),
             of(PhysicalPlan.class, ProjectExec.class, PlanNamedTypes::writeProjectExec, PlanNamedTypes::readProjectExec),
             of(PhysicalPlan.class, RowExec.class, PlanNamedTypes::writeRowExec, PlanNamedTypes::readRowExec),
-            of(PhysicalPlan.class, ShowExec.class, PlanNamedTypes::writeShowExec, PlanNamedTypes::readShowExec),
             of(PhysicalPlan.class, TopNExec.class, PlanNamedTypes::writeTopNExec, PlanNamedTypes::readTopNExec),
             // Logical Plan Nodes - a subset of plans that end up being actually serialized
             of(LogicalPlan.class, Aggregate.class, PlanNamedTypes::writeAggregate, PlanNamedTypes::readAggregate),
@@ -772,21 +770,6 @@ public final class PlanNamedTypes {
         assert rowExec.children().size() == 0;
         Source.EMPTY.writeTo(out);
         writeAliases(out, rowExec.fields());
-    }
-
-    @SuppressWarnings("unchecked")
-    static ShowExec readShowExec(PlanStreamInput in) throws IOException {
-        return new ShowExec(
-            Source.readFrom(in),
-            in.readNamedWriteableCollectionAsList(Attribute.class),
-            (List<List<Object>>) in.readGenericValue()
-        );
-    }
-
-    static void writeShowExec(PlanStreamOutput out, ShowExec showExec) throws IOException {
-        Source.EMPTY.writeTo(out);
-        out.writeNamedWriteableCollection(showExec.output());
-        out.writeGenericValue(showExec.values());
     }
 
     static TopNExec readTopNExec(PlanStreamInput in) throws IOException {

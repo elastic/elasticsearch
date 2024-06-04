@@ -7,28 +7,37 @@
 
 package org.elasticsearch.compute.operator;
 
-import org.elasticsearch.compute.data.BlockFactory;
-
-import java.util.List;
-import java.util.Objects;
-
-import static java.util.stream.Collectors.joining;
+import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.compute.data.Page;
 
 public class ShowOperator extends LocalSourceOperator {
 
-    public record ShowOperatorFactory(List<List<Object>> objects) implements SourceOperatorFactory {
+    public record Factory(BlockSupplier blockSupplier, String source) implements SourceOperatorFactory {
         @Override
         public String describe() {
-            return "ShowOperator[objects = " + objects.stream().map(Objects::toString).collect(joining(",")) + "]";
+            return ShowOperator.class.getSimpleName() + "[" + source + "]";
         }
 
         @Override
-        public SourceOperator get(DriverContext driverContext) {
-            return new ShowOperator(driverContext.blockFactory(), () -> objects);
+        public SourceOperator get(DriverContext unused) {
+            return new ShowOperator(blockSupplier);
         }
     }
 
-    public ShowOperator(BlockFactory blockFactory, ListSupplier listSupplier) {
-        super(blockFactory, listSupplier);
+    public ShowOperator(BlockSupplier blockSupplier) {
+        super(() -> {
+            var blocks = blockSupplier.get();
+            if (blocks == null) {
+                return null;
+            }
+            return CollectionUtils.isEmpty(blocks) ? new Page(0, blocks) : new Page(blocks);
+        });
+    }
+
+    @Override
+    public Page getOutput() {
+        Page page = supplier.get();
+        finished = page != null;
+        return page;
     }
 }

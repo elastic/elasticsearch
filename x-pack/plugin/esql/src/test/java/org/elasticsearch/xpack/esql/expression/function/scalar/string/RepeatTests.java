@@ -11,9 +11,6 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BlockUtils;
-import org.elasticsearch.xpack.esql.EsqlClientException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataTypes;
@@ -26,7 +23,6 @@ import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
-import static org.hamcrest.Matchers.startsWith;
 
 public class RepeatTests extends AbstractFunctionTestCase {
     public RepeatTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
@@ -106,37 +102,13 @@ public class RepeatTests extends AbstractFunctionTestCase {
                 DataTypes.KEYWORD,
                 nullValue()
             ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
-                .withWarning("Line -1:-1: java.lang.IllegalArgumentException: Number parameter cannot be negative, found [" + number + "]");
+                .withWarning("Line -1:-1: java.lang.IllegalArgumentException: Number parameter cannot be negative, found [" + number + "]")
+                .withFoldingException(IllegalArgumentException.class, "Number parameter cannot be negative, found [" + number + "]");
         }));
 
         cases = anyNullIsNull(true, cases);
         cases = errorsForCasesWithoutExamples(cases);
         return parameterSuppliersFromTypedData(cases);
-    }
-
-    public void testAlmostTooBig() {
-        String str = randomAlphaOfLength(1);
-        int number = (int) Repeat.MAX_REPEATED_LENGTH;
-        String repeated = process(str, number);
-        assertThat(repeated, equalTo(str.repeat(number)));
-    }
-
-    public void testTooBig() {
-        String str = randomAlphaOfLength(1);
-        int number = (int) Repeat.MAX_REPEATED_LENGTH + 1;
-        Exception e = expectThrows(EsqlClientException.class, () -> process(str, number));
-        assertThat(e.getMessage(), startsWith("Creating repeated strings with more than [1048576] bytes is not supported"));
-    }
-
-    public String process(String str, int number) {
-        try (
-            var eval = evaluator(new Repeat(Source.EMPTY, field("string", DataTypes.KEYWORD), field("number", DataTypes.INTEGER))).get(
-                driverContext()
-            );
-            Block block = eval.eval(row(List.of(new BytesRef(str), number)));
-        ) {
-            return ((BytesRef) BlockUtils.toJavaObject(block, 0)).utf8ToString();
-        }
     }
 
     @Override

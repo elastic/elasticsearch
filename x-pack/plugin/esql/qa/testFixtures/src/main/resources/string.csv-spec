@@ -1421,13 +1421,14 @@ cheese | ""
 
 repeatNegative
 required_capability: repeat 
-row a = "cheese" | eval repeated = repeat(a, -1);
 
-warning:Line 1:36: evaluation of [repeat(a, -1)] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 1:36: java.lang.IllegalArgumentException: Number parameter cannot be negative, found [-1]
+from employees | sort emp_no | limit 1 | eval repeated = repeat(first_name, emp_no - 10002) | keep first_name, repeated;
 
-a:keyword | repeated:keyword
-cheese | null
+warning:Line 1:58: evaluation of [repeat(first_name, emp_no - 10002)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:58: java.lang.IllegalArgumentException: Number parameter cannot be negative, found [-1]
+
+first_name:keyword | repeated:keyword
+Georgi | null
 ;
 
 repeatVariableNumber

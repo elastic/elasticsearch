@@ -93,10 +93,6 @@ public class Repeat extends EsqlScalarFunction implements OptionalArgument {
     }
 
     static BytesRef processInner(BytesRef str, int number) {
-        if (str == null) {
-            return null;
-        }
-
         int repeatedLen = str.length * number;
         if (repeatedLen > MAX_REPEATED_LENGTH) {
             throw new IllegalArgumentException(

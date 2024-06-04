@@ -23,8 +23,6 @@ import org.elasticsearch.search.rank.feature.RankFeatureDoc;
 import org.elasticsearch.search.rank.feature.RankFeatureResult;
 import org.elasticsearch.search.rank.feature.RankFeatureShardRequest;
 
-import java.util.Arrays;
-import java.util.Comparator;
 import java.util.List;
 
 /**
@@ -219,7 +217,7 @@ public class RankFeaturePhase extends SearchPhase {
 
     private float maxScore(ScoreDoc[] scoreDocs) {
         float maxScore = Float.NaN;
-        for(ScoreDoc scoreDoc : scoreDocs) {
+        for (ScoreDoc scoreDoc : scoreDocs) {
             if (Float.isNaN(maxScore) || scoreDoc.score > maxScore) {
                 maxScore = scoreDoc.score;
             }

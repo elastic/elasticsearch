@@ -18,7 +18,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Objects;
 
 import static org.elasticsearch.search.SearchService.DEFAULT_FROM;
 import static org.elasticsearch.search.SearchService.DEFAULT_SIZE;

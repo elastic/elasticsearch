@@ -41,14 +41,12 @@ tests:
 - class: org.elasticsearch.xpack.ccr.LocalIndexFollowingIT
   method: testRemoveRemoteConnection
   issue: https://github.com/elastic/elasticsearch/issues/109163
-- class: org.elasticsearch.analysis.common.CommonAnalysisClientYamlTestSuiteIT
-  method: org.elasticsearch.analysis.common.CommonAnalysisClientYamlTestSuiteIT
-  issue: https://github.com/elastic/elasticsearch/issues/109266
 - class: "org.elasticsearch.index.engine.frozen.FrozenIndexIT"
   issue: "https://github.com/elastic/elasticsearch/issues/109315"
   method: "testTimestampFieldTypeExposedByAllIndicesServices"
 - class: "org.elasticsearch.analysis.common.CommonAnalysisClientYamlTestSuiteIT"
   issue: "https://github.com/elastic/elasticsearch/issues/109318"
+  method: "test {yaml=analysis-common/50_char_filters/pattern_replace error handling (too complex pattern)}"
 - class: "org.elasticsearch.upgrades.AggregationsIT"
   issue: "https://github.com/elastic/elasticsearch/issues/109322"
   method: "testTerms"

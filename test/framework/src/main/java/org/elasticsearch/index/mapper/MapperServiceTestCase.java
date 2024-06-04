@@ -148,11 +148,6 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
         return createMapperService(settings, mappings).documentMapper();
     }
 
-    protected final DocumentMapper createLogsModeDocumentMapper(XContentBuilder mappings) throws IOException {
-        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), "logs").build();
-        return createMapperService(settings, mappings).documentMapper();
-    }
-
     protected final DocumentMapper createDocumentMapper(IndexVersion version, XContentBuilder mappings) throws IOException {
         return createMapperService(version, mappings).documentMapper();
     }

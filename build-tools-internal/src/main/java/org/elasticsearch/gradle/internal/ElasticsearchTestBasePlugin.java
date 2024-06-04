@@ -212,19 +212,14 @@ public class ElasticsearchTestBasePlugin implements Plugin<Project> {
                 configurationName,
                 project.getDependencies().project(Map.of("path", ":test:immutable-collections-patch", "configuration", "patch"))
             );
-        project.getTasks().withType(Test.class).configureEach(test -> {
+        project.getTasks().withType(Test.class).named("test").configure(test -> {
             test.getInputs().files(patchedFileCollection);
+            test.systemProperty("tests.hackImmutableCollections", "true");
             test.doFirst(t -> {
-                String defaultJdkVersion = BuildParams.getRuntimeJavaVersion().getMajorVersion();
-                boolean usesDefaultJdk = BuildParams.getIsRuntimeJavaHomeSet()
-                    || test.getJavaLauncher().get().getMetadata().getLanguageVersion().toString().equals(defaultJdkVersion);
-                if (usesDefaultJdk) {
-                    test.systemProperty("tests.hackImmutableCollections", "true");
-                    test.jvmArgs(
-                        "--patch-module=java.base=" + patchedFileCollection.getSingleFile() + "/java.base",
-                        "--add-opens=java.base/java.util=ALL-UNNAMED"
-                    );
-                }
+                test.jvmArgs(
+                    "--patch-module=java.base=" + patchedFileCollection.getSingleFile() + "/java.base",
+                    "--add-opens=java.base/java.util=ALL-UNNAMED"
+                );
             });
         });
     }

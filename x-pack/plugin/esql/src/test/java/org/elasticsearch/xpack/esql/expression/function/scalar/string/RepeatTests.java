@@ -13,7 +13,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
@@ -34,72 +34,72 @@ public class RepeatTests extends AbstractFunctionTestCase {
 
         List<TestCaseSupplier> cases = new ArrayList<>();
 
-        cases.add(new TestCaseSupplier("Repeat basic test", List.of(DataTypes.KEYWORD, DataTypes.INTEGER), () -> {
+        cases.add(new TestCaseSupplier("Repeat basic test", List.of(DataType.KEYWORD, DataType.INTEGER), () -> {
             String text = randomAlphaOfLength(10);
             int number = between(0, 10);
             return new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(new BytesRef(text), DataTypes.KEYWORD, "str"),
-                    new TestCaseSupplier.TypedData(number, DataTypes.INTEGER, "number")
+                    new TestCaseSupplier.TypedData(new BytesRef(text), DataType.KEYWORD, "str"),
+                    new TestCaseSupplier.TypedData(number, DataType.INTEGER, "number")
                 ),
                 "RepeatEvaluator[str=Attribute[channel=0], number=Attribute[channel=1]]",
-                DataTypes.KEYWORD,
+                DataType.KEYWORD,
                 equalTo(new BytesRef(text.repeat(number)))
             );
         }));
 
-        cases.add(new TestCaseSupplier("Repeat basic test with text input", List.of(DataTypes.TEXT, DataTypes.INTEGER), () -> {
+        cases.add(new TestCaseSupplier("Repeat basic test with text input", List.of(DataType.TEXT, DataType.INTEGER), () -> {
             String text = randomAlphaOfLength(10);
             int number = between(0, 10);
             return new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(new BytesRef(text), DataTypes.TEXT, "str"),
-                    new TestCaseSupplier.TypedData(number, DataTypes.INTEGER, "number")
+                    new TestCaseSupplier.TypedData(new BytesRef(text), DataType.TEXT, "str"),
+                    new TestCaseSupplier.TypedData(number, DataType.INTEGER, "number")
                 ),
                 "RepeatEvaluator[str=Attribute[channel=0], number=Attribute[channel=1]]",
-                DataTypes.KEYWORD,
+                DataType.KEYWORD,
                 equalTo(new BytesRef(text.repeat(number)))
             );
         }));
 
-        cases.add(new TestCaseSupplier("Repeat with number zero", List.of(DataTypes.KEYWORD, DataTypes.INTEGER), () -> {
+        cases.add(new TestCaseSupplier("Repeat with number zero", List.of(DataType.KEYWORD, DataType.INTEGER), () -> {
             String text = randomAlphaOfLength(10);
             int number = 0;
             return new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(new BytesRef(text), DataTypes.KEYWORD, "str"),
-                    new TestCaseSupplier.TypedData(number, DataTypes.INTEGER, "number")
+                    new TestCaseSupplier.TypedData(new BytesRef(text), DataType.KEYWORD, "str"),
+                    new TestCaseSupplier.TypedData(number, DataType.INTEGER, "number")
                 ),
                 "RepeatEvaluator[str=Attribute[channel=0], number=Attribute[channel=1]]",
-                DataTypes.KEYWORD,
+                DataType.KEYWORD,
                 equalTo(new BytesRef(""))
             );
         }));
 
-        cases.add(new TestCaseSupplier("Repeat Unicode", List.of(DataTypes.KEYWORD, DataTypes.INTEGER), () -> {
+        cases.add(new TestCaseSupplier("Repeat Unicode", List.of(DataType.KEYWORD, DataType.INTEGER), () -> {
             String text = randomUnicodeOfLength(10);
             int number = randomIntBetween(0, 10);
             return new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(new BytesRef(text), DataTypes.KEYWORD, "str"),
-                    new TestCaseSupplier.TypedData(number, DataTypes.INTEGER, "number")
+                    new TestCaseSupplier.TypedData(new BytesRef(text), DataType.KEYWORD, "str"),
+                    new TestCaseSupplier.TypedData(number, DataType.INTEGER, "number")
                 ),
                 "RepeatEvaluator[str=Attribute[channel=0], number=Attribute[channel=1]]",
-                DataTypes.KEYWORD,
+                DataType.KEYWORD,
                 equalTo(new BytesRef(text.repeat(number)))
             );
         }));
 
-        cases.add(new TestCaseSupplier("Repeat Negative Number", List.of(DataTypes.KEYWORD, DataTypes.INTEGER), () -> {
+        cases.add(new TestCaseSupplier("Repeat Negative Number", List.of(DataType.KEYWORD, DataType.INTEGER), () -> {
             String text = randomAlphaOfLength(10);
             int number = randomIntBetween(-10, -1);
             return new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(new BytesRef(text), DataTypes.KEYWORD, "str"),
-                    new TestCaseSupplier.TypedData(number, DataTypes.INTEGER, "number")
+                    new TestCaseSupplier.TypedData(new BytesRef(text), DataType.KEYWORD, "str"),
+                    new TestCaseSupplier.TypedData(number, DataType.INTEGER, "number")
                 ),
                 "RepeatEvaluator[str=Attribute[channel=0], number=Attribute[channel=1]]",
-                DataTypes.KEYWORD,
+                DataType.KEYWORD,
                 nullValue()
             ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
                 .withWarning("Line -1:-1: java.lang.IllegalArgumentException: Number parameter cannot be negative, found [" + number + "]")

@@ -351,7 +351,12 @@ public class Analysis {
 
     public static Reader getReaderFromIndex(String synonymsSet, SynonymsManagementAPIService synonymsManagementAPIService) {
         final PlainActionFuture<PagedResult<SynonymRule>> synonymsLoadingFuture = new PlainActionFuture<>();
-        synonymsManagementAPIService.getSynonymSetRules(synonymsSet, 0, 10_000, synonymsLoadingFuture);
+        synonymsManagementAPIService.getSynonymSetRules(
+            synonymsSet,
+            0,
+            SynonymsManagementAPIService.MAX_SYNONYMS_SETS,
+            synonymsLoadingFuture
+        );
         PagedResult<SynonymRule> results = synonymsLoadingFuture.actionGet();
 
         SynonymRule[] synonymRules = results.pageResults();

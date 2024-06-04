@@ -403,9 +403,9 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
                 assertTrue(shardRoutingTable.primaryShard().unassigned());
                 assertEquals(
                     UnassignedInfo.AllocationStatus.DECIDERS_NO,
-                    shardRoutingTable.primaryShard().unassignedInfo().getLastAllocationStatus()
+                    shardRoutingTable.primaryShard().unassignedInfo().lastAllocationStatus()
                 );
-                assertThat(shardRoutingTable.primaryShard().unassignedInfo().getNumFailedAllocations(), greaterThan(0));
+                assertThat(shardRoutingTable.primaryShard().unassignedInfo().failedAllocations(), greaterThan(0));
             }
         }, 60, TimeUnit.SECONDS);
         indicesAdmin().prepareClose("test").get();
@@ -472,9 +472,9 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
                 assertTrue(shardRoutingTable.primaryShard().unassigned());
                 assertEquals(
                     UnassignedInfo.AllocationStatus.DECIDERS_NO,
-                    shardRoutingTable.primaryShard().unassignedInfo().getLastAllocationStatus()
+                    shardRoutingTable.primaryShard().unassignedInfo().lastAllocationStatus()
                 );
-                assertThat(shardRoutingTable.primaryShard().unassignedInfo().getNumFailedAllocations(), greaterThan(0));
+                assertThat(shardRoutingTable.primaryShard().unassignedInfo().failedAllocations(), greaterThan(0));
             }
         }, 60, TimeUnit.SECONDS);
         indicesAdmin().prepareClose("test").get();

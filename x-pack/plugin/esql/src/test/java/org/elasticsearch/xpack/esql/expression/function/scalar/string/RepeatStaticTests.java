@@ -23,7 +23,6 @@ import org.elasticsearch.xpack.esql.TestBlockFactory;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.junit.After;
@@ -65,7 +64,7 @@ public class RepeatStaticTests extends ESTestCase {
     public String process(String str, int number) {
         try (
             var eval = AbstractFunctionTestCase.evaluator(
-                new Repeat(Source.EMPTY, field("string", DataTypes.KEYWORD), field("number", DataTypes.INTEGER))
+                new Repeat(Source.EMPTY, field("string", DataType.KEYWORD), field("number", DataType.INTEGER))
             ).get(driverContext());
             Block block = eval.eval(row(List.of(new BytesRef(str), number)));
         ) {

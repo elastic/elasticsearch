@@ -56,10 +56,6 @@ tests:
 - class: "org.elasticsearch.client.RestClientSingleHostIntegTests"
   issue: "https://github.com/elastic/elasticsearch/issues/102717"
   method: "testRequestResetAndAbort"
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  issue: https://github.com/elastic/elasticsearch/issues/109362
-- class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
-  issue: https://github.com/elastic/elasticsearch/issues/109364
 
 # Examples:
 #

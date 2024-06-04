@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.core.inference.results;
 
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -19,22 +19,62 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.inference.results.ChunkedNlpInferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.results.MlChunkedTextEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.ml.inference.results.TextEmbeddingResults;
+import org.elasticsearch.xpack.core.utils.StaticUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.Arrays;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-public record ChunkedTextEmbeddingFloatResults(List<EmbeddingChunk> chunks) implements ChunkedInferenceServiceResults {
+import static org.elasticsearch.xpack.core.inference.results.TextEmbeddingUtils.validateInputSizeAgainstEmbeddings;
+
+public record InferenceChunkedTextEmbeddingFloatResults(List<InferenceFloatEmbeddingChunk> chunks)
+    implements
+        ChunkedInferenceServiceResults {
 
     public static final String NAME = "chunked_text_embedding_service_float_results";
     public static final String FIELD_NAME = "text_embedding_float_chunk";
 
-    public ChunkedTextEmbeddingFloatResults(StreamInput in) throws IOException {
-        this(in.readCollectionAsList(EmbeddingChunk::new));
+    public InferenceChunkedTextEmbeddingFloatResults(StreamInput in) throws IOException {
+        this(in.readCollectionAsList(InferenceFloatEmbeddingChunk::new));
+    }
+
+    public InferenceChunkedTextEmbeddingFloatResults(List<InferenceFloatEmbeddingChunk> chunks) {
+        this.chunks = chunks;
+    }
+
+    /**
+     * Returns a list of {@link InferenceChunkedTextEmbeddingFloatResults}. The number of entries in the list will match the input list size
+     * Each {@link InferenceChunkedTextEmbeddingFloatResults} will have a single chunk containing the entire results from the
+     * {@link TextEmbeddingResults}.
+     */
+    public static List<ChunkedInferenceServiceResults> of(List<String> inputs, TextEmbeddingFloatResults textEmbeddings) {
+        validateInputSizeAgainstEmbeddings(inputs, textEmbeddings.embeddings().size());
+
+        var results = new ArrayList<ChunkedInferenceServiceResults>(inputs.size());
+        for (int i = 0; i < inputs.size(); i++) {
+            results.add(InferenceChunkedTextEmbeddingFloatResults.of(inputs.get(i), textEmbeddings.embeddings().get(i).values()));
+        }
+
+        return results;
+    }
+
+    public static InferenceChunkedTextEmbeddingFloatResults ofMlResults(MlChunkedTextEmbeddingFloatResults mlInferenceResult) {
+        return new InferenceChunkedTextEmbeddingFloatResults(
+            mlInferenceResult.getChunks()
+                .stream()
+                .map(chunk -> new InferenceFloatEmbeddingChunk(chunk.matchedText(), StaticUtils.floatArrayOf(chunk.embedding())))
+                .toList()
+        );
+    }
+
+    public static InferenceChunkedTextEmbeddingFloatResults of(String input, float[] floatEmbeddings) {
+        return new InferenceChunkedTextEmbeddingFloatResults(List.of(new InferenceFloatEmbeddingChunk(input, floatEmbeddings)));
     }
 
     @Override
@@ -73,7 +113,7 @@ public record ChunkedTextEmbeddingFloatResults(List<EmbeddingChunk> chunks) impl
         return NAME;
     }
 
-    public List<EmbeddingChunk> getChunks() {
+    public List<InferenceFloatEmbeddingChunk> getChunks() {
         return chunks;
     }
 
@@ -81,7 +121,7 @@ public record ChunkedTextEmbeddingFloatResults(List<EmbeddingChunk> chunks) impl
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        ChunkedTextEmbeddingFloatResults that = (ChunkedTextEmbeddingFloatResults) o;
+        InferenceChunkedTextEmbeddingFloatResults that = (InferenceChunkedTextEmbeddingFloatResults) o;
         return Objects.equals(chunks, that.chunks);
     }
 
@@ -90,10 +130,14 @@ public record ChunkedTextEmbeddingFloatResults(List<EmbeddingChunk> chunks) impl
         return Objects.hash(chunks);
     }
 
-    public record EmbeddingChunk(String matchedText, float[] embedding) implements Writeable, ToXContentObject {
+    public record InferenceFloatEmbeddingChunk(String matchedText, float[] embedding) implements Writeable, ToXContentObject {
 
-        public EmbeddingChunk(StreamInput in) throws IOException {
+        public InferenceFloatEmbeddingChunk(StreamInput in) throws IOException {
             this(in.readString(), in.readFloatArray());
+        }
+
+        public static InferenceFloatEmbeddingChunk of(String matchedText, double[] doubleEmbedding) {
+            return new InferenceFloatEmbeddingChunk(matchedText, StaticUtils.floatArrayOf(doubleEmbedding));
         }
 
         @Override
@@ -126,7 +170,7 @@ public record ChunkedTextEmbeddingFloatResults(List<EmbeddingChunk> chunks) impl
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
-            EmbeddingChunk that = (EmbeddingChunk) o;
+            InferenceFloatEmbeddingChunk that = (InferenceFloatEmbeddingChunk) o;
             return Objects.equals(matchedText, that.matchedText) && Arrays.equals(embedding, that.embedding);
         }
 
@@ -139,9 +183,7 @@ public record ChunkedTextEmbeddingFloatResults(List<EmbeddingChunk> chunks) impl
     }
 
     public Iterator<Chunk> chunksAsMatchedTextAndByteReference(XContent xcontent) {
-        return chunks.stream()
-            .map(chunk -> new Chunk(chunk.matchedText(), toBytesReference(xcontent, chunk.embedding().getEmbedding().getFloats())))
-            .iterator();
+        return chunks.stream().map(chunk -> new Chunk(chunk.matchedText(), toBytesReference(xcontent, chunk.embedding()))).iterator();
     }
 
     /**

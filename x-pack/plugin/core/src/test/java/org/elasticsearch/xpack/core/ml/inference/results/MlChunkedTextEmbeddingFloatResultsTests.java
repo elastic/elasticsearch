@@ -21,10 +21,10 @@ import static org.elasticsearch.xpack.core.ml.inference.results.ChunkedNlpInfere
 import static org.elasticsearch.xpack.core.ml.inference.results.ChunkedNlpInferenceResults.TEXT;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig.DEFAULT_RESULTS_FIELD;
 
-public class ChunkedTextEmbeddingResultsTests extends AbstractWireSerializingTestCase<ChunkedTextEmbeddingResults> {
+public class MlChunkedTextEmbeddingFloatResultsTests extends AbstractWireSerializingTestCase<MlChunkedTextEmbeddingFloatResults> {
 
-    public static ChunkedTextEmbeddingResults createRandomResults() {
-        var chunks = new ArrayList<ChunkedTextEmbeddingResults.EmbeddingChunk>();
+    public static MlChunkedTextEmbeddingFloatResults createRandomResults() {
+        var chunks = new ArrayList<MlChunkedTextEmbeddingFloatResults.EmbeddingChunk>();
         int columns = randomIntBetween(5, 10);
         int numChunks = randomIntBetween(1, 5);
 
@@ -33,17 +33,17 @@ public class ChunkedTextEmbeddingResultsTests extends AbstractWireSerializingTes
             for (int j = 0; j < columns; j++) {
                 arr[j] = randomDouble();
             }
-            chunks.add(new ChunkedTextEmbeddingResults.EmbeddingChunk(randomAlphaOfLength(6), arr));
+            chunks.add(new MlChunkedTextEmbeddingFloatResults.EmbeddingChunk(randomAlphaOfLength(6), arr));
         }
 
-        return new ChunkedTextEmbeddingResults(DEFAULT_RESULTS_FIELD, chunks, randomBoolean());
+        return new MlChunkedTextEmbeddingFloatResults(DEFAULT_RESULTS_FIELD, chunks, randomBoolean());
     }
 
     /**
-     * Similar to {@link ChunkedTextEmbeddingResults.EmbeddingChunk#asMap()} but it converts the double array into a list of doubles to
-     * make testing equality easier.
+     * Similar to {@link MlChunkedTextEmbeddingFloatResults.EmbeddingChunk#asMap()} but it converts the double array into a list of doubles
+     * to make testing equality easier.
      */
-    public static Map<String, Object> asMapWithListsInsteadOfArrays(ChunkedTextEmbeddingResults.EmbeddingChunk chunk) {
+    public static Map<String, Object> asMapWithListsInsteadOfArrays(MlChunkedTextEmbeddingFloatResults.EmbeddingChunk chunk) {
         var map = new HashMap<String, Object>();
         map.put(TEXT, chunk.matchedText());
         map.put(INFERENCE, Arrays.stream(chunk.embedding()).boxed().collect(Collectors.toList()));
@@ -51,20 +51,28 @@ public class ChunkedTextEmbeddingResultsTests extends AbstractWireSerializingTes
     }
 
     @Override
-    protected Writeable.Reader<ChunkedTextEmbeddingResults> instanceReader() {
-        return ChunkedTextEmbeddingResults::new;
+    protected Writeable.Reader<MlChunkedTextEmbeddingFloatResults> instanceReader() {
+        return MlChunkedTextEmbeddingFloatResults::new;
     }
 
     @Override
-    protected ChunkedTextEmbeddingResults createTestInstance() {
+    protected MlChunkedTextEmbeddingFloatResults createTestInstance() {
         return createRandomResults();
     }
 
     @Override
-    protected ChunkedTextEmbeddingResults mutateInstance(ChunkedTextEmbeddingResults instance) throws IOException {
+    protected MlChunkedTextEmbeddingFloatResults mutateInstance(MlChunkedTextEmbeddingFloatResults instance) throws IOException {
         return switch (randomIntBetween(0, 1)) {
-            case 0 -> new ChunkedTextEmbeddingResults(instance.getResultsField() + "foo", instance.getChunks(), instance.isTruncated);
-            case 1 -> new ChunkedTextEmbeddingResults(instance.getResultsField(), instance.getChunks(), instance.isTruncated == false);
+            case 0 -> new MlChunkedTextEmbeddingFloatResults(
+                instance.getResultsField() + "foo",
+                instance.getChunks(),
+                instance.isTruncated
+            );
+            case 1 -> new MlChunkedTextEmbeddingFloatResults(
+                instance.getResultsField(),
+                instance.getChunks(),
+                instance.isTruncated == false
+            );
             default -> throw new IllegalArgumentException("unexpected case");
         };
     }

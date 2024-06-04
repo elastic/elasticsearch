@@ -19,8 +19,9 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.results.ChunkedSparseEmbeddingResults;
-import org.elasticsearch.xpack.core.inference.results.ChunkedTextEmbeddingResults;
+import org.elasticsearch.xpack.core.inference.results.InferenceChunkedTextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.ml.inference.results.ChunkedTextExpansionResults;
+import org.elasticsearch.xpack.core.ml.inference.results.MlChunkedTextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.ml.search.WeightedToken;
 import org.elasticsearch.xpack.inference.model.TestModel;
 
@@ -132,16 +133,16 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
         assertThat(ex.getMessage(), containsString("required [similarity] field is missing"));
     }
 
-    public static ChunkedTextEmbeddingResults randomTextEmbeddings(Model model, List<String> inputs) {
-        List<org.elasticsearch.xpack.core.ml.inference.results.ChunkedTextEmbeddingResults.EmbeddingChunk> chunks = new ArrayList<>();
+    public static MlChunkedTextEmbeddingFloatResults randomTextEmbeddings(Model model, List<String> inputs) {
+        List<MlChunkedTextEmbeddingFloatResults.EmbeddingChunk> chunks = new ArrayList<>();
         for (String input : inputs) {
             double[] values = new double[model.getServiceSettings().dimensions()];
             for (int j = 0; j < values.length; j++) {
                 values[j] = randomDouble();
             }
-            chunks.add(new org.elasticsearch.xpack.core.ml.inference.results.ChunkedTextEmbeddingResults.EmbeddingChunk(input, values));
+            chunks.add(new MlChunkedTextEmbeddingFloatResults.EmbeddingChunk(input, values));
         }
-        return new ChunkedTextEmbeddingResults(chunks);
+        return new MlChunkedTextEmbeddingFloatResults("", chunks, false);
     }
 
     public static ChunkedSparseEmbeddingResults randomSparseEmbeddings(List<String> inputs) {
@@ -158,7 +159,7 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
 
     public static SemanticTextField randomSemanticText(String fieldName, Model model, List<String> inputs, XContentType contentType) {
         ChunkedInferenceServiceResults results = switch (model.getTaskType()) {
-            case TEXT_EMBEDDING -> randomTextEmbeddings(model, inputs);
+            case TEXT_EMBEDDING -> InferenceChunkedTextEmbeddingFloatResults.ofMlResults(randomTextEmbeddings(model, inputs));
             case SPARSE_EMBEDDING -> randomSparseEmbeddings(inputs);
             default -> throw new AssertionError("invalid task type: " + model.getTaskType().name());
         };
@@ -174,7 +175,8 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
         );
     }
 
-    public static ChunkedInferenceServiceResults toChunkedResult(SemanticTextField field) {
+    // TODO double check this
+    public static ChunkedInferenceServiceResults toChunkedResult(SemanticTextField field) throws IOException {
         switch (field.inference().modelSettings().taskType()) {
             case SPARSE_EMBEDDING -> {
                 List<ChunkedTextExpansionResults.ChunkedResult> chunks = new ArrayList<>();
@@ -185,22 +187,16 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
                 return new ChunkedSparseEmbeddingResults(chunks);
             }
             case TEXT_EMBEDDING -> {
-                List<org.elasticsearch.xpack.core.ml.inference.results.ChunkedTextEmbeddingResults.EmbeddingChunk> chunks =
-                    new ArrayList<>();
+                List<MlChunkedTextEmbeddingFloatResults.EmbeddingChunk> chunks = new ArrayList<>();
                 for (var chunk : field.inference().chunks()) {
                     double[] values = parseDenseVector(
                         chunk.rawEmbeddings(),
                         field.inference().modelSettings().dimensions(),
                         field.contentType()
                     );
-                    chunks.add(
-                        new org.elasticsearch.xpack.core.ml.inference.results.ChunkedTextEmbeddingResults.EmbeddingChunk(
-                            chunk.text(),
-                            values
-                        )
-                    );
+                    chunks.add(new MlChunkedTextEmbeddingFloatResults.EmbeddingChunk(chunk.text(), values));
                 }
-                return new ChunkedTextEmbeddingResults(chunks);
+                return InferenceChunkedTextEmbeddingFloatResults.ofMlResults(new MlChunkedTextEmbeddingFloatResults("", chunks, false));
             }
             default -> throw new AssertionError("Invalid task_type: " + field.inference().modelSettings().taskType().name());
         }

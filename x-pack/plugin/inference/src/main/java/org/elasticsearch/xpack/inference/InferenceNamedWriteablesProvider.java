@@ -17,14 +17,13 @@ import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
 import org.elasticsearch.xpack.core.inference.results.ChunkedSparseEmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.ChunkedTextEmbeddingByteResults;
-import org.elasticsearch.xpack.core.inference.results.ChunkedTextEmbeddingFloatResults;
-import org.elasticsearch.xpack.core.inference.results.ChunkedTextEmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.ErrorChunkedInferenceResults;
+import org.elasticsearch.xpack.core.inference.results.InferenceChunkedTextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.LegacyTextEmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingByteResults;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingResults;
+import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.services.azureaistudio.completion.AzureAiStudioChatCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.azureaistudio.completion.AzureAiStudioChatCompletionTaskSettings;
 import org.elasticsearch.xpack.inference.services.azureaistudio.embeddings.AzureAiStudioEmbeddingsServiceSettings;
@@ -311,15 +310,8 @@ public class InferenceNamedWriteablesProvider {
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(
                 InferenceServiceResults.class,
-                ChunkedTextEmbeddingResults.NAME,
-                ChunkedTextEmbeddingResults::new
-            )
-        );
-        namedWriteables.add(
-            new NamedWriteableRegistry.Entry(
-                InferenceServiceResults.class,
-                ChunkedTextEmbeddingFloatResults.NAME,
-                ChunkedTextEmbeddingFloatResults::new
+                InferenceChunkedTextEmbeddingFloatResults.NAME,
+                InferenceChunkedTextEmbeddingFloatResults::new
             )
         );
         namedWriteables.add(
@@ -336,7 +328,7 @@ public class InferenceNamedWriteablesProvider {
             new NamedWriteableRegistry.Entry(InferenceServiceResults.class, SparseEmbeddingResults.NAME, SparseEmbeddingResults::new)
         );
         namedWriteables.add(
-            new NamedWriteableRegistry.Entry(InferenceServiceResults.class, TextEmbeddingResults.NAME, TextEmbeddingResults::new)
+            new NamedWriteableRegistry.Entry(InferenceServiceResults.class, TextEmbeddingFloatResults.NAME, TextEmbeddingFloatResults::new)
         );
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(InferenceServiceResults.class, TextEmbeddingByteResults.NAME, TextEmbeddingByteResults::new)

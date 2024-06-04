@@ -21,7 +21,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-public class ChunkedTextEmbeddingResults extends ChunkedNlpInferenceResults {
+public class MlChunkedTextEmbeddingFloatResults extends ChunkedNlpInferenceResults {
 
     public record EmbeddingChunk(String matchedText, double[] embedding) implements Writeable, ToXContentObject {
 
@@ -77,13 +77,18 @@ public class ChunkedTextEmbeddingResults extends ChunkedNlpInferenceResults {
     private final String resultsField;
     private final List<EmbeddingChunk> chunks;
 
-    public ChunkedTextEmbeddingResults(String resultsField, List<EmbeddingChunk> embeddings, boolean isTruncated) {
+    public MlChunkedTextEmbeddingFloatResults(String resultsField, List<EmbeddingChunk> embeddings, boolean isTruncated) {
         super(isTruncated);
         this.resultsField = resultsField;
         this.chunks = embeddings;
     }
 
-    public ChunkedTextEmbeddingResults(StreamInput in) throws IOException {
+    // for testing
+    public MlChunkedTextEmbeddingFloatResults(List<EmbeddingChunk> embeddings) {
+        this("text_embedding_chunk", embeddings, false);
+    }
+
+    public MlChunkedTextEmbeddingFloatResults(StreamInput in) throws IOException {
         super(in);
         this.resultsField = in.readString();
         this.chunks = in.readCollectionAsList(EmbeddingChunk::new);
@@ -134,7 +139,7 @@ public class ChunkedTextEmbeddingResults extends ChunkedNlpInferenceResults {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         if (super.equals(o) == false) return false;
-        ChunkedTextEmbeddingResults that = (ChunkedTextEmbeddingResults) o;
+        MlChunkedTextEmbeddingFloatResults that = (MlChunkedTextEmbeddingFloatResults) o;
         return Objects.equals(resultsField, that.resultsField) && Objects.equals(chunks, that.chunks);
     }
 

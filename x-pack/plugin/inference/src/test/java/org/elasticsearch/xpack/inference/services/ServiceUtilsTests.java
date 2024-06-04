@@ -20,7 +20,7 @@ import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingByteResults;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingResults;
+import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.results.TextEmbeddingByteResultsTests;
 import org.elasticsearch.xpack.inference.results.TextEmbeddingResultsTests;
 
@@ -719,7 +719,7 @@ public class ServiceUtilsTests extends ESTestCase {
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
             ActionListener<InferenceServiceResults> listener = (ActionListener<InferenceServiceResults>) invocation.getArguments()[6];
-            listener.onResponse(new TextEmbeddingResults(List.of()));
+            listener.onResponse(new TextEmbeddingFloatResults(List.of()));
 
             return Void.TYPE;
         }).when(service).infer(any(), any(), any(), any(), any(), any(), any());

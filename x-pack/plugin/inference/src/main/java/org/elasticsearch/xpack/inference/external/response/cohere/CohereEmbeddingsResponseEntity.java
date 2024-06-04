@@ -19,7 +19,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingByteResults;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingResults;
+import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingType;
@@ -213,13 +213,13 @@ public class CohereEmbeddingsResponseEntity {
     private static InferenceServiceResults parseFloatEmbeddingsArray(XContentParser parser) throws IOException {
         var embeddingList = XContentParserUtils.parseList(parser, CohereEmbeddingsResponseEntity::parseFloatArrayEntry);
 
-        return new TextEmbeddingResults(embeddingList);
+        return new TextEmbeddingFloatResults(embeddingList);
     }
 
-    private static TextEmbeddingResults.Embedding parseFloatArrayEntry(XContentParser parser) throws IOException {
+    private static TextEmbeddingFloatResults.FloatEmbedding parseFloatArrayEntry(XContentParser parser) throws IOException {
         XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.currentToken(), parser);
         List<Float> embeddingValuesList = XContentParserUtils.parseList(parser, CohereEmbeddingsResponseEntity::parseEmbeddingFloatEntry);
-        return TextEmbeddingResults.Embedding.of(embeddingValuesList);
+        return TextEmbeddingFloatResults.FloatEmbedding.of(embeddingValuesList);
     }
 
     private static Float parseEmbeddingFloatEntry(XContentParser parser) throws IOException {

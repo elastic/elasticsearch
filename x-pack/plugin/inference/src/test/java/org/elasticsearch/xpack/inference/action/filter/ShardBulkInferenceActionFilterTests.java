@@ -41,6 +41,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.mockito.stubbing.Answer;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -323,7 +324,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
     private static BulkItemRequest[] randomBulkItemRequest(
         Map<String, StaticModel> modelMap,
         Map<String, InferenceFieldMetadata> fieldInferenceMap
-    ) {
+    ) throws IOException {
         Map<String, Object> docMap = new LinkedHashMap<>();
         Map<String, Object> expectedDocMap = new LinkedHashMap<>();
         XContentType requestContentType = randomFrom(XContentType.values());

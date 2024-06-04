@@ -11,7 +11,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingByteResults;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingResults;
+import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -20,30 +20,30 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.is;
 
-public class TextEmbeddingResultsTests extends AbstractWireSerializingTestCase<TextEmbeddingResults> {
-    public static TextEmbeddingResults createRandomResults() {
+public class TextEmbeddingResultsTests extends AbstractWireSerializingTestCase<TextEmbeddingFloatResults> {
+    public static TextEmbeddingFloatResults createRandomResults() {
         int embeddings = randomIntBetween(1, 10);
-        List<TextEmbeddingResults.Embedding> embeddingResults = new ArrayList<>(embeddings);
+        List<TextEmbeddingFloatResults.FloatEmbedding> embeddingResults = new ArrayList<>(embeddings);
 
         for (int i = 0; i < embeddings; i++) {
             embeddingResults.add(createRandomEmbedding());
         }
 
-        return new TextEmbeddingResults(embeddingResults);
+        return new TextEmbeddingFloatResults(embeddingResults);
     }
 
-    private static TextEmbeddingResults.Embedding createRandomEmbedding() {
+    private static TextEmbeddingFloatResults.FloatEmbedding createRandomEmbedding() {
         int columns = randomIntBetween(1, 10);
         float[] floats = new float[columns];
         for (int i = 0; i < columns; i++) {
             floats[i] = randomFloat();
         }
 
-        return new TextEmbeddingResults.Embedding(floats);
+        return new TextEmbeddingFloatResults.FloatEmbedding(floats);
     }
 
     public void testToXContent_CreatesTheRightFormatForASingleEmbedding() throws IOException {
-        var entity = new TextEmbeddingResults(List.of(new TextEmbeddingResults.Embedding(new float[] { 0.1F })));
+        var entity = new TextEmbeddingFloatResults(List.of(new TextEmbeddingFloatResults.FloatEmbedding(new float[] { 0.1F })));
 
         String xContentResult = Strings.toString(entity, true, true);
         assertThat(xContentResult, is("""
@@ -59,8 +59,11 @@ public class TextEmbeddingResultsTests extends AbstractWireSerializingTestCase<T
     }
 
     public void testToXContent_CreatesTheRightFormatForMultipleEmbeddings() throws IOException {
-        var entity = new TextEmbeddingResults(
-            List.of(new TextEmbeddingResults.Embedding(new float[] { 0.1F }), new TextEmbeddingResults.Embedding(new float[] { 0.2F }))
+        var entity = new TextEmbeddingFloatResults(
+            List.of(
+                new TextEmbeddingFloatResults.FloatEmbedding(new float[] { 0.1F }),
+                new TextEmbeddingFloatResults.FloatEmbedding(new float[] { 0.2F })
+            )
 
         );
 
@@ -83,10 +86,10 @@ public class TextEmbeddingResultsTests extends AbstractWireSerializingTestCase<T
     }
 
     public void testTransformToCoordinationFormat() {
-        var results = new TextEmbeddingResults(
+        var results = new TextEmbeddingFloatResults(
             List.of(
-                new TextEmbeddingResults.Embedding(new float[] { 0.1F, 0.2F }),
-                new TextEmbeddingResults.Embedding(new float[] { 0.3F, 0.4F })
+                new TextEmbeddingFloatResults.FloatEmbedding(new float[] { 0.1F, 0.2F }),
+                new TextEmbeddingFloatResults.FloatEmbedding(new float[] { 0.3F, 0.4F })
             )
         ).transformToCoordinationFormat();
 
@@ -95,12 +98,12 @@ public class TextEmbeddingResultsTests extends AbstractWireSerializingTestCase<T
             is(
                 List.of(
                     new org.elasticsearch.xpack.core.ml.inference.results.TextEmbeddingResults(
-                        TextEmbeddingResults.TEXT_EMBEDDING,
+                        TextEmbeddingFloatResults.TEXT_EMBEDDING,
                         new double[] { 0.1F, 0.2F },
                         false
                     ),
                     new org.elasticsearch.xpack.core.ml.inference.results.TextEmbeddingResults(
-                        TextEmbeddingResults.TEXT_EMBEDDING,
+                        TextEmbeddingFloatResults.TEXT_EMBEDDING,
                         new double[] { 0.3F, 0.4F },
                         false
                     )
@@ -110,31 +113,34 @@ public class TextEmbeddingResultsTests extends AbstractWireSerializingTestCase<T
     }
 
     @Override
-    protected Writeable.Reader<TextEmbeddingResults> instanceReader() {
-        return TextEmbeddingResults::new;
+    protected Writeable.Reader<TextEmbeddingFloatResults> instanceReader() {
+        return TextEmbeddingFloatResults::new;
     }
 
     @Override
-    protected TextEmbeddingResults createTestInstance() {
+    protected TextEmbeddingFloatResults createTestInstance() {
         return createRandomResults();
     }
 
     @Override
-    protected TextEmbeddingResults mutateInstance(TextEmbeddingResults instance) throws IOException {
+    protected TextEmbeddingFloatResults mutateInstance(TextEmbeddingFloatResults instance) throws IOException {
         // if true we reduce the embeddings list by a random amount, if false we add an embedding to the list
         if (randomBoolean()) {
             // -1 to remove at least one item from the list
             int end = randomInt(instance.embeddings().size() - 1);
-            return new TextEmbeddingResults(instance.embeddings().subList(0, end));
+            return new TextEmbeddingFloatResults(instance.embeddings().subList(0, end));
         } else {
-            List<TextEmbeddingResults.Embedding> embeddings = new ArrayList<>(instance.embeddings());
+            List<TextEmbeddingFloatResults.FloatEmbedding> embeddings = new ArrayList<>(instance.embeddings());
             embeddings.add(createRandomEmbedding());
-            return new TextEmbeddingResults(embeddings);
+            return new TextEmbeddingFloatResults(embeddings);
         }
     }
 
     public static Map<String, Object> buildExpectationFloat(List<float[]> embeddings) {
-        return Map.of(TextEmbeddingResults.TEXT_EMBEDDING, embeddings.stream().map(TextEmbeddingResults.Embedding::new).toList());
+        return Map.of(
+            TextEmbeddingFloatResults.TEXT_EMBEDDING,
+            embeddings.stream().map(TextEmbeddingFloatResults.FloatEmbedding::new).toList()
+        );
     }
 
     public static Map<String, Object> buildExpectationByte(List<byte[]> embeddings) {

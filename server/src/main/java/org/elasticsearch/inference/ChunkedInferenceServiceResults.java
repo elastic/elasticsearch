@@ -11,7 +11,6 @@ package org.elasticsearch.inference;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.xcontent.XContent;
 
-import java.util.AbstractMap;
 import java.util.Iterator;
 
 public interface ChunkedInferenceServiceResults extends InferenceServiceResults {

@@ -20,11 +20,11 @@ import org.elasticsearch.xpack.core.ml.inference.preprocessing.OneHotEncoding;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.PreProcessor;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.StrictlyParsedPreProcessor;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.TargetMeanEncoding;
-import org.elasticsearch.xpack.core.ml.inference.results.ChunkedTextEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.ChunkedTextExpansionResults;
 import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.FillMaskResults;
+import org.elasticsearch.xpack.core.ml.inference.results.MlChunkedTextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.ml.inference.results.NerResults;
 import org.elasticsearch.xpack.core.ml.inference.results.NlpClassificationInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.PyTorchPassThroughResults;
@@ -675,7 +675,11 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
             )
         );
         namedWriteables.add(
-            new NamedWriteableRegistry.Entry(InferenceResults.class, ChunkedTextEmbeddingResults.NAME, ChunkedTextEmbeddingResults::new)
+            new NamedWriteableRegistry.Entry(
+                InferenceResults.class,
+                MlChunkedTextEmbeddingFloatResults.NAME,
+                MlChunkedTextEmbeddingFloatResults::new
+            )
         );
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(InferenceResults.class, ChunkedTextExpansionResults.NAME, ChunkedTextExpansionResults::new)

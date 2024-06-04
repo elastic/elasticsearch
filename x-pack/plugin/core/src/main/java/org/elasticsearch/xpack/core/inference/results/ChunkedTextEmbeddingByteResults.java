@@ -157,10 +157,11 @@ public record ChunkedTextEmbeddingByteResults(List<EmbeddingChunk> chunks, boole
             int result = Objects.hash(matchedText);
             result = 31 * result + Arrays.hashCode(embedding);
             return result;
+        }
+    }
+
     public Iterator<Chunk> chunksAsMatchedTextAndByteReference(XContent xcontent) {
-        return chunks.stream()
-            .map(chunk -> new Chunk(chunk.matchedText(), toBytesReference(xcontent, chunk.embedding().getEmbedding().bytes)))
-            .iterator();
+        return chunks.stream().map(chunk -> new Chunk(chunk.matchedText(), toBytesReference(xcontent, chunk.embedding()))).iterator();
     }
 
     private static BytesReference toBytesReference(XContent xContent, byte[] value) {

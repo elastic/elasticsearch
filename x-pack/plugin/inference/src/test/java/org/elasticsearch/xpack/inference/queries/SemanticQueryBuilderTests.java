@@ -45,6 +45,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
+import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.results.TextEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
@@ -260,9 +261,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
         Arrays.fill(inference, 1.0);
         TextEmbeddingResults textEmbeddingResults = new TextEmbeddingResults(DEFAULT_RESULTS_FIELD, inference, false);
 
-        return new InferenceAction.Response(
-            org.elasticsearch.xpack.core.inference.results.TextEmbeddingResults.of(List.of(textEmbeddingResults))
-        );
+        return new InferenceAction.Response(TextEmbeddingFloatResults.of(List.of(textEmbeddingResults)));
     }
 
     @Override

@@ -14,25 +14,25 @@ describeTable
 // tag::describeTable
 DESCRIBE emp;
 
-       column       |     type      |    mapping    
+       column       |     type      |    mapping
 --------------------+---------------+---------------
-birth_date          |TIMESTAMP      |datetime       
-dep                 |STRUCT         |nested         
-dep.dep_id          |VARCHAR        |keyword        
-dep.dep_name        |VARCHAR        |text           
-dep.dep_name.keyword|VARCHAR        |keyword        
-dep.from_date       |TIMESTAMP      |datetime       
-dep.to_date         |TIMESTAMP      |datetime       
-emp_no              |INTEGER        |integer        
-first_name          |VARCHAR        |text           
-first_name.keyword  |VARCHAR        |keyword        
-gender              |VARCHAR        |keyword        
-hire_date           |TIMESTAMP      |datetime       
-languages           |TINYINT        |byte           
-last_name           |VARCHAR        |text           
-last_name.keyword   |VARCHAR        |keyword        
-name                |VARCHAR        |keyword        
-salary              |INTEGER        |integer        
+birth_date          |TIMESTAMP      |datetime
+dep                 |STRUCT         |nested
+dep.dep_id          |VARCHAR        |keyword
+dep.dep_name        |VARCHAR        |text
+dep.dep_name.keyword|VARCHAR        |keyword
+dep.from_date       |TIMESTAMP      |datetime
+dep.to_date         |TIMESTAMP      |datetime
+emp_no              |INTEGER        |integer
+first_name          |VARCHAR        |text
+first_name.keyword  |VARCHAR        |keyword
+gender              |VARCHAR        |keyword
+hire_date           |TIMESTAMP      |datetime
+languages           |TINYINT        |byte
+last_name           |VARCHAR        |text
+last_name.keyword   |VARCHAR        |keyword
+name                |VARCHAR        |keyword
+salary              |INTEGER        |integer
 
 // end::describeTable
 ;
@@ -41,7 +41,7 @@ salary              |INTEGER        |integer
 // tag::describeTableAlias
 //DESCRIBE employee;
 
-//    column     |     type      
+//    column     |     type
 //---------------+---------------
 
 // end::describeTableAlias
@@ -49,30 +49,30 @@ salary              |INTEGER        |integer
 
 //
 // Show columns
-// 
+//
 showColumns
 // tag::showColumns
 SHOW COLUMNS IN emp;
 
-       column       |     type      |    mapping    
+       column       |     type      |    mapping
 --------------------+---------------+---------------
-birth_date          |TIMESTAMP      |datetime       
-dep                 |STRUCT         |nested         
-dep.dep_id          |VARCHAR        |keyword        
-dep.dep_name        |VARCHAR        |text           
-dep.dep_name.keyword|VARCHAR        |keyword        
-dep.from_date       |TIMESTAMP      |datetime       
-dep.to_date         |TIMESTAMP      |datetime       
-emp_no              |INTEGER        |integer        
-first_name          |VARCHAR        |text           
-first_name.keyword  |VARCHAR        |keyword        
-gender              |VARCHAR        |keyword        
-hire_date           |TIMESTAMP      |datetime       
-languages           |TINYINT        |byte           
-last_name           |VARCHAR        |text           
-last_name.keyword   |VARCHAR        |keyword        
-name                |VARCHAR        |keyword        
-salary              |INTEGER        |integer        
+birth_date          |TIMESTAMP      |datetime
+dep                 |STRUCT         |nested
+dep.dep_id          |VARCHAR        |keyword
+dep.dep_name        |VARCHAR        |text
+dep.dep_name.keyword|VARCHAR        |keyword
+dep.from_date       |TIMESTAMP      |datetime
+dep.to_date         |TIMESTAMP      |datetime
+emp_no              |INTEGER        |integer
+first_name          |VARCHAR        |text
+first_name.keyword  |VARCHAR        |keyword
+gender              |VARCHAR        |keyword
+hire_date           |TIMESTAMP      |datetime
+languages           |TINYINT        |byte
+last_name           |VARCHAR        |text
+last_name.keyword   |VARCHAR        |keyword
+name                |VARCHAR        |keyword
+salary              |INTEGER        |integer
 
 // end::showColumns
 ;
@@ -81,9 +81,9 @@ salary              |INTEGER        |integer
 // tag::showColumnsInAlias
 //SHOW COLUMNS FROM employee;
 
-//    column     |     type      
+//    column     |     type
 //---------------+---------------
-               
+
 // end::showColumnsInAlias
 //;
 
@@ -207,15 +207,15 @@ SHOW FUNCTIONS;
 
       name       |     type
 -----------------+---------------
-AVG              |AGGREGATE      
+AVG              |AGGREGATE
 COUNT            |AGGREGATE
 FIRST            |AGGREGATE
 FIRST_VALUE      |AGGREGATE
 LAST             |AGGREGATE
 LAST_VALUE       |AGGREGATE
-MAX              |AGGREGATE      
-MIN              |AGGREGATE      
-SUM              |AGGREGATE      
+MAX              |AGGREGATE
+MIN              |AGGREGATE
+SUM              |AGGREGATE
 KURTOSIS         |AGGREGATE
 MAD              |AGGREGATE
 PERCENTILE       |AGGREGATE
@@ -262,11 +262,11 @@ DAY_OF_MONTH     |SCALAR
 DAY_OF_WEEK      |SCALAR
 DAY_OF_YEAR      |SCALAR
 DOM              |SCALAR
-DOW              |SCALAR         
+DOW              |SCALAR
 DOY              |SCALAR
 FORMAT           |SCALAR
 HOUR             |SCALAR
-HOUR_OF_DAY      |SCALAR         
+HOUR_OF_DAY      |SCALAR
 IDOW             |SCALAR
 ISODAYOFWEEK     |SCALAR
 ISODOW           |SCALAR
@@ -276,16 +276,16 @@ ISO_DAY_OF_WEEK  |SCALAR
 ISO_WEEK_OF_YEAR |SCALAR
 IW               |SCALAR
 IWOY             |SCALAR
-MINUTE           |SCALAR         
-MINUTE_OF_DAY    |SCALAR         
-MINUTE_OF_HOUR   |SCALAR         
-MONTH            |SCALAR         
-MONTHNAME        |SCALAR         
-MONTH_NAME       |SCALAR         
+MINUTE           |SCALAR
+MINUTE_OF_DAY    |SCALAR
+MINUTE_OF_HOUR   |SCALAR
+MONTH            |SCALAR
+MONTHNAME        |SCALAR
+MONTH_NAME       |SCALAR
 MONTH_OF_YEAR    |SCALAR
 NOW              |SCALAR
-QUARTER          |SCALAR         
-SECOND           |SCALAR         
+QUARTER          |SCALAR
+SECOND           |SCALAR
 SECOND_OF_MINUTE |SCALAR
 TIMESTAMPADD     |SCALAR
 TIMESTAMPDIFF    |SCALAR
@@ -295,60 +295,60 @@ TIME_PARSE       |SCALAR
 TODAY            |SCALAR
 TO_CHAR          |SCALAR
 WEEK             |SCALAR
-WEEK_OF_YEAR     |SCALAR         
-YEAR             |SCALAR         
-ABS              |SCALAR         
-ACOS             |SCALAR         
-ASIN             |SCALAR         
-ATAN             |SCALAR         
-ATAN2            |SCALAR         
-CBRT             |SCALAR         
-CEIL             |SCALAR         
-CEILING          |SCALAR         
-COS              |SCALAR         
-COSH             |SCALAR         
-COT              |SCALAR         
-DEGREES          |SCALAR         
-E                |SCALAR         
-EXP              |SCALAR         
-EXPM1            |SCALAR         
-FLOOR            |SCALAR         
-LOG              |SCALAR         
-LOG10            |SCALAR         
-MOD              |SCALAR         
-PI               |SCALAR         
-POWER            |SCALAR         
-RADIANS          |SCALAR         
-RAND             |SCALAR         
-RANDOM           |SCALAR         
-ROUND            |SCALAR         
-SIGN             |SCALAR         
-SIGNUM           |SCALAR         
-SIN              |SCALAR         
-SINH             |SCALAR         
-SQRT             |SCALAR         
-TAN              |SCALAR         
+WEEK_OF_YEAR     |SCALAR
+YEAR             |SCALAR
+ABS              |SCALAR
+ACOS             |SCALAR
+ASIN             |SCALAR
+ATAN             |SCALAR
+ATAN2            |SCALAR
+CBRT             |SCALAR
+CEIL             |SCALAR
+CEILING          |SCALAR
+COS              |SCALAR
+COSH             |SCALAR
+COT              |SCALAR
+DEGREES          |SCALAR
+E                |SCALAR
+EXP              |SCALAR
+EXPM1            |SCALAR
+FLOOR            |SCALAR
+LOG              |SCALAR
+LOG10            |SCALAR
+MOD              |SCALAR
+PI               |SCALAR
+POWER            |SCALAR
+RADIANS          |SCALAR
+RAND             |SCALAR
+RANDOM           |SCALAR
+ROUND            |SCALAR
+SIGN             |SCALAR
+SIGNUM           |SCALAR
+SIN              |SCALAR
+SINH             |SCALAR
+SQRT             |SCALAR
+TAN              |SCALAR
 TRUNC            |SCALAR
 TRUNCATE         |SCALAR
 ASCII            |SCALAR
-BIT_LENGTH       |SCALAR         
-CHAR             |SCALAR         
-CHARACTER_LENGTH |SCALAR         
-CHAR_LENGTH      |SCALAR         
-CONCAT           |SCALAR         
-INSERT           |SCALAR         
-LCASE            |SCALAR         
-LEFT             |SCALAR         
-LENGTH           |SCALAR         
-LOCATE           |SCALAR         
-LTRIM            |SCALAR         
-OCTET_LENGTH     |SCALAR         
-POSITION         |SCALAR         
-REPEAT           |SCALAR         
-REPLACE          |SCALAR         
-RIGHT            |SCALAR         
-RTRIM            |SCALAR         
-SPACE            |SCALAR         
+BIT_LENGTH       |SCALAR
+CHAR             |SCALAR
+CHARACTER_LENGTH |SCALAR
+CHAR_LENGTH      |SCALAR
+CONCAT           |SCALAR
+INSERT           |SCALAR
+LCASE            |SCALAR
+LEFT             |SCALAR
+LENGTH           |SCALAR
+LOCATE           |SCALAR
+LTRIM            |SCALAR
+OCTET_LENGTH     |SCALAR
+POSITION         |SCALAR
+REPEAT           |SCALAR
+REPLACE          |SCALAR
+RIGHT            |SCALAR
+RTRIM            |SCALAR
+SPACE            |SCALAR
 STARTS_WITH      |SCALAR
 SUBSTRING        |SCALAR
 TRIM             |SCALAR
@@ -374,9 +374,9 @@ showFunctionsLikeExact
 // tag::showFunctionsLikeExact
 SHOW FUNCTIONS LIKE 'ABS';
 
-     name      |     type      
+     name      |     type
 ---------------+---------------
-ABS            |SCALAR    
+ABS            |SCALAR
 
 // end::showFunctionsLikeExact
 ;
@@ -385,15 +385,15 @@ showFunctionsLikeWildcard
 // tag::showFunctionsLikeWildcard
 SHOW FUNCTIONS LIKE 'A%';
 
-     name      |     type      
+     name      |     type
 ---------------+---------------
-AVG            |AGGREGATE      
-ABS            |SCALAR         
-ACOS           |SCALAR         
-ASIN           |SCALAR         
-ATAN           |SCALAR         
+AVG            |AGGREGATE
+ABS            |SCALAR
+ACOS           |SCALAR
+ASIN           |SCALAR
+ATAN           |SCALAR
 ATAN2          |SCALAR
-ASCII          |SCALAR     
+ASCII          |SCALAR
 // end::showFunctionsLikeWildcard
 ;
 
@@ -401,10 +401,10 @@ showFunctionsLikeChar
 // tag::showFunctionsLikeChar
 SHOW FUNCTIONS LIKE 'A__';
 
-     name      |     type      
+     name      |     type
 ---------------+---------------
-AVG            |AGGREGATE      
-ABS            |SCALAR         
+AVG            |AGGREGATE
+ABS            |SCALAR
 // end::showFunctionsLikeChar
 ;
 
@@ -412,7 +412,7 @@ showFunctionsWithPattern
 // tag::showFunctionsWithPattern
 SHOW FUNCTIONS LIKE '%DAY%';
 
-     name      |     type      
+     name      |     type
 ---------------+---------------
 DAY            |SCALAR
 DAYNAME        |SCALAR
@@ -423,10 +423,10 @@ DAY_NAME       |SCALAR
 DAY_OF_MONTH   |SCALAR
 DAY_OF_WEEK    |SCALAR
 DAY_OF_YEAR    |SCALAR
-HOUR_OF_DAY    |SCALAR         
+HOUR_OF_DAY    |SCALAR
 ISODAYOFWEEK   |SCALAR
 ISO_DAY_OF_WEEK|SCALAR
-MINUTE_OF_DAY  |SCALAR         
+MINUTE_OF_DAY  |SCALAR
 TODAY          |SCALAR
 
 // end::showFunctionsWithPattern
@@ -442,9 +442,9 @@ selectColumnAlias
 // tag::selectColumnAlias
 SELECT 1 + 1 AS result;
 
-    result     
+    result
 ---------------
-2    
+2
 
 // end::selectColumnAlias
 ;
@@ -453,9 +453,9 @@ selectInline
 // tag::selectInline
 SELECT 1 + 1;
 
-    1 + 1    
+    1 + 1
 --------------
-2      
+2
 
 // end::selectInline
 ;
@@ -464,9 +464,9 @@ selectColumn
 // tag::selectColumn
 SELECT emp_no FROM emp LIMIT 1;
 
-    emp_no     
+    emp_no
 ---------------
-10001   
+10001
 
 // end::selectColumn
 ;
@@ -475,9 +475,9 @@ selectQualifiedColumn
 // tag::selectQualifiedColumn
 SELECT emp.emp_no FROM emp LIMIT 1;
 
-    emp_no     
+    emp_no
 ---------------
-10001   
+10001
 
 // end::selectQualifiedColumn
 ;
@@ -487,7 +487,7 @@ wildcardWithOrder
 // tag::wildcardWithOrder
 SELECT * FROM emp LIMIT 1;
 
-     birth_date     |    emp_no     |  first_name   |    gender     |       hire_date        |   languages   |   last_name   |     name      |    salary     
+     birth_date     |    emp_no     |  first_name   |    gender     |       hire_date        |   languages   |   last_name   |     name      |    salary
 --------------------+---------------+---------------+---------------+------------------------+---------------+---------------+---------------+---------------
 1953-09-02T00:00:00Z|10001          |Georgi         |M              |1986-06-26T00:00:00.000Z|2              |Facello        |Georgi Facello |57305
 
@@ -498,10 +498,10 @@ fromTable
 // tag::fromTable
 SELECT * FROM emp LIMIT 1;
 
-     birth_date     |    emp_no     |  first_name   |    gender     |       hire_date        |   languages   |   last_name   |     name      |    salary     
+     birth_date     |    emp_no     |  first_name   |    gender     |       hire_date        |   languages   |   last_name   |     name      |    salary
 --------------------+---------------+---------------+---------------+------------------------+---------------+---------------+---------------+---------------
 1953-09-02T00:00:00Z|10001          |Georgi         |M              |1986-06-26T00:00:00.000Z|2              |Facello        |Georgi Facello |57305
-  
+
 
 // end::fromTable
 ;
@@ -510,7 +510,7 @@ fromTableQuoted
 // tag::fromTableQuoted
 SELECT * FROM "emp" LIMIT 1;
 
-     birth_date     |    emp_no     |  first_name   |    gender     |       hire_date        |   languages   |   last_name   |     name      |    salary     
+     birth_date     |    emp_no     |  first_name   |    gender     |       hire_date        |   languages   |   last_name   |     name      |    salary
 --------------------+---------------+---------------+---------------+------------------------+---------------+---------------+---------------+---------------
 1953-09-02T00:00:00Z|10001          |Georgi         |M              |1986-06-26T00:00:00.000Z|2              |Facello        |Georgi Facello |57305
 
@@ -521,7 +521,7 @@ fromTableIncludeFrozen
 // tag::fromTableIncludeFrozen
 SELECT * FROM FROZEN archive LIMIT 1;
 
-     author      |        name        |  page_count   |    release_date    
+     author      |        name        |  page_count   |    release_date
 -----------------+--------------------+---------------+--------------------
 James S.A. Corey |Leviathan Wakes     |561            |2011-06-02T00:00:00Z
 
@@ -532,9 +532,9 @@ fromTableQuoted
 // tag::fromTablePatternQuoted
 SELECT emp_no FROM "e*p" LIMIT 1;
 
-    emp_no     
+    emp_no
 ---------------
-10001   
+10001
 
 // end::fromTablePatternQuoted
 ;
@@ -543,9 +543,9 @@ fromTableAlias
 // tag::fromTableAlias
 SELECT e.emp_no FROM emp AS e LIMIT 1;
 
-    emp_no     
+    emp_no
 -------------
-10001   
+10001
 
 // end::fromTableAlias
 ;
@@ -554,9 +554,9 @@ basicWhere
 // tag::basicWhere
 SELECT last_name FROM emp WHERE emp_no = 10001;
 
-   last_name   
+   last_name
 ---------------
-Facello   
+Facello
 
 // end::basicWhere
 ;
@@ -572,7 +572,7 @@ schema::g:s
 // tag::groupByColumn
 SELECT gender AS g FROM emp GROUP BY gender;
 
-       g       
+       g
 ---------------
 null
 F
@@ -586,11 +586,11 @@ schema::gender:s
 // tag::groupByOrdinal
 SELECT gender FROM emp GROUP BY 1;
 
-    gender     
+    gender
 ---------------
 null
-F              
-M   
+F
+M
 
 // end::groupByOrdinal
 ;
@@ -600,11 +600,11 @@ schema::g:s
 // tag::groupByAlias
 SELECT gender AS g FROM emp GROUP BY g;
 
-       g       
+       g
 ---------------
 null
-F              
-M  
+F
+M
 
 // end::groupByAlias
 ;
@@ -613,15 +613,15 @@ groupByExpression
 // tag::groupByExpression
 SELECT languages + 1 AS l FROM emp GROUP BY l;
 
-       l       
+       l
 ---------------
 null
-2              
-3              
-4              
-5              
-6              
- 
+2
+3
+4
+5
+6
+
 
 // end::groupByExpression
 ;
@@ -631,24 +631,24 @@ schema::g:s|l:i|c:l
 // tag::groupByMulti
 SELECT gender g, languages l, COUNT(*) c FROM "emp" GROUP BY g, l ORDER BY languages ASC, gender DESC;
 
-       g       |       l       |       c       
+       g       |       l       |       c
 ---------------+---------------+---------------
-M              |null           |7              
-F              |null           |3              
-M              |1              |9              
-F              |1              |4              
-null           |1              |2              
-M              |2              |11             
-F              |2              |5              
-null           |2              |3              
-M              |3              |11             
-F              |3              |6              
-M              |4              |11             
-F              |4              |6              
-null           |4              |1              
-M              |5              |8              
-F              |5              |9              
-null           |5              |4  
+M              |null           |7
+F              |null           |3
+M              |1              |9
+F              |1              |4
+null           |1              |2
+M              |2              |11
+F              |2              |5
+null           |2              |3
+M              |3              |11
+F              |3              |6
+M              |4              |11
+F              |4              |6
+null           |4              |1
+M              |5              |8
+F              |5              |9
+null           |5              |4
 
 
 // end::groupByMulti
@@ -660,11 +660,11 @@ schema::g:s|c:i
 // tag::groupByAndAgg
 SELECT gender AS g, COUNT(*) AS c FROM emp GROUP BY gender;
 
-       g       |       c       
+       g       |       c
 ---------------+---------------
-null           |10             
-F              |33             
-M              |57       
+null           |10
+F              |33
+M              |57
 
 // end::groupByAndAgg
 ;
@@ -674,7 +674,7 @@ schema::g:s|salary:i
 // tag::groupByAndAggExpression
 SELECT gender AS g, ROUND((MIN(salary) / 100)) AS salary FROM emp GROUP BY gender;
 
-       g       |    salary     
+       g       |    salary
 ---------------+---------------
 null           |253
 F              |259
@@ -687,11 +687,11 @@ schema::g:s|k:d|s:d
 // tag::groupByAndMultipleAggs
 SELECT gender AS g, KURTOSIS(salary) AS k, SKEWNESS(salary) AS s FROM emp GROUP BY gender;
 
-       g       |        k         |         s         
+       g       |        k         |         s
 ---------------+------------------+-------------------
 null           |2.2215791166941923|-0.03373126000214023
-F              |1.7873117044424276|0.05504995122217512 
-M              |2.280646181070106 |0.44302407229580243 
+F              |1.7873117044424276|0.05504995122217512
+M              |2.280646181070106 |0.44302407229580243
 
 
 // end::groupByAndMultipleAggs
@@ -701,9 +701,9 @@ groupByImplicitCount
 // tag::groupByImplicitCount
 SELECT COUNT(*) AS count FROM emp;
 
-     count     
+     count
 ---------------
-100 
+100
 
 // end::groupByImplicitCount
 ;
@@ -718,12 +718,12 @@ groupByHaving
 // tag::groupByHaving
 SELECT languages AS l, COUNT(*) AS c FROM emp GROUP BY l HAVING c BETWEEN 15 AND 20;
 
-       l       |       c       
+       l       |       c
 ---------------+---------------
-1              |15             
-2              |19             
-3              |17             
-4              |18     
+1              |15
+2              |19
+3              |17
+4              |18
 
 // end::groupByHaving
 ;
@@ -732,14 +732,14 @@ groupByHavingMultiple
 // tag::groupByHavingMultiple
 SELECT MIN(salary) AS min, MAX(salary) AS max, MAX(salary) - MIN(salary) AS diff FROM emp GROUP BY languages HAVING diff - max % min > 0 AND AVG(salary) > 30000;
 
-      min      |      max      |     diff      
+      min      |      max      |     diff
 ---------------+---------------+---------------
-28336          |74999          |46663          
-25976          |73717          |47741          
-29175          |73578          |44403          
-26436          |74970          |48534          
-27215          |74572          |47357          
-25324          |66817          |41493          
+28336          |74999          |46663
+25976          |73717          |47741
+29175          |73578          |44403
+26436          |74970          |48534
+27215          |74572          |47357
+25324          |66817          |41493
 
 
 // end::groupByHavingMultiple
@@ -749,9 +749,9 @@ groupByImplicitMultipleAggs
 // tag::groupByImplicitMultipleAggs
 SELECT MIN(salary) AS min, MAX(salary) AS max, AVG(salary) AS avg, COUNT(*) AS count FROM emp;
 
-      min:i    |      max:i    |      avg:d    |     count:l     
+      min:i    |      max:i    |      avg:d    |     count:l
 ---------------+---------------+---------------+---------------
-25324          |74999          |48248.55       |100  
+25324          |74999          |48248.55       |100
 
 // end::groupByImplicitMultipleAggs
 ;
@@ -760,9 +760,9 @@ groupByHavingImplicitMatch
 // tag::groupByHavingImplicitMatch
 SELECT MIN(salary) AS min, MAX(salary) AS max FROM emp HAVING min > 25000;
 
-      min      |      max      
+      min      |      max
 ---------------+---------------
-25324          |74999        
+25324          |74999
 
 // end::groupByHavingImplicitMatch
 ;
@@ -771,7 +771,7 @@ SELECT MIN(salary) AS min, MAX(salary) AS max FROM emp HAVING min > 25000;
 // tag::groupByHavingImplicitNoMatch
 //SELECT MIN(salary) AS min, MAX(salary) AS max FROM emp HAVING max > 75000;
 
-//      min      |      max      
+//      min      |      max
 //---------------+---------------
 
 // end::groupByHavingImplicitNoMatch
@@ -789,20 +789,20 @@ histogramNumeric
 // tag::histogramNumeric
 SELECT HISTOGRAM(salary, 5000) AS h FROM emp GROUP BY h;
 
-       h       
+       h
 ---------------
-25000          
-30000          
-35000          
-40000          
-45000          
-50000          
-55000          
-60000          
-65000          
+25000
+30000
+35000
+40000
+45000
+50000
+55000
+60000
+65000
 70000
 
-// end::histogramNumeric  
+// end::histogramNumeric
 ;
 
 histogramNumericExpression
@@ -810,20 +810,20 @@ schema::h:i|c:l
 // tag::histogramNumericExpression
 SELECT HISTOGRAM(salary % 100, 10) AS h, COUNT(*) AS c FROM emp GROUP BY h;
 
-       h       |       c       
+       h       |       c
 ---------------+---------------
-0              |10             
-10             |15             
-20             |10             
-30             |14             
-40             |9              
-50             |9              
-60             |8              
-70             |13             
-80             |3              
-90             |9    
+0              |10
+10             |15
+20             |10
+30             |14
+40             |9
+50             |9
+60             |8
+70             |13
+80             |3
+90             |9
 
-// end::histogramNumericExpression  
+// end::histogramNumericExpression
 ;
 
 histogramDateTime
@@ -832,23 +832,23 @@ schema::h:ts|c:l
 SELECT HISTOGRAM(birth_date, INTERVAL 1 YEAR) AS h, COUNT(*) AS c FROM emp GROUP BY h;
 
 
-           h            |       c       
+           h            |       c
 ------------------------+---------------
-null                    |10             
-1952-01-01T00:00:00.000Z|8              
-1953-01-01T00:00:00.000Z|11             
-1954-01-01T00:00:00.000Z|8              
-1955-01-01T00:00:00.000Z|4              
-1956-01-01T00:00:00.000Z|5              
-1957-01-01T00:00:00.000Z|4              
-1958-01-01T00:00:00.000Z|7              
-1959-01-01T00:00:00.000Z|9              
-1960-01-01T00:00:00.000Z|8              
-1961-01-01T00:00:00.000Z|8              
-1962-01-01T00:00:00.000Z|6              
-1963-01-01T00:00:00.000Z|7              
-1964-01-01T00:00:00.000Z|4              
-1965-01-01T00:00:00.000Z|1              
+null                    |10
+1952-01-01T00:00:00.000Z|8
+1953-01-01T00:00:00.000Z|11
+1954-01-01T00:00:00.000Z|8
+1955-01-01T00:00:00.000Z|4
+1956-01-01T00:00:00.000Z|5
+1957-01-01T00:00:00.000Z|4
+1958-01-01T00:00:00.000Z|7
+1959-01-01T00:00:00.000Z|9
+1960-01-01T00:00:00.000Z|8
+1961-01-01T00:00:00.000Z|8
+1962-01-01T00:00:00.000Z|6
+1963-01-01T00:00:00.000Z|7
+1964-01-01T00:00:00.000Z|4
+1965-01-01T00:00:00.000Z|1
 
 // end::histogramDateTime
 ;
@@ -863,16 +863,16 @@ schema::h:i|c:l
 // tag::histogramDateTimeExpression
 SELECT HISTOGRAM(MONTH(birth_date), 2) AS h, COUNT(*) as c FROM emp GROUP BY h ORDER BY h DESC;
 
-       h       |       c       
+       h       |       c
 ---------------+---------------
-12             |7              
-10             |17             
-8              |16             
-6              |16             
-4              |18             
-2              |10             
-0              |6              
-null           |10 
+12             |7
+10             |17
+8              |16
+6              |16
+4              |18
+2              |10
+0              |6
+null           |10
 
 // end::histogramDateTimeExpression
 ;
@@ -925,7 +925,7 @@ dtDateTimePlusInterval
 // tag::dtDateTimePlusInterval
 SELECT CAST('1969-05-13T12:34:56' AS DATETIME) + INTERVAL 49 YEARS AS result;
 
-       result       
+       result
 --------------------
 2018-05-13T12:34:56Z
 // end::dtDateTimePlusInterval
@@ -935,9 +935,9 @@ dtMinusInterval
 // tag::dtMinusInterval
 SELECT - INTERVAL '49-1' YEAR TO MONTH result;
 
-    result     
+    result
 ---------------
--49-1         
+-49-1
 
 // end::dtMinusInterval
 ;
@@ -957,7 +957,7 @@ dtDateTimeMinusInterval
 // tag::dtDateTimeMinusInterval
 SELECT CAST('2018-05-13T12:34:56' AS DATETIME) - INTERVAL '2-8' YEAR TO MONTH AS result;
 
-       result       
+       result
 --------------------
 2015-09-13T12:34:56Z
 // end::dtDateTimeMinusInterval
@@ -967,9 +967,9 @@ dtIntervalMul
 // tag::dtIntervalMul
 SELECT -2 * INTERVAL '3' YEARS AS result;
 
-    result     
+    result
 ---------------
--6-0    
+-6-0
 // end::dtIntervalMul
 ;
 
@@ -984,7 +984,7 @@ orderByBasic
 // tag::orderByBasic
 SELECT * FROM library ORDER BY page_count DESC LIMIT 5;
 
-     author      |        name        |  page_count   |    release_date    
+     author      |        name        |  page_count   |    release_date
 -----------------+--------------------+---------------+--------------------
 Peter F. Hamilton|Pandora's Star      |768            |2004-03-02T00:00:00Z
 Vernor Vinge     |A Fire Upon the Deep|613            |1992-06-01T00:00:00Z
@@ -1000,12 +1000,12 @@ schema::g:s|c:i
 // tag::orderByGroup
 SELECT gender AS g, COUNT(*) AS c FROM emp GROUP BY gender ORDER BY g DESC;
 
-       g       |       c       
+       g       |       c
 ---------------+---------------
 M              |57
-F              |33             
-null           |10             
-      
+F              |33
+null           |10
+
 // end::orderByGroup
 ;
 
@@ -1014,12 +1014,12 @@ schema::g:s|salary:i
 // tag::orderByAgg
 SELECT gender AS g, MIN(salary) AS salary FROM emp GROUP BY gender ORDER BY salary DESC;
 
-       g       |    salary     
+       g       |    salary
 ---------------+---------------
-F              |25976          
-M              |25945          
-null           |25324             
-    
+F              |25976
+M              |25945
+null           |25324
+
 // end::orderByAgg
 ;
 
@@ -1105,7 +1105,7 @@ orderByScore
 // tag::orderByScore
 SELECT SCORE(), * FROM library WHERE MATCH(name, 'dune') ORDER BY SCORE() DESC;
 
-    SCORE()    |    author     |       name        |  page_count   |    release_date    
+    SCORE()    |    author     |       name        |  page_count   |    release_date
 ---------------+---------------+-------------------+---------------+--------------------
 2.2886353      |Frank Herbert  |Dune               |604            |1965-06-01T00:00:00Z
 1.8893257      |Frank Herbert  |Dune Messiah       |331            |1969-10-15T00:00:00Z
@@ -1119,7 +1119,7 @@ orderByScoreWithMatch
 // tag::orderByScoreWithMatch
 SELECT SCORE(), * FROM library WHERE MATCH(name, 'dune') ORDER BY page_count DESC;
 
-    SCORE()    |    author     |       name        |  page_count   |    release_date    
+    SCORE()    |    author     |       name        |  page_count   |    release_date
 ---------------+---------------+-------------------+---------------+--------------------
 2.2886353      |Frank Herbert  |Dune               |604            |1965-06-01T00:00:00Z
 1.4005898      |Frank Herbert  |God Emperor of Dune|454            |1981-05-28T00:00:00Z
@@ -1133,7 +1133,7 @@ scoreWithMatch
 // tag::scoreWithMatch
 SELECT SCORE() AS score, name, release_date FROM library WHERE QUERY('dune') ORDER BY YEAR(release_date) DESC;
 
-     score     |       name        |    release_date    
+     score     |       name        |    release_date
 ---------------+-------------------+--------------------
 1.4005898      |God Emperor of Dune|1981-05-28T00:00:00Z
 1.6086556      |Children of Dune   |1976-04-21T00:00:00Z
@@ -1153,9 +1153,9 @@ limitBasic
 // tag::limitBasic
 SELECT first_name, last_name, emp_no FROM emp LIMIT 1;
 
-  first_name   |   last_name   |    emp_no     
+  first_name   |   last_name   |    emp_no
 ---------------+---------------+---------------
-Georgi         |Facello        |10001     
+Georgi         |Facello        |10001
 
 // end::limitBasic
 ;
@@ -1204,9 +1204,9 @@ aggCountStar
 // tag::aggCountStar
 SELECT COUNT(*) AS count FROM emp;
 
-     count     
+     count
 ---------------
-100               
+100
 // end::aggCountStar
 ;
 
@@ -1214,9 +1214,9 @@ aggCountAll
 // tag::aggCountAll
 SELECT COUNT(ALL last_name) AS count_all, COUNT(DISTINCT last_name) count_distinct FROM emp;
 
-   count_all   |  count_distinct  
+   count_all   |  count_distinct
 ---------------+------------------
-100            |96   
+100            |96
 // end::aggCountAll
 ;
 
@@ -1415,9 +1415,9 @@ aggMax
 // tag::aggMax
 SELECT MAX(salary) AS max FROM emp;
 
-      max     
+      max
 ---------------
-74999               
+74999
 // end::aggMax
 ;
 
@@ -1436,9 +1436,9 @@ aggMin
 // tag::aggMin
 SELECT MIN(salary) AS min FROM emp;
 
-      min     
+      min
 ---------------
-25324               
+25324
 // end::aggMin
 ;
 
@@ -1478,7 +1478,7 @@ aggKurtosis
 // tag::aggKurtosis
 SELECT MIN(salary) AS min, MAX(salary) AS max, KURTOSIS(salary) AS k FROM emp;
 
-      min      |      max      |        k         
+      min      |      max      |        k
 ---------------+---------------+------------------
 25324          |74999          |2.0444718929142986
 // end::aggKurtosis
@@ -1488,9 +1488,9 @@ aggMad
 // tag::aggMad
 SELECT MIN(salary) AS min, MAX(salary) AS max, AVG(salary) AS avg, MAD(salary) AS mad FROM emp;
 
-      min      |      max      |      avg      |      mad      
+      min      |      max      |      avg      |      mad
 ---------------+---------------+---------------+---------------
-25324          |74999          |48248.55       |10096.5   
+25324          |74999          |48248.55       |10096.5
 // end::aggMad
 ;
 
@@ -1507,17 +1507,17 @@ SELECT MIN(salary / 12.0) AS min, MAX(salary / 12.0) AS max, AVG(salary/ 12.0) A
 
 aggPercentile
 // tag::aggPercentile
-SELECT languages, PERCENTILE(salary, 95) AS "95th" FROM emp 
+SELECT languages, PERCENTILE(salary, 95) AS "95th" FROM emp
        GROUP BY languages;
 
-   languages   |      95th       
+   languages   |      95th
 ---------------+-----------------
-null           |74999.0          
-1              |72790.5          
+null           |74999.0
+1              |72790.5
 2              |71924.70000000001
-3              |73638.25         
+3              |73638.25
 4              |72115.59999999999
-5              |61071.7       
+5              |61071.7
 // end::aggPercentile
 ;
 
@@ -1541,20 +1541,20 @@ null           |6249.916666666667
 aggPercentileWithPercentileConfig
 // tag::aggPercentileWithPercentileConfig
 SELECT
-    languages, 
-    PERCENTILE(salary, 97.3, 'tdigest', 100.0) AS "97.3_TDigest", 
-    PERCENTILE(salary, 97.3, 'hdr', 3) AS "97.3_HDR" 
-FROM emp 
+    languages,
+    PERCENTILE(salary, 97.3, 'tdigest', 100.0) AS "97.3_TDigest",
+    PERCENTILE(salary, 97.3, 'hdr', 3) AS "97.3_HDR"
+FROM emp
 GROUP BY languages;
 
-   languages   | 97.3_TDigest  |   97.3_HDR    
+   languages   | 97.3_TDigest  |   97.3_HDR
 ---------------+---------------+---------------
-null           |74999.0        |74992.0        
-1              |73717.0        |73712.0        
-2              |73530.238      |69936.0        
-3              |74970.0        |74992.0        
-4              |74572.0        |74608.0        
-5              |66117.118      |56368.0        
+null           |74999.0        |74992.0
+1              |73717.0        |73712.0
+2              |73530.238      |69936.0
+3              |74970.0        |74992.0
+4              |74572.0        |74608.0
+5              |66117.118      |56368.0
 // end::aggPercentileWithPercentileConfig
 ;
 
@@ -1562,14 +1562,14 @@ aggPercentileRank
 // tag::aggPercentileRank
 SELECT languages, PERCENTILE_RANK(salary, 65000) AS rank FROM emp GROUP BY languages;
 
-   languages   |      rank       
+   languages   |      rank
 ---------------+-----------------
 null           |73.65766569962062
-1              |73.7291625157734 
+1              |73.7291625157734
 2              |88.88005607010643
 3              |79.43662623295829
 4              |85.70446389643493
-5              |100.0      
+5              |100.0
 // end::aggPercentileRank
 ;
 
@@ -1598,14 +1598,14 @@ SELECT
 FROM emp
 GROUP BY languages;
 
-   languages   | rank_TDigest  |   rank_HDR    
+   languages   | rank_TDigest  |   rank_HDR
 ---------------+---------------+---------------
-null           |73.66          |80.0           
-1              |73.73          |73.33          
-2              |88.88          |89.47          
-3              |79.44          |76.47          
-4              |85.7           |83.33          
-5              |100.0          |95.24          
+null           |73.66          |80.0
+1              |73.73          |73.33
+2              |88.88          |89.47
+3              |79.44          |76.47
+4              |85.7           |83.33
+5              |100.0          |95.24
 // end::aggPercentileRankWithPercentileConfig
 ;
 
@@ -1613,7 +1613,7 @@ aggSkewness
 // tag::aggSkewness
 SELECT MIN(salary) AS min, MAX(salary) AS max, SKEWNESS(salary) AS s FROM emp;
 
-      min      |      max      |        s         
+      min      |      max      |        s
 ---------------+---------------+------------------
 25324          |74999          |0.2707722118423227
 // end::aggSkewness
@@ -1664,10 +1664,10 @@ SELECT MIN(salary / 12.0) AS min, MAX(salary / 12.0) AS max, STDDEV_SAMP(salary 
 
 aggSumOfSquares
 // tag::aggSumOfSquares
-SELECT MIN(salary) AS min, MAX(salary) AS max, SUM_OF_SQUARES(salary) AS sumsq 
+SELECT MIN(salary) AS min, MAX(salary) AS max, SUM_OF_SQUARES(salary) AS sumsq
        FROM emp;
 
-      min      |      max      |     sumsq      
+      min      |      max      |     sumsq
 ---------------+---------------+----------------
 25324          |74999          |2.51740125721E11
 // end::aggSumOfSquares
@@ -1688,7 +1688,7 @@ aggVarPop
 // tag::aggVarPop
 SELECT MIN(salary) AS min, MAX(salary) AS max, VAR_POP(salary) AS varpop FROM emp;
 
-      min      |      max      |     varpop     
+      min      |      max      |     varpop
 ---------------+---------------+----------------
 25324          |74999          |1.894786801075E8
 // end::aggVarPop
@@ -1737,9 +1737,9 @@ stringAscii
 // tag::stringAscii
 SELECT ASCII('Elastic');
 
-ASCII('Elastic') 
+ASCII('Elastic')
 ----------------
-69   
+69
 // end::stringAscii
 ;
 
@@ -1749,7 +1749,7 @@ SELECT BIT_LENGTH('Elastic');
 
 BIT_LENGTH('Elastic')
 ---------------------
-56  
+56
 // end::stringBitLength
 ;
 
@@ -1757,9 +1757,9 @@ stringChar
 // tag::stringChar
 SELECT CHAR(69);
 
-   CHAR(69)    
+   CHAR(69)
 ---------------
-E        
+E
 // end::stringChar
 ;
 
@@ -1769,7 +1769,7 @@ SELECT CHAR_LENGTH('Elastic');
 
 CHAR_LENGTH('Elastic')
 ----------------------
-7     
+7
 // end::stringCharLength
 ;
 
@@ -1779,7 +1779,7 @@ SELECT CONCAT('Elasticsearch', ' SQL');
 
 CONCAT('Elasticsearch', ' SQL')
 -------------------------------
-Elasticsearch SQL  
+Elasticsearch SQL
 // end::stringConcat
 ;
 
@@ -1799,7 +1799,7 @@ SELECT LCASE('Elastic');
 
 LCASE('Elastic')
 ----------------
-elastic    
+elastic
 // end::stringLCase
 ;
 
@@ -1809,7 +1809,7 @@ SELECT LEFT('Elastic',3);
 
 LEFT('Elastic',3)
 -----------------
-Ela    
+Ela
 // end::stringLeft
 ;
 
@@ -1819,7 +1819,7 @@ SELECT LENGTH('Elastic   ');
 
 LENGTH('Elastic   ')
 --------------------
-7     
+7
 // end::stringLength
 ;
 
@@ -1829,7 +1829,7 @@ SELECT LOCATE('a', 'Elasticsearch');
 
 LOCATE('a', 'Elasticsearch')
 ----------------------------
-3        
+3
 // end::stringLocateWoStart
 ;
 
@@ -1849,7 +1849,7 @@ SELECT LTRIM('   Elastic');
 
 LTRIM('   Elastic')
 -------------------
-Elastic   
+Elastic
 // end::stringLTrim
 ;
 
@@ -1859,7 +1859,7 @@ SELECT OCTET_LENGTH('Elastic');
 
 OCTET_LENGTH('Elastic')
 -----------------------
-7  
+7
 // end::stringOctetLength
 ;
 
@@ -1869,7 +1869,7 @@ SELECT POSITION('Elastic', 'Elasticsearch');
 
 POSITION('Elastic', 'Elasticsearch')
 ------------------------------------
-1  
+1
 // end::stringPosition
 ;
 
@@ -1877,9 +1877,9 @@ stringRepeat
 // tag::stringRepeat
 SELECT REPEAT('La', 3);
 
- REPEAT('La', 3)  
+ REPEAT('La', 3)
 ----------------
-LaLaLa      
+LaLaLa
 // end::stringRepeat
 ;
 
@@ -1899,7 +1899,7 @@ SELECT RIGHT('Elastic',3);
 
 RIGHT('Elastic',3)
 ------------------
-tic    
+tic
 // end::stringRight
 ;
 
@@ -1909,7 +1909,7 @@ SELECT RTRIM('Elastic   ');
 
 RTRIM('Elastic   ')
 -------------------
-Elastic       
+Elastic
 // end::stringRTrim
 ;
 
@@ -1918,10 +1918,10 @@ schema::SPACE(3):s
 // tag::stringSpace
 SELECT SPACE(3);
 
-   SPACE(3)    
+   SPACE(3)
 ---------------
-               
- 
+
+
 // end::stringSpace
 ;
 
@@ -1931,7 +1931,7 @@ SELECT STARTS_WITH('Elasticsearch', 'Elastic');
 
 STARTS_WITH('Elasticsearch', 'Elastic')
 --------------------------------
-true    
+true
 // end::stringStartsWithTrue
 ;
 
@@ -1941,7 +1941,7 @@ SELECT STARTS_WITH('Elasticsearch', 'ELASTIC');
 
 STARTS_WITH('Elasticsearch', 'ELASTIC')
 --------------------------------
-false   
+false
 // end::stringStartsWithFalse
 ;
 
@@ -1951,7 +1951,7 @@ SELECT SUBSTRING('Elasticsearch', 0, 7);
 
 SUBSTRING('Elasticsearch', 0, 7)
 --------------------------------
-Elastic    
+Elastic
 // end::stringSubString
 ;
 
@@ -1969,9 +1969,9 @@ stringUCase
 // tag::stringUCase
 SELECT UCASE('Elastic');
 
-UCASE('Elastic') 
+UCASE('Elastic')
 ----------------
-ELASTIC    
+ELASTIC
 // end::stringUCase
 ;
 
@@ -1986,9 +1986,9 @@ conversionStringToIntCast
 // tag::conversionStringToIntCast
 SELECT CAST('123' AS INT) AS int;
 
-      int      
+      int
 ---------------
-123    
+123
 // end::conversionStringToIntCast
 ;
 
@@ -1997,9 +1997,9 @@ schema::string:s
 // tag::conversionIntToStringCast
 SELECT CAST(123 AS VARCHAR) AS string;
 
-    string     
+    string
 ---------------
-123   
+123
 
 // end::conversionIntToStringCast
 ;
@@ -3348,9 +3348,9 @@ SELECT first_name FROM emp WHERE hire_date > TODAY() - INTERVAL 35 YEARS ORDER B
 ------------
 Alejandro
 Amabile
-Anneke
 Anoosh
 Basil
+Bojan
 // end::filterToday
 ;
 
@@ -3415,7 +3415,7 @@ currentTimestamp-Ignore
 // tag::curTs
 SELECT CURRENT_TIMESTAMP AS result;
 
-         result         
+         result
 ------------------------
 2018-12-12T14:48:52.448Z
 // end::curTs
@@ -3425,7 +3425,7 @@ currentTimestampFunction-Ignore
 // tag::curTsFunction
 SELECT CURRENT_TIMESTAMP() AS result;
 
-         result         
+         result
 ------------------------
 2018-12-12T14:48:52.448Z
 // end::curTsFunction
@@ -3435,7 +3435,7 @@ currentTimestampFunctionPrecision-Ignore
 // tag::curTsFunctionPrecision
 SELECT CURRENT_TIMESTAMP(1) AS result;
 
-         result         
+         result
 ------------------------
 2018-12-12T14:48:52.4Z
 // end::curTsFunctionPrecision
@@ -3446,7 +3446,7 @@ nowFunction-Ignore
 // tag::nowFunction
 SELECT NOW() AS result;
 
-         result         
+         result
 ------------------------
 2018-12-12T14:48:52.448Z
 // end::nowFunction

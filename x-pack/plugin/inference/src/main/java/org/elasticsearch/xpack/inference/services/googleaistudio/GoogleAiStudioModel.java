@@ -11,6 +11,7 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
+import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.googleaistudio.GoogleAiStudioActionVisitor;
 
@@ -29,6 +30,12 @@ public abstract class GoogleAiStudioModel extends Model {
         super(configurations, secrets);
 
         this.rateLimitServiceSettings = Objects.requireNonNull(rateLimitServiceSettings);
+    }
+
+    public GoogleAiStudioModel(GoogleAiStudioModel model, ServiceSettings serviceSettings) {
+        super(model, serviceSettings);
+
+        rateLimitServiceSettings = model.rateLimitServiceSettings();
     }
 
     public abstract ExecutableAction accept(GoogleAiStudioActionVisitor creator, Map<String, Object> taskSettings, InputType inputType);

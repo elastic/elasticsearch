@@ -32,5 +32,6 @@
   "BOOTSTRAP_CHECK_SECURITY_MINIMAL_SETUP": "security-minimal-setup.html",
   "CONTACT_SUPPORT": "troubleshooting.html#troubleshooting-contact-support",
   "UNASSIGNED_SHARDS": "red-yellow-cluster-status.html",
-  "EXECUTABLE_JNA_TMPDIR": "executable-jna-tmpdir.html"
+  "EXECUTABLE_JNA_TMPDIR": "executable-jna-tmpdir.html",
+  "NETWORK_THREADING_MODEL": "modules-network.html#modules-network-threading-model"
 }

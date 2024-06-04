@@ -105,13 +105,6 @@ public class TestFixturesPlugin implements Plugin<Project> {
             .register("postProcessFixture", TestFixtureTask.class, task -> {
                 task.getFixturesDir().set(testFixturesDir);
                 task.dependsOn(buildFixture);
-                // configureServiceInfoForTask(
-                // task,
-                // dockerSupport,
-                // project,
-                // false,
-                // (name, port) -> task.getExtensions().getByType(ExtraPropertiesExtension.class).set(name, port)
-                // );
             });
 
         maybeSkipTask(dockerSupport, preProcessFixture);
@@ -166,8 +159,6 @@ public class TestFixturesPlugin implements Plugin<Project> {
             configureServiceInfoForTask(
                 testTask,
                 dockerSupport,
-                project,
-                true,
                 (name, host) -> sysArgumentsProvider.systemProperty(name, host)
             );
         });
@@ -194,8 +185,6 @@ public class TestFixturesPlugin implements Plugin<Project> {
     private void configureServiceInfoForTask(
         Task task,
         Provider<DockerSupportService> dockerSupportServiceProvider,
-        Project fixtureProject,
-        boolean enableFilter,
         BiConsumer<String, Integer> consumer
     ) {
         // Configure ports for the tests as system properties.

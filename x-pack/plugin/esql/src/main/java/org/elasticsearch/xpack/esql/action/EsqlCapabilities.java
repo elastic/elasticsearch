@@ -28,6 +28,11 @@ public class EsqlCapabilities {
     private static final String FN_CBRT = "fn_cbrt";
 
     /**
+     * Support for {@code MV_APPEND} function. #107001
+     */
+    private static final String FN_MV_APPEND = "fn_mv_append";
+
+    /**
      * Support for function {@code IP_PREFIX}.
      */
     private static final String FN_IP_PREFIX = "fn_ip_prefix";
@@ -61,6 +66,7 @@ public class EsqlCapabilities {
         caps.add(FN_SUBSTRING_EMPTY_NULL);
         caps.add(ST_CENTROID_AGG_OPTIMIZED);
         caps.add(METADATA_IGNORED_FIELD);
+        caps.add(FN_MV_APPEND);
 
         if (Build.current().isSnapshot()) {
             caps.add(LOOKUP);

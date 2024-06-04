@@ -137,10 +137,10 @@ public class EsqlQueryRequestTests extends ESTestCase {
                 %s""", query, columnar, locale.toLanguageTag(), filter, paramsString);
 
         Exception e = expectThrows(XContentParseException.class, () -> parseEsqlQueryRequestSync(json));
-        assertThat(e.getCause().getMessage(), containsString("1 is not a valid parameter name"));
-        assertThat(e.getCause().getMessage(), containsString("1x is not a valid parameter name"));
-        assertThat(e.getCause().getMessage(), containsString("_a is not a valid parameter name"));
-        assertThat(e.getCause().getMessage(), containsString("@-# is not a valid parameter name"));
+        assertThat(e.getCause().getMessage(), containsString("[1] is not a valid parameter name"));
+        assertThat(e.getCause().getMessage(), containsString("[1x] is not a valid parameter name"));
+        assertThat(e.getCause().getMessage(), containsString("[_a] is not a valid parameter name"));
+        assertThat(e.getCause().getMessage(), containsString("[@-#] is not a valid parameter name"));
         assertThat(e.getCause().getMessage(), containsString("Params cannot contain both named and unnamed parameters"));
     }
 

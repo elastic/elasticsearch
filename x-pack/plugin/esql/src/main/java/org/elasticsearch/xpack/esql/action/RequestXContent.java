@@ -146,14 +146,25 @@ final class RequestXContent {
                     // we are at the start of a value/type pair... hopefully
                     param = PARAM_PARSER.apply(p, null);
                     if (param.fields.size() > 1) {
-                        errors.add("Multiple parameters in one curly bracket is not supported.");
+                        for (Map.Entry<?, ?> entry : param.fields.entrySet()) {
+                            errors.add(
+                                loc
+                                    + "Cannot parse more than one key : value pair as parameter, found ["
+                                    + entry.getKey()
+                                    + " : "
+                                    + entry.getValue()
+                                    + "]"
+                            );
+                        }
                     }
                     for (Map.Entry<String, Object> entry : param.fields.entrySet()) {
                         if (isValidParamName(entry.getKey()) == false) {
                             errors.add(
-                                entry.getKey()
-                                    + " is not a valid parameter name. "
-                                    + "A valid parameter name starts with a letter and contains letters, digits and underscores only."
+                                loc
+                                    + " ["
+                                    + entry.getKey()
+                                    + "] is not a valid parameter name, "
+                                    + "a valid parameter name starts with a letter and contains letters, digits and underscores only"
                             );
                         }
                         type = EsqlDataTypes.fromJava(entry.getValue());
@@ -164,10 +175,14 @@ final class RequestXContent {
                         namedParameter = true;
                         if (unnamedParameter && namedParameter) {
                             errors.add(
-                                "Params cannot contain both named and unnamed parameters: "
-                                    + currentParam
-                                    + ", "
-                                    + Arrays.toString(result.toArray())
+                                loc
+                                    + " Params cannot contain both named and unnamed parameters; got [{"
+                                    + entry.getKey()
+                                    + " : "
+                                    + entry.getValue()
+                                    + "}] and ["
+                                    + Arrays.toString(result.stream().map(QueryParam::value).toArray())
+                                    + "]"
                             );
                         }
                     }
@@ -209,10 +224,11 @@ final class RequestXContent {
                     unnamedParameter = true;
                     if (unnamedParameter && namedParameter) {
                         errors.add(
-                            "Params cannot contain both named and unnamed parameters: "
-                                + currentParam
-                                + ", "
-                                + Arrays.toString(result.toArray())
+                            loc
+                                + " Params cannot contain both named and unnamed parameters; got ["
+                                + value
+                                + "] and "
+                                + Arrays.toString(result.stream().map(QueryParam::nameValue).toArray())
                         );
                     }
                     currentParam = new QueryParam(null, value, type);

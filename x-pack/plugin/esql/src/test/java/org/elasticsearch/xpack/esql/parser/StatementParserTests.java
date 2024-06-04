@@ -863,7 +863,13 @@ public class StatementParserTests extends ESTestCase {
         expectError(
             "from test | where x < ?n1 | eval y = ?n2",
             List.of(new QueryParam("n1", 5, INTEGER)),
-            "Unknown query parameter [n2], did you mean [n1]"
+            "Unknown query parameter [n2], did you mean [n1]?"
+        );
+
+        expectError(
+            "from test | where x < ?n1 | eval y = ?n2",
+            List.of(new QueryParam("n1", 5, INTEGER), new QueryParam("n3", 5, INTEGER)),
+            "Unknown query parameter [n2], did you mean any of [n1, n3]?"
         );
 
         expectError("from test | where x < ?_1", List.of(new QueryParam("_1", 5, INTEGER)), "extraneous input '_1' expecting <EOF>");
@@ -918,6 +924,12 @@ public class StatementParserTests extends ESTestCase {
             "from test | where x < ?0 and y < ?2",
             List.of(new QueryParam(null, 5, INTEGER)),
             "No parameter is defined for position 2, did you mean position 1"
+        );
+
+        expectError(
+            "from test | where x < ?0",
+            List.of(new QueryParam(null, 5, INTEGER), new QueryParam(null, 10, INTEGER)),
+            "No parameter is defined for position 0, did you mean any position between 1 and 2?]"
         );
     }
 

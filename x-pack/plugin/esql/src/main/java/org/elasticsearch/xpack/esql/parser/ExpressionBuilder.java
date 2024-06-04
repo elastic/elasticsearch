@@ -739,7 +739,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                 String message = "";
                 int np = params.positionalParams().size();
                 if (np > 0) {
-                    message = ", did you mean position " + (np == 1 ? "1?" : " or any between 1 and " + np + "?");
+                    message = ", did you mean " + (np == 1 ? "position 1?" : "any position between 1 and " + np + "?");
                 }
                 params.addParsingErrors(new Failure(null, "No parameter is defined for position " + index + message));
             }
@@ -747,9 +747,10 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         } else {
             if (params.contains(nameOrPosition) == false) {
                 String message = "";
-                Object[] names = params.namedParams().keySet().stream().toArray();
+                String[] names = params.namedParams().keySet().stream().toArray(String[]::new);
                 if (names.length > 0) {
-                    message = ", did you mean " + (names.length == 1 ? "[" + names[0] + "]?" : " or any of [" + names + " ]?");
+                    message = ", did you mean "
+                        + (names.length == 1 ? "[" + names[0] + "]?" : "any of [" + String.join(", ", names) + "]?");
                 }
                 params.addParsingErrors(new Failure(null, "Unknown query parameter [" + nameOrPosition + "]" + message));
             }

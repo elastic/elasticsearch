@@ -408,7 +408,7 @@ public final class StringUtils {
             return false;
         }
         for (char c : value.trim().toCharArray()) {
-            if (Character.isLetter(c) == false && Character.isDigit(c) == false && c != ' ') {
+            if (Character.isLetterOrDigit(c) == false && c != ' ') {
                 return false;
             }
         }

@@ -381,7 +381,7 @@ public class ActionListenerTests extends ESTestCase {
                     "action listener not called",
                     ExceptionsHelper.class.getName(),
                     Level.ERROR,
-                    ".*Expected listener NoopActionListener to be called at least once, but it was never called\\. Created\\:(.*|\\s)*"
+                    ".*Expected listener NoopActionListener to be called at least once, but it was never called\\. Created:(.*|\\s)*"
                 )
             );
             final AtomicReference<ActionListener<Object>> listenerRef = new AtomicReference<>(

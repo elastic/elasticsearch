@@ -11,13 +11,13 @@ import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.utils.URIBuilder;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.xpack.inference.external.request.Request;
-import org.elasticsearch.xpack.inference.services.googleaistudio.GoogleAiStudioSecretSettings;
+import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
 public interface GoogleAiStudioRequest extends Request {
 
     String API_KEY_PARAMETER = "key";
 
-    static void decorateWithApiKeyParameter(HttpPost httpPost, GoogleAiStudioSecretSettings secretSettings) {
+    static void decorateWithApiKeyParameter(HttpPost httpPost, DefaultSecretSettings secretSettings) {
         try {
             var uri = httpPost.getURI();
             var uriWithApiKey = new URIBuilder().setScheme(uri.getScheme())

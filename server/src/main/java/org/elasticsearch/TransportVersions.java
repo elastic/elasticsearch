@@ -181,7 +181,9 @@ public class TransportVersions {
     public static final TransportVersion ML_INFERENCE_GOOGLE_AI_STUDIO_COMPLETION_ADDED = def(8_672_00_0);
     public static final TransportVersion WATCHER_REQUEST_TIMEOUTS = def(8_673_00_0);
     public static final TransportVersion ML_INFERENCE_ENHANCE_DELETE_ENDPOINT = def(8_674_00_0);
-    public static final TransportVersion IGNORED_FIELDS_STATS = def(8_675_00_0);
+    public static final TransportVersion ML_INFERENCE_GOOGLE_AI_STUDIO_EMBEDDINGS_ADDED = def(8_675_00_0);
+    public static final TransportVersion ADD_MISTRAL_EMBEDDINGS_INFERENCE = def(8_676_00_0);
+    public static final TransportVersion IGNORED_FIELDS_STATS = def(8_677_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

@@ -68,10 +68,10 @@ public record UnassignedInfo(
     @Nullable String message,
     @Nullable Exception failure,
     int failedAllocations,
-    long unassignedTimeNanos, // in nanoseconds, used to calculate delay for delayed shard allocation
-    long unassignedTimeMillis, // used for display and log messages, in milliseconds
-    boolean delayed, // if allocation of this shard is delayed due to INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING
-    AllocationStatus lastAllocationStatus, // result of the last allocation attempt for this shard
+    long unassignedTimeNanos,
+    long unassignedTimeMillis,
+    boolean delayed,
+    AllocationStatus lastAllocationStatus,
     Set<String> failedNodeIds,
     @Nullable String lastAllocatedNodeId
 ) implements ToXContentFragment, Writeable {

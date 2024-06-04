@@ -11,6 +11,8 @@ Also see <<breaking-changes-8.14,Breaking changes in 8.14>>.
 
 Security::
 * Prevent DLS/FLS if `replication` is assigned {es-pull}108600[#108600]
+* Apply stricter Document Level Security (DLS) rules for the validate query API with the rewrite parameter {es-pull}105709[#105709]
+* Apply stricter Document Level Security (DLS) rules for terms aggregations when min_doc_count is set to 0 {es-pull}105714[#105714]
 
 [[bug-8.14.0]]
 [float]

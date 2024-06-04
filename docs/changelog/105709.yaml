@@ -1,6 +1,11 @@
 pr: 105709
-summary: Disable validate when rewrite parameter is sent and the index access control
-  list is non-null
+summary: Apply stricter Document Level Security (DLS) rules for the validate query API with the rewrite parameter.
 area: Security
-type: bug
+type: breaking
 issues: []
+breaking:
+  title: "Apply stricter Document Level Security (DLS) rules for the validate query API with the rewrite parameter"
+  area: REST API
+  details: When Document Level Security (DLS) is applied to the validate query API with the rewrite parameter, stricter security rules apply.
+  impact: If needed, test workflows with DLS enabled to ensure that the stricter security rules do not impact your application.
+  notable: false

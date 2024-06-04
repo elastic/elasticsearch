@@ -96,9 +96,9 @@ public class ConnectorSyncJobIndexService {
         ActionListener<PostConnectorSyncJobAction.Response> listener
     ) {
         String connectorId = request.getId();
+        ConnectorSyncJobType jobType = Objects.requireNonNullElse(request.getJobType(), ConnectorSyncJob.DEFAULT_JOB_TYPE);
         try {
-            getSyncJobConnectorInfo(connectorId, listener.delegateFailure((l, connector) -> {
-
+            getSyncJobConnectorInfo(connectorId, jobType, listener.delegateFailure((l, connector) -> {
                 if (Strings.isNullOrEmpty(connector.getIndexName())) {
                     l.onFailure(
                         new ElasticsearchStatusException(
@@ -112,8 +112,20 @@ public class ConnectorSyncJobIndexService {
                     return;
                 }
 
+                if (Strings.isNullOrEmpty(connector.getServiceType())) {
+                    l.onFailure(
+                        new ElasticsearchStatusException(
+                            "Cannot start a sync for connector ["
+                                + connectorId
+                                + "] with [service_type] not defined. Set the service type of your connector "
+                                + "before starting the sync.",
+                            RestStatus.BAD_REQUEST
+                        )
+                    );
+                    return;
+                }
+
                 Instant now = Instant.now();
-                ConnectorSyncJobType jobType = Objects.requireNonNullElse(request.getJobType(), ConnectorSyncJob.DEFAULT_JOB_TYPE);
                 ConnectorSyncJobTriggerMethod triggerMethod = Objects.requireNonNullElse(
                     request.getTriggerMethod(),
                     ConnectorSyncJob.DEFAULT_TRIGGER_METHOD
@@ -266,7 +278,7 @@ public class ConnectorSyncJobIndexService {
 
                         syncJobFieldsToUpdate = Map.of(
                             ConnectorSyncJob.STATUS_FIELD.getPreferredName(),
-                            nextStatus,
+                            nextStatus.toString(),
                             ConnectorSyncJob.CANCELATION_REQUESTED_AT_FIELD.getPreferredName(),
                             now,
                             ConnectorSyncJob.CANCELED_AT_FIELD.getPreferredName(),
@@ -280,7 +292,7 @@ public class ConnectorSyncJobIndexService {
 
                         syncJobFieldsToUpdate = Map.of(
                             ConnectorSyncJob.STATUS_FIELD.getPreferredName(),
-                            nextStatus,
+                            nextStatus.toString(),
                             ConnectorSyncJob.CANCELATION_REQUESTED_AT_FIELD.getPreferredName(),
                             now
                         );
@@ -381,7 +393,10 @@ public class ConnectorSyncJobIndexService {
             }
 
             if (Objects.nonNull(syncStatus)) {
-                TermQueryBuilder syncStatusQuery = new TermQueryBuilder(ConnectorSyncJob.STATUS_FIELD.getPreferredName(), syncStatus);
+                TermQueryBuilder syncStatusQuery = new TermQueryBuilder(
+                    ConnectorSyncJob.STATUS_FIELD.getPreferredName(),
+                    syncStatus.toString()
+                );
                 boolFilterQueryBuilder.must().add(syncStatusQuery);
             }
 
@@ -479,7 +494,7 @@ public class ConnectorSyncJobIndexService {
         );
     }
 
-    private void getSyncJobConnectorInfo(String connectorId, ActionListener<Connector> listener) {
+    private void getSyncJobConnectorInfo(String connectorId, ConnectorSyncJobType jobType, ActionListener<Connector> listener) {
         try {
 
             final GetRequest request = new GetRequest(ConnectorIndexService.CONNECTOR_INDEX_NAME, connectorId);
@@ -499,11 +514,15 @@ public class ConnectorSyncJobIndexService {
                             connectorId,
                             XContentType.JSON
                         );
+                        // Access control syncs write data to a separate index
+                        String targetIndexName = jobType == ConnectorSyncJobType.ACCESS_CONTROL
+                            ? connector.getAccessControlIndexName()
+                            : connector.getIndexName();
 
                         // Build the connector representation for sync job
                         final Connector syncJobConnector = new Connector.Builder().setConnectorId(connector.getConnectorId())
                             .setSyncJobFiltering(transformConnectorFilteringToSyncJobRepresentation(connector.getFiltering()))
-                            .setIndexName(connector.getIndexName())
+                            .setIndexName(targetIndexName)
                             .setLanguage(connector.getLanguage())
                             .setPipeline(connector.getPipeline())
                             .setServiceType(connector.getServiceType())
@@ -569,7 +588,7 @@ public class ConnectorSyncJobIndexService {
                             ConnectorSyncJob.ERROR_FIELD.getPreferredName(),
                             error,
                             ConnectorSyncJob.STATUS_FIELD.getPreferredName(),
-                            nextStatus
+                            nextStatus.toString()
                         )
                     );
 

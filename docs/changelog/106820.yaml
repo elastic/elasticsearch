@@ -1,0 +1,5 @@
+pr: 106820
+summary: Add a capabilities API to check node and cluster capabilities
+area: Infra/REST API
+type: feature
+issues: []

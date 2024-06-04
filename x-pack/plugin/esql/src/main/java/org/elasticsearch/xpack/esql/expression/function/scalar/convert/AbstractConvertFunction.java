@@ -19,13 +19,13 @@ import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.expression.function.Warnings;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -35,7 +35,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
 /**
  * Base class for functions that converts a field into a function-specific type.
@@ -58,7 +58,7 @@ public abstract class AbstractConvertFunction extends UnaryScalarFunction {
     /**
      * Build the evaluator given the evaluator a multivalued field.
      */
-    protected ExpressionEvaluator.Factory evaluator(ExpressionEvaluator.Factory fieldEval) {
+    protected final ExpressionEvaluator.Factory evaluator(ExpressionEvaluator.Factory fieldEval) {
         DataType sourceType = field().dataType();
         var factory = factories().get(sourceType);
         if (factory == null) {
@@ -98,6 +98,21 @@ public abstract class AbstractConvertFunction extends UnaryScalarFunction {
         ExpressionEvaluator.Factory build(ExpressionEvaluator.Factory field, Source source);
     }
 
+    /**
+     * A map from input type to {@link ExpressionEvaluator} ctor. Usually implemented like:
+     * <pre>{@code
+     *     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
+     *         Map.entry(BOOLEAN, (field, source) -> field),
+     *         Map.entry(KEYWORD, ToBooleanFromStringEvaluator.Factory::new),
+     *         ...
+     *     );
+     *
+     *     @Override
+     *     protected Map<DataType, BuildFactory> factories() {
+     *         return EVALUATORS;
+     *     }
+     * }</pre>
+     */
     protected abstract Map<DataType, BuildFactory> factories();
 
     @Override

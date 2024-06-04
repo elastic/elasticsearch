@@ -35,13 +35,14 @@ import java.util.Arrays;
 import java.util.BitSet;
 import java.util.List;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 
 import static java.util.Collections.singletonList;
-import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.CARTESIAN;
-import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.GEO;
+import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
+import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -165,7 +166,6 @@ public class BasicBlockTests extends ESTestCase {
             assertThat(block.asVector().getPositionCount(), is(positionCount));
             assertThat(block.asVector().asBlock().getTotalValueCount(), is(positionCount));
             assertThat(block.asVector().asBlock().getPositionCount(), is(positionCount));
-            assertThat(block.nullValuesCount(), is(0));
             assertThat(block.mayHaveNulls(), is(false));
             assertThat(block.areAllValuesNull(), is(false));
             assertThat(block.mayHaveMultivaluedFields(), is(false));
@@ -283,8 +283,19 @@ public class BasicBlockTests extends ESTestCase {
                     positions(blockFactory, 1, 2, new int[] { 1, 2 }),
                     List.of(List.of(value), List.of(value), List.of(value, value))
                 );
+                assertLookup(
+                    block,
+                    positions(blockFactory, 1, 2),
+                    List.of(List.of(value), List.of(value)),
+                    b -> assertThat(b.asVector(), instanceOf(ConstantIntVector.class))
+                );
             }
-            assertLookup(block, positions(blockFactory, positionCount + 1000), singletonList(null));
+            assertLookup(
+                block,
+                positions(blockFactory, positionCount + 1000),
+                singletonList(null),
+                b -> assertThat(b, instanceOf(ConstantNullBlock.class))
+            );
             assertEmptyLookup(blockFactory, block);
             assertThat(block.asVector().min(), equalTo(value));
             assertThat(block.asVector().max(), equalTo(value));
@@ -365,8 +376,19 @@ public class BasicBlockTests extends ESTestCase {
                     positions(blockFactory, 1, 2, new int[] { 1, 2 }),
                     List.of(List.of(value), List.of(value), List.of(value, value))
                 );
+                assertLookup(
+                    block,
+                    positions(blockFactory, 1, 2),
+                    List.of(List.of(value), List.of(value)),
+                    b -> assertThat(b.asVector(), instanceOf(ConstantLongVector.class))
+                );
             }
-            assertLookup(block, positions(blockFactory, positionCount + 1000), singletonList(null));
+            assertLookup(
+                block,
+                positions(blockFactory, positionCount + 1000),
+                singletonList(null),
+                b -> assertThat(b, instanceOf(ConstantNullBlock.class))
+            );
             assertEmptyLookup(blockFactory, block);
             releaseAndAssertBreaker(block);
         }
@@ -447,8 +469,19 @@ public class BasicBlockTests extends ESTestCase {
                     positions(blockFactory, 1, 2, new int[] { 1, 2 }),
                     List.of(List.of(value), List.of(value), List.of(value, value))
                 );
+                assertLookup(
+                    block,
+                    positions(blockFactory, 1, 2),
+                    List.of(List.of(value), List.of(value)),
+                    b -> assertThat(b.asVector(), instanceOf(ConstantDoubleVector.class))
+                );
             }
-            assertLookup(block, positions(blockFactory, positionCount + 1000), singletonList(null));
+            assertLookup(
+                block,
+                positions(blockFactory, positionCount + 1000),
+                singletonList(null),
+                b -> assertThat(b, instanceOf(ConstantNullBlock.class))
+            );
             assertEmptyLookup(blockFactory, block);
             releaseAndAssertBreaker(block);
         }
@@ -605,8 +638,19 @@ public class BasicBlockTests extends ESTestCase {
                     positions(blockFactory, 1, 2, new int[] { 1, 2 }),
                     List.of(List.of(value), List.of(value), List.of(value, value))
                 );
+                assertLookup(
+                    block,
+                    positions(blockFactory, 1, 2),
+                    List.of(List.of(value), List.of(value)),
+                    b -> assertThat(b.asVector(), instanceOf(ConstantBytesRefVector.class))
+                );
             }
-            assertLookup(block, positions(blockFactory, positionCount + 1000), singletonList(null));
+            assertLookup(
+                block,
+                positions(blockFactory, positionCount + 1000),
+                singletonList(null),
+                b -> assertThat(b, instanceOf(ConstantNullBlock.class))
+            );
             assertEmptyLookup(blockFactory, block);
             releaseAndAssertBreaker(block);
         }
@@ -689,8 +733,19 @@ public class BasicBlockTests extends ESTestCase {
                     positions(blockFactory, 1, 2, new int[] { 1, 2 }),
                     List.of(List.of(value), List.of(value), List.of(value, value))
                 );
+                assertLookup(
+                    block,
+                    positions(blockFactory, 1, 2),
+                    List.of(List.of(value), List.of(value)),
+                    b -> assertThat(b.asVector(), instanceOf(ConstantBooleanVector.class))
+                );
             }
-            assertLookup(block, positions(blockFactory, positionCount + 1000), singletonList(null));
+            assertLookup(
+                block,
+                positions(blockFactory, positionCount + 1000),
+                singletonList(null),
+                b -> assertThat(b, instanceOf(ConstantNullBlock.class))
+            );
             assertEmptyLookup(blockFactory, block);
             releaseAndAssertBreaker(block);
         }
@@ -716,6 +771,24 @@ public class BasicBlockTests extends ESTestCase {
             assertThat(positionCount, is(block.getPositionCount()));
             assertThat(block.getPositionCount(), is(positionCount));
             assertThat(block.isNull(randomPosition(positionCount)), is(true));
+            if (positionCount > 2) {
+                List<List<Object>> expected = new ArrayList<>();
+                expected.add(null);
+                expected.add(null);
+                expected.add(null);
+                assertLookup(
+                    block,
+                    positions(blockFactory, 1, 2, new int[] { 1, 2 }),
+                    expected,
+                    b -> assertThat(b, instanceOf(ConstantNullBlock.class))
+                );
+            }
+            assertLookup(
+                block,
+                positions(blockFactory, positionCount + 1000),
+                singletonList(null),
+                b -> assertThat(b, instanceOf(ConstantNullBlock.class))
+            );
             releaseAndAssertBreaker(block);
         }
     }
@@ -749,7 +822,6 @@ public class BasicBlockTests extends ESTestCase {
                     assertThat(block.getInt(i), is(values[i]));
                 }
             }
-            assertThat(block.nullValuesCount(), is(nullCount));
             assertThat(block.asVector(), nullCount > 0 ? is(nullValue()) : is(notNullValue()));
             block.close();
         }
@@ -783,7 +855,6 @@ public class BasicBlockTests extends ESTestCase {
                     assertThat(block.getLong(i), is(values[i]));
                 }
             }
-            assertThat(block.nullValuesCount(), is(nullCount));
             assertThat(block.asVector(), nullCount > 0 ? is(nullValue()) : is(notNullValue()));
             block.close();
         }
@@ -817,7 +888,6 @@ public class BasicBlockTests extends ESTestCase {
                     assertThat(block.getDouble(i), is(values[i]));
                 }
             }
-            assertThat(block.nullValuesCount(), is(nullCount));
             assertThat(block.asVector(), nullCount > 0 ? is(nullValue()) : is(notNullValue()));
             block.close();
         }
@@ -851,7 +921,6 @@ public class BasicBlockTests extends ESTestCase {
                     assertThat(block.getBoolean(i), is(values[i]));
                 }
             }
-            assertThat(block.nullValuesCount(), is(nullCount));
             assertThat(block.asVector(), nullCount > 0 ? is(nullValue()) : is(notNullValue()));
             block.close();
         }
@@ -1544,11 +1613,16 @@ public class BasicBlockTests extends ESTestCase {
     }
 
     static void assertLookup(Block block, IntBlock positions, List<List<Object>> expected) {
+        assertLookup(block, positions, expected, l -> {});
+    }
+
+    static void assertLookup(Block block, IntBlock positions, List<List<Object>> expected, Consumer<Block> extra) {
         try (positions; ReleasableIterator<? extends Block> lookup = block.lookup(positions, ByteSizeValue.ofKb(100))) {
             assertThat(lookup.hasNext(), equalTo(true));
             try (Block b = lookup.next()) {
                 assertThat(valuesAtPositions(b, 0, b.getPositionCount()), equalTo(expected));
                 assertThat(b.blockFactory(), sameInstance(positions.blockFactory()));
+                extra.accept(b);
             }
             assertThat(lookup.hasNext(), equalTo(false));
         }

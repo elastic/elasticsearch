@@ -114,7 +114,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
                 this.input = List.of(in.readString());
             }
             this.taskSettings = in.readGenericMap();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_REQUEST_INPUT_TYPE_ADDED)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
                 this.inputType = in.readEnum(InputType.class);
             } else {
                 this.inputType = InputType.UNSPECIFIED;
@@ -187,9 +187,8 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
                 out.writeString(input.get(0));
             }
             out.writeGenericMap(taskSettings);
-            // in version ML_INFERENCE_REQUEST_INPUT_TYPE_ADDED the input type enum was added, so we only want to write the enum if we're
-            // at that version or later
-            if (out.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_REQUEST_INPUT_TYPE_ADDED)) {
+
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
                 out.writeEnum(getInputTypeToWrite(inputType, out.getTransportVersion()));
             }
 
@@ -204,13 +203,13 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
 
         // default for easier testing
         static InputType getInputTypeToWrite(InputType inputType, TransportVersion version) {
-            if (version.before(TransportVersions.ML_INFERENCE_REQUEST_INPUT_TYPE_UNSPECIFIED_ADDED)
-                && validEnumsBeforeUnspecifiedAdded.contains(inputType) == false) {
-                return InputType.INGEST;
-            } else if (version.before(TransportVersions.ML_INFERENCE_REQUEST_INPUT_TYPE_CLASS_CLUSTER_ADDED)
-                && validEnumsBeforeClassificationClusteringAdded.contains(inputType) == false) {
+            if (version.before(TransportVersions.V_8_13_0)) {
+                if (validEnumsBeforeUnspecifiedAdded.contains(inputType) == false) {
+                    return InputType.INGEST;
+                } else if (validEnumsBeforeClassificationClusteringAdded.contains(inputType) == false) {
                     return InputType.UNSPECIFIED;
                 }
+            }
 
             return inputType;
         }

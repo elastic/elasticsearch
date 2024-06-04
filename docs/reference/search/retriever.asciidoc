@@ -12,6 +12,11 @@ allows for complex behavior to be depicted in a tree-like structure, called
 the retriever tree, to better clarify the order of operations that occur
 during a search.
 
+[TIP]
+====
+Refer to <<retrievers-overview>> for a high level overview of the retrievers abstraction.
+====
+
 The following retrievers are available:
 
 `standard`::

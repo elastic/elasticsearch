@@ -152,6 +152,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
             .build();
 
         final MountSearchableSnapshotRequest mountRequest = new MountSearchableSnapshotRequest(
+            TEST_REQUEST_TIMEOUT,
             searchableSnapshotIndexOutsideSearchRange,
             repositoryName,
             snapshotId.getName(),
@@ -422,6 +423,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
             .build();
 
         final MountSearchableSnapshotRequest mountRequest = new MountSearchableSnapshotRequest(
+            TEST_REQUEST_TIMEOUT,
             searchableSnapshotIndexOutsideSearchRange,
             repositoryName,
             snapshotId.getName(),
@@ -605,6 +607,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
             .build();
 
         final MountSearchableSnapshotRequest mountRequest = new MountSearchableSnapshotRequest(
+            TEST_REQUEST_TIMEOUT,
             searchableSnapshotIndexWithinSearchRange,
             repositoryName,
             snapshotId.getName(),

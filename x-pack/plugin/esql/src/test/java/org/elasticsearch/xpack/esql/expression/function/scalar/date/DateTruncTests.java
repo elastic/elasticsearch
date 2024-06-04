@@ -11,12 +11,11 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.common.Rounding;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -140,10 +139,10 @@ public class DateTruncTests extends AbstractFunctionTestCase {
 
     private static TestCaseSupplier ofDatePeriod(Period period, long value, String expectedDate) {
         return new TestCaseSupplier(
-            List.of(EsqlDataTypes.DATE_PERIOD, DataTypes.DATETIME),
+            List.of(DataTypes.DATE_PERIOD, DataTypes.DATETIME),
             () -> new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(period, EsqlDataTypes.DATE_PERIOD, "interval"),
+                    new TestCaseSupplier.TypedData(period, DataTypes.DATE_PERIOD, "interval"),
                     new TestCaseSupplier.TypedData(value, DataTypes.DATETIME, "date")
                 ),
                 "DateTruncEvaluator[date=Attribute[channel=1], interval=Attribute[channel=0]]",
@@ -155,10 +154,10 @@ public class DateTruncTests extends AbstractFunctionTestCase {
 
     private static TestCaseSupplier ofDuration(Duration duration, long value, String expectedDate) {
         return new TestCaseSupplier(
-            List.of(EsqlDataTypes.TIME_DURATION, DataTypes.DATETIME),
+            List.of(DataTypes.TIME_DURATION, DataTypes.DATETIME),
             () -> new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(duration, EsqlDataTypes.TIME_DURATION, "interval"),
+                    new TestCaseSupplier.TypedData(duration, DataTypes.TIME_DURATION, "interval"),
                     new TestCaseSupplier.TypedData(value, DataTypes.DATETIME, "date")
                 ),
                 "DateTruncEvaluator[date=Attribute[channel=1], interval=Attribute[channel=0]]",
@@ -169,7 +168,7 @@ public class DateTruncTests extends AbstractFunctionTestCase {
     }
 
     private static TestCaseSupplier randomSecond() {
-        return new TestCaseSupplier("random second", List.of(EsqlDataTypes.TIME_DURATION, DataTypes.DATETIME), () -> {
+        return new TestCaseSupplier("random second", List.of(DataTypes.TIME_DURATION, DataTypes.DATETIME), () -> {
             String dateFragment = randomIntBetween(2000, 2050)
                 + "-"
                 + pad(randomIntBetween(1, 12))
@@ -183,7 +182,7 @@ public class DateTruncTests extends AbstractFunctionTestCase {
                 + pad(randomIntBetween(0, 59));
             return new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(Duration.ofSeconds(1), EsqlDataTypes.TIME_DURATION, "interval"),
+                    new TestCaseSupplier.TypedData(Duration.ofSeconds(1), DataTypes.TIME_DURATION, "interval"),
                     new TestCaseSupplier.TypedData(toMillis(dateFragment + ".38Z"), DataTypes.DATETIME, "date")
                 ),
                 "DateTruncEvaluator[date=Attribute[channel=1], interval=Attribute[channel=0]]",

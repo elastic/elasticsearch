@@ -13,14 +13,13 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainRequest;
-import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainRequestBuilder;
-import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainResponse;
-import org.elasticsearch.action.admin.cluster.allocation.TransportClusterAllocationExplainAction;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;
+import org.elasticsearch.action.admin.cluster.node.capabilities.NodesCapabilitiesRequest;
+import org.elasticsearch.action.admin.cluster.node.capabilities.NodesCapabilitiesResponse;
+import org.elasticsearch.action.admin.cluster.node.capabilities.TransportNodesCapabilitiesAction;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequestBuilder;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
@@ -248,6 +247,14 @@ public class ClusterAdminClient implements ElasticsearchClient {
         return new NodesStatsRequestBuilder(this).setNodesIds(nodesIds);
     }
 
+    public ActionFuture<NodesCapabilitiesResponse> nodesCapabilities(final NodesCapabilitiesRequest request) {
+        return execute(TransportNodesCapabilitiesAction.TYPE, request);
+    }
+
+    public void nodesCapabilities(final NodesCapabilitiesRequest request, final ActionListener<NodesCapabilitiesResponse> listener) {
+        execute(TransportNodesCapabilitiesAction.TYPE, request, listener);
+    }
+
     public void nodesUsage(final NodesUsageRequest request, final ActionListener<NodesUsageResponse> listener) {
         execute(TransportNodesUsageAction.TYPE, request, listener);
     }
@@ -442,18 +449,6 @@ public class ClusterAdminClient implements ElasticsearchClient {
 
     public SimulatePipelineRequestBuilder prepareSimulatePipeline(BytesReference source, XContentType xContentType) {
         return new SimulatePipelineRequestBuilder(this, source, xContentType);
-    }
-
-    public void allocationExplain(ClusterAllocationExplainRequest request, ActionListener<ClusterAllocationExplainResponse> listener) {
-        execute(TransportClusterAllocationExplainAction.TYPE, request, listener);
-    }
-
-    public ActionFuture<ClusterAllocationExplainResponse> allocationExplain(ClusterAllocationExplainRequest request) {
-        return execute(TransportClusterAllocationExplainAction.TYPE, request);
-    }
-
-    public ClusterAllocationExplainRequestBuilder prepareAllocationExplain() {
-        return new ClusterAllocationExplainRequestBuilder(this);
     }
 
     public PutStoredScriptRequestBuilder preparePutStoredScript() {

@@ -44,8 +44,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTestCase {
-    private static final String ESQL_VERSION = "2024.04.01";
-
     private static final AtomicReference<Map<String, Object>> API_KEY_MAP_REF = new AtomicReference<>();
     private static final AtomicReference<Map<String, Object>> REST_API_KEY_MAP_REF = new AtomicReference<>();
     private static final AtomicBoolean SSL_ENABLED_REF = new AtomicBoolean();
@@ -767,7 +765,6 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
                 body.endObject();
             }
         }
-        body.field("version", ESQL_VERSION);
         body.endObject();
         Request request = new Request("POST", "_query");
         request.setJsonEntity(org.elasticsearch.common.Strings.toString(body));

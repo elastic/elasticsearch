@@ -53,6 +53,7 @@ import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.ProfileHasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.support.Automatons;
+import org.elasticsearch.xpack.core.slm.action.GetSLMStatusAction;
 import org.elasticsearch.xpack.core.slm.action.GetSnapshotLifecycleAction;
 
 import java.util.Collection;
@@ -165,7 +166,11 @@ public class ClusterPrivilegeResolver {
         ILMActions.STOP.name(),
         GetStatusAction.NAME
     );
-    private static final Set<String> READ_SLM_PATTERN = Set.of(GetSnapshotLifecycleAction.NAME, GetStatusAction.NAME);
+    private static final Set<String> READ_SLM_PATTERN = Set.of(
+        GetSLMStatusAction.NAME,
+        GetSnapshotLifecycleAction.NAME,
+        GetStatusAction.NAME
+    );
 
     private static final Set<String> MANAGE_SEARCH_APPLICATION_PATTERN = Set.of("cluster:admin/xpack/application/search_application/*");
     private static final Set<String> MANAGE_SEARCH_QUERY_RULES_PATTERN = Set.of("cluster:admin/xpack/query_rules/*");

@@ -170,7 +170,9 @@ public class OpenAiChatCompletionServiceSettingsTests extends AbstractWireSerial
 
         assertThat(
             thrownException.getMessage(),
-            is(Strings.format("Validation Failed: 1: [service_settings] Invalid url [%s] received for field [%s];", url, ServiceFields.URL))
+            containsString(
+                Strings.format("Validation Failed: 1: [service_settings] Invalid url [%s] received for field [%s]", url, ServiceFields.URL)
+            )
         );
     }
 
@@ -236,7 +238,7 @@ public class OpenAiChatCompletionServiceSettingsTests extends AbstractWireSerial
 
     @Override
     protected OpenAiChatCompletionServiceSettings mutateInstance(OpenAiChatCompletionServiceSettings instance) throws IOException {
-        return createRandomWithNonNullUrl();
+        return randomValueOtherThan(instance, OpenAiChatCompletionServiceSettingsTests::createRandomWithNonNullUrl);
     }
 
     private static OpenAiChatCompletionServiceSettings createRandomWithNonNullUrl() {

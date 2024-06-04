@@ -63,9 +63,8 @@ public final class BytesRefVectorBlock extends AbstractVectorBlock implements By
     }
 
     @Override
-    public ReleasableIterator<BytesRefBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
-        // TODO optimizations
-        return new BytesRefLookup(this, positions, targetBlockSize);
+    public ReleasableIterator<? extends BytesRefBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
+        return vector.lookup(positions, targetBlockSize);
     }
 
     @Override

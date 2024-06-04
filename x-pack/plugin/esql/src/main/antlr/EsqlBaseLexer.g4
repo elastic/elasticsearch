@@ -10,7 +10,9 @@ GROK : 'grok'                 -> pushMode(EXPRESSION_MODE);
 INLINESTATS : 'inlinestats'   -> pushMode(EXPRESSION_MODE);
 KEEP : 'keep'                 -> pushMode(PROJECT_MODE);
 LIMIT : 'limit'               -> pushMode(EXPRESSION_MODE);
+LOOKUP : 'lookup'             -> pushMode(LOOKUP_MODE);
 META : 'meta'                 -> pushMode(META_MODE);
+METRICS : 'metrics'           -> pushMode(METRICS_MODE);
 MV_EXPAND : 'mv_expand'       -> pushMode(MVEXPAND_MODE);
 RENAME : 'rename'             -> pushMode(RENAME_MODE);
 ROW : 'row'                   -> pushMode(EXPRESSION_MODE);
@@ -31,6 +33,16 @@ MULTILINE_COMMENT
 WS
     : [ \r\n\t]+ -> channel(HIDDEN)
     ;
+
+fragment INDEX_UNQUOTED_IDENTIFIER_PART
+    : ~[=`|,[\]/ \t\r\n]
+    | '/' ~[*/] // allow single / but not followed by another / or * which would start a comment
+    ;
+
+INDEX_UNQUOTED_IDENTIFIER
+    : INDEX_UNQUOTED_IDENTIFIER_PART+
+    ;
+
 //
 // Explain
 //
@@ -188,20 +200,10 @@ FROM_CLOSING_BRACKET : CLOSING_BRACKET -> type(CLOSING_BRACKET);
 FROM_COMMA : COMMA -> type(COMMA);
 FROM_ASSIGN : ASSIGN -> type(ASSIGN);
 
-OPTIONS : 'options';
 METADATA : 'metadata';
 
-fragment FROM_UNQUOTED_SOURCE_PART
-    : ~[="|,[\]/ \t\r\n]
-    | '/' ~[*/] // allow single / but not followed by another / or * which would start a comment
-    ;
-
-FROM_UNQUOTED_SOURCE
-    : FROM_UNQUOTED_SOURCE_PART+
-    ;
-
-FROM_QUOTED_SOURCE
-    : QUOTED_STRING -> type(QUOTED_STRING)
+FROM_INDEX_UNQUOTED_IDENTIFIER
+    : INDEX_UNQUOTED_IDENTIFIER -> type(INDEX_UNQUOTED_IDENTIFIER)
     ;
 
 FROM_LINE_COMMENT
@@ -338,6 +340,50 @@ ENRICH_FIELD_WS
     : WS -> channel(HIDDEN)
     ;
 
+// LOOKUP ON key
+mode LOOKUP_MODE;
+LOOKUP_PIPE : PIPE -> type(PIPE), popMode;
+LOOKUP_COMMA : COMMA -> type(COMMA);
+LOOKUP_DOT: DOT -> type(DOT);
+LOOKUP_ON : ON -> type(ON), pushMode(LOOKUP_FIELD_MODE);
+
+LOOKUP_INDEX_UNQUOTED_IDENTIFIER
+    : INDEX_UNQUOTED_IDENTIFIER -> type(INDEX_UNQUOTED_IDENTIFIER)
+    ;
+
+LOOKUP_LINE_COMMENT
+    : LINE_COMMENT -> channel(HIDDEN)
+    ;
+
+LOOKUP_MULTILINE_COMMENT
+    : MULTILINE_COMMENT -> channel(HIDDEN)
+    ;
+
+LOOKUP_WS
+    : WS -> channel(HIDDEN)
+    ;
+
+mode LOOKUP_FIELD_MODE;
+LOOKUP_FIELD_PIPE : PIPE -> type(PIPE), popMode, popMode;
+LOOKUP_FIELD_COMMA : COMMA -> type(COMMA);
+LOOKUP_FIELD_DOT: DOT -> type(DOT);
+
+LOOKUP_FIELD_ID_PATTERN
+    : ID_PATTERN -> type(ID_PATTERN)
+    ;
+
+LOOKUP_FIELD_LINE_COMMENT
+    : LINE_COMMENT -> channel(HIDDEN)
+    ;
+
+LOOKUP_FIELD_MULTILINE_COMMENT
+    : MULTILINE_COMMENT -> channel(HIDDEN)
+    ;
+
+LOOKUP_FIELD_WS
+    : WS -> channel(HIDDEN)
+    ;
+
 mode MVEXPAND_MODE;
 MVEXPAND_PIPE : PIPE -> type(PIPE), popMode;
 MVEXPAND_DOT: DOT -> type(DOT);
@@ -423,3 +469,60 @@ SETTING_WS
     : WS -> channel(HIDDEN)
     ;
 
+
+//
+// METRICS command
+//
+mode METRICS_MODE;
+METRICS_PIPE : PIPE -> type(PIPE), popMode;
+
+METRICS_INDEX_UNQUOTED_IDENTIFIER
+    : INDEX_UNQUOTED_IDENTIFIER -> type(INDEX_UNQUOTED_IDENTIFIER), popMode, pushMode(CLOSING_METRICS_MODE)
+    ;
+
+METRICS_LINE_COMMENT
+    : LINE_COMMENT -> channel(HIDDEN)
+    ;
+
+METRICS_MULTILINE_COMMENT
+    : MULTILINE_COMMENT -> channel(HIDDEN)
+    ;
+
+METRICS_WS
+    : WS -> channel(HIDDEN)
+    ;
+
+// TODO: remove this workaround mode - see https://github.com/elastic/elasticsearch/issues/108528
+mode CLOSING_METRICS_MODE;
+
+CLOSING_METRICS_COMMA
+    : COMMA -> type(COMMA), popMode, pushMode(METRICS_MODE)
+    ;
+
+CLOSING_METRICS_LINE_COMMENT
+    : LINE_COMMENT -> channel(HIDDEN)
+    ;
+
+CLOSING_METRICS_MULTILINE_COMMENT
+    : MULTILINE_COMMENT -> channel(HIDDEN)
+    ;
+
+CLOSING_METRICS_WS
+    : WS -> channel(HIDDEN)
+    ;
+
+CLOSING_METRICS_QUOTED_IDENTIFIER
+    : QUOTED_IDENTIFIER -> popMode, pushMode(EXPRESSION_MODE), type(QUOTED_IDENTIFIER)
+    ;
+
+CLOSING_METRICS_UNQUOTED_IDENTIFIER
+    :UNQUOTED_IDENTIFIER -> popMode, pushMode(EXPRESSION_MODE), type(UNQUOTED_IDENTIFIER)
+    ;
+
+CLOSING_METRICS_BY
+    :BY -> popMode, pushMode(EXPRESSION_MODE), type(BY)
+    ;
+
+CLOSING_METRICS_PIPE
+    : PIPE -> type(PIPE), popMode
+    ;

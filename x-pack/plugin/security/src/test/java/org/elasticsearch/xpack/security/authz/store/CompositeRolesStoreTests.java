@@ -44,8 +44,9 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.license.LicenseStateListener;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
@@ -64,7 +65,7 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
-import org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptorTestHelper;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.DocumentSubsetBitsetCache;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
@@ -296,10 +297,9 @@ public class CompositeRolesStoreTests extends ESTestCase {
             effectiveRoleDescriptors::set
         );
 
-        final MockLogAppender mockAppender = new MockLogAppender();
-        try (var ignored = mockAppender.capturing(RoleDescriptorStore.class)) {
-            mockAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+        try (var mockLog = MockLog.capture(RoleDescriptorStore.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "disabled role warning",
                     RoleDescriptorStore.class.getName(),
                     Level.WARN,
@@ -311,7 +311,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             getRoleForRoleNames(compositeRolesStore, Collections.singleton("dls"), roleFuture);
             assertEquals(Role.EMPTY, roleFuture.actionGet());
             assertThat(effectiveRoleDescriptors.get(), empty());
-            mockAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 
@@ -959,7 +959,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
                 RoleDescriptor.RemoteIndicesPrivileges.builder("remote-*", "remote").indices("abc-*", "xyz-*").privileges("read").build(),
                 RoleDescriptor.RemoteIndicesPrivileges.builder("remote-*").indices("remote-idx-1-*").privileges("read").build(), },
             getValidRemoteClusterPermissions(new String[] { "remote-*" }),
-            null
+            null,
+            randomAlphaOfLengthBetween(0, 20)
         );
 
         ConfigurableClusterPrivilege ccp2 = new MockConfigurableClusterPrivilege() {
@@ -988,7 +989,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
                 RoleDescriptor.RemoteIndicesPrivileges.builder("*").indices("remote-idx-2-*").privileges("read").build(),
                 RoleDescriptor.RemoteIndicesPrivileges.builder("remote-*").indices("remote-idx-3-*").privileges("read").build() },
             null,
-            null
+            null,
+            randomAlphaOfLengthBetween(0, 20)
         );
 
         FieldPermissionsCache cache = new FieldPermissionsCache(Settings.EMPTY);
@@ -1100,7 +1102,15 @@ public class CompositeRolesStoreTests extends ESTestCase {
     }
 
     public void testBuildRoleFromDescriptorsWithSingleRestriction() {
-        Role role = buildRole(RoleDescriptorTests.randomRoleDescriptor(randomBoolean(), randomBoolean(), true, randomBoolean()));
+        Role role = buildRole(
+            RoleDescriptorTestHelper.builder()
+                .allowReservedMetadata(randomBoolean())
+                .allowRemoteIndices(randomBoolean())
+                .allowRestriction(true)
+                .allowDescription(randomBoolean())
+                .allowRemoteClusters(randomBoolean())
+                .build()
+        );
         assertThat(role.hasWorkflowsRestriction(), equalTo(true));
     }
 
@@ -1108,8 +1118,20 @@ public class CompositeRolesStoreTests extends ESTestCase {
         var e = expectThrows(
             IllegalArgumentException.class,
             () -> buildRole(
-                RoleDescriptorTests.randomRoleDescriptor(randomBoolean(), randomBoolean(), true, randomBoolean()),
-                RoleDescriptorTests.randomRoleDescriptor(randomBoolean(), randomBoolean(), true, randomBoolean())
+                RoleDescriptorTestHelper.builder()
+                    .allowReservedMetadata(randomBoolean())
+                    .allowRemoteIndices(randomBoolean())
+                    .allowRestriction(true)
+                    .allowDescription(randomBoolean())
+                    .allowRemoteClusters(randomBoolean())
+                    .build(),
+                RoleDescriptorTestHelper.builder()
+                    .allowReservedMetadata(randomBoolean())
+                    .allowRemoteIndices(randomBoolean())
+                    .allowRestriction(true)
+                    .allowDescription(randomBoolean())
+                    .allowRemoteClusters(randomBoolean())
+                    .build()
             )
         );
         assertThat(e.getMessage(), containsString("more than one role descriptor with restriction is not allowed"));
@@ -1117,9 +1139,27 @@ public class CompositeRolesStoreTests extends ESTestCase {
         e = expectThrows(
             IllegalArgumentException.class,
             () -> buildRole(
-                RoleDescriptorTests.randomRoleDescriptor(randomBoolean(), randomBoolean(), true, randomBoolean()),
-                RoleDescriptorTests.randomRoleDescriptor(randomBoolean(), randomBoolean(), false, randomBoolean()),
-                RoleDescriptorTests.randomRoleDescriptor(randomBoolean(), randomBoolean(), false, randomBoolean())
+                RoleDescriptorTestHelper.builder()
+                    .allowReservedMetadata(randomBoolean())
+                    .allowRemoteIndices(randomBoolean())
+                    .allowRestriction(true)
+                    .allowDescription(randomBoolean())
+                    .allowRemoteClusters(randomBoolean())
+                    .build(),
+                RoleDescriptorTestHelper.builder()
+                    .allowReservedMetadata(randomBoolean())
+                    .allowRemoteIndices(randomBoolean())
+                    .allowRestriction(false)
+                    .allowDescription(randomBoolean())
+                    .allowRemoteClusters(randomBoolean())
+                    .build(),
+                RoleDescriptorTestHelper.builder()
+                    .allowReservedMetadata(randomBoolean())
+                    .allowRemoteIndices(randomBoolean())
+                    .allowRestriction(false)
+                    .allowDescription(randomBoolean())
+                    .allowRemoteClusters(randomBoolean())
+                    .build()
             )
         );
         assertThat(e.getMessage(), containsString("combining role descriptors with and without restriction is not allowed"));
@@ -1578,10 +1618,13 @@ public class CompositeRolesStoreTests extends ESTestCase {
             true,
             true,
             null,
+            null,
+            null,
             concreteSecurityIndexName,
             healthStatus,
             IndexMetadata.State.OPEN,
-            "my_uuid"
+            "my_uuid",
+            Set.of()
         );
     }
 
@@ -1906,7 +1949,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
                 mock(SecurityIndexManager.class),
                 clusterService,
                 mock(CacheInvalidatorRegistry.class),
-                mock(ThreadPool.class)
+                mock(ThreadPool.class),
+                MeterRegistry.NOOP
             )
         );
         NativePrivilegeStore nativePrivStore = mock(NativePrivilegeStore.class);
@@ -1989,7 +2033,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
                 mock(SecurityIndexManager.class),
                 clusterService,
                 mock(CacheInvalidatorRegistry.class),
-                mock(ThreadPool.class)
+                mock(ThreadPool.class),
+                MeterRegistry.NOOP
             )
         );
         NativePrivilegeStore nativePrivStore = mock(NativePrivilegeStore.class);
@@ -2089,7 +2134,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
                 mock(SecurityIndexManager.class),
                 clusterService,
                 mock(CacheInvalidatorRegistry.class),
-                mock(ThreadPool.class)
+                mock(ThreadPool.class),
+                MeterRegistry.NOOP
             )
         );
         final NativePrivilegeStore nativePrivStore = mock(NativePrivilegeStore.class);
@@ -2138,6 +2184,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
                             null,
                             new RoleDescriptor.IndicesPrivileges[] {
                                 RoleDescriptor.IndicesPrivileges.builder().indices("index1").privileges("read").build() },
+                            null,
                             null,
                             null,
                             null,
@@ -2246,7 +2293,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
             mock(SecurityIndexManager.class),
             clusterService,
             mock(CacheInvalidatorRegistry.class),
-            mock(ThreadPool.class)
+            mock(ThreadPool.class),
+            MeterRegistry.NOOP
         );
         final NativePrivilegeStore privilegeStore = mock(NativePrivilegeStore.class);
         doAnswer((invocationOnMock) -> {
@@ -2358,7 +2406,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
             mock(SecurityIndexManager.class),
             clusterService,
             mock(CacheInvalidatorRegistry.class),
-            mock(ThreadPool.class)
+            mock(ThreadPool.class),
+            MeterRegistry.NOOP
         );
         final NativePrivilegeStore privilegeStore = mock(NativePrivilegeStore.class);
         doAnswer((invocationOnMock) -> {
@@ -3089,11 +3138,11 @@ public class CompositeRolesStoreTests extends ESTestCase {
         final RoleDescriptor.RemoteIndicesPrivileges[] rips,
         final IndicesPrivileges[] ips
     ) {
-        return new RoleDescriptor(name, null, ips, null, null, null, null, null, rips, null, null);
+        return new RoleDescriptor(name, null, ips, null, null, null, null, null, rips, null, null, null);
     }
 
     private RoleDescriptor roleDescriptorWithRemoteClusterPrivileges(final String name, RemoteClusterPermissions remoteClusterPermissions) {
-        return new RoleDescriptor(name, null, null, null, null, null, null, null, null, remoteClusterPermissions, null);
+        return new RoleDescriptor(name, null, null, null, null, null, null, null, null, remoteClusterPermissions, null, null);
     }
 
     private RemoteClusterPermissions getValidRemoteClusterPermissions(String[] aliases) {

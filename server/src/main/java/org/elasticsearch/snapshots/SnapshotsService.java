@@ -3354,6 +3354,15 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                     updatedState = updateSnapshotState.updatedState;
                 }
 
+                if (updatedState.state() == ShardState.PAUSED_FOR_NODE_REMOVAL) {
+                    // leave subsequent entries for this shard alone until this one is unpaused
+                    iterator.remove();
+                } else {
+                    // All other shard updates leave the shard in a complete state, which means we should leave this update in the list so
+                    // it can fall through to later entries and start any waiting shard snapshots:
+                    assert updatedState.isActive() == false : updatedState;
+                }
+
                 logger.trace("[{}] Updating shard [{}] with status [{}]", updateSnapshotState.snapshot, updatedShard, updatedState.state());
                 changedCount++;
                 newStates.get().put(updatedShard, updatedState);
@@ -4126,7 +4135,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
     }
 
     private static boolean supportsNodeRemovalTracking(ClusterState clusterState) {
-        return clusterState.getMinTransportVersion().onOrAfter(TransportVersions.SNAPSHOTS_IN_PROGRESS_TRACKING_REMOVING_NODES_ADDED);
+        return clusterState.getMinTransportVersion().onOrAfter(TransportVersions.V_8_13_0);
     }
 
     private final MasterServiceTaskQueue<UpdateNodeIdsForRemovalTask> updateNodeIdsToRemoveQueue;

@@ -67,6 +67,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.InstantiatingObjectParser;
@@ -103,6 +104,7 @@ import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReference;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.security.metric.SecurityCacheMetrics;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.FeatureNotEnabledException;
 import org.elasticsearch.xpack.security.support.FeatureNotEnabledException.Feature;
@@ -143,16 +145,13 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
-import static org.elasticsearch.xpack.core.security.action.apikey.CrossClusterApiKeyRoleDescriptorBuilder.CCR_CLUSTER_PRIVILEGE_NAMES;
-import static org.elasticsearch.xpack.core.security.action.apikey.CrossClusterApiKeyRoleDescriptorBuilder.CCS_AND_CCR_CLUSTER_PRIVILEGE_NAMES;
-import static org.elasticsearch.xpack.core.security.action.apikey.CrossClusterApiKeyRoleDescriptorBuilder.CCS_CLUSTER_PRIVILEGE_NAMES;
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptor.WORKFLOWS_RESTRICTION_VERSION;
 import static org.elasticsearch.xpack.security.Security.SECURITY_CRYPTO_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.Availability.PRIMARY_SHARDS;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.Availability.SEARCH_SHARDS;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
 
-public class ApiKeyService {
+public class ApiKeyService implements Closeable {
 
     private static final Logger logger = LogManager.getLogger(ApiKeyService.class);
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ApiKeyService.class);
@@ -226,6 +225,8 @@ public class ApiKeyService {
     private final AtomicLong lastEvictionCheckedAt = new AtomicLong(0);
     private final LongAdder evictionCounter = new LongAdder();
 
+    private final List<AutoCloseable> cacheMetrics;
+
     @SuppressWarnings("this-escape")
     public ApiKeyService(
         Settings settings,
@@ -234,7 +235,8 @@ public class ApiKeyService {
         SecurityIndexManager securityIndex,
         ClusterService clusterService,
         CacheInvalidatorRegistry cacheInvalidatorRegistry,
-        ThreadPool threadPool
+        ThreadPool threadPool,
+        MeterRegistry meterRegistry
     ) {
         this.clock = clock;
         this.client = client;
@@ -292,6 +294,39 @@ public class ApiKeyService {
             this.apiKeyAuthCache = null;
             this.apiKeyDocCache = null;
         }
+
+        if (enabled) {
+            final List<AutoCloseable> cacheMetrics = new ArrayList<>();
+            if (this.apiKeyAuthCache != null) {
+                cacheMetrics.addAll(
+                    SecurityCacheMetrics.registerAsyncCacheMetrics(
+                        meterRegistry,
+                        this.apiKeyAuthCache,
+                        SecurityCacheMetrics.CacheType.API_KEY_AUTH_CACHE
+                    )
+                );
+            }
+            if (this.apiKeyDocCache != null) {
+                cacheMetrics.addAll(
+                    SecurityCacheMetrics.registerAsyncCacheMetrics(
+                        meterRegistry,
+                        this.apiKeyDocCache.docCache,
+                        SecurityCacheMetrics.CacheType.API_KEY_DOCS_CACHE
+                    )
+                );
+                cacheMetrics.addAll(
+                    SecurityCacheMetrics.registerAsyncCacheMetrics(
+                        meterRegistry,
+                        this.apiKeyDocCache.roleDescriptorsBytesCache,
+                        SecurityCacheMetrics.CacheType.API_KEY_ROLE_DESCRIPTORS_CACHE
+                    )
+                );
+            }
+            this.cacheMetrics = List.copyOf(cacheMetrics);
+        } else {
+            this.cacheMetrics = List.of();
+        }
+
     }
 
     /**
@@ -360,14 +395,43 @@ public class ApiKeyService {
                 return;
             }
 
+            final Set<RoleDescriptor> userRolesWithoutDescription = removeUserRoleDescriptorDescriptions(userRoleDescriptors);
             final Set<RoleDescriptor> filteredUserRoleDescriptors = maybeRemoveRemotePrivileges(
-                userRoleDescriptors,
+                userRolesWithoutDescription,
                 transportVersion,
                 request.getId()
             );
 
             createApiKeyAndIndexIt(authentication, request, filteredUserRoleDescriptors, listener);
         }
+    }
+
+    /**
+     * This method removes description from the given user's (limited-by) role descriptors.
+     * The description field is not supported for API key role descriptors hence storing limited-by roles with descriptions
+     * would be inconsistent and require handling backwards compatibility.
+     * Hence why we have to remove them before create/update of API key roles.
+     */
+    static Set<RoleDescriptor> removeUserRoleDescriptorDescriptions(Set<RoleDescriptor> userRoleDescriptors) {
+        return userRoleDescriptors.stream().map(roleDescriptor -> {
+            if (roleDescriptor.hasDescription()) {
+                return new RoleDescriptor(
+                    roleDescriptor.getName(),
+                    roleDescriptor.getClusterPrivileges(),
+                    roleDescriptor.getIndicesPrivileges(),
+                    roleDescriptor.getApplicationPrivileges(),
+                    roleDescriptor.getConditionalClusterPrivileges(),
+                    roleDescriptor.getRunAs(),
+                    roleDescriptor.getMetadata(),
+                    roleDescriptor.getTransientMetadata(),
+                    roleDescriptor.getRemoteIndicesPrivileges(),
+                    roleDescriptor.getRemoteClusterPermissions(),
+                    roleDescriptor.getRestriction(),
+                    null
+                );
+            }
+            return roleDescriptor;
+        }).collect(Collectors.toSet());
     }
 
     private TransportVersion getMinTransportVersion() {
@@ -534,8 +598,9 @@ public class ApiKeyService {
         }
 
         final String[] apiKeyIds = request.getIds().toArray(String[]::new);
+        final Set<RoleDescriptor> userRolesWithoutDescription = removeUserRoleDescriptorDescriptions(userRoleDescriptors);
         final Set<RoleDescriptor> filteredUserRoleDescriptors = maybeRemoveRemotePrivileges(
-            userRoleDescriptors,
+            userRolesWithoutDescription,
             transportVersion,
             apiKeyIds
         );
@@ -673,7 +738,8 @@ public class ApiKeyService {
                         roleDescriptor.hasRemoteClusterPermissions() && transportVersion.before(ROLE_REMOTE_CLUSTER_PRIVS)
                             ? null
                             : roleDescriptor.getRemoteClusterPermissions(),
-                        roleDescriptor.getRestriction()
+                        roleDescriptor.getRestriction(),
+                        roleDescriptor.getDescription()
                     );
                 }
                 return roleDescriptor;
@@ -1392,26 +1458,43 @@ public class ApiKeyService {
                 for (ApiKey apiKeyInfo : apiKeyInfos) {
                     assert apiKeyInfo.getType() == ApiKey.Type.CROSS_CLUSTER;
                     assert apiKeyInfo.getRoleDescriptors().size() == 1;
-                    final String[] clusterPrivileges = apiKeyInfo.getRoleDescriptors().iterator().next().getClusterPrivileges();
-                    if (Arrays.equals(clusterPrivileges, CCS_CLUSTER_PRIVILEGE_NAMES)) {
+                    final List<String> clusterPrivileges = Arrays.asList(
+                        apiKeyInfo.getRoleDescriptors().iterator().next().getClusterPrivileges()
+                    );
+
+                    if (clusterPrivileges.contains("cross_cluster_search")
+                        && clusterPrivileges.contains("cross_cluster_replication") == false) {
                         ccsKeys += 1;
-                    } else if (Arrays.equals(clusterPrivileges, CCR_CLUSTER_PRIVILEGE_NAMES)) {
-                        ccrKeys += 1;
-                    } else if (Arrays.equals(clusterPrivileges, CCS_AND_CCR_CLUSTER_PRIVILEGE_NAMES)) {
-                        ccsCcrKeys += 1;
-                    } else {
-                        final String message = "invalid cluster privileges ["
-                            + Strings.arrayToCommaDelimitedString(clusterPrivileges)
-                            + "] for cross-cluster API key ["
-                            + apiKeyInfo.getId()
-                            + "]";
-                        assert false : message;
-                        listener.onFailure(new IllegalStateException(message));
-                    }
+                    } else if (clusterPrivileges.contains("cross_cluster_replication")
+                        && clusterPrivileges.contains("cross_cluster_search") == false) {
+                            ccrKeys += 1;
+                        } else if (clusterPrivileges.contains("cross_cluster_search")
+                            && clusterPrivileges.contains("cross_cluster_replication")) {
+                                ccsCcrKeys += 1;
+                            } else {
+                                final String message = "invalid cluster privileges "
+                                    + clusterPrivileges
+                                    + " for cross-cluster API key ["
+                                    + apiKeyInfo.getId()
+                                    + "]";
+                                assert false : message;
+                                listener.onFailure(new IllegalStateException(message));
+                            }
                 }
                 listener.onResponse(Map.of("total", apiKeyInfos.size(), "ccs", ccsKeys, "ccr", ccrKeys, "ccs_ccr", ccsCcrKeys));
             }, listener::onFailure));
         }
+    }
+
+    @Override
+    public void close() {
+        cacheMetrics.forEach(metric -> {
+            try {
+                metric.close();
+            } catch (Exception e) {
+                logger.warn("metrics close() method should not throw Exception", e);
+            }
+        });
     }
 
     // public class for testing

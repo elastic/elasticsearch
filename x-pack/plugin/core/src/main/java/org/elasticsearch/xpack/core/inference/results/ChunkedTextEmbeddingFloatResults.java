@@ -19,10 +19,10 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.inference.results.ChunkedNlpInferenceResults;
 
 import java.io.IOException;
-import java.util.HashMap;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
+import java.util.Objects;
 
 public record ChunkedTextEmbeddingFloatResults(List<EmbeddingChunk> chunks) implements ChunkedInferenceServiceResults {
 
@@ -61,7 +61,7 @@ public record ChunkedTextEmbeddingFloatResults(List<EmbeddingChunk> chunks) impl
 
     @Override
     public Map<String, Object> asMap() {
-        return Map.of(FIELD_NAME, chunks.stream().map(EmbeddingChunk::asMap).collect(Collectors.toList()));
+        return Map.of(FIELD_NAME, chunks);
     }
 
     @Override
@@ -73,16 +73,29 @@ public record ChunkedTextEmbeddingFloatResults(List<EmbeddingChunk> chunks) impl
         return chunks;
     }
 
-    public record EmbeddingChunk(String matchedText, List<Float> embedding) implements Writeable, ToXContentObject {
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        ChunkedTextEmbeddingFloatResults that = (ChunkedTextEmbeddingFloatResults) o;
+        return Objects.equals(chunks, that.chunks);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(chunks);
+    }
+
+    public record EmbeddingChunk(String matchedText, float[] embedding) implements Writeable, ToXContentObject {
 
         public EmbeddingChunk(StreamInput in) throws IOException {
-            this(in.readString(), in.readCollectionAsImmutableList(StreamInput::readFloat));
+            this(in.readString(), in.readFloatArray());
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(matchedText);
-            out.writeCollection(embedding, StreamOutput::writeFloat);
+            out.writeFloatArray(embedding);
         }
 
         @Override
@@ -91,7 +104,7 @@ public record ChunkedTextEmbeddingFloatResults(List<EmbeddingChunk> chunks) impl
             builder.field(ChunkedNlpInferenceResults.TEXT, matchedText);
 
             builder.startArray(ChunkedNlpInferenceResults.INFERENCE);
-            for (Float value : embedding) {
+            for (float value : embedding) {
                 builder.value(value);
             }
             builder.endArray();
@@ -100,16 +113,24 @@ public record ChunkedTextEmbeddingFloatResults(List<EmbeddingChunk> chunks) impl
             return builder;
         }
 
-        public Map<String, Object> asMap() {
-            var map = new HashMap<String, Object>();
-            map.put(ChunkedNlpInferenceResults.TEXT, matchedText);
-            map.put(ChunkedNlpInferenceResults.INFERENCE, embedding);
-            return map;
-        }
-
         @Override
         public String toString() {
             return Strings.toString(this);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            EmbeddingChunk that = (EmbeddingChunk) o;
+            return Objects.equals(matchedText, that.matchedText) && Arrays.equals(embedding, that.embedding);
+        }
+
+        @Override
+        public int hashCode() {
+            int result = Objects.hash(matchedText);
+            result = 31 * result + Arrays.hashCode(embedding);
+            return result;
         }
     }
 

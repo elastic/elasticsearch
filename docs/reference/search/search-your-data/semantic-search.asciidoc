@@ -135,4 +135,6 @@ include::{es-ref-dir}/tab-widgets/semantic-search/hybrid-search-widget.asciidoc[
 ** The https://github.com/elastic/elasticsearch-labs[`elasticsearch-labs`] repo contains a number of interactive semantic search examples in the form of executable Python notebooks, using the {es} Python client
 
 include::semantic-search-elser.asciidoc[]
+include::semantic-search-semantic-text.asciidoc[]
 include::semantic-search-inference.asciidoc[]
+include::cohere-es.asciidoc[]

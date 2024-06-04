@@ -27,9 +27,16 @@ public class MockDenseInferenceServiceIT extends InferenceBaseRestTest {
             assertEquals("text_embedding_test_service", modelMap.get("service"));
         }
 
-        // The response is randomly generated, the input can be anything
-        var inference = inferOnMockService(inferenceEntityId, List.of(randomAlphaOfLength(10)));
+        List<String> input = List.of(randomAlphaOfLength(10));
+        var inference = inferOnMockService(inferenceEntityId, input);
         assertNonEmptyInferenceResults(inference, 1, TaskType.TEXT_EMBEDDING);
+        // Same input should return the same result
+        assertEquals(inference, inferOnMockService(inferenceEntityId, input));
+        // Different input values should not
+        assertNotEquals(
+            inference,
+            inferOnMockService(inferenceEntityId, randomValueOtherThan(input, () -> List.of(randomAlphaOfLength(10))))
+        );
     }
 
     public void testMockServiceWithMultipleInputs() throws IOException {

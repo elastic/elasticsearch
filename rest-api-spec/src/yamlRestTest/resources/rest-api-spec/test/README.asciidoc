@@ -93,14 +93,13 @@ then the first entry in the section (after the title) should be called
 
 A `requires` section defines requirements that have to be met in order for tests to run, such as:
 
+- `capabilities` to <<capabilities_check, require API capabilities>>.
 - `cluster_features` to <<cluster_features, require cluster features>>.
 - `test_runner_features` to <<requires_test_runner_features, require test runner features>>.
 
-A `requires` section must specify at least one of the two options above.
-If `cluster_features` are required, a `reason` must be provided in addition.
-
 A `skip` section, on the other hand, defines certain conditions that, if met, will skip the test, such as:
 
+- `capabilities` to <<capabilities_check, skip if API capabilities are present>>.
 - `cluster_features` to <<cluster_features, skip if cluster features are present>>.
 - `known_issues` to <<skip_known_issues, skip on known issues (based on cluster features)>>.
 - `awaits_fix` to <<skip_awaits_fix, always skip / mute a test due to a pending fix>>.
@@ -108,23 +107,75 @@ A `skip` section, on the other hand, defines certain conditions that, if met, wi
 - `features`: Only kept for a transition period, please use <<requires_test_runner_features, `test_runner_features`>>
   in the `requires` section instead.
 
-A `skip` section must specify at least one of the options above.
-Unless only legacy test runner `features` are required, a `reason` must also be provided.
+`requires` and `skip` sections must specify at least one of the options mentioned above.
+Unless only `test_runner_features` or legacy test runner `features` are specified, a `reason` must be given.
 
-`requires` and / or `skip` can also be used at the top level of the file in the `setup` and `teardown` blocks,
+`requires` and `skip` can also be used at the top level of the file in the `setup` and `teardown` blocks,
 so all the tests in a file will be skipped if either any requirement fails or any skip condition applies regardless
 if defined in `setup` and `teardown`.
+
+[[capabilities_check]]
+=== Require or skip API capabilities
+
+As opposed to <<cluster_features,cluster features>>, which are aimed at performing checks internal to Elasticsearch,
+the capabilities API allows external clients to ask an Elasticsearch cluster what it supports in terms of
+particular endpoints, query parameters and other arbitrary capabilities.
+
+Only if every node in the cluster supports the requested path and method with all parameters and capabilities,
+the capabilities check passes successfully. Capabilities checks can be done both for `skip` and `requires`
+prerequisites. In either case, the _capabilities_ test runner feature must be required to allow
+other test runners to skip tests if they do not support the capabilities API yet.
+
+....
+    "Parent":
+     - requires:
+          capabilities:
+            - method: GET
+              path: /_api
+              parameters: [param1, param2]
+              capabilities: [cap1, cap2]
+          test_runner_feature: [capabilities]
+          reason: Capability required to run test
+     - do:
+       ... test definitions ...
+....
+
+The `capabilities` field is an array containing one or several capabilities checks.
+
+*NOTE: If planning to `skip` on capabilities, keep in mind this might lead to unexpected results in _mixed cluster_
+tests!* A test is only skipped if *all* nodes support the requested capabilities, in _mixed clusters_ this might not be
+the case: such a cluster can consist of a mix of nodes where some support respective capabilities and others don't,
+additionally there might even be nodes that do not support the capabilities API at all.
+In such cases the capabilities check will *not* succeed, hence the test is *not* skipped and might randomly hit one
+of the nodes that actually support what you intended to skip on. This might then break your assumptions and fail the test.
+
+Capabilities are declared as part of an implementation of `RestHandler`.
+Override the `supportedQueryParameters` and/or the `supportedCapabilities` methods:
+
+....
+@Override
+public Set<String> supportedQueryParameters() {
+  return Set.of("param1", "param2");
+}
+
+@Override
+public Set<String> supportedCapabilities() {
+  return Set.of("cap1", "cap2");
+}
+....
 
 [[cluster_features]]
 === Require or skip cluster features
 
-In the past, Elasticsearch has been over-reliant on release version checks all across its code base.
-This has become a limiting factor when deploying Elasticsearch in a more continuous fashion.
+Cluster features indicate a particular high-level _internal_ functionality and are used for coordination within
+the Elasticsearch cluster to enable functionality once supported on all nodes, e.g. usage of a new transport endpoint.
 
-Moving forward, the goal is to base any such check on the availability of a cluster feature.
-Rather than <<skip_version, skipping tests based on various release version ranges>>, you can
-require `cluster_features` to be either present (`requires`) and / or absent (`skip`) in order to run a test.
-For instance:
+In contrast to <<capabilities_check, capabilities>>, cluster features are strictly internal, though can also be used for
+skipping REST tests. Cluster features are not meant to be extremely fine-grained. In case you are not sure if you need
+a cluster feature, <<capabilities_check, capabilities>> might be the better choice.
+
+To select applicable tests (e.g. in backwards compatibility or mixed cluster tests), you can require `cluster_features`
+to be either present (`requires`) or absent (`skip`), for instance:
 
 ....
     "Parent":
@@ -143,13 +194,13 @@ The `cluster_features` field can either be a string or an array of strings.
 
 [[synthetic_cluster_features]]
 Note: In order to smoothen the transition from version checks to cluster feature checks, a REST-test specific
-synthetic cluster feature named `gte_v{VERSION}` is available for all release versions until including 8.14.0.
+synthetic cluster feature named `gte_v{VERSION}` is available for all release versions up to 8.15.0.
 For instance, `gte_v8.12.2` would be available for all release versions greater than or equal to 8.12.2.
 
 [[skip_known_issues]]
 === Skip on known issues
 
-Previously, it was possible to skip ranges of broken release versions using <<skip_version,`version`>>.
+Previously, it was possible to skip ranges of broken release versions using `version`.
 `known_issues` provides a more explicit way to express and skip a certain range of buggy releases based on cluster features.
 Each of possibly multiple issues is a pair of `cluster_feature` and `fixed_by`, where an issue was
 introduced by the former feature and eventually fixed by the latter one. For instance:
@@ -167,6 +218,8 @@ introduced by the former feature and eventually fixed by the latter one. For ins
      - do:
        ... test definitions ...
 ....
+
+The `known_issues` field is an array containing one or several issues.
 
 Note: If a known issue cannot be defined in terms of existing cluster features, the previously described
 <<synthetic_cluster_features,synthetic version based cluster features>> can be used.
@@ -186,55 +239,6 @@ For instance:
      - do:
        ... test definitions ...
 ....
-
-[[skip_version]]
-=== Skip for Elasticsearch versions (deprecated)
-
-If a test section should only be run on certain versions of Elasticsearch,
-then the first entry in the section (after the title) should be called
-`skip`, and should contain the range of versions to be
-skipped, and the reason why the tests are skipped. For instance:
-
-....
-    "Parent":
-     - skip:
-          version:     "0.20.1 - 0.90.2"
-          reason:      Delete ignores the parent param
-
-     - do:
-       ... test definitions ...
-....
-
-All tests in the file following the skip statement should be skipped if:
-`min <= current <= max`.
-
-The `version` range can leave either bound empty, which means "open ended".
-For instance:
-....
-    "Parent":
-     - skip:
-          version:     "1.0.0.Beta1 - "
-          reason:      Delete ignores the parent param
-
-     - do:
-       ... test definitions ...
-....
-
-The `version` field can also have multiple ranges. Combining this with empty bounds
-allows, for example, specifying an include-range instead of a skip range:
-....
-Unsupported metric type position:
-  - skip:
-      version: " - 8.0.99, 8.8.0 - "
-      reason: index.mode introduced in 8.1.0 and metric position introduced in 8.8.0
-
-  - do:
-    ... test that 'position' causes expected error for versions 8.1.0-8.7.99 ...
-....
-
-The value for version can also be `all`, to skip in any version of
-Elasticsearch. This can be used for example when a feature is being implemented
-or awaiting a fix.
 
 [[skip_os]]
 === Skip on certain operating systems
@@ -295,6 +299,10 @@ Tests that are still using `features` in the `skip` sections should be migrated 
 `test_runner_features` to avoid confusion with recently added cluster features.
 
 ==== Available test runner features
+
+===== `capabilities`
+The runner supports checks against the <<capabilities_check,capabilities API>> in a `skip` or `requires`
+prerequisite section.
 
 ===== `xpack`
 Requires x-pack to be enabled on the `Elasticsearch` instance the rest test is running against

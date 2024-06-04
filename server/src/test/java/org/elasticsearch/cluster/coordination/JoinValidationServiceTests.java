@@ -60,6 +60,7 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.elasticsearch.action.support.ActionTestUtils.assertNoSuccessListener;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 
@@ -295,17 +296,9 @@ public class JoinValidationServiceTests extends ESTestCase {
                 assertSame(node, joiningNode);
                 assertEquals(JoinValidationService.JOIN_VALIDATE_ACTION_NAME, action);
 
-                final var listener = new ActionListener<TransportResponse>() {
-                    @Override
-                    public void onResponse(TransportResponse transportResponse) {
-                        fail("should not succeed");
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        handleError(requestId, new RemoteTransportException(node.getName(), node.getAddress(), action, e));
-                    }
-                };
+                final ActionListener<TransportResponse> listener = assertNoSuccessListener(
+                    e -> handleError(requestId, new RemoteTransportException(node.getName(), node.getAddress(), action, e))
+                );
 
                 try (var ignored = NamedWriteableRegistryTests.ignoringUnknownNamedWriteables(); var out = new BytesStreamOutput()) {
                     request.writeTo(out);

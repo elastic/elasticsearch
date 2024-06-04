@@ -445,25 +445,24 @@ public abstract class FieldMapper extends Mapper {
      * <pre>
      * {@link NATIVE} - mapper natively supports synthetic source, f.e. by constructing it from doc values.
      *
-     * {@link FALLBACK} - mapper does not have native support but uses fallback implementation.
-     * This is a temporary variant that exists in order to roll out fallback implementation on a per field basis.
-     *
-     * {@link NOT_SUPPORTED} - synthetic source is not supported.
+     * {@link FALLBACK} - mapper does not have native support and uses generic fallback implementation
+     * that stores raw input source data as is.
      * </pre>
      */
     protected enum SyntheticSourceMode {
         NATIVE,
-        FALLBACK,
-        NOT_SUPPORTED
+        FALLBACK
     }
 
     /**
      * Specifies the mode of synthetic source support by the mapper.
+     * Field mappers must override this method if they provide
+     * a custom implementation of {@link #syntheticFieldLoader()}
      *
      * @return {@link SyntheticSourceMode}
      */
     protected SyntheticSourceMode syntheticSourceMode() {
-        return SyntheticSourceMode.NOT_SUPPORTED;
+        return SyntheticSourceMode.FALLBACK;
     }
 
     /**
@@ -476,7 +475,7 @@ public abstract class FieldMapper extends Mapper {
     @Override
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
         // If mapper supports synthetic source natively, it overrides this method,
-        // /so we won't see those here.
+        // so we won't see those here.
         if (syntheticSourceMode() == SyntheticSourceMode.FALLBACK) {
             if (copyTo.copyToFields().isEmpty() != true) {
                 throw new IllegalArgumentException(

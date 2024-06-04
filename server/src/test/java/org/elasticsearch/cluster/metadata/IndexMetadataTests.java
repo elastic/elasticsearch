@@ -29,6 +29,7 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.test.ESTestCase;
@@ -110,6 +111,8 @@ public class IndexMetadataTests extends ESTestCase {
             .indexWriteLoadForecast(indexWriteLoadForecast)
             .shardSizeInBytesForecast(shardSizeInBytesForecast)
             .putInferenceFields(inferenceFields)
+            // MP TODO: add in IndexLongFieldRange that has an actual range in it
+            .eventIngestedRange(randomFrom(IndexLongFieldRange.UNKNOWN, IndexLongFieldRange.EMPTY, IndexLongFieldRange.NO_SHARDS))
             .build();
         assertEquals(system, metadata.isSystem());
 
@@ -169,6 +172,7 @@ public class IndexMetadataTests extends ESTestCase {
             assertEquals(metadata.getForecastedWriteLoad(), deserialized.getForecastedWriteLoad());
             assertEquals(metadata.getForecastedShardSizeInBytes(), deserialized.getForecastedShardSizeInBytes());
             assertEquals(metadata.getInferenceFields(), deserialized.getInferenceFields());
+            assertEquals(metadata.getEventIngestedRange(), deserialized.getEventIngestedRange());
         }
     }
 

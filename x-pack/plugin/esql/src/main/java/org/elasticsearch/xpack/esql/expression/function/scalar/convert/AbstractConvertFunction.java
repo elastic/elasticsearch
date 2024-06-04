@@ -39,6 +39,10 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
 
 /**
  * Base class for functions that converts a field into a function-specific type.
+ * <p>
+ *     We have a guide for writing these in the javadoc for
+ *     {@link org.elasticsearch.xpack.esql.expression.function.scalar}.
+ * </p>
  */
 public abstract class AbstractConvertFunction extends UnaryScalarFunction {
 

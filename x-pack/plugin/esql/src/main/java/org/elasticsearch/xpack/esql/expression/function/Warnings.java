@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function;
 
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 import static org.elasticsearch.common.logging.HeaderWarning.addWarning;
@@ -22,6 +23,31 @@ public class Warnings {
     private final String first;
 
     private int addedWarnings;
+
+    public static final Warnings NOOP_WARNINGS = new Warnings(Source.EMPTY) {
+        @Override
+        public void registerException(Exception exception) {
+            // this space intentionally left blank
+        }
+    };
+
+    /**
+     * Create a new warnings object based on the given mode
+     * @param warningsMode The warnings collection strategy to use
+     * @param source used to indicate where in the query the warning occured
+     * @return A warnings collector object
+     */
+    public static Warnings createWarnings(DriverContext.WarningsMode warningsMode, Source source) {
+        switch (warningsMode) {
+            case COLLECT -> {
+                return new Warnings(source);
+            }
+            case IGNORE -> {
+                return NOOP_WARNINGS;
+            }
+        }
+        throw new IllegalStateException("Unreachable");
+    }
 
     public Warnings(Source source) {
         location = format("Line {}:{}: ", source.source().getLineNumber(), source.source().getColumnNumber());

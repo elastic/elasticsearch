@@ -387,9 +387,9 @@ public class ActionListenerTests extends ESTestCase {
             final AtomicReference<ActionListener<Object>> listenerRef = new AtomicReference<>(
                 ActionListener.assertAtLeastOnce(ActionListener.noop())
             );
+            // Nullify reference so it becomes unreachable
+            listenerRef.set(null);
             assertBusy(() -> {
-                // Nullify reference so it becomes unreachable
-                listenerRef.set(null);
                 System.gc();
                 mockLog.assertAllExpectationsMatched();
             });
@@ -406,16 +406,16 @@ public class ActionListenerTests extends ESTestCase {
                 listenerCreatedAt.set(createdAt);
             })
         );
+        // Nullify reference so it becomes unreachable
+        listenerRef.set(null);
         assertBusy(() -> {
-            // Nullify reference so it becomes unreachable
-            listenerRef.set(null);
             System.gc();
             assertNotNull(notCalledListener.get());
             assertNotNull(listenerCreatedAt.get());
         });
     }
 
-    public void testAssertAtLeastOnceWillNotLogWhenResolvedOrFailed() throws Exception {
+    public void testAssertAtLeastOnceWillNotLogWhenResolvedOrFailed() {
         final ReachabilityChecker reachabilityChecker = new ReachabilityChecker();
         final AtomicBoolean notCalledListenerCalled = new AtomicBoolean();
         AtomicReference<ActionListener<Object>> listenerRef = new AtomicReference<>(
@@ -434,13 +434,11 @@ public class ActionListenerTests extends ESTestCase {
                 listenerRef.get().onFailure(new RuntimeException("Failed"));
             }
         });
-        assertBusy(() -> {
-            // Nullify reference so it becomes unreachable
-            listenerRef.set(null);
-            System.gc();
-            reachabilityChecker.ensureUnreachable();    // Only proceed once we know the object isn't reachable
-            assertFalse(notCalledListenerCalled.get());
-        });
+        // Nullify reference so it becomes unreachable
+        listenerRef.set(null);
+        System.gc();
+        reachabilityChecker.ensureUnreachable();    // Only proceed once we know the object isn't reachable
+        assertFalse(notCalledListenerCalled.get());
     }
 
     /**

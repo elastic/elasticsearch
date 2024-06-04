@@ -36,6 +36,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.TransportVersionUtils;
@@ -91,6 +92,116 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
         assertThat(serializedClusterState.getClusterName().value(), equalTo(clusterState.getClusterName().value()));
 
         assertThat(serializedClusterState.routingTable().toString(), equalTo(clusterState.routingTable().toString()));
+    }
+
+    // MP TODO: this and 2 other tests have a lot of shared boilerplate - create common method to DRY up tests
+    public void testClusterStateSerializationWithTimestampRanges() throws Exception {
+        // MP TODO: need to figure out how to add a range with actual range values - ctor is private and extendWithShardRange is complex
+        IndexLongFieldRange eventIngestedRangeInput = randomFrom(
+            IndexLongFieldRange.UNKNOWN,
+            IndexLongFieldRange.NO_SHARDS,
+            IndexLongFieldRange.EMPTY
+        );
+
+        IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder("test")
+            .settings(settings(IndexVersion.current()))
+            .numberOfShards(10)
+            .numberOfReplicas(1)
+            .eventIngestedRange(eventIngestedRangeInput);
+
+        Metadata metadata = Metadata.builder().put(indexMetadataBuilder).build();
+
+        RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
+            .addAsNew(metadata.index("test"))
+            .build();
+
+        DiscoveryNodes nodes = DiscoveryNodes.builder()
+            .add(newNode("node1"))
+            .add(newNode("node2"))
+            .add(newNode("node3"))
+            .localNodeId("node1")
+            .masterNodeId("node2")
+            .build();
+
+        ClusterState clusterState = ClusterState.builder(new ClusterName("clusterName1"))
+            .nodes(nodes)
+            .metadata(metadata)
+            .routingTable(routingTable)
+            .build();
+
+        AllocationService strategy = createAllocationService();
+        clusterState = ClusterState.builder(clusterState)
+            .routingTable(strategy.reroute(clusterState, "reroute", ActionListener.noop()).routingTable())
+            .build();
+
+        BytesStreamOutput outStream = new BytesStreamOutput();
+        outStream.setTransportVersion(TransportVersion.current());
+        clusterState.writeTo(outStream);
+        StreamInput inStream = new NamedWriteableAwareStreamInput(
+            outStream.bytes().streamInput(),
+            new NamedWriteableRegistry(ClusterModule.getNamedWriteables())
+        );
+        ClusterState serializedClusterState = ClusterState.readFrom(inStream, null);
+
+        assertThat(serializedClusterState.getClusterName().value(), equalTo(clusterState.getClusterName().value()));
+        assertThat(serializedClusterState.routingTable().toString(), equalTo(clusterState.routingTable().toString()));
+
+        IndexLongFieldRange eventIngestedRangeOutput = serializedClusterState.getMetadata().index("test").getEventIngestedRange();
+        assertSame(eventIngestedRangeInput, eventIngestedRangeOutput);
+    }
+
+    public void testClusterStateSerializationWithTimestampRangesWithOlderTransportVersion() throws Exception {
+        // UNKNOWN is only allowed version for older versions
+        IndexLongFieldRange eventIngestedRangeInput = IndexLongFieldRange.UNKNOWN;
+
+        IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder("test")
+            .settings(settings(IndexVersion.current()))
+            .numberOfShards(10)
+            .numberOfReplicas(1)
+            .eventIngestedRange(eventIngestedRangeInput);
+
+        Metadata metadata = Metadata.builder().put(indexMetadataBuilder).build();
+
+        RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
+            .addAsNew(metadata.index("test"))
+            .build();
+
+        DiscoveryNodes nodes = DiscoveryNodes.builder()
+            .add(newNode("node1"))
+            .add(newNode("node2"))
+            .add(newNode("node3"))
+            .localNodeId("node1")
+            .masterNodeId("node2")
+            .build();
+
+        ClusterState clusterState = ClusterState.builder(new ClusterName("clusterName1"))
+            .nodes(nodes)
+            .metadata(metadata)
+            .routingTable(routingTable)
+            .build();
+
+        AllocationService strategy = createAllocationService();
+        clusterState = ClusterState.builder(clusterState)
+            .routingTable(strategy.reroute(clusterState, "reroute", ActionListener.noop()).routingTable())
+            .build();
+
+        TransportVersion versionBeforeEventIngestedInClusterState = randomFrom(TransportVersions.V_7_0_0, TransportVersions.V_8_0_0);
+        BytesStreamOutput outStream = new BytesStreamOutput();
+        outStream.setTransportVersion(versionBeforeEventIngestedInClusterState);
+        clusterState.writeTo(outStream);
+        StreamInput inStream = new NamedWriteableAwareStreamInput(
+            outStream.bytes().streamInput(),
+            new NamedWriteableRegistry(ClusterModule.getNamedWriteables())
+        );
+        inStream.setTransportVersion(versionBeforeEventIngestedInClusterState);
+        ClusterState serializedClusterState = ClusterState.readFrom(inStream, null);
+
+        assertThat(serializedClusterState.getClusterName().value(), equalTo(clusterState.getClusterName().value()));
+
+        assertThat(serializedClusterState.routingTable().toString(), equalTo(clusterState.routingTable().toString()));
+
+        IndexLongFieldRange eventIngestedRangeOutput = serializedClusterState.getMetadata().index("test").getEventIngestedRange();
+        assertSame(eventIngestedRangeInput, eventIngestedRangeOutput);
     }
 
     public void testRoutingTableSerialization() throws Exception {

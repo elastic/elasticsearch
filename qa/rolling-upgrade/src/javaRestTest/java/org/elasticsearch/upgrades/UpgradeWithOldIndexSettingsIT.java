@@ -10,10 +10,12 @@ package org.elasticsearch.upgrades;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.rest.RestTestLegacyFeatures;
@@ -99,6 +101,30 @@ public class UpgradeWithOldIndexSettingsIT extends AbstractRollingUpgradeTestCas
                 assertThat(slowLogLevel, is("INFO"));
             }
             assertCount(INDEX_NAME, 2);
+        }
+    }
+
+    public void testMapperDynamicIndexSetting() throws IOException {
+        assumeTrue("Setting not removed before 7.0", getOldClusterTestVersion().before("8.0.0"));
+        if (isOldCluster()) {
+            createIndex("my-index", Settings.EMPTY);
+
+            Request request = new Request("PUT", "/my-index/_settings");
+            request.setJsonEntity(org.elasticsearch.common.Strings.toString(Settings.builder().put("index.mapper.dynamic", true).build()));
+            request.setOptions(
+                expectWarnings(
+                    "[index.mapper.dynamic] setting was deprecated in Elasticsearch and will be removed in a future release! "
+                        + "See the breaking changes documentation for the next major version."
+                )
+            );
+            assertOK(client().performRequest(request));
+        } else {
+            ensureGreen("my-index");
+            if (isUpgradedCluster()) {
+                var indexSettings = getIndexSettings("my-index");
+                logger.error("indexSettings={}", indexSettings);
+                assertThat(XContentMapValues.extractValue("index.mapper.archived.dynamic", indexSettings), is(true));
+            }
         }
     }
 

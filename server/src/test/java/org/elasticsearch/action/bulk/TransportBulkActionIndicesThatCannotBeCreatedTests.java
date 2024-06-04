@@ -146,8 +146,8 @@ public class TransportBulkActionIndicesThatCannotBeCreatedTests extends ESTestCa
             }
 
             @Override
-            void createIndex(CreateIndexRequest requireDataStream, ActionListener<CreateIndexResponse> listener) {
-                String index = requireDataStream.index();
+            void createIndex(CreateIndexRequest createIndexRequest, ActionListener<CreateIndexResponse> listener) {
+                String index = createIndexRequest.index();
                 try {
                     simulateAutoCreate.accept(index);
                     // If we try to create an index just immediately assume it worked

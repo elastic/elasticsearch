@@ -22,6 +22,16 @@ public class EntityScore implements ToXContentObject {
     private final double calculatedScoreNorm;
     private final RiskInput[] riskInputs;
 
+    /**
+     * Represents a risk score for a single entity
+     * @param idField
+     * @param idValue
+     * @param category1score
+     * @param category1count
+     * @param calculatedScore
+     * @param calculatedScoreNorm
+     * @param riskInputs
+     */
     public EntityScore(
         String idField,
         String idValue,

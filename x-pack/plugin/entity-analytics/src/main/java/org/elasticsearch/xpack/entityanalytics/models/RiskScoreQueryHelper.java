@@ -24,15 +24,27 @@ import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.entityanalytics.common.EntityTypeUtils;
 
-import java.time.Instant;
-import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 public class RiskScoreQueryHelper {
+    private static final int COMPOSITE_PAGE_SIZE_PER_ENTITY_TYPE = 500;
+    private static final int TOP_HITS_PER_ENTITY = 100;
+    private static final String[] SOURCE_FIELDS_NEEDED_FOR_RISK_SCORING = new String[] {
+        "kibana.alert.risk_score",
+        "event.kind",
+        "kibana.alert.rule.name",
+        "kibana.alert.uuid",
+        "@timestamp" };
 
+    /**
+     * Given a search response and some entity types, extract a map of entity types and their after_keys
+     * @param entityTypes
+     * @param searchResponse
+     * @return
+     */
     public static Map<EntityType, Map<String, Object>> getAfterKeysForEntityTypes(EntityType[] entityTypes, SearchResponse searchResponse) {
         Map<EntityType, Map<String, Object>> afterKeys = new HashMap<>();
         for (EntityType entityType : entityTypes) {
@@ -47,6 +59,13 @@ public class RiskScoreQueryHelper {
         return afterKeys;
     }
 
+    /**
+     * Build the composite aggregation for a given entity type
+     * if afterKeys provided, add those to the composite agg to proceed from the given point
+     * @param entityType
+     * @param afterKeys
+     * @return
+     */
     private static CompositeAggregationBuilder buildEntityAggregation(EntityType entityType, Map<String, Object> afterKeys) {
         String identifierField = EntityTypeUtils.getIdentifierFieldForEntityType(entityType);
         String aggregationName = EntityTypeUtils.getAggregationNameForEntityType(entityType);
@@ -54,23 +73,12 @@ public class RiskScoreQueryHelper {
         sources.add(new TermsValuesSourceBuilder(identifierField).field(identifierField));
 
         CompositeAggregationBuilder compositeAggregationBuilder = AggregationBuilders.composite(aggregationName, sources)
-            .size(500) // TODO: page size
+            .size(COMPOSITE_PAGE_SIZE_PER_ENTITY_TYPE)
             .subAggregation(
                 AggregationBuilders.topHits("top_inputs")
-                    .size(100)
+                    .size(TOP_HITS_PER_ENTITY)
                     .sort("kibana.alert.risk_score", SortOrder.DESC)
-                    .fetchSource(
-                        FetchSourceContext.of(
-                            true,
-                            new String[] {
-                                "kibana.alert.risk_score",
-                                "event.kind",
-                                "kibana.alert.rule.name",
-                                "kibana.alert.uuid",
-                                "@timestamp" },
-                            null
-                        )
-                    )
+                    .fetchSource(FetchSourceContext.of(true, SOURCE_FIELDS_NEEDED_FOR_RISK_SCORING, null))
             );
 
         if (afterKeys != null) {
@@ -80,16 +88,22 @@ public class RiskScoreQueryHelper {
         return compositeAggregationBuilder;
     }
 
+    /**
+     * Build the risk scoring request for the given index
+     * @param index
+     * @param entityTypes
+     * @return
+     */
     public static SearchRequest buildRiskScoreSearchRequest(String index, EntityType[] entityTypes) {
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
 
         // Calculate current time and 30 days ago in Unix time as 'now-30d' was causing 'failed to create query: For input
         // string: \"now-30d\"'
-        long now = Instant.now().toEpochMilli();
-        long nowMinus30Days = Instant.now().minus(30, ChronoUnit.DAYS).toEpochMilli();
+        // long now = Instant.now().toEpochMilli();
+        // long nowMinus30Days = Instant.now().minus(30, ChronoUnit.DAYS).toEpochMilli();
 
         BoolQueryBuilder boolQuery = QueryBuilders.boolQuery()
-            .filter(QueryBuilders.rangeQuery("@timestamp").gte(nowMinus30Days).lt(now))
+            .filter(QueryBuilders.rangeQuery("@timestamp").gte("now-30d").lt("now"))
             .filter(QueryBuilders.boolQuery().mustNot(QueryBuilders.termQuery("kibana.alert.workflow_status", "closed")))
             .filter(QueryBuilders.existsQuery("kibana.alert.risk_score"))
             .should(QueryBuilders.matchAllQuery());
@@ -111,27 +125,32 @@ public class RiskScoreQueryHelper {
         return searchRequest;
     }
 
+    /**
+     * Given a search request and some after keys, return a new search request with the
+     *  after keys applied to the composite aggregation
+     * @param afterKeysByEntityType
+     * @param originalSearchRequest
+     * @return
+     */
     public static SearchRequest updateAggregationsWithAfterKeys(
         Map<EntityType, Map<String, Object>> afterKeysByEntityType,
         SearchRequest originalSearchRequest
     ) {
-        // Extract the original query and filters
         SearchSourceBuilder originalSourceBuilder = originalSearchRequest.source();
         QueryBuilder originalQuery = originalSourceBuilder.query();
 
-        // Create a new search source builder
         SearchSourceBuilder newSourceBuilder = new SearchSourceBuilder();
         newSourceBuilder.query(originalQuery);
         newSourceBuilder.size(0);
 
-        // Update aggregations with after keys
+        // Update the aggregations with after keys
         for (EntityType entityType : EntityType.values()) {
             Map<String, Object> afterKeys = afterKeysByEntityType.get(entityType);
             CompositeAggregationBuilder newCompositeAggregationBuilder = buildEntityAggregation(entityType, afterKeys);
             newSourceBuilder.aggregation(newCompositeAggregationBuilder);
         }
 
-        // Build the new search request
+        // Now build a new search request
         SearchRequest newSearchRequest = new SearchRequest();
         newSearchRequest.source(newSourceBuilder);
         return newSearchRequest;

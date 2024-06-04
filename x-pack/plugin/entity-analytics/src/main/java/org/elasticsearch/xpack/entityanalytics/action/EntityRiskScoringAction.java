@@ -87,13 +87,19 @@ public class EntityRiskScoringAction extends ActionType<EntityRiskScoringRespons
             }
         }
 
+        /**
+         * Calculate the risk scores for the given entity types, this sets off the initial aggregation
+         * if the aggregation returns after_keys we keep calling until there are no more results.
+         * @param category1Index
+         * @param entityTypes
+         * @param listener
+         */
         private void calculateRiskScores(
             String category1Index,
             EntityType[] entityTypes,
             ActionListener<EntityRiskScoringResponse> listener
         ) {
             try {
-                // Initial search request
                 var sr = RiskScoreQueryHelper.buildRiskScoreSearchRequest(category1Index, entityTypes);
                 List<RiskScoreResult> accumulatedResults = new ArrayList<>();
                 performAggregation(sr, entityTypes, listener, accumulatedResults);
@@ -120,7 +126,6 @@ public class EntityRiskScoringAction extends ActionType<EntityRiskScoringRespons
                         var afterKeysByEntityType = RiskScoreQueryHelper.getAfterKeysForEntityTypes(entityTypes, searchResponse);
                         EntityType[] entityTypesWithAfterKeys = afterKeysByEntityType.keySet().toArray(new EntityType[0]);
                         if (entityTypesWithAfterKeys.length > 0) {
-                            System.out.println("Performing search for entity types " + entityTypesWithAfterKeys);
                             var updatedSr = RiskScoreQueryHelper.updateAggregationsWithAfterKeys(afterKeysByEntityType, sr);
                             performAggregation(updatedSr, entityTypesWithAfterKeys, listener, accumulatedResults);
                         } else {

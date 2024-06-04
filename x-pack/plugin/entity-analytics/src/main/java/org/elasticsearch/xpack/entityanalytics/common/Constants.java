@@ -27,4 +27,9 @@ public final class Constants {
      * This value represents the max amount of alert inputs we store, per entity, in the risk document.
      */
     public static double MAX_INPUTS_COUNT = 10;
+
+    /**
+     * TODO: make this dynamic. This will be passed through the API eventually
+     */
+    public static int GLOBAL_IDENTIFIER_TYPE_WEIGHT = 1;
 }

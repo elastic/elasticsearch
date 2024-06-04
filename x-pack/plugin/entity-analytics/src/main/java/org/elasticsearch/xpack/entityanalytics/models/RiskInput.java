@@ -26,6 +26,17 @@ public class RiskInput implements ToXContentObject {
     private final double riskScore;
     private final double contributionScore;
 
+    /**
+     * A risk input is an alert which contributed to the risk score for an entity
+     * currently we return the top 10 risk inputs for a given entity
+     * @param id
+     * @param index
+     * @param timestamp
+     * @param ruleName
+     * @param category
+     * @param riskScore
+     * @param contributionScore
+     */
     public RiskInput(
         String id,
         String index,

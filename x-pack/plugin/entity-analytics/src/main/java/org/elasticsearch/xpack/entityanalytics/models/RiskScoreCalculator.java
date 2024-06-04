@@ -11,6 +11,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.elasticsearch.search.aggregations.metrics.TopHits;
 import org.elasticsearch.xpack.entityanalytics.common.Constants;
+import org.elasticsearch.xpack.entityanalytics.common.EntityTypeUtils;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -18,12 +19,16 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class RiskScoreCalculator {
+    /**
+     * Calculate the risk score and top inputs for the given search response
+     * @param entityType
+     * @param searchResponse
+     * @return
+     */
     private static EntityScore[] processResultsForEntityType(EntityType entityType, SearchResponse searchResponse) {
-        String aggregationName = (entityType.equals(EntityType.Host)) ? "host" : "user";
-        String identifierField = (entityType.equals(EntityType.Host)) ? "host.name" : "user.name";
-        int maxInputs = 10; // TODO make dynamic
-        double global_identifier_type_weight = 1; // TODO: make dynamic
-        List<EntityScore> results = new ArrayList<EntityScore>();
+        String aggregationName = EntityTypeUtils.getAggregationNameForEntityType(entityType);
+        String identifierField = EntityTypeUtils.getIdentifierFieldForEntityType(entityType);
+        List<EntityScore> results = new ArrayList<>();
         CompositeAggregation entityCompositeAgg = searchResponse.getAggregations().get(aggregationName);
 
         for (CompositeAggregation.Bucket eachBucket : entityCompositeAgg.getBuckets()) {
@@ -40,7 +45,7 @@ public class RiskScoreCalculator {
 
                 double riskContribution = riskScoreDouble / Math.pow(i + 1, Constants.RISK_SCORING_SUM_VALUE);
 
-                if (riskInputs.size() < maxInputs) {
+                if (riskInputs.size() < Constants.MAX_INPUTS_COUNT) {
                     double normalizedRiskContribution = 100 * riskContribution / Constants.RISK_SCORING_SUM_MAX;
                     riskInputs.add(RiskInput.fromAlertHit(eachAlert, normalizedRiskContribution));
                 }
@@ -56,7 +61,7 @@ public class RiskScoreCalculator {
                     identifierValue,
                     totalScore[0],
                     category1Count,
-                    totalScore[0] * global_identifier_type_weight,
+                    totalScore[0] * Constants.GLOBAL_IDENTIFIER_TYPE_WEIGHT,
                     normalizedScore,
                     riskInputs.toArray(new RiskInput[0])
                 )

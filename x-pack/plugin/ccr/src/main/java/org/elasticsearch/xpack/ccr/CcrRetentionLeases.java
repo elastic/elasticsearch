@@ -81,10 +81,7 @@ public class CcrRetentionLeases {
         final TimeValue timeout
     ) {
         try {
-            final PlainActionFuture<ActionResponse.Empty> response = new UnsafePlainActionFuture<>(
-                Ccr.CCR_THREAD_POOL_NAME,
-                ThreadPool.Names.GENERIC
-            );
+            final PlainActionFuture<ActionResponse.Empty> response = new UnsafePlainActionFuture<>(ThreadPool.Names.GENERIC);
             asyncAddRetentionLease(leaderShardId, retentionLeaseId, retainingSequenceNumber, remoteClient, response);
             response.actionGet(timeout);
             return Optional.empty();

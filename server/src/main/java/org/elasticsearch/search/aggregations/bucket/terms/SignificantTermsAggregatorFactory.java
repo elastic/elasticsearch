@@ -172,8 +172,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                     SubAggCollectionMode.BREADTH_FIRST,
                     longFilter,
                     cardinality,
-                    metadata,
-                    false
+                    metadata
                 );
             }
         };
@@ -310,8 +309,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                     SubAggCollectionMode.BREADTH_FIRST,
                     false,
                     cardinality,
-                    metadata,
-                    false
+                    metadata
                 );
 
             }
@@ -365,8 +363,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                     SubAggCollectionMode.BREADTH_FIRST,
                     false,
                     cardinality,
-                    metadata,
-                    false
+                    metadata
                 );
             }
         };

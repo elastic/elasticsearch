@@ -31,7 +31,6 @@ interface TermsAggregatorSupplier {
         Aggregator.SubAggCollectionMode subAggCollectMode,
         boolean showTermDocCountError,
         CardinalityUpperBound cardinality,
-        Map<String, Object> metadata,
-        boolean excludeDeletedDocs
+        Map<String, Object> metadata
     ) throws IOException;
 }

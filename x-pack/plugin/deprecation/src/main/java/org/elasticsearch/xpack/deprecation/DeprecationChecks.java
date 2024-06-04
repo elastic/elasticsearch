@@ -242,9 +242,7 @@ public class DeprecationChecks {
                 NodeDeprecationChecks::checkLifecyleStepMasterTimeoutSetting,
                 NodeDeprecationChecks::checkEqlEnabledSetting,
                 NodeDeprecationChecks::checkNodeAttrData,
-                NodeDeprecationChecks::checkPollIntervalTooLow,
-                NodeDeprecationChecks::checkDLSForceTermsAggsToExcludeDeleteDocsEnabledSetting,
-                NodeDeprecationChecks::checkDLSErrorWhenValidateQueryWithRewrite
+                NodeDeprecationChecks::checkPollIntervalTooLow
             )
         ).collect(Collectors.toList());
     }

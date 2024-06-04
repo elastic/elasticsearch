@@ -39,7 +39,6 @@ import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.rest.RestHandler.Route;
 import org.elasticsearch.rest.action.ProfilerCount;
-import org.elasticsearch.rest.action.ProfilerData;
 import org.elasticsearch.rest.action.ProfilerOff;
 import org.elasticsearch.rest.action.ProfilerOn;
 import org.elasticsearch.rest.action.ProfilerStatus;
@@ -135,7 +134,6 @@ public class RestController implements HttpServerTransport.Dispatcher {
         registerHandler(new ProfilerOn());
         registerHandler(new ProfilerCount());
         registerHandler(new ProfilerStatus());
-        registerHandler(new ProfilerData());
         this.apiProtections = new ServerlessApiProtections(false);
     }
 

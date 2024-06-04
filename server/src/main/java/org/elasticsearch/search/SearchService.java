@@ -671,11 +671,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      */
     private SearchPhaseResult executeQueryPhase(ShardSearchRequest request, SearchShardTask task) throws Exception {
         ProfilerState.getInstance().incrementQueryCount();
-        if(ProfilerState.getInstance().getStatus() == 1){
-            ProfilerState.getInstance().getIndex_query_count().merge(request.indices()[0],1,Integer::sum);
-        }
-
-       // ProfilerState.getInstance().getIndex_query_count().merge(request.indices()[0],1,Integer::sum);
         final ReaderContext readerContext = createOrGetReaderContext(request);
         try (
             Releasable scope = tracer.withScope(task);

@@ -86,6 +86,9 @@ public class Repeat extends EsqlScalarFunction implements OptionalArgument {
 
     @Evaluator(warnExceptions = { IllegalArgumentException.class })
     static BytesRef process(BytesRef str, int number) {
+        if (number < 0) {
+            throw new IllegalArgumentException("Number parameter cannot be negative, found [" + number + "]");
+        }
         return processInner(str, number);
     }
 
@@ -93,13 +96,12 @@ public class Repeat extends EsqlScalarFunction implements OptionalArgument {
         if (str == null) {
             return null;
         }
-        if (number < 0) {
-            throw new IllegalArgumentException("Number parameter cannot be negative, found [" + number + "]");
-        }
 
         int repeatedLen = str.length * number;
         if (repeatedLen > MAX_REPEATED_LENGTH) {
-            throw new EsqlClientException("Creating repeated strings with more than [" + MAX_REPEATED_LENGTH + "] bytes is not supported");
+            throw new IllegalArgumentException(
+                "Creating repeated strings with more than [" + MAX_REPEATED_LENGTH + "] bytes is not supported"
+            );
         }
 
         byte[] repeated = new byte[repeatedLen];
@@ -125,6 +127,9 @@ public class Repeat extends EsqlScalarFunction implements OptionalArgument {
 
         if (number.foldable()) {
             int num = (int) number.fold();
+            if (num < 0) {
+                throw new IllegalArgumentException("Number parameter cannot be negative, found [" + number + "]");
+            }
             return new RepeatConstantEvaluator.Factory(source(), strExpr, num);
         }
 

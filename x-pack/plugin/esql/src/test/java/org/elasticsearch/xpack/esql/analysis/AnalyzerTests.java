@@ -1931,6 +1931,56 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("LOOKUP not yet supported"));
     }
 
+    public void testImplicitCasting() {
+        var e = expectThrows(VerificationException.class, () -> analyze("""
+             from test | eval x = concat("2024", "-04", "-01") + 1 day
+            """));
+
+        assertThat(
+            e.getMessage(),
+            containsString("first argument of [concat(\"2024\", \"-04\", \"-01\") + 1 day] must be [datetime or numeric]")
+        );
+
+        e = expectThrows(VerificationException.class, () -> analyze("""
+             from test | eval x = to_string(null) - 1 day
+            """));
+
+        assertThat(e.getMessage(), containsString("first argument of [to_string(null) - 1 day] must be [datetime or numeric]"));
+
+        e = expectThrows(VerificationException.class, () -> analyze("""
+             from test | eval x = concat("2024", "-04", "-01") + "1 day"
+            """));
+
+        assertThat(
+            e.getMessage(),
+            containsString("first argument of [concat(\"2024\", \"-04\", \"-01\") + \"1 day\"] must be [datetime or numeric]")
+        );
+
+        e = expectThrows(VerificationException.class, () -> analyze("""
+             from test | eval x = 1 year - "2024-01-01" + 1 day
+            """));
+
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "arguments are in unsupported order: cannot subtract a [DATETIME] value [\"2024-01-01\"] "
+                    + "from a [DATE_PERIOD] amount [1 year]"
+            )
+        );
+
+        e = expectThrows(VerificationException.class, () -> analyze("""
+             from test | eval x = "2024-01-01" - 1 day - "2023-12-31"
+            """));
+
+        assertThat(e.getMessage(), containsString("[-] has arguments with incompatible types [datetime] and [datetime]"));
+
+        e = expectThrows(VerificationException.class, () -> analyze("""
+             from test | eval x = "2024-01-01" - 1 day + "2023-12-31"
+            """));
+
+        assertThat(e.getMessage(), containsString("[+] has arguments with incompatible types [datetime] and [datetime]"));
+    }
+
     private void verifyUnsupported(String query, String errorMessage) {
         verifyUnsupported(query, errorMessage, "mapping-multi-field-variation.json");
     }

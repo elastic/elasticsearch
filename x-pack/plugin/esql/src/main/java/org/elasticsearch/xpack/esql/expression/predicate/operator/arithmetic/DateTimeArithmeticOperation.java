@@ -29,7 +29,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.isNull;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isDateTimeOrTemporal;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isTemporalAmount;
 
-abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperation {
+public abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperation {
     /** Arithmetic (quad) function. */
     interface DatetimeArithmeticEvaluator {
         ExpressionEvaluator.Factory apply(Source source, ExpressionEvaluator.Factory expressionEvaluator, TemporalAmount temporalAmount);

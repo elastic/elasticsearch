@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -115,7 +114,7 @@ public class MvAppend extends EsqlScalarFunction implements EvaluatorMapper {
             return resolution;
         }
         dataType = field1.dataType();
-        if (dataType == DataTypes.NULL) {
+        if (dataType == DataType.NULL) {
             dataType = field2.dataType();
             return isType(field2, EsqlDataTypes::isRepresentable, sourceText(), SECOND, "representable");
         }

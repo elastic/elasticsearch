@@ -123,7 +123,6 @@ public class DistroTestPlugin implements Plugin<Project> {
             String taskname = destructiveDistroTestTaskName(distribution);
             TaskProvider<?> depsTask = project.getTasks().register(taskname + "#deps");
             // explicitly depend on the archive not on the implicit extracted distribution
-            depsTask.configure(t -> t.dependsOn(distribution.getArchiveDependencies()));
             depsTask.configure(t -> t.dependsOn(examplePlugin.getDependencies()));
             depsTasks.put(taskname, depsTask);
             TaskProvider<Test> destructiveTask = configureTestTask(project, taskname, distribution, t -> {
@@ -447,6 +446,7 @@ public class DistroTestPlugin implements Plugin<Project> {
             if (isDocker == false) {
                 d.setBundledJdk(bundledJdk);
             }
+            d.setPreferArchive(true);
             d.setVersion(version);
         });
 

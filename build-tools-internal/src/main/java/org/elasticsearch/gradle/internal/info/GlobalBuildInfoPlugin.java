@@ -262,7 +262,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
     private Stream<InstallationLocation> getAvailableJavaInstallationLocationSteam() {
         return Stream.concat(
             javaInstallationRegistry.toolchains().stream().map(metadata -> metadata.location),
-            Stream.of(new InstallationLocation(Jvm.current().getJavaHome(), "Current JVM"))
+            Stream.of(InstallationLocation.userDefined(Jvm.current().getJavaHome(), "Current JVM"))
         );
     }
 

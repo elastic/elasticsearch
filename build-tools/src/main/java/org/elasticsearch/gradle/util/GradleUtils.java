@@ -16,6 +16,7 @@ import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.Dependency;
 import org.gradle.api.artifacts.ModuleDependency;
 import org.gradle.api.artifacts.ProjectDependency;
+import org.gradle.api.artifacts.dsl.DependencyHandler;
 import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.plugins.JavaPluginExtension;
@@ -183,14 +184,11 @@ public abstract class GradleUtils {
         }
     }
 
-    public static Dependency projectDependency(Project project, String projectPath, String projectConfig) {
-        if (project.findProject(projectPath) == null) {
-            throw new GradleException("no project [" + projectPath + "], project names: " + project.getRootProject().getAllprojects());
-        }
+    private static Dependency projectDependency(DependencyHandler dependencyHandler, String projectPath, String projectConfig) {
         Map<String, Object> depConfig = new HashMap<>();
         depConfig.put("path", projectPath);
         depConfig.put("configuration", projectConfig);
-        return project.getDependencies().project(depConfig);
+        return dependencyHandler.project(depConfig);
     }
 
     /**

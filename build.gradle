@@ -27,6 +27,16 @@ import org.elasticsearch.gradle.internal.ResolveAllDependencies
 import java.nio.file.Files
 import static java.nio.file.StandardCopyOption.REPLACE_EXISTING
 
+buildscript {
+  repositories {
+    maven {
+      url 'https://jitpack.io'
+    }
+
+    mavenCentral()
+  }
+}
+
 plugins {
   id 'lifecycle-base'
   id 'elasticsearch.docker-support'
@@ -313,7 +323,7 @@ allprojects {
       integTestTask.mustRunAfter tasks.matching { it.name.equals("test") }
     }
 
-    configurations.matching { it.canBeResolved }.all { Configuration configuration ->
+/*    configurations.matching { it.canBeResolved }.all { Configuration configuration ->
       dependencies.matching { it instanceof ProjectDependency }.all { ProjectDependency dep ->
         Project upstreamProject = dep.dependencyProject
         if (project.path != upstreamProject?.path) {
@@ -324,7 +334,7 @@ allprojects {
           }
         }
       }
-    }
+    }*/
   }
 
   apply plugin: 'elasticsearch.formatting'

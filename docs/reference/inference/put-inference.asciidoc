@@ -7,10 +7,13 @@ experimental[]
 Creates an {infer} endpoint to perform an {infer} task.
 
 IMPORTANT: The {infer} APIs enable you to use certain services, such as built-in
-{ml} models (ELSER, E5), models uploaded through Eland, Cohere, OpenAI, Azure OpenAI, Google AI Studio or Hugging Face.
-For built-in models and models uploaded though Eland, the {infer} APIs offer an alternative way to use and manage trained models.
-However, if you do not plan to use the {infer} APIs to use these models or if you want to use non-NLP models, use the
+{ml} models (ELSER, E5), models uploaded through Eland, Cohere, OpenAI, Azure
+OpenAI, Google AI Studio or Hugging Face. For built-in models and models
+uploaded though Eland, the {infer} APIs offer an alternative way to use and
+manage trained models. However, if you do not plan to use the {infer} APIs to
+use these models or if you want to use non-NLP models, use the
 <<ml-df-trained-models-apis>>.
+
 
 [discrete]
 [[put-inference-api-request]]
@@ -18,12 +21,14 @@ However, if you do not plan to use the {infer} APIs to use these models or if yo
 
 `PUT /_inference/<task_type>/<inference_id>`
 
+
 [discrete]
 [[put-inference-api-prereqs]]
 ==== {api-prereq-title}
 
 * Requires the `manage_inference` <<privileges-list-cluster,cluster privilege>>
 (the built-in `inference_admin` role grants this privilege)
+
 
 [discrete]
 [[put-inference-api-desc]]
@@ -44,33 +49,39 @@ The following services are available through the {infer} API:
 * Mistral
 * OpenAI
 
+
 [discrete]
 [[put-inference-api-path-params]]
 ==== {api-path-parms-title}
 
 `<inference_id>`::
-(Required, string) The unique identifier of the {infer} endpoint.
+(Required, string)
+The unique identifier of the {infer} endpoint.
 
 `<task_type>`::
-(Required, string) The type of the {infer} task that the model will perform.
-Available task types:
+(Required, string)
+The type of the {infer} task that the model will perform. Available task types:
 * `completion`,
 * `rerank`,
 * `sparse_embedding`,
 * `text_embedding`.
+
 
 [discrete]
 [[put-inference-api-request-body]]
 ==== {api-request-body-title}
 
 `service`::
-(Required, string) The type of service supported for the specified task type.
+(Required, string)
+The type of service supported for the specified task type.
 Available services:
 
 * `azureopenai`: specify the `completion` or `text_embedding` task type to use the Azure OpenAI service.
 * `azureaistudio`: specify the `completion` or `text_embedding` task type to use the Azure AI Studio service.
-* `cohere`: specify the `completion`, `text_embedding` or the `rerank` task type to use the Cohere service.
-* `elasticsearch`: specify the `text_embedding` task type to use the E5 built-in model or text embedding models uploaded by Eland.
+* `cohere`: specify the `completion`, `text_embedding` or the `rerank` task type to use the
+Cohere service.
+* `elasticsearch`: specify the `text_embedding` task type to use the E5
+built-in model or text embedding models uploaded by Eland.
 * `elser`: specify the `sparse_embedding` task type to use the ELSER service.
 * `googleaistudio`: specify the `completion` task to use the Google AI Studio service.
 * `hugging_face`: specify the `text_embedding` task type to use the Hugging Face service.
@@ -79,8 +90,8 @@ Available services:
 
 
 `service_settings`::
-(Required, object) Settings used to install the {infer} model.
-These settings are specific to the
+(Required, object)
+Settings used to install the {infer} model. These settings are specific to the
 `service` you specified.
 +
 .`service_settings` for the `azureaistudio` service
@@ -88,20 +99,24 @@ These settings are specific to the
 =====
 
 `api_key`:::
-(Required, string) A valid API key of your Azure AI Studio model deployment.
+(Required, string)
+A valid API key of your Azure AI Studio model deployment.
 This key can be found on the overview page for your deployment in the management section of your https://ai.azure.com/[Azure AI Studio] account.
 
-IMPORTANT: You need to provide the API key only once, during the {infer} model creation.
-The <<get-inference-api>> does not retrieve your API key.
-After creating the {infer} model, you cannot change the associated API key.
-If you want to use a different API key, delete the {infer} model and recreate it with the same name and the updated API key.
+IMPORTANT: You need to provide the API key only once, during the {infer} model
+creation. The <<get-inference-api>> does not retrieve your API key. After
+creating the {infer} model, you cannot change the associated API key. If you
+want to use a different API key, delete the {infer} model and recreate it with
+the same name and the updated API key.
 
 `target`:::
-(Required, string) The target URL of your Azure AI Studio model deployment.
+(Required, string)
+The target URL of your Azure AI Studio model deployment.
 This can be found on the overview page for your deployment in the management section of your https://ai.azure.com/[Azure AI Studio] account.
 
 `provider`:::
-(Required, string) The model provider for your deployment.
+(Required, string)
+The model provider for your deployment.
 Note that some providers may support only certain task types.
 Supported providers include:
 
@@ -113,7 +128,8 @@ Supported providers include:
 * `openai` - available for `text_embedding` and `completion` task types
 
 `endpoint_type`:::
-(Required, string) One of `token` or `realtime`.
+(Required, string)
+One of `token` or `realtime`.
 Specifies the type of endpoint that is used in your model deployment.
 There are https://learn.microsoft.com/en-us/azure/ai-studio/concepts/deployments-overview#billing-for-deploying-and-inferencing-llms-in-azure-ai-studio[two endpoint types available] for deployment through Azure AI Studio.
 "Pay as you go" endpoints are billed per token.
@@ -121,7 +137,8 @@ For these, you must specify `token` for your `endpoint_type`.
 For "real-time" endpoints which are billed per hour of usage, specify `realtime`.
 
 `rate_limit`:::
-(Optional, object) By default, the `azureaistudio` service sets the number of requests allowed per minute to `240`.
+(Optional, object)
+By default, the `azureaistudio` service sets the number of requests allowed per minute to `240`.
 This helps to minimize the number of rate limit errors returned from Azure AI Studio.
 To modify this, set the `requests_per_minute` setting of this object in your service settings:
 
@@ -137,7 +154,8 @@ To modify this, set the `requests_per_minute` setting of this object in your ser
 =====
 
 `api_key` or `entra_id`:::
-(Required, string) You must provide _either_ an API key or an Entra ID.
+(Required, string)
+You must provide _either_ an API key or an Entra ID.
 If you do not provide either, or provide both, you will receive an error when trying to create your model.
 See the https://learn.microsoft.com/en-us/azure/ai-services/openai/reference#authentication[Azure OpenAI Authentication documentation] for more details on these authentication types.
 
@@ -149,15 +167,18 @@ You _must_ have either an `api_key` or an `entra_id` defined.
 If neither are present, an error will occur.
 
 `resource_name`:::
-(Required, string) The name of your Azure OpenAI resource.
+(Required, string)
+The name of your Azure OpenAI resource.
 You can find this from the https://portal.azure.com/#view/HubsExtension/BrowseAll[list of resources] in the Azure Portal for your subscription.
 
 `deployment_id`:::
-(Required, string) The deployment name of your deployed models.
+(Required, string)
+The deployment name of your deployed models.
 Your Azure OpenAI deployments can be found though the https://oai.azure.com/[Azure OpenAI Studio] portal that is linked to your subscription.
 
 `api_version`:::
-(Required, string) The Azure API version ID to use.
+(Required, string)
+The Azure API version ID to use.
 We recommend using the https://learn.microsoft.com/en-us/azure/ai-services/openai/reference#embeddings[latest supported non-preview version].
 
 =====
@@ -166,32 +187,34 @@ We recommend using the https://learn.microsoft.com/en-us/azure/ai-services/opena
 [%collapsible%closed]
 =====
 `api_key`:::
-(Required, string) A valid API key of your Cohere account.
-You can find your Cohere API keys or you can create a new one
+(Required, string)
+A valid API key of your Cohere account. You can find your Cohere API keys or you
+can create a new one
 https://dashboard.cohere.com/api-keys[on the API keys settings page].
 
-IMPORTANT: You need to provide the API key only once, during the {infer} model creation.
-The <<get-inference-api>> does not retrieve your API key.
-After creating the {infer} model, you cannot change the associated API key.
-If you want to use a different API key, delete the {infer} model and recreate it with the same name and the updated API key.
+IMPORTANT: You need to provide the API key only once, during the {infer} model
+creation. The <<get-inference-api>> does not retrieve your API key. After
+creating the {infer} model, you cannot change the associated API key. If you
+want to use a different API key, delete the {infer} model and recreate it with
+the same name and the updated API key.
 
 `embedding_type`::
-(Optional, string) Only for `text_embedding`.
-Specifies the types of embeddings you want to get back.
-Defaults to `float`.
+(Optional, string)
+Only for `text_embedding`. Specifies the types of embeddings you want to get
+back. Defaults to `float`.
 Valid values are:
-* `byte`: use it for signed int8 embeddings (this is a synonym of `int8`).
-* `float`: use it for the default float embeddings.
-* `int8`: use it for signed int8 embeddings.
+  * `byte`: use it for signed int8 embeddings (this is a synonym of `int8`).
+  * `float`: use it for the default float embeddings.
+  * `int8`: use it for signed int8 embeddings.
 
 `model_id`::
-(Optional, string) The name of the model to use for the {infer} task.
+(Optional, string)
+The name of the model to use for the {infer} task.
 To review the available `rerank` models, refer to the
 https://docs.cohere.com/reference/rerank-1[Cohere docs].
 
 To review the available `text_embedding` models, refer to the
-https://docs.cohere.com/reference/embed[Cohere docs].
-The default value for
+https://docs.cohere.com/reference/embed[Cohere docs]. The default value for
 `text_embedding` is `embed-english-v2.0`.
 
 =====
@@ -201,17 +224,22 @@ The default value for
 =====
 
 `model_id`:::
-(Required, string) The name of the model to use for the {infer} task.
-It can be the ID of either a built-in model (for example, `.multilingual-e5-small` for E5) or a text embedding model already
+(Required, string)
+The name of the model to use for the {infer} task. It can be the
+ID of either a built-in model (for example, `.multilingual-e5-small` for E5) or
+a text embedding model already
 {ml-docs}/ml-nlp-import-model.html#ml-nlp-import-script[uploaded through Eland].
 
 `num_allocations`:::
-(Required, integer) The number of model allocations to create. `num_allocations` must not exceed the number of available processors per node divided by the `num_threads`.
+(Required, integer)
+The number of model allocations to create. `num_allocations` must not exceed the
+number of available processors per node divided by the `num_threads`.
 
 `num_threads`:::
-(Required, integer) The number of threads to use by each model allocation. `num_threads` must not exceed the number of available processors per node divided by the number of allocations.
-Must be a power of 2. Max allowed value is 32.
-
+(Required, integer)
+The number of threads to use by each model allocation. `num_threads` must not
+exceed the number of available processors per node divided by the number of
+allocations. Must be a power of 2. Max allowed value is 32.
 =====
 +
 .`service_settings` for the `elser` service
@@ -219,12 +247,15 @@ Must be a power of 2. Max allowed value is 32.
 =====
 
 `num_allocations`:::
-(Required, integer) The number of model allocations to create. `num_allocations` must not exceed the number of available processors per node divided by the `num_threads`.
+(Required, integer)
+The number of model allocations to create. `num_allocations` must not exceed the
+number of available processors per node divided by the `num_threads`.
 
 `num_threads`:::
-(Required, integer) The number of threads to use by each model allocation. `num_threads` must not exceed the number of available processors per node divided by the number of allocations.
-Must be a power of 2. Max allowed value is 32.
-
+(Required, integer)
+The number of threads to use by each model allocation. `num_threads` must not
+exceed the number of available processors per node divided by the number of
+allocations. Must be a power of 2. Max allowed value is 32.
 =====
 +
 .`service_settings` for the `googleiastudio` service
@@ -232,14 +263,17 @@ Must be a power of 2. Max allowed value is 32.
 =====
 
 `api_key`:::
-(Required, string) A valid API key for the Google Gemini API.
+(Required, string)
+A valid API key for the Google Gemini API.
 
 `model_id`:::
-(Required, string) The name of the model to use for the {infer} task.
+(Required, string)
+The name of the model to use for the {infer} task.
 You can find the supported models at https://ai.google.dev/gemini-api/docs/models/gemini[Gemini API models].
 
 `rate_limit`:::
-(Optional, object) By default, the `googleaistudio` service sets the number of requests allowed per minute to `360`.
+(Optional, object)
+By default, the `googleaistudio` service sets the number of requests allowed per minute to `360`.
 This helps to minimize the number of rate limit errors returned from Google AI Studio.
 To modify this, set the `requests_per_minute` setting of this object in your service settings:
 +
@@ -258,51 +292,20 @@ To modify this, set the `requests_per_minute` setting of this object in your ser
 =====
 
 `api_key`:::
-(Required, string) A valid access token of your Hugging Face account.
-You can find your Hugging Face access tokens or you can create a new one
+(Required, string)
+A valid access token of your Hugging Face account. You can find your Hugging
+Face access tokens or you can create a new one
 https://huggingface.co/settings/tokens[on the settings page].
 
-IMPORTANT: You need to provide the API key only once, during the {infer} model creation.
-The <<get-inference-api>> does not retrieve your API key.
-After creating the {infer} model, you cannot change the associated API key.
-If you want to use a different API key, delete the {infer} model and recreate it with the same name and the updated API key.
+IMPORTANT: You need to provide the API key only once, during the {infer} model
+creation. The <<get-inference-api>> does not retrieve your API key. After
+creating the {infer} model, you cannot change the associated API key. If you
+want to use a different API key, delete the {infer} model and recreate it with
+the same name and the updated API key.
 
 `url`:::
-(Required, string) The URL endpoint to use for the requests.
-
-=====
-+
-.`service_settings` for the `mistral` service
-[%collapsible%closed]
-=====
-
-`api_key`:::
-(Required, string) A valid API key for your Mistral account.
-You can find your Mistral API keys or you can create a new one
-https://console.mistral.ai/api-keys/[on the API Keys page].
-
-`model`:::
-(Required, string) The name of the model to use for the {infer} task.
-Refer to the
-https://docs.mistral.ai/getting-started/models/[Mistral models documentation]
-for the list of available text embedding models.
-
-`max_input_tokens`:::
-(Optional, integer) Allows you to specify the maximum number of tokens per input before chunking occurs.
-
-`rate_limit`:::
-(Optional, object) By default, the `mistral` service sets the number of requests allowed per minute to `240`.
-This helps to minimize the number of rate limit errors returned from the Mistral API.
-To modify this, set the `requests_per_minute` setting of this object in your service settings:
-+
---
-```
-"rate_limit": {
-    "requests_per_minute": <<number_of_requests>>
-}
-```
---
-
+(Required, string)
+The URL endpoint to use for the requests.
 =====
 +
 .`service_settings` for the `openai` service
@@ -310,36 +313,39 @@ To modify this, set the `requests_per_minute` setting of this object in your ser
 =====
 
 `api_key`:::
-(Required, string) A valid API key of your OpenAI account.
-You can find your OpenAI API keys in your OpenAI account under the
+(Required, string)
+A valid API key of your OpenAI account. You can find your OpenAI API keys in
+your OpenAI account under the
 https://platform.openai.com/api-keys[API keys section].
 
-IMPORTANT: You need to provide the API key only once, during the {infer} model creation.
-The <<get-inference-api>> does not retrieve your API key.
-After creating the {infer} model, you cannot change the associated API key.
-If you want to use a different API key, delete the {infer} model and recreate it with the same name and the updated API key.
+IMPORTANT: You need to provide the API key only once, during the {infer} model
+creation. The <<get-inference-api>> does not retrieve your API key. After
+creating the {infer} model, you cannot change the associated API key. If you
+want to use a different API key, delete the {infer} model and recreate it with
+the same name and the updated API key.
 
 `model_id`:::
-(Required, string) The name of the model to use for the {infer} task.
-Refer to the
+(Required, string)
+The name of the model to use for the {infer} task. Refer to the
 https://platform.openai.com/docs/guides/embeddings/what-are-embeddings[OpenAI documentation]
 for the list of available text embedding models.
 
 `organization_id`:::
-(Optional, string) The unique identifier of your organization.
-You can find the Organization ID in your OpenAI account under
+(Optional, string)
+The unique identifier of your organization. You can find the Organization ID in
+your OpenAI account under
 https://platform.openai.com/account/organization[**Settings** > **Organizations**].
 
 `url`:::
-(Optional, string) The URL endpoint to use for the requests.
-Can be changed for testing purposes.
+(Optional, string)
+The URL endpoint to use for the requests. Can be changed for testing purposes.
 Defaults to `https://api.openai.com/v1/embeddings`.
 
 =====
 
 `task_settings`::
-(Optional, object) Settings to configure the {infer} task.
-These settings are specific to the
+(Optional, object)
+Settings to configure the {infer} task. These settings are specific to the
 `<task_type>` you specified.
 +
 .`task_settings` for the `completion` task type
@@ -347,26 +353,31 @@ These settings are specific to the
 =====
 
 `do_sample`:::
-(Optional, float) For the `azureaistudio` service only.
+(Optional, float)
+For the `azureaistudio` service only.
 Instructs the inference process to perform sampling or not.
 Has not affect unless `temperature` or `top_p` is specified.
 
 `max_new_tokens`:::
-(Optional, integer) For the `azureaistudio` service only.
+(Optional, integer)
+For the `azureaistudio` service only.
 Provides a hint for the maximum number of output tokens to be generated.
 Defaults to 64.
 
 `user`:::
-(Optional, string) For `openai` service only.
-Specifies the user issuing the request, which can be used for abuse detection.
+(Optional, string)
+For `openai` service only. Specifies the user issuing the request, which can be
+used for abuse detection.
 
 `temperature`:::
-(Optional, float) For the `azureaistudio` service only.
+(Optional, float)
+For the `azureaistudio` service only.
 A number in the range of 0.0 to 2.0 that specifies the sampling temperature to use that controls the apparent creativity of generated completions.
 Should not be used if `top_p` is specified.
 
 `top_p`:::
-(Optional, float) For the `azureaistudio` service only.
+(Optional, float)
+For the `azureaistudio` service only.
 A number in the range of 0.0 to 2.0 that is an alternative value to temperature that causes the model to consider the results of the tokens with nucleus sampling probability.
 Should not be used if `temperature` is specified.
 
@@ -377,12 +388,14 @@ Should not be used if `temperature` is specified.
 =====
 
 `return_documents`::
-(Optional, boolean) For `cohere` service only.
-Specify whether to return doc text within the results.
+(Optional, boolean)
+For `cohere` service only. Specify whether to return doc text within the
+results.
 
 `top_n`::
-(Optional, integer) The number of most relevant documents to return, defaults to the number of the documents.
-
+(Optional, integer)
+The number of most relevant documents to return, defaults to the number of the
+documents.
 =====
 +
 .`task_settings` for the `text_embedding` task type
@@ -390,26 +403,30 @@ Specify whether to return doc text within the results.
 =====
 
 `input_type`:::
-(Optional, string) For `cohere` service only.
-Specifies the type of input passed to the model.
+(Optional, string)
+For `cohere` service only. Specifies the type of input passed to the model.
 Valid values are:
-* `classification`: use it for embeddings passed through a text classifier.
-* `clusterning`: use it for the embeddings run through a clustering algorithm.
-* `ingest`: use it for storing document embeddings in a vector database.
-* `search`: use it for storing embeddings of search queries run against a vector database to find relevant documents.
+  * `classification`: use it for embeddings passed through a text classifier.
+  * `clusterning`: use it for the embeddings run through a clustering algorithm.
+  * `ingest`: use it for storing document embeddings in a vector database.
+  * `search`: use it for storing embeddings of search queries run against a
+  vector database to find relevant documents.
 
 `truncate`:::
-(Optional, string) For `cohere` service only.
-Specifies how the API handles inputs longer than the maximum token length.
-Defaults to `END`.
-Valid values are:
-* `NONE`: when the input exceeds the maximum input token length an error is returned.
-* `START`: when the input exceeds the maximum input token length the start of the input is discarded.
-* `END`: when the input exceeds the maximum input token length the end of the input is discarded.
+(Optional, string)
+For `cohere` service only. Specifies how the API handles inputs longer than the
+maximum token length. Defaults to `END`. Valid values are:
+ * `NONE`: when the input exceeds the maximum input token length an error is
+ returned.
+ * `START`: when the input exceeds the maximum input token length the start of
+ the input is discarded.
+ * `END`: when the input exceeds the maximum input token length the end of
+ the input is discarded.
 
 `user`:::
-(optional, string) For `openai`, `azureopenai` and `azureaistudio` services only.
-Specifies the user issuing the request, which can be used for abuse detection.
+(optional, string)
+For `openai`, `azureopenai` and `azureaistudio` services only. Specifies the user issuing the
+request, which can be used for abuse detection.
 
 =====
 [discrete]
@@ -576,9 +593,10 @@ PUT _inference/text_embedding/my-e5-model
 }
 ------------------------------------------------------------
 // TEST[skip:TBD]
-<1> The `model_id` must be the ID of one of the built-in E5 models.
-Valid values are `.multilingual-e5-small` and `.multilingual-e5-small_linux-x86_64`.
-For further details, refer to the {ml-docs}/ml-nlp-e5.html[E5 model documentation].
+<1> The `model_id` must be the ID of one of the built-in E5 models. Valid values
+are `.multilingual-e5-small` and `.multilingual-e5-small_linux-x86_64`. For
+further details, refer to the {ml-docs}/ml-nlp-e5.html[E5 model documentation].
+
 
 [discrete]
 [[inference-example-elser]]
@@ -586,7 +604,8 @@ For further details, refer to the {ml-docs}/ml-nlp-e5.html[E5 model documentatio
 
 The following example shows how to create an {infer} endpoint called
 `my-elser-model` to perform a `sparse_embedding` task type.
-Refer to the {ml-docs}/ml-nlp-elser.html[ELSER model documentation] for more info.
+Refer to the {ml-docs}/ml-nlp-elser.html[ELSER model documentation] for more
+info.
 
 [source,console]
 ------------------------------------------------------------
@@ -660,17 +679,16 @@ PUT _inference/text_embedding/hugging-face-embeddings
 }
 ------------------------------------------------------------
 // TEST[skip:TBD]
-<1> A valid Hugging Face access token.
-You can find on the
+<1> A valid Hugging Face access token. You can find on the
 https://huggingface.co/settings/tokens[settings page of your account].
 <2> The {infer} endpoint URL you created on Hugging Face.
 
 Create a new {infer} endpoint on
-https://ui.endpoints.huggingface.co/[the Hugging Face endpoint page] to get an endpoint URL.
-Select the model you want to use on the new endpoint creation page - for example `intfloat/e5-small-v2` - then select the `Sentence Embeddings`
-task under the Advanced configuration section.
-Create the endpoint.
-Copy the URL after the endpoint initialization has been finished.
+https://ui.endpoints.huggingface.co/[the Hugging Face endpoint page] to get an
+endpoint URL. Select the model you want to use on the new endpoint creation page
+- for example `intfloat/e5-small-v2` - then select the `Sentence Embeddings`
+task under the Advanced configuration section. Create the endpoint. Copy the URL
+after the endpoint initialization has been finished.
 
 [discrete]
 [[inference-example-hugging-face-supported-models]]
@@ -683,6 +701,7 @@ The list of recommended models for the Hugging Face service:
 * https://huggingface.co/intfloat/e5-small-v2[e5-small-v2]
 * https://huggingface.co/intfloat/multilingual-e5-base[multilingual-e5-base]
 * https://huggingface.co/intfloat/multilingual-e5-small[multilingual-e5-small]
+
 
 [discrete]
 [[inference-example-eland]]
@@ -704,7 +723,8 @@ PUT _inference/text_embedding/my-msmarco-minilm-model
 }
 ------------------------------------------------------------
 // TEST[skip:TBD]
-<1> The `model_id` must be the ID of a text embedding model which has already been
+<1> The `model_id` must be the ID of a text embedding model which has already
+been
 {ml-docs}/ml-nlp-import-model.html#ml-nlp-import-script[uploaded through Eland].
 
 [discrete]

@@ -15,7 +15,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
@@ -41,23 +41,23 @@ public class ToDoubleTests extends AbstractFunctionTestCase {
         TestCaseSupplier.forUnaryDouble(
             suppliers,
             read,
-            DataTypes.DOUBLE,
+            DataType.DOUBLE,
             d -> d,
             Double.NEGATIVE_INFINITY,
             Double.POSITIVE_INFINITY,
             List.of()
         );
 
-        TestCaseSupplier.forUnaryBoolean(suppliers, evaluatorName.apply("Boolean"), DataTypes.DOUBLE, b -> b ? 1d : 0d, List.of());
+        TestCaseSupplier.forUnaryBoolean(suppliers, evaluatorName.apply("Boolean"), DataType.DOUBLE, b -> b ? 1d : 0d, List.of());
         TestCaseSupplier.forUnaryDatetime(
             suppliers,
             evaluatorName.apply("Long"),
-            DataTypes.DOUBLE,
+            DataType.DOUBLE,
             i -> (double) i.toEpochMilli(),
             List.of()
         );
         // random strings that don't look like a double
-        TestCaseSupplier.forUnaryStrings(suppliers, evaluatorName.apply("String"), DataTypes.DOUBLE, bytesRef -> null, bytesRef -> {
+        TestCaseSupplier.forUnaryStrings(suppliers, evaluatorName.apply("String"), DataType.DOUBLE, bytesRef -> null, bytesRef -> {
             var exception = expectThrows(
                 InvalidArgumentException.class,
                 () -> EsqlDataTypeConverter.stringToDouble(bytesRef.utf8ToString())
@@ -70,7 +70,7 @@ public class ToDoubleTests extends AbstractFunctionTestCase {
         TestCaseSupplier.forUnaryUnsignedLong(
             suppliers,
             evaluatorName.apply("UnsignedLong"),
-            DataTypes.DOUBLE,
+            DataType.DOUBLE,
             BigInteger::doubleValue,
             BigInteger.ZERO,
             UNSIGNED_LONG_MAX,
@@ -79,7 +79,7 @@ public class ToDoubleTests extends AbstractFunctionTestCase {
         TestCaseSupplier.forUnaryLong(
             suppliers,
             evaluatorName.apply("Long"),
-            DataTypes.DOUBLE,
+            DataType.DOUBLE,
             l -> (double) l,
             Long.MIN_VALUE,
             Long.MAX_VALUE,
@@ -88,7 +88,7 @@ public class ToDoubleTests extends AbstractFunctionTestCase {
         TestCaseSupplier.forUnaryInt(
             suppliers,
             evaluatorName.apply("Int"),
-            DataTypes.DOUBLE,
+            DataType.DOUBLE,
             i -> (double) i,
             Integer.MIN_VALUE,
             Integer.MAX_VALUE,
@@ -105,11 +105,11 @@ public class ToDoubleTests extends AbstractFunctionTestCase {
                     tds -> new TestCaseSupplier.TypedDataSupplier(
                         tds.name() + "as string",
                         () -> new BytesRef(tds.supplier().get().toString()),
-                        DataTypes.KEYWORD
+                        DataType.KEYWORD
                     )
                 )
                 .toList(),
-            DataTypes.DOUBLE,
+            DataType.DOUBLE,
             bytesRef -> Double.valueOf(((BytesRef) bytesRef).utf8ToString()),
             List.of()
         );
@@ -117,24 +117,24 @@ public class ToDoubleTests extends AbstractFunctionTestCase {
         TestCaseSupplier.unary(
             suppliers,
             "Attribute[channel=0]",
-            List.of(new TestCaseSupplier.TypedDataSupplier("counter", ESTestCase::randomDouble, DataTypes.COUNTER_DOUBLE)),
-            DataTypes.DOUBLE,
+            List.of(new TestCaseSupplier.TypedDataSupplier("counter", ESTestCase::randomDouble, DataType.COUNTER_DOUBLE)),
+            DataType.DOUBLE,
             l -> l,
             List.of()
         );
         TestCaseSupplier.unary(
             suppliers,
             evaluatorName.apply("Integer"),
-            List.of(new TestCaseSupplier.TypedDataSupplier("counter", () -> randomInt(1000), DataTypes.COUNTER_INTEGER)),
-            DataTypes.DOUBLE,
+            List.of(new TestCaseSupplier.TypedDataSupplier("counter", () -> randomInt(1000), DataType.COUNTER_INTEGER)),
+            DataType.DOUBLE,
             l -> ((Integer) l).doubleValue(),
             List.of()
         );
         TestCaseSupplier.unary(
             suppliers,
             evaluatorName.apply("Long"),
-            List.of(new TestCaseSupplier.TypedDataSupplier("counter", () -> randomLongBetween(1, 1000), DataTypes.COUNTER_LONG)),
-            DataTypes.DOUBLE,
+            List.of(new TestCaseSupplier.TypedDataSupplier("counter", () -> randomLongBetween(1, 1000), DataType.COUNTER_LONG)),
+            DataType.DOUBLE,
             l -> ((Long) l).doubleValue(),
             List.of()
         );

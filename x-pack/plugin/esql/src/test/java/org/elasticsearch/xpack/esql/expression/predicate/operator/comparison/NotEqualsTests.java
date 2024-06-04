@@ -12,7 +12,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
@@ -68,7 +68,7 @@ public class NotEqualsTests extends AbstractFunctionTestCase {
                 "lhs",
                 "rhs",
                 (l, r) -> false == l.equals(r),
-                DataTypes.BOOLEAN,
+                DataType.BOOLEAN,
                 TestCaseSupplier.ulongCases(BigInteger.ZERO, BigInteger.valueOf(Long.MAX_VALUE), true),
                 TestCaseSupplier.ulongCases(BigInteger.ZERO, BigInteger.valueOf(Long.MAX_VALUE), true),
                 List.of(),
@@ -81,7 +81,7 @@ public class NotEqualsTests extends AbstractFunctionTestCase {
                 "lhs",
                 "rhs",
                 (l, r) -> false == l.equals(r),
-                DataTypes.BOOLEAN,
+                DataType.BOOLEAN,
                 TestCaseSupplier.booleanCases(),
                 TestCaseSupplier.booleanCases(),
                 List.of(),
@@ -94,7 +94,7 @@ public class NotEqualsTests extends AbstractFunctionTestCase {
                 "lhs",
                 "rhs",
                 (l, r) -> false == l.equals(r),
-                DataTypes.BOOLEAN,
+                DataType.BOOLEAN,
                 TestCaseSupplier.ipCases(),
                 TestCaseSupplier.ipCases(),
                 List.of(),
@@ -107,7 +107,7 @@ public class NotEqualsTests extends AbstractFunctionTestCase {
                 "lhs",
                 "rhs",
                 (l, r) -> false == l.equals(r),
-                DataTypes.BOOLEAN,
+                DataType.BOOLEAN,
                 TestCaseSupplier.versionCases(""),
                 TestCaseSupplier.versionCases(""),
                 List.of(),
@@ -122,7 +122,7 @@ public class NotEqualsTests extends AbstractFunctionTestCase {
                 "lhs",
                 "rhs",
                 (l, r) -> false == l.equals(r),
-                DataTypes.BOOLEAN,
+                DataType.BOOLEAN,
                 TestCaseSupplier.dateCases(),
                 TestCaseSupplier.dateCases(),
                 List.of(),
@@ -134,7 +134,7 @@ public class NotEqualsTests extends AbstractFunctionTestCase {
                 (l, r) -> false == l.equals(r),
                 (lhsType, rhsType) -> "NotEqualsKeywordsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
                 List.of(),
-                DataTypes.BOOLEAN
+                DataType.BOOLEAN
             )
         );
         suppliers.addAll(
@@ -143,7 +143,7 @@ public class NotEqualsTests extends AbstractFunctionTestCase {
                 "lhs",
                 "rhs",
                 (l, r) -> false == l.equals(r),
-                DataTypes.BOOLEAN,
+                DataType.BOOLEAN,
                 TestCaseSupplier.geoPointCases(),
                 TestCaseSupplier.geoPointCases(),
                 List.of(),
@@ -156,7 +156,7 @@ public class NotEqualsTests extends AbstractFunctionTestCase {
                 "lhs",
                 "rhs",
                 (l, r) -> false == l.equals(r),
-                DataTypes.BOOLEAN,
+                DataType.BOOLEAN,
                 TestCaseSupplier.geoShapeCases(),
                 TestCaseSupplier.geoShapeCases(),
                 List.of(),
@@ -169,7 +169,7 @@ public class NotEqualsTests extends AbstractFunctionTestCase {
                 "lhs",
                 "rhs",
                 (l, r) -> false == l.equals(r),
-                DataTypes.BOOLEAN,
+                DataType.BOOLEAN,
                 TestCaseSupplier.cartesianPointCases(),
                 TestCaseSupplier.cartesianPointCases(),
                 List.of(),
@@ -182,7 +182,7 @@ public class NotEqualsTests extends AbstractFunctionTestCase {
                 "lhs",
                 "rhs",
                 (l, r) -> false == l.equals(r),
-                DataTypes.BOOLEAN,
+                DataType.BOOLEAN,
                 TestCaseSupplier.cartesianShapeCases(),
                 TestCaseSupplier.cartesianShapeCases(),
                 List.of(),

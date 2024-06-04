@@ -394,7 +394,7 @@ class ActionListenerImplementations {
 
             private CallTrackingActionListener(ActionListener<R> delegate, NotCalledListener listener) {
                 this.delegate = delegate;
-                this.created = new ElasticsearchException("Listener created at...");
+                this.created = new ElasticsearchException("Listener was never called");
                 this.listener = listener;
             }
 

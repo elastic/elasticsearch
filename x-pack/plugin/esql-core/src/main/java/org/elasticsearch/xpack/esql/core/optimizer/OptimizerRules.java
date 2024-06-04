@@ -48,9 +48,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.BiFunction;
 
-import static java.lang.Math.signum;
-import static java.util.Arrays.asList;
-import static java.util.Collections.emptySet;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.FALSE;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.TRUE;
 import static org.elasticsearch.xpack.esql.core.expression.predicate.Predicates.combineAnd;

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.core.type;
 
-import java.io.IOException;
 import java.util.Map;
 
 public class DateEsFieldTests extends AbstractEsFieldTypeTests<DateEsField> {
@@ -21,7 +20,7 @@ public class DateEsFieldTests extends AbstractEsFieldTypeTests<DateEsField> {
     }
 
     @Override
-    protected DateEsField mutate(DateEsField instance) throws IOException {
+    protected DateEsField mutate(DateEsField instance) {
         String name = instance.getName();
         Map<String, EsField> properties = instance.getProperties();
         boolean aggregatable = instance.isAggregatable();

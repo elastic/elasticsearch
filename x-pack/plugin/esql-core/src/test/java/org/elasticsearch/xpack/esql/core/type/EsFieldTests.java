@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.core.type;
 
-import java.io.IOException;
 import java.util.Map;
 
 public class EsFieldTests extends AbstractEsFieldTypeTests<EsField> {
@@ -26,7 +25,7 @@ public class EsFieldTests extends AbstractEsFieldTypeTests<EsField> {
     }
 
     @Override
-    protected EsField mutate(EsField instance) throws IOException {
+    protected EsField mutate(EsField instance) {
         String name = instance.getName();
         DataType esDataType = instance.getDataType();
         Map<String, EsField> properties = instance.getProperties();

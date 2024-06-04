@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.core.type;
 
 import org.elasticsearch.test.ESTestCase;
 
-import java.io.IOException;
 import java.util.Map;
 
 public class KeywordEsFieldTests extends AbstractEsFieldTypeTests<KeywordEsField> {
@@ -29,7 +28,7 @@ public class KeywordEsFieldTests extends AbstractEsFieldTypeTests<KeywordEsField
     }
 
     @Override
-    protected KeywordEsField mutate(KeywordEsField instance) throws IOException {
+    protected KeywordEsField mutate(KeywordEsField instance) {
         String name = instance.getName();
         Map<String, EsField> properties = instance.getProperties();
         boolean hasDocValues = instance.isAggregatable();

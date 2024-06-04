@@ -308,26 +308,6 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
         }
     }
 
-    @SuppressWarnings("unchecked")
-    private static void selectTasksWithOpaqueId(
-        Map<String, Object> tasksResponse,
-        String opaqueId,
-        Consumer<Map<String, Object>> taskConsumer
-    ) {
-        Map<String, Map<String, Object>> nodes = (Map<String, Map<String, Object>>) tasksResponse.get("nodes");
-        for (Map<String, Object> node : nodes.values()) {
-            Map<String, Map<String, Object>> tasks = (Map<String, Map<String, Object>>) node.get("tasks");
-            for (Map<String, Object> task : tasks.values()) {
-                if (task.get("headers") != null) {
-                    Map<String, Object> headers = (Map<String, Object>) task.get("headers");
-                    if (opaqueId.equals(headers.get("X-Opaque-Id"))) {
-                        taskConsumer.accept(task);
-                    }
-                }
-            }
-        }
-    }
-
     public void testCrossClusterSearch() throws Exception {
         configureRemoteCluster();
         final String crossClusterAccessApiKeyId = (String) API_KEY_MAP_REF.get().get("id");
@@ -680,5 +660,25 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
             RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", headerFromRandomAuthMethod("local_search_user", PASS))
         );
         return client().performRequest(request);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void selectTasksWithOpaqueId(
+            Map<String, Object> tasksResponse,
+            String opaqueId,
+            Consumer<Map<String, Object>> taskConsumer
+    ) {
+        Map<String, Map<String, Object>> nodes = (Map<String, Map<String, Object>>) tasksResponse.get("nodes");
+        for (Map<String, Object> node : nodes.values()) {
+            Map<String, Map<String, Object>> tasks = (Map<String, Map<String, Object>>) node.get("tasks");
+            for (Map<String, Object> task : tasks.values()) {
+                if (task.get("headers") != null) {
+                    Map<String, Object> headers = (Map<String, Object>) task.get("headers");
+                    if (opaqueId.equals(headers.get("X-Opaque-Id"))) {
+                        taskConsumer.accept(task);
+                    }
+                }
+            }
+        }
     }
 }

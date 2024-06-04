@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 
 import org.elasticsearch.xpack.esql.core.expression.predicate.BinaryOperator;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.hamcrest.Matcher;
 
@@ -19,8 +18,8 @@ import java.time.temporal.TemporalAmount;
 import java.util.List;
 import java.util.Locale;
 
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.isDateTime;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.isNull;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isDateTime;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isNull;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isNullOrTemporalAmount;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isTemporalAmount;
 import static org.hamcrest.Matchers.equalTo;
@@ -108,7 +107,7 @@ public abstract class AbstractDateTimeArithmeticTestCase extends AbstractArithme
     @Override
     protected DataType expectedType(DataType lhsType, DataType rhsType) {
         if (isDateTime(lhsType) || isDateTime(rhsType)) {
-            return DataTypes.DATETIME;
+            return DataType.DATETIME;
         } else if (isNullOrTemporalAmount(lhsType) || isNullOrTemporalAmount(rhsType)) {
             if (isNull(lhsType)) {
                 return rhsType;

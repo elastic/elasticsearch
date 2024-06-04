@@ -15,7 +15,7 @@ import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.core.common.Failure.fail;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.BOOLEAN;
+import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 
 public final class VerifierChecks {
 

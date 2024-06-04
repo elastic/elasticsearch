@@ -8,7 +8,6 @@
 
 package org.elasticsearch.jdk.patch;
 
-import org.objectweb.asm.Attribute;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.ClassWriter;
@@ -43,12 +42,9 @@ public class ImmutableCollectionsPatcher {
             public void visit(int version, int access, String name, String signature, String superName, String[] interfaces) {
                 super.visit(version, Opcodes.ACC_PUBLIC, name, signature, superName, interfaces);
             }
+
             @Override
-            public FieldVisitor visitField(int access,
-                                           String name,
-                                           String descriptor,
-                                           String signature,
-                                           Object value) {
+            public FieldVisitor visitField(int access, String name, String descriptor, String signature, Object value) {
                 if (name.equals("SALT32L") || name.equals("REVERSE")) {
                     access = Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC;
                 }

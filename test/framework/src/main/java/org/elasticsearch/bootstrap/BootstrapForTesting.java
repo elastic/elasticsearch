@@ -52,7 +52,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Properties;
-import java.util.Random;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -74,7 +73,6 @@ public class BootstrapForTesting {
     // without making things complex???
 
     static {
-
 
         // make sure java.io.tmpdir exists always (in case code uses it in a static initializer)
         Path javaTmpDir = PathUtils.get(

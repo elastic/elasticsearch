@@ -372,7 +372,7 @@ public abstract class ESTestCase extends LuceneTestCase {
             seed = Long.parseUnsignedLong(seedParts[0], 16);
         }
 
-        if (Booleans.parseBoolean(System.getProperty("tests.hackImmutableCollections", "true"))) {
+        if (Booleans.parseBoolean(System.getProperty("tests.hackImmutableCollections", "false"))) {
             forceImmutableCollectionsSeed(seed);
         }
 
@@ -387,11 +387,6 @@ public abstract class ESTestCase extends LuceneTestCase {
             var reverse = lookup.findStaticVarHandle(collectionsClass, "REVERSE", boolean.class);
             salt32l.set(seed & 0xFFFF_FFFFL);
             reverse.set((seed & 1) == 0);
-        } catch (IllegalAccessException e) {
-            if (System.getProperty("tests.gradle") != null) {
-                throw new AssertionError("ImmutableCollections access not setup correctly in Gradle", e);
-            }
-            System.err.println("WARNING: Could not set ImmutableCollections seed, failures involving Map.of and Set.of may not reproduce");
         } catch (Exception e) {
             throw new AssertionError(e);
         }

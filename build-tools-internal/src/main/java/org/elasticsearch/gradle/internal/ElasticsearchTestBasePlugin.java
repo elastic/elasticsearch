@@ -205,18 +205,26 @@ public class ElasticsearchTestBasePlugin implements Plugin<Project> {
 
     private void configureImmutableCollectionsPatch(Project project) {
         String configurationName = "immutableCollectionsPatch";
-        var patchConfiguration = project.getConfigurations().register(configurationName, config -> {
-            config.setCanBeConsumed(false);
-        });
-        project.getDependencies().add(configurationName, project.getDependencies().project(
-            Map.of("path", ":test:immutable-collections-patch", "configuration", "patch")));
+        FileCollection patchedFileCollection = project.getConfigurations()
+            .create(configurationName, config -> { config.setCanBeConsumed(false); });
+        project.getDependencies()
+            .add(
+                configurationName,
+                project.getDependencies().project(Map.of("path", ":test:immutable-collections-patch", "configuration", "patch"))
+            );
         project.getTasks().withType(Test.class).configureEach(test -> {
-            // TODO: don't do this if some flag set, eg from mrjar plugin...
-            test.dependsOn(patchConfiguration);
+            test.getInputs().files(patchedFileCollection);
             test.doFirst(t -> {
-                test.jvmArgs(
-                    "--patch-module=java.base=" + patchConfiguration.get().getSingleFile() + "/java.base",
-                    "--add-opens=java.base/java.util=ALL-UNNAMED");
+                String defaultJdkVersion = BuildParams.getRuntimeJavaVersion().getMajorVersion();
+                boolean usesDefaultJdk = BuildParams.getIsRuntimeJavaHomeSet()
+                    || test.getJavaLauncher().get().getMetadata().getLanguageVersion().toString().equals(defaultJdkVersion);
+                if (usesDefaultJdk) {
+                    test.systemProperty("tests.hackImmutableCollections", "true");
+                    test.jvmArgs(
+                        "--patch-module=java.base=" + patchedFileCollection.getSingleFile() + "/java.base",
+                        "--add-opens=java.base/java.util=ALL-UNNAMED"
+                    );
+                }
             });
         });
     }

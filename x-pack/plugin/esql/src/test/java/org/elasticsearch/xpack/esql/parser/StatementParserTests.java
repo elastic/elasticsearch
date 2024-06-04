@@ -1110,7 +1110,7 @@ public class StatementParserTests extends ESTestCase {
         assumeTrue("requires snapshot build", Build.current().isSnapshot());
         Function<Duration, Literal> timeLiteral = duration -> new Literal(EMPTY, duration, DataTypes.TIME_DURATION);
         assertStatement(
-            "METRICS foo load=avg(cpu) BY ts(5minute)",
+            "METRICS foo load=avg(cpu) BY tbucket(5minute)",
             new UnresolvedMetrics(
                 EMPTY,
                 new TableIdentifier(EMPTY, null, "foo"),
@@ -1119,10 +1119,10 @@ public class StatementParserTests extends ESTestCase {
                 List.of(
                     new Alias(
                         EMPTY,
-                        "ts(5minute)",
+                        "tbucket(5minute)",
                         new UnresolvedFunction(
                             EMPTY,
-                            "ts",
+                            "tbucket",
                             FunctionResolutionStrategy.DEFAULT,
                             List.of(timeLiteral.apply(Duration.ofMinutes(5)))
                         )
@@ -1130,12 +1130,12 @@ public class StatementParserTests extends ESTestCase {
                 ),
                 List.of(
                     new Alias(EMPTY, "load", new UnresolvedFunction(EMPTY, "avg", DEFAULT, List.of(attribute("cpu")))),
-                    attribute("ts(5minute)")
+                    attribute("tbucket(5minute)")
                 )
             )
         );
         assertStatement(
-            "METRICS foo load=avg(cpu) BY bucket=ts(10 minute)",
+            "METRICS foo load=avg(cpu) BY bucket=tbucket(10 minute)",
             new UnresolvedMetrics(
                 EMPTY,
                 new TableIdentifier(EMPTY, null, "foo"),
@@ -1147,7 +1147,7 @@ public class StatementParserTests extends ESTestCase {
                         "bucket",
                         new UnresolvedFunction(
                             EMPTY,
-                            "ts",
+                            "tbucket",
                             FunctionResolutionStrategy.DEFAULT,
                             List.of(timeLiteral.apply(Duration.ofMinutes(10)))
                         )
@@ -1160,7 +1160,7 @@ public class StatementParserTests extends ESTestCase {
             )
         );
         assertStatement(
-            "METRICS foo max(memory) BY host,ts=ts(1hour)",
+            "METRICS foo max(memory) BY host,ts=tbucket(1hour)",
             new UnresolvedMetrics(
                 EMPTY,
                 new TableIdentifier(EMPTY, null, "foo"),
@@ -1173,7 +1173,7 @@ public class StatementParserTests extends ESTestCase {
                         "ts",
                         new UnresolvedFunction(
                             EMPTY,
-                            "ts",
+                            "tbucket",
                             FunctionResolutionStrategy.DEFAULT,
                             List.of(timeLiteral.apply(Duration.ofHours(1)))
                         )

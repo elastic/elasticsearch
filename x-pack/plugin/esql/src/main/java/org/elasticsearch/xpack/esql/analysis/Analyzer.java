@@ -59,6 +59,7 @@ import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
+import org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesBucket;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
@@ -190,10 +191,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             List<Expression> groupings = new ArrayList<>(metrics.groupings().size());
             boolean foundTimeBucket = false;
             for (Expression g : metrics.groupings()) {
-                // convert `ts()` to a bucket grouping function and a filter
-                if (g instanceof Alias alias && alias.child() instanceof UnresolvedFunction uf && uf.name().equals("ts")) {
+                // convert `tbucket()` to a bucket grouping function and a filter
+                if (g instanceof Alias alias && alias.child() instanceof UnresolvedFunction uf && TimeSeriesBucket.NAME.equals(uf.name())) {
                     if (foundTimeBucket) {
-                        throw new ParsingException(metrics.source(), "at most one ts() grouping is allowed");
+                        throw new ParsingException(metrics.source(), "at most one tbucket() grouping is allowed");
                     }
                     foundTimeBucket = true;
                     final TimeBucket timeBucket = TimeBucket.from((UnresolvedFunction) alias.child());

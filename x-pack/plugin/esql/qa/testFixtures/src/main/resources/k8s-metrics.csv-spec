@@ -23,7 +23,7 @@ max_bytes:long | cluster: keyword
 
 metricsWithBucket
 required_capability: metrics_syntax
-METRICS k8s max_bytes=max(to_long(network.total_bytes_in)) BY cluster, ts=ts(5minute) | SORT ts DESC, cluster;
+METRICS k8s max_bytes=max(to_long(network.total_bytes_in)) BY cluster, bucket=tbucket(5minute) | SORT bucket DESC, cluster;
 
 max_bytes:long | cluster: keyword | ts: datetime
 10277          | prod             | 2024-05-10T00:20:00.000Z

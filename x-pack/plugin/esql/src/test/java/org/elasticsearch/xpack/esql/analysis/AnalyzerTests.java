@@ -1896,7 +1896,7 @@ public class AnalyzerTests extends ESTestCase {
     public void testMetricsWithTimeBucket() {
         assumeTrue("METRICS requires snapshot builds", Build.current().isSnapshot());
         Analyzer analyzer = analyzer(tsdbIndexResolution());
-        LogicalPlan metrics = analyze("METRICS test sum(network.connections) BY ts(2minute)", analyzer);
+        LogicalPlan metrics = analyze("METRICS test sum(network.connections) BY tbucket(2minute)", analyzer);
         Limit limit = as(metrics, Limit.class);
         Aggregate aggregate = as(limit.child(), Aggregate.class);
         assertThat(aggregate.groupings(), hasSize(1));

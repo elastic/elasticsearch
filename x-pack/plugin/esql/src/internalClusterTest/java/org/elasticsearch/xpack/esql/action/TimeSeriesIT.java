@@ -135,7 +135,7 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
             groups.computeIfAbsent(key, k -> new ArrayList<>()).add(doc.cpu);
         }
         client().admin().indices().prepareRefresh("pods").get();
-        try (EsqlQueryResponse resp = run("METRICS pods load=avg(cpu) BY pod,ts=ts(1minute) | SORT ts DESC, pod")) {
+        try (EsqlQueryResponse resp = run("METRICS pods load=avg(cpu) BY pod,bucket=tbucket(1minute) | SORT bucket DESC, pod")) {
             List<Key> sortedGroups = groups.keySet()
                 .stream()
                 .sorted(Comparator.comparingLong(Key::interval).reversed().thenComparing(Key::pod))

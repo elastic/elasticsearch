@@ -30,7 +30,6 @@ import org.elasticsearch.xpack.esql.core.querydsl.query.TermQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.TermsQuery;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesFunction;
@@ -54,9 +53,9 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.IP;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.UNSIGNED_LONG;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.VERSION;
+import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
+import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAsNumber;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_TIME_FORMATTER;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.HOUR_MINUTE_SECOND;
@@ -203,7 +202,7 @@ public final class EsqlExpressionTranslators {
             }
 
             ZoneId zoneId = null;
-            if (DataTypes.isDateTime(attribute.dataType())) {
+            if (DataType.isDateTime(attribute.dataType())) {
                 zoneId = bc.zoneId();
             }
             if (bc instanceof GreaterThan) {
@@ -301,28 +300,28 @@ public final class EsqlExpressionTranslators {
             // Determine min/max for dataType. Use BigDecimals as doubles will have rounding errors for long/ulong.
             BigDecimal minValue;
             BigDecimal maxValue;
-            if (numericFieldDataType == DataTypes.BYTE) {
+            if (numericFieldDataType == DataType.BYTE) {
                 minValue = BigDecimal.valueOf(Byte.MIN_VALUE);
                 maxValue = BigDecimal.valueOf(Byte.MAX_VALUE);
-            } else if (numericFieldDataType == DataTypes.SHORT) {
+            } else if (numericFieldDataType == DataType.SHORT) {
                 minValue = BigDecimal.valueOf(Short.MIN_VALUE);
                 maxValue = BigDecimal.valueOf(Short.MAX_VALUE);
-            } else if (numericFieldDataType == DataTypes.INTEGER) {
+            } else if (numericFieldDataType == DataType.INTEGER) {
                 minValue = BigDecimal.valueOf(Integer.MIN_VALUE);
                 maxValue = BigDecimal.valueOf(Integer.MAX_VALUE);
-            } else if (numericFieldDataType == DataTypes.LONG) {
+            } else if (numericFieldDataType == DataType.LONG) {
                 minValue = BigDecimal.valueOf(Long.MIN_VALUE);
                 maxValue = BigDecimal.valueOf(Long.MAX_VALUE);
-            } else if (numericFieldDataType == DataTypes.UNSIGNED_LONG) {
+            } else if (numericFieldDataType == DataType.UNSIGNED_LONG) {
                 minValue = BigDecimal.ZERO;
                 maxValue = UNSIGNED_LONG_MAX;
-            } else if (numericFieldDataType == DataTypes.HALF_FLOAT) {
+            } else if (numericFieldDataType == DataType.HALF_FLOAT) {
                 minValue = HALF_FLOAT_MAX.negate();
                 maxValue = HALF_FLOAT_MAX;
-            } else if (numericFieldDataType == DataTypes.FLOAT) {
+            } else if (numericFieldDataType == DataType.FLOAT) {
                 minValue = BigDecimal.valueOf(-Float.MAX_VALUE);
                 maxValue = BigDecimal.valueOf(Float.MAX_VALUE);
-            } else if (numericFieldDataType == DataTypes.DOUBLE || numericFieldDataType == DataTypes.SCALED_FLOAT) {
+            } else if (numericFieldDataType == DataType.DOUBLE || numericFieldDataType == DataType.SCALED_FLOAT) {
                 // Scaled floats are represented as doubles in ESQL.
                 minValue = BigDecimal.valueOf(-Double.MAX_VALUE);
                 maxValue = BigDecimal.valueOf(Double.MAX_VALUE);

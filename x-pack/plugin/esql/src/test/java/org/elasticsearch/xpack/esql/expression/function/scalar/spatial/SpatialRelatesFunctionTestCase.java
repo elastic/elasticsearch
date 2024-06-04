@@ -12,7 +12,6 @@ import joptsimple.internal.Strings;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
@@ -65,7 +64,7 @@ public abstract class SpatialRelatesFunctionTestCase extends AbstractFunctionTes
                             leftDataSupplier,
                             rightDataSupplier,
                             SpatialRelatesFunctionTestCase::spatialEvaluatorString,
-                            DataTypes.BOOLEAN,
+                            DataType.BOOLEAN,
                             (l, r) -> expected(l, leftType, r, rightType)
                         )
                     );

@@ -13,7 +13,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.hamcrest.Matcher;
@@ -38,11 +38,11 @@ public class StartsWithTests extends AbstractFunctionTestCase {
             }
             return new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(new BytesRef(str), DataTypes.KEYWORD, "str"),
-                    new TestCaseSupplier.TypedData(new BytesRef(prefix), DataTypes.KEYWORD, "prefix")
+                    new TestCaseSupplier.TypedData(new BytesRef(str), DataType.KEYWORD, "str"),
+                    new TestCaseSupplier.TypedData(new BytesRef(prefix), DataType.KEYWORD, "prefix")
                 ),
                 "StartsWithEvaluator[str=Attribute[channel=0], prefix=Attribute[channel=1]]",
-                DataTypes.BOOLEAN,
+                DataType.BOOLEAN,
                 equalTo(str.startsWith(prefix))
             );
         }), new TestCaseSupplier("Starts with basic test with text args", () -> {
@@ -53,11 +53,11 @@ public class StartsWithTests extends AbstractFunctionTestCase {
             }
             return new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(new BytesRef(str), DataTypes.TEXT, "str"),
-                    new TestCaseSupplier.TypedData(new BytesRef(prefix), DataTypes.TEXT, "prefix")
+                    new TestCaseSupplier.TypedData(new BytesRef(str), DataType.TEXT, "str"),
+                    new TestCaseSupplier.TypedData(new BytesRef(prefix), DataType.TEXT, "prefix")
                 ),
                 "StartsWithEvaluator[str=Attribute[channel=0], prefix=Attribute[channel=1]]",
-                DataTypes.BOOLEAN,
+                DataType.BOOLEAN,
                 equalTo(str.startsWith(prefix))
             );
         })));

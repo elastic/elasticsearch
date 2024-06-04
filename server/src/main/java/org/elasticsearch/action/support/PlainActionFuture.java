@@ -413,7 +413,10 @@ public class PlainActionFuture<T> implements ActionFuture<T>, ActionListener<T> 
                 + " with waiter on thread "
                 + waiter
                 + ", could deadlock if pool was full\n"
-                + ExceptionsHelper.formatStackTrace(waiter.getStackTrace());
+                + "waiter stacktrace\n"
+                + ExceptionsHelper.formatStackTrace(waiter.getStackTrace())
+                + "\ncompleter stacktrace\n"
+                + ExceptionsHelper.formatStackTrace(Thread.currentThread().getStackTrace());
         return true;
     }
 

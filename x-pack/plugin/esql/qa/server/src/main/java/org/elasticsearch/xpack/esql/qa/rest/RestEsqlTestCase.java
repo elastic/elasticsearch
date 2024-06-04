@@ -471,17 +471,17 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
                     )
             )
         );
-        assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("1 is not a valid parameter name."));
-        assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("1- is not a valid parameter name."));
-        assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("_a is not a valid parameter name."));
-        assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("@-# is not a valid parameter name."));
+        assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("[1] is not a valid parameter name"));
+        assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("[1-] is not a valid parameter name"));
+        assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("[_a] is not a valid parameter name"));
+        assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("[@-#] is not a valid parameter name"));
         assertThat(
             EntityUtils.toString(re.getResponse().getEntity()),
             containsString("Params cannot contain both named and unnamed parameters")
         );
         assertThat(
             EntityUtils.toString(re.getResponse().getEntity()),
-            containsString("Multiple parameters in one curly bracket is not supported.")
+            containsString("Cannot parse more than one key:value pair as parameter")
         );
         re = expectThrows(
             ResponseException.class,

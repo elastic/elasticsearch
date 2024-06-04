@@ -47,8 +47,15 @@ final class RequestXContent {
             fields.put(key, value);
         }
 
-        Map<String, Object> getFields() {
-            return fields;
+        String fields() {
+            StringBuffer s = new StringBuffer();
+            for (Map.Entry<?, ?> entry : fields.entrySet()) {
+                if (s.length() > 0) {
+                    s.append(", ");
+                }
+                s.append("{").append(entry.getKey()).append(":").append(entry.getValue()).append("}");
+            }
+            return s.toString();
         }
     }
 
@@ -146,16 +153,8 @@ final class RequestXContent {
                     // we are at the start of a value/type pair... hopefully
                     param = PARAM_PARSER.apply(p, null);
                     if (param.fields.size() > 1) {
-                        for (Map.Entry<?, ?> entry : param.fields.entrySet()) {
-                            errors.add(
-                                loc
-                                    + "Cannot parse more than one key : value pair as parameter, found ["
-                                    + entry.getKey()
-                                    + " : "
-                                    + entry.getValue()
-                                    + "]"
-                            );
-                        }
+
+                        errors.add(loc + " Cannot parse more than one key:value pair as parameter, found [" + param.fields() + "]");
                     }
                     for (Map.Entry<String, Object> entry : param.fields.entrySet()) {
                         if (isValidParamName(entry.getKey()) == false) {
@@ -180,9 +179,8 @@ final class RequestXContent {
                                     + entry.getKey()
                                     + " : "
                                     + entry.getValue()
-                                    + "}] and ["
+                                    + "}] and "
                                     + Arrays.toString(result.stream().map(QueryParam::value).toArray())
-                                    + "]"
                             );
                         }
                     }

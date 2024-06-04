@@ -43,7 +43,7 @@ public class QueryParam {
     }
 
     public String nameValue() {
-        return this.name + " : " + this.value;
+        return "{" + this.name + ":" + this.value + "}";
     }
 
     public DataType type() {

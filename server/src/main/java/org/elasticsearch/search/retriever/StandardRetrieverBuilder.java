@@ -35,7 +35,7 @@ import java.util.Objects;
  */
 public final class StandardRetrieverBuilder extends RetrieverBuilder implements ToXContent {
 
-    public static final String TYPE = "standard";
+    public static final String NAME = "standard";
     public static final NodeFeature STANDARD_RETRIEVER_SUPPORTED = new NodeFeature("standard_retriever_supported");
 
     public static final ParseField QUERY_FIELD = new ParseField("query");
@@ -46,38 +46,38 @@ public final class StandardRetrieverBuilder extends RetrieverBuilder implements 
     public static final ParseField COLLAPSE_FIELD = new ParseField("collapse");
 
     public static final ObjectParser<StandardRetrieverBuilder, RetrieverParserContext> PARSER = new ObjectParser<>(
-        TYPE,
+        NAME,
         StandardRetrieverBuilder::new
     );
 
     static {
         PARSER.declareObject((r, v) -> r.queryBuilder = v, (p, c) -> {
             QueryBuilder queryBuilder = AbstractQueryBuilder.parseTopLevelQuery(p, c::trackQueryUsage);
-            c.trackSectionUsage(TYPE + ":" + QUERY_FIELD.getPreferredName());
+            c.trackSectionUsage(NAME + ":" + QUERY_FIELD.getPreferredName());
             return queryBuilder;
         }, QUERY_FIELD);
 
         PARSER.declareField((r, v) -> r.searchAfterBuilder = v, (p, c) -> {
             SearchAfterBuilder searchAfterBuilder = SearchAfterBuilder.fromXContent(p);
-            c.trackSectionUsage(TYPE + ":" + SEARCH_AFTER_FIELD.getPreferredName());
+            c.trackSectionUsage(NAME + ":" + SEARCH_AFTER_FIELD.getPreferredName());
             return searchAfterBuilder;
         }, SEARCH_AFTER_FIELD, ObjectParser.ValueType.OBJECT_ARRAY);
 
         PARSER.declareField((r, v) -> r.terminateAfter = v, (p, c) -> {
             int terminateAfter = p.intValue();
-            c.trackSectionUsage(TYPE + ":" + TERMINATE_AFTER_FIELD.getPreferredName());
+            c.trackSectionUsage(NAME + ":" + TERMINATE_AFTER_FIELD.getPreferredName());
             return terminateAfter;
         }, TERMINATE_AFTER_FIELD, ObjectParser.ValueType.INT);
 
         PARSER.declareField((r, v) -> r.sortBuilders = v, (p, c) -> {
             List<SortBuilder<?>> sortBuilders = SortBuilder.fromXContent(p);
-            c.trackSectionUsage(TYPE + ":" + SORT_FIELD.getPreferredName());
+            c.trackSectionUsage(NAME + ":" + SORT_FIELD.getPreferredName());
             return sortBuilders;
         }, SORT_FIELD, ObjectParser.ValueType.OBJECT_ARRAY);
 
         PARSER.declareField((r, v) -> r.minScore = v, (p, c) -> {
             float minScore = p.floatValue();
-            c.trackSectionUsage(TYPE + ":" + MIN_SCORE_FIELD.getPreferredName());
+            c.trackSectionUsage(NAME + ":" + MIN_SCORE_FIELD.getPreferredName());
             return minScore;
         }, MIN_SCORE_FIELD, ObjectParser.ValueType.FLOAT);
 
@@ -89,12 +89,12 @@ public final class StandardRetrieverBuilder extends RetrieverBuilder implements 
             return collapseBuilder;
         }, COLLAPSE_FIELD, ObjectParser.ValueType.OBJECT);
 
-        RetrieverBuilder.declareBaseParserFields(TYPE, PARSER);
+        RetrieverBuilder.declareBaseParserFields(NAME, PARSER);
     }
 
     public static StandardRetrieverBuilder fromXContent(XContentParser parser, RetrieverParserContext context) throws IOException {
         if (context.clusterSupportsFeature(STANDARD_RETRIEVER_SUPPORTED) == false) {
-            throw new ParsingException(parser.getTokenLocation(), "unknown retriever [" + TYPE + "]");
+            throw new ParsingException(parser.getTokenLocation(), "unknown retriever [" + NAME + "]");
         }
         return PARSER.apply(parser, context);
     }
@@ -178,8 +178,8 @@ public final class StandardRetrieverBuilder extends RetrieverBuilder implements 
     // ---- FOR TESTING XCONTENT PARSING ----
 
     @Override
-    public String getType() {
-        return TYPE;
+    public String getName() {
+        return NAME;
     }
 
     @Override

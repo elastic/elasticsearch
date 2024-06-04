@@ -196,7 +196,7 @@ public abstract class RetrieverBuilder implements ToXContent {
 
     // ---- FOR TESTING XCONTENT PARSING ----
 
-    public abstract String getType();
+    public abstract String getName();
 
     @Override
     public final XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {

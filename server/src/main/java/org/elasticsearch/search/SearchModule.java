@@ -1064,8 +1064,8 @@ public class SearchModule {
     }
 
     private void registerRetrieverParsers(List<SearchPlugin> plugins) {
-        registerRetriever(new RetrieverSpec<>(StandardRetrieverBuilder.TYPE, StandardRetrieverBuilder::fromXContent));
-        registerRetriever(new RetrieverSpec<>(KnnRetrieverBuilder.TYPE, KnnRetrieverBuilder::fromXContent));
+        registerRetriever(new RetrieverSpec<>(StandardRetrieverBuilder.NAME, StandardRetrieverBuilder::fromXContent));
+        registerRetriever(new RetrieverSpec<>(KnnRetrieverBuilder.NAME, KnnRetrieverBuilder::fromXContent));
 
         registerFromPlugin(plugins, SearchPlugin::getRetrievers, this::registerRetriever);
     }

@@ -71,7 +71,7 @@ public class TestRetrieverBuilder extends RetrieverBuilder {
     }
 
     @Override
-    public String getType() {
+    public String getName() {
         return TYPE;
     }
 

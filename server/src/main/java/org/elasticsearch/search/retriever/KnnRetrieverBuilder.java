@@ -34,7 +34,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  */
 public final class KnnRetrieverBuilder extends RetrieverBuilder {
 
-    public static final String TYPE = "knn";
+    public static final String NAME = "knn";
     public static final NodeFeature KNN_RETRIEVER_SUPPORTED = new NodeFeature("knn_retriever_supported");
 
     public static final ParseField FIELD_FIELD = new ParseField("field");
@@ -80,12 +80,12 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
         PARSER.declareInt(constructorArg(), K_FIELD);
         PARSER.declareInt(constructorArg(), NUM_CANDS_FIELD);
         PARSER.declareFloat(optionalConstructorArg(), VECTOR_SIMILARITY);
-        RetrieverBuilder.declareBaseParserFields(TYPE, PARSER);
+        RetrieverBuilder.declareBaseParserFields(NAME, PARSER);
     }
 
     public static KnnRetrieverBuilder fromXContent(XContentParser parser, RetrieverParserContext context) throws IOException {
         if (context.clusterSupportsFeature(KNN_RETRIEVER_SUPPORTED) == false) {
-            throw new ParsingException(parser.getTokenLocation(), "unknown retriever [" + TYPE + "]");
+            throw new ParsingException(parser.getTokenLocation(), "unknown retriever [" + NAME + "]");
         }
         return PARSER.apply(parser, context);
     }
@@ -116,8 +116,8 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
     // ---- FOR TESTING XCONTENT PARSING ----
 
     @Override
-    public String getType() {
-        return TYPE;
+    public String getName() {
+        return NAME;
     }
 
     @Override

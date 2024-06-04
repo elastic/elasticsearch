@@ -79,7 +79,7 @@ public class RRFRetrieverBuilderParsingTests extends AbstractXContentTestCase<RR
         entries.add(
             new NamedXContentRegistry.Entry(
                 RetrieverBuilder.class,
-                new ParseField(RRFRankPlugin.TYPE),
+                new ParseField(RRFRankPlugin.NAME),
                 (p, c) -> RRFRetrieverBuilder.PARSER.apply(p, (RetrieverParserContext) c)
             )
         );

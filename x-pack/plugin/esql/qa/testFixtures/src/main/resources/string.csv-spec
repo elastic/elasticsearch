@@ -1335,6 +1335,79 @@ l1:integer | l2:integer
 null       | 0
 ;
 
+
+mvAppend
+required_capability: fn_mv_append
+
+ROW a = "a", b = ["b", "c"], n = null
+| EVAL aa = mv_append(a, a), bb = mv_append(b, b), ab = mv_append(a, b), abb = mv_append(mv_append(a, b), b), na = mv_append(n, a), an = mv_append(a, n)
+;
+
+a:keyword | b:keyword | n:null | aa:keyword | bb:keyword   | ab:keyword | abb:keyword    | na:keyword | an:keyword
+a         | [b, c]    | null   |[a, a]     | [b, c, b, c] | [a, b, c]  | [a, b, c, b, c] | null       | null
+;
+
+
+mvAppendNull
+required_capability: fn_mv_append
+
+ROW a = "a", b = ["b", "c"], c = to_string(null)
+| EVAL a_null = mv_append(a, c),
+       null_a = mv_append(c, a),
+       b_null = mv_append(b, c),
+       null_b = mv_append(c, b),
+       null_null = mv_append(c, c)
+;
+
+a:keyword | b:keyword | c:keyword | a_null:keyword | null_a:keyword | b_null:keyword | null_b:keyword | null_null:keyword  
+a         | [b, c]    | null      | null           | null           | null           | null           | null
+;
+
+
+mvAppendStrings
+required_capability: fn_mv_append
+
+FROM employees
+| WHERE emp_no == 10004
+| EVAL names = mv_sort(mv_append(first_name, last_name)), 
+       two_jobs = mv_sort(mv_append(job_positions, job_positions)),
+       three_jobs = mv_sort(mv_append(job_positions, mv_append(job_positions, job_positions)))
+| KEEP emp_no, names, two_jobs, three_jobs
+;
+
+emp_no:integer | names:keyword    | two_jobs:keyword                                       | three_jobs:keyword
+10004          | ["Chirstian", "Koblick"] | ["Head Human Resources","Head Human Resources","Reporting Analyst","Reporting Analyst","Support Engineer","Support Engineer","Tech Lead","Tech Lead"]  | ["Head Human Resources","Head Human Resources","Head Human Resources","Reporting Analyst","Reporting Analyst","Reporting Analyst","Support Engineer","Support Engineer","Support Engineer","Tech Lead","Tech Lead","Tech Lead"] 
+;
+
+
+
+mvAppendStringsWhere
+required_capability: fn_mv_append
+
+FROM employees
+| EVAL two_jobs = mv_append(mv_sort(job_positions), mv_sort(job_positions)) 
+| WHERE emp_no == 10004 AND mv_slice(mv_append(mv_sort(job_positions), mv_sort(job_positions)), 6, 6) == "Support Engineer"
+| KEEP emp_no, two_jobs
+;
+
+emp_no:integer | two_jobs:keyword                       
+10004          | ["Head Human Resources","Reporting Analyst","Support Engineer","Tech Lead","Head Human Resources","Reporting Analyst","Support Engineer","Tech Lead"]   
+;
+
+mvAppendNullFields
+required_capability: fn_mv_append
+
+FROM employees
+| WHERE emp_no == 10005
+| EVAL x = mv_append(first_name, job_positions), y = mv_append(job_positions, first_name), z = mv_append(job_positions, job_positions)
+| keep emp_no, first_name, job_positions, x, y, z
+;
+
+emp_no:integer | first_name:keyword | job_positions:keyword | x:keyword | y:keyword | z:keyword
+10005          | Kyoichi            | null                  | null      | null      | null
+;         
+
+
 base64Encode#[skip:-8.13.99,reason:new base64 function added in 8.14]
 required_capability: base64_decode_encode
 

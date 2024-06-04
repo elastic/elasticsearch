@@ -1352,25 +1352,17 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
 
     public void testInvalidVectorDimensions() {
         for (String quantizedFlatFormat : new String[] { "int4_hnsw", "int4_flat" }) {
-            MapperParsingException e = expectThrows(
-                MapperParsingException.class,
-                () -> createDocumentMapper(
-                    fieldMapping(b -> {
-                        b.field("type", "dense_vector");
-                        b.field("dims", 5);
-                        b.field("element_type", "float");
-                        b.field("index", true);
-                        b.field("similarity", "dot_product");
-                        b.startObject("index_options");
-                        b.field("type", quantizedFlatFormat);
-                        b.endObject();
-                    })
-                )
-            );
-            assertThat(
-                e.getMessage(),
-                containsString("only supports even dimensions")
-            );
+            MapperParsingException e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
+                b.field("type", "dense_vector");
+                b.field("dims", 5);
+                b.field("element_type", "float");
+                b.field("index", true);
+                b.field("similarity", "dot_product");
+                b.startObject("index_options");
+                b.field("type", quantizedFlatFormat);
+                b.endObject();
+            })));
+            assertThat(e.getMessage(), containsString("only supports even dimensions"));
         }
     }
 

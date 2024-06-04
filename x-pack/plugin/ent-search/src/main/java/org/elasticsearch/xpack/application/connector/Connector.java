@@ -213,7 +213,7 @@ public class Connector implements NamedWriteable, ToXContentObject {
     static final ParseField CUSTOM_SCHEDULING_FIELD = new ParseField("custom_scheduling");
     public static final ParseField DESCRIPTION_FIELD = new ParseField("description");
     public static final ParseField ERROR_FIELD = new ParseField("error");
-    static final ParseField FEATURES_FIELD = new ParseField("features");
+    public static final ParseField FEATURES_FIELD = new ParseField("features");
     public static final ParseField FILTERING_FIELD = new ParseField("filtering");
     public static final ParseField INDEX_NAME_FIELD = new ParseField("index_name");
     public static final ParseField IS_NATIVE_FIELD = new ParseField("is_native");

@@ -19,7 +19,7 @@ import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.googleaistudio.GoogleAiStudioActionVisitor;
 import org.elasticsearch.xpack.inference.external.request.googleaistudio.GoogleAiStudioUtils;
 import org.elasticsearch.xpack.inference.services.googleaistudio.GoogleAiStudioModel;
-import org.elasticsearch.xpack.inference.services.googleaistudio.GoogleAiStudioSecretSettings;
+import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -45,7 +45,7 @@ public class GoogleAiStudioEmbeddingsModel extends GoogleAiStudioModel {
             service,
             GoogleAiStudioEmbeddingsServiceSettings.fromMap(serviceSettings),
             EmptyTaskSettings.INSTANCE,
-            GoogleAiStudioSecretSettings.fromMap(secrets)
+            DefaultSecretSettings.fromMap(secrets)
         );
     }
 
@@ -60,7 +60,7 @@ public class GoogleAiStudioEmbeddingsModel extends GoogleAiStudioModel {
         String service,
         GoogleAiStudioEmbeddingsServiceSettings serviceSettings,
         TaskSettings taskSettings,
-        @Nullable GoogleAiStudioSecretSettings secrets
+        @Nullable DefaultSecretSettings secrets
     ) {
         super(
             new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings),
@@ -82,7 +82,7 @@ public class GoogleAiStudioEmbeddingsModel extends GoogleAiStudioModel {
         String uri,
         GoogleAiStudioEmbeddingsServiceSettings serviceSettings,
         TaskSettings taskSettings,
-        @Nullable GoogleAiStudioSecretSettings secrets
+        @Nullable DefaultSecretSettings secrets
     ) {
         super(
             new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings),
@@ -102,8 +102,8 @@ public class GoogleAiStudioEmbeddingsModel extends GoogleAiStudioModel {
     }
 
     @Override
-    public GoogleAiStudioSecretSettings getSecretSettings() {
-        return (GoogleAiStudioSecretSettings) super.getSecretSettings();
+    public DefaultSecretSettings getSecretSettings() {
+        return (DefaultSecretSettings) super.getSecretSettings();
     }
 
     public URI uri() {

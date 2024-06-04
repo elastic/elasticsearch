@@ -78,15 +78,12 @@ public class RequestExecutorServiceSettings {
 
     private volatile int queueCapacity;
     private volatile TimeValue taskPollFrequency;
-    private volatile TimeValue rateLimitGroupCleanupInterval;
     private volatile Duration rateLimitGroupStaleDuration;
     private final ConcurrentMap<String, Consumer<Integer>> queueCapacityCallbacks = new ConcurrentHashMap<>();
-    private final ConcurrentMap<String, Consumer<TimeValue>> rateLimitGroupCleanupIntervalCallbacks = new ConcurrentHashMap<>();
 
     public RequestExecutorServiceSettings(Settings settings, ClusterService clusterService) {
         queueCapacity = TASK_QUEUE_CAPACITY_SETTING.get(settings);
         taskPollFrequency = TASK_POLL_FREQUENCY_SETTING.get(settings);
-        rateLimitGroupCleanupInterval = RATE_LIMIT_GROUP_CLEANUP_INTERVAL_SETTING.get(settings);
         setRateLimitGroupStaleDuration(RATE_LIMIT_GROUP_STALE_DURATION_SETTING.get(settings));
 
         addSettingsUpdateConsumers(clusterService);
@@ -95,8 +92,6 @@ public class RequestExecutorServiceSettings {
     private void addSettingsUpdateConsumers(ClusterService clusterService) {
         clusterService.getClusterSettings().addSettingsUpdateConsumer(TASK_QUEUE_CAPACITY_SETTING, this::setQueueCapacity);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(TASK_POLL_FREQUENCY_SETTING, this::setTaskPollFrequency);
-        clusterService.getClusterSettings()
-            .addSettingsUpdateConsumer(RATE_LIMIT_GROUP_CLEANUP_INTERVAL_SETTING, this::setRateLimitGroupCleanupInterval);
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(RATE_LIMIT_GROUP_STALE_DURATION_SETTING, this::setRateLimitGroupStaleDuration);
     }
@@ -112,15 +107,6 @@ public class RequestExecutorServiceSettings {
 
     private void setTaskPollFrequency(TimeValue taskPollFrequency) {
         this.taskPollFrequency = taskPollFrequency;
-    }
-
-    // default for testing
-    void setRateLimitGroupCleanupInterval(TimeValue cleanupInterval) {
-        rateLimitGroupCleanupInterval = cleanupInterval;
-
-        for (var callback : rateLimitGroupCleanupIntervalCallbacks.values()) {
-            callback.accept(rateLimitGroupCleanupInterval);
-        }
     }
 
     private void setRateLimitGroupStaleDuration(TimeValue staleDuration) {
@@ -139,24 +125,12 @@ public class RequestExecutorServiceSettings {
         queueCapacityCallbacks.remove(id);
     }
 
-    void registerRateLimitGroupIntervalCallback(String id, Consumer<TimeValue> onChangeIntervalCallback) {
-        rateLimitGroupCleanupIntervalCallbacks.put(id, onChangeIntervalCallback);
-    }
-
-    void deregisterRateLimitGroupIntervalCallback(String id) {
-        rateLimitGroupCleanupIntervalCallbacks.remove(id);
-    }
-
     int getQueueCapacity() {
         return queueCapacity;
     }
 
     TimeValue getTaskPollFrequency() {
         return taskPollFrequency;
-    }
-
-    TimeValue getRateLimitGroupCleanupInterval() {
-        return rateLimitGroupCleanupInterval;
     }
 
     Duration getRateLimitGroupStaleDuration() {

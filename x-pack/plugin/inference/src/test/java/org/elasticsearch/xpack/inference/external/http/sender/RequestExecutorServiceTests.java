@@ -101,6 +101,19 @@ public class RequestExecutorServiceTests extends ESTestCase {
         assertTrue(service.isTerminated());
     }
 
+    public void testCallingStartTwice_ThrowsAssertionException() throws InterruptedException {
+        var latch = new CountDownLatch(1);
+        var service = createRequestExecutorService(latch, mock(RetryingHttpSender.class));
+
+        service.shutdown();
+        service.start();
+        latch.await(TIMEOUT.getSeconds(), TimeUnit.SECONDS);
+
+        assertTrue(service.isTerminated());
+        var exception = expectThrows(AssertionError.class, service::start);
+        assertThat(exception.getMessage(), is("start() can only be called once"));
+    }
+
     public void testIsTerminated_AfterStopFromSeparateThread() {
         var waitToShutdown = new CountDownLatch(1);
         var waitToReturnFromSend = new CountDownLatch(1);
@@ -598,7 +611,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
         when(clock.instant()).thenReturn(now);
 
         var requestSender = mock(RetryingHttpSender.class);
-        var settings = createRequestExecutorServiceSettings(2, null, TimeValue.timeValueDays(1));
+        var settings = createRequestExecutorServiceSettings(2, TimeValue.timeValueDays(1));
         var service = new RequestExecutorService(
             threadPool,
             RequestExecutorService.DEFAULT_QUEUE_CREATOR,
@@ -632,7 +645,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
         when(mockThreadPool.scheduleWithFixedDelay(any(Runnable.class), any(), any())).thenReturn(mock(Scheduler.Cancellable.class));
 
         var requestSender = mock(RetryingHttpSender.class);
-        var settings = createRequestExecutorServiceSettings(2, TimeValue.timeValueSeconds(1), TimeValue.timeValueDays(1));
+        var settings = createRequestExecutorServiceSettings(2, TimeValue.timeValueDays(1));
         var service = new RequestExecutorService(
             mockThreadPool,
             RequestExecutorService.DEFAULT_QUEUE_CREATOR,
@@ -649,65 +662,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
 
         ArgumentCaptor<TimeValue> argument = ArgumentCaptor.forClass(TimeValue.class);
         verify(mockThreadPool, times(1)).scheduleWithFixedDelay(any(Runnable.class), argument.capture(), any());
-        assertThat(argument.getValue(), is(TimeValue.timeValueSeconds(1)));
-    }
-
-    public void testChangingIntervalBeforeStartup_DoesNotStartCleanupThread() {
-        var mockThreadPool = mock(ThreadPool.class);
-
-        when(mockThreadPool.scheduleWithFixedDelay(any(Runnable.class), any(), any())).thenReturn(mock(Scheduler.Cancellable.class));
-
-        var requestSender = mock(RetryingHttpSender.class);
-        var settings = createRequestExecutorServiceSettings(2, TimeValue.timeValueSeconds(1), TimeValue.timeValueDays(1));
-        new RequestExecutorService(
-            mockThreadPool,
-            RequestExecutorService.DEFAULT_QUEUE_CREATOR,
-            null,
-            settings,
-            requestSender,
-            Clock.systemUTC(),
-            RequestExecutorService.DEFAULT_SLEEPER,
-            RequestExecutorService.DEFAULT_RATE_LIMIT_CREATOR
-        );
-
-        settings.setRateLimitGroupCleanupInterval(TimeValue.timeValueSeconds(2));
-        verifyNoInteractions(mockThreadPool);
-    }
-
-    public void testChangingIntervalAfterStartup_RestartsCleanupThread() throws InterruptedException {
-        var mockThreadPool = mock(ThreadPool.class);
-
-        when(mockThreadPool.scheduleWithFixedDelay(any(Runnable.class), any(), any())).thenReturn(mock(Scheduler.Cancellable.class));
-
-        var startUpLatch = new CountDownLatch(1);
-        var requestSender = mock(RetryingHttpSender.class);
-        var settings = createRequestExecutorServiceSettings(2, TimeValue.timeValueSeconds(1), TimeValue.timeValueDays(1));
-        var service = new RequestExecutorService(
-            mockThreadPool,
-            RequestExecutorService.DEFAULT_QUEUE_CREATOR,
-            startUpLatch,
-            settings,
-            requestSender,
-            Clock.systemUTC(),
-            RequestExecutorService.DEFAULT_SLEEPER,
-            RequestExecutorService.DEFAULT_RATE_LIMIT_CREATOR
-        );
-
-        threadPool.generic().execute(service::start);
-        startUpLatch.await(TIMEOUT.getMillis(), TimeUnit.MILLISECONDS);
-
-        ArgumentCaptor<TimeValue> argument = ArgumentCaptor.forClass(TimeValue.class);
-        verify(mockThreadPool, times(1)).scheduleWithFixedDelay(any(Runnable.class), argument.capture(), any());
-        assertThat(argument.getValue(), is(TimeValue.timeValueSeconds(1)));
-
-        settings.setRateLimitGroupCleanupInterval(TimeValue.timeValueSeconds(2));
-
-        ArgumentCaptor<TimeValue> argumentSecondCall = ArgumentCaptor.forClass(TimeValue.class);
-        verify(mockThreadPool, times(2)).scheduleWithFixedDelay(any(Runnable.class), argumentSecondCall.capture(), any());
-        assertThat(argumentSecondCall.getValue(), is(TimeValue.timeValueSeconds(2)));
-
-        service.shutdown();
-        service.awaitTermination(TIMEOUT.getMillis(), TimeUnit.MILLISECONDS);
+        assertThat(argument.getValue(), is(TimeValue.timeValueDays(1)));
     }
 
     private Future<?> submitShutdownRequest(

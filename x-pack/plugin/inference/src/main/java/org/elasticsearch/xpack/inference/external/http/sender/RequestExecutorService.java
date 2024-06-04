@@ -55,8 +55,6 @@ import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_P
  */
 class RequestExecutorService implements RequestExecutor {
 
-    private static final String NAME = "executor";
-
     /**
      * Provides dependency injection mainly for testing
      */
@@ -97,6 +95,7 @@ class RequestExecutorService implements RequestExecutor {
     // default for testing
     static final RateLimiterCreator DEFAULT_RATE_LIMIT_CREATOR = RateLimiter::new;
     private static final Logger logger = LogManager.getLogger(RequestExecutorService.class);
+    private static final TimeValue RATE_LIMIT_GROUP_CLEANUP_INTERVAL = TimeValue.timeValueDays(1);
 
     private final ConcurrentMap<Object, RateLimitingEndpointHandler> rateLimitGroupings = new ConcurrentHashMap<>();
     private final ThreadPool threadPool;
@@ -110,6 +109,7 @@ class RequestExecutorService implements RequestExecutor {
     private final Sleeper sleeper;
     private final RateLimiterCreator rateLimiterCreator;
     private final AtomicReference<Scheduler.Cancellable> cancellableCleanupTask = new AtomicReference<>();
+    private final AtomicBoolean started = new AtomicBoolean(false);
 
     RequestExecutorService(
         ThreadPool threadPool,
@@ -147,13 +147,10 @@ class RequestExecutorService implements RequestExecutor {
         this.clock = Objects.requireNonNull(clock);
         this.sleeper = Objects.requireNonNull(sleeper);
         this.rateLimiterCreator = Objects.requireNonNull(rateLimiterCreator);
-
-        settings.registerRateLimitGroupIntervalCallback(NAME, this::onCleanupIntervalChanged);
     }
 
     public void shutdown() {
         if (shutdown.compareAndSet(false, true)) {
-            settings.deregisterRateLimitGroupIntervalCallback(NAME);
             if (cancellableCleanupTask.get() != null) {
                 logger.debug(() -> "Stopping clean up thread");
                 cancellableCleanupTask.get().cancel();
@@ -179,9 +176,15 @@ class RequestExecutorService implements RequestExecutor {
 
     /**
      * Begin servicing tasks.
+     * <p>
+     * <b>Note: This should only be called once for the life of the object.</b>
+     * </p>
      */
     public void start() {
         try {
+            assert started.get() == false : "start() can only be called once";
+            started.set(true);
+
             startCleanupTask();
             signalStartInitiated();
 
@@ -204,18 +207,8 @@ class RequestExecutorService implements RequestExecutor {
     }
 
     private void startCleanupTask() {
-        cancellableCleanupTask.updateAndGet(
-            currentTask -> Objects.requireNonNullElseGet(currentTask, () -> startCleanupThread(settings.getRateLimitGroupCleanupInterval()))
-        );
-    }
-
-    private void onCleanupIntervalChanged(TimeValue interval) {
-        if (cancellableCleanupTask.get() != null) {
-            cancellableCleanupTask.updateAndGet(currentTask -> {
-                cancellableCleanupTask.get().cancel();
-                return startCleanupThread(interval);
-            });
-        }
+        assert cancellableCleanupTask.get() == null : "The clean up task can only be set once";
+        cancellableCleanupTask.set(startCleanupThread(RATE_LIMIT_GROUP_CLEANUP_INTERVAL));
     }
 
     private Scheduler.Cancellable startCleanupThread(TimeValue interval) {
@@ -297,9 +290,8 @@ class RequestExecutorService implements RequestExecutor {
             ContextPreservingActionListener.wrapPreservingContext(listener, threadPool.getThreadContext())
         );
 
-        var endpoint = rateLimitGroupings.computeIfAbsent(
-            requestManager.rateLimitGrouping(),
-            key -> new RateLimitingEndpointHandler(
+        var endpoint = rateLimitGroupings.computeIfAbsent(requestManager.rateLimitGrouping(), key -> {
+            var endpointHandler = new RateLimitingEndpointHandler(
                 Integer.toString(requestManager.rateLimitGrouping().hashCode()),
                 queueCreator,
                 settings,
@@ -308,8 +300,11 @@ class RequestExecutorService implements RequestExecutor {
                 requestManager.rateLimitSettings(),
                 this::isShutdown,
                 rateLimiterCreator
-            )
-        );
+            );
+
+            endpointHandler.init();
+            return endpointHandler;
+        });
 
         endpoint.enqueue(task);
     }
@@ -360,7 +355,10 @@ class RequestExecutorService implements RequestExecutor {
                 rateLimitSettings.timeUnit()
             );
 
-            settings.registerQueueCapacityCallback(id, this::onCapacityChange);
+        }
+
+        public void init() {
+            requestExecutorServiceSettings.registerQueueCapacityCallback(id, this::onCapacityChange);
         }
 
         private void onCapacityChange(int capacity) {

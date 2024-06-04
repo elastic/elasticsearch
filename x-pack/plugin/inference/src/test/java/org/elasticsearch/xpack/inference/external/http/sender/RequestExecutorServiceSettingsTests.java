@@ -19,22 +19,17 @@ public class RequestExecutorServiceSettingsTests {
     }
 
     public static RequestExecutorServiceSettings createRequestExecutorServiceSettings(@Nullable Integer queueCapacity) {
-        return createRequestExecutorServiceSettings(queueCapacity, null, null);
+        return createRequestExecutorServiceSettings(queueCapacity, null);
     }
 
     public static RequestExecutorServiceSettings createRequestExecutorServiceSettings(
         @Nullable Integer queueCapacity,
-        @Nullable TimeValue cleanupInterval,
         @Nullable TimeValue staleDuration
     ) {
         var settingsBuilder = Settings.builder();
 
         if (queueCapacity != null) {
             settingsBuilder.put(RequestExecutorServiceSettings.TASK_QUEUE_CAPACITY_SETTING.getKey(), queueCapacity);
-        }
-
-        if (cleanupInterval != null) {
-            settingsBuilder.put(RequestExecutorServiceSettings.RATE_LIMIT_GROUP_CLEANUP_INTERVAL_SETTING.getKey(), cleanupInterval);
         }
 
         if (staleDuration != null) {

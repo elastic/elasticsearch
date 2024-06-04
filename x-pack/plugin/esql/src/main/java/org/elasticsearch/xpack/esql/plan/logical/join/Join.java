@@ -26,6 +26,8 @@ import java.util.Objects;
 public class Join extends BinaryPlan {
 
     private final JoinConfig config;
+    // TODO: The matching attributes from the left and right logical plans should become part of the `expressions()`
+    // so that `references()` returns the attributes we actually rely on.
     private List<Attribute> lazyOutput;
 
     public Join(Source source, LogicalPlan left, LogicalPlan right, JoinConfig config) {

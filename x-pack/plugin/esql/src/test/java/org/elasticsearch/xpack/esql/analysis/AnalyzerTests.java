@@ -1916,8 +1916,7 @@ public class AnalyzerTests extends ESTestCase {
         // Lookup's output looks sensible too
         assertMap(
             lookup.output().stream().map(Object::toString).toList(),
-            matchesList().item(
-                startsWith("_meta_field{f}"))
+            matchesList().item(startsWith("_meta_field{f}"))
                 // TODO prune unused columns down through the join
                 .item(startsWith("emp_no{f}"))
                 .item(startsWith("first_name{f}"))

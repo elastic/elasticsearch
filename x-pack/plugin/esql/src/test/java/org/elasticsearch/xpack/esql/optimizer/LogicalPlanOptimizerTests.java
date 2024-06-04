@@ -5016,7 +5016,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         Equals eq = as(join.config().conditions().get(0), Equals.class);
         assertThat(eq.left().toString(), startsWith("int{r}"));
         assertThat(eq.right().toString(), startsWith("int{r}"));
-        assertThat(eq.left().semanticEquals(eq.right()), equalTo(true));
+        assertTrue(join.children().get(0).outputSet() + " contains " + eq.left(), join.children().get(0).outputSet().contains(eq.left()));
+        assertTrue(join.children().get(1).outputSet() + " contains " + eq.right(), join.children().get(1).outputSet().contains(eq.right()));
 
         // Join's output looks sensible too
         assertMap(

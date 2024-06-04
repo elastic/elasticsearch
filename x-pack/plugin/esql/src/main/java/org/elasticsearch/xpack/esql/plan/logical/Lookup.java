@@ -30,8 +30,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
-
 /**
  * Looks up values from the associated {@code tables}.
  * The class is supposed to be substituted by a {@link Join}.

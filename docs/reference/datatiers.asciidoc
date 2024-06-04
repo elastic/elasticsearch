@@ -73,7 +73,7 @@ data stream>> are automatically allocated to the hot tier.
 ====
 The performance of an {es} cluster is often limited by the performance of the
 underlying storage. 
-include::../how-to/remote-storage.asciidoc[]
+include::../reference/how-to/remote-storage.asciidoc[]
 ===
 
 [discrete]

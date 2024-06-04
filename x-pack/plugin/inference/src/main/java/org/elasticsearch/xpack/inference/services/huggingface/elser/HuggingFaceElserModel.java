@@ -14,6 +14,7 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.huggingface.HuggingFaceActionVisitor;
 import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceModel;
+import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
 import java.util.Map;
 
@@ -30,7 +31,7 @@ public class HuggingFaceElserModel extends HuggingFaceModel {
             taskType,
             service,
             HuggingFaceElserServiceSettings.fromMap(serviceSettings),
-            HuggingFaceElserSecretSettings.fromMap(secrets)
+            DefaultSecretSettings.fromMap(secrets)
         );
     }
 
@@ -39,7 +40,7 @@ public class HuggingFaceElserModel extends HuggingFaceModel {
         TaskType taskType,
         String service,
         HuggingFaceElserServiceSettings serviceSettings,
-        @Nullable HuggingFaceElserSecretSettings secretSettings
+        @Nullable DefaultSecretSettings secretSettings
     ) {
         super(
             new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings),
@@ -55,8 +56,8 @@ public class HuggingFaceElserModel extends HuggingFaceModel {
     }
 
     @Override
-    public HuggingFaceElserSecretSettings getSecretSettings() {
-        return (HuggingFaceElserSecretSettings) super.getSecretSettings();
+    public DefaultSecretSettings getSecretSettings() {
+        return (DefaultSecretSettings) super.getSecretSettings();
     }
 
     @Override

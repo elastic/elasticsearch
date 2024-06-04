@@ -20,7 +20,7 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 
-public class SourceLoaderTelemetryTests extends MapperServiceTestCase {
+public class SourceFieldMetricsTests extends MapperServiceTestCase {
     private final TestTelemetryPlugin telemetryPlugin = new TestTelemetryPlugin();
 
     @Override
@@ -34,8 +34,8 @@ public class SourceLoaderTelemetryTests extends MapperServiceTestCase {
     @Override
     public void testFieldHasValueWithEmptyFieldInfos() {}
 
-    public void testSyntheticSourceTelemetry() throws IOException {
-        var mapping = syntheticSourceMapping(b -> { b.startObject("kwd").field("type", "keyword").endObject(); });
+    public void testSyntheticSourceLoadLatency() throws IOException {
+        var mapping = syntheticSourceMapping(b -> b.startObject("kwd").field("type", "keyword").endObject());
         var mapper = createDocumentMapper(mapping);
 
         try (Directory directory = newDirectory()) {
@@ -56,6 +56,17 @@ public class SourceLoaderTelemetryTests extends MapperServiceTestCase {
         var measurements = telemetryPlugin.getLongHistogramMeasurement(SourceFieldMetrics.SYNTHETIC_SOURCE_LOAD_LATENCY);
         assertEquals(1, measurements.size());
         // test implementation of time provider always has a gap of 1 between values
+        assertEquals(measurements.get(0).getLong(), 1);
+    }
+
+    public void testSyntheticSourceIncompatibleMapping() throws IOException {
+        var mapping = syntheticSourceMapping(b -> b.startObject("kwd").field("type", "text").field("store", "false").endObject());
+        var mapperMetrics = createTestMapperMetrics();
+        var mapperService = new TestMapperServiceBuilder().mapperMetrics(mapperMetrics).build();
+        assertThrows(IllegalArgumentException.class, () -> withMapping(mapperService, mapping));
+
+        var measurements = telemetryPlugin.getLongCounterMeasurement(SourceFieldMetrics.SYNTHETIC_SOURCE_INCOMPATIBLE_MAPPING);
+        assertEquals(1, measurements.size());
         assertEquals(measurements.get(0).getLong(), 1);
     }
 }

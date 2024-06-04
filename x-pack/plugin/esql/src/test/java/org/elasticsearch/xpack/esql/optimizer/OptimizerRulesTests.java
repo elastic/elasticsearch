@@ -925,17 +925,6 @@ public class OptimizerRulesTests extends ESTestCase {
         assertEquals(expected, simplification.rule(actual));
     }
 
-    public void testBinaryComparisonSimplification() {
-        assertEquals(TRUE, new OptimizerRules.BinaryComparisonSimplification().rule(equalsOf(FIVE, FIVE)));
-        // Removed Null equals tests here
-        assertEquals(FALSE, new OptimizerRules.BinaryComparisonSimplification().rule(notEqualsOf(FIVE, FIVE)));
-        assertEquals(TRUE, new OptimizerRules.BinaryComparisonSimplification().rule(greaterThanOrEqualOf(FIVE, FIVE)));
-        assertEquals(TRUE, new OptimizerRules.BinaryComparisonSimplification().rule(lessThanOrEqualOf(FIVE, FIVE)));
-
-        assertEquals(FALSE, new OptimizerRules.BinaryComparisonSimplification().rule(greaterThanOf(FIVE, FIVE)));
-        assertEquals(FALSE, new OptimizerRules.BinaryComparisonSimplification().rule(lessThanOf(FIVE, FIVE)));
-    }
-
     //
     // Combine Binary Comparison
     //

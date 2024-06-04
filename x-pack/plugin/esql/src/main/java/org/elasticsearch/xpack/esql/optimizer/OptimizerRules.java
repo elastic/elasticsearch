@@ -615,38 +615,6 @@ class OptimizerRules {
         }
     }
 
-    public static class BinaryComparisonSimplification extends
-        org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.OptimizerExpressionRule<BinaryComparison> {
-
-        BinaryComparisonSimplification() {
-            super(org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.TransformDirection.DOWN);
-        }
-
-        @Override
-        public Expression rule(BinaryComparison bc) {
-            Expression l = bc.left();
-            Expression r = bc.right();
-
-            // true for equality
-            if (bc instanceof Equals || bc instanceof GreaterThanOrEqual || bc instanceof LessThanOrEqual) {
-                if (l.nullable() == Nullability.FALSE && r.nullable() == Nullability.FALSE && l.semanticEquals(r)) {
-                    return new Literal(bc.source(), Boolean.TRUE, DataTypes.BOOLEAN);
-                }
-            }
-
-            // Null Equals logic removed here, as ESQL doesn't have a null equals
-
-            // false for equality
-            if (bc instanceof NotEquals || bc instanceof GreaterThan || bc instanceof LessThan) {
-                if (l.nullable() == Nullability.FALSE && r.nullable() == Nullability.FALSE && l.semanticEquals(r)) {
-                    return new Literal(bc.source(), Boolean.FALSE, DataTypes.BOOLEAN);
-                }
-            }
-
-            return bc;
-        }
-    }
-
     public static final class CombineBinaryComparisons extends
         org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.OptimizerExpressionRule<BinaryLogic> {
 

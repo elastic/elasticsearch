@@ -371,7 +371,7 @@ public final class ConnectorTestUtils {
             .build();
     }
 
-    private static ConnectorFeatures.FeatureEnabled randomConnectorFeatureEnabled() {
+    public static ConnectorFeatures.FeatureEnabled randomConnectorFeatureEnabled() {
         return new ConnectorFeatures.FeatureEnabled(randomBoolean());
     }
 

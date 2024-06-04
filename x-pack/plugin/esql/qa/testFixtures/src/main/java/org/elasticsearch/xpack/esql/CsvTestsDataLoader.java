@@ -19,6 +19,7 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.common.CheckedBiFunction;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -195,7 +196,20 @@ public class CsvTestsDataLoader {
 
         try (RestClient client = builder.build()) {
             loadDataSetIntoEs(client, (restClient, indexName, indexMapping, indexSettings) -> {
-                ESRestTestCase.createIndex(restClient, indexName, indexSettings, indexMapping, null);
+                // don't use ESRestTestCase methods here or, if you do, test running the main method before making the change
+                StringBuilder jsonBody = new StringBuilder("{");
+                if (indexSettings != null && indexSettings.isEmpty() == false) {
+                    jsonBody.append("\"settings\":");
+                    jsonBody.append(Strings.toString(indexSettings));
+                    jsonBody.append(",");
+                }
+                jsonBody.append("\"mappings\":");
+                jsonBody.append(indexMapping);
+                jsonBody.append("}");
+
+                Request request = new Request("PUT", "/" + indexName);
+                request.setJsonEntity(jsonBody.toString());
+                restClient.performRequest(request);
             });
         }
     }

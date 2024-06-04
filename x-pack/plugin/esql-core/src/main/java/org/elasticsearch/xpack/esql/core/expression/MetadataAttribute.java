@@ -17,7 +17,6 @@ import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
 
 import java.io.IOException;
@@ -35,15 +34,15 @@ public class MetadataAttribute extends TypedAttribute {
 
     private static final Map<String, Tuple<DataType, Boolean>> ATTRIBUTES_MAP = Map.of(
         "_version",
-        tuple(DataTypes.LONG, false), // _version field is not searchable
+        tuple(DataType.LONG, false), // _version field is not searchable
         "_index",
-        tuple(DataTypes.KEYWORD, true),
+        tuple(DataType.KEYWORD, true),
         IdFieldMapper.NAME,
-        tuple(DataTypes.KEYWORD, false), // actually searchable, but fielddata access on the _id field is disallowed by default
+        tuple(DataType.KEYWORD, false), // actually searchable, but fielddata access on the _id field is disallowed by default
         IgnoredFieldMapper.NAME,
-        tuple(DataTypes.KEYWORD, true),
+        tuple(DataType.KEYWORD, true),
         SourceFieldMapper.NAME,
-        tuple(DataTypes.SOURCE, false)
+        tuple(DataType.SOURCE, false)
     );
 
     private final boolean searchable;

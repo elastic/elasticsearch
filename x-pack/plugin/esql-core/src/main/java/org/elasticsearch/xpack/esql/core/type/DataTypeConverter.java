@@ -22,23 +22,23 @@ import java.util.Locale;
 import java.util.function.DoubleFunction;
 import java.util.function.Function;
 
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.BOOLEAN;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.BYTE;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.DATETIME;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.DOUBLE;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.FLOAT;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.INTEGER;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.IP;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.KEYWORD;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.LONG;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.NULL;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.SHORT;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.TEXT;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.UNSIGNED_LONG;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.VERSION;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.isDateTime;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.isPrimitive;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.isString;
+import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
+import static org.elasticsearch.xpack.esql.core.type.DataType.BYTE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
+import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
+import static org.elasticsearch.xpack.esql.core.type.DataType.SHORT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isDateTime;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isPrimitive;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isString;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.UNSIGNED_LONG_MAX;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.inUnsignedLongRange;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.isUnsignedLong;
@@ -470,7 +470,7 @@ public final class DataTypeConverter {
      * Throws InvalidArgumentException if such conversion is not possible
      */
     public static Object convert(Object value, DataType dataType) {
-        DataType detectedType = DataTypes.fromJava(value);
+        DataType detectedType = DataType.fromJava(value);
         if (detectedType == dataType || value == null) {
             return value;
         }

@@ -19,8 +19,7 @@ tests:
   method: "testGuessIsDayFirstFromLocale"
 - class: "org.elasticsearch.test.rest.ClientYamlTestSuiteIT"
   issue: "https://github.com/elastic/elasticsearch/issues/108857"
-  method: "test {yaml=search/180_locale_dependent_mapping/Test Index and Search locale\
-    \ dependent mappings / dates}"
+  method: "test {yaml=search/180_locale_dependent_mapping/Test Index and Search locale dependent mappings / dates}"
 - class: "org.elasticsearch.upgrades.SearchStatesIT"
   issue: "https://github.com/elastic/elasticsearch/issues/108991"
   method: "testCanMatch"
@@ -29,8 +28,7 @@ tests:
   method: "testTrainedModelInference"
 - class: "org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT"
   issue: "https://github.com/elastic/elasticsearch/issues/109188"
-  method: "test {yaml=search/180_locale_dependent_mapping/Test Index and Search locale\
-    \ dependent mappings / dates}"
+  method: "test {yaml=search/180_locale_dependent_mapping/Test Index and Search locale dependent mappings / dates}"
 - class: "org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT"
   issue: "https://github.com/elastic/elasticsearch/issues/109189"
   method: "test {p0=esql/70_locale/Date format with Italian locale}"
@@ -43,17 +41,25 @@ tests:
 - class: org.elasticsearch.xpack.ccr.LocalIndexFollowingIT
   method: testRemoveRemoteConnection
   issue: https://github.com/elastic/elasticsearch/issues/109163
-- class: org.elasticsearch.analysis.common.CommonAnalysisClientYamlTestSuiteIT
-  method: org.elasticsearch.analysis.common.CommonAnalysisClientYamlTestSuiteIT
-  issue: https://github.com/elastic/elasticsearch/issues/109266
 - class: "org.elasticsearch.index.engine.frozen.FrozenIndexIT"
   issue: "https://github.com/elastic/elasticsearch/issues/109315"
   method: "testTimestampFieldTypeExposedByAllIndicesServices"
 - class: "org.elasticsearch.analysis.common.CommonAnalysisClientYamlTestSuiteIT"
   issue: "https://github.com/elastic/elasticsearch/issues/109318"
+  method: "test {yaml=analysis-common/50_char_filters/pattern_replace error handling (too complex pattern)}"
 - class: "org.elasticsearch.upgrades.AggregationsIT"
   issue: "https://github.com/elastic/elasticsearch/issues/109322"
   method: "testTerms"
+- class: "org.elasticsearch.xpack.ml.integration.ClassificationHousePricingIT"
+  issue: "https://github.com/elastic/elasticsearch/issues/101598"
+  method: "testFeatureImportanceValues"
+- class: "org.elasticsearch.client.RestClientSingleHostIntegTests"
+  issue: "https://github.com/elastic/elasticsearch/issues/102717"
+  method: "testRequestResetAndAbort"
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  issue: https://github.com/elastic/elasticsearch/issues/109362
+- class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
+  issue: https://github.com/elastic/elasticsearch/issues/109364
 
 # Examples:
 #

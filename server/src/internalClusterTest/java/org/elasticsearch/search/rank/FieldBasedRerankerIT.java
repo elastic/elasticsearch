@@ -192,6 +192,49 @@ public class FieldBasedRerankerIT extends ESIntegTestCase {
         );
     }
 
+    public void testNotAllShardsArePresentInFetchPhase() throws Exception {
+        final String indexName = "test_index";
+        final String rankFeatureField = "rankFeatureField";
+        final String searchField = "searchField";
+        final int rankWindowSize = 10;
+
+        createIndex(indexName, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 10).build());
+        indexRandom(
+            true,
+            prepareIndex(indexName).setId("1").setSource(rankFeatureField, 0.1, searchField, "A").setRouting("A"),
+            prepareIndex(indexName).setId("2").setSource(rankFeatureField, 0.2, searchField, "B").setRouting("B"),
+            prepareIndex(indexName).setId("3").setSource(rankFeatureField, 0.3, searchField, "C").setRouting("C"),
+            prepareIndex(indexName).setId("4").setSource(rankFeatureField, 0.4, searchField, "D").setRouting("C"),
+            prepareIndex(indexName).setId("5").setSource(rankFeatureField, 0.5, searchField, "E").setRouting("C")
+        );
+
+        assertNoFailuresAndResponse(
+            prepareSearch().setQuery(
+                boolQuery().should(constantScoreQuery(matchQuery(searchField, "A")).boost(0.1f))
+                    .should(constantScoreQuery(matchQuery(searchField, "C")).boost(0.3f))
+                    .should(constantScoreQuery(matchQuery(searchField, "D")).boost(0.3f))
+                    .should(constantScoreQuery(matchQuery(searchField, "E")).boost(0.3f))
+            )
+                .setRankBuilder(new FieldBasedRankBuilder(rankWindowSize, rankFeatureField))
+                .addFetchField(searchField)
+                .setTrackTotalHits(true)
+                .setAllowPartialSearchResults(true)
+                .setSize(2),
+            response -> {
+                assertHitCount(response, 4L);
+                assertEquals(2, response.getHits().getHits().length);
+                int rank = 1;
+                for (SearchHit searchHit : response.getHits().getHits()) {
+                    assertThat(searchHit, hasId(String.valueOf(5 - (rank - 1))));
+                    assertEquals(searchHit.getScore(), (0.5f - ((rank - 1) * 0.1f)), 1e-5f);
+                    assertThat(searchHit, hasRank(rank));
+                    assertNotNull(searchHit.getFields().get(searchField));
+                    rank++;
+                }
+            }
+        );
+    }
+
     public void testFieldBasedRerankerNoMatchingDocs() throws Exception {
         final String indexName = "test_index";
         final String rankFeatureField = "rankFeatureField";

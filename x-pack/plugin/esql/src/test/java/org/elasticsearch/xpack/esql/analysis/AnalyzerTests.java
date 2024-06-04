@@ -62,6 +62,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -522,7 +523,9 @@ public class AnalyzerTests extends ESTestCase {
             "float",
             "foo_type",
             "int",
+            "ip",
             "keyword",
+            "long",
             "point",
             "shape",
             "some.ambiguous",
@@ -566,7 +569,9 @@ public class AnalyzerTests extends ESTestCase {
             "float",
             "foo_type",
             "int",
+            "ip",
             "keyword",
+            "long",
             "point",
             "shape",
             "some.ambiguous",
@@ -779,7 +784,9 @@ public class AnalyzerTests extends ESTestCase {
             "float",
             "foo_type",
             "int",
+            "ip",
             "keyword",
+            "long",
             "point",
             "shape",
             "some.ambiguous",
@@ -1876,6 +1883,40 @@ public class AnalyzerTests extends ESTestCase {
             | eval text not in (\"a\", \"b\", \"c\", text)
             | keep text
             """, "mapping-multi-field-variation.json", "text");
+    }
+
+    public void testMvAppendValidation() {
+        String[][] fields = {
+            { "bool", "boolean" },
+            { "int", "integer" },
+            { "unsigned_long", "unsigned_long" },
+            { "float", "double" },
+            { "text", "text" },
+            { "keyword", "keyword" },
+            { "date", "datetime" },
+            { "point", "geo_point" },
+            { "shape", "geo_shape" },
+            { "long", "long" },
+            { "ip", "ip" },
+            { "version", "version" } };
+
+        Supplier<Integer> supplier = () -> randomInt(fields.length - 1);
+        int first = supplier.get();
+        int second = randomValueOtherThan(first, supplier);
+
+        String signature = "mv_append(" + fields[first][0] + ", " + fields[second][0] + ")";
+        verifyUnsupported(
+            " from test | eval " + signature,
+            "second argument of ["
+                + signature
+                + "] must be ["
+                + fields[first][1]
+                + "], found value ["
+                + fields[second][0]
+                + "] type ["
+                + fields[second][1]
+                + "]"
+        );
     }
 
     public void testLookup() {

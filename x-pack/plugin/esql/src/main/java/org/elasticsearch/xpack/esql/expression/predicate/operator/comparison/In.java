@@ -7,25 +7,33 @@
 
 package org.elasticsearch.xpack.esql.expression.predicate.operator.comparison;
 
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.compute.ann.Evaluator;
+import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
-import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.InProcessor;
+import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.Comparisons;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cast;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
 import java.util.List;
+import java.util.function.Function;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.ordinal;
 
-public class In extends org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.In {
+public class In extends org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.In implements EvaluatorMapper {
     @FunctionInfo(
         returnType = "boolean",
         description = "The `IN` operator allows testing whether a field or expression equals an element in a list of literals, "
@@ -42,7 +50,7 @@ public class In extends org.elasticsearch.xpack.esql.core.expression.predicate.o
     }
 
     @Override
-    public Expression replaceChildren(List<Expression> newChildren) {
+    public In replaceChildren(List<Expression> newChildren) {
         return new In(source(), newChildren.get(newChildren.size() - 1), newChildren.subList(0, newChildren.size() - 1));
     }
 
@@ -54,14 +62,55 @@ public class In extends org.elasticsearch.xpack.esql.core.expression.predicate.o
     }
 
     @Override
-    public Boolean fold() {
-        if (Expressions.isNull(value()) || list().stream().allMatch(Expressions::isNull)) {
-            return null;
+    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(
+        Function<Expression, EvalOperator.ExpressionEvaluator.Factory> toEvaluator) {
+        var commonType = commonType();
+        EvalOperator.ExpressionEvaluator.Factory lhs;
+        EvalOperator.ExpressionEvaluator.Factory rhs;
+        EvalOperator.ExpressionEvaluator.Factory[] factories;
+        if (commonType.isNumeric()) {
+            lhs = Cast.cast(source(), value().dataType(), commonType, toEvaluator.apply(value()));
+            factories = list().stream()
+                .map(e -> Cast.cast(source(), e.dataType(), commonType, toEvaluator.apply(e)))
+                .toArray(EvalOperator.ExpressionEvaluator.Factory[]::new);
+        } else {
+            lhs = toEvaluator.apply(value());
+            factories = list().stream()
+                .map(e -> toEvaluator.apply(e))
+                .toArray(EvalOperator.ExpressionEvaluator.Factory[]::new);
         }
-        // QL's `In` fold() doesn't handle BytesRef and can't know if this is Keyword/Text, Version or IP anyway.
-        // `In` allows comparisons of same type only (safe for numerics), so it's safe to apply InProcessor directly with no implicit
-        // (non-numerical) conversions.
-        return InProcessor.apply(value().fold(), list().stream().map(Expression::fold).toList());
+
+        if (commonType == DataTypes.BOOLEAN) {
+            return new InBooleanEvaluator.Factory(source(), lhs, factories);
+        }
+        if (commonType == DataTypes.DOUBLE) {
+            return new InDoubleEvaluator.Factory(source(), lhs, factories);
+        }
+        if (commonType == DataTypes.INTEGER) {
+            return new InIntEvaluator.Factory(source(), lhs, factories);
+        }
+        if (commonType == DataTypes.LONG || commonType == DataTypes.DATETIME || commonType == DataTypes.UNSIGNED_LONG ) {
+            return new InLongEvaluator.Factory(source(), lhs, factories);
+        }
+        if (commonType == DataTypes.KEYWORD
+            || commonType == DataTypes.TEXT
+            || commonType == DataTypes.IP
+            || commonType == DataTypes.VERSION
+            || commonType == DataTypes.UNSUPPORTED) {
+            return new InBytesRefEvaluator.Factory(source(), toEvaluator.apply(value()), factories);
+        }
+        if (commonType == DataTypes.NULL) {
+            return EvalOperator.CONSTANT_NULL_FACTORY;
+        }
+        throw EsqlIllegalArgumentException.illegalDataType(commonType);
+    }
+
+    private DataType commonType() {
+        DataType commonType = value().dataType();
+        for (Expression e : list()) {
+            commonType = EsqlDataTypeRegistry.INSTANCE.commonType(commonType, e.dataType());
+        }
+        return commonType;
     }
 
     @Override
@@ -99,5 +148,75 @@ public class In extends org.elasticsearch.xpack.esql.core.expression.predicate.o
         }
 
         return TypeResolution.TYPE_RESOLVED;
+    }
+
+    @Evaluator(extraName = "Boolean")
+    static boolean process(boolean lhs, boolean[] rhs) {
+        Boolean result = Boolean.FALSE;
+        for (Object v : rhs) {
+            Boolean compResult = Comparisons.eq(lhs, v);
+            if (compResult == null) {
+                result = null;
+            } else if (compResult == Boolean.TRUE) {
+                return Boolean.TRUE;
+            }
+        }
+        return result;
+    }
+
+    @Evaluator(extraName = "BytesRef")
+    static boolean process(BytesRef lhs, BytesRef[] rhs) {
+        Boolean result = Boolean.FALSE;
+        for (Object v : rhs) {
+            Boolean compResult = Comparisons.eq(lhs, v);
+            if (compResult == null) {
+                result = null;
+            } else if (compResult == Boolean.TRUE) {
+                return Boolean.TRUE;
+            }
+        }
+        return result;
+    }
+
+    @Evaluator(extraName = "Int")
+    static boolean process(int lhs, int[] rhs) {
+        Boolean result = Boolean.FALSE;
+        for (Object v : rhs) {
+            Boolean compResult = Comparisons.eq(lhs, v);
+            if (compResult == null) {
+                result = null;
+            } else if (compResult == Boolean.TRUE) {
+                return Boolean.TRUE;
+            }
+        }
+        return result;
+    }
+
+    @Evaluator(extraName = "Long")
+    static boolean process(long lhs, long[] rhs) {
+        Boolean result = Boolean.FALSE;
+        for (Object v : rhs) {
+            Boolean compResult = Comparisons.eq(lhs, v);
+            if (compResult == null) {
+                result = null;
+            } else if (compResult == Boolean.TRUE) {
+                return Boolean.TRUE;
+            }
+        }
+        return result;
+    }
+
+    @Evaluator(extraName = "Double")
+    static boolean process(double lhs, double[] rhs) {
+        Boolean result = Boolean.FALSE;
+        for (Object v : rhs) {
+            Boolean compResult = Comparisons.eq(lhs, v);
+            if (compResult == null) {
+                result = null;
+            } else if (compResult == Boolean.TRUE) {
+                return Boolean.TRUE;
+            }
+        }
+        return result;
     }
 }

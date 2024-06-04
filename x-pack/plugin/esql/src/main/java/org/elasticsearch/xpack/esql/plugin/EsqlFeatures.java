@@ -174,11 +174,6 @@ public class EsqlFeatures implements FeatureSpecification {
      */
     public static final NodeFeature METRICS_SYNTAX = new NodeFeature("esql.metrics_syntax");
 
-    /**
-     * Supports repeat string function
-     */
-    public static final NodeFeature REPEAT = new NodeFeature("esql.repeat");
-
     private Set<NodeFeature> snapshotBuildFeatures() {
         assert Build.current().isSnapshot() : Build.current();
         return Set.of(METRICS_SYNTAX);
@@ -207,8 +202,7 @@ public class EsqlFeatures implements FeatureSpecification {
             STRING_LITERAL_AUTO_CASTING_EXTENDED,
             METADATA_FIELDS,
             TIMESPAN_ABBREVIATIONS,
-            COUNTER_TYPES,
-            REPEAT
+            COUNTER_TYPES
         );
         if (Build.current().isSnapshot()) {
             return Collections.unmodifiableSet(Sets.union(features, snapshotBuildFeatures()));

@@ -35,10 +35,10 @@ public final class RepeatEvaluator implements EvalOperator.ExpressionEvaluator {
 
   public RepeatEvaluator(Source source, EvalOperator.ExpressionEvaluator str,
       EvalOperator.ExpressionEvaluator number, DriverContext driverContext) {
-    this.warnings = new Warnings(source);
     this.str = str;
     this.number = number;
     this.driverContext = driverContext;
+    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override

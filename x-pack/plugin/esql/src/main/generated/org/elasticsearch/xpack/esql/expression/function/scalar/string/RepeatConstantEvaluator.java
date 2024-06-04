@@ -33,10 +33,10 @@ public final class RepeatConstantEvaluator implements EvalOperator.ExpressionEva
 
   public RepeatConstantEvaluator(Source source, EvalOperator.ExpressionEvaluator str, int number,
       DriverContext driverContext) {
-    this.warnings = new Warnings(source);
     this.str = str;
     this.number = number;
     this.driverContext = driverContext;
+    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override

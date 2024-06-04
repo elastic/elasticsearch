@@ -129,6 +129,8 @@ index type is `int8_hnsw`.
 NOTE: Quantization will continue to keep the raw float vector values on disk for reranking, reindexing, and quantization improvements over the lifetime of the data.
 This means disk usage will increase by ~25% for `int8` and ~12.5% for `int4` due to the overhead of storing the quantized and raw vectors.
 
+NOTE: `int4` quantization requires an even number of vector dimensions.
+
 Here is an example of how to create a byte-quantized index:
 
 [source,console]
@@ -160,7 +162,7 @@ PUT my-byte-quantized-index
     "properties": {
       "my_vector": {
         "type": "dense_vector",
-        "dims": 3,
+        "dims": 4,
         "index": true,
         "index_options": {
           "type": "int4_hnsw"

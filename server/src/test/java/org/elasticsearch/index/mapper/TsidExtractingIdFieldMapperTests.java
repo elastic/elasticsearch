@@ -717,7 +717,7 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
                 id,
                 BytesReference.bytes(builder),
                 builder.contentType(),
-                TimeSeriesRoutingHashFieldMapper.encode(ROUTING_HASH)
+                DimensionRoutingHashFieldMapper.encode(ROUTING_HASH)
             );
             return mapperService.documentParser().parseDocument(sourceToParse, mapperService.mappingLookup());
         }

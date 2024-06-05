@@ -11,11 +11,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.index.IndexMode;
-import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -28,19 +24,17 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 
 import java.io.IOException;
 import java.time.ZoneId;
-import java.util.Collection;
 import java.util.Collections;
 
 /**
- * Mapper for {@code _tsid} field included generated when the index is
- * {@link IndexMode#TIME_SERIES organized into time series}.
+ * Mapper for {@code _logs_id} field generated when the index is
+ * {@link IndexMode#LOGS used for logs} and it contains a routing path.
  */
-public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
+public class LogsIdFieldMapper extends MetadataFieldMapper {
 
-    public static final String NAME = "_tsid";
-    public static final String CONTENT_TYPE = "_tsid";
-    public static final TimeSeriesIdFieldType FIELD_TYPE = new TimeSeriesIdFieldType();
-    public static final TimeSeriesIdFieldMapper INSTANCE = new TimeSeriesIdFieldMapper();
+    public static final String NAME = "_logs_id";
+    public static final LogsIdFieldType FIELD_TYPE = new LogsIdFieldType();
+    public static final LogsIdFieldMapper INSTANCE = new LogsIdFieldMapper();
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
@@ -59,21 +53,21 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public TimeSeriesIdFieldMapper build() {
+        public LogsIdFieldMapper build() {
             return INSTANCE;
         }
     }
 
     public static final TypeParser PARSER = new FixedTypeParser(c -> c.getIndexSettings().getMode().indexModeIdFieldMapper());
 
-    public static final class TimeSeriesIdFieldType extends MappedFieldType {
-        private TimeSeriesIdFieldType() {
+    public static final class LogsIdFieldType extends MappedFieldType {
+        private LogsIdFieldType() {
             super(NAME, false, false, true, TextSearchInfo.NONE, Collections.emptyMap());
         }
 
         @Override
         public String typeName() {
-            return CONTENT_TYPE;
+            return NAME;
         }
 
         @Override
@@ -86,13 +80,13 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
             if (format != null) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
-            return DocValueFormat.TIME_SERIES_ID;
+            return DocValueFormat.LOGS_ID;
         }
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             failIfNoDocValues();
-            // TODO don't leak the TSID's binary format into the script
+            // TODO don't leak the id binary format into the script
             return new SortedOrdinalsIndexFieldData.Builder(
                 name(),
                 CoreValuesSourceType.KEYWORD,
@@ -109,7 +103,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    private TimeSeriesIdFieldMapper() {
+    private LogsIdFieldMapper() {
         super(FIELD_TYPE);
     }
 
@@ -118,54 +112,18 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
         assert fieldType().isIndexed() == false;
 
         final RoutingDimensions routingDimensions = (RoutingDimensions) context.getDimensions();
-        final BytesRef timeSeriesId;
-        if (getIndexVersionCreated(context).before(IndexVersions.TIME_SERIES_ID_HASHING)) {
-            long limit = context.indexSettings().getValue(MapperService.INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING);
-            int size = routingDimensions.dimensions().size();
-            if (size > limit) {
-                throw new MapperException("Too many dimension fields [" + size + "], max [" + limit + "] dimension fields allowed");
-            }
-            timeSeriesId = buildLegacyTsid(routingDimensions).toBytesRef();
-        } else {
-            timeSeriesId = DimensionHasher.build(routingDimensions).toBytesRef();
-        }
-        context.doc().add(new SortedDocValuesField(fieldType().name(), timeSeriesId));
-        TsidExtractingIdFieldMapper.createField(
-            context,
-            getIndexVersionCreated(context).before(IndexVersions.TIME_SERIES_ROUTING_HASH_IN_ID)
-                ? routingDimensions.routingBuilder()
-                : null,
-            timeSeriesId
-        );
-    }
-
-    private IndexVersion getIndexVersionCreated(final DocumentParserContext context) {
-        return context.indexSettings().getIndexVersionCreated();
+        final BytesRef id = DimensionHasher.build(routingDimensions).toBytesRef();
+        context.doc().add(new SortedDocValuesField(fieldType().name(), id));
+        LogsIdExtractingIdFieldMapper.createField(context, id);
     }
 
     @Override
     protected String contentType() {
-        return CONTENT_TYPE;
+        return NAME;
     }
 
     @Override
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
         return SourceLoader.SyntheticFieldLoader.NOTHING;
-    }
-
-    public static BytesReference buildLegacyTsid(RoutingDimensions routingDimensions) throws IOException {
-        Collection<RoutingDimensions.Dimension> dimensions = routingDimensions.dimensions();
-        if (dimensions.isEmpty()) {
-            throw new IllegalArgumentException("Dimension fields are missing.");
-        }
-
-        try (BytesStreamOutput out = new BytesStreamOutput()) {
-            out.writeVInt(dimensions.size());
-            for (RoutingDimensions.Dimension entry : dimensions) {
-                out.writeBytesRef(entry.name());
-                entry.value().writeTo(out);
-            }
-            return out.bytes();
-        }
     }
 }

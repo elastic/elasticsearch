@@ -123,7 +123,8 @@ public class FieldFilterMapperPluginTests extends ESSingleNodeTestCase {
         Set<String> builtInMetadataFields = new HashSet<>(IndicesModule.getBuiltInMetadataFields());
         // Index is not a time-series index, and it will not contain _tsid and _ts_routing_hash fields.
         builtInMetadataFields.remove(TimeSeriesIdFieldMapper.NAME);
-        builtInMetadataFields.remove(TimeSeriesRoutingHashFieldMapper.NAME);
+        builtInMetadataFields.remove(LogsIdFieldMapper.NAME);
+        builtInMetadataFields.remove(DimensionRoutingHashFieldMapper.NAME);
         return builtInMetadataFields;
     }
 

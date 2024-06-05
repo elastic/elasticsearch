@@ -17,9 +17,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.DimensionRoutingHashFieldMapper;
 import org.elasticsearch.index.mapper.DocumentDimensions;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.LogsIdExtractingIdFieldMapper;
+import org.elasticsearch.index.mapper.LogsIdFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
@@ -29,7 +32,6 @@ import org.elasticsearch.index.mapper.RoutingDimensions;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
-import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 import org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper;
 
 import java.io.IOException;
@@ -81,13 +83,13 @@ public enum IndexMode {
         }
 
         @Override
-        public MetadataFieldMapper timeSeriesIdFieldMapper() {
+        public MetadataFieldMapper indexModeIdFieldMapper() {
             // non time-series indices must not have a TimeSeriesIdFieldMapper
             return null;
         }
 
         @Override
-        public MetadataFieldMapper timeSeriesRoutingHashFieldMapper() {
+        public MetadataFieldMapper routingHashFieldMapper() {
             // non time-series indices must not have a TimeSeriesRoutingIdFieldMapper
             return null;
         }
@@ -181,13 +183,13 @@ public enum IndexMode {
         }
 
         @Override
-        public MetadataFieldMapper timeSeriesIdFieldMapper() {
+        public MetadataFieldMapper indexModeIdFieldMapper() {
             return TimeSeriesIdFieldMapper.INSTANCE;
         }
 
         @Override
-        public MetadataFieldMapper timeSeriesRoutingHashFieldMapper() {
-            return TimeSeriesRoutingHashFieldMapper.INSTANCE;
+        public MetadataFieldMapper routingHashFieldMapper() {
+            return DimensionRoutingHashFieldMapper.INSTANCE;
         }
 
         public IdFieldMapper idFieldMapperWithoutFieldData() {
@@ -226,7 +228,7 @@ public enum IndexMode {
     LOGS("logs") {
         @Override
         void validateWithOtherSettings(Map<Setting<?>, Object> settings) {
-            IndexMode.validateTimeSeriesSettings(settings);
+            // IndexMode.validateTimeSeriesSettings(settings);
         }
 
         @Override
@@ -251,12 +253,12 @@ public enum IndexMode {
 
         @Override
         public IdFieldMapper buildIdFieldMapper(BooleanSupplier fieldDataEnabled) {
-            return new ProvidedIdFieldMapper(fieldDataEnabled);
+            return LogsIdExtractingIdFieldMapper.INSTANCE;
         }
 
         @Override
         public IdFieldMapper idFieldMapperWithoutFieldData() {
-            return ProvidedIdFieldMapper.NO_FIELD_DATA;
+            return LogsIdExtractingIdFieldMapper.INSTANCE;
         }
 
         @Override
@@ -265,20 +267,20 @@ public enum IndexMode {
         }
 
         @Override
-        public MetadataFieldMapper timeSeriesIdFieldMapper() {
+        public MetadataFieldMapper indexModeIdFieldMapper() {
             // non time-series indices must not have a TimeSeriesIdFieldMapper
-            return null;
+            return LogsIdFieldMapper.INSTANCE;
         }
 
         @Override
-        public MetadataFieldMapper timeSeriesRoutingHashFieldMapper() {
-            // non time-series indices must not have a TimeSeriesRoutingIdFieldMapper
-            return null;
+        public MetadataFieldMapper routingHashFieldMapper() {
+            return DimensionRoutingHashFieldMapper.INSTANCE;
         }
 
         @Override
         public DocumentDimensions buildDocumentDimensions(IndexSettings settings) {
-            return new DocumentDimensions.OnlySingleValueAllowed();
+            IndexRouting.ExtractFromSource routing = (IndexRouting.ExtractFromSource) settings.getIndexRouting();
+            return new RoutingDimensions(routing.builder());
         }
 
         @Override
@@ -426,17 +428,17 @@ public enum IndexMode {
 
     /**
      * Return an instance of the {@link TimeSeriesIdFieldMapper} that generates
-     * the _tsid field. The field mapper will be added to the list of the metadata
+     * the id field. The field mapper will be added to the list of the metadata
      * field mappers for the index.
      */
-    public abstract MetadataFieldMapper timeSeriesIdFieldMapper();
+    public abstract MetadataFieldMapper indexModeIdFieldMapper();
 
     /**
-     * Return an instance of the {@link TimeSeriesRoutingHashFieldMapper} that generates
+     * Return an instance of the {@link DimensionRoutingHashFieldMapper} that generates
      * the _ts_routing_hash field. The field mapper will be added to the list of the metadata
      * field mappers for the index.
      */
-    public abstract MetadataFieldMapper timeSeriesRoutingHashFieldMapper();
+    public abstract MetadataFieldMapper routingHashFieldMapper();
 
     /**
      * How {@code time_series_dimension} fields are handled by indices in this mode.

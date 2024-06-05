@@ -13,7 +13,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.ByteUtils;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -33,21 +32,21 @@ import java.util.Collections;
 /**
  * Mapper for the {@code _ts_routing_hash} field.
  *
- * The field contains the routing hash, as calculated in coordinating nodes for docs in time-series indexes.
+ * The field contains the routing hash, as calculated in coordinating nodes for docs in time-series and logs indexes.
  * It's stored to be retrieved and added as a prefix when reconstructing the _id field in search queries.
- * The prefix can then used for routing Get and Delete requests (by doc id) to the right shard.
+ * The prefix can then be used for routing Get and Delete requests (by doc id) to the right shard.
  */
-public class TimeSeriesRoutingHashFieldMapper extends MetadataFieldMapper {
+public class DimensionRoutingHashFieldMapper extends MetadataFieldMapper {
 
     public static final String NAME = "_ts_routing_hash";
 
-    public static final TimeSeriesRoutingHashFieldMapper INSTANCE = new TimeSeriesRoutingHashFieldMapper();
+    public static final DimensionRoutingHashFieldMapper INSTANCE = new DimensionRoutingHashFieldMapper();
 
-    public static final TypeParser PARSER = new FixedTypeParser(c -> c.getIndexSettings().getMode().timeSeriesRoutingHashFieldMapper());
+    public static final TypeParser PARSER = new FixedTypeParser(c -> c.getIndexSettings().getMode().routingHashFieldMapper());
 
-    static final class TimeSeriesRoutingHashFieldType extends MappedFieldType {
+    static final class DimensionRoutingHashFieldType extends MappedFieldType {
 
-        private static final TimeSeriesRoutingHashFieldType INSTANCE = new TimeSeriesRoutingHashFieldType();
+        private static final DimensionRoutingHashFieldType INSTANCE = new DimensionRoutingHashFieldType();
         private static final DocValueFormat DOC_VALUE_FORMAT = new DocValueFormat() {
 
             @Override
@@ -65,7 +64,7 @@ public class TimeSeriesRoutingHashFieldMapper extends MetadataFieldMapper {
 
         };
 
-        private TimeSeriesRoutingHashFieldType() {
+        private DimensionRoutingHashFieldType() {
             super(NAME, false, false, true, TextSearchInfo.NONE, Collections.emptyMap());
         }
 
@@ -103,13 +102,13 @@ public class TimeSeriesRoutingHashFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    private TimeSeriesRoutingHashFieldMapper() {
-        super(TimeSeriesRoutingHashFieldType.INSTANCE);
+    private DimensionRoutingHashFieldMapper() {
+        super(DimensionRoutingHashFieldType.INSTANCE);
     }
 
     @Override
     public void postParse(DocumentParserContext context) {
-        if (context.indexSettings().getMode() == IndexMode.TIME_SERIES
+        if ((context.indexSettings().usesRoutingPath())
             && context.indexSettings().getIndexVersionCreated().onOrAfter(IndexVersions.TIME_SERIES_ROUTING_HASH_IN_ID)) {
             String routingHash = context.sourceToParse().routing();
             if (routingHash == null) {

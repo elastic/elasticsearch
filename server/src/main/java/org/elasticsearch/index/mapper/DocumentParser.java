@@ -144,6 +144,8 @@ public final class DocumentParser {
 
             executeIndexTimeScripts(context);
 
+            context.getDimensionsForLogsMode();
+
             for (MetadataFieldMapper metadataMapper : metadataFieldsMappers) {
                 metadataMapper.postParse(context);
             }

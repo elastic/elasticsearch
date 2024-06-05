@@ -9,6 +9,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -130,21 +131,23 @@ public class DocumentMapper {
         if (settings.getIndexSortConfig().hasIndexSort() && mappers().nestedLookup() != NestedLookup.EMPTY) {
             throw new IllegalArgumentException("cannot have nested fields when index sort is activated");
         }
-        List<String> routingPaths = settings.getIndexMetadata().getRoutingPaths();
-        for (String path : routingPaths) {
-            for (String match : mappingLookup.getMatchingFieldNames(path)) {
-                mappingLookup.getFieldType(match).validateMatchedRoutingPath(path);
-            }
-            for (String objectName : mappingLookup.objectMappers().keySet()) {
-                // object type is not allowed in the routing paths
-                if (path.equals(objectName)) {
-                    throw new IllegalArgumentException(
-                        "All fields that match routing_path must be configured with [time_series_dimension: true] "
-                            + "or flattened fields with a list of dimensions in [time_series_dimensions] "
-                            + "and without the [script] parameter. ["
-                            + objectName
-                            + "] was [object]."
-                    );
+        if (settings.getMode() == IndexMode.TIME_SERIES) {
+            List<String> routingPaths = settings.getIndexMetadata().getRoutingPaths();
+            for (String path : routingPaths) {
+                for (String match : mappingLookup.getMatchingFieldNames(path)) {
+                    mappingLookup.getFieldType(match).validateMatchedRoutingPath(path);
+                }
+                for (String objectName : mappingLookup.objectMappers().keySet()) {
+                    // object type is not allowed in the routing paths
+                    if (path.equals(objectName)) {
+                        throw new IllegalArgumentException(
+                            "All fields that match routing_path must be configured with [time_series_dimension: true] "
+                                + "or flattened fields with a list of dimensions in [time_series_dimensions] "
+                                + "and without the [script] parameter. ["
+                                + objectName
+                                + "] was [object]."
+                        );
+                    }
                 }
             }
         }

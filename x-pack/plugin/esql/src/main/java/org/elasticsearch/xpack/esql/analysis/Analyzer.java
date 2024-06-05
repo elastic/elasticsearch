@@ -535,10 +535,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                              * If they do, make sure the data types line up. If either is
                              * null it's fine to match it against anything.
                              */
-                            if (joinedAttribute.dataType().equals(attr.dataType()) == false
-                                && joinedAttribute.dataType() != DataType.NULL
-                                && attr.dataType() != DataType.NULL) {
-
+                            boolean dataTypesOk = joinedAttribute.dataType().equals(attr.dataType());
+                            if (false == dataTypesOk) {
+                                dataTypesOk = joinedAttribute.dataType() == DataType.NULL || attr.dataType() == DataType.NULL;
+                            }
+                            if (false == dataTypesOk) {
+                                dataTypesOk = joinedAttribute.dataType().equals(KEYWORD) && attr.dataType().equals(TEXT);
+                            }
+                            if (false == dataTypesOk) {
                                 matchFieldChildReference = new UnresolvedAttribute(
                                     attr.source(),
                                     attr.name(),

@@ -46,7 +46,6 @@ basic:
         body:
           query: 'FROM test | SORT time | KEEP color | LOOKUP colors ON color | LIMIT 2'
           columnar: true
-          version: 2024.04.01
           tables:
             colors:
               "color:keyword":  ["red", "green", "blue"]
@@ -75,7 +74,6 @@ read multivalue keyword:
         body:
           query: 'FROM test | SORT time | KEEP color | LOOKUP color_associations ON color | LIMIT 2'
           columnar: true
-          version: 2024.04.01
           tables:
             color_associations:
               "color:keyword":  ["red", "green", "blue"]
@@ -90,6 +88,52 @@ read multivalue keyword:
   - match: {columns.1.type: "keyword"}
   - match: {values.0: ["red", "blue"]}
   - match: {values.1: [["love", "passion", "blood", "happiness"], ["serenity", "wisdom", "ocean", "sky"]]}
+
+---
+keyword matches text:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [lookup]
+      reason: "uses LOOKUP"
+
+  - do:
+      indices.create:
+        index:  test_text
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              color:
+                type: text
+  - do:
+      bulk:
+        index: test_text
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "color": "red" }
+
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test_text | LOOKUP colors ON color | LIMIT 1'
+          columnar: true
+          tables:
+            colors:
+              "color:keyword":  ["red", "green", "blue"]
+              "rgb:integer": [16711680,   65280,    255]
+
+  - match: {columns.0.name: "color"}
+  - match: {columns.0.type: "text"}
+  - match: {columns.1.name: "rgb"}
+  - match: {columns.1.type: "integer"}
+  - match: {values.0: ["red"]}
+  - match: {values.1: [16711680]}
 
 ---
 duplicate column names in table:
@@ -108,7 +152,6 @@ duplicate column names in table:
         body:
           query: 'FROM test | LOOKUP colors ON color | SORT time | KEEP color, rgb | LIMIT 2'
           columnar: true
-          version: 2024.04.01
           tables:
             colors:
               "color:keyword":    ["red", "green", "blue"]
@@ -132,7 +175,6 @@ duplicate keys:
         body:
           query: 'FROM test | LOOKUP colors ON color | SORT time | KEEP color, rgb | LIMIT 2'
           columnar: true
-          version: 2024.04.01
           tables:
             colors:
               "color:keyword":  ["red",   "red", "blue"]
@@ -156,7 +198,6 @@ multivalued keys:
         body:
           query: 'FROM test | LOOKUP colors ON color | SORT time | KEEP color, rgb | LIMIT 2'
           columnar: true
-          version: 2024.04.01
           tables:
             colors:
               "color:keyword":  [["red", "blue"],   "white", "blue"]
@@ -198,7 +239,6 @@ on function:
         body:
           query: 'FROM test | SORT time | KEEP color | LOOKUP colors ON CONCAT(color, "foo") | LIMIT 2'
           columnar: true
-          version: 2024.04.01
           tables:
             colors:
               "color:keyword":  ["red", "green", "blue"]

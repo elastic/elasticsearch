@@ -53,13 +53,13 @@ Which returns:
 
 [source,text]
 ----
-      era      |        name        |     author
----------------+--------------------+-----------------
-Diamond        |Pandora's Star      |Peter F. Hamilton
-Diamond        |A Fire Upon the Deep|Vernor Vinge
-The New Wave   |Dune                |Frank Herbert
-Diamond        |Revelation Space    |Alastair Reynolds
-Hadron         |Leviathan Wakes     |James S.A. Corey
+        name        |     author      |      era
+--------------------+-----------------+---------------
+Pandora's Star      |Peter F. Hamilton|Diamond
+A Fire Upon the Deep|Vernor Vinge     |Diamond
+Dune                |Frank Herbert    |The New Wave
+Revelation Space    |Alastair Reynolds|Diamond
+Leviathan Wakes     |James S.A. Corey |Hadron
 ----
 // TESTRESPONSE[s/\|/\\|/ s/\+/\\+/]
 // TESTRESPONSE[non_json]

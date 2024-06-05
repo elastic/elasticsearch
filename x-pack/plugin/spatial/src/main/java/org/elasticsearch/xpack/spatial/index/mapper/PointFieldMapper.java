@@ -180,6 +180,11 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
         return new Builder(simpleName(), builder.ignoreMalformed.getDefaultValue().value()).init(this);
     }
 
+    @Override
+    protected SyntheticSourceMode syntheticSourceMode() {
+        return SyntheticSourceMode.FALLBACK;
+    }
+
     public static class PointFieldType extends AbstractPointFieldType<CartesianPoint> implements ShapeQueryable {
 
         private final ShapeQueryPointProcessor queryProcessor;

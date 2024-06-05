@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.operator.math.Math
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -144,16 +143,16 @@ public class Round extends EsqlScalarFunction implements OptionalArgument {
     @Override
     public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
         DataType fieldType = dataType();
-        if (fieldType == DataTypes.DOUBLE) {
+        if (fieldType == DataType.DOUBLE) {
             return toEvaluator(toEvaluator, RoundDoubleNoDecimalsEvaluator.Factory::new, RoundDoubleEvaluator.Factory::new);
         }
-        if (fieldType == DataTypes.INTEGER) {
+        if (fieldType == DataType.INTEGER) {
             return toEvaluator(toEvaluator, EVALUATOR_IDENTITY, RoundIntEvaluator.Factory::new);
         }
-        if (fieldType == DataTypes.LONG) {
+        if (fieldType == DataType.LONG) {
             return toEvaluator(toEvaluator, EVALUATOR_IDENTITY, RoundLongEvaluator.Factory::new);
         }
-        if (fieldType == DataTypes.UNSIGNED_LONG) {
+        if (fieldType == DataType.UNSIGNED_LONG) {
             return toEvaluator(toEvaluator, EVALUATOR_IDENTITY, RoundUnsignedLongEvaluator.Factory::new);
         }
         throw EsqlIllegalArgumentException.illegalDataType(fieldType);
@@ -168,7 +167,7 @@ public class Round extends EsqlScalarFunction implements OptionalArgument {
         if (decimals == null) {
             return noDecimals.apply(source(), fieldEvaluator);
         }
-        var decimalsEvaluator = Cast.cast(source(), decimals().dataType(), DataTypes.LONG, toEvaluator.apply(decimals()));
+        var decimalsEvaluator = Cast.cast(source(), decimals().dataType(), DataType.LONG, toEvaluator.apply(decimals()));
         return withDecimals.apply(source(), fieldEvaluator, decimalsEvaluator);
     }
 }

@@ -16,7 +16,7 @@ import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
@@ -42,66 +42,66 @@ public class DateParseTests extends AbstractFunctionTestCase {
                     List.of(
                         new TestCaseSupplier(
                             "Basic Case",
-                            List.of(DataTypes.KEYWORD, DataTypes.KEYWORD),
+                            List.of(DataType.KEYWORD, DataType.KEYWORD),
                             () -> new TestCaseSupplier.TestCase(
                                 List.of(
-                                    new TestCaseSupplier.TypedData(new BytesRef("yyyy-MM-dd"), DataTypes.KEYWORD, "first"),
-                                    new TestCaseSupplier.TypedData(new BytesRef("2023-05-05"), DataTypes.KEYWORD, "second")
+                                    new TestCaseSupplier.TypedData(new BytesRef("yyyy-MM-dd"), DataType.KEYWORD, "first"),
+                                    new TestCaseSupplier.TypedData(new BytesRef("2023-05-05"), DataType.KEYWORD, "second")
                                 ),
                                 "DateParseEvaluator[val=Attribute[channel=1], formatter=Attribute[channel=0], zoneId=Z]",
-                                DataTypes.DATETIME,
+                                DataType.DATETIME,
                                 equalTo(1683244800000L)
                             )
                         ),
                         new TestCaseSupplier(
                             "With Text",
-                            List.of(DataTypes.KEYWORD, DataTypes.TEXT),
+                            List.of(DataType.KEYWORD, DataType.TEXT),
                             () -> new TestCaseSupplier.TestCase(
                                 List.of(
-                                    new TestCaseSupplier.TypedData(new BytesRef("yyyy-MM-dd"), DataTypes.KEYWORD, "first"),
-                                    new TestCaseSupplier.TypedData(new BytesRef("2023-05-05"), DataTypes.TEXT, "second")
+                                    new TestCaseSupplier.TypedData(new BytesRef("yyyy-MM-dd"), DataType.KEYWORD, "first"),
+                                    new TestCaseSupplier.TypedData(new BytesRef("2023-05-05"), DataType.TEXT, "second")
                                 ),
                                 "DateParseEvaluator[val=Attribute[channel=1], formatter=Attribute[channel=0], zoneId=Z]",
-                                DataTypes.DATETIME,
+                                DataType.DATETIME,
                                 equalTo(1683244800000L)
                             )
                         ),
                         new TestCaseSupplier(
                             "With Both Text",
-                            List.of(DataTypes.TEXT, DataTypes.TEXT),
+                            List.of(DataType.TEXT, DataType.TEXT),
                             () -> new TestCaseSupplier.TestCase(
                                 List.of(
-                                    new TestCaseSupplier.TypedData(new BytesRef("yyyy-MM-dd"), DataTypes.TEXT, "first"),
-                                    new TestCaseSupplier.TypedData(new BytesRef("2023-05-05"), DataTypes.TEXT, "second")
+                                    new TestCaseSupplier.TypedData(new BytesRef("yyyy-MM-dd"), DataType.TEXT, "first"),
+                                    new TestCaseSupplier.TypedData(new BytesRef("2023-05-05"), DataType.TEXT, "second")
                                 ),
                                 "DateParseEvaluator[val=Attribute[channel=1], formatter=Attribute[channel=0], zoneId=Z]",
-                                DataTypes.DATETIME,
+                                DataType.DATETIME,
                                 equalTo(1683244800000L)
                             )
                         ),
                         new TestCaseSupplier(
                             "With keyword",
-                            List.of(DataTypes.TEXT, DataTypes.KEYWORD),
+                            List.of(DataType.TEXT, DataType.KEYWORD),
                             () -> new TestCaseSupplier.TestCase(
                                 List.of(
-                                    new TestCaseSupplier.TypedData(new BytesRef("yyyy-MM-dd"), DataTypes.TEXT, "first"),
-                                    new TestCaseSupplier.TypedData(new BytesRef("2023-05-05"), DataTypes.KEYWORD, "second")
+                                    new TestCaseSupplier.TypedData(new BytesRef("yyyy-MM-dd"), DataType.TEXT, "first"),
+                                    new TestCaseSupplier.TypedData(new BytesRef("2023-05-05"), DataType.KEYWORD, "second")
                                 ),
                                 "DateParseEvaluator[val=Attribute[channel=1], formatter=Attribute[channel=0], zoneId=Z]",
-                                DataTypes.DATETIME,
+                                DataType.DATETIME,
                                 equalTo(1683244800000L)
                             )
                         ),
                         new TestCaseSupplier(
-                            List.of(DataTypes.KEYWORD, DataTypes.KEYWORD),
+                            List.of(DataType.KEYWORD, DataType.KEYWORD),
                             () -> new TestCaseSupplier.TestCase(
                                 List.of(
-                                    new TestCaseSupplier.TypedData(new BytesRef("not a format"), DataTypes.KEYWORD, "first"),
-                                    new TestCaseSupplier.TypedData(new BytesRef("2023-05-05"), DataTypes.KEYWORD, "second")
+                                    new TestCaseSupplier.TypedData(new BytesRef("not a format"), DataType.KEYWORD, "first"),
+                                    new TestCaseSupplier.TypedData(new BytesRef("2023-05-05"), DataType.KEYWORD, "second")
 
                                 ),
                                 "DateParseEvaluator[val=Attribute[channel=1], formatter=Attribute[channel=0], zoneId=Z]",
-                                DataTypes.DATETIME,
+                                DataType.DATETIME,
                                 is(nullValue())
                             ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
                                 .withWarning(
@@ -114,15 +114,15 @@ public class DateParseTests extends AbstractFunctionTestCase {
                                 )
                         ),
                         new TestCaseSupplier(
-                            List.of(DataTypes.KEYWORD, DataTypes.KEYWORD),
+                            List.of(DataType.KEYWORD, DataType.KEYWORD),
                             () -> new TestCaseSupplier.TestCase(
                                 List.of(
-                                    new TestCaseSupplier.TypedData(new BytesRef("yyyy-MM-dd"), DataTypes.KEYWORD, "first"),
-                                    new TestCaseSupplier.TypedData(new BytesRef("not a date"), DataTypes.KEYWORD, "second")
+                                    new TestCaseSupplier.TypedData(new BytesRef("yyyy-MM-dd"), DataType.KEYWORD, "first"),
+                                    new TestCaseSupplier.TypedData(new BytesRef("not a date"), DataType.KEYWORD, "second")
 
                                 ),
                                 "DateParseEvaluator[val=Attribute[channel=1], formatter=Attribute[channel=0], zoneId=Z]",
-                                DataTypes.DATETIME,
+                                DataType.DATETIME,
                                 is(nullValue())
                             ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
                                 .withWarning(
@@ -144,8 +144,8 @@ public class DateParseTests extends AbstractFunctionTestCase {
             () -> evaluator(
                 new DateParse(
                     Source.EMPTY,
-                    new Literal(Source.EMPTY, new BytesRef(pattern), DataTypes.KEYWORD),
-                    field("str", DataTypes.KEYWORD)
+                    new Literal(Source.EMPTY, new BytesRef(pattern), DataType.KEYWORD),
+                    field("str", DataType.KEYWORD)
                 )
             ).get(driverContext)
         );

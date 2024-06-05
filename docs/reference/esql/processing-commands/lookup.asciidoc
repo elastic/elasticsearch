@@ -43,8 +43,7 @@ POST /_query?format=txt
       "author:keyword": ["Frank Herbert", "Peter F. Hamilton", "Vernor Vinge", "Alastair Reynolds", "James S.A. Corey"],
       "era:keyword"   : [ "The New Wave",           "Diamond",      "Diamond",           "Diamond",           "Hadron"]
     }
-  },
-  "version": "2024.04.01"
+  }
 }
 ----
 // TEST[setup:library]

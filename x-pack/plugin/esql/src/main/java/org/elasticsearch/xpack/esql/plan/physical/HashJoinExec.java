@@ -52,7 +52,7 @@ public class HashJoinExec extends UnaryExec implements EstimatesRowSize {
     public HashJoinExec(PlanStreamInput in) throws IOException {
         super(Source.readFrom(in), in.readPhysicalPlanNode());
         this.joinData = new LocalSourceExec(in);
-        this.matchFields = in.readCollectionAsList(i -> in.readNamedExpression());
+        this.matchFields = in.readNamedWriteableCollectionAsList(NamedExpression.class);
         this.conditions = in.readCollectionAsList(i -> (Equals) PlanNamedTypes.readBinComparison(in, "equals"));
         this.output = in.readNamedWriteableCollectionAsList(Attribute.class);
     }
@@ -61,7 +61,7 @@ public class HashJoinExec extends UnaryExec implements EstimatesRowSize {
         source().writeTo(out);
         out.writePhysicalPlanNode(child());
         joinData.writeTo(out);
-        out.writeCollection(matchFields, (o, v) -> out.writeNamedExpression(v));
+        out.writeNamedWriteableCollection(matchFields);
         out.writeCollection(conditions, (o, v) -> PlanNamedTypes.writeBinComparison(out, v));
         out.writeNamedWriteableCollection(output);
     }

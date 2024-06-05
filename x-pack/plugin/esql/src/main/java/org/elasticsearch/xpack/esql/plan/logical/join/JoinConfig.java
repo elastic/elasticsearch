@@ -28,7 +28,7 @@ public record JoinConfig(JoinType type, List<NamedExpression> matchFields, List<
     public JoinConfig(StreamInput in) throws IOException {
         this(
             JoinType.readFrom(in),
-            in.readCollectionAsList(i -> ((PlanStreamInput) i).readNamedExpression()),
+            in.readNamedWriteableCollectionAsList(NamedExpression.class),
             in.readCollectionAsList(i -> ((PlanStreamInput) i).readExpression())
         );
     }
@@ -36,7 +36,7 @@ public record JoinConfig(JoinType type, List<NamedExpression> matchFields, List<
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         type.writeTo(out);
-        out.writeCollection(matchFields, (o, v) -> ((PlanStreamOutput) o).writeNamedExpression(v));
+        out.writeNamedWriteableCollection(matchFields);
         out.writeCollection(conditions, (o, v) -> ((PlanStreamOutput) o).writeExpression(v));
     }
 

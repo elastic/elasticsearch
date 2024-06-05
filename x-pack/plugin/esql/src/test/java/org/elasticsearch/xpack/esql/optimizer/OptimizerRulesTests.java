@@ -37,7 +37,6 @@ import org.elasticsearch.xpack.esql.core.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
@@ -64,18 +63,17 @@ import static org.elasticsearch.xpack.esql.core.expression.Literal.FALSE;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.NULL;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.TRUE;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.BOOLEAN;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
+import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.hamcrest.Matchers.contains;
 
 public class OptimizerRulesTests extends ESTestCase {
-    private static final Literal ZERO = new Literal(Source.EMPTY, 0, DataTypes.INTEGER);
     private static final Literal ONE = new Literal(Source.EMPTY, 1, DataType.INTEGER);
     private static final Literal TWO = new Literal(Source.EMPTY, 2, DataType.INTEGER);
     private static final Literal THREE = new Literal(Source.EMPTY, 3, DataType.INTEGER);
     private static final Literal FOUR = new Literal(Source.EMPTY, 4, DataType.INTEGER);
     private static final Literal FIVE = new Literal(Source.EMPTY, 5, DataType.INTEGER);
-    private static final Literal SIX = new Literal(Source.EMPTY, 6, DataTypes.INTEGER);
+    private static final Literal SIX = new Literal(Source.EMPTY, 6, DataType.INTEGER);
     private static final Expression DUMMY_EXPRESSION =
         new org.elasticsearch.xpack.esql.core.optimizer.OptimizerRulesTests.DummyBooleanExpression(EMPTY, 0);
 
@@ -156,10 +154,10 @@ public class OptimizerRulesTests extends ESTestCase {
     }
 
     public void testConstantFoldingRange() {
-        assertEquals(true, new ConstantFolding().rule(rangeOf(FIVE, FIVE, true, new Literal(EMPTY, 10, DataTypes.INTEGER), false)).fold());
+        assertEquals(true, new ConstantFolding().rule(rangeOf(FIVE, FIVE, true, new Literal(EMPTY, 10, DataType.INTEGER), false)).fold());
         assertEquals(
             false,
-            new ConstantFolding().rule(rangeOf(FIVE, FIVE, false, new Literal(EMPTY, 10, DataTypes.INTEGER), false)).fold()
+            new ConstantFolding().rule(rangeOf(FIVE, FIVE, false, new Literal(EMPTY, 10, DataType.INTEGER), false)).fold()
         );
     }
 
@@ -175,11 +173,11 @@ public class OptimizerRulesTests extends ESTestCase {
     }
 
     public void testArithmeticFolding() {
-        assertEquals(10, foldOperator(new Add(EMPTY, new Literal(EMPTY, 7, DataTypes.INTEGER), THREE)));
-        assertEquals(4, foldOperator(new Sub(EMPTY, new Literal(EMPTY, 7, DataTypes.INTEGER), THREE)));
-        assertEquals(21, foldOperator(new Mul(EMPTY, new Literal(EMPTY, 7, DataTypes.INTEGER), THREE)));
-        assertEquals(2, foldOperator(new Div(EMPTY, new Literal(EMPTY, 7, DataTypes.INTEGER), THREE)));
-        assertEquals(1, foldOperator(new Mod(EMPTY, new Literal(EMPTY, 7, DataTypes.INTEGER), THREE)));
+        assertEquals(10, foldOperator(new Add(EMPTY, new Literal(EMPTY, 7, DataType.INTEGER), THREE)));
+        assertEquals(4, foldOperator(new Sub(EMPTY, new Literal(EMPTY, 7, DataType.INTEGER), THREE)));
+        assertEquals(21, foldOperator(new Mul(EMPTY, new Literal(EMPTY, 7, DataType.INTEGER), THREE)));
+        assertEquals(2, foldOperator(new Div(EMPTY, new Literal(EMPTY, 7, DataType.INTEGER), THREE)));
+        assertEquals(1, foldOperator(new Mod(EMPTY, new Literal(EMPTY, 7, DataType.INTEGER), THREE)));
     }
 
     private static Object foldOperator(BinaryOperator<?, ?, ?, ?> b) {

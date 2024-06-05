@@ -102,7 +102,7 @@ public class BwcSetupExtension {
             loggedExec.getNonTrackedEnvironment().put("JAVA_HOME", providerFactory.of(JavaHomeValueSource.class, spec -> {
                 spec.getParameters().getVersion().set(unreleasedVersionInfo.map(it -> it.version()));
                 spec.getParameters().getCheckoutDir().set(checkoutDir);
-            }).map(s -> getJavaHome(objectFactory, toolChainService, Integer.parseInt(s))));
+            }).flatMap(s -> getJavaHome(objectFactory, toolChainService, Integer.parseInt(s))));
 
             if (BuildParams.isCi() && OS.current() != OS.WINDOWS) {
                 // TODO: Disabled for now until we can figure out why files are getting corrupted
@@ -159,12 +159,12 @@ public class BwcSetupExtension {
     }
 
     /** A convenience method for getting java home for a version of java and requiring that version for the given task to execute */
-    private static String getJavaHome(ObjectFactory objectFactory, JavaToolchainService toolChainService, final int version) {
+    private static Provider<String> getJavaHome(ObjectFactory objectFactory, JavaToolchainService toolChainService, final int version) {
         Property<JavaLanguageVersion> value = objectFactory.property(JavaLanguageVersion.class).value(JavaLanguageVersion.of(version));
         return toolChainService.launcherFor(javaToolchainSpec -> {
             javaToolchainSpec.getLanguageVersion().value(value);
             javaToolchainSpec.getVendor().set(JvmVendorSpec.ORACLE);
-        }).get().getMetadata().getInstallationPath().getAsFile().getAbsolutePath();
+        }).map(launcher -> launcher.getMetadata().getInstallationPath().getAsFile().getAbsolutePath());
     }
 
     private static String readFromFile(File file) {

@@ -16,7 +16,6 @@ import org.elasticsearch.xcontent.XContentLocation;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.parser.ContentLocation;
 import org.elasticsearch.xpack.esql.parser.QueryParam;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
@@ -197,25 +196,25 @@ final class RequestXContent {
                 } else {
                     if (token == XContentParser.Token.VALUE_STRING) {
                         value = p.text();
-                        type = DataTypes.KEYWORD;
+                        type = DataType.KEYWORD;
                     } else if (token == XContentParser.Token.VALUE_NUMBER) {
                         XContentParser.NumberType numberType = p.numberType();
                         if (numberType == XContentParser.NumberType.INT) {
                             value = p.intValue();
-                            type = DataTypes.INTEGER;
+                            type = DataType.INTEGER;
                         } else if (numberType == XContentParser.NumberType.LONG) {
                             value = p.longValue();
-                            type = DataTypes.LONG;
+                            type = DataType.LONG;
                         } else if (numberType == XContentParser.NumberType.DOUBLE) {
                             value = p.doubleValue();
-                            type = DataTypes.DOUBLE;
+                            type = DataType.DOUBLE;
                         }
                     } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
                         value = p.booleanValue();
-                        type = DataTypes.BOOLEAN;
+                        type = DataType.BOOLEAN;
                     } else if (token == XContentParser.Token.VALUE_NULL) {
                         value = null;
-                        type = DataTypes.NULL;
+                        type = DataType.NULL;
                     } else {
                         errors.add(loc + " " + token + " is not supported as a parameter.");
                     }

@@ -22,6 +22,7 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -347,7 +348,9 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         final BytesReference adaptedSource = applyFilters(originalSource, contentType);
 
         if (adaptedSource != null) {
-            assert indexMode == null || indexMode.isSyntheticSourceEnabled() == false;
+            assert context.indexSettings().getIndexVersionCreated().before(IndexVersions.V_8_7_0)
+                || indexMode == null
+                || indexMode.isSyntheticSourceEnabled() == false;
             final BytesRef ref = adaptedSource.toBytesRef();
             context.doc().add(new StoredField(fieldType().name(), ref.bytes, ref.offset, ref.length));
         }

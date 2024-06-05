@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.util.Map;
 
 import static org.elasticsearch.rest.action.search.RestSearchAction.TOTAL_HITS_AS_INT_PARAM;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class UpgradeWithOldIndexSettingsIT extends AbstractRollingUpgradeTestCase {
@@ -103,10 +104,13 @@ public class UpgradeWithOldIndexSettingsIT extends AbstractRollingUpgradeTestCas
     }
 
     public void testMapperDynamicIndexSetting() throws IOException {
-        assumeTrue("Setting not removed before 7.0", getOldClusterTestVersion().before("8.0.0"));
+        assumeTrue(
+            "Setting deprecated in 6.x, but remained in 7.x and is no longer defined in 8.x",
+            getOldClusterTestVersion().before("8.0.0")
+        );
+        String indexName = "my-index";
         if (isOldCluster()) {
-            createIndex("my-index", Settings.EMPTY);
-
+            createIndex(indexName);
             Request request = new Request("PUT", "/my-index/_settings");
             request.setJsonEntity(org.elasticsearch.common.Strings.toString(Settings.builder().put("index.mapper.dynamic", true).build()));
             request.setOptions(
@@ -117,11 +121,15 @@ public class UpgradeWithOldIndexSettingsIT extends AbstractRollingUpgradeTestCas
             );
             assertOK(client().performRequest(request));
         } else {
-            ensureGreen("my-index");
+            closeIndex(indexName);
+            openIndex(indexName);
             if (isUpgradedCluster()) {
-                var indexSettings = getIndexSettings("my-index");
-                logger.error("indexSettings={}", indexSettings);
-                assertThat(XContentMapValues.extractValue("index.mapper.archived.dynamic", indexSettings), is(true));
+                var indexSettings = getIndexSettings(indexName);
+                assertThat(
+                    XContentMapValues.extractValue(indexName + ".settings.archived.index.mapper.dynamic", indexSettings),
+                    equalTo("true")
+                );
+                ensureGreen(indexName);
             }
         }
     }

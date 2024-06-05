@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.external.http.sender;
 
-import org.apache.http.client.protocol.HttpClientContext;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
@@ -16,8 +15,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.request.azureaistudio.AzureAiStudioChatCompletionRequest;
-import org.elasticsearch.xpack.inference.external.response.AzureAndOpenAiErrorResponseEntity;
-import org.elasticsearch.xpack.inference.external.response.AzureAndOpenAiExternalResponseHandler;
+import org.elasticsearch.xpack.inference.external.response.AzureMistralOpenAiErrorResponseEntity;
+import org.elasticsearch.xpack.inference.external.response.AzureMistralOpenAiExternalResponseHandler;
 import org.elasticsearch.xpack.inference.external.response.azureaistudio.AzureAiStudioChatCompletionResponseEntity;
 import org.elasticsearch.xpack.inference.services.azureaistudio.completion.AzureAiStudioChatCompletionModel;
 
@@ -37,24 +36,23 @@ public class AzureAiStudioChatCompletionRequestManager extends AzureAiStudioRequ
     }
 
     @Override
-    public Runnable create(
+    public void execute(
         String query,
         List<String> input,
         RequestSender requestSender,
         Supplier<Boolean> hasRequestCompletedFunction,
-        HttpClientContext context,
         ActionListener<InferenceServiceResults> listener
     ) {
         AzureAiStudioChatCompletionRequest request = new AzureAiStudioChatCompletionRequest(model, input);
 
-        return new ExecutableInferenceRequest(requestSender, logger, request, context, HANDLER, hasRequestCompletedFunction, listener);
+        execute(new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, hasRequestCompletedFunction, listener));
     }
 
     private static ResponseHandler createCompletionHandler() {
-        return new AzureAndOpenAiExternalResponseHandler(
+        return new AzureMistralOpenAiExternalResponseHandler(
             "azure ai studio completion",
             new AzureAiStudioChatCompletionResponseEntity(),
-            AzureAndOpenAiErrorResponseEntity::fromResponse
+            AzureMistralOpenAiErrorResponseEntity::fromResponse
         );
     }
 

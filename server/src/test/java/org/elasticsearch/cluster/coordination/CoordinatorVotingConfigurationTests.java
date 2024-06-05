@@ -13,7 +13,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.discovery.DiscoveryModule;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.util.HashSet;
@@ -458,9 +458,9 @@ public class CoordinatorVotingConfigurationTests extends AbstractCoordinatorTest
         value = "org.elasticsearch.cluster.coordination.ClusterBootstrapService:INFO"
     )
     public void testClusterUUIDLogging() {
-        try (var mockAppender = MockLogAppender.capture(ClusterBootstrapService.class); var cluster = new Cluster(randomIntBetween(1, 3))) {
-            mockAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+        try (var mockLog = MockLog.capture(ClusterBootstrapService.class); var cluster = new Cluster(randomIntBetween(1, 3))) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "fresh node message",
                     ClusterBootstrapService.class.getCanonicalName(),
                     Level.INFO,
@@ -470,11 +470,11 @@ public class CoordinatorVotingConfigurationTests extends AbstractCoordinatorTest
 
             cluster.runRandomly();
             cluster.stabilise();
-            mockAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
 
             final var restartingNode = cluster.getAnyNode();
-            mockAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "restarted node message",
                     ClusterBootstrapService.class.getCanonicalName(),
                     Level.INFO,
@@ -486,7 +486,7 @@ public class CoordinatorVotingConfigurationTests extends AbstractCoordinatorTest
             restartingNode.close();
             cluster.clusterNodes.replaceAll(cn -> cn == restartingNode ? cn.restartedNode() : cn);
             cluster.stabilise();
-            mockAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 

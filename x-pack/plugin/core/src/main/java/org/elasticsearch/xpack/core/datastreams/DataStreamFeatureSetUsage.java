@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.datastreams;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -49,6 +50,12 @@ public class DataStreamFeatureSetUsage extends XPackFeatureSet.Usage {
         super.innerXContent(builder, params);
         builder.field("data_streams", streamStats.totalDataStreamCount);
         builder.field("indices_count", streamStats.indicesBehindDataStream);
+        if (DataStream.isFailureStoreFeatureFlagEnabled()) {
+            builder.startObject("failure_store");
+            builder.field("enabled_count", streamStats.failureStoreEnabledDataStreamCount);
+            builder.field("failure_indices_count", streamStats.failureStoreIndicesCount);
+            builder.endObject();
+        }
     }
 
     @Override
@@ -73,39 +80,30 @@ public class DataStreamFeatureSetUsage extends XPackFeatureSet.Usage {
         return Objects.equals(streamStats, other.streamStats);
     }
 
-    public static class DataStreamStats implements Writeable {
-
-        private final long totalDataStreamCount;
-        private final long indicesBehindDataStream;
-
-        public DataStreamStats(long totalDataStreamCount, long indicesBehindDataStream) {
-            this.totalDataStreamCount = totalDataStreamCount;
-            this.indicesBehindDataStream = indicesBehindDataStream;
-        }
+    public record DataStreamStats(
+        long totalDataStreamCount,
+        long indicesBehindDataStream,
+        long failureStoreEnabledDataStreamCount,
+        long failureStoreIndicesCount
+    ) implements Writeable {
 
         public DataStreamStats(StreamInput in) throws IOException {
-            this.totalDataStreamCount = in.readVLong();
-            this.indicesBehindDataStream = in.readVLong();
+            this(
+                in.readVLong(),
+                in.readVLong(),
+                in.getTransportVersion().onOrAfter(TransportVersions.FAILURE_STORE_TELEMETRY) ? in.readVLong() : 0,
+                in.getTransportVersion().onOrAfter(TransportVersions.FAILURE_STORE_TELEMETRY) ? in.readVLong() : 0
+            );
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVLong(this.totalDataStreamCount);
             out.writeVLong(this.indicesBehindDataStream);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(totalDataStreamCount, indicesBehindDataStream);
-        }
-
-        @Override
-        public boolean equals(Object obj) {
-            if (obj.getClass() != getClass()) {
-                return false;
+            if (out.getTransportVersion().onOrAfter(TransportVersions.FAILURE_STORE_TELEMETRY)) {
+                out.writeVLong(this.failureStoreEnabledDataStreamCount);
+                out.writeVLong(this.failureStoreIndicesCount);
             }
-            DataStreamStats other = (DataStreamStats) obj;
-            return totalDataStreamCount == other.totalDataStreamCount && indicesBehindDataStream == other.indicesBehindDataStream;
         }
     }
 }

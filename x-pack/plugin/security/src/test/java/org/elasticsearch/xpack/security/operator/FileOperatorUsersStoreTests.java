@@ -16,7 +16,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -175,15 +175,14 @@ public class FileOperatorUsersStoreTests extends ESTestCase {
         Files.copy(sampleFile, inUseFile, StandardCopyOption.REPLACE_EXISTING);
 
         final Logger logger = LogManager.getLogger(FileOperatorUsersStore.class);
-        final MockLogAppender appender = new MockLogAppender();
         Loggers.setLevel(logger, Level.TRACE);
 
         try (
-            var ignored = appender.capturing(FileOperatorUsersStore.class);
+            var mockLog = MockLog.capture(FileOperatorUsersStore.class);
             ResourceWatcherService watcherService = new ResourceWatcherService(settings, threadPool)
         ) {
-            appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "1st file parsing",
                     logger.getName(),
                     Level.INFO,
@@ -209,7 +208,7 @@ public class FileOperatorUsersStoreTests extends ESTestCase {
                 groups.get(2)
             );
             assertEquals(new FileOperatorUsersStore.Group(Set.of("me@elastic.co"), "jwt1", "jwt", "realm", null, null), groups.get(3));
-            appender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
 
             // Content does not change, the groups should not be updated
             try (BufferedWriter writer = Files.newBufferedWriter(inUseFile, StandardCharsets.UTF_8, StandardOpenOption.APPEND)) {
@@ -217,11 +216,11 @@ public class FileOperatorUsersStoreTests extends ESTestCase {
             }
             watcherService.notifyNow(ResourceWatcherService.Frequency.HIGH);
             assertSame(groups, fileOperatorUsersStore.getOperatorUsersDescriptor().getGroups());
-            appender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
 
             // Add one more entry
-            appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "updating",
                     logger.getName(),
                     Level.INFO,
@@ -236,11 +235,11 @@ public class FileOperatorUsersStoreTests extends ESTestCase {
                 assertEquals(5, newGroups.size());
                 assertEquals(new FileOperatorUsersStore.Group(Set.of("operator_4")), newGroups.get(4));
             });
-            appender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
 
             // Add mal-formatted entry
-            appender.addExpectation(
-                new MockLogAppender.ExceptionSeenEventExpectation(
+            mockLog.addExpectation(
+                new MockLog.ExceptionSeenEventExpectation(
                     "mal-formatted",
                     logger.getName(),
                     Level.ERROR,
@@ -254,11 +253,11 @@ public class FileOperatorUsersStoreTests extends ESTestCase {
             }
             watcherService.notifyNow(ResourceWatcherService.Frequency.HIGH);
             assertEquals(5, fileOperatorUsersStore.getOperatorUsersDescriptor().getGroups().size());
-            appender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
 
             // Delete the file will remove all the operator users
-            appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "file not exist warning",
                     logger.getName(),
                     Level.WARN,
@@ -268,7 +267,7 @@ public class FileOperatorUsersStoreTests extends ESTestCase {
             );
             Files.delete(inUseFile);
             assertBusy(() -> assertEquals(0, fileOperatorUsersStore.getOperatorUsersDescriptor().getGroups().size()));
-            appender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
 
             // Back to original content
             Files.copy(sampleFile, inUseFile, StandardCopyOption.REPLACE_EXISTING);

@@ -99,6 +99,25 @@ public class DataStreamLifecycleHealthIndicatorServiceTests extends ESTestCase {
         assertThat(diagnosis.affectedResources().get(0).getValues(), containsInAnyOrder(secondGenerationIndex, firstGenerationIndex));
     }
 
+    public void testSkippingFieldsWhenVerboseIsFalse() {
+        String secondGenerationIndex = DataStream.getDefaultBackingIndexName("foo", 2L);
+        String firstGenerationIndex = DataStream.getDefaultBackingIndexName("foo", 1L);
+        HealthIndicatorResult result = service.calculate(
+            false,
+            constructHealthInfo(
+                new DataStreamLifecycleHealthInfo(
+                    List.of(new DslErrorInfo(secondGenerationIndex, 1L, 200), new DslErrorInfo(firstGenerationIndex, 3L, 100)),
+                    15
+                )
+            )
+        );
+        assertThat(result.status(), is(HealthStatus.YELLOW));
+        assertThat(result.symptom(), is("2 backing indices have repeatedly encountered errors whilst trying to advance in its lifecycle"));
+        assertThat(result.details(), is(HealthIndicatorDetails.EMPTY));
+        assertThat(result.impacts(), is(STAGNATING_INDEX_IMPACT));
+        assertThat(result.diagnosisList().isEmpty(), is(true));
+    }
+
     private HealthInfo constructHealthInfo(DataStreamLifecycleHealthInfo dslHealthInfo) {
         return new HealthInfo(Map.of(), dslHealthInfo, Map.of());
     }

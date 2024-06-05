@@ -200,7 +200,7 @@ For instance, `gte_v8.12.2` would be available for all release versions greater 
 [[skip_known_issues]]
 === Skip on known issues
 
-Previously, it was possible to skip ranges of broken release versions using <<skip_version,`version`>>.
+Previously, it was possible to skip ranges of broken release versions using `version`.
 `known_issues` provides a more explicit way to express and skip a certain range of buggy releases based on cluster features.
 Each of possibly multiple issues is a pair of `cluster_feature` and `fixed_by`, where an issue was
 introduced by the former feature and eventually fixed by the latter one. For instance:
@@ -239,55 +239,6 @@ For instance:
      - do:
        ... test definitions ...
 ....
-
-[[skip_version]]
-=== Skip for Elasticsearch versions (deprecated)
-
-If a test section should only be run on certain versions of Elasticsearch,
-then the first entry in the section (after the title) should be called
-`skip`, and should contain the range of versions to be
-skipped, and the reason why the tests are skipped. For instance:
-
-....
-    "Parent":
-     - skip:
-          version:     "0.20.1 - 0.90.2"
-          reason:      Delete ignores the parent param
-
-     - do:
-       ... test definitions ...
-....
-
-All tests in the file following the skip statement should be skipped if:
-`min <= current <= max`.
-
-The `version` range can leave either bound empty, which means "open ended".
-For instance:
-....
-    "Parent":
-     - skip:
-          version:     "1.0.0.Beta1 - "
-          reason:      Delete ignores the parent param
-
-     - do:
-       ... test definitions ...
-....
-
-The `version` field can also have multiple ranges. Combining this with empty bounds
-allows, for example, specifying an include-range instead of a skip range:
-....
-Unsupported metric type position:
-  - skip:
-      version: " - 8.0.99, 8.8.0 - "
-      reason: index.mode introduced in 8.1.0 and metric position introduced in 8.8.0
-
-  - do:
-    ... test that 'position' causes expected error for versions 8.1.0-8.7.99 ...
-....
-
-The value for version can also be `all`, to skip in any version of
-Elasticsearch. This can be used for example when a feature is being implemented
-or awaiting a fix.
 
 [[skip_os]]
 === Skip on certain operating systems

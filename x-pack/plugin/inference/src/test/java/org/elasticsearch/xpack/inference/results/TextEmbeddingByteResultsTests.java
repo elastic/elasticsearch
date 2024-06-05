@@ -135,7 +135,7 @@ public class TextEmbeddingByteResultsTests extends AbstractWireSerializingTestCa
         }
     }
 
-    public static Map<String, Object> buildExpectation(List<List<Byte>> embeddings) {
+    public static Map<String, Object> buildExpectationByte(List<List<Byte>> embeddings) {
         return Map.of(
             TextEmbeddingByteResults.TEXT_EMBEDDING_BYTES,
             embeddings.stream().map(embedding -> Map.of(TextEmbeddingByteResults.Embedding.EMBEDDING, embedding)).toList()

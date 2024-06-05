@@ -53,15 +53,7 @@ public enum IndexMode {
     STANDARD("standard") {
         @Override
         void validateWithOtherSettings(Map<Setting<?>, Object> settings) {
-            settingRequiresTimeSeries(settings, IndexMetadata.INDEX_ROUTING_PATH);
-            settingRequiresTimeSeries(settings, IndexSettings.TIME_SERIES_START_TIME);
-            settingRequiresTimeSeries(settings, IndexSettings.TIME_SERIES_END_TIME);
-        }
-
-        private static void settingRequiresTimeSeries(Map<Setting<?>, Object> settings, Setting<?> setting) {
-            if (false == Objects.equals(setting.getDefault(Settings.EMPTY), settings.get(setting))) {
-                throw new IllegalArgumentException("[" + setting.getKey() + "] requires " + tsdbMode());
-            }
+            IndexMode.validateTimeSeriesSettings(settings);
         }
 
         @Override
@@ -229,7 +221,90 @@ public enum IndexMode {
         public boolean isSyntheticSourceEnabled() {
             return true;
         }
+    },
+    LOGS("logs") {
+        @Override
+        void validateWithOtherSettings(Map<Setting<?>, Object> settings) {
+            IndexMode.validateTimeSeriesSettings(settings);
+        }
+
+        @Override
+        public void validateMapping(MappingLookup lookup) {}
+
+        @Override
+        public void validateAlias(String indexRouting, String searchRouting) {
+
+        }
+
+        @Override
+        public void validateTimestampFieldMapping(boolean isDataStream, MappingLookup mappingLookup) throws IOException {
+            if (isDataStream) {
+                MetadataCreateDataStreamService.validateTimestampFieldMapping(mappingLookup);
+            }
+        }
+
+        @Override
+        public CompressedXContent getDefaultMapping() {
+            return DEFAULT_LOGS_TIMESTAMP_MAPPING;
+        }
+
+        @Override
+        public IdFieldMapper buildIdFieldMapper(BooleanSupplier fieldDataEnabled) {
+            return new ProvidedIdFieldMapper(fieldDataEnabled);
+        }
+
+        @Override
+        public IdFieldMapper idFieldMapperWithoutFieldData() {
+            return ProvidedIdFieldMapper.NO_FIELD_DATA;
+        }
+
+        @Override
+        public TimestampBounds getTimestampBound(IndexMetadata indexMetadata) {
+            return null;
+        }
+
+        @Override
+        public MetadataFieldMapper timeSeriesIdFieldMapper() {
+            // non time-series indices must not have a TimeSeriesIdFieldMapper
+            return null;
+        }
+
+        @Override
+        public MetadataFieldMapper timeSeriesRoutingHashFieldMapper() {
+            // non time-series indices must not have a TimeSeriesRoutingIdFieldMapper
+            return null;
+        }
+
+        @Override
+        public DocumentDimensions buildDocumentDimensions(IndexSettings settings) {
+            return new DocumentDimensions.OnlySingleValueAllowed();
+        }
+
+        @Override
+        public boolean shouldValidateTimestamp() {
+            return false;
+        }
+
+        @Override
+        public void validateSourceFieldMapper(SourceFieldMapper sourceFieldMapper) {}
+
+        @Override
+        public boolean isSyntheticSourceEnabled() {
+            return true;
+        }
     };
+
+    private static void validateTimeSeriesSettings(Map<Setting<?>, Object> settings) {
+        settingRequiresTimeSeries(settings, IndexMetadata.INDEX_ROUTING_PATH);
+        settingRequiresTimeSeries(settings, IndexSettings.TIME_SERIES_START_TIME);
+        settingRequiresTimeSeries(settings, IndexSettings.TIME_SERIES_END_TIME);
+    }
+
+    private static void settingRequiresTimeSeries(Map<Setting<?>, Object> settings, Setting<?> setting) {
+        if (false == Objects.equals(setting.getDefault(Settings.EMPTY), settings.get(setting))) {
+            throw new IllegalArgumentException("[" + setting.getKey() + "] requires " + tsdbMode());
+        }
+    }
 
     protected static String tsdbMode() {
         return "[" + IndexSettings.MODE.getKey() + "=time_series]";
@@ -248,6 +323,27 @@ public enum IndexMode {
                     .startObject(DataStreamTimestampFieldMapper.DEFAULT_PATH)
                     .field("type", DateFieldMapper.CONTENT_TYPE)
                     .field("ignore_malformed", "false")
+                    .endObject()
+                    .endObject()
+                    .endObject())
+            );
+        } catch (IOException e) {
+            throw new AssertionError(e);
+        }
+    }
+
+    public static final CompressedXContent DEFAULT_LOGS_TIMESTAMP_MAPPING;
+
+    static {
+        try {
+            DEFAULT_LOGS_TIMESTAMP_MAPPING = new CompressedXContent(
+                ((builder, params) -> builder.startObject(MapperService.SINGLE_MAPPING_NAME)
+                    .startObject(DataStreamTimestampFieldMapper.NAME)
+                    .field("enabled", true)
+                    .endObject()
+                    .startObject("properties")
+                    .startObject(DataStreamTimestampFieldMapper.DEFAULT_PATH)
+                    .field("type", DateFieldMapper.CONTENT_TYPE)
                     .endObject()
                     .endObject()
                     .endObject())
@@ -368,6 +464,7 @@ public enum IndexMode {
         return switch (value) {
             case "standard" -> IndexMode.STANDARD;
             case "time_series" -> IndexMode.TIME_SERIES;
+            case "logs" -> IndexMode.LOGS;
             default -> throw new IllegalArgumentException(
                 "["
                     + value

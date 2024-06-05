@@ -1,0 +1,5 @@
+pr: 109320
+summary: Reset retryable index requests after failures
+area: Machine Learning
+type: bug
+issues: []

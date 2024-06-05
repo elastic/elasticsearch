@@ -23,7 +23,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.indices.EmptySystemIndices;
@@ -195,7 +194,7 @@ public class TransportSimulateBulkActionTests extends ESTestCase {
         };
         Map<String, Boolean> indicesToAutoCreate = Map.of(); // unused
         Set<String> dataStreamsToRollover = Set.of(); // unused
-        Map<String, IndexNotFoundException> indicesThatCannotBeCreated = Map.of(); // unused
+        Set<String> failureStoresToRollover = Set.of(); // unused
         long startTime = 0;
         bulkAction.createMissingIndicesAndIndexData(
             task,
@@ -204,7 +203,7 @@ public class TransportSimulateBulkActionTests extends ESTestCase {
             listener,
             indicesToAutoCreate,
             dataStreamsToRollover,
-            indicesThatCannotBeCreated,
+            failureStoresToRollover,
             startTime
         );
         assertThat(onResponseCalled.get(), equalTo(true));

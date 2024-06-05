@@ -48,6 +48,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
@@ -59,6 +60,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasRank;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.hamcrest.Matchers.equalTo;
 
 @ESIntegTestCase.ClusterScope(minNumDataNodes = 3)
 public class FieldBasedRerankerIT extends ESIntegTestCase {
@@ -109,6 +111,7 @@ public class FieldBasedRerankerIT extends ESIntegTestCase {
                 }
             }
         );
+        assertNoOpenContext(indexName);
     }
 
     public void testFieldBasedRerankerPagination() throws Exception {
@@ -153,6 +156,7 @@ public class FieldBasedRerankerIT extends ESIntegTestCase {
                 }
             }
         );
+        assertNoOpenContext(indexName);
     }
 
     public void testFieldBasedRerankerPaginationOutsideOfBounds() throws Exception {
@@ -190,6 +194,7 @@ public class FieldBasedRerankerIT extends ESIntegTestCase {
                 assertEquals(0, response.getHits().getHits().length);
             }
         );
+        assertNoOpenContext(indexName);
     }
 
     public void testNotAllShardsArePresentInFetchPhase() throws Exception {
@@ -233,6 +238,7 @@ public class FieldBasedRerankerIT extends ESIntegTestCase {
                 }
             }
         );
+        assertNoOpenContext(indexName);
     }
 
     public void testFieldBasedRerankerNoMatchingDocs() throws Exception {
@@ -262,6 +268,7 @@ public class FieldBasedRerankerIT extends ESIntegTestCase {
                 assertHitCount(response, 0L);
             }
         );
+        assertNoOpenContext(indexName);
     }
 
     public void testQueryPhaseShardThrowingRankBuilderAllContextsAreClosedAllShardsFail() throws Exception {
@@ -305,6 +312,7 @@ public class FieldBasedRerankerIT extends ESIntegTestCase {
                 .setSize(10)
                 .get()
         );
+        assertNoOpenContext(indexName);
     }
 
     public void testQueryPhaseCoordinatorThrowingRankBuilderAllContextsAreClosedAllShardsFail() throws Exception {
@@ -347,6 +355,7 @@ public class FieldBasedRerankerIT extends ESIntegTestCase {
                 .setSize(10)
                 .get()
         );
+        assertNoOpenContext(indexName);
     }
 
     public void testRankFeaturePhaseShardThrowingRankBuilderAllContextsAreClosedPartialFailures() throws Exception {
@@ -395,6 +404,7 @@ public class FieldBasedRerankerIT extends ESIntegTestCase {
                 assertTrue(response.getHits().getHits().length == 0);
             }
         );
+        assertNoOpenContext(indexName);
     }
 
     public void testRankFeaturePhaseShardThrowingRankBuilderAllContextsAreClosedAllShardsFail() throws Exception {
@@ -436,6 +446,7 @@ public class FieldBasedRerankerIT extends ESIntegTestCase {
                 .setSize(10)
                 .get()
         );
+        assertNoOpenContext(indexName);
     }
 
     public void testRankFeaturePhaseCoordinatorThrowingRankBuilderAllContextsAreClosedAllShardsFail() throws Exception {
@@ -475,6 +486,15 @@ public class FieldBasedRerankerIT extends ESIntegTestCase {
                 .setAllowPartialSearchResults(true)
                 .setSize(10)
                 .get()
+        );
+        assertNoOpenContext(indexName);
+    }
+
+    private void assertNoOpenContext(final String indexName) throws Exception {
+        assertBusy(
+            () -> assertThat(indicesAdmin().prepareStats(indexName).get().getTotal().getSearch().getOpenContexts(), equalTo(0L)),
+            1,
+            TimeUnit.SECONDS
         );
     }
 

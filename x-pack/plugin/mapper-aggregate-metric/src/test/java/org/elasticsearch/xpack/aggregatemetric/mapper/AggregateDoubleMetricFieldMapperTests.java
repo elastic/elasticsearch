@@ -473,11 +473,6 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    public void testSyntheticSourceIgnoreMalformedExamples() {
-        assumeTrue("Scenarios are covered in scope of syntheticSourceSupport", false);
-    }
-
-    @Override
     protected IngestScriptSupport ingestScriptSupport() {
         throw new AssumptionViolatedException("not supported");
     }

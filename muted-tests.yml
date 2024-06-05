@@ -2,6 +2,9 @@ tests:
 - class: "org.elasticsearch.analysis.common.CommonAnalysisClientYamlTestSuiteIT"
   issue: "https://github.com/elastic/elasticsearch/issues/109318"
   method: "test {yaml=analysis-common/50_char_filters/pattern_replace error handling (too complex pattern)}"
+- class: org.elasticsearch.xpack.test.rest.XPackRestIT
+  method: test {p0=ml/inference_crud/Test force delete given model with alias referenced by pipeline}
+  issue: https://github.com/elastic/elasticsearch/issues/107505
 
 # Examples:
 #

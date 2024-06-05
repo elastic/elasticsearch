@@ -35,8 +35,7 @@ import static org.elasticsearch.xpack.esql.core.expression.Literal.TRUE;
  * When encountering a different Equals, non-containing {@link Range} or {@link BinaryComparison}, the conjunction becomes false.
  * When encountering a containing {@link Range}, {@link BinaryComparison} or {@link NotEquals}, these get eliminated by the equality.
  */
-public final class PropagateEquals extends org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.OptimizerExpressionRule<
-    BinaryLogic> {
+public final class PropagateEquals extends org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.OptimizerExpressionRule<BinaryLogic> {
 
     public PropagateEquals() {
         super(org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.TransformDirection.DOWN);
@@ -90,28 +89,28 @@ public final class PropagateEquals extends org.elasticsearch.xpack.esql.core.opt
                 || ex instanceof GreaterThanOrEqual
                 || ex instanceof LessThan
                 || ex instanceof LessThanOrEqual) {
-                BinaryComparison bc = (BinaryComparison) ex;
-                if (bc.right().foldable()) {
-                    inequalities.add(bc);
+                    BinaryComparison bc = (BinaryComparison) ex;
+                    if (bc.right().foldable()) {
+                        inequalities.add(bc);
+                    } else {
+                        exps.add(ex);
+                    }
+                } else if (ex instanceof NotEquals otherNotEq) {
+                    if (otherNotEq.right().foldable()) {
+                        notEquals.add(otherNotEq);
+                    } else {
+                        exps.add(ex);
+                    }
                 } else {
                     exps.add(ex);
                 }
-            } else if (ex instanceof NotEquals otherNotEq) {
-                if (otherNotEq.right().foldable()) {
-                    notEquals.add(otherNotEq);
-                } else {
-                    exps.add(ex);
-                }
-            } else {
-                exps.add(ex);
-            }
         }
 
         // check
         for (BinaryComparison eq : equals) {
             Object eqValue = eq.right().fold();
 
-            for (Iterator<Range> iterator = ranges.iterator(); iterator.hasNext(); ) {
+            for (Iterator<Range> iterator = ranges.iterator(); iterator.hasNext();) {
                 Range range = iterator.next();
 
                 if (range.value().semanticEquals(eq.left())) {
@@ -119,20 +118,20 @@ public final class PropagateEquals extends org.elasticsearch.xpack.esql.core.opt
                     if (range.lower().foldable()) {
                         Integer compare = BinaryComparison.compare(range.lower().fold(), eqValue);
                         if (compare != null && (
-                            // eq outside the lower boundary
-                            compare > 0 ||
-                                // eq matches the boundary but should not be included
-                                (compare == 0 && range.includeLower() == false))) {
+                        // eq outside the lower boundary
+                        compare > 0 ||
+                        // eq matches the boundary but should not be included
+                            (compare == 0 && range.includeLower() == false))) {
                             return new Literal(and.source(), Boolean.FALSE, DataType.BOOLEAN);
                         }
                     }
                     if (range.upper().foldable()) {
                         Integer compare = BinaryComparison.compare(range.upper().fold(), eqValue);
                         if (compare != null && (
-                            // eq outside the upper boundary
-                            compare < 0 ||
-                                // eq matches the boundary but should not be included
-                                (compare == 0 && range.includeUpper() == false))) {
+                        // eq outside the upper boundary
+                        compare < 0 ||
+                        // eq matches the boundary but should not be included
+                            (compare == 0 && range.includeUpper() == false))) {
                             return new Literal(and.source(), Boolean.FALSE, DataType.BOOLEAN);
                         }
                     }
@@ -144,7 +143,7 @@ public final class PropagateEquals extends org.elasticsearch.xpack.esql.core.opt
             }
 
             // evaluate all NotEquals against the Equal
-            for (Iterator<NotEquals> iter = notEquals.iterator(); iter.hasNext(); ) {
+            for (Iterator<NotEquals> iter = notEquals.iterator(); iter.hasNext();) {
                 NotEquals neq = iter.next();
                 if (eq.left().semanticEquals(neq.left())) {
                     Integer comp = BinaryComparison.compare(eqValue, neq.right().fold());
@@ -160,7 +159,7 @@ public final class PropagateEquals extends org.elasticsearch.xpack.esql.core.opt
             }
 
             // evaluate all inequalities against the Equal
-            for (Iterator<BinaryComparison> iter = inequalities.iterator(); iter.hasNext(); ) {
+            for (Iterator<BinaryComparison> iter = inequalities.iterator(); iter.hasNext();) {
                 BinaryComparison bc = iter.next();
                 if (eq.left().semanticEquals(bc.left())) {
                     Integer compare = BinaryComparison.compare(eqValue, bc.right().fold());
@@ -229,7 +228,7 @@ public final class PropagateEquals extends org.elasticsearch.xpack.esql.core.opt
         boolean updated = false; // has the expression been modified?
 
         // evaluate the impact of each Equal over the different types of Expressions
-        for (Iterator<Equals> iterEq = equals.iterator(); iterEq.hasNext(); ) {
+        for (Iterator<Equals> iterEq = equals.iterator(); iterEq.hasNext();) {
             Equals eq = iterEq.next();
             Object eqValue = eq.right().fold();
             boolean removeEquals = false;
@@ -321,7 +320,7 @@ public final class PropagateEquals extends org.elasticsearch.xpack.esql.core.opt
                             } else if (comp == 0 && bc instanceof GreaterThan) { // a = 2 OR a > 2 -> a >= 2
                                 inequalities.set(i, new GreaterThanOrEqual(bc.source(), bc.left(), bc.right(), bc.zoneId()));
                             } // else (0 < comp || bc instanceof GreaterThanOrEqual) :
-                            // a = 3 OR a > 2 -> a > 2; a = 2 OR a => 2 -> a => 2
+                              // a = 3 OR a > 2 -> a > 2; a = 2 OR a => 2 -> a => 2
 
                             removeEquals = true; // update range with equality instead or simply superfluous
                             break;

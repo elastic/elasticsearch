@@ -35,8 +35,7 @@ import static org.elasticsearch.xpack.esql.core.expression.predicate.Predicates.
  * This rule does NOT check for type compatibility as that phase has been
  * already be verified in the analyzer.
  */
-public class CombineDisjunctionsToIn extends org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.OptimizerExpressionRule<
-    Or> {
+public class CombineDisjunctionsToIn extends org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.OptimizerExpressionRule<Or> {
     public CombineDisjunctionsToIn() {
         super(org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.TransformDirection.UP);
     }
@@ -84,9 +83,7 @@ public class CombineDisjunctionsToIn extends org.elasticsearch.xpack.esql.core.o
             // combine equals alongside the existing ors
             final ZoneId finalZoneId = zoneId;
             found.forEach(
-                (k, v) -> {
-                    ors.add(v.size() == 1 ? createEquals(k, v, finalZoneId) : createIn(k, new ArrayList<>(v), finalZoneId));
-                }
+                (k, v) -> { ors.add(v.size() == 1 ? createEquals(k, v, finalZoneId) : createIn(k, new ArrayList<>(v), finalZoneId)); }
             );
 
             // TODO: this makes a QL `or`, not an ESQL `or`

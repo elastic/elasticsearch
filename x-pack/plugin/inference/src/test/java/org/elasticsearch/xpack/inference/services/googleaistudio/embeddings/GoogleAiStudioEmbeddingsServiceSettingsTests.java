@@ -14,6 +14,7 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTests;
 
@@ -55,7 +56,8 @@ public class GoogleAiStudioEmbeddingsServiceSettingsTests extends AbstractWireSe
                     ServiceFields.SIMILARITY,
                     similarity.toString()
                 )
-            )
+            ),
+            ConfigurationParseContext.PERSISTENT
         );
 
         assertThat(serviceSettings, is(new GoogleAiStudioEmbeddingsServiceSettings(model, maxInputTokens, dims, similarity, null)));
@@ -77,23 +79,6 @@ public class GoogleAiStudioEmbeddingsServiceSettingsTests extends AbstractWireSe
                 "rate_limit": {
                     "requests_per_minute":360
                 }
-            }"""));
-    }
-
-    public void testToFilteredXContent_WritesAllValues_Except_RateLimit() throws IOException {
-        var entity = new GoogleAiStudioEmbeddingsServiceSettings("model", 1024, 8, SimilarityMeasure.DOT_PRODUCT, null);
-
-        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-        var filteredXContent = entity.getFilteredXContentObject();
-        filteredXContent.toXContent(builder, null);
-        String xContentResult = Strings.toString(builder);
-
-        assertThat(xContentResult, equalToIgnoringWhitespaceInJsonString("""
-            {
-                "model_id":"model",
-                "max_input_tokens": 1024,
-                "dimensions": 8,
-                "similarity": "dot_product"
             }"""));
     }
 

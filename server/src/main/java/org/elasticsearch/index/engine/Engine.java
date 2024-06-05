@@ -60,6 +60,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.DocumentParser;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
@@ -70,6 +71,7 @@ import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.DenseVectorStats;
 import org.elasticsearch.index.shard.DocsStats;
+import org.elasticsearch.index.shard.IgnoredFieldStats;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.index.store.Store;
@@ -211,6 +213,12 @@ public abstract class Engine implements Closeable {
         }
     }
 
+    public IgnoredFieldStats ignoredFieldStats() {
+        try (Searcher searcher = acquireSearcher("ignored_source", SearcherScope.INTERNAL)) {
+            return ignoredFieldStats(searcher.getIndexReader());
+        }
+    }
+
     protected final DocsStats docsStats(IndexReader indexReader) {
         long numDocs = 0;
         long numDeletedDocs = 0;
@@ -230,6 +238,49 @@ public abstract class Engine implements Closeable {
             }
         }
         return new DocsStats(numDocs, numDeletedDocs, sizeInBytes);
+    }
+
+    protected final IgnoredFieldStats ignoredFieldStats(final IndexReader indexReader) {
+        long numDocs = 0;
+        long docsWithIgnoredFields = 0;
+        long ignoredFieldTermsSumDocFreq = 0;
+        for (LeafReaderContext readerContext : indexReader.leaves()) {
+            numDocs += readerContext.reader().numDocs();
+            docsWithIgnoredFields += getValueOrZero(
+                () -> (long) readerContext.reader().getDocCount(IgnoredFieldMapper.NAME),
+                "IO error while reading documents with ignored fields",
+                "Getting number of documents with ignored fields unsupported"
+            );
+            ignoredFieldTermsSumDocFreq += getValueOrZero(
+                () -> readerContext.reader().getSumDocFreq(IgnoredFieldMapper.NAME),
+                "IO error while reading frequency of ignored terms",
+                "Getting frequency of ignored terms unsupported"
+            );
+        }
+        return new IgnoredFieldStats(numDocs, docsWithIgnoredFields, ignoredFieldTermsSumDocFreq);
+    }
+
+    @FunctionalInterface
+    private interface ThrowingSupplier<T> {
+        T get() throws IOException, UnsupportedOperationException;
+    }
+
+    private long getValueOrZero(
+        final ThrowingSupplier<Long> throwingSupplier,
+        final String ioErrorMessage,
+        final String unsupportedOperationErrorMessage
+    ) {
+        try {
+            return throwingSupplier.get();
+        } catch (IOException e) {
+            logger.trace(() -> ioErrorMessage, e);
+        } catch (UnsupportedOperationException e) {
+            // NOTE: `source only snapshots` include only _source, stored fields and metadata while inverted index
+            // and doc values are missing. As a result we cannot count the number of documents with ignored fields
+            // on an index restored out of a `source only snapshot`.
+            logger.trace(() -> unsupportedOperationErrorMessage, e);
+        }
+        return 0L;
     }
 
     /**

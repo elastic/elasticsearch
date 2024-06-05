@@ -161,4 +161,8 @@ public class RestIndicesStatsAction extends BaseRestHandler {
         return RESPONSE_PARAMS;
     }
 
+    @Override
+    public Set<String> supportedCapabilities() {
+        return RestIndicesStatsCapabilities.CAPABILITIES;
+    }
 }

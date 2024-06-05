@@ -1331,6 +1331,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return getEngine().docStats();
     }
 
+    public IgnoredFieldStats ignoredFieldStats() {
+        readAllowed();
+        return getEngine().ignoredFieldStats();
+    }
+
     /**
      * @return {@link CommitStats}
      * @throws AlreadyClosedException if shard is closed

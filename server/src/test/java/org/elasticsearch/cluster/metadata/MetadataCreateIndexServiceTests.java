@@ -49,6 +49,7 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.SearchExecutionContextHelper;
+import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.InvalidAliasNameException;
 import org.elasticsearch.indices.InvalidIndexNameException;
@@ -1112,6 +1113,8 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         assertThat(indexMetadata.getAliases().size(), is(1));
         assertThat(indexMetadata.getAliases().keySet().iterator().next(), is("alias1"));
         assertThat("The source index primary term must be used", indexMetadata.primaryTerm(0), is(3L));
+        assertThat(indexMetadata.getTimestampRange(), equalTo(IndexLongFieldRange.NO_SHARDS));
+        assertThat(indexMetadata.getEventIngestedRange(), equalTo(IndexLongFieldRange.NO_SHARDS));
     }
 
     public void testBuildIndexMetadataWithTransportVersionBeforeEventIngestedRangeAdded() {
@@ -1138,6 +1141,9 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         assertThat(indexMetadata.getAliases().size(), is(1));
         assertThat(indexMetadata.getAliases().keySet().iterator().next(), is("alias1"));
         assertThat("The source index primary term must be used", indexMetadata.primaryTerm(0), is(3L));
+        assertThat(indexMetadata.getTimestampRange(), equalTo(IndexLongFieldRange.NO_SHARDS));
+        // on versions before event.ingested was added to cluster state, it should default to UNKNOWN, not NO_SHARDS
+        assertThat(indexMetadata.getEventIngestedRange(), equalTo(IndexLongFieldRange.UNKNOWN));
     }
 
     public void testGetIndexNumberOfRoutingShardsWithNullSourceIndex() {

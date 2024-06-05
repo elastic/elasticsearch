@@ -777,27 +777,18 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
                 assertThat(eventIngestedRange, sameInstance(IndexLongFieldRange.EMPTY));
             } else {
                 assertThat(timestampRange, not(sameInstance(IndexLongFieldRange.EMPTY)));
-                DateFieldMapper.Resolution timestampResolution = dateType.equals("date")
-                    ? DateFieldMapper.Resolution.MILLISECONDS
-                    : DateFieldMapper.Resolution.NANOSECONDS;
-                assertThat(
-                    timestampRange.getMin(),
-                    greaterThanOrEqualTo(timestampResolution.convert(Instant.parse("2020-11-26T00:00:00Z")))
-                );
-                assertThat(timestampRange.getMin(), lessThanOrEqualTo(timestampResolution.convert(Instant.parse("2020-11-27T00:00:00Z"))));
-
                 assertThat(eventIngestedRange, not(sameInstance(IndexLongFieldRange.EMPTY)));
-                DateFieldMapper.Resolution eventIngestedResolution = dateType.equals("date")
+
+                // both @timestamp and event.ingested have the same resolution in this test
+                DateFieldMapper.Resolution resolution = dateType.equals("date")
                     ? DateFieldMapper.Resolution.MILLISECONDS
                     : DateFieldMapper.Resolution.NANOSECONDS;
-                assertThat(
-                    eventIngestedRange.getMin(),
-                    greaterThanOrEqualTo(eventIngestedResolution.convert(Instant.parse("2020-11-26T00:00:00Z")))
-                );
-                assertThat(
-                    eventIngestedRange.getMin(),
-                    lessThanOrEqualTo(eventIngestedResolution.convert(Instant.parse("2020-11-27T00:00:00Z")))
-                );
+
+                assertThat(timestampRange.getMin(), greaterThanOrEqualTo(resolution.convert(Instant.parse("2020-11-26T00:00:00Z"))));
+                assertThat(timestampRange.getMin(), lessThanOrEqualTo(resolution.convert(Instant.parse("2020-11-27T00:00:00Z"))));
+
+                assertThat(eventIngestedRange.getMin(), greaterThanOrEqualTo(resolution.convert(Instant.parse("2020-11-26T00:00:00Z"))));
+                assertThat(eventIngestedRange.getMin(), lessThanOrEqualTo(resolution.convert(Instant.parse("2020-11-27T00:00:00Z"))));
             }
         } else {
             assertThat(timestampRange, sameInstance(IndexLongFieldRange.UNKNOWN));

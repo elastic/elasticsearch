@@ -14,7 +14,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
@@ -37,17 +37,17 @@ public class ToLongTests extends AbstractFunctionTestCase {
         Function<String, String> evaluatorName = s -> "ToLongFrom" + s + "Evaluator[field=" + read + "]";
         List<TestCaseSupplier> suppliers = new ArrayList<>();
 
-        TestCaseSupplier.forUnaryLong(suppliers, read, DataTypes.LONG, l -> l, Long.MIN_VALUE, Long.MAX_VALUE, List.of());
+        TestCaseSupplier.forUnaryLong(suppliers, read, DataType.LONG, l -> l, Long.MIN_VALUE, Long.MAX_VALUE, List.of());
 
-        TestCaseSupplier.forUnaryBoolean(suppliers, evaluatorName.apply("Boolean"), DataTypes.LONG, b -> b ? 1L : 0L, List.of());
+        TestCaseSupplier.forUnaryBoolean(suppliers, evaluatorName.apply("Boolean"), DataType.LONG, b -> b ? 1L : 0L, List.of());
 
         // datetimes
-        TestCaseSupplier.forUnaryDatetime(suppliers, read, DataTypes.LONG, Instant::toEpochMilli, List.of());
+        TestCaseSupplier.forUnaryDatetime(suppliers, read, DataType.LONG, Instant::toEpochMilli, List.of());
         // random strings that don't look like a long
         TestCaseSupplier.forUnaryStrings(
             suppliers,
             evaluatorName.apply("String"),
-            DataTypes.LONG,
+            DataType.LONG,
             bytesRef -> null,
             bytesRef -> List.of(
                 "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
@@ -60,7 +60,7 @@ public class ToLongTests extends AbstractFunctionTestCase {
         TestCaseSupplier.forUnaryDouble(
             suppliers,
             evaluatorName.apply("Double"),
-            DataTypes.LONG,
+            DataType.LONG,
             Math::round,
             Long.MIN_VALUE,
             Long.MAX_VALUE,
@@ -70,7 +70,7 @@ public class ToLongTests extends AbstractFunctionTestCase {
         TestCaseSupplier.forUnaryDouble(
             suppliers,
             evaluatorName.apply("Double"),
-            DataTypes.LONG,
+            DataType.LONG,
             d -> null,
             Double.NEGATIVE_INFINITY,
             Long.MIN_VALUE - 1d,
@@ -83,7 +83,7 @@ public class ToLongTests extends AbstractFunctionTestCase {
         TestCaseSupplier.forUnaryDouble(
             suppliers,
             evaluatorName.apply("Double"),
-            DataTypes.LONG,
+            DataType.LONG,
             d -> null,
             Long.MAX_VALUE + 1d,
             Double.POSITIVE_INFINITY,
@@ -97,7 +97,7 @@ public class ToLongTests extends AbstractFunctionTestCase {
         TestCaseSupplier.forUnaryUnsignedLong(
             suppliers,
             evaluatorName.apply("UnsignedLong"),
-            DataTypes.LONG,
+            DataType.LONG,
             BigInteger::longValue,
             BigInteger.ZERO,
             BigInteger.valueOf(Long.MAX_VALUE),
@@ -106,7 +106,7 @@ public class ToLongTests extends AbstractFunctionTestCase {
         TestCaseSupplier.forUnaryUnsignedLong(
             suppliers,
             evaluatorName.apply("UnsignedLong"),
-            DataTypes.LONG,
+            DataType.LONG,
             ul -> null,
             BigInteger.valueOf(Long.MAX_VALUE).add(BigInteger.ONE),
             UNSIGNED_LONG_MAX,
@@ -121,7 +121,7 @@ public class ToLongTests extends AbstractFunctionTestCase {
         TestCaseSupplier.forUnaryInt(
             suppliers,
             evaluatorName.apply("Int"),
-            DataTypes.LONG,
+            DataType.LONG,
             l -> (long) l,
             Integer.MIN_VALUE,
             Integer.MAX_VALUE,
@@ -138,11 +138,11 @@ public class ToLongTests extends AbstractFunctionTestCase {
                     tds -> new TestCaseSupplier.TypedDataSupplier(
                         tds.name() + "as string",
                         () -> new BytesRef(tds.supplier().get().toString()),
-                        DataTypes.KEYWORD
+                        DataType.KEYWORD
                     )
                 )
                 .toList(),
-            DataTypes.LONG,
+            DataType.LONG,
             bytesRef -> Long.valueOf(((BytesRef) bytesRef).utf8ToString()),
             List.of()
         );
@@ -156,11 +156,11 @@ public class ToLongTests extends AbstractFunctionTestCase {
                     tds -> new TestCaseSupplier.TypedDataSupplier(
                         tds.name() + "as string",
                         () -> new BytesRef(tds.supplier().get().toString()),
-                        DataTypes.KEYWORD
+                        DataType.KEYWORD
                     )
                 )
                 .toList(),
-            DataTypes.LONG,
+            DataType.LONG,
             bytesRef -> Math.round(Double.parseDouble(((BytesRef) bytesRef).utf8ToString())),
             List.of()
         );
@@ -174,11 +174,11 @@ public class ToLongTests extends AbstractFunctionTestCase {
                     tds -> new TestCaseSupplier.TypedDataSupplier(
                         tds.name() + "as string",
                         () -> new BytesRef(tds.supplier().get().toString()),
-                        DataTypes.KEYWORD
+                        DataType.KEYWORD
                     )
                 )
                 .toList(),
-            DataTypes.LONG,
+            DataType.LONG,
             bytesRef -> null,
             bytesRef -> List.of(
                 "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
@@ -197,11 +197,11 @@ public class ToLongTests extends AbstractFunctionTestCase {
                     tds -> new TestCaseSupplier.TypedDataSupplier(
                         tds.name() + "as string",
                         () -> new BytesRef(tds.supplier().get().toString()),
-                        DataTypes.KEYWORD
+                        DataType.KEYWORD
                     )
                 )
                 .toList(),
-            DataTypes.LONG,
+            DataType.LONG,
             bytesRef -> null,
             bytesRef -> List.of(
                 "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
@@ -214,16 +214,16 @@ public class ToLongTests extends AbstractFunctionTestCase {
         TestCaseSupplier.unary(
             suppliers,
             "Attribute[channel=0]",
-            List.of(new TestCaseSupplier.TypedDataSupplier("counter", ESTestCase::randomNonNegativeLong, DataTypes.COUNTER_LONG)),
-            DataTypes.LONG,
+            List.of(new TestCaseSupplier.TypedDataSupplier("counter", ESTestCase::randomNonNegativeLong, DataType.COUNTER_LONG)),
+            DataType.LONG,
             l -> l,
             List.of()
         );
         TestCaseSupplier.unary(
             suppliers,
             evaluatorName.apply("Integer"),
-            List.of(new TestCaseSupplier.TypedDataSupplier("counter", ESTestCase::randomInt, DataTypes.COUNTER_INTEGER)),
-            DataTypes.LONG,
+            List.of(new TestCaseSupplier.TypedDataSupplier("counter", ESTestCase::randomInt, DataType.COUNTER_INTEGER)),
+            DataType.LONG,
             l -> ((Integer) l).longValue(),
             List.of()
         );

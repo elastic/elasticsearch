@@ -1,6 +1,0 @@
-pr: 109148
-summary: Fix double-pausing shard snapshot
-area: Snapshot/Restore
-type: bug
-issues:
- - 109143

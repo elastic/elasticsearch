@@ -26,6 +26,16 @@ int:integer | name:keyword
   [1, 2, 3] | [one, two, three]
 ;
 
+keywordByDupeInt
+required_capability: lookup
+ROW int=[1, 1, 1]
+| LOOKUP int_number_names ON int
+;
+
+int:integer | name:keyword
+  [1, 1, 1] | [one, one, one]
+;
+
 intByKeyword
 required_capability: lookup
 ROW name="two"
@@ -93,6 +103,26 @@ ROW name="two point zero eight"
 two point zero eight |          2.08
 ;
 
+floatByNullMissing
+required_capability: lookup
+ROW name=null
+| LOOKUP double_number_names ON name
+;
+
+name:null | double:double
+     null |          null
+;
+
+floatByNullMatching
+required_capability: lookup
+ROW name=null
+| LOOKUP double_number_names_with_null ON name
+;
+
+name:null | double:double
+     null |             0
+;
+
 intIntByKeywordKeyword
 required_capability: lookup
 ROW aa="foo", ab="zoo"
@@ -111,6 +141,26 @@ ROW aa="foo", ab="zoi"
 
 aa:keyword | ab:keyword | na:integer | nb:integer
 foo        | zoi        |       null |       null
+;
+
+intIntByKeywordKeywordSameValues
+required_capability: lookup
+ROW aa="foo", ab="foo"
+| LOOKUP big ON aa, ab
+;
+
+aa:keyword | ab:keyword | na:integer | nb:integer
+foo        | foo        |          2 |         -2
+;
+
+intIntByKeywordKeywordSameValuesMissing
+required_capability: lookup
+ROW aa="bar", ab="bar"
+| LOOKUP big ON aa, ab
+;
+
+aa:keyword | ab:keyword | na:integer | nb:integer
+bar        | bar        |       null |       null
 ;
 
 //

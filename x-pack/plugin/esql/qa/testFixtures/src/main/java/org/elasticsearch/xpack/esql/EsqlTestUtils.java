@@ -46,6 +46,7 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -269,6 +270,10 @@ public final class EsqlTestUtils {
         }
     }
 
+    /**
+     * "tables" provided in the context for the LOOKUP command. If you
+     * add to this, you must also add to {@code EsqlSpecTestCase#tables};
+     */
     public static Map<String, Map<String, Column>> tables() {
         BlockFactory factory = new BlockFactory(new NoopCircuitBreaker(CircuitBreaker.REQUEST), BigArrays.NON_RECYCLING_INSTANCE);
         Map<String, Map<String, Column>> tables = new TreeMap<>();
@@ -288,25 +293,37 @@ public final class EsqlTestUtils {
             BytesRefBlock namesBlock = names.build();
             tables.put(
                 "int_number_names",
-                Map.of("int", new Column(DataType.INTEGER, intsBlock), "name", new Column(DataType.KEYWORD, namesBlock))
+                table(
+                    Map.entry("int", new Column(DataType.INTEGER, intsBlock)),
+                    Map.entry("name", new Column(DataType.KEYWORD, namesBlock))
+                )
             );
             tables.put(
                 "long_number_names",
-                Map.of("long", new Column(DataType.LONG, longsBlock), "name", new Column(DataType.KEYWORD, namesBlock))
+                table(Map.entry("long", new Column(DataType.LONG, longsBlock)), Map.entry("name", new Column(DataType.KEYWORD, namesBlock)))
             );
         }
-        try (
-            DoubleBlock.Builder doubles = factory.newDoubleBlockBuilder(2);
-            BytesRefBlock.Builder names = factory.newBytesRefBlockBuilder(2);
-        ) {
-            doubles.appendDouble(2.03);
-            names.appendBytesRef(new BytesRef("two point zero three"));
-            doubles.appendDouble(2.08);
-            names.appendBytesRef(new BytesRef("two point zero eight"));
-            tables.put(
-                "double_number_names",
-                Map.of("double", new Column(DataType.DOUBLE, doubles.build()), "name", new Column(DataType.KEYWORD, names.build()))
-            );
+        for (boolean hasNull : new boolean[] { true, false }) {
+            try (
+                DoubleBlock.Builder doubles = factory.newDoubleBlockBuilder(2);
+                BytesRefBlock.Builder names = factory.newBytesRefBlockBuilder(2);
+            ) {
+                doubles.appendDouble(2.03);
+                names.appendBytesRef(new BytesRef("two point zero three"));
+                doubles.appendDouble(2.08);
+                names.appendBytesRef(new BytesRef("two point zero eight"));
+                if (hasNull) {
+                    doubles.appendDouble(0.0);
+                    names.appendNull();
+                }
+                tables.put(
+                    "double_number_names" + (hasNull ? "_with_null" : ""),
+                    table(
+                        Map.entry("double", new Column(DataType.DOUBLE, doubles.build())),
+                        Map.entry("name", new Column(DataType.KEYWORD, names.build()))
+                    )
+                );
+            }
         }
         try (
             BytesRefBlock.Builder aa = factory.newBytesRefBlockBuilder(3);
@@ -322,24 +339,25 @@ public final class EsqlTestUtils {
             aa.appendBytesRef(new BytesRef("bar"));
             ab.appendBytesRef(new BytesRef("zop"));
             na.appendInt(10);
-            na.appendInt(-10);
+            nb.appendInt(-10);
 
             aa.appendBytesRef(new BytesRef("baz"));
             ab.appendBytesRef(new BytesRef("zoi"));
             na.appendInt(100);
-            na.appendInt(-100);
+            nb.appendInt(-100);
+
+            aa.appendBytesRef(new BytesRef("foo"));
+            ab.appendBytesRef(new BytesRef("foo"));
+            na.appendInt(2);
+            nb.appendInt(-2);
 
             tables.put(
                 "big",
-                Map.of(
-                    "aa",
-                    new Column(DataType.KEYWORD, aa.build()),
-                    "ab",
-                    new Column(DataType.KEYWORD, ab.build()),
-                    "na",
-                    new Column(DataType.INTEGER, na.build()),
-                    "nb",
-                    new Column(DataType.INTEGER, nb.build())
+                table(
+                    Map.entry("aa", new Column(DataType.KEYWORD, aa.build())),
+                    Map.entry("ab", new Column(DataType.KEYWORD, ab.build())),
+                    Map.entry("na", new Column(DataType.INTEGER, na.build())),
+                    Map.entry("nb", new Column(DataType.INTEGER, nb.build()))
                 )
             );
         }
@@ -347,10 +365,15 @@ public final class EsqlTestUtils {
         return unmodifiableMap(tables);
     }
 
-    private static Map<String, Column> table(Object... kv) {
-        Map<String, Column> table = new TreeMap<>();
-        for (int i = 0; i < kv.length; i += 2) {
-            table.put((String) kv[i], (Column) kv[i + 1]);
+    /**
+     * Builds a table from the provided parameters. This isn't just a call to
+     * {@link Map#of} because we want to maintain sort order of the columns
+     */
+    @SafeVarargs
+    public static <T> Map<String, T> table(Map.Entry<String, T>... kv) {
+        Map<String, T> table = new LinkedHashMap<>();
+        for (Map.Entry<String, T> stringTEntry : kv) {
+            table.put(stringTEntry.getKey(), stringTEntry.getValue());
         }
         return table;
     }

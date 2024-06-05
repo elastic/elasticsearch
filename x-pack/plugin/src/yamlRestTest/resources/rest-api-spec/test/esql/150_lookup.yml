@@ -180,3 +180,26 @@ index named lookup still works:
   - match: { columns.0.type: long }
   - length: { values: 1 }
   - match: { values.0.0: 1 }
+
+---
+on function:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [lookup]
+      reason: "uses LOOKUP"
+
+  - do:
+      catch: "/token recognition error at: '\\('/"
+      esql.query:
+        body:
+          query: 'FROM test | SORT time | KEEP color | LOOKUP colors ON CONCAT(color, "foo") | LIMIT 2'
+          columnar: true
+          version: 2024.04.01
+          tables:
+            colors:
+              "color:keyword":  ["red", "green", "blue"]
+              "rgb:integer": [16711680,   65280,    255]

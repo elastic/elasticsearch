@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.Column;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.io.IOException;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
@@ -70,7 +71,7 @@ public class ParseTables {
      * so we can be sure we'll always have a type.
      */
     private Map<String, Column> parseTable() throws IOException {
-        Map<String, Column> columns = new TreeMap<>();
+        Map<String, Column> columns = new LinkedHashMap<>();
         boolean success = false;
         try {
             if (p.currentToken() != XContentParser.Token.START_OBJECT) {
@@ -257,7 +258,7 @@ public class ParseTables {
             while (true) {
                 switch (p.nextToken()) {
                     case END_ARRAY -> {
-                        return new Column(DataTypes.DOUBLE, builder.build());
+                        return new Column(DataType.DOUBLE, builder.build());
                     }
                     case START_ARRAY -> parseDoubleArray(builder);
                     case VALUE_NULL -> builder.appendNull();

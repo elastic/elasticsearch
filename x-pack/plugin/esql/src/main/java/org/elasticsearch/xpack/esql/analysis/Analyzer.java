@@ -531,8 +531,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         Attribute attr = maybeResolveAttribute(ua, childrenOutput);
                         matchFieldChildReference = attr;
                         if (attr instanceof UnresolvedAttribute == false) {
-                            // If they do, make sure the data types line up
-                            if (joinedAttribute.dataType().equals(attr.dataType()) == false) {
+                            /*
+                             * If they do, make sure the data types line up. If either is
+                             * null it's fine to match it against anything.
+                             */
+                            if (joinedAttribute.dataType().equals(attr.dataType()) == false
+                                && joinedAttribute.dataType() != DataType.NULL
+                                && attr.dataType() != DataType.NULL) {
+
                                 matchFieldChildReference = new UnresolvedAttribute(
                                     attr.source(),
                                     attr.name(),

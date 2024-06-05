@@ -160,6 +160,7 @@ class ProgressListenableActionFuture extends PlainActionFuture<Long> {
         synchronized (this) {
             assert completed == false;
             completed = true;
+            assert listeners == null || listeners.stream().allMatch(l -> progress < l.position() && l.position() <= end);
             listenersToExecute = this.listeners;
             listeners = null;
         }

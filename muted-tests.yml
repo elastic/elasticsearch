@@ -38,9 +38,6 @@ tests:
 - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
   method: test {yaml=reference/esql/esql-async-query-api/line_17}
   issue: https://github.com/elastic/elasticsearch/issues/109260
-- class: org.elasticsearch.xpack.ccr.LocalIndexFollowingIT
-  method: testRemoveRemoteConnection
-  issue: https://github.com/elastic/elasticsearch/issues/109163
 - class: "org.elasticsearch.index.engine.frozen.FrozenIndexIT"
   issue: "https://github.com/elastic/elasticsearch/issues/109315"
   method: "testTimestampFieldTypeExposedByAllIndicesServices"

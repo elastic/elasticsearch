@@ -31,7 +31,7 @@ import static org.elasticsearch.xpack.esql.core.TestUtils.fieldAttribute;
 import static org.elasticsearch.xpack.esql.core.TestUtils.of;
 import static org.elasticsearch.xpack.esql.core.TestUtils.relation;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.hamcrest.Matchers.contains;
 
 public class QueryPlanTests extends ESTestCase {

@@ -77,7 +77,7 @@ public class AliasTests extends AbstractWireTestCase<Alias> {
 
     @Override
     protected final NamedWriteableRegistry getNamedWriteableRegistry() {
-        List<NamedWriteableRegistry.Entry> entries = new ArrayList<>(NamedExpressions.getNamedWriteables());
+        List<NamedWriteableRegistry.Entry> entries = new ArrayList<>(NamedExpression.getNamedWriteables());
         entries.addAll(Attribute.getNamedWriteables());
         entries.add(UnsupportedAttribute.ENTRY);
         entries.addAll(EsField.getNamedWriteables());

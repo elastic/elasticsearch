@@ -237,7 +237,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
 
         // When we're initializing a failure store, we skip the stats request because there is no source index to retrieve stats for.
         if (targetFailureStore && ((DataStream) rolloverTargetAbstraction).getFailureIndices().getIndices().isEmpty()) {
-            initializeFailureStore(rolloverRequest, listener, trialSourceIndexName, trialRolloverIndexName);
+            initializeFailureStore(rolloverRequest, listener, trialRolloverIndexName);
             return;
         }
 
@@ -347,7 +347,6 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
     private void initializeFailureStore(
         RolloverRequest rolloverRequest,
         ActionListener<RolloverResponse> listener,
-        String trialSourceIndexName,
         String trialRolloverIndexName
     ) {
         if (rolloverRequest.getConditionValues().isEmpty() == false) {
@@ -357,7 +356,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
             return;
         }
         final RolloverResponse trialRolloverResponse = new RolloverResponse(
-            trialSourceIndexName,
+            null,
             trialRolloverIndexName,
             Map.of(),
             rolloverRequest.isDryRun(),

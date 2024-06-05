@@ -72,8 +72,8 @@ include::infer-api-ingest-pipeline.asciidoc[tag=openai]
   </div>
   <div tabindex="0"
        role="tabpanel"
-       id="infer-api-ingest-azure-ai-studio-tab"
-       aria-labelledby="infer-api-ingest-azure-ai-studio"
+       id="infer-api-ingest-azure-openai-tab"
+       aria-labelledby="infer-api-ingest-azure-openai"
        hidden="">
 ++++
 

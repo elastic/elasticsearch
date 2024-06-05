@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.esql.core.expression.function.TwoOptionalArgument
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -201,7 +200,7 @@ public class Bucket extends GroupingFunction implements Validatable, TwoOptional
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
-        if (field.dataType() == DataTypes.DATETIME) {
+        if (field.dataType() == DataType.DATETIME) {
             Rounding.Prepared preparedRounding;
             if (buckets.dataType().isInteger()) {
                 int b = ((Number) buckets.fold()).intValue();
@@ -225,7 +224,7 @@ public class Bucket extends GroupingFunction implements Validatable, TwoOptional
                 assert buckets.dataType().isRational() : "Unexpected rounding data type [" + buckets.dataType() + "]";
                 roundTo = ((Number) buckets.fold()).doubleValue();
             }
-            Literal rounding = new Literal(source(), roundTo, DataTypes.DOUBLE);
+            Literal rounding = new Literal(source(), roundTo, DataType.DOUBLE);
 
             // We could make this more efficient, either by generating the evaluators with byte code or hand rolling this one.
             Div div = new Div(source(), field, rounding);
@@ -286,11 +285,11 @@ public class Bucket extends GroupingFunction implements Validatable, TwoOptional
         }
         var fieldType = field.dataType();
         var bucketsType = buckets.dataType();
-        if (fieldType == DataTypes.NULL || bucketsType == DataTypes.NULL) {
+        if (fieldType == DataType.NULL || bucketsType == DataType.NULL) {
             return TypeResolution.TYPE_RESOLVED;
         }
 
-        if (fieldType == DataTypes.DATETIME) {
+        if (fieldType == DataType.DATETIME) {
             TypeResolution resolution = isType(
                 buckets,
                 dt -> dt.isInteger() || EsqlDataTypes.isTemporalAmount(dt),
@@ -340,7 +339,7 @@ public class Bucket extends GroupingFunction implements Validatable, TwoOptional
     private static TypeResolution isStringOrDate(Expression e, String operationName, TypeResolutions.ParamOrdinal paramOrd) {
         return TypeResolutions.isType(
             e,
-            exp -> DataTypes.isString(exp) || DataTypes.isDateTime(exp),
+            exp -> DataType.isString(exp) || DataType.isDateTime(exp),
             operationName,
             paramOrd,
             "datetime",
@@ -359,13 +358,13 @@ public class Bucket extends GroupingFunction implements Validatable, TwoOptional
 
     private long foldToLong(Expression e) {
         Object value = Foldables.valueOf(e);
-        return DataTypes.isDateTime(e.dataType()) ? ((Number) value).longValue() : dateTimeToLong(((BytesRef) value).utf8ToString());
+        return DataType.isDateTime(e.dataType()) ? ((Number) value).longValue() : dateTimeToLong(((BytesRef) value).utf8ToString());
     }
 
     @Override
     public DataType dataType() {
         if (field.dataType().isNumeric()) {
-            return DataTypes.DOUBLE;
+            return DataType.DOUBLE;
         }
         return field.dataType();
     }

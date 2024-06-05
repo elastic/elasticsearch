@@ -13,7 +13,7 @@ import org.elasticsearch.xpack.esql.core.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.util.List;
 import java.util.Objects;
@@ -55,8 +55,8 @@ public class Explain extends LeafPlan {
     @Override
     public List<Attribute> output() {
         return List.of(
-            new ReferenceAttribute(Source.EMPTY, "plan", DataTypes.KEYWORD),
-            new ReferenceAttribute(Source.EMPTY, "type", DataTypes.KEYWORD)
+            new ReferenceAttribute(Source.EMPTY, "plan", DataType.KEYWORD),
+            new ReferenceAttribute(Source.EMPTY, "type", DataType.KEYWORD)
         );
     }
 

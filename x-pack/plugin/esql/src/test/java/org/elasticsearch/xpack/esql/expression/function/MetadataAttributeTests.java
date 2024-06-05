@@ -12,14 +12,13 @@ import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
 
 public class MetadataAttributeTests extends AbstractAttributeTestCase<MetadataAttribute> {
     @Override
     protected MetadataAttribute create() {
         Source source = Source.EMPTY;
         String name = randomAlphaOfLength(5);
-        DataType type = randomFrom(DataTypes.types());
+        DataType type = randomFrom(DataType.types());
         String qualifier = randomBoolean() ? null : randomAlphaOfLength(3);
         Nullability nullability = randomFrom(Nullability.values());
         boolean synthetic = randomBoolean();
@@ -38,7 +37,7 @@ public class MetadataAttributeTests extends AbstractAttributeTestCase<MetadataAt
         boolean searchable = instance.searchable();
         switch (between(0, 5)) {
             case 0 -> name = randomAlphaOfLength(name.length() + 1);
-            case 1 -> type = randomValueOtherThan(type, () -> randomFrom(DataTypes.types()));
+            case 1 -> type = randomValueOtherThan(type, () -> randomFrom(DataType.types()));
             case 2 -> qualifier = randomValueOtherThan(qualifier, () -> randomBoolean() ? null : randomAlphaOfLength(3));
             case 3 -> nullability = randomValueOtherThan(nullability, () -> randomFrom(Nullability.values()));
             case 4 -> synthetic = false == synthetic;

@@ -13,7 +13,6 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.util.ArrayList;
@@ -30,17 +29,17 @@ public class MvCountTests extends AbstractMultivalueFunctionTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> cases = new ArrayList<>();
-        booleans(cases, "mv_count", "MvCount", DataTypes.INTEGER, (size, values) -> equalTo(Math.toIntExact(values.count())));
-        bytesRefs(cases, "mv_count", "MvCount", t -> DataTypes.INTEGER, (size, values) -> equalTo(Math.toIntExact(values.count())));
-        doubles(cases, "mv_count", "MvCount", DataTypes.INTEGER, (size, values) -> equalTo(Math.toIntExact(values.count())));
-        ints(cases, "mv_count", "MvCount", DataTypes.INTEGER, (size, values) -> equalTo(Math.toIntExact(values.count())));
-        longs(cases, "mv_count", "MvCount", DataTypes.INTEGER, (size, values) -> equalTo(Math.toIntExact(values.count())));
-        unsignedLongs(cases, "mv_count", "MvCount", DataTypes.INTEGER, (size, values) -> equalTo(Math.toIntExact(values.count())));
-        dateTimes(cases, "mv_count", "MvCount", DataTypes.INTEGER, (size, values) -> equalTo(Math.toIntExact(values.count())));
-        geoPoints(cases, "mv_count", "MvCount", DataTypes.INTEGER, (size, values) -> equalTo(Math.toIntExact(values.count())));
-        cartesianPoints(cases, "mv_count", "MvCount", DataTypes.INTEGER, (size, values) -> equalTo(Math.toIntExact(values.count())));
-        geoShape(cases, "mv_count", "MvCount", DataTypes.INTEGER, (size, values) -> equalTo(Math.toIntExact(values.count())));
-        cartesianShape(cases, "mv_count", "MvCount", DataTypes.INTEGER, (size, values) -> equalTo(Math.toIntExact(values.count())));
+        booleans(cases, "mv_count", "MvCount", DataType.INTEGER, (size, values) -> equalTo(Math.toIntExact(values.count())));
+        bytesRefs(cases, "mv_count", "MvCount", t -> DataType.INTEGER, (size, values) -> equalTo(Math.toIntExact(values.count())));
+        doubles(cases, "mv_count", "MvCount", DataType.INTEGER, (size, values) -> equalTo(Math.toIntExact(values.count())));
+        ints(cases, "mv_count", "MvCount", DataType.INTEGER, (size, values) -> equalTo(Math.toIntExact(values.count())));
+        longs(cases, "mv_count", "MvCount", DataType.INTEGER, (size, values) -> equalTo(Math.toIntExact(values.count())));
+        unsignedLongs(cases, "mv_count", "MvCount", DataType.INTEGER, (size, values) -> equalTo(Math.toIntExact(values.count())));
+        dateTimes(cases, "mv_count", "MvCount", DataType.INTEGER, (size, values) -> equalTo(Math.toIntExact(values.count())));
+        geoPoints(cases, "mv_count", "MvCount", DataType.INTEGER, (size, values) -> equalTo(Math.toIntExact(values.count())));
+        cartesianPoints(cases, "mv_count", "MvCount", DataType.INTEGER, (size, values) -> equalTo(Math.toIntExact(values.count())));
+        geoShape(cases, "mv_count", "MvCount", DataType.INTEGER, (size, values) -> equalTo(Math.toIntExact(values.count())));
+        cartesianShape(cases, "mv_count", "MvCount", DataType.INTEGER, (size, values) -> equalTo(Math.toIntExact(values.count())));
         return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(true, cases)));
     }
 
@@ -56,6 +55,6 @@ public class MvCountTests extends AbstractMultivalueFunctionTestCase {
 
     @Override
     protected DataType expectedType(List<DataType> argTypes) {
-        return DataTypes.INTEGER;
+        return DataType.INTEGER;
     }
 }

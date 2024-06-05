@@ -62,6 +62,8 @@ public class EsqlCapabilities {
      */
     private static final String REPEAT = "repeat";
 
+    private static final String IN_EVALUATORMAPPER = "in_evaluatormapper";
+
     public static final Set<String> CAPABILITIES = capabilities();
 
     /**
@@ -78,6 +80,7 @@ public class EsqlCapabilities {
         caps.add(METADATA_IGNORED_FIELD);
         caps.add(FN_MV_APPEND);
         caps.add(REPEAT);
+        caps.add(IN_EVALUATORMAPPER);
 
         if (Build.current().isSnapshot()) {
             caps.add(LOOKUP);

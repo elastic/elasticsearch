@@ -146,7 +146,7 @@ fe80::cae2:65ff:fece:fec1                             |[fe80::cae2:65ff:fece:feb
 ;
 
 in
-required_capability: mv_warn
+required_capability: in_evaluatormapper
 
 from hosts | eval eq=case(ip0==ip1, ip0, ip1) | where eq in (ip0, ip1) | keep card, host, ip0, ip1, eq;
 ignoreOrder:true
@@ -167,7 +167,7 @@ eth0           |gamma          |fe80::cae2:65ff:fece:feb9                       
 
 
 inWithWarningsRegex#[skip:-8.13.99, reason:regex warnings in tests introduced in v 8.14.0]
-required_capability: mv_warn
+required_capability: in_evaluatormapper
 
 from hosts | eval eq=case(ip0==ip1, ip0, ip1) | where eq in (ip0, ip1) | keep card, host, ip0, ip1, eq;
 ignoreOrder:true

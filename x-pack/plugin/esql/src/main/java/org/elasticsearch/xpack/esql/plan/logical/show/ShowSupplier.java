@@ -46,7 +46,12 @@ public abstract class ShowSupplier implements LocalSupplier {
         if (failure.get() != null) {
             throw ExceptionsHelper.convertToElastic(failure.get());
         }
-        return BlockUtils.fromList(PlannerUtils.NON_BREAKING_BLOCK_FACTORY, rows);
+        return asBlocks(rows);
+    }
+
+    public static Block[] asBlocks(List<List<Object>> list) {
+        return BlockUtils.fromList(PlannerUtils.NON_BREAKING_BLOCK_FACTORY, list);
+
     }
 
     abstract class SupplierActionListener<R> implements ActionListener<R> {

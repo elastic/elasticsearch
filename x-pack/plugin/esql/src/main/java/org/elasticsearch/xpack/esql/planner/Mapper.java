@@ -27,10 +27,12 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.meta.MetaFunctions;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowClusters;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowFields;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
+import org.elasticsearch.xpack.esql.plan.logical.show.ShowSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowTargets;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
@@ -99,13 +101,21 @@ public class Mapper {
 
         // Commands
         if (p instanceof MetaFunctions metaFunctions) {
-            return new ShowExec(metaFunctions.source(), metaFunctions.output(), metaFunctions.values(functionRegistry));
+            return new ShowExec(
+                metaFunctions.source(),
+                metaFunctions.output(),
+                LocalSupplier.of(ShowSupplier.asBlocks(metaFunctions.values(functionRegistry)))
+            );
         }
         if (p instanceof ShowInfo showInfo) {
-            return new ShowExec(showInfo.source(), showInfo.output(), showInfo.values());
+            return new ShowExec(showInfo.source(), showInfo.output(), LocalSupplier.of(ShowSupplier.asBlocks(showInfo.values())));
         }
         if (p instanceof ShowClusters showClusters) {
-            return new ShowExec(showClusters.source(), showClusters.output(), showClusters.values(indexResolver));
+            return new ShowExec(
+                showClusters.source(),
+                showClusters.output(),
+                LocalSupplier.of(ShowSupplier.asBlocks(showClusters.values(indexResolver)))
+            );
         }
         if (p instanceof ShowTargets showTargets) {
             return new ShowExec(showTargets.source(), showTargets.output(), showTargets.supplier(indexResolver));

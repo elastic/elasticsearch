@@ -96,7 +96,6 @@ import org.elasticsearch.xpack.esql.plan.physical.OrderExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.RowExec;
-import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 
 import java.io.IOException;
@@ -134,7 +133,6 @@ public class PlanNamedTypesTests extends ESTestCase {
         OrderExec.class,
         ProjectExec.class,
         RowExec.class,
-        ShowExec.class,
         TopNExec.class
     );
 

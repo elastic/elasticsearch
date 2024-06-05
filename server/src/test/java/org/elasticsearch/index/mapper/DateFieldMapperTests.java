@@ -21,7 +21,6 @@ import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.script.DateFieldScript;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -34,9 +33,7 @@ import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Map;
 import java.util.function.Function;
-import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.index.mapper.DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
@@ -156,9 +153,12 @@ public class DateFieldMapperTests extends MapperTestCase {
             exampleMalformedValue("2016-03-99").mapping(mappingWithFormat("strict_date_optional_time||epoch_millis"))
                 .errorMatches("failed to parse date field [2016-03-99] with format [strict_date_optional_time||epoch_millis]"),
             exampleMalformedValue("-522000000").mapping(mappingWithFormat("date_optional_time")).errorMatches("long overflow"),
-            exampleMalformedValue("2020").mapping(mappingWithFormat("strict_date")).errorMatches("failed to parse date field [2020] with format [strict_date]"),
-            exampleMalformedValue("hello world").mapping(mappingWithFormat("strict_date_optional_time")).errorMatches("failed to parse date field [hello world]"),
-            exampleMalformedValue("true").mapping(mappingWithFormat("strict_date_optional_time")).errorMatches("failed to parse date field [true]")
+            exampleMalformedValue("2020").mapping(mappingWithFormat("strict_date"))
+                .errorMatches("failed to parse date field [2020] with format [strict_date]"),
+            exampleMalformedValue("hello world").mapping(mappingWithFormat("strict_date_optional_time"))
+                .errorMatches("failed to parse date field [hello world]"),
+            exampleMalformedValue("true").mapping(mappingWithFormat("strict_date_optional_time"))
+                .errorMatches("failed to parse date field [true]")
         );
     }
 

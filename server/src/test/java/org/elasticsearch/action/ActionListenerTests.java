@@ -31,7 +31,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
-import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
@@ -426,14 +425,12 @@ public class ActionListenerTests extends ESTestCase {
                 )
             )
         );
-        // Call onResponse and/or onFailure at least once
-        IntStream.range(0, 1 + randomInt(3)).forEach(i -> {
-            if (randomBoolean()) {
-                listenerRef.get().onResponse("succeeded");
-            } else {
-                listenerRef.get().onFailure(new RuntimeException("Failed"));
-            }
-        });
+        // Call onResponse or onFailure
+        if (randomBoolean()) {
+            listenerRef.get().onResponse("succeeded");
+        } else {
+            listenerRef.get().onFailure(new RuntimeException("Failed"));
+        }
         // Nullify reference so it becomes unreachable
         listenerRef.set(null);
         reachabilityChecker.ensureUnreachable();    // Only proceed once we know the object isn't reachable

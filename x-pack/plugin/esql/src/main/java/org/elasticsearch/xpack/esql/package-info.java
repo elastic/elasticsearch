@@ -6,9 +6,10 @@
  */
 
 /**
- * <h1>ES|QL Overview and Documentation Links</h1>
+ * ES|QL Overview and Documentation Links
  *
  * <h2>Major Components</h2>
+ * <ul>
  * <li>{@link org.elasticsearch.compute} - The compute engine drives query execution
  * <ul>
  *     <li>{@link org.elasticsearch.compute.data.Block} - fundamental unit of data.  Operations vectorize over blocks.</li>
@@ -24,7 +25,7 @@
  *     but see also {@link org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper}</li>
  * </ul>
  * </li>
- * <li>{@link org.elasticsearch.compute.gen} - ES|QL generates code for evaluators, which are type-specific implementations of
+ * <li> org.elasticsearch.compute.gen - ES|QL generates code for evaluators, which are type-specific implementations of
  * functions, designed to run over a {@link org.elasticsearch.compute.data.Block} </li>
  * <li>{@link org.elasticsearch.xpack.esql.session.EsqlSession} - manages state across a query</li>
  * <li>{@link org.elasticsearch.xpack.esql.expression.function.scalar} - Guide to writing scalar functions</li>
@@ -32,6 +33,7 @@
  * <li>{@link org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer} - Coordinator level logical optimizations</li>
  * <li>{@link org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizer} - Data node level logical optimizations</li>
  * <li>{@link org.elasticsearch.xpack.esql.action.RestEsqlQueryAction} - REST API entry point</li>
+ * </ul>
  */
 
 package org.elasticsearch.xpack.esql;

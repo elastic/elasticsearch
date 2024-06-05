@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.operator.compariso
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
@@ -66,7 +65,7 @@ public class In extends org.elasticsearch.xpack.esql.core.expression.predicate.o
 
     @Override
     protected boolean areCompatible(DataType left, DataType right) {
-        if (left == DataTypes.UNSIGNED_LONG || right == DataTypes.UNSIGNED_LONG) {
+        if (left == DataType.UNSIGNED_LONG || right == DataType.UNSIGNED_LONG) {
             // automatic numerical conversions not applicable for UNSIGNED_LONG, see Verifier#validateUnsignedLongOperator().
             return left == right;
         }

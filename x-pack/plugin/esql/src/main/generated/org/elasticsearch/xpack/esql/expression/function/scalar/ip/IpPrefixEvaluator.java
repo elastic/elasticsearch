@@ -42,12 +42,12 @@ public final class IpPrefixEvaluator implements EvalOperator.ExpressionEvaluator
       EvalOperator.ExpressionEvaluator prefixLengthV4,
       EvalOperator.ExpressionEvaluator prefixLengthV6, BytesRef scratch,
       DriverContext driverContext) {
-    this.warnings = new Warnings(source);
     this.ip = ip;
     this.prefixLengthV4 = prefixLengthV4;
     this.prefixLengthV6 = prefixLengthV6;
     this.scratch = scratch;
     this.driverContext = driverContext;
+    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override

@@ -14,7 +14,6 @@ import org.elasticsearch.xpack.esql.core.expression.function.scalar.UnaryScalarF
 import org.elasticsearch.xpack.esql.core.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
 
 import java.util.Objects;
 
@@ -42,7 +41,7 @@ public abstract class RegexMatch<T extends StringPattern> extends UnaryScalarFun
 
     @Override
     public DataType dataType() {
-        return DataTypes.BOOLEAN;
+        return DataType.BOOLEAN;
     }
 
     @Override

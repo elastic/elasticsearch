@@ -33,8 +33,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.IntFunction;
 
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.DATETIME;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.IP;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 
 /**
  * Generates a list of Lucene queries based on the input block.

@@ -22,7 +22,6 @@ import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.esql.Column;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
 
 import java.io.IOException;
 import java.util.Map;
@@ -33,7 +32,7 @@ import java.util.TreeMap;
  * Parses the {@code tables} request body parameter.
  */
 public class ParseTables {
-    public static final Set<DataType> SUPPORTED_TYPES = Set.of(DataTypes.INTEGER, DataTypes.KEYWORD, DataTypes.LONG);
+    public static final Set<DataType> SUPPORTED_TYPES = Set.of(DataType.INTEGER, DataType.KEYWORD, DataType.LONG);
     private static final int MAX_LENGTH = (int) ByteSizeValue.ofMb(1).getBytes();
 
     private final BlockFactory blockFactory;
@@ -129,7 +128,7 @@ public class ParseTables {
             while (true) {
                 switch (p.nextToken()) {
                     case END_ARRAY -> {
-                        return new Column(DataTypes.KEYWORD, builder.build());
+                        return new Column(DataType.KEYWORD, builder.build());
                     }
                     case START_ARRAY -> parseTextArray(builder, scratch);
                     case VALUE_NULL -> builder.appendNull();
@@ -174,7 +173,7 @@ public class ParseTables {
             while (true) {
                 switch (p.nextToken()) {
                     case END_ARRAY -> {
-                        return new Column(DataTypes.INTEGER, builder.build());
+                        return new Column(DataType.INTEGER, builder.build());
                     }
                     case START_ARRAY -> parseIntArray(builder);
                     case VALUE_NULL -> builder.appendNull();
@@ -216,7 +215,7 @@ public class ParseTables {
             while (true) {
                 switch (p.nextToken()) {
                     case END_ARRAY -> {
-                        return new Column(DataTypes.LONG, builder.build());
+                        return new Column(DataType.LONG, builder.build());
                     }
                     case START_ARRAY -> parseLongArray(builder);
                     case VALUE_NULL -> builder.appendNull();

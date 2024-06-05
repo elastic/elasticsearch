@@ -118,6 +118,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Tan;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Tanh;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Tau;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.AbstractMultivalueFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvAppend;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvAvg;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvConcat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCount;
@@ -147,6 +148,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.Length;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Locate;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.RTrim;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.Repeat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Replace;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Right;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Split;
@@ -217,8 +219,8 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 
 import static java.util.Map.entry;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.CARTESIAN_POINT;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.GEO_POINT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.Entry.of;
@@ -408,6 +410,7 @@ public final class PlanNamedTypes {
             of(ScalarFunction.class, Substring.class, PlanNamedTypes::writeSubstring, PlanNamedTypes::readSubstring),
             of(ScalarFunction.class, Locate.class, PlanNamedTypes::writeLocate, PlanNamedTypes::readLocate),
             of(ScalarFunction.class, Left.class, PlanNamedTypes::writeLeft, PlanNamedTypes::readLeft),
+            of(ScalarFunction.class, Repeat.class, PlanNamedTypes::writeRepeat, PlanNamedTypes::readRepeat),
             of(ScalarFunction.class, Right.class, PlanNamedTypes::writeRight, PlanNamedTypes::readRight),
             of(ScalarFunction.class, Split.class, PlanNamedTypes::writeSplit, PlanNamedTypes::readSplit),
             of(ScalarFunction.class, Tau.class, PlanNamedTypes::writeNoArgScalar, PlanNamedTypes::readNoArgScalar),
@@ -435,6 +438,7 @@ public final class PlanNamedTypes {
             of(AggregateFunction.class, Sum.class, PlanNamedTypes::writeAggFunction, PlanNamedTypes::readAggFunction),
             of(AggregateFunction.class, Values.class, PlanNamedTypes::writeAggFunction, PlanNamedTypes::readAggFunction),
             // Multivalue functions
+            of(ScalarFunction.class, MvAppend.class, PlanNamedTypes::writeMvAppend, PlanNamedTypes::readMvAppend),
             of(ScalarFunction.class, MvAvg.class, PlanNamedTypes::writeMvFunction, PlanNamedTypes::readMvFunction),
             of(ScalarFunction.class, MvCount.class, PlanNamedTypes::writeMvFunction, PlanNamedTypes::readMvFunction),
             of(ScalarFunction.class, MvConcat.class, PlanNamedTypes::writeMvConcat, PlanNamedTypes::readMvConcat),
@@ -1562,6 +1566,18 @@ public final class PlanNamedTypes {
         out.writeExpression(fields.get(1));
     }
 
+    static Repeat readRepeat(PlanStreamInput in) throws IOException {
+        return new Repeat(Source.readFrom(in), in.readExpression(), in.readExpression());
+    }
+
+    static void writeRepeat(PlanStreamOutput out, Repeat repeat) throws IOException {
+        repeat.source().writeTo(out);
+        List<Expression> fields = repeat.children();
+        assert fields.size() == 2;
+        out.writeExpression(fields.get(0));
+        out.writeExpression(fields.get(1));
+    }
+
     static Right readRight(PlanStreamInput in) throws IOException {
         return new Right(Source.readFrom(in), in.readExpression(), in.readExpression());
     }
@@ -1866,5 +1882,17 @@ public final class PlanNamedTypes {
         out.writeExpression(fields.get(0));
         out.writeExpression(fields.get(1));
         out.writeOptionalWriteable(fields.size() == 3 ? o -> out.writeExpression(fields.get(2)) : null);
+    }
+
+    static MvAppend readMvAppend(PlanStreamInput in) throws IOException {
+        return new MvAppend(Source.readFrom(in), in.readExpression(), in.readExpression());
+    }
+
+    static void writeMvAppend(PlanStreamOutput out, MvAppend fn) throws IOException {
+        Source.EMPTY.writeTo(out);
+        List<Expression> fields = fn.children();
+        assert fields.size() == 2;
+        out.writeExpression(fields.get(0));
+        out.writeExpression(fields.get(1));
     }
 }

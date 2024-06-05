@@ -32,7 +32,6 @@ import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.core.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
@@ -217,7 +216,7 @@ public class PlanNamedTypesTests extends ESTestCase {
         BytesStreamOutput bso = new BytesStreamOutput();
         bso.writeString("hello");
         PlanStreamOutput out = new PlanStreamOutput(bso, planNameRegistry, null);
-        var plan = new RowExec(Source.EMPTY, List.of(new Alias(Source.EMPTY, "foo", field("field", DataTypes.LONG))));
+        var plan = new RowExec(Source.EMPTY, List.of(new Alias(Source.EMPTY, "foo", field("field", DataType.LONG))));
         out.writePhysicalPlanNode(plan);
         bso.writeVInt(11_345);
 
@@ -231,7 +230,7 @@ public class PlanNamedTypesTests extends ESTestCase {
     }
 
     public void testBinComparisonSimple() throws IOException {
-        var orig = new Equals(Source.EMPTY, field("foo", DataTypes.DOUBLE), field("bar", DataTypes.DOUBLE));
+        var orig = new Equals(Source.EMPTY, field("foo", DataType.DOUBLE), field("bar", DataType.DOUBLE));
         BytesStreamOutput bso = new BytesStreamOutput();
         PlanStreamOutput out = new PlanStreamOutput(bso, planNameRegistry, null);
         out.writeNamed(EsqlBinaryComparison.class, orig);
@@ -246,7 +245,7 @@ public class PlanNamedTypesTests extends ESTestCase {
     }
 
     public void testAggFunctionSimple() throws IOException {
-        var orig = new Avg(Source.EMPTY, field("foo_val", DataTypes.DOUBLE));
+        var orig = new Avg(Source.EMPTY, field("foo_val", DataType.DOUBLE));
         BytesStreamOutput bso = new BytesStreamOutput();
         PlanStreamOutput out = new PlanStreamOutput(bso, planNameRegistry, null);
         out.writeNamed(AggregateFunction.class, orig);
@@ -259,7 +258,7 @@ public class PlanNamedTypesTests extends ESTestCase {
     }
 
     public void testArithmeticOperationSimple() throws IOException {
-        var orig = new Add(Source.EMPTY, field("foo", DataTypes.LONG), field("bar", DataTypes.LONG));
+        var orig = new Add(Source.EMPTY, field("foo", DataType.LONG), field("bar", DataType.LONG));
         BytesStreamOutput bso = new BytesStreamOutput();
         PlanStreamOutput out = new PlanStreamOutput(bso, planNameRegistry, null);
         out.writeNamed(ArithmeticOperation.class, orig);
@@ -274,7 +273,7 @@ public class PlanNamedTypesTests extends ESTestCase {
     }
 
     public void testSubStringSimple() throws IOException {
-        var orig = new Substring(Source.EMPTY, field("foo", DataTypes.KEYWORD), new Literal(Source.EMPTY, 1, DataTypes.INTEGER), null);
+        var orig = new Substring(Source.EMPTY, field("foo", DataType.KEYWORD), new Literal(Source.EMPTY, 1, DataType.INTEGER), null);
         BytesStreamOutput bso = new BytesStreamOutput();
         PlanStreamOutput out = new PlanStreamOutput(bso, planNameRegistry, null);
         PlanNamedTypes.writeSubstring(out, orig);
@@ -283,7 +282,7 @@ public class PlanNamedTypesTests extends ESTestCase {
     }
 
     public void testStartsWithSimple() throws IOException {
-        var orig = new StartsWith(Source.EMPTY, field("foo", DataTypes.KEYWORD), new Literal(Source.EMPTY, "fo", DataTypes.KEYWORD));
+        var orig = new StartsWith(Source.EMPTY, field("foo", DataType.KEYWORD), new Literal(Source.EMPTY, "fo", DataType.KEYWORD));
         BytesStreamOutput bso = new BytesStreamOutput();
         PlanStreamOutput out = new PlanStreamOutput(bso, planNameRegistry, null);
         PlanNamedTypes.writeStartsWith(out, orig);
@@ -292,7 +291,7 @@ public class PlanNamedTypesTests extends ESTestCase {
     }
 
     public void testRoundSimple() throws IOException {
-        var orig = new Round(Source.EMPTY, field("value", DataTypes.DOUBLE), new Literal(Source.EMPTY, 1, DataTypes.INTEGER));
+        var orig = new Round(Source.EMPTY, field("value", DataType.DOUBLE), new Literal(Source.EMPTY, 1, DataType.INTEGER));
         BytesStreamOutput bso = new BytesStreamOutput();
         PlanStreamOutput out = new PlanStreamOutput(bso, planNameRegistry, null);
         PlanNamedTypes.writeRound(out, orig);
@@ -301,7 +300,7 @@ public class PlanNamedTypesTests extends ESTestCase {
     }
 
     public void testPowSimple() throws IOException {
-        var orig = new Pow(Source.EMPTY, field("value", DataTypes.DOUBLE), new Literal(Source.EMPTY, 1, DataTypes.INTEGER));
+        var orig = new Pow(Source.EMPTY, field("value", DataType.DOUBLE), new Literal(Source.EMPTY, 1, DataType.INTEGER));
         BytesStreamOutput bso = new BytesStreamOutput();
         PlanStreamOutput out = new PlanStreamOutput(bso, planNameRegistry, null);
         PlanNamedTypes.writePow(out, orig);
@@ -310,7 +309,7 @@ public class PlanNamedTypesTests extends ESTestCase {
     }
 
     public void testAliasSimple() throws IOException {
-        var orig = new Alias(Source.EMPTY, "alias_name", field("a", DataTypes.LONG));
+        var orig = new Alias(Source.EMPTY, "alias_name", field("a", DataType.LONG));
         BytesStreamOutput bso = new BytesStreamOutput();
         PlanStreamOutput out = new PlanStreamOutput(bso, planNameRegistry, null);
         PlanNamedTypes.writeAlias(out, orig);
@@ -321,7 +320,7 @@ public class PlanNamedTypesTests extends ESTestCase {
     }
 
     public void testLiteralSimple() throws IOException {
-        var orig = new Literal(Source.EMPTY, 1, DataTypes.INTEGER);
+        var orig = new Literal(Source.EMPTY, 1, DataType.INTEGER);
         BytesStreamOutput bso = new BytesStreamOutput();
         PlanStreamOutput out = new PlanStreamOutput(bso, planNameRegistry, null);
         PlanNamedTypes.writeLiteral(out, orig);
@@ -330,7 +329,7 @@ public class PlanNamedTypesTests extends ESTestCase {
     }
 
     public void testOrderSimple() throws IOException {
-        var orig = new Order(Source.EMPTY, field("val", DataTypes.INTEGER), Order.OrderDirection.ASC, Order.NullsPosition.FIRST);
+        var orig = new Order(Source.EMPTY, field("val", DataType.INTEGER), Order.OrderDirection.ASC, Order.NullsPosition.FIRST);
         BytesStreamOutput bso = new BytesStreamOutput();
         PlanStreamOutput out = new PlanStreamOutput(bso, planNameRegistry, null);
         PlanNamedTypes.writeOrder(out, orig);
@@ -339,7 +338,7 @@ public class PlanNamedTypesTests extends ESTestCase {
     }
 
     public void testFieldSortSimple() throws IOException {
-        var orig = new EsQueryExec.FieldSort(field("val", DataTypes.LONG), Order.OrderDirection.ASC, Order.NullsPosition.FIRST);
+        var orig = new EsQueryExec.FieldSort(field("val", DataType.LONG), Order.OrderDirection.ASC, Order.NullsPosition.FIRST);
         BytesStreamOutput bso = new BytesStreamOutput();
         PlanStreamOutput out = new PlanStreamOutput(bso, planNameRegistry, null);
         PlanNamedTypes.writeFieldSort(out, orig);
@@ -583,7 +582,7 @@ public class PlanNamedTypesTests extends ESTestCase {
         return Map.copyOf(map);
     }
 
-    static List<DataType> DATA_TYPES = DataTypes.types().stream().toList();
+    static List<DataType> DATA_TYPES = DataType.types().stream().toList();
 
     static DataType randomDataType() {
         return DATA_TYPES.get(randomIntBetween(0, DATA_TYPES.size() - 1));

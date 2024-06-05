@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.core.type.DateUtils;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.TypesTests;
@@ -289,11 +288,11 @@ public final class EsqlTestUtils {
             BytesRefBlock namesBlock = names.build();
             tables.put(
                 "int_number_names",
-                table("int", new Column(DataTypes.INTEGER, intsBlock), "name", new Column(DataTypes.KEYWORD, namesBlock))
+                Map.of("int", new Column(DataType.INTEGER, intsBlock), "name", new Column(DataType.KEYWORD, namesBlock))
             );
             tables.put(
                 "long_number_names",
-                table("long", new Column(DataTypes.LONG, longsBlock), "name", new Column(DataTypes.KEYWORD, namesBlock))
+                Map.of("long", new Column(DataType.LONG, longsBlock), "name", new Column(DataType.KEYWORD, namesBlock))
             );
         }
         try (
@@ -306,7 +305,7 @@ public final class EsqlTestUtils {
             names.appendBytesRef(new BytesRef("two point zero eight"));
             tables.put(
                 "double_number_names",
-                table("double", new Column(DataTypes.DOUBLE, doubles.build()), "name", new Column(DataTypes.KEYWORD, names.build()))
+                Map.of("double", new Column(DataType.DOUBLE, doubles.build()), "name", new Column(DataType.KEYWORD, names.build()))
             );
         }
         try (
@@ -332,15 +331,15 @@ public final class EsqlTestUtils {
 
             tables.put(
                 "big",
-                table(
+                Map.of(
                     "aa",
-                    new Column(DataTypes.KEYWORD, aa.build()),
+                    new Column(DataType.KEYWORD, aa.build()),
                     "ab",
-                    new Column(DataTypes.KEYWORD, ab.build()),
+                    new Column(DataType.KEYWORD, ab.build()),
                     "na",
-                    new Column(DataTypes.INTEGER, na.build()),
+                    new Column(DataType.INTEGER, na.build()),
                     "nb",
-                    new Column(DataTypes.INTEGER, nb.build())
+                    new Column(DataType.INTEGER, nb.build())
                 )
             );
         }

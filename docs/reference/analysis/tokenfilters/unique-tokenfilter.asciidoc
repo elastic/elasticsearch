@@ -116,6 +116,11 @@ PUT custom_unique_example
 If `true`, only remove duplicate tokens in the same position.
 Defaults to `false`.
 
+`correct_position_increment`::
+(Optional, Boolean)
+If `true`, the positions returned are correct according to the original tokenizers positioning.
+Defaults to `true`. This setting is deprecated and will be removed in a future version.
+
 [[analysis-unique-tokenfilter-customize]]
 ==== Customize
 

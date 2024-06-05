@@ -627,10 +627,12 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
             refresh(indexName);
             currentGeneration.set(indexEngine.getLastCommittedSegmentInfos().getGeneration());
             final String compoundCommitFileName = StatelessCompoundCommit.blobNameFromGeneration(currentGeneration.get());
-            assertThat(
-                compoundCommitFileName + " not found",
-                blobContainer.blobExists(operationPurpose, compoundCommitFileName),
-                equalTo(true)
+            assertBusy(
+                () -> assertThat(
+                    compoundCommitFileName + " not found",
+                    blobContainer.blobExists(operationPurpose, compoundCommitFileName),
+                    is(true)
+                )
             );
         }
         // All commits are uploaded

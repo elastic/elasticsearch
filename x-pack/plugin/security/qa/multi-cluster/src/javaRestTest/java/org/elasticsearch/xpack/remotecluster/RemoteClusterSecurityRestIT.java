@@ -203,7 +203,7 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
                         {
                           "name": "*:*",
                           "error_type": "exception",
-                          "stall_time_seconds": 30
+                          "stall_time_seconds": 60
                         }
                       ]
                     }

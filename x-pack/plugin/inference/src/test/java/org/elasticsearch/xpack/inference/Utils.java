@@ -15,6 +15,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.Model;
+import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.xpack.inference.common.Truncator;
@@ -35,6 +36,7 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -141,4 +143,20 @@ public final class Utils {
             );
         }
     }
+
+    public static Model getInvalidModel(String inferenceEntityId, String serviceName) {
+        var mockConfigs = mock(ModelConfigurations.class);
+        when(mockConfigs.getInferenceEntityId()).thenReturn(inferenceEntityId);
+        when(mockConfigs.getService()).thenReturn(serviceName);
+
+        var mockModel = mock(Model.class);
+        when(mockModel.getConfigurations()).thenReturn(mockConfigs);
+
+        return mockModel;
+    }
+
+    public static SimilarityMeasure randomSimilarityMeasure() {
+        return randomFrom(SimilarityMeasure.values());
+    }
+
 }

@@ -10,8 +10,28 @@ package org.elasticsearch.xpack.esql.parser;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Build;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.core.capabilities.UnresolvedException;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.EmptyAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.Order;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
+import org.elasticsearch.xpack.esql.core.expression.function.UnresolvedFunction;
+import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Not;
+import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
+import org.elasticsearch.xpack.esql.core.plan.TableIdentifier;
+import org.elasticsearch.xpack.esql.core.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.core.plan.logical.Limit;
+import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.core.plan.logical.OrderBy;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
@@ -31,26 +51,6 @@ import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
-import org.elasticsearch.xpack.ql.capabilities.UnresolvedException;
-import org.elasticsearch.xpack.ql.expression.Alias;
-import org.elasticsearch.xpack.ql.expression.EmptyAttribute;
-import org.elasticsearch.xpack.ql.expression.Expressions;
-import org.elasticsearch.xpack.ql.expression.Literal;
-import org.elasticsearch.xpack.ql.expression.NamedExpression;
-import org.elasticsearch.xpack.ql.expression.Order;
-import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
-import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
-import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
-import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
-import org.elasticsearch.xpack.ql.plan.TableIdentifier;
-import org.elasticsearch.xpack.ql.plan.logical.Filter;
-import org.elasticsearch.xpack.ql.plan.logical.Limit;
-import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.elasticsearch.xpack.ql.util.StringUtils;
 import org.elasticsearch.xpack.versionfield.Version;
 
 import java.math.BigInteger;
@@ -63,13 +63,13 @@ import java.util.Map;
 import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
+import static org.elasticsearch.xpack.esql.core.expression.Literal.FALSE;
+import static org.elasticsearch.xpack.esql.core.expression.Literal.TRUE;
+import static org.elasticsearch.xpack.esql.core.expression.function.FunctionResolutionStrategy.DEFAULT;
+import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
+import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.util.NumericUtils.asLongUnsigned;
 import static org.elasticsearch.xpack.esql.parser.ExpressionBuilder.breakIntoFragments;
-import static org.elasticsearch.xpack.ql.expression.Literal.FALSE;
-import static org.elasticsearch.xpack.ql.expression.Literal.TRUE;
-import static org.elasticsearch.xpack.ql.expression.function.FunctionResolutionStrategy.DEFAULT;
-import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
-import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
-import static org.elasticsearch.xpack.ql.util.NumericUtils.asLongUnsigned;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
@@ -727,15 +727,15 @@ public class StatementParserTests extends ESTestCase {
             processingCommand("enrich _" + mode.name() + ":countries ON country_code")
         );
 
-        expectError("from a | enrich countries on foo* ", "Using wildcards (*) in ENRICH WITH projections is not allowed [foo*]");
-        expectError("from a | enrich countries on foo with bar*", "Using wildcards (*) in ENRICH WITH projections is not allowed [bar*]");
+        expectError("from a | enrich countries on foo* ", "Using wildcards [*] in ENRICH WITH projections is not allowed [foo*]");
+        expectError("from a | enrich countries on foo with bar*", "Using wildcards [*] in ENRICH WITH projections is not allowed [bar*]");
         expectError(
             "from a | enrich countries on foo with x = bar* ",
-            "Using wildcards (*) in ENRICH WITH projections is not allowed [bar*]"
+            "Using wildcards [*] in ENRICH WITH projections is not allowed [bar*]"
         );
         expectError(
             "from a | enrich countries on foo with x* = bar ",
-            "Using wildcards (*) in ENRICH WITH projections is not allowed [x*]"
+            "Using wildcards [*] in ENRICH WITH projections is not allowed [x*]"
         );
         expectError(
             "from a | enrich typo:countries on foo",
@@ -952,13 +952,25 @@ public class StatementParserTests extends ESTestCase {
     public void testMetricsWithoutStats() {
         assumeTrue("requires snapshot build", Build.current().isSnapshot());
 
-        assertStatement("METRICS foo", new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo"), List.of()));
-        assertStatement("METRICS foo,bar", new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo,bar"), List.of()));
-        assertStatement("METRICS foo*,bar", new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo*,bar"), List.of()));
-        assertStatement("METRICS foo-*,bar", new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo-*,bar"), List.of()));
+        assertStatement(
+            "METRICS foo",
+            new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo"), List.of(), IndexMode.TIME_SERIES)
+        );
+        assertStatement(
+            "METRICS foo,bar",
+            new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo,bar"), List.of(), IndexMode.TIME_SERIES)
+        );
+        assertStatement(
+            "METRICS foo*,bar",
+            new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo*,bar"), List.of(), IndexMode.TIME_SERIES)
+        );
+        assertStatement(
+            "METRICS foo-*,bar",
+            new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo-*,bar"), List.of(), IndexMode.TIME_SERIES)
+        );
         assertStatement(
             "METRICS foo-*,bar+*",
-            new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo-*,bar+*"), List.of())
+            new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo-*,bar+*"), List.of(), IndexMode.TIME_SERIES)
         );
     }
 
@@ -975,7 +987,10 @@ public class StatementParserTests extends ESTestCase {
             "<logstash-{now/M{yyyy.MM}}>>"
         );
         for (Map.Entry<String, String> e : patterns.entrySet()) {
-            assertStatement(e.getKey(), new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, e.getValue()), List.of()));
+            assertStatement(
+                e.getKey(),
+                new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, e.getValue()), List.of(), IndexMode.TIME_SERIES)
+            );
         }
     }
 
@@ -985,7 +1000,7 @@ public class StatementParserTests extends ESTestCase {
             "METRICS foo load=avg(cpu) BY ts",
             new EsqlAggregate(
                 EMPTY,
-                new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo"), List.of()),
+                new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo"), List.of(), IndexMode.TIME_SERIES),
                 List.of(attribute("ts")),
                 List.of(new Alias(EMPTY, "load", new UnresolvedFunction(EMPTY, "avg", DEFAULT, List.of(attribute("cpu")))), attribute("ts"))
             )
@@ -994,7 +1009,7 @@ public class StatementParserTests extends ESTestCase {
             "METRICS foo,bar load=avg(cpu) BY ts",
             new EsqlAggregate(
                 EMPTY,
-                new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo,bar"), List.of()),
+                new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo,bar"), List.of(), IndexMode.TIME_SERIES),
                 List.of(attribute("ts")),
                 List.of(new Alias(EMPTY, "load", new UnresolvedFunction(EMPTY, "avg", DEFAULT, List.of(attribute("cpu")))), attribute("ts"))
             )
@@ -1003,7 +1018,7 @@ public class StatementParserTests extends ESTestCase {
             "METRICS foo,bar load=avg(cpu),max(rate(requests)) BY ts",
             new EsqlAggregate(
                 EMPTY,
-                new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo,bar"), List.of()),
+                new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo,bar"), List.of(), IndexMode.TIME_SERIES),
                 List.of(attribute("ts")),
                 List.of(
                     new Alias(EMPTY, "load", new UnresolvedFunction(EMPTY, "avg", DEFAULT, List.of(attribute("cpu")))),
@@ -1025,7 +1040,7 @@ public class StatementParserTests extends ESTestCase {
             "METRICS foo* count(errors)",
             new EsqlAggregate(
                 EMPTY,
-                new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo*"), List.of()),
+                new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo*"), List.of(), IndexMode.TIME_SERIES),
                 List.of(),
                 List.of(new Alias(EMPTY, "count(errors)", new UnresolvedFunction(EMPTY, "count", DEFAULT, List.of(attribute("errors")))))
             )
@@ -1034,7 +1049,7 @@ public class StatementParserTests extends ESTestCase {
             "METRICS foo* a(b)",
             new EsqlAggregate(
                 EMPTY,
-                new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo*"), List.of()),
+                new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo*"), List.of(), IndexMode.TIME_SERIES),
                 List.of(),
                 List.of(new Alias(EMPTY, "a(b)", new UnresolvedFunction(EMPTY, "a", DEFAULT, List.of(attribute("b")))))
             )
@@ -1043,7 +1058,7 @@ public class StatementParserTests extends ESTestCase {
             "METRICS foo* a(b)",
             new EsqlAggregate(
                 EMPTY,
-                new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo*"), List.of()),
+                new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo*"), List.of(), IndexMode.TIME_SERIES),
                 List.of(),
                 List.of(new Alias(EMPTY, "a(b)", new UnresolvedFunction(EMPTY, "a", DEFAULT, List.of(attribute("b")))))
             )
@@ -1052,7 +1067,7 @@ public class StatementParserTests extends ESTestCase {
             "METRICS foo* a1(b2)",
             new EsqlAggregate(
                 EMPTY,
-                new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo*"), List.of()),
+                new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo*"), List.of(), IndexMode.TIME_SERIES),
                 List.of(),
                 List.of(new Alias(EMPTY, "a1(b2)", new UnresolvedFunction(EMPTY, "a1", DEFAULT, List.of(attribute("b2")))))
             )
@@ -1061,7 +1076,7 @@ public class StatementParserTests extends ESTestCase {
             "METRICS foo*,bar* b = min(a) by c, d.e",
             new EsqlAggregate(
                 EMPTY,
-                new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo*,bar*"), List.of()),
+                new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo*,bar*"), List.of(), IndexMode.TIME_SERIES),
                 List.of(attribute("c"), attribute("d.e")),
                 List.of(
                     new Alias(EMPTY, "b", new UnresolvedFunction(EMPTY, "min", DEFAULT, List.of(attribute("a")))),
@@ -1113,39 +1128,39 @@ public class StatementParserTests extends ESTestCase {
     }
 
     private static Literal integer(int i) {
-        return new Literal(EMPTY, i, DataTypes.INTEGER);
+        return new Literal(EMPTY, i, DataType.INTEGER);
     }
 
     private static Literal integers(int... ints) {
-        return new Literal(EMPTY, Arrays.stream(ints).boxed().toList(), DataTypes.INTEGER);
+        return new Literal(EMPTY, Arrays.stream(ints).boxed().toList(), DataType.INTEGER);
     }
 
     private static Literal literalLong(long i) {
-        return new Literal(EMPTY, i, DataTypes.LONG);
+        return new Literal(EMPTY, i, DataType.LONG);
     }
 
     private static Literal literalLongs(long... longs) {
-        return new Literal(EMPTY, Arrays.stream(longs).boxed().toList(), DataTypes.LONG);
+        return new Literal(EMPTY, Arrays.stream(longs).boxed().toList(), DataType.LONG);
     }
 
     private static Literal literalDouble(double d) {
-        return new Literal(EMPTY, d, DataTypes.DOUBLE);
+        return new Literal(EMPTY, d, DataType.DOUBLE);
     }
 
     private static Literal literalDoubles(double... doubles) {
-        return new Literal(EMPTY, Arrays.stream(doubles).boxed().toList(), DataTypes.DOUBLE);
+        return new Literal(EMPTY, Arrays.stream(doubles).boxed().toList(), DataType.DOUBLE);
     }
 
     private static Literal literalUnsignedLong(String ulong) {
-        return new Literal(EMPTY, asLongUnsigned(new BigInteger(ulong)), DataTypes.UNSIGNED_LONG);
+        return new Literal(EMPTY, asLongUnsigned(new BigInteger(ulong)), DataType.UNSIGNED_LONG);
     }
 
     private static Literal literalUnsignedLongs(String... ulongs) {
-        return new Literal(EMPTY, Arrays.stream(ulongs).map(s -> asLongUnsigned(new BigInteger(s))).toList(), DataTypes.UNSIGNED_LONG);
+        return new Literal(EMPTY, Arrays.stream(ulongs).map(s -> asLongUnsigned(new BigInteger(s))).toList(), DataType.UNSIGNED_LONG);
     }
 
     private static Literal literalBoolean(boolean b) {
-        return new Literal(EMPTY, b, DataTypes.BOOLEAN);
+        return new Literal(EMPTY, b, DataType.BOOLEAN);
     }
 
     private static Literal literalBooleans(boolean... booleans) {
@@ -1153,15 +1168,15 @@ public class StatementParserTests extends ESTestCase {
         for (boolean b : booleans) {
             v.add(b);
         }
-        return new Literal(EMPTY, v, DataTypes.BOOLEAN);
+        return new Literal(EMPTY, v, DataType.BOOLEAN);
     }
 
     private static Literal literalString(String s) {
-        return new Literal(EMPTY, s, DataTypes.KEYWORD);
+        return new Literal(EMPTY, s, DataType.KEYWORD);
     }
 
     private static Literal literalStrings(String... strings) {
-        return new Literal(EMPTY, Arrays.asList(strings), DataTypes.KEYWORD);
+        return new Literal(EMPTY, Arrays.asList(strings), DataType.KEYWORD);
     }
 
     private void expectError(String query, String errorMessage) {

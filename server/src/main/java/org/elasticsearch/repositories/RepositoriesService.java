@@ -161,10 +161,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         SubscribableListener
 
             // Trying to create the new repository on master to make sure it works
-            .<Void>newForked(validationStep -> ActionListener.completeWith(validationStep, () -> {
-                validateRepositoryCanBeCreated(request);
-                return null;
-            }))
+            .<Void>newForked(validationStep -> validatePutRepositoryRequest(request, validationStep))
 
             // When publication has completed (and all acks received or timed out) then verify the repository.
             // (if acks timed out then acknowledgementStep completes before the master processes this cluster state, hence why we have
@@ -351,6 +348,29 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
 
         // Trying to create the new repository on master to make sure it works
         closeRepository(createRepository(newRepositoryMetadata));
+    }
+
+    private void validatePutRepositoryRequest(final PutRepositoryRequest request, ActionListener<Void> resultListener) {
+        final RepositoryMetadata newRepositoryMetadata = new RepositoryMetadata(request.name(), request.type(), request.settings());
+        try {
+            final var repository = createRepository(newRepositoryMetadata);
+            if (request.verify()) {
+                // verify repository on local node only, different from verifyRepository method that runs on other cluster nodes
+                threadPool.executor(ThreadPool.Names.SNAPSHOT)
+                    .execute(ActionRunnable.run(ActionListener.runBefore(resultListener, () -> closeRepository(repository)), () -> {
+                        final var token = repository.startVerification();
+                        if (token != null) {
+                            repository.verify(token, clusterService.localNode());
+                            repository.endVerification(token);
+                        }
+                    }));
+            } else {
+                closeRepository(repository);
+                resultListener.onResponse(null);
+            }
+        } catch (Exception e) {
+            resultListener.onFailure(e);
+        }
     }
 
     private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {

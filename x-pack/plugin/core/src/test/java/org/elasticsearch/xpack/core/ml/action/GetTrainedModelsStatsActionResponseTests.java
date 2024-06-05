@@ -30,6 +30,15 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
 
     @Override
     protected Response createTestInstance() {
+        return createInstance();
+    }
+
+    @Override
+    protected Response mutateInstance(Response instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    public static Response createInstance() {
         int listSize = randomInt(10);
         List<Response.TrainedModelStats> trainedModelStats = Stream.generate(() -> randomAlphaOfLength(10))
             .limit(listSize)
@@ -47,12 +56,7 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
         return new Response(new QueryPage<>(trainedModelStats, randomLongBetween(listSize, 1000), RESULTS_FIELD));
     }
 
-    @Override
-    protected Response mutateInstance(Response instance) {
-        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
-    }
-
-    private IngestStats randomIngestStats() {
+    public static IngestStats randomIngestStats() {
         List<String> pipelineIds = Stream.generate(() -> randomAlphaOfLength(10)).limit(randomIntBetween(0, 10)).toList();
         return new IngestStats(
             new IngestStats.Stats(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong()),
@@ -61,15 +65,15 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
         );
     }
 
-    private IngestStats.Stats randomStats() {
+    private static IngestStats.Stats randomStats() {
         return new IngestStats.Stats(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong());
     }
 
-    private IngestStats.ByteStats randomByteStats() {
+    private static IngestStats.ByteStats randomByteStats() {
         return new IngestStats.ByteStats(randomNonNegativeLong(), randomNonNegativeLong());
     }
 
-    private List<IngestStats.ProcessorStat> randomProcessorStats() {
+    private static List<IngestStats.ProcessorStat> randomProcessorStats() {
         return Stream.generate(() -> randomAlphaOfLength(10))
             .limit(randomIntBetween(0, 10))
             .map(name -> new IngestStats.ProcessorStat(name, "inference", randomStats()))

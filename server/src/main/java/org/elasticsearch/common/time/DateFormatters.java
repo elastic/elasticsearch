@@ -53,6 +53,9 @@ public class DateFormatters {
      * If a string cannot be parsed by the ISO parser, it then tries the java.time one.
      * If there's lots of these strings, trying the ISO parser, then the java.time parser, might cause a performance drop.
      * So provide a JVM option so that users can just use the java.time parsers, if they really need to.
+     * <p>
+     * Note that this property is sometimes set by {@code ESTestCase.setTestSysProps} to flip between implementations in tests,
+     * to ensure both are fully tested
      */
     @UpdateForV9    // evaluate if we need to deprecate/remove this
     private static final boolean JAVA_TIME_PARSERS_ONLY = Booleans.parseBoolean(System.getProperty("es.datetime.java_time_parsers"), false);

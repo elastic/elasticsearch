@@ -12,12 +12,11 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -34,36 +33,36 @@ public class MvZipTests extends AbstractScalarFunctionTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
-        suppliers.add(new TestCaseSupplier(List.of(DataTypes.KEYWORD, DataTypes.KEYWORD, DataTypes.KEYWORD), () -> {
-            List<Object> left = randomList(1, 3, () -> randomLiteral(DataTypes.KEYWORD).value());
-            List<Object> right = randomList(1, 3, () -> randomLiteral(DataTypes.KEYWORD).value());
+        suppliers.add(new TestCaseSupplier(List.of(DataType.KEYWORD, DataType.KEYWORD, DataType.KEYWORD), () -> {
+            List<Object> left = randomList(1, 3, () -> randomLiteral(DataType.KEYWORD).value());
+            List<Object> right = randomList(1, 3, () -> randomLiteral(DataType.KEYWORD).value());
             String delim = randomAlphaOfLengthBetween(1, 1);
             List<BytesRef> expected = calculateExpected(left, right, delim);
             return new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(left, DataTypes.KEYWORD, "mvLeft"),
-                    new TestCaseSupplier.TypedData(right, DataTypes.KEYWORD, "mvRight"),
-                    new TestCaseSupplier.TypedData(delim, DataTypes.KEYWORD, "delim")
+                    new TestCaseSupplier.TypedData(left, DataType.KEYWORD, "mvLeft"),
+                    new TestCaseSupplier.TypedData(right, DataType.KEYWORD, "mvRight"),
+                    new TestCaseSupplier.TypedData(delim, DataType.KEYWORD, "delim")
                 ),
                 "MvZipEvaluator[leftField=Attribute[channel=0], rightField=Attribute[channel=1], delim=Attribute[channel=2]]",
-                DataTypes.KEYWORD,
+                DataType.KEYWORD,
                 equalTo(expected.size() == 1 ? expected.iterator().next() : expected)
             );
         }));
 
-        suppliers.add(new TestCaseSupplier(List.of(DataTypes.TEXT, DataTypes.TEXT, DataTypes.TEXT), () -> {
-            List<Object> left = randomList(1, 10, () -> randomLiteral(DataTypes.TEXT).value());
-            List<Object> right = randomList(1, 10, () -> randomLiteral(DataTypes.TEXT).value());
+        suppliers.add(new TestCaseSupplier(List.of(DataType.TEXT, DataType.TEXT, DataType.TEXT), () -> {
+            List<Object> left = randomList(1, 10, () -> randomLiteral(DataType.TEXT).value());
+            List<Object> right = randomList(1, 10, () -> randomLiteral(DataType.TEXT).value());
             String delim = randomAlphaOfLengthBetween(1, 1);
             List<BytesRef> expected = calculateExpected(left, right, delim);
             return new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(left, DataTypes.TEXT, "mvLeft"),
-                    new TestCaseSupplier.TypedData(right, DataTypes.TEXT, "mvRight"),
-                    new TestCaseSupplier.TypedData(delim, DataTypes.TEXT, "delim")
+                    new TestCaseSupplier.TypedData(left, DataType.TEXT, "mvLeft"),
+                    new TestCaseSupplier.TypedData(right, DataType.TEXT, "mvRight"),
+                    new TestCaseSupplier.TypedData(delim, DataType.TEXT, "delim")
                 ),
                 "MvZipEvaluator[leftField=Attribute[channel=0], rightField=Attribute[channel=1], delim=Attribute[channel=2]]",
-                DataTypes.KEYWORD,
+                DataType.KEYWORD,
                 equalTo(expected.size() == 1 ? expected.iterator().next() : expected)
             );
         }));
@@ -73,7 +72,7 @@ public class MvZipTests extends AbstractScalarFunctionTestCase {
 
     @Override
     protected DataType expectedType(List<DataType> argTypes) {
-        return DataTypes.KEYWORD;
+        return DataType.KEYWORD;
     }
 
     @Override

@@ -19,6 +19,7 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.common.CheckedBiFunction;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -31,7 +32,7 @@ import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.ql.TestUtils;
+import org.elasticsearch.xpack.esql.core.TestUtils;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -195,7 +196,20 @@ public class CsvTestsDataLoader {
 
         try (RestClient client = builder.build()) {
             loadDataSetIntoEs(client, (restClient, indexName, indexMapping, indexSettings) -> {
-                ESRestTestCase.createIndex(restClient, indexName, indexSettings, indexMapping, null);
+                // don't use ESRestTestCase methods here or, if you do, test running the main method before making the change
+                StringBuilder jsonBody = new StringBuilder("{");
+                if (indexSettings != null && indexSettings.isEmpty() == false) {
+                    jsonBody.append("\"settings\":");
+                    jsonBody.append(Strings.toString(indexSettings));
+                    jsonBody.append(",");
+                }
+                jsonBody.append("\"mappings\":");
+                jsonBody.append(indexMapping);
+                jsonBody.append("}");
+
+                Request request = new Request("PUT", "/" + indexName);
+                request.setJsonEntity(jsonBody.toString());
+                restClient.performRequest(request);
             });
         }
     }
@@ -314,7 +328,7 @@ public class CsvTestsDataLoader {
     ) throws IOException {
         ArrayList<String> failures = new ArrayList<>();
         StringBuilder builder = new StringBuilder();
-        try (BufferedReader reader = org.elasticsearch.xpack.ql.TestUtils.reader(resource)) {
+        try (BufferedReader reader = org.elasticsearch.xpack.esql.core.TestUtils.reader(resource)) {
             String line;
             int lineNumber = 1;
             String[] columns = null; // list of column names. If one column name contains dot, it is a subfield and its value will be null

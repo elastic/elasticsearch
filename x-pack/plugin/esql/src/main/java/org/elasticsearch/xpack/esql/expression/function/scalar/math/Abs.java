@@ -10,14 +10,14 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.List;
 import java.util.function.Function;
@@ -57,16 +57,16 @@ public class Abs extends UnaryScalarFunction {
     @Override
     public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
         var field = toEvaluator.apply(field());
-        if (dataType() == DataTypes.DOUBLE) {
+        if (dataType() == DataType.DOUBLE) {
             return new AbsDoubleEvaluator.Factory(source(), field);
         }
-        if (dataType() == DataTypes.UNSIGNED_LONG) {
+        if (dataType() == DataType.UNSIGNED_LONG) {
             return field;
         }
-        if (dataType() == DataTypes.LONG) {
+        if (dataType() == DataType.LONG) {
             return new AbsLongEvaluator.Factory(source(), field);
         }
-        if (dataType() == DataTypes.INTEGER) {
+        if (dataType() == DataType.INTEGER) {
             return new AbsIntEvaluator.Factory(source(), field);
         }
         throw EsqlIllegalArgumentException.illegalDataType(dataType());

@@ -21,12 +21,12 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Literal;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.junit.After;
 
 import java.util.ArrayList;
@@ -41,8 +41,8 @@ public class BreakerTests extends ESTestCase {
 
         Expression expression = new Div(
             Source.synthetic("[1] / (long) 2"),
-            AbstractFunctionTestCase.field("f", DataTypes.LONG),
-            new Literal(Source.EMPTY, 2, DataTypes.INTEGER)
+            AbstractFunctionTestCase.field("f", DataType.LONG),
+            new Literal(Source.EMPTY, 2, DataType.INTEGER)
         );
         for (int b = 0; b < 136; b++) {
             params.add(new Object[] { ByteSizeValue.ofBytes(b), expression });

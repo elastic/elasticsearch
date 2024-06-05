@@ -10,9 +10,9 @@ package org.elasticsearch.xpack.esql.plan.physical;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.type.DataType;
 
 import java.util.List;
 
@@ -117,6 +117,8 @@ public interface EstimatesRowSize {
             case INT -> Integer.BYTES;
             case LONG -> Long.BYTES;
             case NULL -> 0;
+            // TODO: provide a specific estimate for aggregated_metrics_double
+            case COMPOSITE -> throw new EsqlIllegalArgumentException("can't estimate size for composite blocks");
             case UNKNOWN -> throw new EsqlIllegalArgumentException("[unknown] can't be the result of field extraction");
         };
     }

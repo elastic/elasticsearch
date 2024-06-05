@@ -254,6 +254,14 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
                 getPlugins().stream().filter(p -> p instanceof MapperPlugin).map(p -> (MapperPlugin) p).collect(toList())
             ).getMapperRegistry();
 
+            BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(indexSettings, new BitsetFilterCache.Listener() {
+                @Override
+                public void onCache(ShardId shardId, Accountable accountable) {}
+
+                @Override
+                public void onRemoval(ShardId shardId, Accountable accountable) {}
+            });
+
             return new MapperService(
                 () -> TransportVersion.current(),
                 indexSettings,
@@ -266,6 +274,7 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
                 },
                 indexSettings.getMode().buildIdFieldMapper(idFieldDataEnabled),
                 scriptCompiler,
+                bitsetFilterCache::getBitSetProducer,
                 mapperMetrics
             );
         }

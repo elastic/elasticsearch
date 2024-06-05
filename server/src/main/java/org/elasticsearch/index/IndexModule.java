@@ -652,6 +652,9 @@ public final class IndexModule {
             },
             indexSettings.getMode().idFieldMapperWithoutFieldData(),
             scriptService,
+            query -> {
+                throw new UnsupportedOperationException("no index query shard context available");
+            },
             mapperMetrics
         );
     }

@@ -98,18 +98,6 @@ public class MistralEmbeddingsServiceSettingsTests extends ESTestCase {
             "rate_limit":{"requests_per_minute":3}}"""));
     }
 
-    public void testToFilteredXContent_WritesFilteredValues() throws IOException {
-        var entity = new MistralEmbeddingsServiceSettings("model_name", 1024, 512, null, new RateLimitSettings(3));
-
-        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-        var filteredXContent = entity.getFilteredXContentObject();
-        filteredXContent.toXContent(builder, null);
-        String xContentResult = Strings.toString(builder);
-
-        assertThat(xContentResult, CoreMatchers.is("""
-            {"model":"model_name","dimensions":1024,"max_input_tokens":512}"""));
-    }
-
     public void testStreamInputAndOutput_WritesValuesCorrectly() throws IOException {
         var outputBuffer = new BytesStreamOutput();
         var settings = new MistralEmbeddingsServiceSettings("model_name", 1024, 512, null, new RateLimitSettings(3));

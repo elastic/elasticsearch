@@ -13,8 +13,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.SubscribableListener;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
+import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -36,7 +35,9 @@ import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 
 import java.util.Set;
 
-public class TransportDeleteInferenceEndpointAction extends AcknowledgedTransportMasterNodeAction<DeleteInferenceEndpointAction.Request> {
+public class TransportDeleteInferenceEndpointAction extends TransportMasterNodeAction<
+    DeleteInferenceEndpointAction.Request,
+    DeleteInferenceEndpointAction.Response> {
 
     private final ModelRegistry modelRegistry;
     private final InferenceServiceRegistry serviceRegistry;
@@ -60,6 +61,7 @@ public class TransportDeleteInferenceEndpointAction extends AcknowledgedTranspor
             actionFilters,
             DeleteInferenceEndpointAction.Request::new,
             indexNameExpressionResolver,
+            DeleteInferenceEndpointAction.Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.modelRegistry = modelRegistry;
@@ -71,7 +73,7 @@ public class TransportDeleteInferenceEndpointAction extends AcknowledgedTranspor
         Task task,
         DeleteInferenceEndpointAction.Request request,
         ClusterState state,
-        ActionListener<AcknowledgedResponse> masterListener
+        ActionListener<DeleteInferenceEndpointAction.Response> masterListener
     ) {
         SubscribableListener.<ModelRegistry.UnparsedModel>newForked(modelConfigListener -> {
             // Get the model from the registry
@@ -123,7 +125,9 @@ public class TransportDeleteInferenceEndpointAction extends AcknowledgedTranspor
             }
         })
             .addListener(
-                masterListener.delegateFailure((l3, didDeleteModel) -> masterListener.onResponse(AcknowledgedResponse.of(didDeleteModel)))
+                masterListener.delegateFailure(
+                    (l3, didDeleteModel) -> masterListener.onResponse(new DeleteInferenceEndpointAction.Response(didDeleteModel, Set.of()))
+                )
             );
     }
 

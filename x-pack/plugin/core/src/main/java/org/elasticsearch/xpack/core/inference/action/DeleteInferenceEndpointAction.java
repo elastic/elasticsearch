@@ -20,7 +20,7 @@ import java.io.IOException;
 import java.util.Objects;
 import java.util.Set;
 
-public class DeleteInferenceEndpointAction extends ActionType<AcknowledgedResponse> {
+public class DeleteInferenceEndpointAction extends ActionType<DeleteInferenceEndpointAction.Response> {
 
     public static final DeleteInferenceEndpointAction INSTANCE = new DeleteInferenceEndpointAction();
     public static final String NAME = "cluster:admin/xpack/inference/delete";

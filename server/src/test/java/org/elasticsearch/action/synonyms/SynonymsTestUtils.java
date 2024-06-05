@@ -10,6 +10,7 @@ package org.elasticsearch.action.synonyms;
 
 import org.elasticsearch.synonyms.SynonymRule;
 import org.elasticsearch.synonyms.SynonymSetSummary;
+import org.elasticsearch.synonyms.SynonymsManagementAPIService;
 
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLengthBetween;
 import static org.elasticsearch.test.ESTestCase.randomArray;
@@ -17,14 +18,22 @@ import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomIdentifier;
 import static org.elasticsearch.test.ESTestCase.randomLongBetween;
 
-class SynonymsTestUtils {
+public class SynonymsTestUtils {
 
     private SynonymsTestUtils() {
         throw new UnsupportedOperationException();
     }
 
+    public static SynonymRule[] randomSynonymsSet(int length) {
+        return randomSynonymsSet(length, length);
+    }
+
+    public static SynonymRule[] randomSynonymsSet(int minLength, int maxLength) {
+        return randomArray(minLength, maxLength, SynonymRule[]::new, SynonymsTestUtils::randomSynonymRule);
+    }
+
     static SynonymRule[] randomSynonymsSet() {
-        return randomArray(10, SynonymRule[]::new, SynonymsTestUtils::randomSynonymRule);
+        return randomSynonymsSet(0, SynonymsManagementAPIService.MAX_SYNONYMS_SETS);
     }
 
     static SynonymSetSummary[] randomSynonymsSetSummary() {

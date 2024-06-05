@@ -257,6 +257,12 @@ public class SynonymsManagementAPIService {
     }
 
     public void putSynonymsSet(String synonymSetId, SynonymRule[] synonymsSet, ActionListener<SynonymsReloadResult> listener) {
+        if (synonymsSet.length > MAX_SYNONYMS_SETS) {
+            listener.onFailure(
+                new IllegalArgumentException("The number of synonyms rules in a synonym set cannot exceed " + MAX_SYNONYMS_SETS)
+            );
+            return;
+        }
         deleteSynonymsSetObjects(synonymSetId, listener.delegateFailure((deleteByQueryResponseListener, bulkDeleteResponse) -> {
             boolean created = bulkDeleteResponse.getDeleted() == 0;
             final List<BulkItemResponse.Failure> bulkDeleteFailures = bulkDeleteResponse.getBulkFailures();
@@ -308,21 +314,42 @@ public class SynonymsManagementAPIService {
     }
 
     public void putSynonymRule(String synonymsSetId, SynonymRule synonymRule, ActionListener<SynonymsReloadResult> listener) {
-        checkSynonymSetExists(synonymsSetId, listener.delegateFailure((l1, obj) -> {
-            try {
-                IndexRequest indexRequest = createSynonymRuleIndexRequest(synonymsSetId, synonymRule).setRefreshPolicy(
-                    WriteRequest.RefreshPolicy.IMMEDIATE
-                );
-                client.index(indexRequest, l1.delegateFailure((l2, indexResponse) -> {
-                    UpdateSynonymsResultStatus updateStatus = indexResponse.status() == RestStatus.CREATED
-                        ? UpdateSynonymsResultStatus.CREATED
-                        : UpdateSynonymsResultStatus.UPDATED;
-
-                    reloadAnalyzers(synonymsSetId, false, l2, updateStatus);
+        checkSynonymSetExists(synonymsSetId, listener.delegateFailureAndWrap((l1, obj) -> {
+            // Count synonym rules to check if we're at maximum
+            client.prepareSearch(SYNONYMS_ALIAS_NAME)
+                .setQuery(
+                    QueryBuilders.boolQuery()
+                        .must(QueryBuilders.termQuery(SYNONYMS_SET_FIELD, synonymsSetId))
+                        .filter(QueryBuilders.termQuery(OBJECT_TYPE_FIELD, SYNONYM_RULE_OBJECT_TYPE))
+                )
+                .setSize(0)
+                .setPreference(Preference.LOCAL.type())
+                .setTrackTotalHits(true)
+                .execute(listener.delegateFailureAndWrap((searchListener, searchResponse) -> {
+                    long synonymsSetSize = searchResponse.getHits().getTotalHits().value;
+                    if (synonymsSetSize >= MAX_SYNONYMS_SETS) {
+                        // We could potentially update a synonym rule when we're at max capacity, but we're keeping this simple
+                        listener.onFailure(
+                            new IllegalArgumentException("The number of synonym rules in a synonyms set cannot exceed " + MAX_SYNONYMS_SETS)
+                        );
+                    } else {
+                        indexSynonymRule(synonymsSetId, synonymRule, l1);
+                    }
                 }));
-            } catch (IOException e) {
-                l1.onFailure(e);
-            }
+        }));
+    }
+
+    private void indexSynonymRule(String synonymsSetId, SynonymRule synonymRule, ActionListener<SynonymsReloadResult> listener)
+        throws IOException {
+        IndexRequest indexRequest = createSynonymRuleIndexRequest(synonymsSetId, synonymRule).setRefreshPolicy(
+            WriteRequest.RefreshPolicy.IMMEDIATE
+        );
+        client.index(indexRequest, listener.delegateFailure((l2, indexResponse) -> {
+            UpdateSynonymsResultStatus updateStatus = indexResponse.status() == RestStatus.CREATED
+                ? UpdateSynonymsResultStatus.CREATED
+                : UpdateSynonymsResultStatus.UPDATED;
+
+            reloadAnalyzers(synonymsSetId, false, l2, updateStatus);
         }));
     }
 

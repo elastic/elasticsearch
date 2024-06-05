@@ -15,8 +15,8 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import static org.elasticsearch.Version.V_8_2_0;
 import static org.elasticsearch.Version.V_8_4_0;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.UNSIGNED_LONG;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.VERSION;
+import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
 
 public final class VersionCompatibilityChecks {
 

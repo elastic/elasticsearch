@@ -156,11 +156,7 @@ public class TestFixturesPlugin implements Plugin<Project> {
             testTask.finalizedBy(tasks.named("composeDown"));
             SystemPropertyCommandLineArgumentProvider sysArgumentsProvider = testTask.getExtensions()
                 .getByType(SystemPropertyCommandLineArgumentProvider.class);
-            configureServiceInfoForTask(
-                testTask,
-                dockerSupport,
-                (name, host) -> sysArgumentsProvider.systemProperty(name, host)
-            );
+            configureServiceInfoForTask(testTask, dockerSupport, (name, host) -> sysArgumentsProvider.systemProperty(name, host));
         });
     }
 

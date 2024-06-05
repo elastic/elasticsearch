@@ -150,6 +150,10 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
         return this.dockerAvailability;
     }
 
+    public boolean isArchitectureSupported(Architecture architecture) {
+        return getDockerAvailability().supportedArchitectures().contains(architecture);
+    }
+
     private DockerResult runCommand(List args, DockerValueSource.OutputFilter outputFilter) {
         return providerFactory.of(DockerValueSource.class, params -> {
             params.getParameters().getArgs().addAll(args);

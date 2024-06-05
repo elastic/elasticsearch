@@ -10,7 +10,6 @@ import org.elasticsearch.gradle.internal.docker.ShellRetry
 import org.elasticsearch.gradle.internal.docker.TransformLog4jConfigFilter
 import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.util.GradleUtils
-import static org.elasticsearch.gradle.internal.docker.DockerUtils.isArchitectureSupported
 import java.nio.file.Path
 import java.time.temporal.ChronoUnit
 
@@ -313,7 +312,7 @@ void addBuildDockerContextTask(Architecture architecture, DockerBase base) {
         rename ~/((?:file|metric)beat)-.*\.tar\.gz$/, "\$1-${VersionProperties.elasticsearch}.tar.gz"
       }
       Provider<DockerSupportService> serviceProvider = GradleUtils.getBuildService(project.gradle.sharedServices, DockerSupportPlugin.DOCKER_SUPPORT_SERVICE_NAME)
-      onlyIf("$architecture supported") { isArchitectureSupported(architecture, serviceProvider.get()) }
+      onlyIf("$architecture supported") { serviceProvider.get().isArchitectureSupported(architecture) }
     }
 
   if (base == DockerBase.IRON_BANK) {
@@ -362,7 +361,7 @@ void addTransformDockerContextTask(Architecture architecture, DockerBase base) {
       inputs.property(k, { v.toString() })
     }
     Provider<DockerSupportService> serviceProvider = GradleUtils.getBuildService(project.gradle.sharedServices, DockerSupportPlugin.DOCKER_SUPPORT_SERVICE_NAME)
-    onlyIf("$architecture supported") { isArchitectureSupported(architecture, serviceProvider.get()) }
+    onlyIf("$architecture supported") { serviceProvider.get().isArchitectureSupported(architecture) }
   }
 
   // Register transformed context as a project artifact
@@ -436,7 +435,7 @@ void addBuildDockerImageTask(Architecture architecture, DockerBase base) {
       }
 
       Provider<DockerSupportService> serviceProvider = GradleUtils.getBuildService(project.gradle.sharedServices, DockerSupportPlugin.DOCKER_SUPPORT_SERVICE_NAME)
-      onlyIf("$architecture supported") { isArchitectureSupported(architecture, serviceProvider.get()) }
+      onlyIf("$architecture supported") { serviceProvider.get().isArchitectureSupported(architecture) }
 
     }
 
@@ -484,7 +483,7 @@ void addBuildEssDockerImageTask(Architecture architecture) {
       tags = generateTags(base, architecture)
       platforms.add(architecture.dockerPlatform)
       Provider<DockerSupportService> serviceProvider = GradleUtils.getBuildService(project.gradle.sharedServices, DockerSupportPlugin.DOCKER_SUPPORT_SERVICE_NAME)
-      onlyIf("$architecture supported") { isArchitectureSupported(architecture, serviceProvider.get()) }
+      onlyIf("$architecture supported") { serviceProvider.get().isArchitectureSupported(architecture) }
 
     }
 
@@ -551,7 +550,7 @@ subprojects { Project subProject ->
         "elasticsearch${base.suffix}:${architecture.classifier}"
       dependsOn(parent.path + ":" + buildTaskName)
       Provider<DockerSupportService> serviceProvider = GradleUtils.getBuildService(project.gradle.sharedServices, DockerSupportPlugin.DOCKER_SUPPORT_SERVICE_NAME)
-      onlyIf("$architecture supported") { isArchitectureSupported(architecture, serviceProvider.get()) }
+      onlyIf("$architecture supported") { serviceProvider.get().isArchitectureSupported(architecture) }
     }
 
     exportDockerImages.configure {

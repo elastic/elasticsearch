@@ -163,6 +163,26 @@ aa:keyword | ab:keyword | na:integer | nb:integer
 bar        | bar        |       null |       null
 ;
 
+# Makes sure the LOOKUP squashes previous 
+doesNotDuplicateNames
+required_capability: lookup
+FROM employees
+| SORT emp_no
+| LIMIT 4
+| RENAME languages.long AS long
+| EVAL name = CONCAT(first_name, " ", last_name)
+| LOOKUP long_number_names ON long
+| KEEP emp_no, languages, name
+;
+
+emp_no:integer | languages:long | name:keyword
+         10001 |              2 | two
+         10002 |              5 | five
+         10003 |              4 | four
+         10004 |              5 | five
+;
+
+
 //
 // Make sure that the new LOOKUP syntax doesn't clash with any existing things
 // named "lookup"

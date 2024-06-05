@@ -26,6 +26,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -86,7 +87,8 @@ public class ClusterApplierServiceTests extends ESTestCase {
             "test_node",
             Settings.builder().put("cluster.name", "ClusterApplierServiceTests").build(),
             clusterSettings,
-            threadPool
+            threadPool,
+            Tracer.NOOP
         ) {
             @Override
             protected boolean applicationMayFail() {

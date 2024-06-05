@@ -51,6 +51,7 @@ import org.elasticsearch.snapshots.InternalSnapshotsInfoService.SnapshotShard;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
+import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -1221,33 +1222,38 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
         var currentTime = new AtomicLong(0L);
         when(mockThreadPool.relativeTimeInMillis()).thenAnswer(invocation -> currentTime.addAndGet(eachIterationDuration));
 
-        var desiredBalanceComputer = new DesiredBalanceComputer(createBuiltInClusterSettings(), mockThreadPool, new ShardsAllocator() {
-            @Override
-            public void allocate(RoutingAllocation allocation) {
-                final var unassignedIterator = allocation.routingNodes().unassigned().iterator();
-                while (unassignedIterator.hasNext()) {
-                    final var shardRouting = unassignedIterator.next();
-                    if (shardRouting.primary()) {
-                        unassignedIterator.initialize("node-0", null, 0L, allocation.changes());
-                    } else {
-                        unassignedIterator.removeAndIgnore(UnassignedInfo.AllocationStatus.NO_ATTEMPT, allocation.changes());
+        var desiredBalanceComputer = new DesiredBalanceComputer(
+            createBuiltInClusterSettings(),
+            mockThreadPool,
+            Tracer.NOOP,
+            new ShardsAllocator() {
+                @Override
+                public void allocate(RoutingAllocation allocation) {
+                    final var unassignedIterator = allocation.routingNodes().unassigned().iterator();
+                    while (unassignedIterator.hasNext()) {
+                        final var shardRouting = unassignedIterator.next();
+                        if (shardRouting.primary()) {
+                            unassignedIterator.initialize("node-0", null, 0L, allocation.changes());
+                        } else {
+                            unassignedIterator.removeAndIgnore(UnassignedInfo.AllocationStatus.NO_ATTEMPT, allocation.changes());
+                        }
+                    }
+
+                    // move shard on each iteration
+                    for (var shard : allocation.routingNodes().node("node-0").shardsWithState(STARTED).toList()) {
+                        allocation.routingNodes().relocateShard(shard, "node-1", 0L, "test", allocation.changes());
+                    }
+                    for (var shard : allocation.routingNodes().node("node-1").shardsWithState(STARTED).toList()) {
+                        allocation.routingNodes().relocateShard(shard, "node-0", 0L, "test", allocation.changes());
                     }
                 }
 
-                // move shard on each iteration
-                for (var shard : allocation.routingNodes().node("node-0").shardsWithState(STARTED).toList()) {
-                    allocation.routingNodes().relocateShard(shard, "node-1", 0L, "test", allocation.changes());
-                }
-                for (var shard : allocation.routingNodes().node("node-1").shardsWithState(STARTED).toList()) {
-                    allocation.routingNodes().relocateShard(shard, "node-0", 0L, "test", allocation.changes());
+                @Override
+                public ShardAllocationDecision decideShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
+                    throw new AssertionError("only used for allocation explain");
                 }
             }
-
-            @Override
-            public ShardAllocationDecision decideShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
-                throw new AssertionError("only used for allocation explain");
-            }
-        });
+        );
 
         assertThatLogger(() -> {
             var iteration = new AtomicInteger(0);
@@ -1355,7 +1361,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
     }
 
     private static DesiredBalanceComputer createDesiredBalanceComputer(ShardsAllocator allocator) {
-        return new DesiredBalanceComputer(createBuiltInClusterSettings(), mock(ThreadPool.class), allocator);
+        return new DesiredBalanceComputer(createBuiltInClusterSettings(), mock(ThreadPool.class), Tracer.NOOP, allocator);
     }
 
     private static void assertDesiredAssignments(DesiredBalance desiredBalance, Map<ShardId, ShardAssignment> expected) {

@@ -19,6 +19,7 @@ import org.elasticsearch.common.util.concurrent.StoppableExecutorServiceWrapper;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Set;
@@ -47,7 +48,7 @@ public class FakeThreadPoolMasterService extends MasterService {
         ThreadPool threadPool,
         Consumer<Runnable> taskExecutor
     ) {
-        super(settings, clusterSettings, threadPool, new TaskManager(settings, threadPool, Set.of()));
+        super(settings, clusterSettings, threadPool, new TaskManager(settings, threadPool, Set.of()), Tracer.NOOP);
         this.taskExecutor = taskExecutor;
         this.threadContext = threadPool.getThreadContext();
     }

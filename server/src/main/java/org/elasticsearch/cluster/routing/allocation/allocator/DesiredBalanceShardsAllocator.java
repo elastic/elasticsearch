@@ -89,7 +89,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
             delegateAllocator,
             threadPool,
             clusterService,
-            new DesiredBalanceComputer(clusterSettings, threadPool, delegateAllocator),
+            new DesiredBalanceComputer(clusterSettings, threadPool, telemetryProvider.getTracer(), delegateAllocator),
             reconciler,
             telemetryProvider
         );
@@ -110,7 +110,8 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         this.desiredBalanceReconciler = new DesiredBalanceReconciler(
             clusterService.getClusterSettings(),
             threadPool,
-            telemetryProvider.getMeterRegistry()
+            telemetryProvider.getMeterRegistry(),
+            telemetryProvider.getTracer()
         );
         this.desiredBalanceComputation = new ContinuousComputation<>(threadPool.generic()) {
 

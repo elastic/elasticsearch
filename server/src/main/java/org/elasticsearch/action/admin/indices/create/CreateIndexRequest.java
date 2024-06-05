@@ -114,7 +114,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         if (in.getTransportVersion().onOrAfter(TransportVersions.FAILURE_STORE_LAZY_CREATION)) {
             initializeFailureStore = in.readBoolean();
         } else {
-            initializeFailureStore = false;
+            initializeFailureStore = true;
         }
     }
 
@@ -511,10 +511,10 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
             out.writeString(origin);
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-            out.writeOptionalBoolean(this.requireDataStream);
+            out.writeBoolean(this.requireDataStream);
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.FAILURE_STORE_LAZY_CREATION)) {
-            out.writeOptionalBoolean(this.initializeFailureStore);
+            out.writeBoolean(this.initializeFailureStore);
         }
     }
 

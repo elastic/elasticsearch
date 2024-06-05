@@ -195,7 +195,7 @@ ENV ELASTIC_CONTAINER true
 
 WORKDIR /usr/share/elasticsearch
 
-COPY --from=builder --chown=0:0 /usr/share/elasticsearch /usr/share/elasticsearch
+COPY --from=builder --chown=1000:1000 /usr/share/elasticsearch /usr/share/elasticsearch
 COPY --from=builder --chown=0:0 /bin/tini /bin/tini
 
 <% if (docker_base == 'cloud') { %>

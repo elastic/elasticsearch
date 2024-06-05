@@ -77,4 +77,3 @@ class XUniqueTokenFilter extends TokenFilter {
         previous.clear();
     }
 }
-

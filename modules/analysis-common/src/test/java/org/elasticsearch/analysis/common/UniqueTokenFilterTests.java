@@ -99,11 +99,14 @@ public class UniqueTokenFilterTests extends ESTestCase {
             }
         };
 
-        assertAnalyzesTo(analyzer, "foo bar bro bar bro baz",
-                new String[]{"f", "fo", "foo", "b", "ba", "bar", "br", "bro", "baz"},
-                new int[]{0, 0, 0, 4, 4, 4, 8, 8, 20},
-                new int[]{3, 3, 3, 7, 7, 7, 11, 11, 23},
-                new int[]{1, 0, 0, 1, 0, 0, 1, 0, 3});
+        assertAnalyzesTo(
+            analyzer,
+            "foo bar bro bar bro baz",
+            new String[] { "f", "fo", "foo", "b", "ba", "bar", "br", "bro", "baz" },
+            new int[] { 0, 0, 0, 4, 4, 4, 8, 8, 20 },
+            new int[] { 3, 3, 3, 7, 7, 7, 11, 11, 23 },
+            new int[] { 1, 0, 0, 1, 0, 0, 1, 0, 3 }
+        );
         analyzer.close();
     }
 

@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.core.type.DateUtils;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.TypesTests;
@@ -300,11 +299,11 @@ public final class EsqlTestUtils {
             BytesRefBlock namesBlock = names.build();
             tables.put(
                 "int_number_names",
-                Map.of("int", new Column(DataTypes.INTEGER, intsBlock), "name", new Column(DataTypes.KEYWORD, namesBlock))
+                Map.of("int", new Column(DataType.INTEGER, intsBlock), "name", new Column(DataType.KEYWORD, namesBlock))
             );
             tables.put(
                 "long_number_names",
-                Map.of("long", new Column(DataTypes.LONG, longsBlock), "name", new Column(DataTypes.KEYWORD, namesBlock))
+                Map.of("long", new Column(DataType.LONG, longsBlock), "name", new Column(DataType.KEYWORD, namesBlock))
             );
         }
         return unmodifiableMap(tables);

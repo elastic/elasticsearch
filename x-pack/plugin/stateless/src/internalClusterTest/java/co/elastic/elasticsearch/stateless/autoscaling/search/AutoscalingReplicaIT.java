@@ -20,25 +20,61 @@ package co.elastic.elasticsearch.stateless.autoscaling.search;
 import co.elastic.elasticsearch.serverless.constants.ServerlessSharedSettings;
 import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
 
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
+import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
+import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
+import org.elasticsearch.action.bulk.BulkItemResponse;
+import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.XContentType;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.cluster.metadata.DataStream.getDefaultBackingIndexName;
+import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.DEFAULT_TIMESTAMP_FIELD;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.startsWith;
 
 public class AutoscalingReplicaIT extends AbstractStatelessIntegTestCase {
 
     private static final long DEFAULT_BOOST_WINDOW = TimeValue.timeValueDays(7).millis();
     private static final long ONE_DAY = TimeValue.timeValueDays(1).millis();
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
+        plugins.add(DataStreamsPlugin.class);
+        return plugins;
+    }
 
     public void testSearchPowerAffectsReplica() throws Exception {
         Settings settings = Settings.builder()
@@ -80,7 +116,7 @@ public class AutoscalingReplicaIT extends AbstractStatelessIntegTestCase {
                 )
                 .get()
         );
-        waitUntil(() -> { return clusterService.state().metadata().index(indexName).getNumberOfReplicas() == 2; }, 5, TimeUnit.SECONDS);
+        waitUntil(() -> clusterService.state().metadata().index(indexName).getNumberOfReplicas() == 2, 5, TimeUnit.SECONDS);
         assertEquals(2, clusterService.state().metadata().index(indexName).getNumberOfReplicas());
 
         // also check that a newly created index gets scaled up automatically
@@ -95,7 +131,7 @@ public class AutoscalingReplicaIT extends AbstractStatelessIntegTestCase {
             now
         );
         refresh(indexName2);
-        waitUntil(() -> { return clusterService.state().metadata().index(indexName2).getNumberOfReplicas() == 2; }, 5, TimeUnit.SECONDS);
+        waitUntil(() -> clusterService.state().metadata().index(indexName2).getNumberOfReplicas() == 2, 5, TimeUnit.SECONDS);
         assertEquals(2, clusterService.state().metadata().index(indexName2).getNumberOfReplicas());
 
         // back to SP 100
@@ -109,7 +145,7 @@ public class AutoscalingReplicaIT extends AbstractStatelessIntegTestCase {
                 )
                 .get()
         );
-        waitUntil(() -> { return clusterService.state().metadata().index(indexName).getNumberOfReplicas() == 1; }, 5, TimeUnit.SECONDS);
+        waitUntil(() -> clusterService.state().metadata().index(indexName).getNumberOfReplicas() == 1, 5, TimeUnit.SECONDS);
         assertEquals(1, clusterService.state().metadata().index(indexName).getNumberOfReplicas());
     }
 
@@ -183,7 +219,7 @@ public class AutoscalingReplicaIT extends AbstractStatelessIntegTestCase {
                 .get()
         );
         // scaling up should happen almost immediately
-        waitUntil(() -> { return clusterService.state().metadata().index(index1).getNumberOfReplicas() == 2; }, 1, TimeUnit.SECONDS);
+        waitUntil(() -> clusterService.state().metadata().index(index1).getNumberOfReplicas() == 2, 1, TimeUnit.SECONDS);
         assertEquals(1, clusterService.state().metadata().index(index2).getNumberOfReplicas());
         assertEquals(2, clusterService.state().metadata().index(index1).getNumberOfReplicas());
 
@@ -198,12 +234,12 @@ public class AutoscalingReplicaIT extends AbstractStatelessIntegTestCase {
         refresh(index2);
 
         // scaling up index2 should happen almost immediately, but we wait 1sec to be sure we catch at least one update interval
-        waitUntil(() -> { return clusterService.state().metadata().index(index2).getNumberOfReplicas() == 2; }, 1, TimeUnit.SECONDS);
+        waitUntil(() -> clusterService.state().metadata().index(index2).getNumberOfReplicas() == 2, 1, TimeUnit.SECONDS);
         assertEquals(2, clusterService.state().metadata().index(index2).getNumberOfReplicas());
         // index1 should still have 2 replicas, it needs 6*500ms for the change to stabiliza
         assertEquals(2, clusterService.state().metadata().index(index1).getNumberOfReplicas());
 
-        waitUntil(() -> { return clusterService.state().metadata().index(index1).getNumberOfReplicas() == 1; }, 4, TimeUnit.SECONDS);
+        waitUntil(() -> clusterService.state().metadata().index(index1).getNumberOfReplicas() == 1, 4, TimeUnit.SECONDS);
         assertEquals(1, clusterService.state().metadata().index(index1).getNumberOfReplicas());
     }
 
@@ -244,22 +280,204 @@ public class AutoscalingReplicaIT extends AbstractStatelessIntegTestCase {
                 )
                 .get()
         );
-        waitUntil(() -> { return clusterService.state().metadata().index(indexName).getNumberOfReplicas() == 2; }, 2, TimeUnit.SECONDS);
+        waitUntil(() -> clusterService.state().metadata().index(indexName).getNumberOfReplicas() == 2, 2, TimeUnit.SECONDS);
         assertEquals(2, clusterService.state().metadata().index(indexName).getNumberOfReplicas());
 
         // now disable feature
+        setFeatureFlag(false);
+        waitUntil(() -> clusterService.state().metadata().index(indexName).getNumberOfReplicas() == 1, 2, TimeUnit.SECONDS);
+        assertEquals(1, clusterService.state().metadata().index(indexName).getNumberOfReplicas());
+    }
+
+    public void testMulitpleDatastreamsRanking() throws Exception {
+        // setup with auto replica selection disabled
+        Settings settings = Settings.builder()
+            .put(SearchShardSizeCollector.PUSH_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(1))
+            .put(ReplicasUpdaterService.REPLICA_UPDATER_INTERVAL.getKey(), TimeValue.timeValueMillis(100))
+            .put(ServerlessSharedSettings.SEARCH_POWER_MIN_SETTING.getKey(), 205)
+            .put(ServerlessSharedSettings.ENABLE_REPLICAS_FOR_INSTANT_FAILOVER.getKey(), false)
+            .build();
+        startMasterOnlyNode(settings);
+        startIndexNode(settings);
+        startSearchNode(settings);
+
+        var cs = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
+
+        putComposableIndexTemplate(
+            "my-template",
+            List.of("logs-*"),
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).build()
+        );
+
+        final String dataStream1 = "logs-es1";
+        setupDataStream(dataStream1);
+        final String dataStream2 = "logs-es2";
+        setupDataStream(dataStream2);
+
+        // check backing indices and settings, check that we have 1 replica each
+        verifyDocs("logs-es1", 400, 1, 2);
+        verifyDocs("logs-es2", 400, 1, 2);
+        for (String datastream : new String[] { dataStream1, dataStream2 }) {
+            for (int generation = 1; generation <= 2; generation++) {
+                assertEquals(1, cs.state().metadata().index(getDefaultBackingIndexName(datastream, generation)).getNumberOfReplicas());
+            }
+        }
+
+        setFeatureFlag(true);
+        waitUntil(
+            () -> cs.state().metadata().index(getDefaultBackingIndexName(dataStream1, 2)).getNumberOfReplicas() == 2
+                && cs.state().metadata().index(getDefaultBackingIndexName(dataStream2, 2)).getNumberOfReplicas() == 2,
+            2,
+            TimeUnit.SECONDS
+        );
+        for (String datastream : new String[] { dataStream1, dataStream2 }) {
+            assertEquals(1, cs.state().metadata().index(getDefaultBackingIndexName(datastream, 1)).getNumberOfReplicas());
+            assertEquals(2, cs.state().metadata().index(getDefaultBackingIndexName(datastream, 2)).getNumberOfReplicas());
+        }
+
+        // add third datastream, again with 100 docs in first generation, 100 in current write index after rollover
+        final String dataStream3 = "logs-es3";
+        setupDataStream(dataStream3);
+        verifyDocs("logs-es3", 400, 1, 2);
+        waitUntil(
+            () -> cs.state().metadata().index(getDefaultBackingIndexName(dataStream3, 2)).getNumberOfReplicas() == 2
+                && cs.state().metadata().index(getDefaultBackingIndexName(dataStream3, 1)).getNumberOfReplicas() == 2,
+            2,
+            TimeUnit.SECONDS
+        );
+        // all write indices should have 2 replicas now
+        for (String datastream : new String[] { dataStream1, dataStream2, dataStream3 }) {
+            assertEquals(2, cs.state().metadata().index(getDefaultBackingIndexName(datastream, 2)).getNumberOfReplicas());
+        }
+        // only the youngest (last) backing index (logs-es3) should get two replicas, the other two stay at 1
+        assertEquals(1, cs.state().metadata().index(getDefaultBackingIndexName(dataStream1, 1)).getNumberOfReplicas());
+        assertEquals(1, cs.state().metadata().index(getDefaultBackingIndexName(dataStream2, 1)).getNumberOfReplicas());
+        assertEquals(2, cs.state().metadata().index(getDefaultBackingIndexName(dataStream3, 1)).getNumberOfReplicas());
+
+        // test that data stream with non-interactive data doesn’t get promoted to 2 replicas
+        final String dataStream4 = "logs-es4";
+        final var createDataStreamRequest = new CreateDataStreamAction.Request(dataStream4);
+        assertAcked(client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).actionGet());
+        indexDocsIntoDatastream(
+            dataStream4,
+            200,
+            System.currentTimeMillis() - DEFAULT_BOOST_WINDOW - 2 * ONE_DAY,
+            System.currentTimeMillis() - DEFAULT_BOOST_WINDOW - ONE_DAY
+        );
+        refresh(dataStream4);
+        // write index should stay at 1 replica because it doesn't contain interactive data
+        assertEquals(1, cs.state().metadata().index(getDefaultBackingIndexName(dataStream4, 1)).getNumberOfReplicas());
+
+        // add more data to ds4 write index after rolling over, but now inside boost window
+        assertAcked(indicesAdmin().rolloverIndex(new RolloverRequest(dataStream4, null)).get());
+        indexDocsIntoDatastream(dataStream4, 200, System.currentTimeMillis() - DEFAULT_BOOST_WINDOW + ONE_DAY, System.currentTimeMillis());
+        refresh(dataStream4);
+        // this should scale up ds4 write index, ds3 backing index should get demoted to one replica after some time
+        waitUntil(
+            () -> cs.state().metadata().index(getDefaultBackingIndexName(dataStream4, 2)).getNumberOfReplicas() == 2
+                && cs.state().metadata().index(getDefaultBackingIndexName(dataStream3, 1)).getNumberOfReplicas() == 1,
+            2,
+            TimeUnit.SECONDS
+        );
+        for (String datastream : new String[] { dataStream1, dataStream2, dataStream3, dataStream4 }) {
+            assertEquals(1, cs.state().metadata().index(getDefaultBackingIndexName(datastream, 1)).getNumberOfReplicas());
+            assertEquals(2, cs.state().metadata().index(getDefaultBackingIndexName(datastream, 2)).getNumberOfReplicas());
+        }
+
+        // check that adding a regular index regardless of its small size gets it scaled to 2
+        var regularIndex = "index1";
+        createIndex(regularIndex, indexSettings(1, 1).build());
+
+        var now = System.currentTimeMillis();
+        var boostWindow = now - DEFAULT_BOOST_WINDOW;
+        indexDocumentsWithTimestamp(
+            regularIndex,
+            10,
+            boostWindow + ONE_DAY /* +1d to ensure docs are not leaving boost window during test run*/,
+            now
+        );
+        refresh(regularIndex);
+        waitUntil(() -> cs.state().metadata().index(regularIndex).getNumberOfReplicas() == 2, 2, TimeUnit.SECONDS);
+        assertEquals(2, cs.state().metadata().index(regularIndex).getNumberOfReplicas());
+    }
+
+    private static void verifyDocs(String dataStream, long expectedNumHits, long minGeneration, long maxGeneration) {
+        List<String> expectedIndices = new ArrayList<>();
+        for (long k = minGeneration; k <= maxGeneration; k++) {
+            expectedIndices.add(getDefaultBackingIndexName(dataStream, k));
+        }
+        assertResponse(prepareSearch(dataStream).setSize((int) expectedNumHits), resp -> {
+            assertThat(resp.getHits().getTotalHits().value, equalTo(expectedNumHits));
+            Arrays.stream(resp.getHits().getHits()).forEach(hit -> assertTrue(expectedIndices.contains(hit.getIndex())));
+        });
+    }
+
+    private void setupDataStream(String dataStreamName) throws InterruptedException, ExecutionException {
+        final var createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
+        assertAcked(client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).actionGet());
+
+        // new documents should count towards non-interactive part
+        var now = System.currentTimeMillis();
+        var boostWindow = now - DEFAULT_BOOST_WINDOW;
+        indexDocsIntoDatastream(
+            dataStreamName,
+            200,
+            boostWindow + ONE_DAY /* +1d to ensure docs are not leaving boost window during test run*/,
+            now
+        );
+        assertAcked(indicesAdmin().rolloverIndex(new RolloverRequest(dataStreamName, null)).get());
+        indexDocsIntoDatastream(
+            dataStreamName,
+            200,
+            boostWindow + ONE_DAY /* +1d to ensure docs are not leaving boost window during test run*/,
+            now
+        );
+        refresh(dataStreamName);
+    }
+
+    private static void indexDocsIntoDatastream(String dataStream, int numDocs, long minTimestamp, long maxTimestamp) {
+        BulkRequest bulkRequest = new BulkRequest();
+        for (int i = 0; i < numDocs; i++) {
+            String value = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(randomLongBetween(minTimestamp, maxTimestamp));
+            bulkRequest.add(
+                new IndexRequest(dataStream).opType(DocWriteRequest.OpType.CREATE)
+                    .source(String.format(Locale.ROOT, "{\"%s\":\"%s\"}", DEFAULT_TIMESTAMP_FIELD, value), XContentType.JSON)
+            );
+        }
+        BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
+        assertThat(bulkResponse.getItems().length, equalTo(numDocs));
+        String backingIndexPrefix = DataStream.BACKING_INDEX_PREFIX + dataStream;
+        for (BulkItemResponse itemResponse : bulkResponse) {
+            assertThat(itemResponse.getFailureMessage(), nullValue());
+            assertThat(itemResponse.status(), equalTo(RestStatus.CREATED));
+            assertThat(itemResponse.getIndex(), startsWith(backingIndexPrefix));
+        }
+        indicesAdmin().refresh(new RefreshRequest(dataStream)).actionGet();
+    }
+
+    private static void putComposableIndexTemplate(String id, List<String> patterns, @Nullable Settings settings) {
+        TransportPutComposableIndexTemplateAction.Request request = new TransportPutComposableIndexTemplateAction.Request(id);
+        request.indexTemplate(
+            ComposableIndexTemplate.builder()
+                .indexPatterns(patterns)
+                .template(new Template(settings, null, null, null))
+                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                .build()
+        );
+        client().execute(TransportPutComposableIndexTemplateAction.TYPE, request).actionGet();
+    }
+
+    private static void setFeatureFlag(boolean enabled) throws ExecutionException, InterruptedException {
         assertAcked(
             client().admin()
                 .cluster()
                 .updateSettings(
                     new ClusterUpdateSettingsRequest().persistentSettings(
-                        Settings.builder().put(ServerlessSharedSettings.ENABLE_REPLICAS_FOR_INSTANT_FAILOVER.getKey(), false).build()
+                        Settings.builder().put(ServerlessSharedSettings.ENABLE_REPLICAS_FOR_INSTANT_FAILOVER.getKey(), enabled).build()
                     )
                 )
                 .get()
         );
-        waitUntil(() -> { return clusterService.state().metadata().index(indexName).getNumberOfReplicas() == 1; }, 2, TimeUnit.SECONDS);
-        assertEquals(1, clusterService.state().metadata().index(indexName).getNumberOfReplicas());
     }
 
     private void indexDocumentsWithTimestamp(String indexName, int numDocs, long minTimestamp, long maxTimestamp) {

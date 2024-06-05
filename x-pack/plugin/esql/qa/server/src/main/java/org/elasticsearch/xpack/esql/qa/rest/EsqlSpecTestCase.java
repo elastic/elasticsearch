@@ -26,7 +26,6 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.TestFeatureService;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.esql.Column;
 import org.elasticsearch.xpack.esql.CsvTestUtils;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.CsvSpecReader.CsvTestCase;

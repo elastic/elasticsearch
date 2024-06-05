@@ -147,17 +147,12 @@ public class Join extends BinaryPlan {
         return config.expressionsResolved();
     }
 
-    public boolean duplicatesResolved() {
-        return left().outputSet().intersect(right().outputSet()).isEmpty();
-    }
-
     @Override
     public boolean resolved() {
         // resolve the join if
         // - the children are resolved
-        // - there are no conflicts in output
         // - the condition (if present) is resolved to a boolean
-        return childrenResolved() && duplicatesResolved() && expressionsResolved();
+        return childrenResolved() && expressionsResolved();
     }
 
     @Override

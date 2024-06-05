@@ -278,7 +278,6 @@ public class EsqlQueryRequestTests extends ESTestCase {
     public void testTablesDouble() throws IOException {
         String json = """
             {
-                "version": "2024.04.01",
                 "query": "ROW x = 1",
                 "tables": {"a": {"c:double": [1.1, 2, "3.1415", null, [5.1, "-6"]]}}
             }

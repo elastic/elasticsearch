@@ -122,7 +122,15 @@ public class UpgradeWithOldIndexSettingsIT extends AbstractRollingUpgradeTestCas
             assertOK(client().performRequest(request));
         } else {
             closeIndex(indexName);
-            openIndex(indexName);
+            Request openRequest = new Request("POST", "/" + indexName + "/_open");
+            openRequest.setOptions(
+                expectWarnings(
+                    "[[index.mapper.dynamic] setting was deprecated in Elasticsearch and will "
+                        + "be removed in a future release! See the breaking changes documentation for the next major version., Setting "
+                        + "index.mapper.dynamic was removed after version 6.0.0]"
+                )
+            );
+            assertOK(client().performRequest(openRequest));
             if (isUpgradedCluster()) {
                 var indexSettings = getIndexSettings(indexName);
                 assertThat(

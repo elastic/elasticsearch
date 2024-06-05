@@ -20,7 +20,7 @@ public class DateEsField extends EsField {
     static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(EsField.class, "DateEsField", DateEsField::new);
 
     public static DateEsField dateEsField(String name, Map<String, EsField> properties, boolean hasDocValues) {
-        return new DateEsField(name, DataTypes.DATETIME, properties, hasDocValues);
+        return new DateEsField(name, DataType.DATETIME, properties, hasDocValues);
     }
 
     private DateEsField(String name, DataType dataType, Map<String, EsField> properties, boolean hasDocValues) {
@@ -28,7 +28,7 @@ public class DateEsField extends EsField {
     }
 
     private DateEsField(StreamInput in) throws IOException {
-        this(in.readString(), DataTypes.DATETIME, in.readMap(i -> i.readNamedWriteable(EsField.class)), in.readBoolean());
+        this(in.readString(), DataType.DATETIME, in.readMap(i -> i.readNamedWriteable(EsField.class)), in.readBoolean());
     }
 
     @Override

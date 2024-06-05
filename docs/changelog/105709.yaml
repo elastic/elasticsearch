@@ -1,11 +1,11 @@
-pr: 105714
-summary: Apply stricter Document Level Security (DLS) rules for terms aggregations when min_doc_count is set to 0.
+pr: 105709
+summary: Apply stricter Document Level Security (DLS) rules for the validate query API with the rewrite parameter.
 area: Security
 type: breaking
 issues: []
 breaking:
-  title: "Apply stricter Document Level Security (DLS) rules for terms aggregations when min_doc_count is set to 0"
+  title: "Apply stricter Document Level Security (DLS) rules for the validate query API with the rewrite parameter"
   area: REST API
-  details: When Document Level Security (DLS) is applied to terms aggregations and min_doc_count is set to 0, stricter security rules apply.
+  details: When Document Level Security (DLS) is applied to the validate query API with the rewrite parameter, stricter security rules apply.
   impact: If needed, test workflows with DLS enabled to ensure that the stricter security rules do not impact your application.
   notable: false

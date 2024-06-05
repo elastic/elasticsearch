@@ -184,11 +184,11 @@ RUN <%= retry.loop(
 RUN groupadd -g 1000 elasticsearch && \\
     adduser --uid 1000 --gid 1000 --home /usr/share/elasticsearch elasticsearch && \\
     adduser elasticsearch root && \\
-    chown -R 0:0 /usr/share/elasticsearch
+    chown -R 1000:1000 /usr/share/elasticsearch
 <% } else { %>
 RUN groupadd -g 1000 elasticsearch && \\
     adduser -u 1000 -g 1000 -G 0 -d /usr/share/elasticsearch elasticsearch && \\
-    chown -R 0:0 /usr/share/elasticsearch
+    chown -R 1000:1000 /usr/share/elasticsearch
 <% } %>
 
 ENV ELASTIC_CONTAINER true

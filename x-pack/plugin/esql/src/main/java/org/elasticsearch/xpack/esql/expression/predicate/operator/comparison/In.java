@@ -9,6 +9,11 @@ package org.elasticsearch.xpack.esql.expression.predicate.operator.comparison;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.ann.Evaluator;
+import org.elasticsearch.compute.data.BooleanBlock;
+import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -153,72 +158,102 @@ public class In extends org.elasticsearch.xpack.esql.core.expression.predicate.o
     }
 
     @Evaluator(extraName = "Boolean")
-    static boolean process(boolean lhs, boolean[] rhs) {
-        Boolean result = Boolean.FALSE;
+    static void process(BooleanBlock.Builder builder, boolean lhs, boolean[] rhs) {
+        boolean hasNull = false;
         for (Object v : rhs) {
+            if (v == null) {
+                hasNull = true;
+            }
             Boolean compResult = Comparisons.eq(lhs, v);
-            if (compResult == null) {
-                result = null;
-            } else if (compResult == Boolean.TRUE) {
-                return Boolean.TRUE;
+            if (compResult == Boolean.TRUE) {
+                builder.appendBoolean(true);
+                return;
             }
         }
-        return result;
+        if (hasNull) {
+            builder.appendNull();
+        } else {
+            builder.appendBoolean(false);
+        }
     }
 
     @Evaluator(extraName = "BytesRef")
-    static boolean process(BytesRef lhs, BytesRef[] rhs) {
-        Boolean result = Boolean.FALSE;
+    static void process(BooleanBlock.Builder builder, BytesRef lhs, BytesRef[] rhs) {
+        boolean hasNull = false;
         for (Object v : rhs) {
+            if (v == null) {
+                hasNull = true;
+            }
             Boolean compResult = Comparisons.eq(lhs, v);
-            if (compResult == null) {
-                result = null;
-            } else if (compResult == Boolean.TRUE) {
-                return Boolean.TRUE;
+            if (compResult == Boolean.TRUE) {
+                builder.appendBoolean(true);
+                return;
             }
         }
-        return result;
+        if (hasNull) {
+            builder.appendNull();
+        } else {
+            builder.appendBoolean(false);
+        }
     }
 
     @Evaluator(extraName = "Int")
-    static boolean process(int lhs, int[] rhs) {
-        Boolean result = Boolean.FALSE;
+    static void process(BooleanBlock.Builder builder, int lhs, int[] rhs) {
+        boolean hasNull = false;
         for (Object v : rhs) {
+            if (v == null) {
+                hasNull = true;
+            }
             Boolean compResult = Comparisons.eq(lhs, v);
-            if (compResult == null) {
-                result = null;
-            } else if (compResult == Boolean.TRUE) {
-                return Boolean.TRUE;
+            if (compResult == Boolean.TRUE) {
+                builder.appendBoolean(true);
+                return;
             }
         }
-        return result;
+        if (hasNull) {
+            builder.appendNull();
+        } else {
+            builder.appendBoolean(false);
+        }
     }
 
     @Evaluator(extraName = "Long")
-    static boolean process(long lhs, long[] rhs) {
-        Boolean result = Boolean.FALSE;
+    static void process(BooleanBlock.Builder builder, long lhs, long[] rhs) {
+        boolean hasNull = false;
         for (Object v : rhs) {
+            if (v == null) {
+                hasNull = true;
+            }
             Boolean compResult = Comparisons.eq(lhs, v);
-            if (compResult == null) {
-                result = null;
-            } else if (compResult == Boolean.TRUE) {
-                return Boolean.TRUE;
+            if (compResult == Boolean.TRUE) {
+                builder.appendBoolean(true);
+                return;
             }
         }
-        return result;
+        if (hasNull) {
+            builder.appendNull();
+        } else {
+            builder.appendBoolean(false);
+        }
     }
 
     @Evaluator(extraName = "Double")
-    static boolean process(double lhs, double[] rhs) {
-        Boolean result = Boolean.FALSE;
+    static void process(BooleanBlock.Builder builder, double lhs, double[] rhs) {
+        boolean hasNull = false;
         for (Object v : rhs) {
+            if (v == null) {
+                hasNull = true;
+            }
             Boolean compResult = Comparisons.eq(lhs, v);
-            if (compResult == null) {
-                result = null;
-            } else if (compResult == Boolean.TRUE) {
-                return Boolean.TRUE;
+            if (compResult == Boolean.TRUE) {
+                builder.appendBoolean(true);
+                return;
             }
         }
-        return result;
+        if (hasNull) {
+            builder.appendNull();
+        } else {
+            builder.appendBoolean(false);
+        }
     }
 }

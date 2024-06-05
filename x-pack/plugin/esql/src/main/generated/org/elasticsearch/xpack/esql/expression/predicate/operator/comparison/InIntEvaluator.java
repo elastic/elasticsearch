@@ -8,6 +8,7 @@ import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import java.util.Arrays;
+import java.util.BitSet;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.IntBlock;
@@ -68,21 +69,37 @@ public final class InIntEvaluator implements EvalOperator.ExpressionEvaluator {
   public BooleanBlock eval(int positionCount, IntBlock lhsBlock, IntBlock[] rhsBlocks) {
     try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
       int[] rhsValues = new int[rhs.length];
+      BitSet nulls = new BitSet(rhs.length);
       position: for (int p = 0; p < positionCount; p++) {
-        if (lhsBlock.getValueCount(p) > 1) {
-          warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+        if (lhsBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
+        if (lhsBlock.getValueCount(p) != 1) {
+          if (lhsBlock.getValueCount(p) > 1) {
+            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          }
+          result.appendNull();
+          continue position;
         }
         for (int i = 0; i < rhsBlocks.length; i++) {
           if (rhsBlocks[i].getValueCount(p) > 1) {
             warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+            result.appendNull();
+            continue position;
           }
         }
         // unpack rhsBlocks into rhsValues
-        for (int i = 0; i < rhsBlocks.length; i++) {
+        nulls.clear();
+        arrayArgs: for (int i = 0; i < rhsBlocks.length; i++) {
+          if (rhsBlocks[i].isNull(p)) {
+            nulls.set(i);
+            continue arrayArgs;
+          }
           int o = rhsBlocks[i].getFirstValueIndex(p);
-          rhsValues[i] = rhsBlocks[i].isNull(p) ? null : rhsBlocks[i].getInt(o);
+          rhsValues[i] = rhsBlocks[i].getInt(o);
         }
-        In.process(result, lhsBlock.getInt(lhsBlock.getFirstValueIndex(p)), rhsValues);
+        In.process(result, nulls, lhsBlock.getInt(lhsBlock.getFirstValueIndex(p)), rhsValues);
       }
       return result.build();
     }
@@ -91,12 +108,14 @@ public final class InIntEvaluator implements EvalOperator.ExpressionEvaluator {
   public BooleanBlock eval(int positionCount, IntVector lhsVector, IntVector[] rhsVectors) {
     try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
       int[] rhsValues = new int[rhs.length];
+      BitSet nulls = new BitSet(rhs.length);
       position: for (int p = 0; p < positionCount; p++) {
         // unpack rhsVectors into rhsValues
-        for (int i = 0; i < rhsVectors.length; i++) {
+        nulls.clear();
+        arrayArgs: for (int i = 0; i < rhsVectors.length; i++) {
           rhsValues[i] = rhsVectors[i].getInt(p);
         }
-        In.process(result, lhsVector.getInt(p), rhsValues);
+        In.process(result, nulls, lhsVector.getInt(p), rhsValues);
       }
       return result.build();
     }

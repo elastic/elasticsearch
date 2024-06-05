@@ -47,7 +47,7 @@ public class In extends ScalarFunction {
     }
 
     @Override
-    protected NodeInfo<In> info() {
+    protected NodeInfo<? extends Expression> info() {
         return NodeInfo.create(this, In::new, value(), list(), zoneId());
     }
 
@@ -84,7 +84,7 @@ public class In extends ScalarFunction {
     }
 
     @Override
-    public Boolean fold() {
+    public Object fold() {
         // Optimization for early return and Query folding to LocalExec
         if (Expressions.isNull(value) || list.size() == 1 && Expressions.isNull(list.get(0))) {
             return null;

@@ -163,7 +163,6 @@ eth1           |beta           |127.0.0.1                                       
 eth1           |beta           |127.0.0.1                                                                        |128.0.0.1                |128.0.0.1
 lo0            |gamma          |fe80::cae2:65ff:fece:feb9                                                        |fe81::cae2:65ff:fece:feb9|fe81::cae2:65ff:fece:feb9
 eth0           |gamma          |fe80::cae2:65ff:fece:feb9                                                        |127.0.0.3                |127.0.0.3
-eth0           |epsilon        |[fe80::cae2:65ff:fece:feb9, fe80::cae2:65ff:fece:fec0, fe80::cae2:65ff:fece:fec1]|fe80::cae2:65ff:fece:fec1|fe80::cae2:65ff:fece:fec1
 ;
 
 
@@ -184,7 +183,6 @@ eth1           |beta           |127.0.0.1                                       
 eth1           |beta           |127.0.0.1                                                                        |128.0.0.1                |128.0.0.1
 lo0            |gamma          |fe80::cae2:65ff:fece:feb9                                                        |fe81::cae2:65ff:fece:feb9|fe81::cae2:65ff:fece:feb9
 eth0           |gamma          |fe80::cae2:65ff:fece:feb9                                                        |127.0.0.3                |127.0.0.3
-eth0           |epsilon        |[fe80::cae2:65ff:fece:feb9, fe80::cae2:65ff:fece:fec0, fe80::cae2:65ff:fece:fec1]|fe80::cae2:65ff:fece:fec1|fe80::cae2:65ff:fece:fec1
 ;
 
 cidrMatchSimple

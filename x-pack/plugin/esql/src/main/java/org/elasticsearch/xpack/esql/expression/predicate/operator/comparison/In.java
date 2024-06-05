@@ -26,8 +26,11 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cast;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
+import java.util.Arrays;
+import java.util.BitSet;
 import java.util.List;
 import java.util.function.Function;
+import java.util.stream.IntStream;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
@@ -57,7 +60,7 @@ public class In extends org.elasticsearch.xpack.esql.core.expression.predicate.o
     }
 
     @Override
-    protected NodeInfo<org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.In> info() {
+    protected NodeInfo<? extends Expression> info() {
         return NodeInfo.create(this, In::new, value(), list());
     }
 
@@ -71,6 +74,14 @@ public class In extends org.elasticsearch.xpack.esql.core.expression.predicate.o
         // QL's In fold()s to null, if value() is null, but isn't foldable() unless all children are
         // TODO: update this null check in QL too?
         return Expressions.isNull(value()) || super.foldable();
+    }
+
+    @Override
+    public Object fold() {
+        if (Expressions.isNull(value()) || list().size() == 1 && Expressions.isNull(list().get(0))) {
+            return null;
+        }
+        return EvaluatorMapper.super.fold();
     }
 
     @Override
@@ -102,7 +113,12 @@ public class In extends org.elasticsearch.xpack.esql.core.expression.predicate.o
         if (commonType == LONG || commonType == DATETIME || commonType == UNSIGNED_LONG) {
             return new InLongEvaluator.Factory(source(), lhs, factories);
         }
-        if (commonType == KEYWORD || commonType == TEXT || commonType == IP || commonType == VERSION || commonType == UNSUPPORTED) {
+        if (commonType == KEYWORD
+            || commonType == TEXT
+            || commonType == IP
+            || commonType == VERSION
+            || commonType == UNSUPPORTED
+            || EsqlDataTypes.isSpatial(commonType)) {
             return new InBytesRefEvaluator.Factory(source(), toEvaluator.apply(value()), factories);
         }
         if (commonType == NULL) {
@@ -117,6 +133,14 @@ public class In extends org.elasticsearch.xpack.esql.core.expression.predicate.o
             if (e.dataType() == NULL && value().dataType() != NULL) {
                 continue;
             }
+            if (EsqlDataTypes.isSpatial(commonType)) {
+                if (e.dataType() == commonType) {
+                    continue;
+                } else {
+                    commonType = NULL;
+                    break;
+                }
+            }
             commonType = EsqlDataTypeRegistry.INSTANCE.commonType(commonType, e.dataType());
         }
         return commonType;
@@ -126,6 +150,9 @@ public class In extends org.elasticsearch.xpack.esql.core.expression.predicate.o
     protected boolean areCompatible(DataType left, DataType right) {
         if (left == UNSIGNED_LONG || right == UNSIGNED_LONG) {
             // automatic numerical conversions not applicable for UNSIGNED_LONG, see Verifier#validateUnsignedLongOperator().
+            return left == right;
+        }
+        if (EsqlDataTypes.isSpatial(left) && EsqlDataTypes.isSpatial(right)) {
             return left == right;
         }
         return EsqlDataTypes.areCompatible(left, right);
@@ -155,18 +182,16 @@ public class In extends org.elasticsearch.xpack.esql.core.expression.predicate.o
                 );
             }
         }
-
         return TypeResolution.TYPE_RESOLVED;
     }
 
-    @Evaluator(extraName = "Boolean")
-    static void process(BooleanBlock.Builder builder, boolean lhs, boolean[] rhs) {
-        boolean hasNull = false;
-        for (Object v : rhs) {
-            if (v == null) {
-                hasNull = true;
+    private static <T> void processCommon(BooleanBlock.Builder builder, BitSet nulls, T lhs, T[] rhs) {
+        boolean hasNull = nulls.cardinality() > 0;
+        for (int i = 0; i < rhs.length; i++) {
+            if (nulls.get(i)) {
+                continue;
             }
-            Boolean compResult = Comparisons.eq(lhs, v);
+            Boolean compResult = Comparisons.eq(lhs, rhs[i]);
             if (compResult == Boolean.TRUE) {
                 builder.appendBoolean(true);
                 return;
@@ -179,83 +204,28 @@ public class In extends org.elasticsearch.xpack.esql.core.expression.predicate.o
         }
     }
 
-    @Evaluator(extraName = "BytesRef")
-    static void process(BooleanBlock.Builder builder, BytesRef lhs, BytesRef[] rhs) {
-        boolean hasNull = false;
-        for (Object v : rhs) {
-            if (v == null) {
-                hasNull = true;
-            }
-            Boolean compResult = Comparisons.eq(lhs, v);
-            if (compResult == Boolean.TRUE) {
-                builder.appendBoolean(true);
-                return;
-            }
-        }
-        if (hasNull) {
-            builder.appendNull();
-        } else {
-            builder.appendBoolean(false);
-        }
+    @Evaluator(extraName = "Boolean")
+    static void process(BooleanBlock.Builder builder, BitSet nulls, boolean lhs, boolean[] rhs) {
+        processCommon(builder, nulls, Boolean.valueOf(lhs), IntStream.range(0, rhs.length).mapToObj(idx -> rhs[idx]).toArray());
     }
 
     @Evaluator(extraName = "Int")
-    static void process(BooleanBlock.Builder builder, int lhs, int[] rhs) {
-        boolean hasNull = false;
-        for (Object v : rhs) {
-            if (v == null) {
-                hasNull = true;
-            }
-            Boolean compResult = Comparisons.eq(lhs, v);
-            if (compResult == Boolean.TRUE) {
-                builder.appendBoolean(true);
-                return;
-            }
-        }
-        if (hasNull) {
-            builder.appendNull();
-        } else {
-            builder.appendBoolean(false);
-        }
+    static void process(BooleanBlock.Builder builder, BitSet nulls, int lhs, int[] rhs) {
+        processCommon(builder, nulls, lhs, Arrays.stream(rhs).boxed().toArray(Integer[]::new));
     }
 
     @Evaluator(extraName = "Long")
-    static void process(BooleanBlock.Builder builder, long lhs, long[] rhs) {
-        boolean hasNull = false;
-        for (Object v : rhs) {
-            if (v == null) {
-                hasNull = true;
-            }
-            Boolean compResult = Comparisons.eq(lhs, v);
-            if (compResult == Boolean.TRUE) {
-                builder.appendBoolean(true);
-                return;
-            }
-        }
-        if (hasNull) {
-            builder.appendNull();
-        } else {
-            builder.appendBoolean(false);
-        }
+    static void process(BooleanBlock.Builder builder, BitSet nulls, long lhs, long[] rhs) {
+        processCommon(builder, nulls, lhs, Arrays.stream(rhs).boxed().toArray(Long[]::new));
     }
 
     @Evaluator(extraName = "Double")
-    static void process(BooleanBlock.Builder builder, double lhs, double[] rhs) {
-        boolean hasNull = false;
-        for (Object v : rhs) {
-            if (v == null) {
-                hasNull = true;
-            }
-            Boolean compResult = Comparisons.eq(lhs, v);
-            if (compResult == Boolean.TRUE) {
-                builder.appendBoolean(true);
-                return;
-            }
-        }
-        if (hasNull) {
-            builder.appendNull();
-        } else {
-            builder.appendBoolean(false);
-        }
+    static void process(BooleanBlock.Builder builder, BitSet nulls, double lhs, double[] rhs) {
+        processCommon(builder, nulls, lhs, Arrays.stream(rhs).boxed().toArray(Double[]::new));
+    }
+
+    @Evaluator(extraName = "BytesRef")
+    static void process(BooleanBlock.Builder builder, BitSet nulls, BytesRef lhs, BytesRef[] rhs) {
+        processCommon(builder, nulls, lhs, rhs);
     }
 }

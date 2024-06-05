@@ -1311,7 +1311,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             } else {
                 String match = pattern.exactMatch();
                 if (match != null) {
-                    Literal literal = new Literal(regexMatch.source(), match, DataTypes.KEYWORD);
+                    Literal literal = new Literal(regexMatch.source(), match, DataType.KEYWORD);
                     e = regexToEquals(regexMatch, literal);
                 }
             }

@@ -155,10 +155,7 @@ public class OptimizerRulesTests extends ESTestCase {
 
     public void testConstantFoldingRange() {
         assertEquals(true, new ConstantFolding().rule(rangeOf(FIVE, FIVE, true, new Literal(EMPTY, 10, DataType.INTEGER), false)).fold());
-        assertEquals(
-            false,
-            new ConstantFolding().rule(rangeOf(FIVE, FIVE, false, new Literal(EMPTY, 10, DataType.INTEGER), false)).fold()
-        );
+        assertEquals(false, new ConstantFolding().rule(rangeOf(FIVE, FIVE, false, new Literal(EMPTY, 10, DataType.INTEGER), false)).fold());
     }
 
     public void testConstantNot() {

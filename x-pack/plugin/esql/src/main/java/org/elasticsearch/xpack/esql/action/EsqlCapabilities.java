@@ -57,6 +57,11 @@ public class EsqlCapabilities {
      */
     private static final String LOOKUP = "lookup";
 
+    /**
+     * Support for requesting the "REPEAT" command.
+     */
+    private static final String REPEAT = "repeat";
+
     public static final Set<String> CAPABILITIES = capabilities();
 
     /**
@@ -72,6 +77,7 @@ public class EsqlCapabilities {
         caps.add(ST_CENTROID_AGG_OPTIMIZED);
         caps.add(METADATA_IGNORED_FIELD);
         caps.add(FN_MV_APPEND);
+        caps.add(REPEAT);
 
         if (Build.current().isSnapshot()) {
             caps.add(LOOKUP);

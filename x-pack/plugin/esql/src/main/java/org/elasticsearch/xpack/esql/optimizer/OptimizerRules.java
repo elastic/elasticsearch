@@ -294,12 +294,6 @@ class OptimizerRules {
      * When encountering a different Equals, non-containing {@link Range} or {@link BinaryComparison}, the conjunction becomes false.
      * When encountering a containing {@link Range}, {@link BinaryComparison} or {@link NotEquals}, these get eliminated by the equality.
      *
-     * Since this rule can eliminate Ranges and BinaryComparisons, it should be applied before
-     * {@link org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.CombineBinaryComparisons}.
-     *
-     * This rule doesn't perform any promotion of {@link BinaryComparison}s, that is handled by
-     * {@link org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.CombineBinaryComparisons} on purpose as the resulting Range might
-     * be foldable (which is picked by the folding rule on the next run).
      */
     public static final class PropagateEquals extends org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.OptimizerExpressionRule<
         BinaryLogic> {

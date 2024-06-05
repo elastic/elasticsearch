@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.rest.action.cat;
+package org.elasticsearch.cat;
 
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
@@ -34,6 +34,8 @@ import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestResponseListener;
+import org.elasticsearch.rest.action.cat.AbstractCatAction;
+import org.elasticsearch.rest.action.cat.RestTable;
 
 import java.time.Instant;
 import java.time.ZoneOffset;

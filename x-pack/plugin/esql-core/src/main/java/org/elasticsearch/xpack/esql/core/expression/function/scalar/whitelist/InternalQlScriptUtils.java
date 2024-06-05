@@ -22,9 +22,9 @@ import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.core.type.DataType.fromTypeName;
 import static org.elasticsearch.xpack.esql.core.type.DataTypeConverter.convert;
 import static org.elasticsearch.xpack.esql.core.type.DataTypeConverter.toUnsignedLong;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.fromTypeName;
 
 public class InternalQlScriptUtils {
 

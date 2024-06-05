@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.operator.arithmeti
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.arithmetic.BinaryArithmeticOperation;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cast;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
@@ -24,10 +23,10 @@ import java.io.IOException;
 import java.util.function.Function;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.DOUBLE;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.INTEGER;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.LONG;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 
 public abstract class EsqlArithmeticOperation extends ArithmeticOperation implements EvaluatorMapper {
 
@@ -131,8 +130,8 @@ public abstract class EsqlArithmeticOperation extends ArithmeticOperation implem
         // This checks that unsigned longs should only be compatible with other unsigned longs
         DataType leftType = left().dataType();
         DataType rightType = right().dataType();
-        if ((rightType == UNSIGNED_LONG && (false == (leftType == UNSIGNED_LONG || leftType == DataTypes.NULL)))
-            || (leftType == UNSIGNED_LONG && (false == (rightType == UNSIGNED_LONG || rightType == DataTypes.NULL)))) {
+        if ((rightType == UNSIGNED_LONG && (false == (leftType == UNSIGNED_LONG || leftType == DataType.NULL)))
+            || (leftType == UNSIGNED_LONG && (false == (rightType == UNSIGNED_LONG || rightType == DataType.NULL)))) {
             return new TypeResolution(formatIncompatibleTypesMessage(symbol(), leftType, rightType));
         }
 

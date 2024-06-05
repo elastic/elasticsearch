@@ -13,7 +13,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.FunctionName;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
@@ -35,22 +35,22 @@ public class FromBase64Tests extends AbstractFunctionTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
-        suppliers.add(new TestCaseSupplier(List.of(DataTypes.KEYWORD), () -> {
+        suppliers.add(new TestCaseSupplier(List.of(DataType.KEYWORD), () -> {
             BytesRef input = new BytesRef(randomAlphaOfLength(6));
             return new TestCaseSupplier.TestCase(
-                List.of(new TestCaseSupplier.TypedData(input, DataTypes.KEYWORD, "string")),
+                List.of(new TestCaseSupplier.TypedData(input, DataType.KEYWORD, "string")),
                 "FromBase64Evaluator[field=Attribute[channel=0]]",
-                DataTypes.KEYWORD,
+                DataType.KEYWORD,
                 equalTo(new BytesRef(Base64.getDecoder().decode(input.utf8ToString().getBytes(StandardCharsets.UTF_8))))
             );
         }));
 
-        suppliers.add(new TestCaseSupplier(List.of(DataTypes.TEXT), () -> {
+        suppliers.add(new TestCaseSupplier(List.of(DataType.TEXT), () -> {
             BytesRef input = new BytesRef(randomAlphaOfLength(54));
             return new TestCaseSupplier.TestCase(
-                List.of(new TestCaseSupplier.TypedData(input, DataTypes.TEXT, "string")),
+                List.of(new TestCaseSupplier.TypedData(input, DataType.TEXT, "string")),
                 "FromBase64Evaluator[field=Attribute[channel=0]]",
-                DataTypes.KEYWORD,
+                DataType.KEYWORD,
                 equalTo(new BytesRef(Base64.getDecoder().decode(input.utf8ToString().getBytes(StandardCharsets.UTF_8))))
             );
         }));

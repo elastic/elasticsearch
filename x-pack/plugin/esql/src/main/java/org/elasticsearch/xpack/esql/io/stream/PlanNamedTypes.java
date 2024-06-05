@@ -29,7 +29,6 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
-import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.Order;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.ScalarFunction;
@@ -50,12 +49,7 @@ import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.core.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.DateEsField;
 import org.elasticsearch.xpack.esql.core.type.EsField;
-import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
-import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
-import org.elasticsearch.xpack.esql.core.type.TextEsField;
-import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Avg;
@@ -124,6 +118,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Tan;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Tanh;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Tau;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.AbstractMultivalueFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvAppend;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvAvg;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvConcat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCount;
@@ -153,6 +148,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.Length;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Locate;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.RTrim;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.Repeat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Replace;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Right;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Split;
@@ -218,8 +214,8 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 
 import static java.util.Map.entry;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.CARTESIAN_POINT;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.GEO_POINT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.Entry.of;
@@ -303,17 +299,10 @@ public final class PlanNamedTypes {
             of(LogicalPlan.class, Project.class, PlanNamedTypes::writeProject, PlanNamedTypes::readProject),
             of(LogicalPlan.class, TopN.class, PlanNamedTypes::writeTopN, PlanNamedTypes::readTopN),
             // Attributes
-            of(Attribute.class, FieldAttribute.class, PlanNamedTypes::writeFieldAttribute, PlanNamedTypes::readFieldAttribute),
-            of(Attribute.class, ReferenceAttribute.class, PlanNamedTypes::writeReferenceAttr, PlanNamedTypes::readReferenceAttr),
-            of(Attribute.class, MetadataAttribute.class, PlanNamedTypes::writeMetadataAttr, PlanNamedTypes::readMetadataAttr),
-            of(Attribute.class, UnsupportedAttribute.class, PlanNamedTypes::writeUnsupportedAttr, PlanNamedTypes::readUnsupportedAttr),
-            // EsFields
-            of(EsField.class, EsField.class, PlanNamedTypes::writeEsField, PlanNamedTypes::readEsField),
-            of(EsField.class, DateEsField.class, PlanNamedTypes::writeDateEsField, PlanNamedTypes::readDateEsField),
-            of(EsField.class, InvalidMappedField.class, PlanNamedTypes::writeInvalidMappedField, PlanNamedTypes::readInvalidMappedField),
-            of(EsField.class, KeywordEsField.class, PlanNamedTypes::writeKeywordEsField, PlanNamedTypes::readKeywordEsField),
-            of(EsField.class, TextEsField.class, PlanNamedTypes::writeTextEsField, PlanNamedTypes::readTextEsField),
-            of(EsField.class, UnsupportedEsField.class, PlanNamedTypes::writeUnsupportedEsField, PlanNamedTypes::readUnsupportedEsField),
+            of(NamedExpression.class, FieldAttribute.class, (o, a) -> a.writeTo(o), FieldAttribute::new),
+            of(NamedExpression.class, ReferenceAttribute.class, (o, a) -> a.writeTo(o), ReferenceAttribute::new),
+            of(NamedExpression.class, MetadataAttribute.class, (o, a) -> a.writeTo(o), MetadataAttribute::new),
+            of(NamedExpression.class, UnsupportedAttribute.class, (o, a) -> a.writeTo(o), UnsupportedAttribute::new),
             // NamedExpressions
             of(NamedExpression.class, Alias.class, PlanNamedTypes::writeAlias, PlanNamedTypes::readAlias),
             // BinaryComparison
@@ -411,6 +400,7 @@ public final class PlanNamedTypes {
             of(ScalarFunction.class, Substring.class, PlanNamedTypes::writeSubstring, PlanNamedTypes::readSubstring),
             of(ScalarFunction.class, Locate.class, PlanNamedTypes::writeLocate, PlanNamedTypes::readLocate),
             of(ScalarFunction.class, Left.class, PlanNamedTypes::writeLeft, PlanNamedTypes::readLeft),
+            of(ScalarFunction.class, Repeat.class, PlanNamedTypes::writeRepeat, PlanNamedTypes::readRepeat),
             of(ScalarFunction.class, Right.class, PlanNamedTypes::writeRight, PlanNamedTypes::readRight),
             of(ScalarFunction.class, Split.class, PlanNamedTypes::writeSplit, PlanNamedTypes::readSplit),
             of(ScalarFunction.class, Tau.class, PlanNamedTypes::writeNoArgScalar, PlanNamedTypes::readNoArgScalar),
@@ -438,6 +428,7 @@ public final class PlanNamedTypes {
             of(AggregateFunction.class, Sum.class, PlanNamedTypes::writeAggFunction, PlanNamedTypes::readAggFunction),
             of(AggregateFunction.class, Values.class, PlanNamedTypes::writeAggFunction, PlanNamedTypes::readAggFunction),
             // Multivalue functions
+            of(ScalarFunction.class, MvAppend.class, PlanNamedTypes::writeMvAppend, PlanNamedTypes::readMvAppend),
             of(ScalarFunction.class, MvAvg.class, PlanNamedTypes::writeMvFunction, PlanNamedTypes::readMvFunction),
             of(ScalarFunction.class, MvCount.class, PlanNamedTypes::writeMvFunction, PlanNamedTypes::readMvFunction),
             of(ScalarFunction.class, MvConcat.class, PlanNamedTypes::writeMvConcat, PlanNamedTypes::readMvConcat),
@@ -484,7 +475,7 @@ public final class PlanNamedTypes {
             in.readPhysicalPlanNode(),
             in.readExpression(),
             readDissectParser(in),
-            readAttributes(in)
+            in.readNamedWriteableCollectionAsList(Attribute.class)
         );
     }
 
@@ -493,7 +484,7 @@ public final class PlanNamedTypes {
         out.writePhysicalPlanNode(dissectExec.child());
         out.writeExpression(dissectExec.inputExpression());
         writeDissectParser(out, dissectExec.parser());
-        writeAttributes(out, dissectExec.extractedFields());
+        out.writeNamedWriteableCollection(dissectExec.extractedFields());
     }
 
     static EsQueryExec readEsQueryExec(PlanStreamInput in) throws IOException {
@@ -501,7 +492,7 @@ public final class PlanNamedTypes {
             Source.readFrom(in),
             readEsIndex(in),
             readIndexMode(in),
-            readAttributes(in),
+            in.readNamedWriteableCollectionAsList(Attribute.class),
             in.readOptionalNamedWriteable(QueryBuilder.class),
             in.readOptionalNamed(Expression.class),
             in.readOptionalCollectionAsList(readerFromPlanReader(PlanNamedTypes::readFieldSort)),
@@ -514,7 +505,7 @@ public final class PlanNamedTypes {
         Source.EMPTY.writeTo(out);
         writeEsIndex(out, esQueryExec.index());
         writeIndexMode(out, esQueryExec.indexMode());
-        writeAttributes(out, esQueryExec.output());
+        out.writeNamedWriteableCollection(esQueryExec.output());
         out.writeOptionalNamedWriteable(esQueryExec.query());
         out.writeOptionalExpression(esQueryExec.limit());
         out.writeOptionalCollection(esQueryExec.sorts(), writerFromPlanWriter(PlanNamedTypes::writeFieldSort));
@@ -525,7 +516,7 @@ public final class PlanNamedTypes {
         return new EsSourceExec(
             Source.readFrom(in),
             readEsIndex(in),
-            readAttributes(in),
+            in.readNamedWriteableCollectionAsList(Attribute.class),
             in.readOptionalNamedWriteable(QueryBuilder.class),
             readIndexMode(in)
         );
@@ -534,7 +525,7 @@ public final class PlanNamedTypes {
     static void writeEsSourceExec(PlanStreamOutput out, EsSourceExec esSourceExec) throws IOException {
         Source.EMPTY.writeTo(out);
         writeEsIndex(out, esSourceExec.index());
-        writeAttributes(out, esSourceExec.output());
+        out.writeNamedWriteableCollection(esSourceExec.output());
         out.writeOptionalNamedWriteable(esSourceExec.query());
         writeIndexMode(out, esSourceExec.indexMode());
     }
@@ -624,44 +615,54 @@ public final class PlanNamedTypes {
     }
 
     static ExchangeExec readExchangeExec(PlanStreamInput in) throws IOException {
-        return new ExchangeExec(Source.readFrom(in), readAttributes(in), in.readBoolean(), in.readPhysicalPlanNode());
+        return new ExchangeExec(
+            Source.readFrom(in),
+            in.readNamedWriteableCollectionAsList(Attribute.class),
+            in.readBoolean(),
+            in.readPhysicalPlanNode()
+        );
     }
 
     static void writeExchangeExec(PlanStreamOutput out, ExchangeExec exchangeExec) throws IOException {
         Source.EMPTY.writeTo(out);
-        writeAttributes(out, exchangeExec.output());
+        out.writeNamedWriteableCollection(exchangeExec.output());
         out.writeBoolean(exchangeExec.isInBetweenAggs());
         out.writePhysicalPlanNode(exchangeExec.child());
     }
 
     static ExchangeSinkExec readExchangeSinkExec(PlanStreamInput in) throws IOException {
-        return new ExchangeSinkExec(Source.readFrom(in), readAttributes(in), in.readBoolean(), in.readPhysicalPlanNode());
+        return new ExchangeSinkExec(
+            Source.readFrom(in),
+            in.readNamedWriteableCollectionAsList(Attribute.class),
+            in.readBoolean(),
+            in.readPhysicalPlanNode()
+        );
     }
 
     static void writeExchangeSinkExec(PlanStreamOutput out, ExchangeSinkExec exchangeSinkExec) throws IOException {
         Source.EMPTY.writeTo(out);
-        writeAttributes(out, exchangeSinkExec.output());
+        out.writeNamedWriteableCollection(exchangeSinkExec.output());
         out.writeBoolean(exchangeSinkExec.isIntermediateAgg());
         out.writePhysicalPlanNode(exchangeSinkExec.child());
     }
 
     static ExchangeSourceExec readExchangeSourceExec(PlanStreamInput in) throws IOException {
-        return new ExchangeSourceExec(Source.readFrom(in), readAttributes(in), in.readBoolean());
+        return new ExchangeSourceExec(Source.readFrom(in), in.readNamedWriteableCollectionAsList(Attribute.class), in.readBoolean());
     }
 
     static void writeExchangeSourceExec(PlanStreamOutput out, ExchangeSourceExec exchangeSourceExec) throws IOException {
-        writeAttributes(out, exchangeSourceExec.output());
+        out.writeNamedWriteableCollection(exchangeSourceExec.output());
         out.writeBoolean(exchangeSourceExec.isIntermediateAgg());
     }
 
     static FieldExtractExec readFieldExtractExec(PlanStreamInput in) throws IOException {
-        return new FieldExtractExec(Source.readFrom(in), in.readPhysicalPlanNode(), readAttributes(in));
+        return new FieldExtractExec(Source.readFrom(in), in.readPhysicalPlanNode(), in.readNamedWriteableCollectionAsList(Attribute.class));
     }
 
     static void writeFieldExtractExec(PlanStreamOutput out, FieldExtractExec fieldExtractExec) throws IOException {
         Source.EMPTY.writeTo(out);
         out.writePhysicalPlanNode(fieldExtractExec.child());
-        writeAttributes(out, fieldExtractExec.attributesToExtract());
+        out.writeNamedWriteableCollection(fieldExtractExec.attributesToExtract());
     }
 
     static FilterExec readFilterExec(PlanStreamInput in) throws IOException {
@@ -701,7 +702,7 @@ public final class PlanNamedTypes {
             in.readPhysicalPlanNode(),
             in.readExpression(),
             Grok.pattern(source, in.readString()),
-            readAttributes(in)
+            in.readNamedWriteableCollectionAsList(Attribute.class)
         );
     }
 
@@ -710,7 +711,7 @@ public final class PlanNamedTypes {
         out.writePhysicalPlanNode(grokExec.child());
         out.writeExpression(grokExec.inputExpression());
         out.writeString(grokExec.pattern().pattern());
-        writeAttributes(out, grokExec.extractedFields());
+        out.writeNamedWriteableCollection(grokExec.extractedFields());
     }
 
     static LimitExec readLimitExec(PlanStreamInput in) throws IOException {
@@ -724,14 +725,19 @@ public final class PlanNamedTypes {
     }
 
     static MvExpandExec readMvExpandExec(PlanStreamInput in) throws IOException {
-        return new MvExpandExec(Source.readFrom(in), in.readPhysicalPlanNode(), in.readNamedExpression(), in.readAttribute());
+        return new MvExpandExec(
+            Source.readFrom(in),
+            in.readPhysicalPlanNode(),
+            in.readNamedExpression(),
+            in.readNamedWriteable(Attribute.class)
+        );
     }
 
     static void writeMvExpandExec(PlanStreamOutput out, MvExpandExec mvExpandExec) throws IOException {
         Source.EMPTY.writeTo(out);
         out.writePhysicalPlanNode(mvExpandExec.child());
         out.writeNamedExpression(mvExpandExec.target());
-        out.writeAttribute(mvExpandExec.expanded());
+        out.writeNamedWriteable(mvExpandExec.expanded());
     }
 
     static OrderExec readOrderExec(PlanStreamInput in) throws IOException {
@@ -770,12 +776,16 @@ public final class PlanNamedTypes {
 
     @SuppressWarnings("unchecked")
     static ShowExec readShowExec(PlanStreamInput in) throws IOException {
-        return new ShowExec(Source.readFrom(in), readAttributes(in), (List<List<Object>>) in.readGenericValue());
+        return new ShowExec(
+            Source.readFrom(in),
+            in.readNamedWriteableCollectionAsList(Attribute.class),
+            (List<List<Object>>) in.readGenericValue()
+        );
     }
 
     static void writeShowExec(PlanStreamOutput out, ShowExec showExec) throws IOException {
         Source.EMPTY.writeTo(out);
-        writeAttributes(out, showExec.output());
+        out.writeNamedWriteableCollection(showExec.output());
         out.writeGenericValue(showExec.values());
     }
 
@@ -815,7 +825,13 @@ public final class PlanNamedTypes {
     }
 
     static Dissect readDissect(PlanStreamInput in) throws IOException {
-        return new Dissect(Source.readFrom(in), in.readLogicalPlanNode(), in.readExpression(), readDissectParser(in), readAttributes(in));
+        return new Dissect(
+            Source.readFrom(in),
+            in.readLogicalPlanNode(),
+            in.readExpression(),
+            readDissectParser(in),
+            in.readNamedWriteableCollectionAsList(Attribute.class)
+        );
     }
 
     static void writeDissect(PlanStreamOutput out, Dissect dissect) throws IOException {
@@ -823,13 +839,13 @@ public final class PlanNamedTypes {
         out.writeLogicalPlanNode(dissect.child());
         out.writeExpression(dissect.input());
         writeDissectParser(out, dissect.parser());
-        writeAttributes(out, dissect.extractedFields());
+        out.writeNamedWriteableCollection(dissect.extractedFields());
     }
 
     static EsRelation readEsRelation(PlanStreamInput in) throws IOException {
         Source source = Source.readFrom(in);
         EsIndex esIndex = readEsIndex(in);
-        List<Attribute> attributes = readAttributes(in);
+        List<Attribute> attributes = in.readNamedWriteableCollectionAsList(Attribute.class);
         if (supportingEsSourceOptions(in.getTransportVersion())) {
             readEsSourceOptions(in); // consume optional strings sent by remote
         }
@@ -842,7 +858,7 @@ public final class PlanNamedTypes {
         assert relation.children().size() == 0;
         Source.EMPTY.writeTo(out);
         writeEsIndex(out, relation.index());
-        writeAttributes(out, relation.output());
+        out.writeNamedWriteableCollection(relation.output());
         if (supportingEsSourceOptions(out.getTransportVersion())) {
             writeEsSourceOptions(out); // write (null) string fillers expected by remote
         }
@@ -964,7 +980,7 @@ public final class PlanNamedTypes {
             in.readLogicalPlanNode(),
             in.readExpression(),
             Grok.pattern(source, in.readString()),
-            readAttributes(in)
+            in.readNamedWriteableCollectionAsList(Attribute.class)
         );
     }
 
@@ -973,7 +989,7 @@ public final class PlanNamedTypes {
         out.writeLogicalPlanNode(grok.child());
         out.writeExpression(grok.input());
         out.writeString(grok.parser().pattern());
-        writeAttributes(out, grok.extractedFields());
+        out.writeNamedWriteableCollection(grok.extractedFields());
     }
 
     static Limit readLimit(PlanStreamInput in) throws IOException {
@@ -987,14 +1003,19 @@ public final class PlanNamedTypes {
     }
 
     static MvExpand readMvExpand(PlanStreamInput in) throws IOException {
-        return new MvExpand(Source.readFrom(in), in.readLogicalPlanNode(), in.readNamedExpression(), in.readAttribute());
+        return new MvExpand(
+            Source.readFrom(in),
+            in.readLogicalPlanNode(),
+            in.readNamedExpression(),
+            in.readNamedWriteable(Attribute.class)
+        );
     }
 
     static void writeMvExpand(PlanStreamOutput out, MvExpand mvExpand) throws IOException {
         Source.EMPTY.writeTo(out);
         out.writeLogicalPlanNode(mvExpand.child());
         out.writeNamedExpression(mvExpand.target());
-        out.writeAttribute(mvExpand.expanded());
+        out.writeNamedWriteable(mvExpand.expanded());
     }
 
     static OrderBy readOrderBy(PlanStreamInput in) throws IOException {
@@ -1041,14 +1062,6 @@ public final class PlanNamedTypes {
     // -- Attributes
     //
 
-    private static List<Attribute> readAttributes(PlanStreamInput in) throws IOException {
-        return in.readCollectionAsList(readerFromPlanReader(PlanStreamInput::readAttribute));
-    }
-
-    static void writeAttributes(PlanStreamOutput out, List<Attribute> attributes) throws IOException {
-        out.writeCollection(attributes, writerFromPlanWriter(PlanStreamOutput::writeAttribute));
-    }
-
     private static List<NamedExpression> readNamedExpressions(PlanStreamInput in) throws IOException {
         return in.readCollectionAsList(readerFromPlanReader(PlanStreamInput::readNamedExpression));
     }
@@ -1063,196 +1076,6 @@ public final class PlanNamedTypes {
 
     static void writeAliases(PlanStreamOutput out, List<Alias> aliases) throws IOException {
         out.writeCollection(aliases, writerFromPlanWriter(PlanNamedTypes::writeAlias));
-    }
-
-    static FieldAttribute readFieldAttribute(PlanStreamInput in) throws IOException {
-        return new FieldAttribute(
-            Source.readFrom(in),
-            in.readOptionalWithReader(PlanNamedTypes::readFieldAttribute),
-            in.readString(),
-            DataType.readFrom(in),
-            in.readEsFieldNamed(),
-            in.readOptionalString(),
-            in.readEnum(Nullability.class),
-            NameId.readFrom(in),
-            in.readBoolean()
-        );
-    }
-
-    static void writeFieldAttribute(PlanStreamOutput out, FieldAttribute fieldAttribute) throws IOException {
-        Source.EMPTY.writeTo(out);
-        out.writeOptionalWriteable(fieldAttribute.parent() == null ? null : o -> writeFieldAttribute(out, fieldAttribute.parent()));
-        out.writeString(fieldAttribute.name());
-        out.writeString(fieldAttribute.dataType().typeName());
-        out.writeNamed(EsField.class, fieldAttribute.field());
-        out.writeOptionalString(fieldAttribute.qualifier());
-        out.writeEnum(fieldAttribute.nullable());
-        fieldAttribute.id().writeTo(out);
-        out.writeBoolean(fieldAttribute.synthetic());
-    }
-
-    static ReferenceAttribute readReferenceAttr(PlanStreamInput in) throws IOException {
-        return new ReferenceAttribute(
-            Source.readFrom(in),
-            in.readString(),
-            DataType.readFrom(in),
-            in.readOptionalString(),
-            in.readEnum(Nullability.class),
-            NameId.readFrom(in),
-            in.readBoolean()
-        );
-    }
-
-    static void writeReferenceAttr(PlanStreamOutput out, ReferenceAttribute referenceAttribute) throws IOException {
-        Source.EMPTY.writeTo(out);
-        out.writeString(referenceAttribute.name());
-        out.writeString(referenceAttribute.dataType().typeName());
-        out.writeOptionalString(referenceAttribute.qualifier());
-        out.writeEnum(referenceAttribute.nullable());
-        referenceAttribute.id().writeTo(out);
-        out.writeBoolean(referenceAttribute.synthetic());
-    }
-
-    static MetadataAttribute readMetadataAttr(PlanStreamInput in) throws IOException {
-        return new MetadataAttribute(
-            Source.readFrom(in),
-            in.readString(),
-            DataType.readFrom(in),
-            in.readOptionalString(),
-            in.readEnum(Nullability.class),
-            NameId.readFrom(in),
-            in.readBoolean(),
-            in.readBoolean()
-        );
-    }
-
-    static void writeMetadataAttr(PlanStreamOutput out, MetadataAttribute metadataAttribute) throws IOException {
-        Source.EMPTY.writeTo(out);
-        out.writeString(metadataAttribute.name());
-        out.writeString(metadataAttribute.dataType().typeName());
-        out.writeOptionalString(metadataAttribute.qualifier());
-        out.writeEnum(metadataAttribute.nullable());
-        metadataAttribute.id().writeTo(out);
-        out.writeBoolean(metadataAttribute.synthetic());
-        out.writeBoolean(metadataAttribute.searchable());
-    }
-
-    static UnsupportedAttribute readUnsupportedAttr(PlanStreamInput in) throws IOException {
-        return new UnsupportedAttribute(
-            Source.readFrom(in),
-            in.readString(),
-            readUnsupportedEsField(in),
-            in.readOptionalString(),
-            NameId.readFrom(in)
-        );
-    }
-
-    static void writeUnsupportedAttr(PlanStreamOutput out, UnsupportedAttribute unsupportedAttribute) throws IOException {
-        Source.EMPTY.writeTo(out);
-        out.writeString(unsupportedAttribute.name());
-        writeUnsupportedEsField(out, unsupportedAttribute.field());
-        out.writeOptionalString(unsupportedAttribute.hasCustomMessage() ? unsupportedAttribute.unresolvedMessage() : null);
-        unsupportedAttribute.id().writeTo(out);
-    }
-
-    // -- EsFields
-
-    static EsField readEsField(PlanStreamInput in) throws IOException {
-        return new EsField(
-            in.readString(),
-            DataType.readFrom(in),
-            in.readImmutableMap(StreamInput::readString, readerFromPlanReader(PlanStreamInput::readEsFieldNamed)),
-            in.readBoolean(),
-            in.readBoolean()
-        );
-    }
-
-    static void writeEsField(PlanStreamOutput out, EsField esField) throws IOException {
-        out.writeString(esField.getName());
-        out.writeString(esField.getDataType().typeName());
-        out.writeMap(esField.getProperties(), (o, v) -> out.writeNamed(EsField.class, v));
-        out.writeBoolean(esField.isAggregatable());
-        out.writeBoolean(esField.isAlias());
-    }
-
-    static DateEsField readDateEsField(PlanStreamInput in) throws IOException {
-        return DateEsField.dateEsField(
-            in.readString(),
-            in.readImmutableMap(StreamInput::readString, readerFromPlanReader(PlanStreamInput::readEsFieldNamed)),
-            in.readBoolean()
-        );
-    }
-
-    static void writeDateEsField(PlanStreamOutput out, DateEsField dateEsField) throws IOException {
-        out.writeString(dateEsField.getName());
-        out.writeMap(dateEsField.getProperties(), (o, v) -> out.writeNamed(EsField.class, v));
-        out.writeBoolean(dateEsField.isAggregatable());
-    }
-
-    static InvalidMappedField readInvalidMappedField(PlanStreamInput in) throws IOException {
-        return new InvalidMappedField(
-            in.readString(),
-            in.readString(),
-            in.readImmutableMap(StreamInput::readString, readerFromPlanReader(PlanStreamInput::readEsFieldNamed))
-        );
-    }
-
-    static void writeInvalidMappedField(PlanStreamOutput out, InvalidMappedField field) throws IOException {
-        out.writeString(field.getName());
-        out.writeString(field.errorMessage());
-        out.writeMap(field.getProperties(), (o, v) -> out.writeNamed(EsField.class, v));
-    }
-
-    static KeywordEsField readKeywordEsField(PlanStreamInput in) throws IOException {
-        return new KeywordEsField(
-            in.readString(),
-            in.readImmutableMap(StreamInput::readString, readerFromPlanReader(PlanStreamInput::readEsFieldNamed)),
-            in.readBoolean(),
-            in.readInt(),
-            in.readBoolean(),
-            in.readBoolean()
-        );
-    }
-
-    static void writeKeywordEsField(PlanStreamOutput out, KeywordEsField keywordEsField) throws IOException {
-        out.writeString(keywordEsField.getName());
-        out.writeMap(keywordEsField.getProperties(), (o, v) -> out.writeNamed(EsField.class, v));
-        out.writeBoolean(keywordEsField.isAggregatable());
-        out.writeInt(keywordEsField.getPrecision());
-        out.writeBoolean(keywordEsField.getNormalized());
-        out.writeBoolean(keywordEsField.isAlias());
-    }
-
-    static TextEsField readTextEsField(PlanStreamInput in) throws IOException {
-        return new TextEsField(
-            in.readString(),
-            in.readImmutableMap(StreamInput::readString, readerFromPlanReader(PlanStreamInput::readEsFieldNamed)),
-            in.readBoolean(),
-            in.readBoolean()
-        );
-    }
-
-    static void writeTextEsField(PlanStreamOutput out, TextEsField textEsField) throws IOException {
-        out.writeString(textEsField.getName());
-        out.writeMap(textEsField.getProperties(), (o, v) -> out.writeNamed(EsField.class, v));
-        out.writeBoolean(textEsField.isAggregatable());
-        out.writeBoolean(textEsField.isAlias());
-    }
-
-    static UnsupportedEsField readUnsupportedEsField(PlanStreamInput in) throws IOException {
-        return new UnsupportedEsField(
-            in.readString(),
-            in.readString(),
-            in.readOptionalString(),
-            in.readImmutableMap(StreamInput::readString, readerFromPlanReader(PlanStreamInput::readEsFieldNamed))
-        );
-    }
-
-    static void writeUnsupportedEsField(PlanStreamOutput out, UnsupportedEsField unsupportedEsField) throws IOException {
-        out.writeString(unsupportedEsField.getName());
-        out.writeString(unsupportedEsField.getOriginalType());
-        out.writeOptionalString(unsupportedEsField.getInherited());
-        out.writeMap(unsupportedEsField.getProperties(), (o, v) -> out.writeNamed(EsField.class, v));
     }
 
     // -- BinaryComparison
@@ -1733,6 +1556,18 @@ public final class PlanNamedTypes {
         out.writeExpression(fields.get(1));
     }
 
+    static Repeat readRepeat(PlanStreamInput in) throws IOException {
+        return new Repeat(Source.readFrom(in), in.readExpression(), in.readExpression());
+    }
+
+    static void writeRepeat(PlanStreamOutput out, Repeat repeat) throws IOException {
+        repeat.source().writeTo(out);
+        List<Expression> fields = repeat.children();
+        assert fields.size() == 2;
+        out.writeExpression(fields.get(0));
+        out.writeExpression(fields.get(1));
+    }
+
     static Right readRight(PlanStreamInput in) throws IOException {
         return new Right(Source.readFrom(in), in.readExpression(), in.readExpression());
     }
@@ -1951,14 +1786,14 @@ public final class PlanNamedTypes {
 
     static EsQueryExec.FieldSort readFieldSort(PlanStreamInput in) throws IOException {
         return new EsQueryExec.FieldSort(
-            readFieldAttribute(in),
+            new FieldAttribute(in),
             in.readEnum(Order.OrderDirection.class),
             in.readEnum(Order.NullsPosition.class)
         );
     }
 
     static void writeFieldSort(PlanStreamOutput out, EsQueryExec.FieldSort fieldSort) throws IOException {
-        writeFieldAttribute(out, fieldSort.field());
+        fieldSort.field().writeTo(out);
         out.writeEnum(fieldSort.direction());
         out.writeEnum(fieldSort.nulls());
     }
@@ -1967,14 +1802,14 @@ public final class PlanNamedTypes {
     static EsIndex readEsIndex(PlanStreamInput in) throws IOException {
         return new EsIndex(
             in.readString(),
-            in.readImmutableMap(StreamInput::readString, readerFromPlanReader(PlanStreamInput::readEsFieldNamed)),
+            in.readImmutableMap(StreamInput::readString, i -> i.readNamedWriteable(EsField.class)),
             (Set<String>) in.readGenericValue()
         );
     }
 
     static void writeEsIndex(PlanStreamOutput out, EsIndex esIndex) throws IOException {
         out.writeString(esIndex.name());
-        out.writeMap(esIndex.mapping(), (o, v) -> out.writeNamed(EsField.class, v));
+        out.writeMap(esIndex.mapping(), StreamOutput::writeNamedWriteable);
         out.writeGenericValue(esIndex.concreteIndices());
     }
 
@@ -2037,5 +1872,17 @@ public final class PlanNamedTypes {
         out.writeExpression(fields.get(0));
         out.writeExpression(fields.get(1));
         out.writeOptionalWriteable(fields.size() == 3 ? o -> out.writeExpression(fields.get(2)) : null);
+    }
+
+    static MvAppend readMvAppend(PlanStreamInput in) throws IOException {
+        return new MvAppend(Source.readFrom(in), in.readExpression(), in.readExpression());
+    }
+
+    static void writeMvAppend(PlanStreamOutput out, MvAppend fn) throws IOException {
+        Source.EMPTY.writeTo(out);
+        List<Expression> fields = fn.children();
+        assert fields.size() == 2;
+        out.writeExpression(fields.get(0));
+        out.writeExpression(fields.get(1));
     }
 }

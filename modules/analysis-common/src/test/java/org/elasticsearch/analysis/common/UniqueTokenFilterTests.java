@@ -17,14 +17,15 @@ import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.apache.lucene.tests.analysis.BaseTokenStreamTestCase;
 import org.apache.lucene.tests.analysis.MockTokenizer;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.index.IndexVersionUtils;
 
 import java.io.IOException;
 
@@ -115,7 +116,14 @@ public class UniqueTokenFilterTests extends ESTestCase {
     public void testOldVersionGetXUniqueTokenFilter() throws IOException {
 
         Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.V_7_6_0))
+            .put(
+                IndexMetadata.SETTING_VERSION_CREATED,
+                IndexVersionUtils.randomVersionBetween(
+                    random(),
+                    IndexVersions.MINIMUM_COMPATIBLE,
+                    IndexVersionUtils.getPreviousVersion(IndexVersions.UNIQUE_TOKEN_FILTER_POS_FIX)
+                )
+            )
             .build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
         try (CommonAnalysisPlugin plugin = new CommonAnalysisPlugin()) {
@@ -135,7 +143,10 @@ public class UniqueTokenFilterTests extends ESTestCase {
     public void testNewVersionGetUniqueTokenFilter() throws IOException {
 
         Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, VersionUtils.randomVersionBetween(random(), Version.V_7_7_0, Version.CURRENT))
+            .put(
+                IndexMetadata.SETTING_VERSION_CREATED,
+                IndexVersionUtils.randomVersionBetween(random(), IndexVersions.UNIQUE_TOKEN_FILTER_POS_FIX, IndexVersion.current())
+            )
             .build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
         try (CommonAnalysisPlugin plugin = new CommonAnalysisPlugin()) {

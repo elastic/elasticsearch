@@ -74,7 +74,7 @@ public class GoogleAiStudioCompletionActionTests extends ESTestCase {
     public void testExecute_ReturnsSuccessfulResponse() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var sender = HttpRequestSenderTests.createSenderWithSingleRequestManager(senderFactory, "test_service")) {
+        try (var sender = HttpRequestSenderTests.createSender(senderFactory)) {
             sender.start();
 
             String responseJson = """
@@ -206,7 +206,7 @@ public class GoogleAiStudioCompletionActionTests extends ESTestCase {
     public void testExecute_ThrowsException_WhenInputIsGreaterThanOne() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var sender = senderFactory.createSender("test_service")) {
+        try (var sender = HttpRequestSenderTests.createSender(senderFactory)) {
             sender.start();
 
             String responseJson = """

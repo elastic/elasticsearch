@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.esql.core.expression;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.util.Collection;
 import java.util.List;
@@ -69,8 +69,8 @@ public class AttributeMapTests extends ESTestCase {
     public void testResolve() {
         AttributeMap.Builder<Object> builder = AttributeMap.builder();
         Attribute one = a("one");
-        Attribute two = fieldAttribute("two", DataTypes.INTEGER);
-        Attribute three = fieldAttribute("three", DataTypes.INTEGER);
+        Attribute two = fieldAttribute("two", DataType.INTEGER);
+        Attribute three = fieldAttribute("three", DataType.INTEGER);
         Alias threeAlias = new Alias(Source.EMPTY, "three_alias", three);
         Alias threeAliasAlias = new Alias(Source.EMPTY, "three_alias_alias", threeAlias);
         builder.put(one, of("one"));
@@ -94,8 +94,8 @@ public class AttributeMapTests extends ESTestCase {
 
     public void testResolveOneHopCycle() {
         AttributeMap.Builder<Object> builder = AttributeMap.builder();
-        Attribute a = fieldAttribute("a", DataTypes.INTEGER);
-        Attribute b = fieldAttribute("b", DataTypes.INTEGER);
+        Attribute a = fieldAttribute("a", DataType.INTEGER);
+        Attribute b = fieldAttribute("b", DataType.INTEGER);
         builder.put(a, a);
         builder.put(b, a);
         AttributeMap<Object> map = builder.build();
@@ -107,10 +107,10 @@ public class AttributeMapTests extends ESTestCase {
 
     public void testResolveMultiHopCycle() {
         AttributeMap.Builder<Object> builder = AttributeMap.builder();
-        Attribute a = fieldAttribute("a", DataTypes.INTEGER);
-        Attribute b = fieldAttribute("b", DataTypes.INTEGER);
-        Attribute c = fieldAttribute("c", DataTypes.INTEGER);
-        Attribute d = fieldAttribute("d", DataTypes.INTEGER);
+        Attribute a = fieldAttribute("a", DataType.INTEGER);
+        Attribute b = fieldAttribute("b", DataType.INTEGER);
+        Attribute c = fieldAttribute("c", DataType.INTEGER);
+        Attribute d = fieldAttribute("d", DataType.INTEGER);
         builder.put(a, b);
         builder.put(b, c);
         builder.put(c, d);
@@ -124,7 +124,7 @@ public class AttributeMapTests extends ESTestCase {
 
     private Alias createIntParameterAlias(int index, int value) {
         Source source = new Source(1, index * 5, "?");
-        Literal literal = new Literal(source, value, DataTypes.INTEGER);
+        Literal literal = new Literal(source, value, DataType.INTEGER);
         Alias alias = new Alias(literal.source(), literal.source().text(), literal);
         return alias;
     }

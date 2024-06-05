@@ -29,10 +29,6 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNull;
-import org.elasticsearch.xpack.esql.core.expression.predicate.operator.arithmetic.ArithmeticOperation;
-import org.elasticsearch.xpack.esql.core.expression.predicate.operator.arithmetic.BinaryComparisonInversible;
-import org.elasticsearch.xpack.esql.core.expression.predicate.operator.arithmetic.Neg;
-import org.elasticsearch.xpack.esql.core.expression.predicate.operator.arithmetic.Sub;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.GreaterThan;
@@ -50,11 +46,9 @@ import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.core.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.core.rule.Rule;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.core.util.ReflectionUtils;
 
-import java.time.DateTimeException;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -66,8 +60,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.BiFunction;
 
-import static java.lang.Math.signum;
-import static java.util.Arrays.asList;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.FALSE;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.TRUE;
@@ -77,12 +69,6 @@ import static org.elasticsearch.xpack.esql.core.expression.predicate.Predicates.
 import static org.elasticsearch.xpack.esql.core.expression.predicate.Predicates.splitAnd;
 import static org.elasticsearch.xpack.esql.core.expression.predicate.Predicates.splitOr;
 import static org.elasticsearch.xpack.esql.core.expression.predicate.Predicates.subtract;
-import static org.elasticsearch.xpack.esql.core.expression.predicate.operator.arithmetic.DefaultBinaryArithmeticOperation.ADD;
-import static org.elasticsearch.xpack.esql.core.expression.predicate.operator.arithmetic.DefaultBinaryArithmeticOperation.DIV;
-import static org.elasticsearch.xpack.esql.core.expression.predicate.operator.arithmetic.DefaultBinaryArithmeticOperation.MOD;
-import static org.elasticsearch.xpack.esql.core.expression.predicate.operator.arithmetic.DefaultBinaryArithmeticOperation.MUL;
-import static org.elasticsearch.xpack.esql.core.expression.predicate.operator.arithmetic.DefaultBinaryArithmeticOperation.SUB;
-import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.core.util.CollectionUtils.combine;
 
 public final class OptimizerRules {
@@ -157,7 +143,7 @@ public final class OptimizerRules {
                 }
 
                 if (FALSE.equals(l) || FALSE.equals(r)) {
-                    return new Literal(bc.source(), Boolean.FALSE, DataTypes.BOOLEAN);
+                    return new Literal(bc.source(), Boolean.FALSE, DataType.BOOLEAN);
                 }
                 if (l.semanticEquals(r)) {
                     return l;
@@ -187,7 +173,7 @@ public final class OptimizerRules {
 
             if (bc instanceof Or) {
                 if (TRUE.equals(l) || TRUE.equals(r)) {
-                    return new Literal(bc.source(), Boolean.TRUE, DataTypes.BOOLEAN);
+                    return new Literal(bc.source(), Boolean.TRUE, DataType.BOOLEAN);
                 }
 
                 if (FALSE.equals(l)) {
@@ -232,10 +218,10 @@ public final class OptimizerRules {
             Expression c = n.field();
 
             if (TRUE.semanticEquals(c)) {
-                return new Literal(n.source(), Boolean.FALSE, DataTypes.BOOLEAN);
+                return new Literal(n.source(), Boolean.FALSE, DataType.BOOLEAN);
             }
             if (FALSE.semanticEquals(c)) {
-                return new Literal(n.source(), Boolean.TRUE, DataTypes.BOOLEAN);
+                return new Literal(n.source(), Boolean.TRUE, DataType.BOOLEAN);
             }
 
             Expression negated = maybeSimplifyNegatable(c);
@@ -276,12 +262,12 @@ public final class OptimizerRules {
             // true for equality
             if (bc instanceof Equals || bc instanceof GreaterThanOrEqual || bc instanceof LessThanOrEqual) {
                 if (l.nullable() == Nullability.FALSE && r.nullable() == Nullability.FALSE && l.semanticEquals(r)) {
-                    return new Literal(bc.source(), Boolean.TRUE, DataTypes.BOOLEAN);
+                    return new Literal(bc.source(), Boolean.TRUE, DataType.BOOLEAN);
                 }
             }
             if (bc instanceof NullEquals) {
                 if (l.semanticEquals(r)) {
-                    return new Literal(bc.source(), Boolean.TRUE, DataTypes.BOOLEAN);
+                    return new Literal(bc.source(), Boolean.TRUE, DataType.BOOLEAN);
                 }
                 if (Expressions.isNull(r)) {
                     return new IsNull(bc.source(), l);
@@ -291,7 +277,7 @@ public final class OptimizerRules {
             // false for equality
             if (bc instanceof NotEquals || bc instanceof GreaterThan || bc instanceof LessThan) {
                 if (l.nullable() == Nullability.FALSE && r.nullable() == Nullability.FALSE && l.semanticEquals(r)) {
-                    return new Literal(bc.source(), Boolean.FALSE, DataTypes.BOOLEAN);
+                    return new Literal(bc.source(), Boolean.FALSE, DataType.BOOLEAN);
                 }
             }
 
@@ -357,14 +343,14 @@ public final class OptimizerRules {
                     BinaryComparison otherEq = (BinaryComparison) ex;
                     // equals on different values evaluate to FALSE
                     // ignore date/time fields as equality comparison might actually be a range check
-                    if (otherEq.right().foldable() && DataTypes.isDateTime(otherEq.left().dataType()) == false) {
+                    if (otherEq.right().foldable() && DataType.isDateTime(otherEq.left().dataType()) == false) {
                         for (BinaryComparison eq : equals) {
                             if (otherEq.left().semanticEquals(eq.left())) {
                                 Integer comp = BinaryComparison.compare(eq.right().fold(), otherEq.right().fold());
                                 if (comp != null) {
                                     // var cannot be equal to two different values at the same time
                                     if (comp != 0) {
-                                        return new Literal(and.source(), Boolean.FALSE, DataTypes.BOOLEAN);
+                                        return new Literal(and.source(), Boolean.FALSE, DataType.BOOLEAN);
                                     }
                                 }
                             }
@@ -410,7 +396,7 @@ public final class OptimizerRules {
                             compare > 0 ||
                             // eq matches the boundary but should not be included
                                 (compare == 0 && range.includeLower() == false))) {
-                                return new Literal(and.source(), Boolean.FALSE, DataTypes.BOOLEAN);
+                                return new Literal(and.source(), Boolean.FALSE, DataType.BOOLEAN);
                             }
                         }
                         if (range.upper().foldable()) {
@@ -420,7 +406,7 @@ public final class OptimizerRules {
                             compare < 0 ||
                             // eq matches the boundary but should not be included
                                 (compare == 0 && range.includeUpper() == false))) {
-                                return new Literal(and.source(), Boolean.FALSE, DataTypes.BOOLEAN);
+                                return new Literal(and.source(), Boolean.FALSE, DataType.BOOLEAN);
                             }
                         }
 
@@ -437,7 +423,7 @@ public final class OptimizerRules {
                         Integer comp = BinaryComparison.compare(eqValue, neq.right().fold());
                         if (comp != null) {
                             if (comp == 0) { // clashing and conflicting: a = 1 AND a != 1
-                                return new Literal(and.source(), Boolean.FALSE, DataTypes.BOOLEAN);
+                                return new Literal(and.source(), Boolean.FALSE, DataType.BOOLEAN);
                             } else { // clashing and redundant: a = 1 AND a != 2
                                 iter.remove();
                                 changed = true;
@@ -455,12 +441,12 @@ public final class OptimizerRules {
                             if (bc instanceof LessThan || bc instanceof LessThanOrEqual) { // a = 2 AND a </<= ?
                                 if ((compare == 0 && bc instanceof LessThan) || // a = 2 AND a < 2
                                     0 < compare) { // a = 2 AND a </<= 1
-                                    return new Literal(and.source(), Boolean.FALSE, DataTypes.BOOLEAN);
+                                    return new Literal(and.source(), Boolean.FALSE, DataType.BOOLEAN);
                                 }
                             } else if (bc instanceof GreaterThan || bc instanceof GreaterThanOrEqual) { // a = 2 AND a >/>= ?
                                 if ((compare == 0 && bc instanceof GreaterThan) || // a = 2 AND a > 2
                                     compare < 0) { // a = 2 AND a >/>= 3
-                                    return new Literal(and.source(), Boolean.FALSE, DataTypes.BOOLEAN);
+                                    return new Literal(and.source(), Boolean.FALSE, DataType.BOOLEAN);
                                 }
                             }
 
@@ -1282,216 +1268,6 @@ public final class OptimizerRules {
         }
     }
 
-    // Simplifies arithmetic expressions with BinaryComparisons and fixed point fields, such as: (int + 2) / 3 > 4 => int > 10
-    public static final class SimplifyComparisonsArithmetics extends OptimizerExpressionRule<BinaryComparison> {
-        BiFunction<DataType, DataType, Boolean> typesCompatible;
-
-        public SimplifyComparisonsArithmetics(BiFunction<DataType, DataType, Boolean> typesCompatible) {
-            super(TransformDirection.UP);
-            this.typesCompatible = typesCompatible;
-        }
-
-        @Override
-        protected Expression rule(BinaryComparison bc) {
-            // optimize only once the expression has a literal on the right side of the binary comparison
-            if (bc.right() instanceof Literal) {
-                if (bc.left() instanceof ArithmeticOperation) {
-                    return simplifyBinaryComparison(bc);
-                }
-                if (bc.left() instanceof Neg) {
-                    return foldNegation(bc);
-                }
-            }
-            return bc;
-        }
-
-        private Expression simplifyBinaryComparison(BinaryComparison comparison) {
-            ArithmeticOperation operation = (ArithmeticOperation) comparison.left();
-            // Use symbol comp: SQL operations aren't available in this package (as dependencies)
-            String opSymbol = operation.symbol();
-            // Modulo can't be simplified.
-            if (opSymbol.equals(MOD.symbol())) {
-                return comparison;
-            }
-            OperationSimplifier simplification = null;
-            if (isMulOrDiv(opSymbol)) {
-                simplification = new MulDivSimplifier(comparison);
-            } else if (opSymbol.equals(ADD.symbol()) || opSymbol.equals(SUB.symbol())) {
-                simplification = new AddSubSimplifier(comparison);
-            }
-
-            return (simplification == null || simplification.isUnsafe(typesCompatible)) ? comparison : simplification.apply();
-        }
-
-        private static boolean isMulOrDiv(String opSymbol) {
-            return opSymbol.equals(MUL.symbol()) || opSymbol.equals(DIV.symbol());
-        }
-
-        private static Expression foldNegation(BinaryComparison bc) {
-            Literal bcLiteral = (Literal) bc.right();
-            Expression literalNeg = tryFolding(new Neg(bcLiteral.source(), bcLiteral));
-            return literalNeg == null ? bc : bc.reverse().replaceChildren(asList(((Neg) bc.left()).field(), literalNeg));
-        }
-
-        private static Expression tryFolding(Expression expression) {
-            if (expression.foldable()) {
-                try {
-                    expression = new Literal(expression.source(), expression.fold(), expression.dataType());
-                } catch (ArithmeticException | DateTimeException e) {
-                    // null signals that folding would result in an over-/underflow (such as Long.MAX_VALUE+1); the optimisation is skipped.
-                    expression = null;
-                }
-            }
-            return expression;
-        }
-
-        private abstract static class OperationSimplifier {
-            final BinaryComparison comparison;
-            final Literal bcLiteral;
-            final ArithmeticOperation operation;
-            final Expression opLeft;
-            final Expression opRight;
-            final Literal opLiteral;
-
-            OperationSimplifier(BinaryComparison comparison) {
-                this.comparison = comparison;
-                operation = (ArithmeticOperation) comparison.left();
-                bcLiteral = (Literal) comparison.right();
-
-                opLeft = operation.left();
-                opRight = operation.right();
-
-                if (opLeft instanceof Literal) {
-                    opLiteral = (Literal) opLeft;
-                } else if (opRight instanceof Literal) {
-                    opLiteral = (Literal) opRight;
-                } else {
-                    opLiteral = null;
-                }
-            }
-
-            // can it be quickly fast-tracked that the operation can't be reduced?
-            final boolean isUnsafe(BiFunction<DataType, DataType, Boolean> typesCompatible) {
-                if (opLiteral == null) {
-                    // one of the arithm. operands must be a literal, otherwise the operation wouldn't simplify anything
-                    return true;
-                }
-
-                // Only operations on fixed point literals are supported, since optimizing float point operations can also change the
-                // outcome of the filtering:
-                // x + 1e18 > 1e18::long will yield different results with a field value in [-2^6, 2^6], optimised vs original;
-                // x * (1 + 1e-15d) > 1 : same with a field value of (1 - 1e-15d)
-                // so consequently, int fields optimisation requiring FP arithmetic isn't possible either: (x - 1e-15) * (1 + 1e-15) > 1.
-                if (opLiteral.dataType().isRational() || bcLiteral.dataType().isRational()) {
-                    return true;
-                }
-
-                // the Literal will be moved to the right of the comparison, but only if data-compatible with what's there
-                if (typesCompatible.apply(bcLiteral.dataType(), opLiteral.dataType()) == false) {
-                    return true;
-                }
-
-                return isOpUnsafe();
-            }
-
-            final Expression apply() {
-                // force float point folding for FlP field
-                Literal bcl = operation.dataType().isRational()
-                    ? Literal.of(bcLiteral, ((Number) bcLiteral.value()).doubleValue())
-                    : bcLiteral;
-
-                Expression bcRightExpression = ((BinaryComparisonInversible) operation).binaryComparisonInverse()
-                    .create(bcl.source(), bcl, opRight);
-                bcRightExpression = tryFolding(bcRightExpression);
-                return bcRightExpression != null
-                    ? postProcess((BinaryComparison) comparison.replaceChildren(List.of(opLeft, bcRightExpression)))
-                    : comparison;
-            }
-
-            // operation-specific operations:
-            // - fast-tracking of simplification unsafety
-            abstract boolean isOpUnsafe();
-
-            // - post optimisation adjustments
-            Expression postProcess(BinaryComparison binaryComparison) {
-                return binaryComparison;
-            }
-        }
-
-        private static class AddSubSimplifier extends OperationSimplifier {
-
-            AddSubSimplifier(BinaryComparison comparison) {
-                super(comparison);
-            }
-
-            @Override
-            boolean isOpUnsafe() {
-                // no ADD/SUB with floating fields
-                if (operation.dataType().isRational()) {
-                    return true;
-                }
-
-                if (operation.symbol().equals(SUB.symbol()) && opRight instanceof Literal == false) { // such as: 1 - x > -MAX
-                    // if next simplification step would fail on overflow anyways, skip the optimisation already
-                    return tryFolding(new Sub(EMPTY, opLeft, bcLiteral)) == null;
-                }
-
-                return false;
-            }
-        }
-
-        private static class MulDivSimplifier extends OperationSimplifier {
-
-            private final boolean isDiv; // and not MUL.
-            private final int opRightSign; // sign of the right operand in: (left) (op) (right) (comp) (literal)
-
-            MulDivSimplifier(BinaryComparison comparison) {
-                super(comparison);
-                isDiv = operation.symbol().equals(DIV.symbol());
-                opRightSign = sign(opRight);
-            }
-
-            @Override
-            boolean isOpUnsafe() {
-                // Integer divisions are not safe to optimise: x / 5 > 1 <=/=> x > 5 for x in [6, 9]; same for the `==` comp
-                if (operation.dataType().isInteger() && isDiv) {
-                    return true;
-                }
-
-                // If current operation is a multiplication, it's inverse will be a division: safe only if outcome is still integral.
-                if (isDiv == false && opLeft.dataType().isInteger()) {
-                    long opLiteralValue = ((Number) opLiteral.value()).longValue();
-                    return opLiteralValue == 0 || ((Number) bcLiteral.value()).longValue() % opLiteralValue != 0;
-                }
-
-                // can't move a 0 in Mul/Div comparisons
-                return opRightSign == 0;
-            }
-
-            @Override
-            Expression postProcess(BinaryComparison binaryComparison) {
-                // negative multiplication/division changes the direction of the comparison
-                return opRightSign < 0 ? binaryComparison.reverse() : binaryComparison;
-            }
-
-            private static int sign(Object obj) {
-                int sign = 1;
-                if (obj instanceof Number) {
-                    sign = (int) signum(((Number) obj).doubleValue());
-                } else if (obj instanceof Literal) {
-                    sign = sign(((Literal) obj).value());
-                } else if (obj instanceof Neg) {
-                    sign = -sign(((Neg) obj).field());
-                } else if (obj instanceof ArithmeticOperation operation) {
-                    if (isMulOrDiv(operation.symbol())) {
-                        sign = sign(operation.left()) * sign(operation.right());
-                    }
-                }
-                return sign;
-            }
-        }
-    }
-
     public abstract static class PruneFilters extends OptimizerRule<Filter> {
 
         @Override
@@ -1520,7 +1296,7 @@ public final class OptimizerRules {
                 boolean nullLeft = Expressions.isNull(or.left());
                 boolean nullRight = Expressions.isNull(or.right());
                 if (nullLeft && nullRight) {
-                    return new Literal(binaryLogic.source(), null, DataTypes.NULL);
+                    return new Literal(binaryLogic.source(), null, DataType.NULL);
                 }
                 if (nullLeft) {
                     return or.right();
@@ -1531,7 +1307,7 @@ public final class OptimizerRules {
             }
             if (binaryLogic instanceof And and) {
                 if (Expressions.isNull(and.left()) || Expressions.isNull(and.right())) {
-                    return new Literal(binaryLogic.source(), null, DataTypes.NULL);
+                    return new Literal(binaryLogic.source(), null, DataType.NULL);
                 }
             }
             return binaryLogic;
@@ -1615,7 +1391,7 @@ public final class OptimizerRules {
             } else {
                 String match = pattern.exactMatch();
                 if (match != null) {
-                    Literal literal = new Literal(regexMatch.source(), match, DataTypes.KEYWORD);
+                    Literal literal = new Literal(regexMatch.source(), match, DataType.KEYWORD);
                     e = regexToEquals(regexMatch, literal);
                 }
             }
@@ -1653,11 +1429,11 @@ public final class OptimizerRules {
         protected Expression tryReplaceIsNullIsNotNull(Expression e) {
             if (e instanceof IsNotNull isnn) {
                 if (isnn.field().nullable() == Nullability.FALSE) {
-                    return new Literal(e.source(), Boolean.TRUE, DataTypes.BOOLEAN);
+                    return new Literal(e.source(), Boolean.TRUE, DataType.BOOLEAN);
                 }
             } else if (e instanceof IsNull isn) {
                 if (isn.field().nullable() == Nullability.FALSE) {
-                    return new Literal(e.source(), Boolean.FALSE, DataTypes.BOOLEAN);
+                    return new Literal(e.source(), Boolean.FALSE, DataType.BOOLEAN);
                 }
             }
             return e;

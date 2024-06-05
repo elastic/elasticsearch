@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.operator.arithmeti
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.arithmetic.BinaryComparisonInversible;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Neg;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Sub;
 
@@ -148,7 +147,7 @@ public final class SimplifyComparisonsArithmetics extends
         final Expression apply() {
             // force float point folding for FlP field
             Literal bcl = operation.dataType().isRational()
-                ? new Literal(bcLiteral.source(), ((Number) bcLiteral.value()).doubleValue(), DataTypes.DOUBLE)
+                ? new Literal(bcLiteral.source(), ((Number) bcLiteral.value()).doubleValue(), DataType.DOUBLE)
                 : bcLiteral;
 
             Expression bcRightExpression = ((BinaryComparisonInversible) operation).binaryComparisonInverse()

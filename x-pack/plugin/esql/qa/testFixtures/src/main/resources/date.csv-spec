@@ -1076,6 +1076,23 @@ required_capability: agg_values
 [1955-01-21T00:00:00Z, 1957-05-23T00:00:00Z, 1959-12-03T00:00:00Z] | null
 ;
 
+
+mvAppendDates
+required_capability: fn_mv_append
+
+FROM employees
+| WHERE emp_no == 10039 OR emp_no == 10040
+| SORT emp_no
+| EVAL dates = mv_append(birth_date, hire_date)
+| KEEP emp_no, birth_date, hire_date, dates
+;
+
+emp_no:integer | birth_date:date      | hire_date:date       | dates:date
+10039          | 1959-10-01T00:00:00Z | 1988-01-19T00:00:00Z | [1959-10-01T00:00:00Z, 1988-01-19T00:00:00Z]
+10040          | null                 | 1993-02-14T00:00:00Z | null 
+;
+
+
 implicitCastingNotEqual
 required_capability: string_literal_auto_casting
 from employees | where birth_date != "1957-05-23T00:00:00Z" | keep emp_no, birth_date | sort emp_no | limit 3;
@@ -1104,4 +1121,53 @@ emp_no:integer | birth_date:datetime
 10002          | 1964-06-02T00:00:00Z
 10003          | 1959-12-03T00:00:00Z
 10008          | 1958-02-19T00:00:00Z
+;
+
+implicitCastingArithmeticOperationAdd
+required_capability: string_literal_auto_casting_to_datetime_add_sub
+from employees
+| eval a =  1 day + "2024-01-01", b = 1 year + "2024-04-01" + 1 month, c = "2024-01-01" + 3600 seconds,
+       d = "2024-04-01" + (1 year + 1 day)
+| keep a, b, c, d
+| limit 1
+;
+
+a:datetime | b:datetime | c:datetime               | d:datetime
+2024-01-02 | 2025-05-01 | 2024-01-01T01:00:00.000Z | 2025-04-02
+;
+
+implicitCastingArithmeticOperationSub
+required_capability: string_literal_auto_casting_to_datetime_add_sub
+from employees
+| eval a =  "2024-01-01" - 1 day, b = "2024-04-01" - 1 month, c = "2024-01-01" - 3600 seconds,
+       d = "2024-04-01" - (1 year + 1 day)
+| keep a, b, c, d
+| limit 1
+;
+
+a:datetime | b:datetime | c:datetime               | d:datetime
+2023-12-31 | 2024-03-01 | 2023-12-31T23:00:00.000Z | 2023-03-31
+;
+
+implicitCastingArithmeticOperationAddSub
+required_capability: string_literal_auto_casting_to_datetime_add_sub
+from employees
+| eval a = 1 month + "2024-01-01" - 1 day, b = - 1 year + "2024-04-01" + 1 month,
+       c = 1 hour + "2024-01-01" - 3600 seconds, d = "2024-04-01" - (1 year + 1 day)
+| keep a, b, c, d
+| limit 1
+;
+
+a:datetime | b:datetime | c:datetime | d:datetime
+2024-01-31 | 2023-05-01 | 2024-01-01 | 2023-03-31
+;
+
+temporalAmountWithNulls
+from employees
+| eval a = to_dt(null) - 1 day
+| keep a
+| limit 1;
+
+a:datetime
+null
 ;

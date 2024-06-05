@@ -35,7 +35,7 @@ import org.elasticsearch.xpack.esql.core.index.IndexResolver;
 import org.elasticsearch.xpack.esql.core.index.MappingException;
 import org.elasticsearch.xpack.esql.core.plan.TableIdentifier;
 import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
@@ -291,7 +291,7 @@ public class EsqlSession {
                              * we don't actually use it in ESQL and the EsqlIndexResolver doesn't
                              * produce exactly the same result.
                              */
-                            if (qlField.getDataType().equals(DataTypes.UNSUPPORTED) == false
+                            if (qlField.getDataType().equals(DataType.UNSUPPORTED) == false
                                 && qlField.getName().equals(esqlField.getName()) == false
                             // QL uses full paths for unsupported fields. ESQL does not. This particular difference is fine.
                             ) {

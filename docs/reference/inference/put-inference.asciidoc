@@ -7,7 +7,7 @@ experimental[]
 Creates an {infer} endpoint to perform an {infer} task.
 
 IMPORTANT: The {infer} APIs enable you to use certain services, such as built-in
-{ml} models (ELSER, E5), models uploaded through Eland, Cohere, OpenAI, Azure OpenAI, Google AI Studio or Hugging Face.
+{ml} models (ELSER, E5), models uploaded through Eland, Cohere, OpenAI, Mistral, Azure OpenAI, Google AI Studio or Hugging Face.
 For built-in models and models uploaded though Eland, the {infer} APIs offer an alternative way to use and manage trained models.
 However, if you do not plan to use the {infer} APIs to use these models or if you want to use non-NLP models, use the
 <<ml-df-trained-models-apis>>.
@@ -334,6 +334,41 @@ The URL endpoint to use for the requests.
 (Optional, object)
 By default, the `huggingface` service sets the number of requests allowed per minute to `3000`.
 This helps to minimize the number of rate limit errors returned from Hugging Face.
+To modify this, set the `requests_per_minute` setting of this object in your service settings:
++
+[source,text]
+----
+"rate_limit": {
+    "requests_per_minute": <<number_of_requests>>
+}
+----
+
+=====
++
+.`service_settings` for the `mistral` service
+[%collapsible%closed]
+=====
+
+`api_key`:::
+(Required, string)
+A valid API key for your Mistral account.
+You can find your Mistral API keys or you can create a new one
+https://console.mistral.ai/api-keys/[on the API Keys page].
+
+`model`:::
+(Required, string)
+The name of the model to use for the {infer} task.
+Refer to the https://docs.mistral.ai/getting-started/models/[Mistral models documentation]
+for the list of available text embedding models.
+
+`max_input_tokens`:::
+(Optional, integer)
+Allows you to specify the maximum number of tokens per input before chunking occurs.
+
+`rate_limit`:::
+(Optional, object)
+By default, the `mistral` service sets the number of requests allowed per minute to `240`.
+This helps to minimize the number of rate limit errors returned from the Mistral API.
 To modify this, set the `requests_per_minute` setting of this object in your service settings:
 +
 [source,text]

@@ -1125,6 +1125,9 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
     public void testSyntheticSourceIgnoreMalformedExamples() throws IOException {
         assumeTrue("type doesn't support ignore_malformed", supportsIgnoreMalformed());
+        // This is weird but we need to call it in order to hit the assumption inside
+        // so that it tells us when field supports ignore_malformed but doesn't support it together with synthetic source.
+        syntheticSourceSupport(true);
 
         for (ExampleMalformedValue v : exampleMalformedValues()) {
             CheckedConsumer<XContentBuilder, IOException> mapping = b -> {

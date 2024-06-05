@@ -15,7 +15,9 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceRateLimitServiceSettings;
+import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceService;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -40,10 +42,16 @@ public class HuggingFaceElserServiceSettings extends FilteredXContentObject
     // 3000 requests per minute
     private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(3000);
 
-    public static HuggingFaceElserServiceSettings fromMap(Map<String, Object> map) {
+    public static HuggingFaceElserServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         ValidationException validationException = new ValidationException();
         var uri = extractUri(map, URL, validationException);
-        RateLimitSettings rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException);
+        RateLimitSettings rateLimitSettings = RateLimitSettings.of(
+            map,
+            DEFAULT_RATE_LIMIT_SETTINGS,
+            validationException,
+            HuggingFaceService.NAME,
+            context
+        );
 
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
@@ -93,7 +101,6 @@ public class HuggingFaceElserServiceSettings extends FilteredXContentObject
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         toXContentFragmentOfExposedFields(builder, params);
-        rateLimitSettings.toXContent(builder, params);
         builder.endObject();
 
         return builder;
@@ -103,6 +110,7 @@ public class HuggingFaceElserServiceSettings extends FilteredXContentObject
     protected XContentBuilder toXContentFragmentOfExposedFields(XContentBuilder builder, Params params) throws IOException {
         builder.field(URL, uri.toString());
         builder.field(MAX_INPUT_TOKENS, ELSER_TOKEN_LIMIT);
+        rateLimitSettings.toXContent(builder, params);
 
         return builder;
     }

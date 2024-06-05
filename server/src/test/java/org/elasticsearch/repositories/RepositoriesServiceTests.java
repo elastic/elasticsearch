@@ -48,8 +48,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -65,27 +63,15 @@ import static org.mockito.Mockito.mock;
 
 public class RepositoriesServiceTests extends ESTestCase {
 
-    private static ThreadPool threadPool;
-
     private ClusterService clusterService;
     private RepositoriesService repositoriesService;
-
-    @BeforeClass
-    public static void createThreadPool() {
-        threadPool = new TestThreadPool(RepositoriesService.class.getName());
-    }
-
-    @AfterClass
-    public static void terminateThreadPool() {
-        if (threadPool != null) {
-            threadPool.shutdownNow();
-            threadPool = null;
-        }
-    }
+    private ThreadPool threadPool;
 
     @Override
     public void setUp() throws Exception {
         super.setUp();
+
+        threadPool = new TestThreadPool(RepositoriesService.class.getName());
 
         final TransportService transportService = new TransportService(
             Settings.EMPTY,
@@ -113,6 +99,8 @@ public class RepositoriesServiceTests extends ESTestCase {
             TestRepository::new,
             UnstableRepository.TYPE,
             UnstableRepository::new,
+            VerificationFailRepository.TYPE,
+            VerificationFailRepository::new,
             MeteredRepositoryTypeA.TYPE,
             metadata -> new MeteredRepositoryTypeA(metadata, clusterService),
             MeteredRepositoryTypeB.TYPE,
@@ -135,6 +123,10 @@ public class RepositoriesServiceTests extends ESTestCase {
     @Override
     public void tearDown() throws Exception {
         super.tearDown();
+        if (threadPool != null) {
+            threadPool.shutdownNow();
+            threadPool = null;
+        }
         clusterService.stop();
         repositoriesService.stop();
     }
@@ -179,6 +171,44 @@ public class RepositoriesServiceTests extends ESTestCase {
         for (char c : Arrays.asList('\\', '/', '*', '?', '"', '<', '>', '|', ' ', ',')) {
             assertThrowsOnRegister("contains" + c + "InvalidCharacters");
         }
+    }
+
+    public void testPutRepositoryVerificationFails() {
+        var repoName = randomAlphaOfLengthBetween(10, 25);
+        var request = new PutRepositoryRequest().name(repoName).type(VerificationFailRepository.TYPE).verify(true);
+        var resultListener = new SubscribableListener<AcknowledgedResponse>();
+        repositoriesService.registerRepository(request, resultListener);
+        var failure = safeAwaitFailure(resultListener);
+        assertThat(failure, isA(RepositoryVerificationException.class));
+        // also make sure that cluster state does not include failed repo
+        assertThrows(RepositoryMissingException.class, () -> { repositoriesService.repository(repoName); });
+    }
+
+    public void testPutRepositoryVerificationFailsOnExisting() {
+        var repoName = randomAlphaOfLengthBetween(10, 25);
+        var request = new PutRepositoryRequest().name(repoName).type(TestRepository.TYPE).verify(true);
+        var resultListener = new SubscribableListener<AcknowledgedResponse>();
+        repositoriesService.registerRepository(request, resultListener);
+        var ackResponse = safeAwait(resultListener);
+        assertTrue(ackResponse.isAcknowledged());
+
+        // try to update existing repository with faulty repo and make sure it is not applied
+        request = new PutRepositoryRequest().name(repoName).type(VerificationFailRepository.TYPE).verify(true);
+        resultListener = new SubscribableListener<>();
+        repositoriesService.registerRepository(request, resultListener);
+        var failure = safeAwaitFailure(resultListener);
+        assertThat(failure, isA(RepositoryVerificationException.class));
+        var repository = repositoriesService.repository(repoName);
+        assertEquals(repository.getMetadata().type(), TestRepository.TYPE);
+    }
+
+    public void testPutRepositorySkipVerification() {
+        var repoName = randomAlphaOfLengthBetween(10, 25);
+        var request = new PutRepositoryRequest().name(repoName).type(VerificationFailRepository.TYPE).verify(false);
+        var resultListener = new SubscribableListener<AcknowledgedResponse>();
+        repositoriesService.registerRepository(request, resultListener);
+        var ackResponse = safeAwait(resultListener);
+        assertTrue(ackResponse.isAcknowledged());
     }
 
     public void testRepositoriesStatsCanHaveTheSameNameAndDifferentTypeOverTime() {
@@ -499,6 +529,19 @@ public class RepositoriesServiceTests extends ESTestCase {
         private UnstableRepository(RepositoryMetadata metadata) {
             super(metadata);
             throw new RepositoryException(TYPE, "failed to create unstable repository");
+        }
+    }
+
+    private static class VerificationFailRepository extends TestRepository {
+        public static final String TYPE = "verify-fail";
+
+        private VerificationFailRepository(RepositoryMetadata metadata) {
+            super(metadata);
+        }
+
+        @Override
+        public String startVerification() {
+            throw new RepositoryVerificationException(TYPE, "failed to validate repository");
         }
     }
 

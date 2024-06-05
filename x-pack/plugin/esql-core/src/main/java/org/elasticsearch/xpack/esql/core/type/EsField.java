@@ -6,15 +6,33 @@
  */
 package org.elasticsearch.xpack.esql.core.type;
 
+import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 
+import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
 /**
- * SQL-related information about an index field
+ * Information about a field in an ES index.
  */
-public class EsField {
+public class EsField implements NamedWriteable {
+    public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
+        return List.of(
+            EsField.ENTRY,
+            DateEsField.ENTRY,
+            InvalidMappedField.ENTRY,
+            KeywordEsField.ENTRY,
+            TextEsField.ENTRY,
+            UnsupportedEsField.ENTRY
+        );
+    }
+
+    static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(EsField.class, "EsField", EsField::new);
 
     private final DataType esDataType;
     private final boolean aggregatable;
@@ -32,6 +50,28 @@ public class EsField {
         this.aggregatable = aggregatable;
         this.properties = properties;
         this.isAlias = isAlias;
+    }
+
+    public EsField(StreamInput in) throws IOException {
+        this.name = in.readString();
+        this.esDataType = DataType.readFrom(in);
+        this.properties = in.readImmutableMap(StreamInput::readString, i -> i.readNamedWriteable(EsField.class));
+        this.aggregatable = in.readBoolean();
+        this.isAlias = in.readBoolean();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(name);
+        out.writeString(esDataType.typeName());
+        out.writeMap(properties, StreamOutput::writeNamedWriteable);
+        out.writeBoolean(aggregatable);
+        out.writeBoolean(isAlias);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
     }
 
     /**

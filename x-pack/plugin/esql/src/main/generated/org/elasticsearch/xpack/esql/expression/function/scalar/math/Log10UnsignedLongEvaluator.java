@@ -32,9 +32,9 @@ public final class Log10UnsignedLongEvaluator implements EvalOperator.Expression
 
   public Log10UnsignedLongEvaluator(Source source, EvalOperator.ExpressionEvaluator val,
       DriverContext driverContext) {
-    this.warnings = new Warnings(source);
     this.val = val;
     this.driverContext = driverContext;
+    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override

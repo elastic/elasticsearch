@@ -148,6 +148,11 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
         return createMapperService(settings, mappings).documentMapper();
     }
 
+    protected final DocumentMapper createLogsModeDocumentMapper(XContentBuilder mappings) throws IOException {
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), "logs").build();
+        return createMapperService(settings, mappings).documentMapper();
+    }
+
     protected final DocumentMapper createDocumentMapper(IndexVersion version, XContentBuilder mappings) throws IOException {
         return createMapperService(version, mappings).documentMapper();
     }
@@ -254,6 +259,14 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
                 getPlugins().stream().filter(p -> p instanceof MapperPlugin).map(p -> (MapperPlugin) p).collect(toList())
             ).getMapperRegistry();
 
+            BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(indexSettings, new BitsetFilterCache.Listener() {
+                @Override
+                public void onCache(ShardId shardId, Accountable accountable) {}
+
+                @Override
+                public void onRemoval(ShardId shardId, Accountable accountable) {}
+            });
+
             return new MapperService(
                 () -> TransportVersion.current(),
                 indexSettings,
@@ -266,6 +279,7 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
                 },
                 indexSettings.getMode().buildIdFieldMapper(idFieldDataEnabled),
                 scriptCompiler,
+                bitsetFilterCache::getBitSetProducer,
                 mapperMetrics
             );
         }

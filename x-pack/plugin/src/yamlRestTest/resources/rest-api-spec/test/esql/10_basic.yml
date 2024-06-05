@@ -333,3 +333,15 @@ setup:
   - match: {values.0: ["1",2.0,null,true,123,123]}
   - match: {values.1: ["1",2.0,null,true,123,123]}
   - match: {values.2: ["1",2.0,null,true,123,123]}
+
+---
+version is not allowed:
+  - requires:
+      cluster_features: ["gte_v8.14.0"]
+      reason: version allowed in 8.13.latest
+  - do:
+      catch: /unknown field \[version\]/
+      esql.query:
+        body:
+          query: 'from test'
+          version: cat

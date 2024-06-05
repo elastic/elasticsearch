@@ -370,11 +370,12 @@ public abstract class StreamOutput extends OutputStream {
         }
     }
 
-    private final BytesRefBuilder spare = new BytesRefBuilder();
+    private static final ThreadLocal<BytesRefBuilder> spareBytesRefBuilder = ThreadLocal.withInitial(BytesRefBuilder::new);
 
     public void writeText(Text text) throws IOException {
         if (text.hasBytes() == false) {
             final String string = text.string();
+            var spare = spareBytesRefBuilder.get();
             spare.copyChars(string);
             writeInt(spare.length());
             write(spare.bytes(), 0, spare.length());

@@ -42,7 +42,7 @@ public class BwcSetupExtension {
 
     private static final String MINIMUM_COMPILER_VERSION_PATH = "src/main/resources/minimumCompilerVersion";
     private static final Version BUILD_TOOL_MINIMUM_VERSION = Version.fromString("7.14.0");
-    private volatile Project project;
+    private final Project project;
     private final ObjectFactory objectFactory;
     private final ProviderFactory providerFactory;
     private final JavaToolchainService toolChainService;

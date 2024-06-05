@@ -9,6 +9,7 @@
 package org.elasticsearch.myprofiler;
 
 
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -39,6 +40,10 @@ public class ProfilerState {
         this.profiling = false;
     }
 
+    public boolean isProfiling() {
+        return profiling;
+    }
+
     public void incrementQueryCount() {
         if (profiling) {
             queryCount.incrementAndGet();
@@ -58,5 +63,14 @@ public class ProfilerState {
     }
     public synchronized ConcurrentHashMap<String, AtomicLong> getIndex_query_count(){
         return index_query_count;
+    }
+
+    public ConcurrentHashMap<String, Long> collectAndResetStats() {
+        ConcurrentHashMap<String, Long> stats = new ConcurrentHashMap<>();
+        for (Map.Entry<String, AtomicLong> entry : index_query_count.entrySet()) {
+            stats.put(entry.getKey(), entry.getValue().getAndSet(0));
+        }
+//        stats.put("totalQueries", queryCount.getAndSet(0));
+        return stats;
     }
 }

@@ -226,7 +226,7 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
             String asyncSearchId = (String) submitAsyncSearchResponseMap.get("id");
             assertThat(asyncSearchId, notNullValue());
             // wait for the tasks to show up on the querying cluster
-            assertTrue(waitUntil(() -> {
+            assertBusy(() -> {
                 try {
                     Response queryingClusterTasks = adminClient().performRequest(new Request("GET", "/_tasks"));
                     assertOK(queryingClusterTasks);
@@ -244,13 +244,13 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
                             someTasks.set(true);
                         }
                     });
-                    return someTasks.get();
+                    assertTrue(someTasks.get());
                 } catch (IOException e) {
                     throw new RuntimeException(e);
                 }
-            }));
+            });
             // wait for the tasks to show up on the fulfilling cluster
-            assertTrue(waitUntil(() -> {
+            assertBusy(() -> {
                 try {
                     Response fulfillingClusterTasks = performRequestAgainstFulfillingCluster(new Request("GET", "/_tasks"));
                     assertOK(fulfillingClusterTasks);
@@ -268,11 +268,11 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
                             someTasks.set(true);
                         }
                     });
-                    return someTasks.get();
+                    assertTrue(someTasks.get());
                 } catch (IOException e) {
                     throw new RuntimeException(e);
                 }
-            }));
+            });
             // delete the stalling async search
             var deleteAsyncSearchRequest = new Request("DELETE", Strings.format("/_async_search/%s", asyncSearchId));
             deleteAsyncSearchRequest.setOptions(

@@ -14,7 +14,6 @@ import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.hamcrest.Matcher;
@@ -41,14 +40,14 @@ public class MvAvgTests extends AbstractMultivalueFunctionTestCase {
             return equalTo(sum.value() / size);
         };
         List<TestCaseSupplier> cases = new ArrayList<>();
-        doubles(cases, "mv_avg", "MvAvg", DataTypes.DOUBLE, avg);
-        ints(cases, "mv_avg", "MvAvg", DataTypes.DOUBLE, (size, data) -> avg.apply(size, data.mapToDouble(v -> (double) v)));
-        longs(cases, "mv_avg", "MvAvg", DataTypes.DOUBLE, (size, data) -> avg.apply(size, data.mapToDouble(v -> (double) v)));
+        doubles(cases, "mv_avg", "MvAvg", DataType.DOUBLE, avg);
+        ints(cases, "mv_avg", "MvAvg", DataType.DOUBLE, (size, data) -> avg.apply(size, data.mapToDouble(v -> (double) v)));
+        longs(cases, "mv_avg", "MvAvg", DataType.DOUBLE, (size, data) -> avg.apply(size, data.mapToDouble(v -> (double) v)));
         unsignedLongs(
             cases,
             "mv_avg",
             "MvAvg",
-            DataTypes.DOUBLE,
+            DataType.DOUBLE,
             /*
              * Converting strait from BigInteger to double will round differently.
              * So we have to go back to encoded `long` and then convert to double
@@ -71,6 +70,6 @@ public class MvAvgTests extends AbstractMultivalueFunctionTestCase {
 
     @Override
     protected DataType expectedType(List<DataType> argTypes) {
-        return DataTypes.DOUBLE;  // Averages are always a double
+        return DataType.DOUBLE;  // Averages are always a double
     }
 }

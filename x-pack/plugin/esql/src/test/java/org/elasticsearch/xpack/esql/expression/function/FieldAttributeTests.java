@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.AbstractEsFieldTypeTests;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 
 public class FieldAttributeTests extends AbstractAttributeTestCase<FieldAttribute> {
@@ -21,7 +20,7 @@ public class FieldAttributeTests extends AbstractAttributeTestCase<FieldAttribut
         Source source = Source.EMPTY;
         FieldAttribute parent = maxDepth == 0 || randomBoolean() ? null : createFieldAttribute(maxDepth - 1);
         String name = randomAlphaOfLength(5);
-        DataType type = randomFrom(DataTypes.types());
+        DataType type = randomFrom(DataType.types());
         EsField field = AbstractEsFieldTypeTests.randomAnyEsField(maxDepth);
         String qualifier = randomBoolean() ? null : randomAlphaOfLength(3);
         Nullability nullability = randomFrom(Nullability.values());
@@ -47,7 +46,7 @@ public class FieldAttributeTests extends AbstractAttributeTestCase<FieldAttribut
         switch (between(0, 6)) {
             case 0 -> parent = randomValueOtherThan(parent, () -> randomBoolean() ? null : createFieldAttribute(2));
             case 1 -> name = randomAlphaOfLength(name.length() + 1);
-            case 2 -> type = randomValueOtherThan(type, () -> randomFrom(DataTypes.types()));
+            case 2 -> type = randomValueOtherThan(type, () -> randomFrom(DataType.types()));
             case 3 -> field = randomValueOtherThan(field, () -> AbstractEsFieldTypeTests.randomAnyEsField(3));
             case 4 -> qualifier = randomValueOtherThan(qualifier, () -> randomBoolean() ? null : randomAlphaOfLength(3));
             case 5 -> nullability = randomValueOtherThan(nullability, () -> randomFrom(Nullability.values()));

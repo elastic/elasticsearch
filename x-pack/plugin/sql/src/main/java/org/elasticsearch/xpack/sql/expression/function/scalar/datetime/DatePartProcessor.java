@@ -1,11 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.xpack.ql.InvalidArgumentException;
 import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DatePart.Part;
@@ -51,11 +53,13 @@ public class DatePartProcessor extends BinaryDateTimeProcessor {
         if (datePartField == null) {
             List<String> similar = Part.findSimilar((String) part);
             if (similar.isEmpty()) {
-                throw new SqlIllegalArgumentException("A value of {} or their aliases is required; received [{}]",
-                    Part.values(), part);
+                throw new InvalidArgumentException("A value of {} or their aliases is required; received [{}]", Part.values(), part);
             } else {
-                throw new SqlIllegalArgumentException("Received value [{}] is not valid date part for extraction; " +
-                    "did you mean {}?", part, similar);
+                throw new InvalidArgumentException(
+                    "Received value [{}] is not valid date part for extraction; " + "did you mean {}?",
+                    part,
+                    similar
+                );
             }
         }
 

@@ -1,13 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.authz.accesscontrol;
 
+import org.apache.lucene.codecs.StoredFieldsReader;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
-import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -16,12 +17,15 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.CombinedBitSet;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
+import org.elasticsearch.lucene.util.CombinedBitSet;
+import org.elasticsearch.lucene.util.MatchAllBitSet;
+import org.elasticsearch.transport.Transports;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -32,10 +36,10 @@ import java.util.concurrent.ExecutionException;
 /**
  * A reader that only exposes documents via {@link #getLiveDocs()} that matches with the provided role query.
  */
-public final class DocumentSubsetReader extends FilterLeafReader {
+public final class DocumentSubsetReader extends SequentialStoredFieldsLeafReader {
 
-    public static DocumentSubsetDirectoryReader wrap(DirectoryReader in, DocumentSubsetBitsetCache bitsetCache,
-            Query roleQuery) throws IOException {
+    public static DocumentSubsetDirectoryReader wrap(DirectoryReader in, DocumentSubsetBitsetCache bitsetCache, Query roleQuery)
+        throws IOException {
         return new DocumentSubsetDirectoryReader(in, bitsetCache, roleQuery);
     }
 
@@ -56,6 +60,8 @@ public final class DocumentSubsetReader extends FilterLeafReader {
         final Bits liveDocs = reader.getLiveDocs();
         if (roleQueryBits == null) {
             return 0;
+        } else if (roleQueryBits instanceof MatchAllBitSet) {
+            return reader.numDocs();
         } else if (liveDocs == null) {
             // slow
             return roleQueryBits.cardinality();
@@ -82,19 +88,18 @@ public final class DocumentSubsetReader extends FilterLeafReader {
     private static int getNumDocs(LeafReader reader, Query roleQuery, BitSet roleQueryBits) throws IOException, ExecutionException {
         IndexReader.CacheHelper cacheHelper = reader.getReaderCacheHelper(); // this one takes deletes into account
         if (cacheHelper == null) {
-            throw new IllegalStateException("Reader " + reader + " does not support caching");
+            return computeNumDocs(reader, roleQueryBits);
         }
         final boolean[] added = new boolean[] { false };
-        Cache<Query, Integer> perReaderCache = NUM_DOCS_CACHE.computeIfAbsent(cacheHelper.getKey(),
-                key -> {
-                    added[0] = true;
-                    return CacheBuilder.<Query, Integer>builder()
-                            // Not configurable, this limit only exists so that if a role query is updated
-                            // then we won't risk OOME because of old role queries that are not used anymore
-                            .setMaximumWeight(1000)
-                            .weigher((k, v) -> 1) // just count
-                            .build();
-                });
+        Cache<Query, Integer> perReaderCache = NUM_DOCS_CACHE.computeIfAbsent(cacheHelper.getKey(), key -> {
+            added[0] = true;
+            return CacheBuilder.<Query, Integer>builder()
+                // Not configurable, this limit only exists so that if a role query is updated
+                // then we won't risk OOME because of old role queries that are not used anymore
+                .setMaximumWeight(1000)
+                .weigher((k, v) -> 1) // just count
+                .build();
+        });
         if (added[0]) {
             IndexReader.ClosedListener closedListener = NUM_DOCS_CACHE::remove;
             try {
@@ -112,8 +117,8 @@ public final class DocumentSubsetReader extends FilterLeafReader {
         private final Query roleQuery;
         private final DocumentSubsetBitsetCache bitsetCache;
 
-        DocumentSubsetDirectoryReader(final DirectoryReader in, final DocumentSubsetBitsetCache bitsetCache,
-                                      final Query roleQuery) throws IOException {
+        DocumentSubsetDirectoryReader(final DirectoryReader in, final DocumentSubsetBitsetCache bitsetCache, final Query roleQuery)
+            throws IOException {
             super(in, new SubReaderWrapper() {
                 @Override
                 public LeafReader wrap(LeafReader reader) {
@@ -136,11 +141,11 @@ public final class DocumentSubsetReader extends FilterLeafReader {
         }
 
         private static void verifyNoOtherDocumentSubsetDirectoryReaderIsWrapped(DirectoryReader reader) {
-            if (reader instanceof FilterDirectoryReader) {
-                FilterDirectoryReader filterDirectoryReader = (FilterDirectoryReader) reader;
+            if (reader instanceof FilterDirectoryReader filterDirectoryReader) {
                 if (filterDirectoryReader instanceof DocumentSubsetDirectoryReader) {
-                    throw new IllegalArgumentException(LoggerMessageFormat.format("Can't wrap [{}] twice",
-                            DocumentSubsetDirectoryReader.class));
+                    throw new IllegalArgumentException(
+                        LoggerMessageFormat.format("Can't wrap [{}] twice", DocumentSubsetDirectoryReader.class)
+                    );
                 } else {
                     verifyNoOtherDocumentSubsetDirectoryReaderIsWrapped(filterDirectoryReader.getDelegate());
                 }
@@ -173,6 +178,7 @@ public final class DocumentSubsetReader extends FilterLeafReader {
         if (numDocs == -1) {
             synchronized (this) {
                 if (numDocs == -1) {
+                    assert Transports.assertNotTransportThread("resolving role query");
                     try {
                         roleQueryBits = bitsetCache.getBitSet(roleQuery, in.getContext());
                         numDocs = getNumDocs(in, roleQuery, roleQueryBits);
@@ -192,6 +198,8 @@ public final class DocumentSubsetReader extends FilterLeafReader {
             // If we would return a <code>null</code> liveDocs then that would mean that no docs are marked as deleted,
             // but that isn't the case. No docs match with the role query and therefore all docs are marked as deleted
             return new Bits.MatchNoBits(in.maxDoc());
+        } else if (roleQueryBits instanceof MatchAllBitSet) {
+            return actualLiveDocs;
         } else if (actualLiveDocs == null) {
             return roleQueryBits;
         } else {
@@ -221,5 +229,10 @@ public final class DocumentSubsetReader extends FilterLeafReader {
     public CacheHelper getReaderCacheHelper() {
         // Not delegated since we change the live docs
         return null;
+    }
+
+    @Override
+    protected StoredFieldsReader doGetSequentialStoredFieldsReader(StoredFieldsReader reader) {
+        return reader;
     }
 }

@@ -1,0 +1,10 @@
+/*
+ * Tests that need to run against an Elasticsearch cluster that
+ * is using a password protected keystore in its nodes.
+ */
+
+apply plugin: 'elasticsearch.internal-java-rest-test'
+
+tasks.named('javaRestTest') {
+  usesDefaultDistribution()
+}

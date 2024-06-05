@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.datafeed.extractor.aggregation;
 
@@ -10,55 +11,48 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.aggregations.Aggregation;
-import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.ClientHelper;
-import org.elasticsearch.xpack.core.ml.datafeed.extractor.DataExtractor;
-import org.elasticsearch.xpack.core.ml.datafeed.extractor.ExtractorUtils;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfigUtils;
+import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
+import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
+import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorQueryContext;
+import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorUtils;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 /**
  * Abstract class for aggregated data extractors, e.g. {@link RollupDataExtractor}
- *
- * @param <T> The request builder type for getting data from ElasticSearch
  */
-abstract class AbstractAggregationDataExtractor<T extends ActionRequestBuilder<SearchRequest, SearchResponse>>
-    implements DataExtractor {
+abstract class AbstractAggregationDataExtractor implements DataExtractor {
 
     private static final Logger LOGGER = LogManager.getLogger(AbstractAggregationDataExtractor.class);
-
-    /**
-     * The number of key-value pairs written in each batch to process.
-     * This has to be a number that is small enough to allow for responsive
-     * cancelling and big enough to not cause overhead by calling the
-     * post data action too often. The value of 1000 was determined via
-     * such testing.
-     */
-    private static int BATCH_KEY_VALUE_PAIRS = 1000;
 
     protected final Client client;
     protected final AggregationDataExtractorContext context;
     private final DatafeedTimingStatsReporter timingStatsReporter;
     private boolean hasNext;
-    private boolean isCancelled;
+    private volatile boolean isCancelled;
     private AggregationToJsonProcessor aggregationToJsonProcessor;
-    private ByteArrayOutputStream outputStream;
+    private final ByteArrayOutputStream outputStream;
 
     AbstractAggregationDataExtractor(
-            Client client, AggregationDataExtractorContext dataExtractorContext, DatafeedTimingStatsReporter timingStatsReporter) {
+        Client client,
+        AggregationDataExtractorContext dataExtractorContext,
+        DatafeedTimingStatsReporter timingStatsReporter
+    ) {
         this.client = Objects.requireNonNull(client);
         this.context = Objects.requireNonNull(dataExtractorContext);
         this.timingStatsReporter = Objects.requireNonNull(timingStatsReporter);
@@ -85,93 +79,155 @@ abstract class AbstractAggregationDataExtractor<T extends ActionRequestBuilder<S
     }
 
     @Override
-    public long getEndTime() {
-        return context.end;
+    public void destroy() {
+        cancel();
     }
 
     @Override
-    public Optional<InputStream> next() throws IOException {
-        if (!hasNext()) {
+    public long getEndTime() {
+        return context.queryContext.end;
+    }
+
+    @Override
+    public Result next() throws IOException {
+        if (hasNext() == false) {
             throw new NoSuchElementException();
         }
 
+        SearchInterval searchInterval = new SearchInterval(context.queryContext.start, context.queryContext.end);
         if (aggregationToJsonProcessor == null) {
-            Aggregations aggs = search();
+            InternalAggregations aggs = search();
             if (aggs == null) {
                 hasNext = false;
-                return Optional.empty();
+                return new Result(searchInterval, Optional.empty());
             }
             initAggregationProcessor(aggs);
         }
 
-        return Optional.ofNullable(processNextBatch());
+        outputStream.reset();
+        // We can cancel immediately as we process whole date_histogram buckets at a time
+        aggregationToJsonProcessor.writeAllDocsCancellable(_timestamp -> isCancelled, outputStream);
+        // We process the whole search. So, if we are chunking or not, we have nothing more to process given the current query
+        hasNext = false;
+
+        return new Result(
+            searchInterval,
+            aggregationToJsonProcessor.getKeyValueCount() > 0
+                ? Optional.of(new ByteArrayInputStream(outputStream.toByteArray()))
+                : Optional.empty()
+        );
     }
 
-    private Aggregations search() throws IOException {
+    private InternalAggregations search() {
         LOGGER.debug("[{}] Executing aggregated search", context.jobId);
-        SearchResponse searchResponse = executeSearchRequest(buildSearchRequest(buildBaseSearchSource()));
-        LOGGER.debug("[{}] Search response was obtained", context.jobId);
-        timingStatsReporter.reportSearchDuration(searchResponse.getTook());
-        ExtractorUtils.checkSearchWasSuccessful(context.jobId, searchResponse);
-        return validateAggs(searchResponse.getAggregations());
+        ActionRequestBuilder<SearchRequest, SearchResponse> searchRequest = buildSearchRequest(buildBaseSearchSource());
+        assert searchRequest.request().allowPartialSearchResults() == false;
+        SearchResponse searchResponse = executeSearchRequest(client, context.queryContext, searchRequest);
+        try {
+            LOGGER.debug("[{}] Search response was obtained", context.jobId);
+            timingStatsReporter.reportSearchDuration(searchResponse.getTook());
+            return validateAggs(searchResponse.getAggregations());
+        } finally {
+            searchResponse.decRef();
+        }
     }
 
-    private void initAggregationProcessor(Aggregations aggs) throws IOException {
-        aggregationToJsonProcessor = new AggregationToJsonProcessor(context.timeField, context.fields, context.includeDocCount,
-            context.start);
+    private void initAggregationProcessor(InternalAggregations aggs) throws IOException {
+        aggregationToJsonProcessor = new AggregationToJsonProcessor(
+            context.queryContext.timeField,
+            context.fields,
+            context.includeDocCount,
+            context.queryContext.start,
+            null
+        );
         aggregationToJsonProcessor.process(aggs);
     }
 
-    protected SearchResponse executeSearchRequest(T searchRequestBuilder) {
-        return ClientHelper.executeWithHeaders(context.headers, ClientHelper.ML_ORIGIN, client, searchRequestBuilder::get);
+    static SearchResponse executeSearchRequest(
+        Client client,
+        DataExtractorQueryContext context,
+        ActionRequestBuilder<SearchRequest, SearchResponse> searchRequestBuilder
+    ) {
+        SearchResponse searchResponse = ClientHelper.executeWithHeaders(
+            context.headers,
+            ClientHelper.ML_ORIGIN,
+            client,
+            searchRequestBuilder::get
+        );
+        boolean success = false;
+        try {
+            DataExtractorUtils.checkForSkippedClusters(searchResponse);
+            success = true;
+        } finally {
+            if (success == false) {
+                searchResponse.decRef();
+            }
+        }
+        return searchResponse;
     }
 
     private SearchSourceBuilder buildBaseSearchSource() {
         // For derivative aggregations the first bucket will always be null
         // so query one extra histogram bucket back and hope there is data
         // in that bucket
-        long histogramSearchStartTime = Math.max(0, context.start - ExtractorUtils.getHistogramIntervalMillis(context.aggs));
+        long histogramSearchStartTime = Math.max(
+            0,
+            context.queryContext.start - DatafeedConfigUtils.getHistogramIntervalMillis(context.aggs)
+        );
 
-        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder()
-            .size(0)
-            .query(ExtractorUtils.wrapInTimeRangeQuery(context.query, context.timeField, histogramSearchStartTime, context.end));
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().size(0)
+            .query(
+                DataExtractorUtils.wrapInTimeRangeQuery(
+                    context.queryContext.query,
+                    context.queryContext.timeField,
+                    histogramSearchStartTime,
+                    context.queryContext.end
+                )
+            );
 
+        if (context.queryContext.runtimeMappings.isEmpty() == false) {
+            searchSourceBuilder.runtimeMappings(context.queryContext.runtimeMappings);
+        }
         context.aggs.getAggregatorFactories().forEach(searchSourceBuilder::aggregation);
         context.aggs.getPipelineAggregatorFactories().forEach(searchSourceBuilder::aggregation);
         return searchSourceBuilder;
     }
 
-    protected abstract T buildSearchRequest(SearchSourceBuilder searchRequestBuilder);
+    protected abstract ActionRequestBuilder<SearchRequest, SearchResponse> buildSearchRequest(SearchSourceBuilder searchRequestBuilder);
 
-    private Aggregations validateAggs(@Nullable Aggregations aggs) {
+    private static InternalAggregations validateAggs(@Nullable InternalAggregations aggs) {
         if (aggs == null) {
             return null;
         }
-        List<Aggregation> aggsAsList = aggs.asList();
+        List<InternalAggregation> aggsAsList = aggs.asList();
         if (aggsAsList.isEmpty()) {
             return null;
         }
         if (aggsAsList.size() > 1) {
-            throw new IllegalArgumentException("Multiple top level aggregations not supported; found: "
-                + aggsAsList.stream().map(Aggregation::getName).collect(Collectors.toList()));
+            throw new IllegalArgumentException(
+                "Multiple top level aggregations not supported; found: " + aggsAsList.stream().map(Aggregation::getName).toList()
+            );
         }
 
         return aggs;
-    }
-
-    private InputStream processNextBatch() throws IOException {
-        outputStream.reset();
-
-        hasNext = aggregationToJsonProcessor.writeDocs(BATCH_KEY_VALUE_PAIRS, outputStream);
-        return new ByteArrayInputStream(outputStream.toByteArray());
-    }
-
-    protected long getHistogramInterval() {
-        return ExtractorUtils.getHistogramIntervalMillis(context.aggs);
     }
 
     public AggregationDataExtractorContext getContext() {
         return context;
     }
 
+    @Override
+    public DataSummary getSummary() {
+        ActionRequestBuilder<SearchRequest, SearchResponse> searchRequestBuilder = buildSearchRequest(
+            DataExtractorUtils.getSearchSourceBuilderForSummary(context.queryContext)
+        );
+        SearchResponse searchResponse = executeSearchRequest(client, context.queryContext, searchRequestBuilder);
+        try {
+            LOGGER.debug("[{}] Aggregating Data summary response was obtained", context.jobId);
+            timingStatsReporter.reportSearchDuration(searchResponse.getTook());
+            return DataExtractorUtils.getDataSummary(searchResponse);
+        } finally {
+            searchResponse.decRef();
+        }
+    }
 }

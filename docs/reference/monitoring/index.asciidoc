@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[monitor-elasticsearch-cluster]]
 = Monitor a cluster
 
@@ -11,12 +10,11 @@ performance of your {es} cluster.
 * <<monitoring-overview>>
 * <<how-monitoring-works>>
 * <<monitoring-production>>
+* <<configuring-elastic-agent>>
 * <<configuring-metricbeat>>
 * <<configuring-filebeat>>
-* <<collecting-monitoring-data>>
 * <<config-monitoring-indices>>
-* <<es-monitoring-collectors>>
-* <<es-monitoring-exporters>>
+* <<collecting-monitoring-data>>
 * <<monitoring-troubleshooting>>
 
 --
@@ -27,10 +25,7 @@ include::how-monitoring-works.asciidoc[]
 
 include::production.asciidoc[]
 
-include::esms.asciidoc[]
-
-include::collecting-monitoring-data.asciidoc[]
-include::pause-export.asciidoc[]
+include::configuring-elastic-agent.asciidoc[]
 
 include::configuring-metricbeat.asciidoc[]
 
@@ -38,10 +33,12 @@ include::configuring-filebeat.asciidoc[]
 
 include::indices.asciidoc[]
 
+include::collecting-monitoring-data.asciidoc[]
+:leveloffset: +1
 include::collectors.asciidoc[]
-
 include::exporters.asciidoc[]
+:leveloffset: -1
 include::local-export.asciidoc[]
 include::http-export.asciidoc[]
+include::pause-export.asciidoc[]
 
-include::troubleshooting.asciidoc[]

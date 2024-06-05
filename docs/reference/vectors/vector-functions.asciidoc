@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[vector-functions]]
 ===== Functions for vector fields
 
@@ -8,12 +7,29 @@ linearly scanned. Thus, expect the query time grow linearly
 with the number of matched documents. For this reason, we recommend
 to limit the number of matched documents with a `query` parameter.
 
+This is the list of available vector functions and vector access methods:
+
+1. <<vector-functions-cosine,`cosineSimilarity`>> – calculates cosine similarity
+2. <<vector-functions-dot-product,`dotProduct`>> – calculates dot product
+3. <<vector-functions-l1,`l1norm`>> – calculates L^1^ distance
+4. <<vector-functions-l2,`l2norm`>> - calculates L^2^ distance
+5. <<vector-functions-accessing-vectors,`doc[<field>].vectorValue`>> – returns a vector's value as an array of floats
+6. <<vector-functions-accessing-vectors,`doc[<field>].magnitude`>> – returns a vector's magnitude
+
+NOTE: The recommended way to access dense vectors is through the
+`cosineSimilarity`, `dotProduct`, `l1norm` or `l2norm` functions. Please note
+however, that you should call these functions only once per script. For example,
+don’t use these functions in a loop to calculate the similarity between a
+document vector and multiple other vectors. If you need that functionality,
+reimplement these functions yourself by
+<<vector-functions-accessing-vectors,accessing vector values directly>>.
+
 Let's create an index with a `dense_vector` mapping and index a couple
 of documents into it.
 
 [source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
     "properties": {
@@ -28,29 +44,32 @@ PUT my_index
   }
 }
 
-PUT my_index/_doc/1
+PUT my-index-000001/_doc/1
 {
   "my_dense_vector": [0.5, 10, 6],
   "status" : "published"
 }
 
-PUT my_index/_doc/2
+PUT my-index-000001/_doc/2
 {
   "my_dense_vector": [-0.5, 10, 10],
   "status" : "published"
 }
 
-POST my_index/_refresh
+POST my-index-000001/_refresh
 
 --------------------------------------------------
 // TESTSETUP
+
+[[vector-functions-cosine]]
+====== Cosine similarity
 
 The `cosineSimilarity` function calculates the measure of
 cosine similarity between a given query vector and document vectors.
 
 [source,console]
 --------------------------------------------------
-GET my_index/_search
+GET my-index-000001/_search
 {
   "query": {
     "script_score": {
@@ -81,12 +100,15 @@ GET my_index/_search
 NOTE: If a document's dense vector field has a number of dimensions
 different from the query's vector, an error will be thrown.
 
+[[vector-functions-dot-product]]
+====== Dot product
+
 The `dotProduct` function calculates the measure of
 dot product between a given query vector and document vectors.
 
 [source,console]
 --------------------------------------------------
-GET my_index/_search
+GET my-index-000001/_search
 {
   "query": {
     "script_score": {
@@ -115,13 +137,16 @@ GET my_index/_search
 
 <1> Using the standard sigmoid function prevents scores from being negative.
 
+[[vector-functions-l1]]
+====== L^1^ distance (Manhattan distance)
+
 The `l1norm` function calculates L^1^ distance
 (Manhattan distance) between a given query vector and
 document vectors.
 
 [source,console]
 --------------------------------------------------
-GET my_index/_search
+GET my-index-000001/_search
 {
   "query": {
     "script_score": {
@@ -154,13 +179,16 @@ we reversed the output from `l1norm` and `l2norm`. Also, to avoid
 division by 0 when a document vector matches the query exactly,
 we added `1` in the denominator.
 
+[[vector-functions-l2]]
+====== L^2^ distance (Euclidean distance)
+
 The `l2norm` function calculates L^2^ distance
 (Euclidean distance) between a given query vector and
 document vectors.
 
 [source,console]
 --------------------------------------------------
-GET my_index/_search
+GET my-index-000001/_search
 {
   "query": {
     "script_score": {
@@ -184,10 +212,13 @@ GET my_index/_search
 }
 --------------------------------------------------
 
-NOTE: If a document doesn't have a value for a vector field on which
-a vector function is executed, an error will be thrown.
+[[vector-functions-missing-values]]
+====== Checking for missing values
 
-You can check if a document has a value for the field `my_vector` by
+If a document doesn't have a value for a vector field on which a vector function
+is executed, an error will be thrown.
+
+You can check if a document has a value for the field `my_vector` with
 `doc['my_vector'].size() == 0`. Your overall script can look like this:
 
 [source,js]
@@ -195,3 +226,52 @@ You can check if a document has a value for the field `my_vector` by
 "source": "doc['my_vector'].size() == 0 ? 0 : cosineSimilarity(params.queryVector, 'my_vector')"
 --------------------------------------------------
 // NOTCONSOLE
+
+[[vector-functions-accessing-vectors]]
+====== Accessing vectors directly
+
+You can access vector values directly through the following functions:
+
+- `doc[<field>].vectorValue` – returns a vector's value as an array of floats
+
+- `doc[<field>].magnitude` – returns a vector's magnitude as a float
+(for vectors created prior to version 7.5 the magnitude is not stored.
+So this function calculates it anew every time it is called).
+
+For example, the script below implements a cosine similarity using these
+two functions:
+
+[source,console]
+--------------------------------------------------
+GET my-index-000001/_search
+{
+  "query": {
+    "script_score": {
+      "query" : {
+        "bool" : {
+          "filter" : {
+            "term" : {
+              "status" : "published"
+            }
+          }
+        }
+      },
+      "script": {
+        "source": """
+          float[] v = doc['my_dense_vector'].vectorValue;
+          float vm = doc['my_dense_vector'].magnitude;
+          float dotProduct = 0;
+          for (int i = 0; i < v.length; i++) {
+            dotProduct += v[i] * params.queryVector[i];
+          }
+          return dotProduct / (vm * (float) params.queryVectorMag);
+        """,
+        "params": {
+          "queryVector": [4, 3.4, -0.2],
+          "queryVectorMag": 5.25357
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------

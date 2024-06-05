@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.fetch.subphase;
@@ -22,7 +11,7 @@ package org.elasticsearch.search.fetch.subphase;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.Collector;
-import org.apache.lucene.search.ConjunctionDISI;
+import org.apache.lucene.search.ConjunctionUtils;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.ScoreMode;
@@ -35,6 +24,8 @@ import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.SubSearchContext;
+import org.elasticsearch.search.lookup.Source;
+import org.elasticsearch.search.profile.Profilers;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -62,8 +53,11 @@ public final class InnerHitsContext {
 
     public void addInnerHitDefinition(InnerHitSubContext innerHit) {
         if (innerHits.containsKey(innerHit.getName())) {
-            throw new IllegalArgumentException("inner_hit definition with the name [" + innerHit.getName() +
-                    "] already exists. Use a different inner_hit name or define one explicitly");
+            throw new IllegalArgumentException(
+                "inner_hit definition with the name ["
+                    + innerHit.getName()
+                    + "] already exists. Use a different inner_hit name or define one explicitly"
+            );
         }
 
         innerHits.put(innerHit.getName(), innerHit);
@@ -78,8 +72,10 @@ public final class InnerHitsContext {
         private final String name;
         protected final SearchContext context;
         private InnerHitsContext childInnerHits;
+        private Weight innerHitQueryWeight;
 
-        private String id;
+        private String rootId;
+        private Source rootSource;
 
         protected InnerHitSubContext(String name, SearchContext context) {
             super(context);
@@ -87,10 +83,15 @@ public final class InnerHitsContext {
             this.context = context;
         }
 
-        public abstract TopDocsAndMaxScore[] topDocs(SearchHit[] hits) throws IOException;
+        public abstract TopDocsAndMaxScore topDocs(SearchHit hit) throws IOException;
 
         public String getName() {
             return name;
+        }
+
+        @Override
+        public Profilers getProfilers() {
+            return null;
         }
 
         @Override
@@ -102,22 +103,43 @@ public final class InnerHitsContext {
             this.childInnerHits = new InnerHitsContext(childInnerHits);
         }
 
-        protected Weight createInnerHitQueryWeight() throws IOException {
-            final boolean needsScores = size() != 0 && (sort() == null || sort().sort.needsScores());
-            return context.searcher().createWeight(context.searcher().rewrite(query()),
-                    needsScores ? ScoreMode.COMPLETE : ScoreMode.COMPLETE_NO_SCORES, 1f);
+        protected Weight getInnerHitQueryWeight() throws IOException {
+            if (innerHitQueryWeight == null) {
+                final boolean needsScores = size() != 0 && (sort() == null || sort().sort.needsScores());
+                innerHitQueryWeight = context.searcher()
+                    .createWeight(context.searcher().rewrite(query()), needsScores ? ScoreMode.COMPLETE : ScoreMode.COMPLETE_NO_SCORES, 1f);
+            }
+            return innerHitQueryWeight;
         }
 
         public SearchContext parentSearchContext() {
             return context;
         }
 
-        public String getId() {
-            return id;
+        /**
+         * The _id of the root document.
+         *
+         * Since this ID is available on the context, inner hits can avoid re-loading the root _id.
+         */
+        public String getRootId() {
+            return rootId;
         }
 
-        public void setId(String id) {
-            this.id = id;
+        public void setRootId(String rootId) {
+            this.rootId = rootId;
+        }
+
+        /**
+         * A source lookup for the root document.
+         *
+         * This shared lookup allows inner hits to avoid re-loading the root _source.
+         */
+        public Source getRootLookup() {
+            return rootSource;
+        }
+
+        public void setRootLookup(Source rootSource) {
+            this.rootSource = rootSource;
         }
     }
 
@@ -147,15 +169,20 @@ public final class InnerHitsContext {
 
         try {
             Bits acceptDocs = ctx.reader().getLiveDocs();
-            DocIdSetIterator iterator = ConjunctionDISI.intersectIterators(Arrays.asList(innerHitQueryScorer.iterator(),
-                scorer.iterator()));
+            DocIdSetIterator iterator = ConjunctionUtils.intersectIterators(
+                Arrays.asList(innerHitQueryScorer.iterator(), scorer.iterator())
+            );
             for (int docId = iterator.nextDoc(); docId < DocIdSetIterator.NO_MORE_DOCS; docId = iterator.nextDoc()) {
                 if (acceptDocs == null || acceptDocs.get(docId)) {
                     leafCollector.collect(docId);
                 }
             }
         } catch (CollectionTerminatedException e) {
-            // ignore and continue
+            // collection was terminated prematurely
+            // continue with the following leaf
         }
+        // Finish the leaf collection in preparation for the next.
+        // This includes any collection that was terminated early via `CollectionTerminatedException`
+        leafCollector.finish();
     }
 }

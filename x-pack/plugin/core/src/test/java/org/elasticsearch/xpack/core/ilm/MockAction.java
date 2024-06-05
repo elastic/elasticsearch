@@ -1,16 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -44,7 +45,7 @@ public class MockAction implements LifecycleAction {
     }
 
     public MockAction(StreamInput in) throws IOException {
-        this.steps = in.readList(MockStep::new);
+        this.steps = in.readCollectionAsList(MockStep::new);
         this.safe = in.readBoolean();
     }
 
@@ -76,7 +77,7 @@ public class MockAction implements LifecycleAction {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeList(steps.stream().map(MockStep::new).collect(Collectors.toList()));
+        out.writeCollection(steps.stream().map(MockStep::new).collect(Collectors.toList()));
         out.writeBoolean(safe);
     }
 
@@ -94,7 +95,6 @@ public class MockAction implements LifecycleAction {
             return false;
         }
         MockAction other = (MockAction) obj;
-        return Objects.equals(steps, other.steps) &&
-                Objects.equals(safe, other.safe);
+        return Objects.equals(steps, other.steps) && Objects.equals(safe, other.safe);
     }
 }

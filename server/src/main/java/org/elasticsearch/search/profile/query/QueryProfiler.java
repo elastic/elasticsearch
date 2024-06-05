@@ -1,28 +1,18 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.profile.query;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.search.profile.AbstractProfiler;
+import org.elasticsearch.search.profile.Timer;
 
-import java.util.Objects;
+import static java.util.Objects.requireNonNull;
 
 /**
  * This class acts as a thread-local storage for profiling a query.  It also
@@ -38,28 +28,38 @@ import java.util.Objects;
 public final class QueryProfiler extends AbstractProfiler<QueryProfileBreakdown, Query> {
 
     /**
-     * The root Collector used in the search
+     * The root CollectorResult used in the search
      */
-    private InternalProfileCollector collector;
+    private CollectorResult collectorResult;
+
+    private long vectorOpsCount;
 
     public QueryProfiler() {
         super(new InternalQueryProfileTree());
     }
 
-    /** Set the collector that is associated with this profiler. */
-    public void setCollector(InternalProfileCollector collector) {
-        if (this.collector != null) {
-            throw new IllegalStateException("The collector can only be set once.");
+    public void setVectorOpsCount(long vectorOpsCount) {
+        this.vectorOpsCount = vectorOpsCount;
+    }
+
+    public long getVectorOpsCount() {
+        return this.vectorOpsCount;
+    }
+
+    /** Set the collector result that is associated with this profiler. */
+    public void setCollectorResult(CollectorResult collectorResult) {
+        if (this.collectorResult != null) {
+            throw new IllegalStateException("The collector result can only be set once.");
         }
-        this.collector = Objects.requireNonNull(collector);
+        this.collectorResult = requireNonNull(collectorResult);
     }
 
     /**
      * Begin timing the rewrite phase of a request.  All rewrites are accumulated together into a
      * single metric
      */
-    public void startRewriteTime() {
-        ((InternalQueryProfileTree) profileTree).startRewriteTime();
+    public Timer startRewriteTime() {
+        return ((InternalQueryProfileTree) profileTree).startRewriteTime();
     }
 
     /**
@@ -68,8 +68,8 @@ public final class QueryProfiler extends AbstractProfiler<QueryProfileBreakdown,
      *
      * @return cumulative rewrite time
      */
-    public long stopAndAddRewriteTime() {
-        return ((InternalQueryProfileTree) profileTree).stopAndAddRewriteTime();
+    public long stopAndAddRewriteTime(Timer rewriteTimer) {
+        return ((InternalQueryProfileTree) profileTree).stopAndAddRewriteTime(requireNonNull(rewriteTimer));
     }
 
     /**
@@ -82,9 +82,8 @@ public final class QueryProfiler extends AbstractProfiler<QueryProfileBreakdown,
     /**
      * Return the current root Collector for this search
      */
-    public CollectorResult getCollector() {
-        return collector.getCollectorTree();
+    public CollectorResult getCollectorResult() {
+        return this.collectorResult;
     }
-
 
 }

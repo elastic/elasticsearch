@@ -1,16 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.core.ml.calendars.Calendar;
@@ -26,7 +24,7 @@ public class DeleteCalendarEventAction extends ActionType<AcknowledgedResponse> 
     public static final String NAME = "cluster:admin/xpack/ml/calendars/events/delete";
 
     private DeleteCalendarEventAction() {
-        super(NAME, AcknowledgedResponse::new);
+        super(NAME);
     }
 
     public static class Request extends AcknowledgedRequest<Request> {
@@ -39,10 +37,8 @@ public class DeleteCalendarEventAction extends ActionType<AcknowledgedResponse> 
             eventId = in.readString();
         }
 
-        public Request() {
-        }
-
         public Request(String calendarId, String eventId) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
             this.calendarId = ExceptionsHelper.requireNonNull(calendarId, Calendar.ID.getPreferredName());
             this.eventId = ExceptionsHelper.requireNonNull(eventId, ScheduledEvent.EVENT_ID.getPreferredName());
         }
@@ -53,11 +49,6 @@ public class DeleteCalendarEventAction extends ActionType<AcknowledgedResponse> 
 
         public String getEventId() {
             return eventId;
-        }
-
-        @Override
-        public ActionRequestValidationException validate() {
-            return null;
         }
 
         @Override
@@ -80,13 +71,6 @@ public class DeleteCalendarEventAction extends ActionType<AcknowledgedResponse> 
 
             Request other = (Request) obj;
             return Objects.equals(eventId, other.eventId) && Objects.equals(calendarId, other.calendarId);
-        }
-    }
-
-    public static class RequestBuilder extends ActionRequestBuilder<Request, AcknowledgedResponse> {
-
-        public RequestBuilder(ElasticsearchClient client, DeleteCalendarEventAction action) {
-            super(client, action, new Request());
         }
     }
 }

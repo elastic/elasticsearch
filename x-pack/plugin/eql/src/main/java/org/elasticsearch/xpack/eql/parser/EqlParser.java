@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.eql.parser;
 
@@ -30,10 +31,11 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 
 import static java.lang.String.format;
+import static org.elasticsearch.xpack.ql.type.DateUtils.UTC;
 
 public class EqlParser {
 
-    private static final Logger log = LogManager.getLogger();
+    private static final Logger log = LogManager.getLogger(EqlParser.class);
 
     private final boolean DEBUG = false;
 
@@ -41,9 +43,9 @@ public class EqlParser {
      * Parses an EQL statement into execution plan
      */
     public LogicalPlan createStatement(String eql) {
-        return createStatement(eql, new ParserParams());
+        return createStatement(eql, new ParserParams(UTC));
     }
-    
+
     public LogicalPlan createStatement(String eql, ParserParams params) {
         if (log.isDebugEnabled()) {
             log.debug("Parsing as statement: {}", eql);
@@ -52,7 +54,7 @@ public class EqlParser {
     }
 
     public Expression createExpression(String expression) {
-        return createExpression(expression, new ParserParams());
+        return createExpression(expression, new ParserParams(UTC));
     }
 
     public Expression createExpression(String expression, ParserParams params) {
@@ -63,9 +65,12 @@ public class EqlParser {
         return invokeParser(expression, params, EqlBaseParser::singleExpression, AstBuilder::expression);
     }
 
-    private <T> T invokeParser(String eql, ParserParams params,
-            Function<EqlBaseParser, ParserRuleContext> parseFunction,
-            BiFunction<AstBuilder, ParserRuleContext, T> visitor) {
+    private <T> T invokeParser(
+        String eql,
+        ParserParams params,
+        Function<EqlBaseParser, ParserRuleContext> parseFunction,
+        BiFunction<AstBuilder, ParserRuleContext, T> visitor
+    ) {
         try {
             EqlBaseLexer lexer = new EqlBaseLexer(new ANTLRInputStream(eql));
 
@@ -89,9 +94,7 @@ public class EqlParser {
                 for (Token t : tokenStream.getTokens()) {
                     String symbolicName = EqlBaseLexer.VOCABULARY.getSymbolicName(t.getType());
                     String literalName = EqlBaseLexer.VOCABULARY.getLiteralName(t.getType());
-                    log.info(format(Locale.ROOT, "  %-15s '%s'",
-                        symbolicName == null ? literalName : symbolicName,
-                        t.getText()));
+                    log.info(format(Locale.ROOT, "  %-15s '%s'", symbolicName == null ? literalName : symbolicName, t.getText()));
                 }
             }
 
@@ -103,8 +106,10 @@ public class EqlParser {
 
             return visitor.apply(new AstBuilder(params), tree);
         } catch (StackOverflowError e) {
-            throw new ParsingException("EQL statement is too large, " +
-                "causing stack overflow when generating the parsing tree: [{}]", eql);
+            throw new ParsingException(
+                "EQL statement is too large, " + "causing stack overflow when generating the parsing tree: [{}]",
+                eql
+            );
         }
     }
 
@@ -117,12 +122,24 @@ public class EqlParser {
 
         parser.addErrorListener(new DiagnosticErrorListener(false) {
             @Override
-            public void reportAttemptingFullContext(Parser recognizer, DFA dfa,
-                    int startIndex, int stopIndex, BitSet conflictingAlts, ATNConfigSet configs) {}
+            public void reportAttemptingFullContext(
+                Parser recognizer,
+                DFA dfa,
+                int startIndex,
+                int stopIndex,
+                BitSet conflictingAlts,
+                ATNConfigSet configs
+            ) {}
 
             @Override
-            public void reportContextSensitivity(Parser recognizer, DFA dfa,
-                    int startIndex, int stopIndex, int prediction, ATNConfigSet configs) {}
+            public void reportContextSensitivity(
+                Parser recognizer,
+                DFA dfa,
+                int startIndex,
+                int stopIndex,
+                int prediction,
+                ATNConfigSet configs
+            ) {}
         });
     }
 
@@ -133,89 +150,10 @@ public class EqlParser {
             this.ruleNames = ruleNames;
         }
 
-
-        @Override
-        public void exitFunctionExpression(EqlBaseParser.FunctionExpressionContext context) {
-            Token token = context.name;
-            String functionName = token.getText();
-
-            switch (functionName) {
-                case "add":
-                case "between":
-                case "cidrMatch":
-                case "concat":
-                case "divide":
-                case "endsWith":
-                case "indexOf":
-                case "length":
-                case "match":
-                case "modulo":
-                case "multiply":
-                case "number":
-                case "startsWith":
-                case "string":
-                case "stringContains":
-                case "substring":
-                case "subtract":
-                case "wildcard":
-                    break;
-
-                case "arrayContains":
-                case "arrayCount":
-                case "arraySearch":
-                    throw new ParsingException(
-                        "unsupported function " + functionName,
-                        null,
-                        token.getLine(),
-                        token.getCharPositionInLine());
-
-                default:
-                    throw new ParsingException(
-                        "unknown function " + functionName,
-                        null,
-                        token.getLine(),
-                        token.getCharPositionInLine());
-            }
-        }
-
-        @Override
-        public void exitJoin(EqlBaseParser.JoinContext context) {
-            Token token = context.JOIN().getSymbol();
-            throw new ParsingException(
-                "join is not supported",
-                null,
-                token.getLine(),
-                token.getCharPositionInLine());
-        }
-
-        @Override
-        public void exitPipe(EqlBaseParser.PipeContext context) {
-            Token token = context.PIPE().getSymbol();
-            throw new ParsingException(
-                "pipes are not supported",
-                null,
-                token.getLine(),
-                token.getCharPositionInLine());
-        }
-
         @Override
         public void exitProcessCheck(EqlBaseParser.ProcessCheckContext context) {
             Token token = context.relationship;
-            throw new ParsingException(
-                "process relationships are not supported",
-                null,
-                token.getLine(),
-                token.getCharPositionInLine());
-        }
-
-        @Override
-        public void exitSequence(EqlBaseParser.SequenceContext context) {
-            Token token = context.SEQUENCE().getSymbol();
-            throw new ParsingException(
-                "sequence is not supported",
-                null,
-                token.getLine(),
-                token.getCharPositionInLine());
+            throw new ParsingException("Process relationships are not supported", null, token.getLine(), token.getCharPositionInLine());
         }
 
         @Override
@@ -223,18 +161,25 @@ public class EqlParser {
             if (context.INTEGER_VALUE().size() > 0) {
                 Token firstIndex = context.INTEGER_VALUE(0).getSymbol();
                 throw new ParsingException(
-                    "array indexes are not supported",
+                    "Array indexes are not supported",
                     null,
                     firstIndex.getLine(),
-                    firstIndex.getCharPositionInLine());
+                    firstIndex.getCharPositionInLine()
+                );
             }
         }
     }
 
     private static final BaseErrorListener ERROR_LISTENER = new BaseErrorListener() {
         @Override
-        public void syntaxError(Recognizer<?, ?> recognizer, Object offendingSymbol, int line,
-                int charPositionInLine, String message, RecognitionException e) {
+        public void syntaxError(
+            Recognizer<?, ?> recognizer,
+            Object offendingSymbol,
+            int line,
+            int charPositionInLine,
+            String message,
+            RecognitionException e
+        ) {
             throw new ParsingException(message, e, line, charPositionInLine);
         }
     };

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.indices.breaker;
@@ -23,8 +12,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -49,9 +38,9 @@ public class CircuitBreakerStats implements Writeable, ToXContentObject {
     }
 
     public CircuitBreakerStats(StreamInput in) throws IOException {
-        limit = in.readLong();
-        estimated = in.readLong();
-        overhead = in.readDouble();
+        this.limit = in.readLong();
+        this.estimated = in.readLong();
+        this.overhead = in.readDouble();
         this.trippedCount = in.readLong();
         this.name = in.readString();
     }
@@ -88,22 +77,43 @@ public class CircuitBreakerStats implements Writeable, ToXContentObject {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(name.toLowerCase(Locale.ROOT));
-        builder.field(Fields.LIMIT, limit);
-        builder.field(Fields.LIMIT_HUMAN, new ByteSizeValue(limit));
-        builder.field(Fields.ESTIMATED, estimated);
-        builder.field(Fields.ESTIMATED_HUMAN, new ByteSizeValue(estimated));
+        addBytesFieldsSafe(builder, limit, Fields.LIMIT, Fields.LIMIT_HUMAN);
+        addBytesFieldsSafe(builder, estimated, Fields.ESTIMATED, Fields.ESTIMATED_HUMAN);
         builder.field(Fields.OVERHEAD, overhead);
         builder.field(Fields.TRIPPED_COUNT, trippedCount);
         builder.endObject();
         return builder;
     }
 
+    private void addBytesFieldsSafe(XContentBuilder builder, long bytes, String rawFieldName, String humanFieldName) throws IOException {
+        builder.field(rawFieldName, bytes);
+        if (-1L <= bytes) {
+            builder.field(humanFieldName, ByteSizeValue.ofBytes(bytes));
+        } else {
+            // Something's definitely wrong, maybe a breaker was freed twice? Still, we're just writing out stats here, so we should keep
+            // going if we're running in production.
+            assert HierarchyCircuitBreakerService.permitNegativeValues : this;
+            // noinspection ResultOfMethodCallIgnored - we call toString() to log a warning
+            toString();
+            builder.field(humanFieldName, "");
+        }
+    }
+
     @Override
     public String toString() {
-        return "[" + this.name +
-                ",limit=" + this.limit + "/" + new ByteSizeValue(this.limit) +
-                ",estimated=" + this.estimated + "/" + new ByteSizeValue(this.estimated) +
-                ",overhead=" + this.overhead + ",tripped=" + this.trippedCount + "]";
+        final var stringBuilder = new StringBuilder();
+        stringBuilder.append("[");
+        stringBuilder.append(this.name);
+        stringBuilder.append(",limit=");
+        HierarchyCircuitBreakerService.appendBytesSafe(stringBuilder, this.limit);
+        stringBuilder.append(",estimated=");
+        HierarchyCircuitBreakerService.appendBytesSafe(stringBuilder, this.estimated);
+        stringBuilder.append(",overhead=");
+        stringBuilder.append(this.overhead);
+        stringBuilder.append(",tripped=");
+        stringBuilder.append(this.trippedCount);
+        stringBuilder.append("]");
+        return stringBuilder.toString();
     }
 
     static final class Fields {

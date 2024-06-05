@@ -1,0 +1,197 @@
+// To mute tests follow example in file: example.csv-spec
+
+// this one doesn't work in H2 at all
+truncateWithAsciiHavingAndOrderBy
+SELECT TRUNC(ASCII(LEFT(first_name, 1)), 1), COUNT(*) count FROM test_emp GROUP BY ASCII(LEFT(first_name, 1)) HAVING COUNT(*) > 5 ORDER BY TRUNCATE(ASCII(LEFT(first_name, 1)), 1) DESC;
+
+TRUNC(ASCII(LEFT(first_name, 1)), 1):i   |     count:l
+-----------------------------------------+---------------
+null                                     |10             
+66                                       |7              
+72                                       |6              
+75                                       |7              
+77                                       |9              
+83                                       |11  
+;
+
+truncateWithNoSecondParameterWithAsciiHavingAndOrderBy
+SELECT TRUNCATE(ASCII(LEFT(first_name, 1))), COUNT(*) count FROM test_emp GROUP BY ASCII(LEFT(first_name, 1)) HAVING COUNT(*) > 5 ORDER BY TRUNCATE(ASCII(LEFT(first_name, 1))) DESC;
+
+TRUNCATE(ASCII(LEFT(first_name, 1))):i|     count:l
+--------------------------------------+---------------
+null                                  |10             
+66                                    |7              
+72                                    |6              
+75                                    |7              
+77                                    |9              
+83                                    |11  
+;
+
+roundWithGroupByAndOrderBy
+SELECT ROUND(salary, 2) ROUNDED, salary FROM test_emp GROUP BY ROUNDED, salary ORDER BY ROUNDED LIMIT 10;
+
+    ROUNDED    |    salary     
+---------------+---------------
+25324          |25324          
+25945          |25945          
+25976          |25976          
+26436          |26436          
+27215          |27215          
+28035          |28035          
+28336          |28336          
+28941          |28941          
+29175          |29175          
+30404          |30404  
+;
+
+truncateWithGroupByAndOrderBy
+SELECT TRUNC(salary, 2) TRUNCATED, salary FROM test_emp GROUP BY TRUNCATED, salary ORDER BY TRUNCATED LIMIT 10;
+
+   TRUNCATED   |    salary     
+---------------+---------------
+25324          |25324          
+25945          |25945          
+25976          |25976          
+26436          |26436          
+27215          |27215          
+28035          |28035          
+28336          |28336          
+28941          |28941          
+29175          |29175          
+30404          |30404             
+;
+
+truncateWithAsciiAndOrderBy
+SELECT TRUNCATE(ASCII(LEFT(first_name,1)), -1) AS initial, first_name, ASCII(LEFT(first_name, 1)) FROM test_emp ORDER BY ASCII(LEFT(first_name, 1)) DESC LIMIT 15;
+
+    initial    |  first_name   |ASCII(LEFT(first_name, 1))
+---------------+---------------+--------------------------
+90             |Zvonko         |90                       
+90             |Zhongwei       |90                       
+80             |Yongqiao       |89                       
+80             |Yishay         |89                       
+80             |Yinghua        |89                       
+80             |Xinglin        |88                       
+80             |Weiyi          |87                       
+80             |Vishv          |86                       
+80             |Valdiodio      |86                       
+80             |Valter         |86                       
+80             |Uri            |85                       
+80             |Udi            |85                       
+80             |Tzvetan        |84                       
+80             |Tse            |84                       
+80             |Tuval          |84           
+;
+
+truncateWithHavingAndGroupBy
+SELECT MIN(salary) mi, MAX(salary) ma, COUNT(*) c, TRUNCATE(AVG(salary)) tr FROM test_emp GROUP BY languages HAVING TRUNCATE(AVG(salary)) > 40000 ORDER BY languages;
+
+      mi:i     |      ma:i     |       c:l     |      tr:d       
+---------------+---------------+---------------+---------------
+28336          |74999          |10             |52519.0        
+25976          |73717          |15             |50576.0        
+29175          |73578          |19             |48178.0        
+26436          |74970          |17             |52418.0        
+27215          |74572          |18             |47733.0        
+25324          |66817          |21             |41680.0  
+;
+
+minMaxTruncateAndRoundOfAverageWithHavingRoundAndTruncate
+SELECT MIN(salary) mi, MAX(salary) ma, YEAR(hire_date) year, ROUND(AVG(languages), 1), TRUNCATE(AVG(languages), 1), COUNT(*) FROM test_emp GROUP BY YEAR(hire_date) HAVING ROUND(AVG(languages), 1) > 2.5 AND TRUNCATE(AVG(languages), 1) <= 3.0 ORDER BY YEAR(hire_date);
+
+      mi:i     |      ma:i     |     year:i    |ROUND(AVG(languages), 1):d|TRUNCATE(AVG(languages), 1):d|   COUNT(*):l    
+---------------+---------------+---------------+--------------------------+-----------------------------+---------------
+25324          |70011          |1987           |3.0                       |3.0                          |15             
+25945          |73578          |1988           |2.9                       |2.8                          |9              
+25976          |74970          |1989           |3.0                       |3.0                          |13             
+31120          |71165          |1990           |3.1                       |3.0                          |12             
+30404          |58715          |1993           |3.0                       |3.0                          |3              
+35742          |67492          |1994           |2.8                       |2.7                          |4              
+45656          |45656          |1996           |3.0                       |3.0                          |1           
+;
+
+minMaxRoundWithHavingRound
+SELECT MIN(salary) mi, MAX(salary) ma, YEAR(hire_date) year, ROUND(AVG(languages),1), COUNT(*) FROM test_emp GROUP BY YEAR(hire_date) HAVING ROUND(AVG(languages), 1) > 2.5 ORDER BY YEAR(hire_date);
+
+      mi:i     |      ma:i     |     year:i    |ROUND(AVG(languages),1):d|   COUNT(*):l    
+---------------+---------------+---------------+-------------------------+---------------
+26436          |74999          |1985           |3.1                      |11             
+31897          |61805          |1986           |3.5                      |11             
+25324          |70011          |1987           |3.0                      |15             
+25945          |73578          |1988           |2.9                      |9              
+25976          |74970          |1989           |3.0                      |13             
+31120          |71165          |1990           |3.1                      |12             
+32568          |65030          |1991           |3.3                      |6              
+27215          |60781          |1992           |4.1                      |8              
+30404          |58715          |1993           |3.0                      |3              
+35742          |67492          |1994           |2.8                      |4              
+45656          |45656          |1996           |3.0                      |1              
+;
+
+groupByAndOrderByTruncateWithPositiveParameter
+SELECT TRUNC(AVG(salary),2), AVG(salary), COUNT(*) FROM test_emp GROUP BY TRUNC(salary, 2) ORDER BY TRUNCATE(salary, 2) DESC LIMIT 10;
+
+TRUNC(AVG(salary),2):d   | AVG(salary):d |   COUNT(*):l
+-------------------------+---------------+---------------
+74999.0                  |74999.0        |1              
+74970.0                  |74970.0        |1              
+74572.0                  |74572.0        |1              
+73851.0                  |73851.0        |1              
+73717.0                  |73717.0        |1              
+73578.0                  |73578.0        |1              
+71165.0                  |71165.0        |1              
+70011.0                  |70011.0        |1              
+69904.0                  |69904.0        |1              
+68547.0                  |68547.0        |1     
+;
+
+groupByAndOrderByRoundWithPositiveParameter
+SELECT ROUND(AVG(salary),2), AVG(salary), COUNT(*) FROM test_emp GROUP BY ROUND(salary, 2) ORDER BY ROUND(salary, 2) DESC LIMIT 10;
+
+ROUND(AVG(salary),2):d| AVG(salary):d |   COUNT(*):l    
+----------------------+---------------+---------------
+74999.0               |74999.0        |1              
+74970.0               |74970.0        |1              
+74572.0               |74572.0        |1              
+73851.0               |73851.0        |1              
+73717.0               |73717.0        |1              
+73578.0               |73578.0        |1              
+71165.0               |71165.0        |1              
+70011.0               |70011.0        |1              
+69904.0               |69904.0        |1              
+68547.0               |68547.0        |1        
+;
+
+groupByAndOrderByRoundWithNoSecondParameter
+SELECT ROUND(AVG(salary)), ROUND(salary) rounded, AVG(salary), COUNT(*) FROM test_emp GROUP BY rounded ORDER BY rounded DESC LIMIT 10;
+
+ROUND(AVG(salary)):d|   rounded:i   | AVG(salary):d |   COUNT(*):l    
+--------------------+---------------+---------------+---------------
+74999.0             |74999          |74999.0        |1              
+74970.0             |74970          |74970.0        |1              
+74572.0             |74572          |74572.0        |1              
+73851.0             |73851          |73851.0        |1              
+73717.0             |73717          |73717.0        |1              
+73578.0             |73578          |73578.0        |1              
+71165.0             |71165          |71165.0        |1              
+70011.0             |70011          |70011.0        |1              
+69904.0             |69904          |69904.0        |1              
+68547.0             |68547          |68547.0        |1   
+;
+
+roundInlineWithBigLong
+SELECT ROUND(8998798798798798798) m;
+
+m:l
+-------------------
+8998798798798798798
+;
+
+
+roundInlineWithBigLong2
+SELECT ROUND(8998798798798798798, -1) m;
+
+m:l
+-------------------
+8998798798798798800
+;

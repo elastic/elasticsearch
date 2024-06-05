@@ -1,12 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.utils;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 
 import java.io.IOException;
@@ -24,67 +25,82 @@ import static java.util.Map.entry;
 
 public final class DomainSplitFunction {
 
-    private static final DeprecationLogger deprecationLogger =
-        new DeprecationLogger(LogManager.getLogger(DomainSplitFunction.class));
+    private static final class ConstantHolder {
+        private static final Map<String, String> exact;
+        private static final Map<String, String> under = Map.ofEntries(
+            entry("bd", "i"),
+            entry("np", "i"),
+            entry("jm", "i"),
+            entry("fj", "i"),
+            entry("fk", "i"),
+            entry("ye", "i"),
+            entry("sch.uk", "i"),
+            entry("bn", "i"),
+            entry("kitakyushu.jp", "i"),
+            entry("kobe.jp", "i"),
+            entry("ke", "i"),
+            entry("sapporo.jp", "i"),
+            entry("kh", "i"),
+            entry("mm", "i"),
+            entry("il", "i"),
+            entry("yokohama.jp", "i"),
+            entry("ck", "i"),
+            entry("nagoya.jp", "i"),
+            entry("sendai.jp", "i"),
+            entry("kw", "i"),
+            entry("er", "i"),
+            entry("mz", "i"),
+            entry("platform.sh", "p"),
+            entry("gu", "i"),
+            entry("nom.br", "i"),
+            entry("zm", "i"),
+            entry("pg", "i"),
+            entry("ni", "i"),
+            entry("kawasaki.jp", "i"),
+            entry("zw", "i")
+        );
 
-    private static final int MAX_DOMAIN_PART_LENGTH = 63;
+        private static final Map<String, String> excluded = Map.of(
+            "city.yokohama.jp",
+            "i",
+            "teledata.mz",
+            "i",
+            "city.kobe.jp",
+            "i",
+            "city.sapporo.jp",
+            "i",
+            "city.kawasaki.jp",
+            "i",
+            "city.nagoya.jp",
+            "i",
+            "www.ck",
+            "i",
+            "city.sendai.jp",
+            "i",
+            "city.kitakyushu.jp",
+            "i"
+        );
 
-    private static final Map<String, String> exact;
-    private static final Map<String, String> under = Map.ofEntries(
-        entry("bd", "i"),
-        entry("np", "i"),
-        entry("jm", "i"),
-        entry("fj", "i"),
-        entry("fk", "i"),
-        entry("ye", "i"),
-        entry("sch.uk", "i"),
-        entry("bn", "i"),
-        entry("kitakyushu.jp", "i"),
-        entry("kobe.jp", "i"),
-        entry("ke", "i"),
-        entry("sapporo.jp", "i"),
-        entry("kh", "i"),
-        entry("mm", "i"),
-        entry("il", "i"),
-        entry("yokohama.jp", "i"),
-        entry("ck", "i"),
-        entry("nagoya.jp", "i"),
-        entry("sendai.jp", "i"),
-        entry("kw", "i"),
-        entry("er", "i"),
-        entry("mz", "i"),
-        entry("platform.sh", "p"),
-        entry("gu", "i"),
-        entry("nom.br", "i"),
-        entry("zm", "i"),
-        entry("pg", "i"),
-        entry("ni", "i"),
-        entry("kawasaki.jp", "i"),
-        entry("zw", "i"));
-
-    private static final Map<String, String> excluded =
-        Map.of(
-            "city.yokohama.jp", "i",
-            "teledata.mz", "i",
-            "city.kobe.jp", "i",
-            "city.sapporo.jp", "i",
-            "city.kawasaki.jp", "i",
-            "city.nagoya.jp", "i",
-            "www.ck", "i",
-            "city.sendai.jp", "i",
-            "city.kitakyushu.jp", "i");
-
-    static {
-        try (var stream =
-                 DomainSplitFunction.class.getClassLoader().getResourceAsStream("org/elasticsearch/xpack/ml/transforms/exact.properties")) {
-            exact = Streams.readAllLines(stream)
-                .stream()
-                .map(line -> line.split("="))
-                .collect(Collectors.toUnmodifiableMap(split -> split[0], split -> split[1]));
-        } catch (final IOException e) {
-            throw new UncheckedIOException(e);
+        static {
+            exact = AccessController.doPrivileged((PrivilegedAction<Map<String, String>>) () -> {
+                try (
+                    var stream = DomainSplitFunction.class.getClassLoader()
+                        .getResourceAsStream("org/elasticsearch/xpack/ml/utils/exact.properties")
+                ) {
+                    return Streams.readAllLines(stream)
+                        .stream()
+                        .map(line -> line.split("="))
+                        .collect(
+                            Collectors.<String[], String, String>toUnmodifiableMap(split -> split[0].intern(), split -> split[1].intern())
+                        );
+                } catch (final IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            });
         }
     }
+
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(DomainSplitFunction.class);
 
     private DomainSplitFunction() {}
 
@@ -116,16 +132,16 @@ public final class DomainSplitFunction {
             }
             /* parts.subList(i, partsSize).each(joiner::add); */
             String ancestorName = joiner.toString();
-            if (exact.containsKey(ancestorName)) {
+            if (ConstantHolder.exact.containsKey(ancestorName)) {
                 return i;
             }
             /* Excluded domains (e.g. !nhs.uk) use the next highest
                domain as the effective public suffix (e.g. uk). */
-            if (excluded.containsKey(ancestorName)) {
+            if (ConstantHolder.excluded.containsKey(ancestorName)) {
                 return i + 1;
             }
-            String [] pieces = ancestorName.split("\\.");
-            if (pieces.length >= 2 && under.containsKey(pieces[1])) {
+            String[] pieces = ancestorName.split("\\.");
+            if (pieces.length >= 2 && ConstantHolder.under.containsKey(pieces[1])) {
                 return i;
             }
         }
@@ -148,7 +164,7 @@ public final class DomainSplitFunction {
         if (publicSuffixIndex == 1) {
             return name;
         }
-        if (!(publicSuffixIndex > 0)) {
+        if (publicSuffixIndex <= 0) {
             throw new IllegalArgumentException("Not under a public suffix: " + name);
         }
         return ancestor(parts, publicSuffixIndex - 1);
@@ -157,8 +173,11 @@ public final class DomainSplitFunction {
     public static List<String> domainSplit(String host, Map<String, Object> params) {
         // NOTE: we don't check SpecialPermission because this will be called (indirectly) from scripts
         AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-            deprecationLogger.deprecatedAndMaybeLog("domainSplit",
-                "Method [domainSplit] taking params is deprecated. Remove the params argument.");
+            deprecationLogger.warn(
+                DeprecationCategory.API,
+                "domainSplit",
+                "Method [domainSplit] taking params is deprecated. Remove the params argument."
+            );
             return null;
         });
         return domainSplit(host);
@@ -178,16 +197,16 @@ public final class DomainSplitFunction {
             return Arrays.asList("", host);
         }
         boolean tentativeIP = true;
-        for(int i = 0; i < host.length(); i++) {
-            if (!(Character.isDigit(host.charAt(i)) || host.charAt(i) == '.')) {
+        for (int i = 0; i < host.length(); i++) {
+            if ((Character.isDigit(host.charAt(i)) || host.charAt(i) == '.') == false) {
                 tentativeIP = false;
-            break;
+                break;
             }
         }
         if (tentativeIP) {
             /* special-snowflake rules now... */
             if (host.equals(".")) {
-                return Arrays.asList("","");
+                return Arrays.asList("", "");
             }
             return Arrays.asList("", host);
         }
@@ -201,7 +220,7 @@ public final class DomainSplitFunction {
         String highestRegistered = "";
         /* for the case where the host is internal like .local so is not a recognised public suffix */
         if (publicSuffixIndex == -1) {
-            if (!parts.isEmpty()) {
+            if (parts.isEmpty() == false) {
                 if (parts.size() == 1) {
                     return Arrays.asList("", host);
                 }
@@ -209,7 +228,7 @@ public final class DomainSplitFunction {
                     boolean allNumeric = true;
                     String value = parts.get(parts.size() - 1);
                     for (int i = 0; i < value.length(); i++) {
-                        if (!Character.isDigit(value.charAt(i))) {
+                        if (Character.isDigit(value.charAt(i)) == false) {
                             allNumeric = false;
                             break;
                         }

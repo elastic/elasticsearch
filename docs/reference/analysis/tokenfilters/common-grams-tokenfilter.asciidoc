@@ -4,7 +4,7 @@
 <titleabbrev>Common grams</titleabbrev>
 ++++
 
-Generates https://en.wikipedia.org/wiki/Bigram[bigrams] for a specified set of
+Generates {wikipedia}/Bigram[bigrams] for a specified set of
 common words.
 
 For example, you can specify `is` and `the` as common words. This filter then
@@ -126,22 +126,22 @@ The following <<indices-create-index,create index API>> request uses the
 --------------------------------------------------
 PUT /common_grams_example
 {
-    "settings": {
-        "analysis": {
-            "analyzer": {
-              "index_grams": {
-                  "tokenizer": "whitespace",
-                  "filter": ["common_grams"]
-              }
-            },
-            "filter": {
-              "common_grams": {
-                  "type": "common_grams",
-                  "common_words": ["a", "is", "the"]
-              }
-            }
+  "settings": {
+    "analysis": {
+      "analyzer": {
+        "index_grams": {
+          "tokenizer": "whitespace",
+          "filter": [ "common_grams" ]
         }
+      },
+      "filter": {
+        "common_grams": {
+          "type": "common_grams",
+          "common_words": [ "a", "is", "the" ]
+        }
+      }
     }
+  }
 }
 --------------------------------------------------
 
@@ -171,14 +171,14 @@ Either this or the `common_words` parameter is required.
 --
 
 `ignore_case`::
-(Optional, boolean)
+(Optional, Boolean)
 If `true`, matches for common words matching are case-insensitive.
 Defaults to `false`.
 
 `query_mode`::
 +
 --
-(Optional, boolean)
+(Optional, Boolean)
 If `true`, the filter excludes the following tokens from the output:
 
 * Unigrams for common words
@@ -206,23 +206,23 @@ For example, the following request creates a custom `common_grams` filter with
 --------------------------------------------------
 PUT /common_grams_example
 {
-    "settings": {
-        "analysis": {
-            "analyzer": {
-              "index_grams": {
-                  "tokenizer": "whitespace",
-                  "filter": ["common_grams_query"]
-              }
-            },
-            "filter": {
-              "common_grams_query": {
-                  "type": "common_grams",
-                  "common_words": ["a", "is", "the"],
-                  "ignore_case": true,
-                  "query_mode": true
-              }
-            }
+  "settings": {
+    "analysis": {
+      "analyzer": {
+        "index_grams": {
+          "tokenizer": "whitespace",
+          "filter": [ "common_grams_query" ]
         }
+      },
+      "filter": {
+        "common_grams_query": {
+          "type": "common_grams",
+          "common_words": [ "a", "is", "the" ],
+          "ignore_case": true,
+          "query_mode": true
+        }
+      }
     }
+  }
 }
 --------------------------------------------------

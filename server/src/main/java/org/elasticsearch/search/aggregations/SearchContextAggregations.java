@@ -1,24 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.aggregations;
 
-import static org.elasticsearch.search.aggregations.MultiBucketConsumerService.MultiBucketConsumer;
+import org.apache.lucene.search.CollectorManager;
+
+import java.util.function.Supplier;
 
 /**
  * The aggregation context that is part of the search context.
@@ -26,43 +17,49 @@ import static org.elasticsearch.search.aggregations.MultiBucketConsumerService.M
 public class SearchContextAggregations {
 
     private final AggregatorFactories factories;
-    private final MultiBucketConsumer multiBucketConsumer;
-    private Aggregator[] aggregators;
+    private final Supplier<AggregationReduceContext.Builder> toAggregationReduceContextBuilder;
+    private CollectorManager<AggregatorCollector, Void> aggCollectorManager;
 
     /**
      * Creates a new aggregation context with the parsed aggregator factories
      */
-    public SearchContextAggregations(AggregatorFactories factories, MultiBucketConsumer multiBucketConsumer) {
+    public SearchContextAggregations(
+        AggregatorFactories factories,
+        Supplier<AggregationReduceContext.Builder> toAggregationReduceContextBuilder
+    ) {
         this.factories = factories;
-        this.multiBucketConsumer = multiBucketConsumer;
+        this.toAggregationReduceContextBuilder = toAggregationReduceContextBuilder;
     }
 
     public AggregatorFactories factories() {
         return factories;
     }
 
-    public Aggregator[] aggregators() {
-        return aggregators;
+    /**
+     * Registers the collector to be run for the aggregations phase
+     */
+    public void registerAggsCollectorManager(CollectorManager<AggregatorCollector, Void> aggCollectorManager) {
+        this.aggCollectorManager = aggCollectorManager;
     }
 
     /**
-     * Registers all the created aggregators (top level aggregators) for the search execution context.
-     *
-     * @param aggregators The top level aggregators of the search execution.
+     * Returns the collector to be run for the aggregations phase
      */
-    public void aggregators(Aggregator[] aggregators) {
-        this.aggregators = aggregators;
+    public CollectorManager<AggregatorCollector, Void> getAggsCollectorManager() {
+        return aggCollectorManager;
     }
 
     /**
-     * Returns a consumer for multi bucket aggregation that checks the total number of buckets
-     * created in the response
+     * Returns if the aggregations needs to execute in sort order.
      */
-    public MultiBucketConsumer multiBucketConsumer() {
-        return multiBucketConsumer;
+    public boolean isInSortOrderExecutionRequired() {
+        return factories.context() != null && factories.context().isInSortOrderExecutionRequired();
     }
 
-    void resetBucketMultiConsumer() {
-        multiBucketConsumer.reset();
+    /**
+     * Returns a builder for the reduce context.
+     */
+    public AggregationReduceContext.Builder getAggregationReduceContextBuilder() {
+        return toAggregationReduceContextBuilder.get();
     }
 }

@@ -1,51 +1,43 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.transport;
 
-import org.apache.logging.log4j.LogManager;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.UpdateForV9;
+import org.elasticsearch.node.ReportingService;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 
-import static org.elasticsearch.common.Booleans.parseBoolean;
+import static org.elasticsearch.core.Booleans.parseBoolean;
 
-public class TransportInfo implements Writeable, ToXContentFragment {
+public class TransportInfo implements ReportingService.Info {
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(TransportInfo.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(TransportInfo.class);
 
     /** Whether to add hostname to publish host field when serializing. */
-    private static final boolean CNAME_IN_PUBLISH_ADDRESS =
-            parseBoolean(System.getProperty("es.transport.cname_in_publish_address"), false);
+    @UpdateForV9 // Remove es.transport.cname_in_publish_address property from TransportInfo in 9.0.0
+    private static final boolean CNAME_IN_PUBLISH_ADDRESS = parseBoolean(
+        System.getProperty("es.transport.cname_in_publish_address"),
+        false
+    );
 
-    private BoundTransportAddress address;
+    private final BoundTransportAddress address;
     private Map<String, BoundTransportAddress> profileAddresses;
     private final boolean cnameInPublishAddressProperty;
 
@@ -53,8 +45,11 @@ public class TransportInfo implements Writeable, ToXContentFragment {
         this(address, profileAddresses, CNAME_IN_PUBLISH_ADDRESS);
     }
 
-    public TransportInfo(BoundTransportAddress address, @Nullable Map<String, BoundTransportAddress> profileAddresses,
-                         boolean cnameInPublishAddressProperty) {
+    public TransportInfo(
+        BoundTransportAddress address,
+        @Nullable Map<String, BoundTransportAddress> profileAddresses,
+        boolean cnameInPublishAddressProperty
+    ) {
         this.address = address;
         this.profileAddresses = profileAddresses;
         this.cnameInPublishAddressProperty = cnameInPublishAddressProperty;
@@ -64,7 +59,7 @@ public class TransportInfo implements Writeable, ToXContentFragment {
         address = new BoundTransportAddress(in);
         int size = in.readVInt();
         if (size > 0) {
-            profileAddresses = new HashMap<>(size);
+            profileAddresses = Maps.newMapWithExpectedSize(size);
             for (int i = 0; i < size; i++) {
                 String key = in.readString();
                 BoundTransportAddress value = new BoundTransportAddress(in);
@@ -103,9 +98,12 @@ public class TransportInfo implements Writeable, ToXContentFragment {
         if (InetAddresses.isInetAddress(hostString) == false) {
             publishAddressString = hostString + '/' + publishAddress.toString();
             if (cnameInPublishAddressProperty) {
-                deprecationLogger.deprecated(
-                        "es.transport.cname_in_publish_address system property is deprecated and no longer affects " + propertyName +
-                                " formatting. Remove this property to get rid of this deprecation warning."
+                deprecationLogger.warn(
+                    DeprecationCategory.SETTINGS,
+                    "cname_in_publish_address",
+                    "es.transport.cname_in_publish_address system property is deprecated and no longer affects "
+                        + propertyName
+                        + " formatting. Remove this property to get rid of this deprecation warning."
                 );
             }
         }
@@ -115,7 +113,7 @@ public class TransportInfo implements Writeable, ToXContentFragment {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.TRANSPORT);
-        builder.array(Fields.BOUND_ADDRESS, (Object[]) address.boundAddresses());
+        builder.xContentList(Fields.BOUND_ADDRESS, address.boundAddresses());
         builder.field(Fields.PUBLISH_ADDRESS, formatPublishAddressString("transport.publish_address", address.publishAddress()));
         builder.startObject(Fields.PROFILES);
         if (profileAddresses != null && profileAddresses.size() > 0) {

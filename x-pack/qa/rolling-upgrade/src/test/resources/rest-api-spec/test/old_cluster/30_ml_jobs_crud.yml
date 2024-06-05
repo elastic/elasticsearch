@@ -1,5 +1,22 @@
+setup:
+  - do:
+      index:
+        index: .ml-state
+        id: "dummy-document-to-make-index-creation-idempotent"
+        body: >
+          {
+          }
+
+  - do:
+      cluster.health:
+        index: [".ml-state"]
+        wait_for_status: green
+
 ---
 "Put job on the old cluster and post some data":
+
+  - skip:
+      features: allowed_warnings
 
   - do:
       ml.put_job:
@@ -27,6 +44,8 @@
         job_id: old-cluster-job
 
   - do:
+      allowed_warnings:
+        - 'Posting data directly to anomaly detection jobs is deprecated, in a future major version it will be compulsory to use a datafeed'
       ml.post_data:
         job_id: old-cluster-job
         body:
@@ -59,6 +78,9 @@
 ---
 "Put categorization job on the old cluster and post some data":
 
+  - skip:
+      features: allowed_warnings
+
   - do:
       ml.put_job:
         job_id: old-cluster-categorization-job
@@ -90,6 +112,8 @@
         job_id: old-cluster-categorization-job
 
   - do:
+      allowed_warnings:
+        - 'Posting data directly to anomaly detection jobs is deprecated, in a future major version it will be compulsory to use a datafeed'
       ml.post_data:
         job_id: old-cluster-categorization-job
         body:
@@ -117,6 +141,10 @@
 
 ---
 "Put job on the old cluster with the default model memory limit and post some data":
+
+  - skip:
+      features: allowed_warnings
+
   - do:
       ml.put_job:
         job_id: no-model-memory-limit-job
@@ -138,6 +166,8 @@
         job_id: no-model-memory-limit-job
 
   - do:
+      allowed_warnings:
+        - 'Posting data directly to anomaly detection jobs is deprecated, in a future major version it will be compulsory to use a datafeed'
       ml.post_data:
         job_id: no-model-memory-limit-job
         body:
@@ -172,6 +202,9 @@
 ---
 "Put job with timing stats checking on the old cluster and post some data":
 
+  - skip:
+      features: allowed_warnings
+
   - do:
       ml.put_job:
         job_id: old-cluster-job-with-ts
@@ -198,6 +231,8 @@
         job_id: old-cluster-job-with-ts
 
   - do:
+      allowed_warnings:
+        - 'Posting data directly to anomaly detection jobs is deprecated, in a future major version it will be compulsory to use a datafeed'
       ml.post_data:
         job_id: old-cluster-job-with-ts
         body:

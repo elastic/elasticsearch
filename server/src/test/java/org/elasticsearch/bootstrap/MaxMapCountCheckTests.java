@@ -1,42 +1,29 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.bootstrap;
 
 import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LogEvent;
-import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.message.Message;
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.AbstractBootstrapCheckTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Predicate;
@@ -62,10 +49,16 @@ public class MaxMapCountCheckTests extends AbstractBootstrapCheckTestCase {
     private void assertFailure(final BootstrapCheck.BootstrapCheckResult result) {
         assertTrue(result.isFailure());
         assertThat(
-                result.getMessage(),
-                equalTo(
-                        "max virtual memory areas vm.max_map_count [" + maxMapCount.get() + "] is too low, "
-                                + "increase to at least [" + BootstrapChecks.MaxMapCountCheck.LIMIT + "]"));
+            result.getMessage(),
+            equalTo(
+                "max virtual memory areas vm.max_map_count ["
+                    + maxMapCount.get()
+                    + "] is too low, "
+                    + "increase to at least ["
+                    + BootstrapChecks.MaxMapCountCheck.LIMIT
+                    + "]"
+            )
+        );
     }
 
     public void testMaxMapCountCheckBelowLimit() {
@@ -84,14 +77,14 @@ public class MaxMapCountCheckTests extends AbstractBootstrapCheckTestCase {
         settingsThatAllowMemoryMap.add(Settings.builder().put("node.store.allow_mmap", true).build());
 
         for (final Settings settingThatAllowsMemoryMap : settingsThatAllowMemoryMap) {
-            assertFailure(check.check(createTestContext(settingThatAllowsMemoryMap, MetaData.EMPTY_META_DATA)));
+            assertFailure(check.check(createTestContext(settingThatAllowsMemoryMap, Metadata.EMPTY_METADATA)));
         }
     }
 
     public void testMaxMapCountCheckNotEnforcedIfMemoryMapNotAllowed() {
         // nothing should happen if current vm.max_map_count is under the limit but mmap is not allowed
         final Settings settings = Settings.builder().put("node.store.allow_mmap", false).build();
-        final BootstrapContext context = createTestContext(settings, MetaData.EMPTY_META_DATA);
+        final BootstrapContext context = createTestContext(settings, Metadata.EMPTY_METADATA);
         final BootstrapCheck.BootstrapCheckResult result = check.check(context);
         assertTrue(result.isSuccess());
     }
@@ -138,83 +131,73 @@ public class MaxMapCountCheckTests extends AbstractBootstrapCheckTestCase {
             final IOException ioException = new IOException("fatal");
             when(reader.readLine()).thenThrow(ioException);
             final Logger logger = LogManager.getLogger("testGetMaxMapCountIOException");
-            final MockLogAppender appender = new MockLogAppender();
-            appender.start();
-            appender.addExpectation(
-                    new ParameterizedMessageLoggingExpectation(
-                            "expected logged I/O exception",
-                            "testGetMaxMapCountIOException",
-                            Level.WARN,
-                            "I/O exception while trying to read [{}]",
-                            new Object[] { procSysVmMaxMapCountPath },
-                            e -> ioException == e));
-            Loggers.addAppender(logger, appender);
-            assertThat(check.getMaxMapCount(logger), equalTo(-1L));
-            appender.assertAllExpectationsMatched();
+            try (var mockLog = MockLog.capture("testGetMaxMapCountIOException")) {
+                mockLog.addExpectation(
+                    new MessageLoggingExpectation(
+                        "expected logged I/O exception",
+                        "testGetMaxMapCountIOException",
+                        Level.WARN,
+                        "I/O exception while trying to read [" + procSysVmMaxMapCountPath + "]",
+                        e -> ioException == e
+                    )
+                );
+                assertThat(check.getMaxMapCount(logger), equalTo(-1L));
+                mockLog.assertAllExpectationsMatched();
+            }
             verify(reader).close();
-            Loggers.removeAppender(logger, appender);
-            appender.stop();
         }
 
         {
             reset(reader);
             when(reader.readLine()).thenReturn("eof");
             final Logger logger = LogManager.getLogger("testGetMaxMapCountNumberFormatException");
-            final MockLogAppender appender = new MockLogAppender();
-            appender.start();
-            appender.addExpectation(
-                    new ParameterizedMessageLoggingExpectation(
-                            "expected logged number format exception",
-                            "testGetMaxMapCountNumberFormatException",
-                            Level.WARN,
-                            "unable to parse vm.max_map_count [{}]",
-                            new Object[] { "eof" },
-                            e -> e instanceof NumberFormatException && e.getMessage().equals("For input string: \"eof\"")));
-            Loggers.addAppender(logger, appender);
-            assertThat(check.getMaxMapCount(logger), equalTo(-1L));
-            appender.assertAllExpectationsMatched();
+            try (var mockLog = MockLog.capture("testGetMaxMapCountNumberFormatException")) {
+                mockLog.addExpectation(
+                    new MessageLoggingExpectation(
+                        "expected logged number format exception",
+                        "testGetMaxMapCountNumberFormatException",
+                        Level.WARN,
+                        "unable to parse vm.max_map_count [eof]",
+                        e -> e instanceof NumberFormatException && e.getMessage().equals("For input string: \"eof\"")
+                    )
+                );
+                assertThat(check.getMaxMapCount(logger), equalTo(-1L));
+                mockLog.assertAllExpectationsMatched();
+            }
             verify(reader).close();
-            Loggers.removeAppender(logger, appender);
-            appender.stop();
         }
 
     }
 
-    private static class ParameterizedMessageLoggingExpectation implements MockLogAppender.LoggingExpectation {
+    private static class MessageLoggingExpectation implements MockLog.LoggingExpectation {
 
         private boolean saw = false;
 
         private final String name;
         private final String loggerName;
         private final Level level;
-        private final String messagePattern;
-        private final Object[] arguments;
+        private final String message;
         private final Predicate<Throwable> throwablePredicate;
 
-        private ParameterizedMessageLoggingExpectation(
-                final String name,
-                final String loggerName,
-                final Level level,
-                final String messagePattern,
-                final Object[] arguments,
-                final Predicate<Throwable> throwablePredicate) {
+        private MessageLoggingExpectation(
+            final String name,
+            final String loggerName,
+            final Level level,
+            final String message,
+            final Predicate<Throwable> throwablePredicate
+        ) {
             this.name = name;
             this.loggerName = loggerName;
             this.level = level;
-            this.messagePattern = messagePattern;
-            this.arguments = arguments;
+            this.message = message;
             this.throwablePredicate = throwablePredicate;
         }
 
         @Override
         public void match(final LogEvent event) {
-            if (event.getLevel().equals(level) &&
-                    event.getLoggerName().equals(loggerName) &&
-                    event.getMessage() instanceof ParameterizedMessage) {
-                final ParameterizedMessage message = (ParameterizedMessage)event.getMessage();
-                saw = message.getFormat().equals(messagePattern) &&
-                        Arrays.deepEquals(arguments, message.getParameters()) &&
-                        throwablePredicate.test(event.getThrown());
+            if (event.getLevel().equals(level) && event.getLoggerName().equals(loggerName)) {
+                Message message = event.getMessage();
+                saw = message.getFormattedMessage().equals(this.message) && throwablePredicate.test(event.getThrown());
             }
         }
 
@@ -230,13 +213,16 @@ public class MaxMapCountCheckTests extends AbstractBootstrapCheckTestCase {
         final BufferedReader reader = mock(BufferedReader.class);
         when(reader.readLine()).thenReturn(rawProcSysVmMaxMapCount);
         final BootstrapChecks.MaxMapCountCheck check = new BootstrapChecks.MaxMapCountCheck();
-        assertThat(check.readProcSysVmMaxMapCount(reader), equalTo(rawProcSysVmMaxMapCount));
+        assertThat(BootstrapChecks.MaxMapCountCheck.readProcSysVmMaxMapCount(reader), equalTo(rawProcSysVmMaxMapCount));
     }
 
     public void testMaxMapCountCheckParse() {
         final long procSysVmMaxMapCount = randomIntBetween(1, Integer.MAX_VALUE);
         final BootstrapChecks.MaxMapCountCheck check = new BootstrapChecks.MaxMapCountCheck();
-        assertThat(check.parseProcSysVmMaxMapCount(Long.toString(procSysVmMaxMapCount)), equalTo(procSysVmMaxMapCount));
+        assertThat(
+            BootstrapChecks.MaxMapCountCheck.parseProcSysVmMaxMapCount(Long.toString(procSysVmMaxMapCount)),
+            equalTo(procSysVmMaxMapCount)
+        );
     }
 
 }

@@ -1,27 +1,17 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.ingest;
 
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.grok.MatcherWatchdog;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.Scheduler;
@@ -47,12 +37,13 @@ public interface Processor {
      * otherwise just overwrite {@link #execute(IngestDocument)}.
      */
     default void execute(IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
-        try {
-            IngestDocument result = execute(ingestDocument);
-            handler.accept(result, null);
-        } catch (Exception e) {
-            handler.accept(null, e);
+        if (isAsync() == false) {
+            handler.accept(
+                null,
+                new UnsupportedOperationException("asynchronous execute method should not be executed for sync processors")
+            );
         }
+        handler.accept(ingestDocument, null);
     }
 
     /**
@@ -61,7 +52,12 @@ public interface Processor {
      * @return If <code>null</code> is returned then the current document will be dropped and not be indexed,
      *         otherwise this document will be kept and indexed
      */
-    IngestDocument execute(IngestDocument ingestDocument) throws Exception;
+    default IngestDocument execute(IngestDocument ingestDocument) throws Exception {
+        if (isAsync()) {
+            throw new UnsupportedOperationException("synchronous execute method should not be executed for async processors");
+        }
+        return ingestDocument;
+    }
 
     /**
      * Gets the type of a processor
@@ -74,22 +70,44 @@ public interface Processor {
     String getTag();
 
     /**
+     * Gets the description of a processor.
+     */
+    String getDescription();
+
+    default boolean isAsync() {
+        return false;
+    }
+
+    /**
+     * Validate a processor after it has been constructed by a factory.
+     *
+     * Override this method to perform additional post-construction validation that should be performed at the rest/transport level.
+     * If there's an issue with the processor, then indicate that by throwing an exception. See
+     * {@link IngestService#validatePipeline(Map, String, Map)}} for the call site where there is invoked in a try/catch.
+     *
+     * An example of where this would be needed is a processor that interacts with external state like the license state -- it may
+     * be okay to create that processor on day 1 with license state A, but later illegal to create a similar processor on day 2 with
+     * state B. We want to reject put requests on day 2 (at the rest/transport level), but still allow for restarting nodes in the
+     * cluster (so we can't throw exceptions from {@link Factory#create(Map, String, String, Map)}).
+     */
+    default void extraValidation() throws Exception {}
+
+    /**
      * A factory that knows how to construct a processor based on a map of maps.
      */
     interface Factory {
 
         /**
          * Creates a processor based on the specified map of maps config.
-         *
-         * @param processorFactories Other processors which may be created inside this processor
+         *  @param processorFactories Other processors which may be created inside this processor
          * @param tag The tag for the processor
+         * @param description A short description of what this processor does
          * @param config The configuration for the processor
          *
          * <b>Note:</b> Implementations are responsible for removing the used configuration keys, so that after
-         * creating a pipeline ingest can verify if all configurations settings have been used.
          */
-        Processor create(Map<String, Processor.Factory> processorFactories, String tag,
-                         Map<String, Object> config) throws Exception;
+        Processor create(Map<String, Factory> processorFactories, String tag, String description, Map<String, Object> config)
+            throws Exception;
     }
 
     /**
@@ -135,9 +153,20 @@ public interface Processor {
          */
         public final Client client;
 
-        public Parameters(Environment env, ScriptService scriptService, AnalysisRegistry analysisRegistry,  ThreadContext threadContext,
-                          LongSupplier relativeTimeSupplier, BiFunction<Long, Runnable, Scheduler.ScheduledCancellable> scheduler,
-                          IngestService ingestService, Client client, Consumer<Runnable> genericExecutor ) {
+        public final MatcherWatchdog matcherWatchdog;
+
+        public Parameters(
+            Environment env,
+            ScriptService scriptService,
+            AnalysisRegistry analysisRegistry,
+            ThreadContext threadContext,
+            LongSupplier relativeTimeSupplier,
+            BiFunction<Long, Runnable, Scheduler.ScheduledCancellable> scheduler,
+            IngestService ingestService,
+            Client client,
+            Consumer<Runnable> genericExecutor,
+            MatcherWatchdog matcherWatchdog
+        ) {
             this.env = env;
             this.scriptService = scriptService;
             this.threadContext = threadContext;
@@ -147,7 +176,7 @@ public interface Processor {
             this.ingestService = ingestService;
             this.client = client;
             this.genericExecutor = genericExecutor;
+            this.matcherWatchdog = matcherWatchdog;
         }
-
     }
 }

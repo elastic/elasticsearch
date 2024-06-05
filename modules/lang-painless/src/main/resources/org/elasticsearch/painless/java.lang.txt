@@ -1,0 +1,1091 @@
+#
+# Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+# or more contributor license agreements. Licensed under the Elastic License
+# 2.0 and the Server Side Public License, v 1; you may not use this file except
+# in compliance with, at your election, the Elastic License 2.0 or the Server
+# Side Public License, v 1.
+#
+
+#
+# Painless definition file. This defines the hierarchy of classes,
+# what methods and fields they have, etc.
+#
+
+#### Interfaces
+
+class java.lang.Appendable {
+  # append(char/CharSequence): skipped. left to subclasses (e.g. StringBuilder).
+  Appendable append(CharSequence,int,int)
+}
+
+# AutoCloseable: i/o
+
+class java.lang.CharSequence {
+  char charAt(int)
+  IntStream chars()
+  IntStream codePoints()
+  int length()
+  String org.elasticsearch.painless.api.Augmentation replaceAll(Pattern,Function)
+  String org.elasticsearch.painless.api.Augmentation replaceFirst(Pattern,Function)
+  CharSequence subSequence(int,int)
+  String toString()
+}
+
+# Cloneable: add clone() to subclasses directly.
+
+class java.lang.Comparable {
+  int compareTo(def)
+}
+
+class java.lang.Iterable {
+  void forEach(Consumer)
+  Iterator iterator()
+  Spliterator spliterator()
+  # some adaptations of groovy wmethods
+  boolean org.elasticsearch.painless.api.Augmentation any(Predicate)
+  Collection org.elasticsearch.painless.api.Augmentation asCollection()
+  List org.elasticsearch.painless.api.Augmentation asList()
+  def org.elasticsearch.painless.api.Augmentation each(Consumer)
+  def org.elasticsearch.painless.api.Augmentation eachWithIndex(ObjIntConsumer)
+  boolean org.elasticsearch.painless.api.Augmentation every(Predicate)
+  List org.elasticsearch.painless.api.Augmentation findResults(Function)
+  Map org.elasticsearch.painless.api.Augmentation groupBy(Function)
+  String org.elasticsearch.painless.api.Augmentation join(String)
+  double org.elasticsearch.painless.api.Augmentation sum()
+  double org.elasticsearch.painless.api.Augmentation sum(ToDoubleFunction)
+}
+
+# Readable: i/o
+# Runnable: threads.
+# Thread.UncaughtExceptionHandler: threads.
+
+#### Classes
+
+class java.lang.Boolean {
+  Boolean TRUE
+  Boolean FALSE
+  boolean booleanValue()
+  int compare(boolean,boolean)
+  int compareTo(Boolean)
+  int hashCode(boolean)
+  boolean logicalAnd(boolean,boolean)
+  boolean logicalOr(boolean,boolean)
+  boolean logicalXor(boolean,boolean)
+  boolean parseBoolean(String)
+  String toString(boolean)
+  Boolean valueOf(boolean)
+}
+
+class java.lang.Byte {
+  int BYTES
+  byte MAX_VALUE
+  byte MIN_VALUE
+  int SIZE
+  int compare(byte,byte)
+  int compareTo(Byte)
+  Byte decode(String)
+  int hashCode(byte)
+  byte parseByte(String)
+  byte parseByte(String,int)
+  String toString(byte)
+  int toUnsignedInt(byte)
+  long toUnsignedLong(byte)
+  Byte valueOf(byte)
+  Byte valueOf(String,int)
+}
+
+class java.lang.Character {
+  int BYTES
+  byte COMBINING_SPACING_MARK
+  byte CONNECTOR_PUNCTUATION
+  byte CONTROL
+  byte CURRENCY_SYMBOL
+  byte DASH_PUNCTUATION
+  byte DECIMAL_DIGIT_NUMBER
+  byte DIRECTIONALITY_ARABIC_NUMBER
+  byte DIRECTIONALITY_BOUNDARY_NEUTRAL
+  byte DIRECTIONALITY_COMMON_NUMBER_SEPARATOR
+  byte DIRECTIONALITY_EUROPEAN_NUMBER
+  byte DIRECTIONALITY_EUROPEAN_NUMBER_SEPARATOR
+  byte DIRECTIONALITY_EUROPEAN_NUMBER_TERMINATOR
+  byte DIRECTIONALITY_LEFT_TO_RIGHT
+  byte DIRECTIONALITY_LEFT_TO_RIGHT_EMBEDDING
+  byte DIRECTIONALITY_LEFT_TO_RIGHT_OVERRIDE
+  byte DIRECTIONALITY_NONSPACING_MARK
+  byte DIRECTIONALITY_OTHER_NEUTRALS
+  byte DIRECTIONALITY_PARAGRAPH_SEPARATOR
+  byte DIRECTIONALITY_POP_DIRECTIONAL_FORMAT
+  byte DIRECTIONALITY_RIGHT_TO_LEFT
+  byte DIRECTIONALITY_RIGHT_TO_LEFT_ARABIC
+  byte DIRECTIONALITY_RIGHT_TO_LEFT_EMBEDDING
+  byte DIRECTIONALITY_RIGHT_TO_LEFT_OVERRIDE
+  byte DIRECTIONALITY_SEGMENT_SEPARATOR
+  byte DIRECTIONALITY_UNDEFINED
+  byte DIRECTIONALITY_WHITESPACE
+  byte ENCLOSING_MARK
+  byte END_PUNCTUATION
+  byte FINAL_QUOTE_PUNCTUATION
+  byte FORMAT
+  byte INITIAL_QUOTE_PUNCTUATION
+  byte LETTER_NUMBER
+  byte LINE_SEPARATOR
+  byte LOWERCASE_LETTER
+  byte MATH_SYMBOL
+  int MAX_CODE_POINT
+  char MAX_HIGH_SURROGATE
+  char MAX_LOW_SURROGATE
+  int MAX_RADIX
+  char MAX_SURROGATE
+  char MAX_VALUE
+  int MIN_CODE_POINT
+  char MIN_HIGH_SURROGATE
+  char MIN_LOW_SURROGATE
+  int MIN_RADIX
+  int MIN_SUPPLEMENTARY_CODE_POINT
+  char MIN_SURROGATE
+  char MIN_VALUE
+  byte MODIFIER_LETTER
+  byte MODIFIER_SYMBOL
+  byte NON_SPACING_MARK
+  byte OTHER_LETTER
+  byte OTHER_NUMBER
+  byte OTHER_PUNCTUATION
+  byte OTHER_SYMBOL
+  byte PARAGRAPH_SEPARATOR
+  byte PRIVATE_USE
+  int SIZE
+  byte SPACE_SEPARATOR
+  byte START_PUNCTUATION
+  byte SURROGATE
+  byte TITLECASE_LETTER
+  byte UNASSIGNED
+  byte UPPERCASE_LETTER
+  int charCount(int)
+  char charValue()
+  int codePointAt(char[],int,int)
+  int codePointAt(CharSequence,int)
+  int codePointBefore(char[],int,int)
+  int codePointBefore(CharSequence,int)
+  int codePointCount(CharSequence,int,int)
+  int compare(char,char)
+  int compareTo(Character)
+  int digit(int,int)
+  char forDigit(int,int)
+  byte getDirectionality(int)
+  String getName(int)
+  int getNumericValue(int)
+  int getType(int)
+  int hashCode(char)
+  char highSurrogate(int)
+  boolean isAlphabetic(int)
+  boolean isBmpCodePoint(int)
+  boolean isDefined(int)
+  boolean isDigit(int)
+  boolean isHighSurrogate(char)
+  boolean isIdentifierIgnorable(int)
+  boolean isIdeographic(int)
+  boolean isISOControl(int)
+  boolean isJavaIdentifierPart(int)
+  boolean isJavaIdentifierStart(int)
+  boolean isLetter(int)
+  boolean isLetterOrDigit(int)
+  boolean isLowerCase(int)
+  boolean isMirrored(int)
+  boolean isSpaceChar(int)
+  boolean isSupplementaryCodePoint(int)
+  boolean isSurrogate(char)
+  boolean isSurrogatePair(char,char)
+  boolean isTitleCase(int)
+  boolean isUnicodeIdentifierPart(int)
+  boolean isUnicodeIdentifierStart(int)
+  boolean isUpperCase(int)
+  boolean isValidCodePoint(int)
+  boolean isWhitespace(int)
+  char lowSurrogate(int)
+  int offsetByCodePoints(char[],int,int,int,int)
+  int offsetByCodePoints(CharSequence,int,int)
+  char reverseBytes(char)
+  char[] toChars(int)
+  int toChars(int,char[],int)
+  int toCodePoint(char,char)
+  char toLowerCase(char)
+  String toString(char)
+  char toTitleCase(char)
+  char toUpperCase(char)
+  Character valueOf(char)
+}
+
+class java.lang.Character$Subset {
+}
+
+class java.lang.Character$UnicodeBlock {
+  Character.UnicodeBlock AEGEAN_NUMBERS
+  Character.UnicodeBlock ALCHEMICAL_SYMBOLS
+  Character.UnicodeBlock ALPHABETIC_PRESENTATION_FORMS
+  Character.UnicodeBlock ANCIENT_GREEK_MUSICAL_NOTATION
+  Character.UnicodeBlock ANCIENT_GREEK_NUMBERS
+  Character.UnicodeBlock ANCIENT_SYMBOLS
+  Character.UnicodeBlock ARABIC
+  Character.UnicodeBlock ARABIC_EXTENDED_A
+  Character.UnicodeBlock ARABIC_MATHEMATICAL_ALPHABETIC_SYMBOLS
+  Character.UnicodeBlock ARABIC_PRESENTATION_FORMS_A
+  Character.UnicodeBlock ARABIC_PRESENTATION_FORMS_B
+  Character.UnicodeBlock ARABIC_SUPPLEMENT
+  Character.UnicodeBlock ARMENIAN
+  Character.UnicodeBlock ARROWS
+  Character.UnicodeBlock AVESTAN
+  Character.UnicodeBlock BALINESE
+  Character.UnicodeBlock BAMUM
+  Character.UnicodeBlock BAMUM_SUPPLEMENT
+  Character.UnicodeBlock BASIC_LATIN
+  Character.UnicodeBlock BATAK
+  Character.UnicodeBlock BENGALI
+  Character.UnicodeBlock BLOCK_ELEMENTS
+  Character.UnicodeBlock BOPOMOFO
+  Character.UnicodeBlock BOPOMOFO_EXTENDED
+  Character.UnicodeBlock BOX_DRAWING
+  Character.UnicodeBlock BRAHMI
+  Character.UnicodeBlock BRAILLE_PATTERNS
+  Character.UnicodeBlock BUGINESE
+  Character.UnicodeBlock BUHID
+  Character.UnicodeBlock BYZANTINE_MUSICAL_SYMBOLS
+  Character.UnicodeBlock CARIAN
+  Character.UnicodeBlock CHAKMA
+  Character.UnicodeBlock CHAM
+  Character.UnicodeBlock CHEROKEE
+  Character.UnicodeBlock CJK_COMPATIBILITY
+  Character.UnicodeBlock CJK_COMPATIBILITY_FORMS
+  Character.UnicodeBlock CJK_COMPATIBILITY_IDEOGRAPHS
+  Character.UnicodeBlock CJK_COMPATIBILITY_IDEOGRAPHS_SUPPLEMENT
+  Character.UnicodeBlock CJK_RADICALS_SUPPLEMENT
+  Character.UnicodeBlock CJK_STROKES
+  Character.UnicodeBlock CJK_SYMBOLS_AND_PUNCTUATION
+  Character.UnicodeBlock CJK_UNIFIED_IDEOGRAPHS
+  Character.UnicodeBlock CJK_UNIFIED_IDEOGRAPHS_EXTENSION_A
+  Character.UnicodeBlock CJK_UNIFIED_IDEOGRAPHS_EXTENSION_B
+  Character.UnicodeBlock CJK_UNIFIED_IDEOGRAPHS_EXTENSION_C
+  Character.UnicodeBlock CJK_UNIFIED_IDEOGRAPHS_EXTENSION_D
+  Character.UnicodeBlock COMBINING_DIACRITICAL_MARKS
+  Character.UnicodeBlock COMBINING_DIACRITICAL_MARKS_SUPPLEMENT
+  Character.UnicodeBlock COMBINING_HALF_MARKS
+  Character.UnicodeBlock COMBINING_MARKS_FOR_SYMBOLS
+  Character.UnicodeBlock COMMON_INDIC_NUMBER_FORMS
+  Character.UnicodeBlock CONTROL_PICTURES
+  Character.UnicodeBlock COPTIC
+  Character.UnicodeBlock COUNTING_ROD_NUMERALS
+  Character.UnicodeBlock CUNEIFORM
+  Character.UnicodeBlock CUNEIFORM_NUMBERS_AND_PUNCTUATION
+  Character.UnicodeBlock CURRENCY_SYMBOLS
+  Character.UnicodeBlock CYPRIOT_SYLLABARY
+  Character.UnicodeBlock CYRILLIC
+  Character.UnicodeBlock CYRILLIC_EXTENDED_A
+  Character.UnicodeBlock CYRILLIC_EXTENDED_B
+  Character.UnicodeBlock CYRILLIC_SUPPLEMENTARY
+  Character.UnicodeBlock DESERET
+  Character.UnicodeBlock DEVANAGARI
+  Character.UnicodeBlock DEVANAGARI_EXTENDED
+  Character.UnicodeBlock DINGBATS
+  Character.UnicodeBlock DOMINO_TILES
+  Character.UnicodeBlock EGYPTIAN_HIEROGLYPHS
+  Character.UnicodeBlock EMOTICONS
+  Character.UnicodeBlock ENCLOSED_ALPHANUMERIC_SUPPLEMENT
+  Character.UnicodeBlock ENCLOSED_ALPHANUMERICS
+  Character.UnicodeBlock ENCLOSED_CJK_LETTERS_AND_MONTHS
+  Character.UnicodeBlock ENCLOSED_IDEOGRAPHIC_SUPPLEMENT
+  Character.UnicodeBlock ETHIOPIC
+  Character.UnicodeBlock ETHIOPIC_EXTENDED
+  Character.UnicodeBlock ETHIOPIC_EXTENDED_A
+  Character.UnicodeBlock ETHIOPIC_SUPPLEMENT
+  Character.UnicodeBlock GENERAL_PUNCTUATION
+  Character.UnicodeBlock GEOMETRIC_SHAPES
+  Character.UnicodeBlock GEORGIAN
+  Character.UnicodeBlock GEORGIAN_SUPPLEMENT
+  Character.UnicodeBlock GLAGOLITIC
+  Character.UnicodeBlock GOTHIC
+  Character.UnicodeBlock GREEK
+  Character.UnicodeBlock GREEK_EXTENDED
+  Character.UnicodeBlock GUJARATI
+  Character.UnicodeBlock GURMUKHI
+  Character.UnicodeBlock HALFWIDTH_AND_FULLWIDTH_FORMS
+  Character.UnicodeBlock HANGUL_COMPATIBILITY_JAMO
+  Character.UnicodeBlock HANGUL_JAMO
+  Character.UnicodeBlock HANGUL_JAMO_EXTENDED_A
+  Character.UnicodeBlock HANGUL_JAMO_EXTENDED_B
+  Character.UnicodeBlock HANGUL_SYLLABLES
+  Character.UnicodeBlock HANUNOO
+  Character.UnicodeBlock HEBREW
+  Character.UnicodeBlock HIGH_PRIVATE_USE_SURROGATES
+  Character.UnicodeBlock HIGH_SURROGATES
+  Character.UnicodeBlock HIRAGANA
+  Character.UnicodeBlock IDEOGRAPHIC_DESCRIPTION_CHARACTERS
+  Character.UnicodeBlock IMPERIAL_ARAMAIC
+  Character.UnicodeBlock INSCRIPTIONAL_PAHLAVI
+  Character.UnicodeBlock INSCRIPTIONAL_PARTHIAN
+  Character.UnicodeBlock IPA_EXTENSIONS
+  Character.UnicodeBlock JAVANESE
+  Character.UnicodeBlock KAITHI
+  Character.UnicodeBlock KANA_SUPPLEMENT
+  Character.UnicodeBlock KANBUN
+  Character.UnicodeBlock KANGXI_RADICALS
+  Character.UnicodeBlock KANNADA
+  Character.UnicodeBlock KATAKANA
+  Character.UnicodeBlock KATAKANA_PHONETIC_EXTENSIONS
+  Character.UnicodeBlock KAYAH_LI
+  Character.UnicodeBlock KHAROSHTHI
+  Character.UnicodeBlock KHMER
+  Character.UnicodeBlock KHMER_SYMBOLS
+  Character.UnicodeBlock LAO
+  Character.UnicodeBlock LATIN_1_SUPPLEMENT
+  Character.UnicodeBlock LATIN_EXTENDED_A
+  Character.UnicodeBlock LATIN_EXTENDED_ADDITIONAL
+  Character.UnicodeBlock LATIN_EXTENDED_B
+  Character.UnicodeBlock LATIN_EXTENDED_C
+  Character.UnicodeBlock LATIN_EXTENDED_D
+  Character.UnicodeBlock LEPCHA
+  Character.UnicodeBlock LETTERLIKE_SYMBOLS
+  Character.UnicodeBlock LIMBU
+  Character.UnicodeBlock LINEAR_B_IDEOGRAMS
+  Character.UnicodeBlock LINEAR_B_SYLLABARY
+  Character.UnicodeBlock LISU
+  Character.UnicodeBlock LOW_SURROGATES
+  Character.UnicodeBlock LYCIAN
+  Character.UnicodeBlock LYDIAN
+  Character.UnicodeBlock MAHJONG_TILES
+  Character.UnicodeBlock MALAYALAM
+  Character.UnicodeBlock MANDAIC
+  Character.UnicodeBlock MATHEMATICAL_ALPHANUMERIC_SYMBOLS
+  Character.UnicodeBlock MATHEMATICAL_OPERATORS
+  Character.UnicodeBlock MEETEI_MAYEK
+  Character.UnicodeBlock MEETEI_MAYEK_EXTENSIONS
+  Character.UnicodeBlock MEROITIC_CURSIVE
+  Character.UnicodeBlock MEROITIC_HIEROGLYPHS
+  Character.UnicodeBlock MIAO
+  Character.UnicodeBlock MISCELLANEOUS_MATHEMATICAL_SYMBOLS_A
+  Character.UnicodeBlock MISCELLANEOUS_MATHEMATICAL_SYMBOLS_B
+  Character.UnicodeBlock MISCELLANEOUS_SYMBOLS
+  Character.UnicodeBlock MISCELLANEOUS_SYMBOLS_AND_ARROWS
+  Character.UnicodeBlock MISCELLANEOUS_SYMBOLS_AND_PICTOGRAPHS
+  Character.UnicodeBlock MISCELLANEOUS_TECHNICAL
+  Character.UnicodeBlock MODIFIER_TONE_LETTERS
+  Character.UnicodeBlock MONGOLIAN
+  Character.UnicodeBlock MUSICAL_SYMBOLS
+  Character.UnicodeBlock MYANMAR
+  Character.UnicodeBlock MYANMAR_EXTENDED_A
+  Character.UnicodeBlock NEW_TAI_LUE
+  Character.UnicodeBlock NKO
+  Character.UnicodeBlock NUMBER_FORMS
+  Character.UnicodeBlock OGHAM
+  Character.UnicodeBlock OL_CHIKI
+  Character.UnicodeBlock OLD_ITALIC
+  Character.UnicodeBlock OLD_PERSIAN
+  Character.UnicodeBlock OLD_SOUTH_ARABIAN
+  Character.UnicodeBlock OLD_TURKIC
+  Character.UnicodeBlock OPTICAL_CHARACTER_RECOGNITION
+  Character.UnicodeBlock ORIYA
+  Character.UnicodeBlock OSMANYA
+  Character.UnicodeBlock PHAGS_PA
+  Character.UnicodeBlock PHAISTOS_DISC
+  Character.UnicodeBlock PHOENICIAN
+  Character.UnicodeBlock PHONETIC_EXTENSIONS
+  Character.UnicodeBlock PHONETIC_EXTENSIONS_SUPPLEMENT
+  Character.UnicodeBlock PLAYING_CARDS
+  Character.UnicodeBlock PRIVATE_USE_AREA
+  Character.UnicodeBlock REJANG
+  Character.UnicodeBlock RUMI_NUMERAL_SYMBOLS
+  Character.UnicodeBlock RUNIC
+  Character.UnicodeBlock SAMARITAN
+  Character.UnicodeBlock SAURASHTRA
+  Character.UnicodeBlock SHARADA
+  Character.UnicodeBlock SHAVIAN
+  Character.UnicodeBlock SINHALA
+  Character.UnicodeBlock SMALL_FORM_VARIANTS
+  Character.UnicodeBlock SORA_SOMPENG
+  Character.UnicodeBlock SPACING_MODIFIER_LETTERS
+  Character.UnicodeBlock SPECIALS
+  Character.UnicodeBlock SUNDANESE
+  Character.UnicodeBlock SUNDANESE_SUPPLEMENT
+  Character.UnicodeBlock SUPERSCRIPTS_AND_SUBSCRIPTS
+  Character.UnicodeBlock SUPPLEMENTAL_ARROWS_A
+  Character.UnicodeBlock SUPPLEMENTAL_ARROWS_B
+  Character.UnicodeBlock SUPPLEMENTAL_MATHEMATICAL_OPERATORS
+  Character.UnicodeBlock SUPPLEMENTAL_PUNCTUATION
+  Character.UnicodeBlock SUPPLEMENTARY_PRIVATE_USE_AREA_A
+  Character.UnicodeBlock SUPPLEMENTARY_PRIVATE_USE_AREA_B
+  Character.UnicodeBlock SYLOTI_NAGRI
+  Character.UnicodeBlock SYRIAC
+  Character.UnicodeBlock TAGALOG
+  Character.UnicodeBlock TAGBANWA
+  Character.UnicodeBlock TAGS
+  Character.UnicodeBlock TAI_LE
+  Character.UnicodeBlock TAI_THAM
+  Character.UnicodeBlock TAI_VIET
+  Character.UnicodeBlock TAI_XUAN_JING_SYMBOLS
+  Character.UnicodeBlock TAKRI
+  Character.UnicodeBlock TAMIL
+  Character.UnicodeBlock TELUGU
+  Character.UnicodeBlock THAANA
+  Character.UnicodeBlock THAI
+  Character.UnicodeBlock TIBETAN
+  Character.UnicodeBlock TIFINAGH
+  Character.UnicodeBlock TRANSPORT_AND_MAP_SYMBOLS
+  Character.UnicodeBlock UGARITIC
+  Character.UnicodeBlock UNIFIED_CANADIAN_ABORIGINAL_SYLLABICS
+  Character.UnicodeBlock UNIFIED_CANADIAN_ABORIGINAL_SYLLABICS_EXTENDED
+  Character.UnicodeBlock VAI
+  Character.UnicodeBlock VARIATION_SELECTORS
+  Character.UnicodeBlock VARIATION_SELECTORS_SUPPLEMENT
+  Character.UnicodeBlock VEDIC_EXTENSIONS
+  Character.UnicodeBlock VERTICAL_FORMS
+  Character.UnicodeBlock YI_RADICALS
+  Character.UnicodeBlock YI_SYLLABLES
+  Character.UnicodeBlock YIJING_HEXAGRAM_SYMBOLS
+  Character.UnicodeBlock forName(String)
+  Character.UnicodeBlock of(int)
+}
+
+# Class: skipped for obvious reasons
+# ClassLoader: ...
+# ClassValue: ...
+# Compiler: ...
+
+class java.lang.Double {
+  int BYTES
+  int MAX_EXPONENT
+  double MAX_VALUE
+  int MIN_EXPONENT
+  double MIN_NORMAL
+  double MIN_VALUE
+  double NaN
+  double NEGATIVE_INFINITY
+  double POSITIVE_INFINITY
+  int SIZE
+  int compare(double,double)
+  int compareTo(Double)
+  long doubleToLongBits(double)
+  long doubleToRawLongBits(double)
+  int hashCode(double)
+  boolean isFinite(double)
+  boolean isInfinite()
+  boolean isInfinite(double)
+  boolean isNaN()
+  boolean isNaN(double)
+  double longBitsToDouble(long)
+  double max(double,double)
+  double min(double,double)
+  double parseDouble(String)
+  double sum(double,double)
+  String toHexString(double)
+  String toString(double)
+  Double valueOf(double)
+}
+
+class java.lang.Enum {
+  int compareTo(Enum)
+  String name()
+  int ordinal()
+}
+
+class java.lang.Float {
+  int BYTES
+  int MAX_EXPONENT
+  float MAX_VALUE
+  int MIN_EXPONENT
+  float MIN_NORMAL
+  float MIN_VALUE
+  float NaN
+  float NEGATIVE_INFINITY
+  float POSITIVE_INFINITY
+  int SIZE
+  int compare(float,float)
+  int compareTo(Float)
+  int floatToIntBits(float)
+  int floatToRawIntBits(float)
+  int hashCode(float)
+  float intBitsToFloat(int)
+  boolean isFinite(float)
+  boolean isInfinite()
+  boolean isInfinite(float)
+  boolean isNaN()
+  boolean isNaN(float)
+  float max(float,float)
+  float min(float,float)
+  float parseFloat(String)
+  float sum(float,float)
+  String toHexString(float)
+  String toString(float)
+  Float valueOf(float)
+}
+
+# InheritableThreadLocal: threads
+
+class java.lang.Integer {
+  int BYTES
+  int MAX_VALUE
+  int MIN_VALUE
+  int SIZE
+  int bitCount(int)
+  int compare(int,int)
+  int compareTo(Integer)
+  int compareUnsigned(int,int)
+  Integer decode(String)
+  int divideUnsigned(int,int)
+  int hashCode(int)
+  int highestOneBit(int)
+  int lowestOneBit(int)
+  int max(int,int)
+  int min(int,int)
+  int numberOfLeadingZeros(int)
+  int numberOfTrailingZeros(int)
+  int parseInt(String)
+  int parseInt(String,int)
+  int parseUnsignedInt(String)
+  int parseUnsignedInt(String,int)
+  int remainderUnsigned(int,int)
+  int reverse(int)
+  int reverseBytes(int)
+  int rotateLeft(int,int)
+  int rotateRight(int,int)
+  int signum(int)
+  String toBinaryString(int)
+  String toHexString(int)
+  String toOctalString(int)
+  String toString(int)
+  String toString(int,int)
+  long toUnsignedLong(int)
+  String toUnsignedString(int)
+  String toUnsignedString(int,int)
+  Integer valueOf(int)
+  Integer valueOf(String,int)
+}
+
+class java.lang.Long {
+  int BYTES
+  long MAX_VALUE
+  long MIN_VALUE
+  int SIZE
+  int bitCount(long)
+  int compare(long,long)
+  int compareTo(Long)
+  int compareUnsigned(long,long)
+  Long decode(String)
+  long divideUnsigned(long,long)
+  int hashCode(long)
+  long highestOneBit(long)
+  long lowestOneBit(long)
+  long max(long,long)
+  long min(long,long)
+  int numberOfLeadingZeros(long)
+  int numberOfTrailingZeros(long)
+  long parseLong(String)
+  long parseLong(String,int)
+  long parseUnsignedLong(String)
+  long parseUnsignedLong(String,int)
+  long remainderUnsigned(long,long)
+  long reverse(long)
+  long reverseBytes(long)
+  long rotateLeft(long,int)
+  long rotateRight(long,int)
+  int signum(long)
+  long sum(long,long)
+  String toBinaryString(long)
+  String toHexString(long)
+  String toOctalString(long)
+  String toString(long)
+  String toString(long,int)
+  String toUnsignedString(long)
+  String toUnsignedString(long,int)
+  Long valueOf(long)
+  Long valueOf(String,int)
+}
+
+class java.lang.Math {
+  double E
+  double PI
+  double abs(double)
+  double acos(double)
+  double asin(double)
+  double atan(double)
+  double atan2(double,double)
+  double cbrt(double)
+  double ceil(double)
+  double copySign(double,double)
+  double cos(double)
+  double cosh(double)
+  double exp(double)
+  double expm1(double)
+  double floor(double)
+  double hypot(double,double)
+  double IEEEremainder(double,double)
+  double log(double)
+  double log10(double)
+  double log1p(double)
+  double max(double,double)
+  double min(double,double)
+  double nextAfter(double,double)
+  double nextDown(double)
+  double nextUp(double)
+  double pow(double,double)
+  double random() @nondeterministic
+  double rint(double)
+  long round(double)
+  double scalb(double,int)
+  double signum(double)
+  double sin(double)
+  double sinh(double)
+  double sqrt(double)
+  double tan(double)
+  double tanh(double)
+  double toDegrees(double)
+  double toRadians(double)
+  double ulp(double)
+}
+
+class java.lang.Number {
+  byte byteValue()
+  short shortValue()
+  int intValue()
+  long longValue()
+  float floatValue()
+  double doubleValue()
+}
+
+class java.lang.Object {
+  boolean equals(Object)
+  int hashCode()
+  String toString()
+}
+
+# Package: skipped
+# Process: skipped
+# ProcessBuilder: skipped
+# ProcessBuilder.Redirect: skipped
+# Runtime: skipped
+# RuntimePermission: skipped
+# SecurityManger: skipped
+
+class java.lang.Short {
+  int BYTES
+  short MAX_VALUE
+  short MIN_VALUE
+  int SIZE
+  int compare(short,short)
+  int compareTo(Short)
+  Short decode(String)
+  int hashCode(short)
+  short parseShort(String)
+  short parseShort(String,int)
+  short reverseBytes(short)
+  String toString(short)
+  int toUnsignedInt(short)
+  long toUnsignedLong(short)
+  Short valueOf(short)
+  Short valueOf(String,int)
+}
+
+class java.lang.StackTraceElement {
+  (String,String,String,int)
+  String getClassName()
+  String getFileName()
+  int getLineNumber()
+  String getMethodName()
+  boolean isNativeMethod()
+}
+
+class java.lang.StrictMath {
+  double E
+  double PI
+  double abs(double)
+  double acos(double)
+  double asin(double)
+  double atan(double)
+  double atan2(double,double)
+  double cbrt(double)
+  double ceil(double)
+  double copySign(double,double)
+  double cos(double)
+  double cosh(double)
+  double exp(double)
+  double expm1(double)
+  double floor(double)
+  double hypot(double,double)
+  double IEEEremainder(double,double)
+  double log(double)
+  double log10(double)
+  double log1p(double)
+  double max(double,double)
+  double min(double,double)
+  double nextAfter(double,double)
+  double nextDown(double)
+  double nextUp(double)
+  double pow(double,double)
+  double random() @nondeterministic
+  double rint(double)
+  long round(double)
+  double scalb(double,int)
+  double signum(double)
+  double sin(double)
+  double sinh(double)
+  double sqrt(double)
+  double tan(double)
+  double tanh(double)
+  double toDegrees(double)
+  double toRadians(double)
+  double ulp(double)
+}
+
+class java.lang.String {
+  ()
+  int codePointAt(int)
+  int codePointBefore(int)
+  int codePointCount(int,int)
+  int compareTo(String)
+  int compareToIgnoreCase(String)
+  String concat(String)
+  boolean contains(CharSequence)
+  boolean contentEquals(CharSequence)
+  String copyValueOf(char[])
+  String copyValueOf(char[],int,int)
+  String org.elasticsearch.painless.api.Augmentation decodeBase64()
+  String org.elasticsearch.painless.api.Augmentation encodeBase64()
+  String[] org.elasticsearch.painless.api.Augmentation splitOnToken(String)
+  String[] org.elasticsearch.painless.api.Augmentation splitOnToken(String, int)
+  boolean endsWith(String)
+  boolean equalsIgnoreCase(String)
+  String format(Locale,String,def[])
+  String format(String,def[])
+  void getChars(int,int,char[],int)
+  int indexOf(String)
+  int indexOf(String,int)
+  boolean isEmpty()
+  String join(CharSequence,Iterable)
+  int lastIndexOf(String)
+  int lastIndexOf(String,int)
+  int offsetByCodePoints(int,int)
+  boolean regionMatches(boolean,int,String,int,int)
+  boolean regionMatches(int,String,int,int)
+  String replace(CharSequence,CharSequence)
+  boolean startsWith(String)
+  boolean startsWith(String,int)
+  String substring(int)
+  String substring(int,int)
+  char[] toCharArray()
+  String toLowerCase()
+  String toLowerCase(Locale)
+  String toUpperCase()
+  String toUpperCase(Locale)
+  String trim()
+  String valueOf(def)
+}
+
+class java.lang.StringBuffer {
+  ()
+  (CharSequence)
+  StringBuffer append(def)
+  StringBuffer append(CharSequence,int,int)
+  StringBuffer appendCodePoint(int)
+  int capacity()
+  int codePointAt(int)
+  int codePointBefore(int)
+  int codePointCount(int,int)
+  StringBuffer delete(int,int)
+  StringBuffer deleteCharAt(int)
+  void getChars(int,int,char[],int)
+  int indexOf(String)
+  int indexOf(String,int)
+  StringBuffer insert(int,def)
+  int lastIndexOf(String)
+  int lastIndexOf(String,int)
+  int offsetByCodePoints(int,int)
+  StringBuffer replace(int,int,String)
+  StringBuffer reverse()
+  void setCharAt(int,char)
+  void setLength(int)
+  String substring(int)
+  String substring(int,int)
+}
+
+class java.lang.StringBuilder {
+  ()
+  (CharSequence)
+  StringBuilder append(def)
+  StringBuilder append(CharSequence,int,int)
+  StringBuilder appendCodePoint(int)
+  int capacity()
+  int codePointAt(int)
+  int codePointBefore(int)
+  int codePointCount(int,int)
+  StringBuilder delete(int,int)
+  StringBuilder deleteCharAt(int)
+  void getChars(int,int,char[],int)
+  int indexOf(String)
+  int indexOf(String,int)
+  StringBuilder insert(int,def)
+  int lastIndexOf(String)
+  int lastIndexOf(String,int)
+  int offsetByCodePoints(int,int)
+  StringBuilder replace(int,int,String)
+  StringBuilder reverse()
+  void setCharAt(int,char)
+  void setLength(int)
+  String substring(int)
+  String substring(int,int)
+}
+
+class java.lang.System {
+  void arraycopy(Object,int,Object,int,int)
+  long currentTimeMillis() @nondeterministic
+  long nanoTime() @nondeterministic
+}
+
+# Thread: skipped
+# ThreadGroup: skipped
+# ThreadLocal: skipped
+# Throwable: skipped (reserved for painless, users can only catch Exceptions)
+
+class java.lang.Void {
+}
+
+#### Enums
+
+class java.lang.Character$UnicodeScript {
+  Character.UnicodeScript ARABIC
+  Character.UnicodeScript ARMENIAN
+  Character.UnicodeScript AVESTAN
+  Character.UnicodeScript BALINESE
+  Character.UnicodeScript BAMUM
+  Character.UnicodeScript BATAK
+  Character.UnicodeScript BENGALI
+  Character.UnicodeScript BOPOMOFO
+  Character.UnicodeScript BRAHMI
+  Character.UnicodeScript BRAILLE
+  Character.UnicodeScript BUGINESE
+  Character.UnicodeScript BUHID
+  Character.UnicodeScript CANADIAN_ABORIGINAL
+  Character.UnicodeScript CARIAN
+  Character.UnicodeScript CHAKMA
+  Character.UnicodeScript CHAM
+  Character.UnicodeScript CHEROKEE
+  Character.UnicodeScript COMMON
+  Character.UnicodeScript COPTIC
+  Character.UnicodeScript CUNEIFORM
+  Character.UnicodeScript CYPRIOT
+  Character.UnicodeScript CYRILLIC
+  Character.UnicodeScript DESERET
+  Character.UnicodeScript DEVANAGARI
+  Character.UnicodeScript EGYPTIAN_HIEROGLYPHS
+  Character.UnicodeScript ETHIOPIC
+  Character.UnicodeScript GEORGIAN
+  Character.UnicodeScript GLAGOLITIC
+  Character.UnicodeScript GOTHIC
+  Character.UnicodeScript GREEK
+  Character.UnicodeScript GUJARATI
+  Character.UnicodeScript GURMUKHI
+  Character.UnicodeScript HAN
+  Character.UnicodeScript HANGUL
+  Character.UnicodeScript HANUNOO
+  Character.UnicodeScript HEBREW
+  Character.UnicodeScript HIRAGANA
+  Character.UnicodeScript IMPERIAL_ARAMAIC
+  Character.UnicodeScript INHERITED
+  Character.UnicodeScript INSCRIPTIONAL_PAHLAVI
+  Character.UnicodeScript INSCRIPTIONAL_PARTHIAN
+  Character.UnicodeScript JAVANESE
+  Character.UnicodeScript KAITHI
+  Character.UnicodeScript KANNADA
+  Character.UnicodeScript KATAKANA
+  Character.UnicodeScript KAYAH_LI
+  Character.UnicodeScript KHAROSHTHI
+  Character.UnicodeScript KHMER
+  Character.UnicodeScript LAO
+  Character.UnicodeScript LATIN
+  Character.UnicodeScript LEPCHA
+  Character.UnicodeScript LIMBU
+  Character.UnicodeScript LINEAR_B
+  Character.UnicodeScript LISU
+  Character.UnicodeScript LYCIAN
+  Character.UnicodeScript LYDIAN
+  Character.UnicodeScript MALAYALAM
+  Character.UnicodeScript MANDAIC
+  Character.UnicodeScript MEETEI_MAYEK
+  Character.UnicodeScript MEROITIC_CURSIVE
+  Character.UnicodeScript MEROITIC_HIEROGLYPHS
+  Character.UnicodeScript MIAO
+  Character.UnicodeScript MONGOLIAN
+  Character.UnicodeScript MYANMAR
+  Character.UnicodeScript NEW_TAI_LUE
+  Character.UnicodeScript NKO
+  Character.UnicodeScript OGHAM
+  Character.UnicodeScript OL_CHIKI
+  Character.UnicodeScript OLD_ITALIC
+  Character.UnicodeScript OLD_PERSIAN
+  Character.UnicodeScript OLD_SOUTH_ARABIAN
+  Character.UnicodeScript OLD_TURKIC
+  Character.UnicodeScript ORIYA
+  Character.UnicodeScript OSMANYA
+  Character.UnicodeScript PHAGS_PA
+  Character.UnicodeScript PHOENICIAN
+  Character.UnicodeScript REJANG
+  Character.UnicodeScript RUNIC
+  Character.UnicodeScript SAMARITAN
+  Character.UnicodeScript SAURASHTRA
+  Character.UnicodeScript SHARADA
+  Character.UnicodeScript SHAVIAN
+  Character.UnicodeScript SINHALA
+  Character.UnicodeScript SORA_SOMPENG
+  Character.UnicodeScript SUNDANESE
+  Character.UnicodeScript SYLOTI_NAGRI
+  Character.UnicodeScript SYRIAC
+  Character.UnicodeScript TAGALOG
+  Character.UnicodeScript TAGBANWA
+  Character.UnicodeScript TAI_LE
+  Character.UnicodeScript TAI_THAM
+  Character.UnicodeScript TAI_VIET
+  Character.UnicodeScript TAKRI
+  Character.UnicodeScript TAMIL
+  Character.UnicodeScript TELUGU
+  Character.UnicodeScript THAANA
+  Character.UnicodeScript THAI
+  Character.UnicodeScript TIBETAN
+  Character.UnicodeScript TIFINAGH
+  Character.UnicodeScript UGARITIC
+  Character.UnicodeScript UNKNOWN
+  Character.UnicodeScript VAI
+  Character.UnicodeScript YI
+  Character.UnicodeScript forName(String)
+  Character.UnicodeScript of(int)
+  Character.UnicodeScript valueOf(String)
+  Character.UnicodeScript[] values()
+}
+
+#### Exceptions
+
+class java.lang.ArithmeticException {
+  ()
+  (String)
+}
+
+class java.lang.ArrayIndexOutOfBoundsException {
+  ()
+  (String)
+}
+
+class java.lang.ArrayStoreException {
+  ()
+  (String)
+}
+
+class java.lang.ClassCastException {
+  ()
+  (String)
+}
+
+class java.lang.ClassNotFoundException {
+  ()
+  (String)
+}
+
+class java.lang.CloneNotSupportedException {
+  ()
+  (String)
+}
+
+class java.lang.EnumConstantNotPresentException {
+  String constantName()
+}
+
+class java.lang.Exception {
+  ()
+  (String)
+  String getLocalizedMessage()
+  String getMessage()
+  StackTraceElement[] getStackTrace()
+}
+
+class java.lang.IllegalAccessException {
+  ()
+  (String)
+}
+
+class java.lang.IllegalArgumentException {
+  ()
+  (String)
+}
+
+class java.lang.IllegalMonitorStateException {
+  ()
+  (String)
+}
+
+class java.lang.IllegalStateException {
+  ()
+  (String)
+}
+
+class java.lang.IllegalThreadStateException {
+  ()
+  (String)
+}
+
+class java.lang.IndexOutOfBoundsException {
+  ()
+  (String)
+}
+
+class java.lang.InstantiationException {
+  ()
+  (String)
+}
+
+class java.lang.InterruptedException {
+  ()
+  (String)
+}
+
+class java.lang.NegativeArraySizeException {
+  ()
+  (String)
+}
+
+class java.lang.NoSuchFieldException {
+  ()
+  (String)
+}
+
+class java.lang.NoSuchMethodException {
+  ()
+  (String)
+}
+
+class java.lang.NullPointerException {
+  ()
+  (String)
+}
+
+class java.lang.NumberFormatException {
+  ()
+  (String)
+}
+
+class java.lang.ReflectiveOperationException {
+  ()
+  (String)
+}
+
+class java.lang.RuntimeException {
+  ()
+  (String)
+}
+
+class java.lang.StringIndexOutOfBoundsException {
+  ()
+  (String)
+}
+
+class java.lang.TypeNotPresentException {
+  String typeName()
+}
+
+class java.lang.UnsupportedOperationException {
+  ()
+  (String)
+}

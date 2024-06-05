@@ -1,26 +1,13 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.termvectors;
 
-import com.carrotsearch.hppc.ObjectLongHashMap;
-import com.carrotsearch.hppc.cursors.ObjectLongCursor;
 import org.apache.lucene.index.BaseTermsEnum;
 import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.ImpactsEnum;
@@ -38,7 +25,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Iterator;
+import java.util.Map;
 
 import static org.apache.lucene.util.ArrayUtil.grow;
 
@@ -121,7 +110,7 @@ import static org.apache.lucene.util.ArrayUtil.grow;
 
 public final class TermVectorsFields extends Fields {
 
-    private final ObjectLongHashMap<String> fieldMap;
+    private final Map<String, Long> fieldMap;
     private final BytesReference termVectors;
     final boolean hasTermStatistic;
     final boolean hasFieldStatistic;
@@ -134,7 +123,6 @@ public final class TermVectorsFields extends Fields {
      */
     public TermVectorsFields(BytesReference headerRef, BytesReference termVectors) throws IOException {
         try (StreamInput header = headerRef.streamInput()) {
-            fieldMap = new ObjectLongHashMap<>();
             // here we read the header to fill the field offset map
             String headerString = header.readString();
             assert headerString.equals("TV");
@@ -143,10 +131,7 @@ public final class TermVectorsFields extends Fields {
             hasTermStatistic = header.readBoolean();
             hasFieldStatistic = header.readBoolean();
             hasScores = header.readBoolean();
-            final int numFields = header.readVInt();
-            for (int i = 0; i < numFields; i++) {
-                fieldMap.put((header.readString()), header.readVLong());
-            }
+            fieldMap = header.readMap(StreamInput::readVLong);
         }
         // reference to the term vector data
         this.termVectors = termVectors;
@@ -154,34 +139,15 @@ public final class TermVectorsFields extends Fields {
 
     @Override
     public Iterator<String> iterator() {
-        final Iterator<ObjectLongCursor<String>> iterator = fieldMap.iterator();
-        return new Iterator<String>() {
-            @Override
-            public boolean hasNext() {
-                return iterator.hasNext();
-            }
-
-            @Override
-            public String next() {
-                return iterator.next().key;
-            }
-
-            @Override
-            public void remove() {
-                throw new UnsupportedOperationException();
-            }
-        };
+        return Collections.unmodifiableSet(fieldMap.keySet()).iterator();
     }
 
     @Override
     public Terms terms(String field) throws IOException {
-        // first, find where in the termVectors bytes the actual term vector for
-        // this field is stored
-        final int keySlot = fieldMap.indexOf(field);
-        if (keySlot < 0) {
+        Long readOffset = fieldMap.get(field);
+        if (readOffset == null) {
             return null; // we don't have it.
         }
-        long readOffset = fieldMap.indexGet(keySlot);
         return new TermVector(termVectors, readOffset);
     }
 
@@ -345,10 +311,16 @@ public final class TermVectorsFields extends Fields {
 
                 @Override
                 public PostingsEnum postings(PostingsEnum reuse, int flags) throws IOException {
-                    final TermVectorPostingsEnum retVal = (reuse instanceof TermVectorPostingsEnum ? (TermVectorPostingsEnum) reuse
-                            : new TermVectorPostingsEnum());
-                    return retVal.reset(hasPositions ? positions : null, hasOffsets ? startOffsets : null, hasOffsets ? endOffsets
-                            : null, hasPayloads ? payloads : null, freq);
+                    final TermVectorPostingsEnum retVal = (reuse instanceof TermVectorPostingsEnum
+                        ? (TermVectorPostingsEnum) reuse
+                        : new TermVectorPostingsEnum());
+                    return retVal.reset(
+                        hasPositions ? positions : null,
+                        hasOffsets ? startOffsets : null,
+                        hasOffsets ? endOffsets : null,
+                        hasPayloads ? payloads : null,
+                        freq
+                    );
                 }
 
                 @Override
@@ -400,7 +372,7 @@ public final class TermVectorsFields extends Fields {
         }
     }
 
-    private final class TermVectorPostingsEnum extends PostingsEnum {
+    private static final class TermVectorPostingsEnum extends PostingsEnum {
         private boolean hasPositions;
         private boolean hasOffsets;
         private boolean hasPayloads;
@@ -496,7 +468,7 @@ public final class TermVectorsFields extends Fields {
     // the writer writes a 0 for -1 or value +1 and accordingly we have to
     // subtract 1 again
     // adds one to mock not existing term freq
-    int readPotentiallyNegativeVInt(StreamInput stream) throws IOException {
+    static int readPotentiallyNegativeVInt(StreamInput stream) throws IOException {
         return stream.readVInt() - 1;
     }
 
@@ -504,7 +476,7 @@ public final class TermVectorsFields extends Fields {
     // case, the writer writes a 0 for -1 or value +1 and accordingly we have to
     // subtract 1 again
     // adds one to mock not existing term freq
-    long readPotentiallyNegativeVLong(StreamInput stream) throws IOException {
+    static long readPotentiallyNegativeVLong(StreamInput stream) throws IOException {
         return stream.readVLong() - 1;
     }
 }

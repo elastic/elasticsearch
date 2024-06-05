@@ -1,47 +1,35 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.rest.action.cat;
 
-import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
-import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.io.UTF8StreamWriter;
-import org.elasticsearch.common.io.stream.BytesStream;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.SizeValue;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.rest.BytesRestResponse;
+import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.rest.ChunkedRestResponseBodyPart;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.io.Writer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -51,68 +39,98 @@ public class RestTable {
 
     public static RestResponse buildResponse(Table table, RestChannel channel) throws Exception {
         RestRequest request = channel.request();
-        XContentType xContentType = XContentType.fromMediaTypeOrFormat(request.param("format", request.header("Accept")));
+        XContentType xContentType = getResponseContentType(request);
         if (xContentType != null) {
             return buildXContentBuilder(table, channel);
         }
         return buildTextPlainResponse(table, channel);
     }
 
-    public static RestResponse buildXContentBuilder(Table table, RestChannel channel) throws Exception {
-        RestRequest request = channel.request();
-        XContentBuilder builder = channel.newBuilder();
-        List<DisplayHeader> displayHeaders = buildDisplayHeaders(table, request);
-
-        builder.startArray();
-        List<Integer> rowOrder = getRowOrder(table, request);
-        for (Integer row : rowOrder) {
-            builder.startObject();
-            for (DisplayHeader header : displayHeaders) {
-                builder.field(header.display, renderValue(request, table.getAsMap().get(header.name).get(row).value));
-            }
-            builder.endObject();
+    private static XContentType getResponseContentType(RestRequest request) {
+        if (request.hasParam("format")) {
+            return XContentType.fromFormat(request.param("format"));
         }
-        builder.endArray();
-        return new BytesRestResponse(RestStatus.OK, builder);
+        if (request.getParsedAccept() != null) {
+            return request.getParsedAccept().toMediaType(XContentType.MEDIA_TYPE_REGISTRY);
+        }
+        return null;
     }
 
-    public static RestResponse buildTextPlainResponse(Table table, RestChannel channel) throws IOException {
+    public static RestResponse buildXContentBuilder(Table table, RestChannel channel) throws Exception {
+        final RestRequest request = channel.request();
+        final List<Integer> rowOrder = getRowOrder(table, channel.request());
+        final List<DisplayHeader> displayHeaders = buildDisplayHeaders(table, request);
+
+        return RestResponse.chunked(
+            RestStatus.OK,
+            ChunkedRestResponseBodyPart.fromXContent(
+                ignored -> Iterators.concat(
+                    Iterators.single((builder, params) -> builder.startArray()),
+                    Iterators.map(rowOrder.iterator(), row -> (builder, params) -> {
+                        builder.startObject();
+                        for (DisplayHeader header : displayHeaders) {
+                            builder.field(header.display, renderValue(request, table.getAsMap().get(header.name).get(row).value));
+                        }
+                        builder.endObject();
+                        return builder;
+                    }),
+                    Iterators.single((builder, params) -> builder.endArray())
+                ),
+                ToXContent.EMPTY_PARAMS,
+                channel
+            ),
+            null
+        );
+    }
+
+    public static RestResponse buildTextPlainResponse(Table table, RestChannel channel) {
         RestRequest request = channel.request();
         boolean verbose = request.paramAsBoolean("v", false);
 
         List<DisplayHeader> headers = buildDisplayHeaders(table, request);
         int[] width = buildWidths(table, request, verbose, headers);
-
-        BytesStream bytesOut = Streams.flushOnCloseStream(channel.bytesOutput());
-        UTF8StreamWriter out = new UTF8StreamWriter().setOutput(bytesOut);
         int lastHeader = headers.size() - 1;
-        if (verbose) {
-            for (int col = 0; col < headers.size(); col++) {
-                DisplayHeader header = headers.get(col);
-                boolean isLastColumn = col == lastHeader;
-                pad(new Table.Cell(header.display, table.findHeaderByName(header.name)), width[col], request, out, isLastColumn);
-                if (!isLastColumn) {
-                    out.append(" ");
-                }
-            }
-            out.append("\n");
-        }
-
         List<Integer> rowOrder = getRowOrder(table, request);
 
-        for (Integer row: rowOrder) {
-            for (int col = 0; col < headers.size(); col++) {
-                DisplayHeader header = headers.get(col);
-                boolean isLastColumn = col == lastHeader;
-                pad(table.getAsMap().get(header.name).get(row), width[col], request, out, isLastColumn);
-                if (!isLastColumn) {
-                    out.append(" ");
-                }
-            }
-            out.append("\n");
-        }
-        out.close();
-        return new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, bytesOut.bytes());
+        return RestResponse.chunked(
+            RestStatus.OK,
+            ChunkedRestResponseBodyPart.fromTextChunks(
+                RestResponse.TEXT_CONTENT_TYPE,
+                Iterators.concat(
+                    // optional header
+                    verbose ? Iterators.single(writer -> {
+                        for (int col = 0; col < headers.size(); col++) {
+                            DisplayHeader header = headers.get(col);
+                            boolean isLastColumn = col == lastHeader;
+                            pad(
+                                new Table.Cell(header.display, table.findHeaderByName(header.name)),
+                                width[col],
+                                request,
+                                writer,
+                                isLastColumn
+                            );
+                            if (isLastColumn == false) {
+                                writer.append(" ");
+                            }
+                        }
+                        writer.append("\n");
+                    }) : Collections.emptyIterator(),
+                    // body
+                    Iterators.map(rowOrder.iterator(), row -> writer -> {
+                        for (int col = 0; col < headers.size(); col++) {
+                            DisplayHeader header = headers.get(col);
+                            boolean isLastColumn = col == lastHeader;
+                            pad(table.getAsMap().get(header.name).get(row), width[col], request, writer, isLastColumn);
+                            if (isLastColumn == false) {
+                                writer.append(" ");
+                            }
+                        }
+                        writer.append("\n");
+                    })
+                )
+            ),
+            null
+        );
     }
 
     static List<Integer> getRowOrder(Table table, RestRequest request) {
@@ -136,10 +154,9 @@ public class RestTable {
                     columnHeader = columnHeader.substring(0, columnHeader.length() - ":asc".length());
                 }
                 if (headerAliasMap.containsKey(columnHeader)) {
-                        ordering.add(new ColumnOrderElement(headerAliasMap.get(columnHeader), reverse));
+                    ordering.add(new ColumnOrderElement(headerAliasMap.get(columnHeader), reverse));
                 } else {
-                    throw new UnsupportedOperationException(
-                        String.format(Locale.ROOT, "Unable to sort by unknown sort key `%s`", columnHeader));
+                    throw new IllegalArgumentException(String.format(Locale.ROOT, "Unable to sort by unknown sort key `%s`", columnHeader));
                 }
             }
             Collections.sort(rowOrder, new TableIndexComparator(table, ordering));
@@ -199,7 +216,6 @@ public class RestTable {
         return display;
     }
 
-
     static boolean checkOutputTimestamp(DisplayHeader dispHeader, RestRequest request) {
         return checkOutputTimestamp(dispHeader.name, request);
     }
@@ -212,7 +228,6 @@ public class RestTable {
         }
     }
 
-
     /**
      * Extracts all the required fields from the RestRequest 'h' parameter. In order to support wildcards like
      * 'bulk.*' this needs potentially parse all the configured headers and its aliases and needs to ensure
@@ -220,7 +235,7 @@ public class RestTable {
      * or some headers are contained twice due to matching aliases
      */
     private static Set<String> expandHeadersFromRequest(Table table, RestRequest request) {
-        Set<String> headers = new LinkedHashSet<>(table.getHeaders().size());
+        Set<String> headers = Sets.newLinkedHashSetWithExpectedSize(table.getHeaders().size());
 
         // check headers and aliases
         for (String header : Strings.splitStringByCommaToArray(request.param("h"))) {
@@ -300,11 +315,11 @@ public class RestTable {
         return width;
     }
 
-    public static void pad(Table.Cell cell, int width, RestRequest request, UTF8StreamWriter out) throws IOException {
-      pad(cell, width, request, out, false);
+    public static void pad(Table.Cell cell, int width, RestRequest request, Writer out) throws IOException {
+        pad(cell, width, request, out, false);
     }
 
-    public static void pad(Table.Cell cell, int width, RestRequest request, UTF8StreamWriter out, boolean isLast) throws IOException {
+    public static void pad(Table.Cell cell, int width, RestRequest request, Writer out, boolean isLast) throws IOException {
         String sValue = renderValue(request, cell.value);
         int length = sValue == null ? 0 : sValue.length();
         byte leftOver = (byte) (width - length);
@@ -324,7 +339,7 @@ public class RestTable {
                 out.append(sValue);
             }
             // Ignores the leftover spaces if the cell is the last of the column.
-            if (!isLast) {
+            if (isLast == false) {
                 for (byte i = 0; i < leftOver; i++) {
                     out.append(" ");
                 }
@@ -336,8 +351,7 @@ public class RestTable {
         if (value == null) {
             return null;
         }
-        if (value instanceof ByteSizeValue) {
-            ByteSizeValue v = (ByteSizeValue) value;
+        if (value instanceof ByteSizeValue v) {
             String resolution = request.param("bytes");
             if ("b".equals(resolution)) {
                 return Long.toString(v.getBytes());
@@ -355,8 +369,7 @@ public class RestTable {
                 return v.toString();
             }
         }
-        if (value instanceof SizeValue) {
-            SizeValue v = (SizeValue) value;
+        if (value instanceof SizeValue v) {
             String resolution = request.param("size");
             if ("".equals(resolution)) {
                 return Long.toString(v.singles());
@@ -374,8 +387,7 @@ public class RestTable {
                 return v.toString();
             }
         }
-        if (value instanceof TimeValue) {
-            TimeValue v = (TimeValue) value;
+        if (value instanceof TimeValue v) {
             String resolution = request.param("time");
             if ("nanos".equals(resolution)) {
                 return Long.toString(v.nanos());
@@ -420,7 +432,8 @@ public class RestTable {
             this.ordering = ordering;
         }
 
-        private int compareCell(Object o1, Object o2) {
+        @SuppressWarnings("unchecked")
+        private static int compareCell(Object o1, Object o2) {
             if (o1 == null && o2 == null) {
                 return 0;
             } else if (o1 == null) {
@@ -443,8 +456,7 @@ public class RestTable {
                 for (ColumnOrderElement orderingElement : ordering) {
                     String column = orderingElement.getColumn();
                     if (tableMap.containsKey(column)) {
-                        int comparison = compareCell(tableMap.get(column).get(rowIndex1).value,
-                            tableMap.get(column).get(rowIndex2).value);
+                        int comparison = compareCell(tableMap.get(column).get(rowIndex1).value, tableMap.get(column).get(rowIndex2).value);
                         if (comparison != 0) {
                             return orderingElement.isReversed() ? -1 * comparison : comparison;
                         }
@@ -452,8 +464,15 @@ public class RestTable {
                 }
                 return 0;
             } else {
-                throw new AssertionError(String.format(Locale.ENGLISH, "Invalid comparison of indices (%s, %s): Table has %s rows.",
-                    rowIndex1, rowIndex2, table.getRows().size()));
+                throw new AssertionError(
+                    String.format(
+                        Locale.ENGLISH,
+                        "Invalid comparison of indices (%s, %s): Table has %s rows.",
+                        rowIndex1,
+                        rowIndex2,
+                        table.getRows().size()
+                    )
+                );
             }
         }
     }
@@ -473,6 +492,26 @@ public class RestTable {
 
         public boolean isReversed() {
             return reverse;
+        }
+    }
+
+    /**
+     * A formatted number, such that it sorts according to its numeric value but captures a specific string representation too
+     */
+    record FormattedDouble(String displayValue, double numericValue) implements Comparable<FormattedDouble> {
+
+        static FormattedDouble format2DecimalPlaces(double numericValue) {
+            return new FormattedDouble(Strings.format("%.2f", numericValue), numericValue);
+        }
+
+        @Override
+        public int compareTo(FormattedDouble other) {
+            return Double.compare(numericValue, other.numericValue);
+        }
+
+        @Override
+        public String toString() {
+            return displayValue;
         }
     }
 }

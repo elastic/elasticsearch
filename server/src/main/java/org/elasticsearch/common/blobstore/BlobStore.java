@@ -1,27 +1,24 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.common.blobstore;
 
 import java.io.Closeable;
+import java.io.IOException;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.Map;
 
 /**
  * An interface for storing blobs.
+ *
+ * Creates a {@link BlobContainer} for each given {@link BlobPath} on demand in {@link #blobContainer(BlobPath)}.
+ * In implementation/practice, BlobStore often returns a BlobContainer seeded with a reference to the BlobStore.
+ * {@link org.elasticsearch.repositories.blobstore.BlobStoreRepository} holds and manages a BlobStore.
  */
 public interface BlobStore extends Closeable {
 
@@ -29,4 +26,19 @@ public interface BlobStore extends Closeable {
      * Get a blob container instance for storing blobs at the given {@link BlobPath}.
      */
     BlobContainer blobContainer(BlobPath path);
+
+    /**
+     * Delete all the provided blobs from the blob store. Each blob could belong to a different {@code BlobContainer}
+     *
+     * @param purpose   the purpose of the delete operation
+     * @param blobNames the blobs to be deleted
+     */
+    void deleteBlobsIgnoringIfNotExists(OperationPurpose purpose, Iterator<String> blobNames) throws IOException;
+
+    /**
+     * Returns statistics on the count of operations that have been performed on this blob store
+     */
+    default Map<String, Long> stats() {
+        return Collections.emptyMap();
+    }
 }

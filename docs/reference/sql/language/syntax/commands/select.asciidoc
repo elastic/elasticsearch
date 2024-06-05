@@ -1,12 +1,11 @@
 [role="xpack"]
-[testenv="basic"]
 [[sql-syntax-select]]
 === SELECT
 
-.Synopsis
+.Synopsis:
 [source, sql]
 ----
-SELECT select_expr [, ...]
+SELECT [TOP [ count ] ] select_expr [, ...]
 [ FROM table_name ]
 [ WHERE condition ]
 [ GROUP BY grouping_element [, ...] ]
@@ -16,9 +15,7 @@ SELECT select_expr [, ...]
 [ PIVOT ( aggregation_expr FOR column IN ( value [ [ AS ] alias ] [, ...] ) ) ]
 ----
 
-.Description
-
-Retrieves rows from zero or more tables.
+*Description*: Retrieves rows from zero or more tables.
 
 The general execution of `SELECT` is as follows:
 
@@ -27,7 +24,7 @@ The general execution of `SELECT` is as follows:
 . If the `GROUP BY` clause is specified, or if there are aggregate function calls, the output is combined into groups of rows that match on one or more values, and the results of aggregate functions are computed. If the `HAVING` clause is present, it eliminates groups that do not satisfy the given condition. (See <<sql-syntax-group-by, GROUP BY Clause>> and <<sql-syntax-having, HAVING Clause>> below.)
 . The actual output rows are computed using the `SELECT` output expressions for each selected row or row group.
 . If the `ORDER BY` clause is specified, the returned rows are sorted in the specified order. If `ORDER BY` is not given, the rows are returned in whatever order the system finds fastest to produce. (See <<sql-syntax-order-by,ORDER BY Clause>> below.)
-. If the `LIMIT` is specified, the `SELECT` statement only returns a subset of the result rows. (See <<sql-syntax-limit, LIMIT Clause>> below.)
+. If the `LIMIT` or `TOP` is specified (cannot use both in the same query), the `SELECT` statement only returns a subset of the result rows. (See <<sql-syntax-limit, LIMIT Clause>> and <<sql-syntax-top, TOP clause>> below.)
 
 
 [[sql-syntax-select-list]]
@@ -71,6 +68,30 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[wildcardWithOrder]
 
 which essentially returns all(top-level fields, sub-fields, such as multi-fields are ignored] columns found.
 
+[[sql-syntax-top]]
+==== TOP
+
+The `TOP` clause can be used before the <<sql-syntax-select-list, `SELECT` list>> or the <<sql-syntax-select-wildcard, `wildcard`> to
+restrict (limit) the number of rows returned using the format:
+
+[source, sql]
+----
+SELECT TOP <count> <select list> ...
+----
+
+where
+
+count:: is a positive integer or zero indicating the maximum *possible* number of results being returned (as there might be fewer matches
+than the limit). If `0` is specified, no results are returned.
+
+[source, sql]
+----
+include-tagged::{sql-specs}/docs/docs.csv-spec[topBasic]
+----
+
+[NOTE]
+<<sql-syntax-top, `TOP`>> and <<sql-syntax-limit, `LIMIT`>> cannot be used together in the same query and an error is returned otherwise.
+
 [[sql-syntax-from]]
 ==== FROM Clause
 
@@ -95,11 +116,22 @@ If the table name contains special SQL characters (such as `.`,`-`,`*`,etc...) u
 include-tagged::{sql-specs}/docs/docs.csv-spec[fromTableQuoted]
 ----
 
-The name can be a <<multi-index, pattern>> pointing to multiple indices (likely requiring quoting as mentioned above) with the restriction that *all* resolved concrete tables have **exact mapping**.
+The name can be a <<api-multi-index, pattern>> pointing to multiple indices (likely requiring quoting as mentioned above) with the restriction that *all* resolved concrete tables have **exact mapping**.
 
 [source, sql]
 ----
 include-tagged::{sql-specs}/docs/docs.csv-spec[fromTablePatternQuoted]
+----
+
+experimental:[] To run a <<modules-cross-cluster-search,{ccs}>>, specify a
+cluster name using the `<remote_cluster>:<target>` syntax, where
+`<remote_cluster>` maps to a SQL catalog (cluster) and `<target>` to a table
+(index or data stream). The `<remote_cluster>` supports wildcards (`*`)
+and `<target>` can be an <<sql-index-patterns, index pattern>>.
+
+[source, sql]
+----
+include-tagged::{sql-specs}/multi-cluster-with-security/multi-cluster-docs.csv-spec[fromQualifiedTableQuoted]
 ----
 
 `alias`::
@@ -313,7 +345,7 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[orderByBasic]
 [[sql-syntax-order-by-grouping]]
 ==== Order By and Grouping
 
-For queries that perform grouping, ordering can be applied either on the grouping columns (by default ascending) or on aggregate functions. 
+For queries that perform grouping, ordering can be applied either on the grouping columns (by default ascending) or on aggregate functions.
 
 NOTE: With `GROUP BY`, make sure the ordering targets the resulting group - applying it to individual elements inside the group will have no impact on the results since regardless of the order, values inside the group are aggregated.
 
@@ -338,7 +370,7 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[orderByAgg]
 ----
 
 IMPORTANT: Ordering by aggregation is possible for up to *10000* entries for memory consumption reasons.
-In cases where the results pass this threshold, use <<sql-syntax-limit,`LIMIT`>> to reduce the number
+In cases where the results pass this threshold, use <<sql-syntax-limit,`LIMIT`>> or <<sql-syntax-top, `TOP`>> to reduce the number
 of results.
 
 [[sql-syntax-order-by-score]]
@@ -349,7 +381,7 @@ When doing full-text queries in the `WHERE` clause, results can be returned base
 
 NOTE: When doing multiple text queries in the `WHERE` clause then, their scores will be
 combined using the same rules as {es}'s
-<<query-dsl-bool-query,bool query>>. 
+<<query-dsl-bool-query,bool query>>.
 
 To sort based on the `score`, use the special function `SCORE()`:
 
@@ -373,25 +405,27 @@ all are equally relevant.
 [[sql-syntax-limit]]
 ==== LIMIT
 
-The `LIMIT` clause restricts (limits) the number of rows returns using the format:
+The `LIMIT` clause restricts (limits) the number of rows returned using the format:
 
 [source, sql]
 ----
-LIMIT ( count | ALL )
+LIMIT ( <count> | ALL )
 ----
 
 where
 
-count:: is a positive integer or zero indicating the maximum *possible* number of results being returned (as there might be less matches than the limit). If `0` is specified, no results are returned.
+count:: is a positive integer or zero indicating the maximum *possible* number of results being returned (as there might be fewer matches
+than the limit). If `0` is specified, no results are returned.
 
 ALL:: indicates there is no limit and thus all results are being returned.
-
-To return 
 
 [source, sql]
 ----
 include-tagged::{sql-specs}/docs/docs.csv-spec[limitBasic]
 ----
+
+[NOTE]
+<<sql-syntax-top, `TOP`>> and <<sql-syntax-limit, `LIMIT`>> cannot be used together in the same query and an error is returned otherwise.
 
 [[sql-syntax-pivot]]
 ==== PIVOT

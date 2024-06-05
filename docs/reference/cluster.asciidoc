@@ -24,7 +24,7 @@ one of the following:
   `coordinating_only:true`, which respectively add to the subset all
   master-eligible nodes, all data nodes, all ingest nodes, all voting-only
   nodes, all machine learning nodes, and all coordinating-only nodes.
-* `master:false`, `data:false`, `ingest:false`, `voting_only:true`, `ml:false`,
+* `master:false`, `data:false`, `ingest:false`, `voting_only:false`, `ml:false`,
   or `coordinating_only:false`, which respectively remove from the subset all
   master-eligible nodes, all data nodes, all ingest nodes, all voting-only
   nodes, all machine learning nodes, and all coordinating-only nodes.
@@ -45,9 +45,6 @@ any filters are given then they run starting with an empty chosen subset. This
 means that filters such as `master:false` which remove nodes from the chosen
 subset are only useful if they come after some other filters. When used on its
 own, `master:false` selects no nodes.
-
-NOTE: The `voting_only` role requires the {default-dist} of Elasticsearch and
-is not supported in the {oss-dist}.
 
 Here are some examples of the use of node filters with the
 <<cluster-nodes-info,Nodes Info>> APIs.
@@ -85,6 +82,8 @@ include::cluster/get-settings.asciidoc[]
 
 include::cluster/health.asciidoc[]
 
+include::health/health.asciidoc[]
+
 include::cluster/reroute.asciidoc[]
 
 include::cluster/state.asciidoc[]
@@ -99,9 +98,13 @@ include::cluster/nodes-hot-threads.asciidoc[]
 
 include::cluster/nodes-info.asciidoc[]
 
+include::cluster/prevalidate-node-removal.asciidoc[]
+
 include::cluster/nodes-reload-secure-settings.asciidoc[]
 
 include::cluster/nodes-stats.asciidoc[]
+
+include::cluster/cluster-info.asciidoc[]
 
 include::cluster/pending.asciidoc[]
 
@@ -110,3 +113,13 @@ include::cluster/remote-info.asciidoc[]
 include::cluster/tasks.asciidoc[]
 
 include::cluster/voting-exclusions.asciidoc[]
+
+include::cluster/update-desired-nodes.asciidoc[]
+
+include::cluster/get-desired-nodes.asciidoc[]
+
+include::cluster/delete-desired-nodes.asciidoc[]
+
+include::cluster/get-desired-balance.asciidoc[]
+
+include::cluster/delete-desired-balance.asciidoc[]

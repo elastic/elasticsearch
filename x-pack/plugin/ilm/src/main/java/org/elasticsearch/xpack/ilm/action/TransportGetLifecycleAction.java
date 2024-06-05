@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ilm.action;
@@ -16,73 +17,118 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicyMetadata;
+import org.elasticsearch.xpack.core.ilm.LifecyclePolicyUtils;
 import org.elasticsearch.xpack.core.ilm.action.GetLifecycleAction;
 import org.elasticsearch.xpack.core.ilm.action.GetLifecycleAction.LifecyclePolicyResponseItem;
 import org.elasticsearch.xpack.core.ilm.action.GetLifecycleAction.Request;
 import org.elasticsearch.xpack.core.ilm.action.GetLifecycleAction.Response;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 public class TransportGetLifecycleAction extends TransportMasterNodeAction<Request, Response> {
 
     @Inject
-    public TransportGetLifecycleAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                                       ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(GetLifecycleAction.NAME, transportService, clusterService, threadPool, actionFilters, Request::new,
-            indexNameExpressionResolver);
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected Response read(StreamInput in) throws IOException {
-        return new Response(in);
+    public TransportGetLifecycleAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        super(
+            GetLifecycleAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            Request::new,
+            indexNameExpressionResolver,
+            Response::new,
+            threadPool.executor(ThreadPool.Names.MANAGEMENT)
+        );
     }
 
     @Override
     protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) {
-        IndexLifecycleMetadata metadata = clusterService.state().metaData().custom(IndexLifecycleMetadata.TYPE);
+        assert task instanceof CancellableTask : "get lifecycle requests should be cancellable";
+        final CancellableTask cancellableTask = (CancellableTask) task;
+        if (cancellableTask.notifyIfCancelled(listener)) {
+            return;
+        }
+
+        IndexLifecycleMetadata metadata = clusterService.state().metadata().custom(IndexLifecycleMetadata.TYPE);
         if (metadata == null) {
             if (request.getPolicyNames().length == 0) {
                 listener.onResponse(new Response(Collections.emptyList()));
             } else {
-                listener.onFailure(new ResourceNotFoundException("Lifecycle policy not found: {}",
-                    Arrays.toString(request.getPolicyNames())));
+                listener.onFailure(
+                    new ResourceNotFoundException("Lifecycle policy not found: {}", Arrays.toString(request.getPolicyNames()))
+                );
             }
         } else {
-            List<LifecyclePolicyResponseItem> requestedPolicies;
-            // if no policies explicitly provided, behave as if `*` was specified
+            List<String> names;
             if (request.getPolicyNames().length == 0) {
-                requestedPolicies = new ArrayList<>(metadata.getPolicyMetadatas().size());
-                for (LifecyclePolicyMetadata policyMetadata : metadata.getPolicyMetadatas().values()) {
-                    requestedPolicies.add(new LifecyclePolicyResponseItem(policyMetadata.getPolicy(),
-                        policyMetadata.getVersion(), policyMetadata.getModifiedDateString()));
-                }
+                names = List.of("*");
             } else {
-                requestedPolicies = new ArrayList<>(request.getPolicyNames().length);
-                for (String name : request.getPolicyNames()) {
+                names = Arrays.asList(request.getPolicyNames());
+            }
+
+            if (names.size() > 1 && names.stream().anyMatch(Regex::isSimpleMatchPattern)) {
+                throw new IllegalArgumentException(
+                    "wildcard only supports a single value, please use comma-separated values or a single wildcard value"
+                );
+            }
+
+            Map<String, LifecyclePolicyResponseItem> policyResponseItemMap = new LinkedHashMap<>();
+            for (String name : names) {
+                if (Regex.isSimpleMatchPattern(name)) {
+                    for (Map.Entry<String, LifecyclePolicyMetadata> entry : metadata.getPolicyMetadatas().entrySet()) {
+                        if (cancellableTask.notifyIfCancelled(listener)) {
+                            return;
+                        }
+                        LifecyclePolicyMetadata policyMetadata = entry.getValue();
+                        if (Regex.simpleMatch(name, entry.getKey())) {
+                            policyResponseItemMap.put(
+                                entry.getKey(),
+                                new LifecyclePolicyResponseItem(
+                                    policyMetadata.getPolicy(),
+                                    policyMetadata.getVersion(),
+                                    policyMetadata.getModifiedDateString(),
+                                    LifecyclePolicyUtils.calculateUsage(indexNameExpressionResolver, state, policyMetadata.getName())
+                                )
+                            );
+                        }
+                    }
+                } else {
                     LifecyclePolicyMetadata policyMetadata = metadata.getPolicyMetadatas().get(name);
                     if (policyMetadata == null) {
                         listener.onFailure(new ResourceNotFoundException("Lifecycle policy not found: {}", name));
                         return;
                     }
-                    requestedPolicies.add(new LifecyclePolicyResponseItem(policyMetadata.getPolicy(),
-                        policyMetadata.getVersion(), policyMetadata.getModifiedDateString()));
+                    policyResponseItemMap.put(
+                        name,
+                        new LifecyclePolicyResponseItem(
+                            policyMetadata.getPolicy(),
+                            policyMetadata.getVersion(),
+                            policyMetadata.getModifiedDateString(),
+                            LifecyclePolicyUtils.calculateUsage(indexNameExpressionResolver, state, policyMetadata.getName())
+                        )
+                    );
                 }
             }
+            List<LifecyclePolicyResponseItem> requestedPolicies = new ArrayList<>(policyResponseItemMap.values());
             listener.onResponse(new Response(requestedPolicies));
         }
     }

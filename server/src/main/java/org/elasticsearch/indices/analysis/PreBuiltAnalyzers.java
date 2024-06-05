@@ -1,51 +1,38 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.indices.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.CharArraySet;
+import org.apache.lucene.analysis.classic.ClassicAnalyzer;
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.analysis.core.SimpleAnalyzer;
 import org.apache.lucene.analysis.core.StopAnalyzer;
 import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.analysis.en.EnglishAnalyzer;
-import org.apache.lucene.analysis.standard.ClassicAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
-import org.elasticsearch.Version;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.analysis.PreBuiltCacheFactory.CachingStrategy;
 
 import java.util.Locale;
 
 public enum PreBuiltAnalyzers {
 
-    STANDARD(CachingStrategy.ELASTICSEARCH) {
+    STANDARD(CachingStrategy.INDEX) {
         @Override
-        protected Analyzer create(Version version) {
-            final Analyzer a = new StandardAnalyzer(CharArraySet.EMPTY_SET);
-            a.setVersion(version.luceneVersion);
-            return a;
+        protected Analyzer create(IndexVersion version) {
+            return new StandardAnalyzer(CharArraySet.EMPTY_SET);
         }
     },
 
-    DEFAULT(CachingStrategy.ELASTICSEARCH){
+    DEFAULT(CachingStrategy.INDEX) {
         @Override
-        protected Analyzer create(Version version) {
+        protected Analyzer create(IndexVersion version) {
             // by calling get analyzer we are ensuring reuse of the same STANDARD analyzer for DEFAULT!
             // this call does not create a new instance
             return STANDARD.getAnalyzer(version);
@@ -54,48 +41,40 @@ public enum PreBuiltAnalyzers {
 
     KEYWORD(CachingStrategy.ONE) {
         @Override
-        protected Analyzer create(Version version) {
+        protected Analyzer create(IndexVersion version) {
             return new KeywordAnalyzer();
         }
     },
 
     STOP {
         @Override
-        protected Analyzer create(Version version) {
-            Analyzer a = new StopAnalyzer(EnglishAnalyzer.ENGLISH_STOP_WORDS_SET);
-            a.setVersion(version.luceneVersion);
-            return a;
+        protected Analyzer create(IndexVersion version) {
+            return new StopAnalyzer(EnglishAnalyzer.ENGLISH_STOP_WORDS_SET);
         }
     },
 
     WHITESPACE {
         @Override
-        protected Analyzer create(Version version) {
-            Analyzer a = new WhitespaceAnalyzer();
-            a.setVersion(version.luceneVersion);
-            return a;
+        protected Analyzer create(IndexVersion version) {
+            return new WhitespaceAnalyzer();
         }
     },
 
     SIMPLE {
         @Override
-        protected Analyzer create(Version version) {
-            Analyzer a = new SimpleAnalyzer();
-            a.setVersion(version.luceneVersion);
-            return a;
+        protected Analyzer create(IndexVersion version) {
+            return new SimpleAnalyzer();
         }
     },
 
     CLASSIC {
         @Override
-        protected Analyzer create(Version version) {
-            Analyzer a = new ClassicAnalyzer();
-            a.setVersion(version.luceneVersion);
-            return a;
+        protected Analyzer create(IndexVersion version) {
+            return new ClassicAnalyzer();
         }
     };
 
-    protected abstract  Analyzer create(Version version);
+    protected abstract Analyzer create(IndexVersion version);
 
     protected final PreBuiltCacheFactory.PreBuiltCache<Analyzer> cache;
 
@@ -111,7 +90,7 @@ public enum PreBuiltAnalyzers {
         return cache;
     }
 
-    public synchronized Analyzer getAnalyzer(Version version) {
+    public synchronized Analyzer getAnalyzer(IndexVersion version) {
         Analyzer analyzer = cache.get(version);
         if (analyzer == null) {
             analyzer = this.create(version);

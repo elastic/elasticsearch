@@ -1,30 +1,20 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.cluster.shards;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.TransportVersionUtils;
 
 public class ClusterSearchShardsRequestTests extends ESTestCase {
 
@@ -40,7 +30,8 @@ public class ClusterSearchShardsRequestTests extends ESTestCase {
         }
         if (randomBoolean()) {
             request.indicesOptions(
-                    IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()));
+                IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean())
+            );
         }
         if (randomBoolean()) {
             request.preference(randomAlphaOfLengthBetween(3, 10));
@@ -54,18 +45,18 @@ public class ClusterSearchShardsRequestTests extends ESTestCase {
             request.routing(routings);
         }
 
-        Version version = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT);
+        TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random());
         try (BytesStreamOutput out = new BytesStreamOutput()) {
-            out.setVersion(version);
+            out.setTransportVersion(version);
             request.writeTo(out);
             try (StreamInput in = out.bytes().streamInput()) {
-                in.setVersion(version);
+                in.setTransportVersion(version);
                 ClusterSearchShardsRequest deserialized = new ClusterSearchShardsRequest(in);
                 assertArrayEquals(request.indices(), deserialized.indices());
                 // indices options are not equivalent when sent to an older version and re-read due
                 // to the addition of hidden indices as expand to hidden indices is always true when
                 // read from a prior version
-                if (version.onOrAfter(Version.V_7_7_0) || request.indicesOptions().expandWildcardsHidden()) {
+                if (version.onOrAfter(TransportVersions.V_7_7_0) || request.indicesOptions().expandWildcardsHidden()) {
                     assertEquals(request.indicesOptions(), deserialized.indicesOptions());
                 }
                 assertEquals(request.routing(), deserialized.routing());
@@ -77,8 +68,8 @@ public class ClusterSearchShardsRequestTests extends ESTestCase {
     public void testIndicesMustNotBeNull() {
         ClusterSearchShardsRequest request = new ClusterSearchShardsRequest();
         assertNotNull(request.indices());
-        expectThrows(NullPointerException.class, () -> request.indices((String[])null));
-        expectThrows(NullPointerException.class, () -> request.indices((String)null));
-        expectThrows(NullPointerException.class, () -> request.indices(new String[]{"index1", null, "index3"}));
+        expectThrows(NullPointerException.class, () -> request.indices((String[]) null));
+        expectThrows(NullPointerException.class, () -> request.indices((String) null));
+        expectThrows(NullPointerException.class, () -> request.indices(new String[] { "index1", null, "index3" }));
     }
 }

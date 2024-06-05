@@ -1,39 +1,45 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.rest.action.admin.indices;
 
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
+import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Set;
 
+import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.rest.RestUtils.getAckTimeout;
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
+
+@ServerlessScope(Scope.PUBLIC)
 public class RestRolloverIndexAction extends BaseRestHandler {
-    
-    public RestRolloverIndexAction(RestController controller) {
-        controller.registerHandler(RestRequest.Method.POST, "/{index}/_rollover", this);
-        controller.registerHandler(RestRequest.Method.POST, "/{index}/_rollover/{new_index}", this);
+
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestRolloverIndexAction.class);
+    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Using include_type_name in rollover "
+        + "index requests is deprecated. The parameter will be removed in the next major version.";
+
+    @Override
+    public List<Route> routes() {
+        return List.of(new Route(POST, "/{index}/_rollover"), new Route(POST, "/{index}/_rollover/{new_index}"));
     }
 
     @Override
@@ -42,14 +48,48 @@ public class RestRolloverIndexAction extends BaseRestHandler {
     }
 
     @Override
+    public Set<String> supportedCapabilities() {
+        if (DataStream.isFailureStoreFeatureFlagEnabled()) {
+            return Set.of("lazy-rollover-failure-store");
+        } else {
+            return Set.of();
+        }
+    }
+
+    @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
+        final boolean includeTypeName = includeTypeName(request);
         RolloverRequest rolloverIndexRequest = new RolloverRequest(request.param("index"), request.param("new_index"));
-        request.applyContentParser(rolloverIndexRequest::fromXContent);
+        request.applyContentParser(parser -> rolloverIndexRequest.fromXContent(includeTypeName, parser));
         rolloverIndexRequest.dryRun(request.paramAsBoolean("dry_run", false));
-        rolloverIndexRequest.timeout(request.paramAsTime("timeout", rolloverIndexRequest.timeout()));
-        rolloverIndexRequest.masterNodeTimeout(request.paramAsTime("master_timeout", rolloverIndexRequest.masterNodeTimeout()));
-        rolloverIndexRequest.getCreateIndexRequest().waitForActiveShards(
-                ActiveShardCount.parseString(request.param("wait_for_active_shards")));
-        return channel -> client.admin().indices().rolloverIndex(rolloverIndexRequest, new RestToXContentListener<>(channel));
+        rolloverIndexRequest.lazy(request.paramAsBoolean("lazy", false));
+        rolloverIndexRequest.ackTimeout(getAckTimeout(request));
+        rolloverIndexRequest.masterNodeTimeout(getMasterNodeTimeout(request));
+        if (DataStream.isFailureStoreFeatureFlagEnabled()) {
+            boolean failureStore = request.paramAsBoolean("target_failure_store", false);
+            if (failureStore) {
+                rolloverIndexRequest.setIndicesOptions(
+                    IndicesOptions.builder(rolloverIndexRequest.indicesOptions())
+                        .failureStoreOptions(new IndicesOptions.FailureStoreOptions(false, true))
+                        .build()
+                );
+            }
+        }
+        rolloverIndexRequest.getCreateIndexRequest()
+            .waitForActiveShards(ActiveShardCount.parseString(request.param("wait_for_active_shards")));
+        return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).admin()
+            .indices()
+            .rolloverIndex(rolloverIndexRequest, new RestToXContentListener<>(channel));
+    }
+
+    private static boolean includeTypeName(RestRequest request) {
+        boolean includeTypeName = false;
+        if (request.getRestApiVersion() == RestApiVersion.V_7) {
+            if (request.hasParam(INCLUDE_TYPE_NAME_PARAMETER)) {
+                deprecationLogger.compatibleCritical("index_rollover_with_types", TYPES_DEPRECATION_MESSAGE);
+            }
+            includeTypeName = request.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, DEFAULT_INCLUDE_TYPE_NAME_POLICY);
+        }
+        return includeTypeName;
     }
 }

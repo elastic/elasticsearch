@@ -1,0 +1,6 @@
+pr: 106435
+summary: "ENRICH support for TEXT fields"
+area: ES|QL
+type: enhancement
+issues:
+ - 105384

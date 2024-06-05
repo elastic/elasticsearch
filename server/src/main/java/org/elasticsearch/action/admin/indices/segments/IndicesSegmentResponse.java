@@ -1,63 +1,48 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.indices.segments;
 
 import org.apache.lucene.search.Sort;
-import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.SortedSetSortField;
-import org.apache.lucene.util.Accountable;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
-import org.elasticsearch.action.support.broadcast.BroadcastResponse;
-import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.action.support.broadcast.ChunkedBroadcastResponse;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.engine.Segment;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 
-public class IndicesSegmentResponse extends BroadcastResponse {
+public class IndicesSegmentResponse extends ChunkedBroadcastResponse {
 
-    private ShardSegments[] shards;
+    private final ShardSegments[] shards;
 
-    private Map<String, IndexSegments> indicesSegments;
+    private volatile Map<String, IndexSegments> indicesSegments;
 
-    IndicesSegmentResponse(StreamInput in) throws IOException {
-        super(in);
-        shards = new ShardSegments[in.readVInt()];
-        for (int i = 0; i < shards.length; i++) {
-            shards[i] = new ShardSegments(in);
-        }
-    }
-
-    IndicesSegmentResponse(ShardSegments[] shards, int totalShards, int successfulShards, int failedShards,
-                           List<DefaultShardOperationFailedException> shardFailures) {
+    IndicesSegmentResponse(
+        ShardSegments[] shards,
+        int totalShards,
+        int successfulShards,
+        int failedShards,
+        List<DefaultShardOperationFailedException> shardFailures
+    ) {
         super(totalShards, successfulShards, failedShards, shardFailures);
         this.shards = shards;
     }
@@ -68,19 +53,12 @@ public class IndicesSegmentResponse extends BroadcastResponse {
         }
         Map<String, IndexSegments> indicesSegments = new HashMap<>();
 
-        Set<String> indices = new HashSet<>();
+        final Map<String, List<ShardSegments>> segmentsByIndex = new HashMap<>();
         for (ShardSegments shard : shards) {
-            indices.add(shard.getShardRouting().getIndexName());
+            segmentsByIndex.computeIfAbsent(shard.getShardRouting().getIndexName(), k -> new ArrayList<>()).add(shard);
         }
-
-        for (String indexName : indices) {
-            List<ShardSegments> shards = new ArrayList<>();
-            for (ShardSegments shard : this.shards) {
-                if (shard.getShardRouting().getIndexName().equals(indexName)) {
-                    shards.add(shard);
-                }
-            }
-            indicesSegments.put(indexName, new IndexSegments(indexName, shards.toArray(new ShardSegments[shards.size()])));
+        for (Map.Entry<String, List<ShardSegments>> entry : segmentsByIndex.entrySet()) {
+            indicesSegments.put(entry.getKey(), new IndexSegments(entry.getKey(), entry.getValue()));
         }
         this.indicesSegments = indicesSegments;
         return indicesSegments;
@@ -89,119 +67,121 @@ public class IndicesSegmentResponse extends BroadcastResponse {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeVInt(shards.length);
-        for (ShardSegments shard : shards) {
-            shard.writeTo(out);
-        }
+        out.writeArray(shards);
     }
 
     @Override
-    protected void addCustomXContentFields(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(Fields.INDICES);
+    protected Iterator<ToXContent> customXContentChunks(ToXContent.Params params) {
+        return Iterators.concat(
 
-        for (IndexSegments indexSegments : getIndices().values()) {
-            builder.startObject(indexSegments.getIndex());
+            ChunkedToXContentHelper.startObject(Fields.INDICES),
+            Iterators.flatMap(
+                getIndices().values().iterator(),
+                indexSegments -> Iterators.concat(
 
-            builder.startObject(Fields.SHARDS);
-            for (IndexShardSegments indexSegment : indexSegments) {
-                builder.startArray(Integer.toString(indexSegment.getShardId().id()));
-                for (ShardSegments shardSegments : indexSegment) {
-                    builder.startObject();
+                    ChunkedToXContentHelper.singleChunk(
+                        (builder, p) -> builder.startObject(indexSegments.getIndex()).startObject(Fields.SHARDS)
+                    ),
+                    Iterators.flatMap(
+                        indexSegments.iterator(),
+                        indexSegment -> Iterators.concat(
 
-                    builder.startObject(Fields.ROUTING);
-                    builder.field(Fields.STATE, shardSegments.getShardRouting().state());
-                    builder.field(Fields.PRIMARY, shardSegments.getShardRouting().primary());
-                    builder.field(Fields.NODE, shardSegments.getShardRouting().currentNodeId());
-                    if (shardSegments.getShardRouting().relocatingNodeId() != null) {
-                        builder.field(Fields.RELOCATING_NODE, shardSegments.getShardRouting().relocatingNodeId());
-                    }
-                    builder.endObject();
+                            ChunkedToXContentHelper.startArray(Integer.toString(indexSegment.shardId().id())),
+                            Iterators.flatMap(
+                                indexSegment.iterator(),
+                                shardSegments -> Iterators.concat(
 
-                    builder.field(Fields.NUM_COMMITTED_SEGMENTS, shardSegments.getNumberOfCommitted());
-                    builder.field(Fields.NUM_SEARCH_SEGMENTS, shardSegments.getNumberOfSearch());
+                                    ChunkedToXContentHelper.singleChunk((builder, p) -> {
+                                        builder.startObject();
 
-                    builder.startObject(Fields.SEGMENTS);
-                    for (Segment segment : shardSegments) {
-                        builder.startObject(segment.getName());
-                        builder.field(Fields.GENERATION, segment.getGeneration());
-                        builder.field(Fields.NUM_DOCS, segment.getNumDocs());
-                        builder.field(Fields.DELETED_DOCS, segment.getDeletedDocs());
-                        builder.humanReadableField(Fields.SIZE_IN_BYTES, Fields.SIZE, segment.getSize());
-                        builder.humanReadableField(Fields.MEMORY_IN_BYTES, Fields.MEMORY, new ByteSizeValue(segment.getMemoryInBytes()));
-                        builder.field(Fields.COMMITTED, segment.isCommitted());
-                        builder.field(Fields.SEARCH, segment.isSearch());
-                        if (segment.getVersion() != null) {
-                            builder.field(Fields.VERSION, segment.getVersion());
-                        }
-                        if (segment.isCompound() != null) {
-                            builder.field(Fields.COMPOUND, segment.isCompound());
-                        }
-                        if (segment.getMergeId() != null) {
-                            builder.field(Fields.MERGE_ID, segment.getMergeId());
-                        }
-                        if (segment.getSegmentSort() != null) {
-                            toXContent(builder, segment.getSegmentSort());
-                        }
-                        if (segment.ramTree != null) {
-                            builder.startArray(Fields.RAM_TREE);
-                            for (Accountable child : segment.ramTree.getChildResources()) {
-                                toXContent(builder, child);
-                            }
-                            builder.endArray();
-                        }
-                        if (segment.attributes != null && segment.attributes.isEmpty() == false) {
-                            builder.field("attributes", segment.attributes);
-                        }
-                        builder.endObject();
-                    }
-                    builder.endObject();
+                                        builder.startObject(Fields.ROUTING);
+                                        builder.field(Fields.STATE, shardSegments.getShardRouting().state());
+                                        builder.field(Fields.PRIMARY, shardSegments.getShardRouting().primary());
+                                        builder.field(Fields.NODE, shardSegments.getShardRouting().currentNodeId());
+                                        if (shardSegments.getShardRouting().relocatingNodeId() != null) {
+                                            builder.field(Fields.RELOCATING_NODE, shardSegments.getShardRouting().relocatingNodeId());
+                                        }
+                                        builder.endObject();
 
-                    builder.endObject();
+                                        builder.field(Fields.NUM_COMMITTED_SEGMENTS, shardSegments.getNumberOfCommitted());
+                                        builder.field(Fields.NUM_SEARCH_SEGMENTS, shardSegments.getNumberOfSearch());
+
+                                        builder.startObject(Fields.SEGMENTS);
+                                        return builder;
+                                    }),
+                                    Iterators.flatMap(
+                                        shardSegments.iterator(),
+                                        segment -> Iterators.concat(
+
+                                            ChunkedToXContentHelper.singleChunk((builder, p) -> {
+                                                builder.startObject(segment.getName());
+                                                builder.field(Fields.GENERATION, segment.getGeneration());
+                                                builder.field(Fields.NUM_DOCS, segment.getNumDocs());
+                                                builder.field(Fields.DELETED_DOCS, segment.getDeletedDocs());
+                                                builder.humanReadableField(Fields.SIZE_IN_BYTES, Fields.SIZE, segment.getSize());
+                                                if (builder.getRestApiVersion() == RestApiVersion.V_7) {
+                                                    builder.humanReadableField(Fields.MEMORY_IN_BYTES, Fields.MEMORY, ByteSizeValue.ZERO);
+                                                }
+                                                builder.field(Fields.COMMITTED, segment.isCommitted());
+                                                builder.field(Fields.SEARCH, segment.isSearch());
+                                                if (segment.getVersion() != null) {
+                                                    builder.field(Fields.VERSION, segment.getVersion());
+                                                }
+                                                if (segment.isCompound() != null) {
+                                                    builder.field(Fields.COMPOUND, segment.isCompound());
+                                                }
+                                                if (segment.getMergeId() != null) {
+                                                    builder.field(Fields.MERGE_ID, segment.getMergeId());
+                                                }
+                                                return builder;
+                                            }),
+                                            getSegmentSortChunks(segment.getSegmentSort()),
+                                            ChunkedToXContentHelper.singleChunk((builder, p) -> {
+                                                if (segment.attributes != null && segment.attributes.isEmpty() == false) {
+                                                    builder.field("attributes", segment.attributes);
+                                                }
+                                                builder.endObject();
+                                                return builder;
+                                            })
+                                        )
+                                    ),
+                                    ChunkedToXContentHelper.singleChunk((builder, p) -> builder.endObject().endObject())
+                                )
+                            ),
+                            ChunkedToXContentHelper.endArray()
+                        )
+                    ),
+                    ChunkedToXContentHelper.singleChunk((builder, p) -> builder.endObject().endObject())
+                )
+            ),
+            ChunkedToXContentHelper.endObject()
+        );
+    }
+
+    private static Iterator<ToXContent> getSegmentSortChunks(@Nullable Sort segmentSort) {
+        if (segmentSort == null) {
+            return Collections.emptyIterator();
+        }
+
+        return Iterators.concat(
+            ChunkedToXContentHelper.startArray("sort"),
+            Iterators.map(Iterators.forArray(segmentSort.getSort()), field -> (builder, p) -> {
+                builder.startObject();
+                builder.field("field", field.getField());
+                if (field instanceof SortedNumericSortField sortedNumericSortField) {
+                    builder.field("mode", sortedNumericSortField.getSelector().toString().toLowerCase(Locale.ROOT));
+                } else if (field instanceof SortedSetSortField sortedSetSortField) {
+                    builder.field("mode", sortedSetSortField.getSelector().toString().toLowerCase(Locale.ROOT));
                 }
-                builder.endArray();
-            }
-            builder.endObject();
-
-            builder.endObject();
-        }
-
-        builder.endObject();
-    }
-
-    private static void toXContent(XContentBuilder builder, Sort sort) throws IOException {
-        builder.startArray("sort");
-        for (SortField field : sort.getSort()) {
-            builder.startObject();
-            builder.field("field", field.getField());
-            if (field instanceof SortedNumericSortField) {
-                builder.field("mode", ((SortedNumericSortField) field).getSelector()
-                    .toString().toLowerCase(Locale.ROOT));
-            } else if (field instanceof SortedSetSortField) {
-                builder.field("mode", ((SortedSetSortField) field).getSelector()
-                    .toString().toLowerCase(Locale.ROOT));
-            }
-            if (field.getMissingValue() != null) {
-                builder.field("missing", field.getMissingValue().toString());
-            }
-            builder.field("reverse", field.getReverse());
-            builder.endObject();
-        }
-        builder.endArray();
-    }
-
-    private static void toXContent(XContentBuilder builder, Accountable tree) throws IOException {
-        builder.startObject();
-        builder.field(Fields.DESCRIPTION, tree.toString());
-        builder.humanReadableField(Fields.SIZE_IN_BYTES, Fields.SIZE, new ByteSizeValue(tree.ramBytesUsed()));
-        Collection<Accountable> children = tree.getChildResources();
-        if (children.isEmpty() == false) {
-            builder.startArray(Fields.CHILDREN);
-            for (Accountable child : children) {
-                toXContent(builder, child);
-            }
-            builder.endArray();
-        }
-        builder.endObject();
+                if (field.getMissingValue() != null) {
+                    builder.field("missing", field.getMissingValue().toString());
+                }
+                builder.field("reverse", field.getReverse());
+                builder.endObject();
+                return builder;
+            }),
+            ChunkedToXContentHelper.endArray()
+        );
     }
 
     static final class Fields {
@@ -228,8 +208,5 @@ public class IndicesSegmentResponse extends BroadcastResponse {
         static final String MERGE_ID = "merge_id";
         static final String MEMORY = "memory";
         static final String MEMORY_IN_BYTES = "memory_in_bytes";
-        static final String RAM_TREE = "ram_tree";
-        static final String DESCRIPTION = "description";
-        static final String CHILDREN = "children";
     }
 }

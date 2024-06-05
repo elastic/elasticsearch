@@ -1,0 +1,208 @@
+---
+setup:
+  - skip:
+      features: close_to
+
+---
+"Test cartesian_bounds aggregation on point field with point":
+  - do:
+      indices.create:
+        index: locations
+        body:
+          mappings:
+            properties:
+              location:
+                type: point
+
+  - do:
+      index:
+        index:  locations
+        id:     point_with_doc_values
+        body:   { location: "POINT(342.5 -217.6)" }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: locations
+        size: 0
+        body:
+          aggs:
+            my_agg:
+              cartesian_bounds:
+                field: location
+  - match: { hits.total: 1 }
+  - close_to: { aggregations.my_agg.bounds.top_left.x: { value: 342.5, error: 0.001 } }
+  - close_to: { aggregations.my_agg.bounds.top_left.y: { value: -217.6, error: 0.001 } }
+  - close_to: { aggregations.my_agg.bounds.bottom_right.x: { value: 342.5, error: 0.001 } }
+  - close_to: { aggregations.my_agg.bounds.bottom_right.y: { value: -217.6, error: 0.001 } }
+
+---
+"Test cartesian_bounds aggregation on shape field with point":
+  - do:
+      indices.create:
+        index: locations
+        body:
+          mappings:
+            properties:
+              location:
+                type: shape
+
+  - do:
+      index:
+        index:  locations
+        id:     point_with_doc_values
+        body:   { location: "POINT(342.5 -217.6)" }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: locations
+        size: 0
+        body:
+          aggs:
+            my_agg:
+              cartesian_bounds:
+                field: location
+  - match: { hits.total: 1 }
+  - close_to: { aggregations.my_agg.bounds.top_left.x: { value: 342.5, error: 0.001 } }
+  - close_to: { aggregations.my_agg.bounds.top_left.y: { value: -217.6, error: 0.001 } }
+  - close_to: { aggregations.my_agg.bounds.bottom_right.x: { value: 342.5, error: 0.001 } }
+  - close_to: { aggregations.my_agg.bounds.bottom_right.y: { value: -217.6, error: 0.001 } }
+
+---
+"Test cartesian_bounds aggregation on point field with points":
+  - do:
+      indices.create:
+        index: locations
+        body:
+          mappings:
+            properties:
+              location:
+                type: point
+
+  - do:
+      bulk:
+        refresh: true
+        index: locations
+        body: |
+          {"index":{}}
+          {"location": "POINT(491.2350 5237.4081)", "city": "Amsterdam", "name": "NEMO Science Museum"}
+          {"index":{}}
+          {"location": "POINT(490.1618 5236.9219)", "city": "Amsterdam", "name": "Museum Het Rembrandthuis"}
+          {"index":{}}
+          {"location": "POINT(491.4722 5237.1667)", "city": "Amsterdam", "name": "Nederlands Scheepvaartmuseum"}
+          {"index":{}}
+          {"location": "POINT(440.5200 5122.2900)", "city": "Antwerp", "name": "Letterenhuis"}
+          {"index":{}}
+          {"location": "POINT(233.6389 4886.1111)", "city": "Paris", "name": "Musée du Louvre"}
+          {"index":{}}
+          {"location": "POINT(232.7000 4886.0000)", "city": "Paris", "name": "Musée dOrsay"}
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: locations
+        size: 0
+        body:
+          aggs:
+            my_agg:
+              cartesian_bounds:
+                field: location
+  - match: { hits.total: 6 }
+  - close_to: { aggregations.my_agg.bounds.top_left.x: { value: 232.7, error: 0.001 } }
+  - close_to: { aggregations.my_agg.bounds.top_left.y: { value: 5237.4081, error: 0.001 } }
+  - close_to: { aggregations.my_agg.bounds.bottom_right.x: { value: 491.4722, error: 0.001 } }
+  - close_to: { aggregations.my_agg.bounds.bottom_right.y: { value: 4886.0, error: 0.001 } }
+
+---
+"Test cartesian_bounds aggregation on shape field with points":
+  - do:
+      indices.create:
+        index: locations
+        body:
+          mappings:
+            properties:
+              location:
+                type: shape
+
+  - do:
+      bulk:
+        refresh: true
+        index: locations
+        body: |
+          {"index":{}}
+          {"location": "POINT(491.2350 5237.4081)", "city": "Amsterdam", "name": "NEMO Science Museum"}
+          {"index":{}}
+          {"location": "POINT(490.1618 5236.9219)", "city": "Amsterdam", "name": "Museum Het Rembrandthuis"}
+          {"index":{}}
+          {"location": "POINT(491.4722 5237.1667)", "city": "Amsterdam", "name": "Nederlands Scheepvaartmuseum"}
+          {"index":{}}
+          {"location": "POINT(440.5200 5122.2900)", "city": "Antwerp", "name": "Letterenhuis"}
+          {"index":{}}
+          {"location": "POINT(233.6389 4886.1111)", "city": "Paris", "name": "Musée du Louvre"}
+          {"index":{}}
+          {"location": "POINT(232.7000 4886.0000)", "city": "Paris", "name": "Musée dOrsay"}
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: locations
+        size: 0
+        body:
+          aggs:
+            my_agg:
+              cartesian_bounds:
+                field: location
+  - match: { hits.total: 6 }
+  - close_to: { aggregations.my_agg.bounds.top_left.x: { value: 232.7, error: 0.001 } }
+  - close_to: { aggregations.my_agg.bounds.top_left.y: { value: 5237.4081, error: 0.001 } }
+  - close_to: { aggregations.my_agg.bounds.bottom_right.x: { value: 491.4722, error: 0.001 } }
+  - close_to: { aggregations.my_agg.bounds.bottom_right.y: { value: 4886.0, error: 0.001 } }
+
+---
+"Test cartesian_bounds aggregation on shape field with polygon":
+  - do:
+      indices.create:
+        index: locations
+        body:
+          mappings:
+            properties:
+              location:
+                type: shape
+
+  - do:
+      index:
+        index:  locations
+        id:     big_rectangle
+        body:   { location: "POLYGON((-1000 -1000, 1000 -1000, 1000 1000, -1000 1000, -1000 -1000))" }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: locations
+        size: 0
+        body:
+          aggs:
+            my_agg:
+              cartesian_bounds:
+                field: location
+  - match: { hits.total: 1 }
+  - close_to: { aggregations.my_agg.bounds.top_left.x: { value: -1000.0, error: 0.001 } }
+  - close_to: { aggregations.my_agg.bounds.top_left.y: { value: 1000.0, error: 0.001 } }
+  - close_to: { aggregations.my_agg.bounds.bottom_right.x: { value: 1000.0, error: 0.001 } }
+  - close_to: { aggregations.my_agg.bounds.bottom_right.y: { value: -1000.0, error: 0.001 } }

@@ -1,42 +1,47 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
-import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
+import org.elasticsearch.xpack.core.ml.dataframe.stats.AnalysisStats;
+import org.elasticsearch.xpack.core.ml.dataframe.stats.common.DataCounts;
+import org.elasticsearch.xpack.core.ml.dataframe.stats.common.MemoryUsage;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.PhaseProgress;
+import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+
+import static org.elasticsearch.core.Strings.format;
 
 public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAnalyticsStatsAction.Response> {
 
@@ -44,14 +49,14 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
     public static final String NAME = "cluster:monitor/xpack/ml/data_frame/analytics/stats/get";
 
     private GetDataFrameAnalyticsStatsAction() {
-        super(NAME, GetDataFrameAnalyticsStatsAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends BaseTasksRequest<Request> {
 
         public static final ParseField ALLOW_NO_MATCH = new ParseField("allow_no_match");
 
-        private String id;
+        private String id = "_all";
         private boolean allowNoMatch = true;
         private PageParams pageParams = PageParams.defaultParams();
 
@@ -70,7 +75,7 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
             id = in.readString();
             allowNoMatch = in.readBoolean();
             pageParams = in.readOptionalWriteable(PageParams::new);
-            expandedIds = in.readStringList();
+            expandedIds = in.readStringCollectionAsList();
         }
 
         public void setExpandedIds(List<String> expandedIds) {
@@ -91,7 +96,7 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
         }
 
         public void setId(String id) {
-            this.id = id;
+            this.id = ExceptionsHelper.requireNonNull(id, DataFrameAnalyticsConfig.ID.getPreferredName());
         }
 
         public String getId() {
@@ -140,16 +145,17 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
             Request other = (Request) obj;
             return Objects.equals(id, other.id) && allowNoMatch == other.allowNoMatch && Objects.equals(pageParams, other.pageParams);
         }
-    }
 
-    public static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
-
-        public RequestBuilder(ElasticsearchClient client, GetDataFrameAnalyticsStatsAction action) {
-            super(client, action, new Request());
+        @Override
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            return new CancellableTask(id, type, action, format("get_data_frame_analytics_stats[%s]", id), parentTaskId, headers);
         }
     }
 
     public static class Response extends BaseTasksResponse implements ToXContentObject {
+
+        /** Name of the response's REST param which is used to determine whether this response should be verbose. */
+        public static final String VERBOSE = "verbose";
 
         public static class Stats implements ToXContentObject, Writeable {
 
@@ -163,17 +169,36 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
              */
             private final List<PhaseProgress> progress;
 
+            private final DataCounts dataCounts;
+
+            private final MemoryUsage memoryUsage;
+
+            @Nullable
+            private final AnalysisStats analysisStats;
+
             @Nullable
             private final DiscoveryNode node;
             @Nullable
             private final String assignmentExplanation;
 
-            public Stats(String id, DataFrameAnalyticsState state, @Nullable String failureReason, List<PhaseProgress> progress,
-                         @Nullable DiscoveryNode node, @Nullable String assignmentExplanation) {
+            public Stats(
+                String id,
+                DataFrameAnalyticsState state,
+                @Nullable String failureReason,
+                List<PhaseProgress> progress,
+                @Nullable DataCounts dataCounts,
+                @Nullable MemoryUsage memoryUsage,
+                @Nullable AnalysisStats analysisStats,
+                @Nullable DiscoveryNode node,
+                @Nullable String assignmentExplanation
+            ) {
                 this.id = Objects.requireNonNull(id);
                 this.state = Objects.requireNonNull(state);
                 this.failureReason = failureReason;
                 this.progress = Objects.requireNonNull(progress);
+                this.dataCounts = dataCounts == null ? new DataCounts(id) : dataCounts;
+                this.memoryUsage = memoryUsage == null ? new MemoryUsage(id) : memoryUsage;
+                this.analysisStats = analysisStats;
                 this.node = node;
                 this.assignmentExplanation = assignmentExplanation;
             }
@@ -182,46 +207,12 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
                 id = in.readString();
                 state = DataFrameAnalyticsState.fromStream(in);
                 failureReason = in.readOptionalString();
-                if (in.getVersion().before(Version.V_7_4_0)) {
-                    progress = readProgressFromLegacy(state, in);
-                } else {
-                    progress = in.readList(PhaseProgress::new);
-                }
+                progress = in.readCollectionAsList(PhaseProgress::new);
+                dataCounts = new DataCounts(in);
+                memoryUsage = new MemoryUsage(in);
+                analysisStats = in.readOptionalNamedWriteable(AnalysisStats.class);
                 node = in.readOptionalWriteable(DiscoveryNode::new);
                 assignmentExplanation = in.readOptionalString();
-            }
-
-            private static List<PhaseProgress> readProgressFromLegacy(DataFrameAnalyticsState state, StreamInput in) throws IOException {
-                Integer legacyProgressPercent = in.readOptionalInt();
-                if (legacyProgressPercent == null) {
-                    return Collections.emptyList();
-                }
-
-                int reindexingProgress = 0;
-                int loadingDataProgress = 0;
-                int analyzingProgress = 0;
-                switch (state) {
-                    case ANALYZING:
-                        reindexingProgress = 100;
-                        loadingDataProgress = 100;
-                        analyzingProgress = legacyProgressPercent;
-                        break;
-                    case REINDEXING:
-                        reindexingProgress = legacyProgressPercent;
-                        break;
-                    case STARTING:
-                    case STARTED:
-                    case STOPPED:
-                    case STOPPING:
-                    default:
-                        return null;
-                }
-
-                return Arrays.asList(
-                    new PhaseProgress("reindexing", reindexingProgress),
-                    new PhaseProgress("loading_data", loadingDataProgress),
-                    new PhaseProgress("analyzing", analyzingProgress),
-                    new PhaseProgress("writing_results", 0));
             }
 
             public String getId() {
@@ -240,6 +231,19 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
                 return progress;
             }
 
+            @Nullable
+            public DataCounts getDataCounts() {
+                return dataCounts;
+            }
+
+            public MemoryUsage getMemoryUsage() {
+                return memoryUsage;
+            }
+
+            public AnalysisStats getAnalysisStats() {
+                return analysisStats;
+            }
+
             public DiscoveryNode getNode() {
                 return node;
             }
@@ -253,12 +257,12 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
                 // TODO: Have callers wrap the content with an object as they choose rather than forcing it upon them
                 builder.startObject();
                 {
-                    toUnwrappedXContent(builder);
+                    toUnwrappedXContent(builder, params);
                 }
                 return builder.endObject();
             }
 
-            public XContentBuilder toUnwrappedXContent(XContentBuilder builder) throws IOException {
+            private XContentBuilder toUnwrappedXContent(XContentBuilder builder, Params params) throws IOException {
                 builder.field(DataFrameAnalyticsConfig.ID.getPreferredName(), id);
                 builder.field("state", state.toString());
                 if (failureReason != null) {
@@ -266,6 +270,22 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
                 }
                 if (progress != null) {
                     builder.field("progress", progress);
+                }
+                builder.field("data_counts", dataCounts);
+                builder.field("memory_usage", memoryUsage);
+                if (analysisStats != null) {
+                    builder.startObject("analysis_stats");
+                    builder.field(
+                        analysisStats.getWriteableName(),
+                        analysisStats,
+                        new MapParams(
+                            Collections.singletonMap(
+                                ToXContentParams.FOR_INTERNAL_STORAGE,
+                                Boolean.toString(params.paramAsBoolean(VERBOSE, false))
+                            )
+                        )
+                    );
+                    builder.endObject();
                 }
                 if (node != null) {
                     builder.startObject("node");
@@ -292,44 +312,27 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
                 out.writeString(id);
                 state.writeTo(out);
                 out.writeOptionalString(failureReason);
-                if (out.getVersion().before(Version.V_7_4_0)) {
-                    writeProgressToLegacy(out);
-                } else {
-                    out.writeList(progress);
-                }
+                out.writeCollection(progress);
+                dataCounts.writeTo(out);
+                memoryUsage.writeTo(out);
+                out.writeOptionalNamedWriteable(analysisStats);
                 out.writeOptionalWriteable(node);
                 out.writeOptionalString(assignmentExplanation);
             }
 
-            private void writeProgressToLegacy(StreamOutput out) throws IOException {
-                String targetPhase = null;
-                switch (state) {
-                    case ANALYZING:
-                        targetPhase = "analyzing";
-                        break;
-                    case REINDEXING:
-                        targetPhase = "reindexing";
-                        break;
-                    case STARTING:
-                    case STARTED:
-                    case STOPPED:
-                    case STOPPING:
-                    default:
-                        break;
-                }
-
-                Integer legacyProgressPercent = null;
-                for (PhaseProgress phaseProgress : progress) {
-                    if (phaseProgress.getPhase().equals(targetPhase)) {
-                        legacyProgressPercent = phaseProgress.getProgressPercent();
-                    }
-                }
-                out.writeOptionalInt(legacyProgressPercent);
-            }
-
             @Override
             public int hashCode() {
-                return Objects.hash(id, state, failureReason, progress, node, assignmentExplanation);
+                return Objects.hash(
+                    id,
+                    state,
+                    failureReason,
+                    progress,
+                    dataCounts,
+                    memoryUsage,
+                    analysisStats,
+                    node,
+                    assignmentExplanation
+                );
             }
 
             @Override
@@ -342,22 +345,28 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
                 }
                 Stats other = (Stats) obj;
                 return Objects.equals(id, other.id)
-                        && Objects.equals(this.state, other.state)
-                        && Objects.equals(this.failureReason, other.failureReason)
-                        && Objects.equals(this.progress, other.progress)
-                        && Objects.equals(this.node, other.node)
-                        && Objects.equals(this.assignmentExplanation, other.assignmentExplanation);
+                    && Objects.equals(this.state, other.state)
+                    && Objects.equals(this.failureReason, other.failureReason)
+                    && Objects.equals(this.progress, other.progress)
+                    && Objects.equals(this.dataCounts, other.dataCounts)
+                    && Objects.equals(this.memoryUsage, other.memoryUsage)
+                    && Objects.equals(this.analysisStats, other.analysisStats)
+                    && Objects.equals(this.node, other.node)
+                    && Objects.equals(this.assignmentExplanation, other.assignmentExplanation);
             }
         }
 
-        private QueryPage<Stats> stats;
+        private final QueryPage<Stats> stats;
 
         public Response(QueryPage<Stats> stats) {
             this(Collections.emptyList(), Collections.emptyList(), stats);
         }
 
-        public Response(List<TaskOperationFailure> taskFailures, List<? extends ElasticsearchException> nodeFailures,
-                        QueryPage<Stats> stats) {
+        public Response(
+            List<TaskOperationFailure> taskFailures,
+            List<? extends ElasticsearchException> nodeFailures,
+            QueryPage<Stats> stats
+        ) {
             super(taskFailures, nodeFailures);
             this.stats = stats;
         }

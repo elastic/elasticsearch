@@ -22,21 +22,6 @@
   - match: { watch_record.status.execution_state: "executed" }
   - match: { watch_record.status.state.active: true }
 
-  # check watch history entry
-  - do:
-      indices.refresh:
-        index: .watcher-history-*
-
-  - do:
-      search:
-        rest_total_hits_as_int: true
-        index: .watcher-history-*
-        body:
-          {
-            "query" : { "term" : { "_id" : "$record_id" } }
-          }
-  - match: { hits.total: 1 }
-
   # deactivate watch, check with GET API as well
   - do:
       watcher.deactivate_watch:

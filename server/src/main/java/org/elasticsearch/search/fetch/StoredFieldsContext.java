@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.fetch;
@@ -24,9 +13,9 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -42,7 +31,7 @@ public class StoredFieldsContext implements Writeable {
     public static final String _NONE_ = "_none_";
 
     private final List<String> fieldNames;
-    private boolean fetchFields;
+    private final boolean fetchFields;
 
     private StoredFieldsContext(boolean fetchFields) {
         this.fetchFields = fetchFields;
@@ -126,7 +115,7 @@ public class StoredFieldsContext implements Writeable {
         StoredFieldsContext that = (StoredFieldsContext) o;
 
         if (fetchFields != that.fetchFields) return false;
-        return fieldNames != null ? fieldNames.equals(that.fieldNames) : that.fieldNames == null;
+        return Objects.equals(fieldNames, that.fieldNames);
 
     }
 
@@ -154,6 +143,10 @@ public class StoredFieldsContext implements Writeable {
         }
     }
 
+    public static StoredFieldsContext metadataOnly() {
+        return new StoredFieldsContext(true);
+    }
+
     public static StoredFieldsContext fromList(List<String> fieldNames) {
         if (fieldNames.size() == 1 && _NONE_.equals(fieldNames.get(0))) {
             return new StoredFieldsContext(false);
@@ -171,15 +164,24 @@ public class StoredFieldsContext implements Writeable {
             return fromList(Collections.singletonList(parser.text()));
         } else if (token == XContentParser.Token.START_ARRAY) {
             ArrayList<String> list = new ArrayList<>();
-            while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+            while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
                 list.add(parser.text());
             }
             return fromList(list);
         } else {
-            throw new ParsingException(parser.getTokenLocation(),
-                "Expected [" + XContentParser.Token.VALUE_STRING + "] or ["
-                    + XContentParser.Token.START_ARRAY + "] in [" + fieldName + "] but found [" + token + "]",
-                parser.getTokenLocation());
+            throw new ParsingException(
+                parser.getTokenLocation(),
+                "Expected ["
+                    + XContentParser.Token.VALUE_STRING
+                    + "] or ["
+                    + XContentParser.Token.START_ARRAY
+                    + "] in ["
+                    + fieldName
+                    + "] but found ["
+                    + token
+                    + "]",
+                parser.getTokenLocation()
+            );
         }
     }
 

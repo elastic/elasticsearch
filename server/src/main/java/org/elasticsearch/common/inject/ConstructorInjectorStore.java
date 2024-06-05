@@ -21,6 +21,9 @@ import org.elasticsearch.common.inject.internal.ErrorsException;
 import org.elasticsearch.common.inject.internal.FailableCache;
 import org.elasticsearch.common.inject.spi.InjectionPoint;
 
+import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
+
 /**
  * Constructor injectors by type.
  *
@@ -29,11 +32,9 @@ import org.elasticsearch.common.inject.spi.InjectionPoint;
 class ConstructorInjectorStore {
     private final InjectorImpl injector;
 
-    private final FailableCache<TypeLiteral<?>, ConstructorInjector<?>> cache
-            = new FailableCache<TypeLiteral<?>, ConstructorInjector<?>>() {
+    private final FailableCache<TypeLiteral<?>, ConstructorInjector<?>> cache = new FailableCache<>() {
         @Override
-        protected ConstructorInjector<?> create(TypeLiteral<?> type, Errors errors)
-                throws ErrorsException {
+        protected ConstructorInjector<?> create(TypeLiteral<?> type, Errors errors) throws ErrorsException {
             return createConstructor(type, errors);
         }
     };
@@ -50,8 +51,7 @@ class ConstructorInjectorStore {
         return (ConstructorInjector<T>) cache.get(key, errors);
     }
 
-    private <T> ConstructorInjector<T> createConstructor(TypeLiteral<T> type, Errors errors)
-            throws ErrorsException {
+    private <T> ConstructorInjector<T> createConstructor(TypeLiteral<T> type, Errors errors) throws ErrorsException {
         int numErrorsBefore = errors.size();
 
         InjectionPoint injectionPoint;
@@ -62,15 +62,34 @@ class ConstructorInjectorStore {
             throw errors.toException();
         }
 
-        SingleParameterInjector<?>[] constructorParameterInjectors
-                = injector.getParametersInjectors(injectionPoint.getDependencies(), errors);
+        SingleParameterInjector<?>[] constructorParameterInjectors = injector.getParametersInjectors(
+            injectionPoint.getDependencies(),
+            errors
+        );
         MembersInjectorImpl<T> membersInjector = injector.membersInjectorStore.get(type, errors);
-
-        ConstructionProxyFactory<T> factory = new DefaultConstructionProxyFactory<>(injectionPoint);
 
         errors.throwIfNewErrors(numErrorsBefore);
 
-        return new ConstructorInjector<>(membersInjector.getInjectionPoints(), factory.create(),
-                constructorParameterInjectors, membersInjector);
+        @SuppressWarnings("unchecked") // the injection point is for a constructor of T
+        final Constructor<T> constructor = (Constructor<T>) injectionPoint.getMember();
+        return new ConstructorInjector<>(new ConstructionProxy<>() {
+            @Override
+            public T newInstance(Object... arguments) throws InvocationTargetException {
+                try {
+                    return constructor.newInstance(arguments);
+                } catch (InstantiationException e) {
+                    throw new AssertionError(e); // shouldn't happen, we know this is a concrete type
+                } catch (IllegalAccessException e) {
+                    // a security manager is blocking us, we're hosed
+                    throw new AssertionError("Wrong access modifiers on " + constructor, e);
+                }
+            }
+
+            @Override
+            public InjectionPoint getInjectionPoint() {
+                return injectionPoint;
+            }
+
+        }, constructorParameterInjectors, membersInjector);
     }
 }

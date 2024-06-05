@@ -1,10 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ql.expression.gen.script;
 
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 
 import java.util.ArrayList;
@@ -60,7 +62,7 @@ public class Params {
     // return only the vars (as parameter for a script)
     // agg refs are returned separately to be provided as bucket_paths
     Map<String, Object> asParams() {
-        Map<String, Object> map = new LinkedHashMap<>(params.size());
+        Map<String, Object> map = Maps.newLinkedHashMapWithExpectedSize(params.size());
 
         int count = 0;
 
@@ -80,13 +82,11 @@ public class Params {
         int aggs = 0;
 
         for (Param<?> p : params) {
-            if (p instanceof Agg) {
-                Agg a = (Agg) p;
+            if (p instanceof Agg a) {
                 String s = a.aggProperty() != null ? a.aggProperty() : a.aggName();
                 map.put(p.prefix() + aggs++, s);
             }
-            if (p instanceof Grouping) {
-                Grouping g = (Grouping) p;
+            if (p instanceof Grouping g) {
                 map.put(p.prefix() + aggs++, g.groupName());
             }
         }
@@ -97,22 +97,18 @@ public class Params {
     private static List<Param<?>> flatten(List<Param<?>> params) {
         List<Param<?>> flatten = emptyList();
 
-        if (!params.isEmpty()) {
+        if (params.isEmpty() == false) {
             flatten = new ArrayList<>();
             for (Param<?> p : params) {
                 if (p instanceof Script) {
                     flatten.addAll(flatten(((Script) p).value().params));
-                }
-                else if (p instanceof Agg) {
+                } else if (p instanceof Agg) {
                     flatten.add(p);
-                }
-                else if (p instanceof Grouping) {
+                } else if (p instanceof Grouping) {
                     flatten.add(p);
-                }
-                else if (p instanceof Var) {
+                } else if (p instanceof Var) {
                     flatten.add(p);
-                }
-                else {
+                } else {
                     throw new QlIllegalArgumentException("Unsupported field {}", p);
                 }
             }
@@ -132,9 +128,9 @@ public class Params {
 
     @Override
     public boolean equals(Object obj) {
-        if ((obj instanceof  Params) == false) {
+        if ((obj instanceof Params) == false) {
             return false;
         }
-        return this.params.equals(((Params)obj).params);
+        return this.params.equals(((Params) obj).params);
     }
 }

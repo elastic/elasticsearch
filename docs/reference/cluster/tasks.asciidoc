@@ -4,7 +4,7 @@
 <titleabbrev>Task management</titleabbrev>
 ++++
 
-beta::["The task management API is new and should still be considered a beta feature. The API may change in ways that are not backwards compatible.",{issue}51628]
+beta::["The task management API is new and should still be considered a beta feature. The API may change in ways that are not backwards compatible.",{es-issue}51628]
 
 Returns information about the tasks currently executing in the cluster.
 
@@ -15,6 +15,11 @@ Returns information about the tasks currently executing in the cluster.
 
 `GET /_tasks`
 
+[[tasks-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `monitor` or
+`manage` <<privileges-list-cluster,cluster privilege>> to use this API.
 
 [[tasks-api-desc]]
 ==== {api-description-title}
@@ -27,33 +32,38 @@ on one or more nodes in the cluster.
 [[tasks-api-path-params]]
 ==== {api-path-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=task-id]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=task-id]
 
 
 [[tasks-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=actions]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=actions]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=detailed]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=detailed]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=group-by]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=group-by]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=node-id-query-parm]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=nodes]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=parent-task-id]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=parent-task-id]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+`timeout`::
+(Optional, <<time-units, time units>>)
+Period to wait for each node to respond. If a node does not respond before its
+timeout expires, the response does not include its information. However, timed out
+nodes are included in the response's `node_failures` property. Defaults to `30s`.
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=wait_for_completion]
+`wait_for_completion`::
+(Optional, Boolean) If `true`, the request blocks until all found tasks are complete.
+Defaults to `false`.
 
-    
 [[tasks-api-response-codes]]
 ==== {api-response-codes-title}
 
 // tag::tasks-api-404[]
 `404` (Missing resources)::
-If `<task_id>` is specified but not found, this code indicates that there 
+If `<task_id>` is specified but not found, this code indicates that there
 are no resources that match the request.
 // end::tasks-api-404[]
 
@@ -69,7 +79,7 @@ GET _tasks?nodes=nodeId1,nodeId2&actions=cluster:* <3>
 // TEST[skip:No tasks to retrieve]
 
 <1> Retrieves all tasks currently running on all nodes in the cluster.
-<2> Retrieves all tasks running on nodes `nodeId1` and `nodeId2`.  See <<cluster-nodes>> for more info about how to select individual nodes.
+<2> Retrieves all tasks running on nodes `nodeId1` and `nodeId2`. See <<cluster-nodes>> for more info about how to select individual nodes.
 <3> Retrieves all cluster-related tasks running on nodes `nodeId1` and `nodeId2`.
 
 The API returns the following result:
@@ -111,7 +121,7 @@ The API returns the following result:
 
 ===== Retrieve information from a particular task
 
-It is also possible to retrieve information for a particular task. The following 
+It is also possible to retrieve information for a particular task. The following
 example retrieves information about task `oTUltX4IQMOUUVeiohTt8A:124`:
 
 [source,console]
@@ -135,8 +145,8 @@ If the parent isn't found, the API does not return a 404.
 ===== Get more information about tasks
 
 You can also use the `detailed` request parameter to get more information about
-the running tasks. This is useful for telling one task from another but is more
-costly to execute. For example, fetching all searches using the `detailed`
+the running tasks. This is useful to distinguish tasks from each other but
+is more costly to execute. For example, fetching all searches using the `detailed`
 request parameter:
 
 [source,console]
@@ -165,7 +175,8 @@ The API returns the following result:
           "description" : "indices[test], types[test], search_type[QUERY_THEN_FETCH], source[{\"query\":...}]",
           "start_time_in_millis" : 1483478610008,
           "running_time_in_nanos" : 13991383,
-          "cancellable" : true
+          "cancellable" : true,
+          "cancelled" : false
         }
       }
     }
@@ -176,8 +187,8 @@ The API returns the following result:
 The new `description` field contains human readable text that identifies the
 particular request that the task is performing such as identifying the search
 request being performed by a search task like the example above. Other kinds of
-task have different descriptions, like <<docs-reindex,`_reindex`>> which
-has the search and the destination, or <<docs-bulk,`_bulk`>> which just has the
+tasks have different descriptions, like <<docs-reindex,`_reindex`>> which
+has the source and the destination, or <<docs-bulk,`_bulk`>> which just has the
 number of requests and the destination indices. Many requests will only have an
 empty description because more detailed information about the request is not
 easily available or particularly helpful in identifying the request.
@@ -208,7 +219,7 @@ GET _tasks/oTUltX4IQMOUUVeiohTt8A:12345?wait_for_completion=true&timeout=10s
 --------------------------------------------------
 // TEST[catch:missing]
 
-You can also wait for all tasks for certain action types to finish. This command 
+You can also wait for all tasks for certain action types to finish. This command
 will wait for all `reindex` tasks to finish:
 
 [source,console]
@@ -219,7 +230,7 @@ GET _tasks?actions=*reindex&wait_for_completion=true&timeout=10s
 [[task-cancellation]]
 ===== Task Cancellation
 
-If a long-running task supports cancellation, it can be cancelled with the cancel 
+If a long-running task supports cancellation, it can be cancelled with the cancel
 tasks API. The following example cancels task `oTUltX4IQMOUUVeiohTt8A:12345`:
 
 [source,console]
@@ -227,9 +238,9 @@ tasks API. The following example cancels task `oTUltX4IQMOUUVeiohTt8A:12345`:
 POST _tasks/oTUltX4IQMOUUVeiohTt8A:12345/_cancel
 --------------------------------------------------
 
-The task cancellation command supports the same task selection parameters as the 
-list tasks command, so multiple tasks can be cancelled at the same time. For 
-example, the following command will cancel all reindex tasks running on the 
+The task cancellation command supports the same task selection parameters as the
+list tasks command, so multiple tasks can be cancelled at the same time. For
+example, the following command will cancel all reindex tasks running on the
 nodes `nodeId1` and `nodeId2`.
 
 [source,console]
@@ -237,10 +248,22 @@ nodes `nodeId1` and `nodeId2`.
 POST _tasks/_cancel?nodes=nodeId1,nodeId2&actions=*reindex
 --------------------------------------------------
 
+A task may continue to run for some time after it has been cancelled because it
+may not be able to safely stop its current activity straight away, or because
+{es} must complete its work on other tasks before it can process the
+cancellation. The list tasks API will continue to list these cancelled tasks
+until they complete. The `cancelled` flag in the response to the list tasks API
+indicates that the cancellation command has been processed and the task will
+stop as soon as possible. To troubleshoot why a cancelled task does not
+complete promptly, use the list tasks API with the `?detailed` parameter to
+identify the other tasks the system is running and also use the
+<<cluster-nodes-hot-threads>> API to obtain detailed information about the work
+the system is doing instead of completing the cancelled task.
+
 ===== Task Grouping
 
-The task lists returned by task API commands can be grouped either by nodes 
-(default) or by parent tasks using the `group_by` parameter. The following 
+The task lists returned by task API commands can be grouped either by nodes
+(default) or by parent tasks using the `group_by` parameter. The following
 command will change the grouping to parent tasks:
 
 [source,console]
@@ -258,10 +281,10 @@ GET _tasks?group_by=none
 
 ===== Identifying running tasks
 
-The `X-Opaque-Id` header, when provided on the HTTP request header, is going to 
-be returned as a header in the response as well as in the `headers` field for in 
-the task information. This allows to track certain calls, or associate certain 
-tasks with a the client that started them:
+The `X-Opaque-Id` header, when provided on the HTTP request header, is going to
+be returned as a header in the response as well as in the `headers` field for in
+the task information. This allows to track certain calls, or associate certain
+tasks with the client that started them:
 
 [source,sh]
 --------------------------------------------------

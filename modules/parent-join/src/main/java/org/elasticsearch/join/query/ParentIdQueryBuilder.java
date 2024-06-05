@@ -1,42 +1,37 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.join.query;
 
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.ParseField;
+import org.apache.lucene.search.TermQuery;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
-import org.elasticsearch.join.mapper.ParentIdFieldMapper;
-import org.elasticsearch.join.mapper.ParentJoinFieldMapper;
+import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.join.mapper.Joiner;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
+
+import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 
 public final class ParentIdQueryBuilder extends AbstractQueryBuilder<ParentIdQueryBuilder> {
     public static final String NAME = "parent_id";
@@ -53,11 +48,11 @@ public final class ParentIdQueryBuilder extends AbstractQueryBuilder<ParentIdQue
     private final String type;
     private final String id;
 
-    private boolean ignoreUnmapped = false;
+    private boolean ignoreUnmapped = DEFAULT_IGNORE_UNMAPPED;
 
     public ParentIdQueryBuilder(String type, String id) {
-        this.type = type;
-        this.id = id;
+        this.type = requireValue(type, "[" + NAME + "] requires '" + TYPE_FIELD.getPreferredName() + "' field");
+        this.id = requireValue(id, "[" + NAME + "] requires '" + ID_FIELD.getPreferredName() + "' field");
     }
 
     /**
@@ -109,8 +104,10 @@ public final class ParentIdQueryBuilder extends AbstractQueryBuilder<ParentIdQue
         builder.startObject(NAME);
         builder.field(TYPE_FIELD.getPreferredName(), type);
         builder.field(ID_FIELD.getPreferredName(), id);
-        builder.field(IGNORE_UNMAPPED_FIELD.getPreferredName(), ignoreUnmapped);
-        printBoostAndQueryName(builder);
+        if (ignoreUnmapped != DEFAULT_IGNORE_UNMAPPED) {
+            builder.field(IGNORE_UNMAPPED_FIELD.getPreferredName(), ignoreUnmapped);
+        }
+        boostAndQueryNameToXContent(builder);
         builder.endObject();
     }
 
@@ -150,38 +147,39 @@ public final class ParentIdQueryBuilder extends AbstractQueryBuilder<ParentIdQue
         return queryBuilder;
     }
 
-
     @Override
-    protected Query doToQuery(QueryShardContext context) throws IOException {
-        ParentJoinFieldMapper joinFieldMapper = ParentJoinFieldMapper.getMapper(context.getMapperService());
-        if (joinFieldMapper == null) {
+    protected Query doToQuery(SearchExecutionContext context) throws IOException {
+        if (context.allowExpensiveQueries() == false) {
+            throw new ElasticsearchException(
+                "[joining] queries cannot be executed when '" + ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false."
+            );
+        }
+
+        Joiner joiner = Joiner.getJoiner(context);
+        if (joiner == null) {
             if (ignoreUnmapped) {
                 return new MatchNoDocsQuery();
             } else {
                 final String indexName = context.getIndexSettings().getIndex().getName();
-                throw new QueryShardException(context, "[" + NAME + "] no join field found for index [" + indexName  + "]");
+                throw new QueryShardException(context, "[" + NAME + "] no join field found for index [" + indexName + "]");
             }
         }
-        final ParentIdFieldMapper childMapper = joinFieldMapper.getParentIdFieldMapper(type, false);
-        if (childMapper == null) {
+        if (joiner.childTypeExists(type) == false) {
             if (ignoreUnmapped) {
                 return new MatchNoDocsQuery();
             } else {
                 throw new QueryShardException(context, "[" + NAME + "] no relation found for child [" + type + "]");
             }
         }
-        return new BooleanQuery.Builder()
-            .add(childMapper.fieldType().termQuery(id, context), BooleanClause.Occur.MUST)
+        return new BooleanQuery.Builder().add(new TermQuery(new Term(joiner.parentJoinField(type), id)), BooleanClause.Occur.MUST)
             // Need to take child type into account, otherwise a child doc of different type with the same id could match
-            .add(joinFieldMapper.fieldType().termQuery(type, context), BooleanClause.Occur.FILTER)
+            .add(new TermQuery(new Term(joiner.getJoinField(), type)), BooleanClause.Occur.FILTER)
             .build();
     }
 
     @Override
     protected boolean doEquals(ParentIdQueryBuilder that) {
-        return Objects.equals(type, that.type)
-                && Objects.equals(id, that.id)
-                && Objects.equals(ignoreUnmapped, that.ignoreUnmapped);
+        return Objects.equals(type, that.type) && Objects.equals(id, that.id) && Objects.equals(ignoreUnmapped, that.ignoreUnmapped);
     }
 
     @Override
@@ -192,5 +190,10 @@ public final class ParentIdQueryBuilder extends AbstractQueryBuilder<ParentIdQue
     @Override
     public String getWriteableName() {
         return NAME;
+    }
+
+    @Override
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.ZERO;
     }
 }

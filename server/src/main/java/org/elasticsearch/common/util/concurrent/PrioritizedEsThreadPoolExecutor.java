@@ -1,25 +1,14 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.common.util.concurrent;
 
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -43,13 +32,20 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 public class PrioritizedEsThreadPoolExecutor extends EsThreadPoolExecutor {
 
-    private static final TimeValue NO_WAIT_TIME_VALUE = TimeValue.timeValueMillis(0);
     private final AtomicLong insertionOrder = new AtomicLong();
     private final Queue<Runnable> current = ConcurrentCollections.newQueue();
     private final ScheduledExecutorService timer;
 
-    public PrioritizedEsThreadPoolExecutor(String name, int corePoolSize, int maximumPoolSize, long keepAliveTime, TimeUnit unit,
-                                    ThreadFactory threadFactory, ThreadContext contextHolder, ScheduledExecutorService timer) {
+    public PrioritizedEsThreadPoolExecutor(
+        String name,
+        int corePoolSize,
+        int maximumPoolSize,
+        long keepAliveTime,
+        TimeUnit unit,
+        ThreadFactory threadFactory,
+        ThreadContext contextHolder,
+        ScheduledExecutorService timer
+    ) {
         super(name, corePoolSize, maximumPoolSize, keepAliveTime, unit, new PriorityBlockingQueue<>(), threadFactory, contextHolder);
         this.timer = timer;
     }
@@ -61,36 +57,9 @@ public class PrioritizedEsThreadPoolExecutor extends EsThreadPoolExecutor {
         return pending.toArray(new Pending[pending.size()]);
     }
 
-    public int getNumberOfPendingTasks() {
-        int size = current.size();
-        size += getQueue().size();
-        return size;
-    }
-
-    /**
-     * Returns the waiting time of the first task in the queue
-     */
-    public TimeValue getMaxTaskWaitTime() {
-        if (getQueue().size() == 0) {
-            return NO_WAIT_TIME_VALUE;
-        }
-
-        long now = System.nanoTime();
-        long oldestCreationDateInNanos = now;
-        for (Runnable queuedRunnable : getQueue()) {
-            if (queuedRunnable instanceof PrioritizedRunnable) {
-                oldestCreationDateInNanos = Math.min(oldestCreationDateInNanos,
-                        ((PrioritizedRunnable) queuedRunnable).getCreationDateInNanos());
-            }
-        }
-
-        return TimeValue.timeValueNanos(now - oldestCreationDateInNanos);
-    }
-
     private void addPending(List<Runnable> runnables, List<Pending> pending, boolean executing) {
         for (Runnable runnable : runnables) {
-            if (runnable instanceof TieBreakingPrioritizedRunnable) {
-                TieBreakingPrioritizedRunnable t = (TieBreakingPrioritizedRunnable) runnable;
+            if (runnable instanceof TieBreakingPrioritizedRunnable t) {
                 Runnable innerRunnable = t.runnable;
                 if (innerRunnable != null) {
                     /** innerRunnable can be null if task is finished but not removed from executor yet,
@@ -98,8 +67,7 @@ public class PrioritizedEsThreadPoolExecutor extends EsThreadPoolExecutor {
                      */
                     pending.add(new Pending(super.unwrap(innerRunnable), t.priority(), t.insertionOrder, executing));
                 }
-            } else if (runnable instanceof PrioritizedFutureTask) {
-                PrioritizedFutureTask t = (PrioritizedFutureTask) runnable;
+            } else if (runnable instanceof PrioritizedFutureTask<?> t) {
                 Object task = t.task;
                 if (t.task instanceof Runnable) {
                     task = super.unwrap((Runnable) t.task);
@@ -160,7 +128,7 @@ public class PrioritizedEsThreadPoolExecutor extends EsThreadPoolExecutor {
 
     @Override
     protected <T> RunnableFuture<T> newTaskFor(Runnable runnable, T value) {
-        if (!(runnable instanceof PrioritizedRunnable)) {
+        if ((runnable instanceof PrioritizedRunnable) == false) {
             runnable = PrioritizedRunnable.wrap(runnable, Priority.NORMAL);
         }
         Priority priority = ((PrioritizedRunnable) runnable).priority();
@@ -169,10 +137,10 @@ public class PrioritizedEsThreadPoolExecutor extends EsThreadPoolExecutor {
 
     @Override
     protected <T> RunnableFuture<T> newTaskFor(Callable<T> callable) {
-        if (!(callable instanceof PrioritizedCallable)) {
+        if ((callable instanceof PrioritizedCallable) == false) {
             callable = PrioritizedCallable.wrap(callable, Priority.NORMAL);
         }
-        return new PrioritizedFutureTask<>((PrioritizedCallable)callable, insertionOrder.incrementAndGet());
+        return new PrioritizedFutureTask<T>((PrioritizedCallable<T>) callable, insertionOrder.incrementAndGet());
     }
 
     public static class Pending {
@@ -208,7 +176,7 @@ public class PrioritizedEsThreadPoolExecutor extends EsThreadPoolExecutor {
         public void run() {
             synchronized (this) {
                 // make the task as stared. This is needed for synchronization with the timeout handling
-                // see  #scheduleTimeout()
+                // see #scheduleTimeout()
                 started = true;
                 FutureUtils.cancel(timeoutFuture);
             }
@@ -218,7 +186,7 @@ public class PrioritizedEsThreadPoolExecutor extends EsThreadPoolExecutor {
         @Override
         public int compareTo(PrioritizedRunnable pr) {
             int res = super.compareTo(pr);
-            if (res != 0 || !(pr instanceof TieBreakingPrioritizedRunnable)) {
+            if (res != 0 || (pr instanceof TieBreakingPrioritizedRunnable) == false) {
                 return res;
             }
             return insertionOrder < ((TieBreakingPrioritizedRunnable) pr).insertionOrder ? -1 : 1;
@@ -230,12 +198,9 @@ public class PrioritizedEsThreadPoolExecutor extends EsThreadPoolExecutor {
                     throw new IllegalStateException("scheduleTimeout may only be called once");
                 }
                 if (started == false) {
-                    timeoutFuture = timer.schedule(new Runnable() {
-                        @Override
-                        public void run() {
-                            if (remove(TieBreakingPrioritizedRunnable.this)) {
-                                runAndClean(timeoutCallback);
-                            }
+                    timeoutFuture = timer.schedule(() -> {
+                        if (remove(TieBreakingPrioritizedRunnable.this)) {
+                            runAndClean(timeoutCallback);
                         }
                     }, timeValue.nanos(), TimeUnit.NANOSECONDS);
                 }
@@ -263,7 +228,7 @@ public class PrioritizedEsThreadPoolExecutor extends EsThreadPoolExecutor {
 
     }
 
-    private static final class PrioritizedFutureTask<T> extends FutureTask<T> implements Comparable<PrioritizedFutureTask> {
+    private static final class PrioritizedFutureTask<T> extends FutureTask<T> implements Comparable<PrioritizedFutureTask<T>> {
 
         final Object task;
         final Priority priority;
@@ -284,7 +249,7 @@ public class PrioritizedEsThreadPoolExecutor extends EsThreadPoolExecutor {
         }
 
         @Override
-        public int compareTo(PrioritizedFutureTask pft) {
+        public int compareTo(PrioritizedFutureTask<T> pft) {
             int res = priority.compareTo(pft.priority);
             if (res != 0) {
                 return res;

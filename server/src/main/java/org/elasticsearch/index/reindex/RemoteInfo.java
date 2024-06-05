@@ -1,50 +1,44 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.reindex;
 
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.DeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xcontent.DeprecationHandler;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
+import java.io.Closeable;
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
 import static java.util.Collections.unmodifiableMap;
 import static java.util.Objects.requireNonNull;
-import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
+import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 
-public class RemoteInfo implements Writeable, ToXContentObject {
+public class RemoteInfo implements Writeable, ToXContentObject, Closeable {
     /**
      * Default {@link #socketTimeout} for requests that don't have one set.
      */
@@ -62,7 +56,7 @@ public class RemoteInfo implements Writeable, ToXContentObject {
     private final String pathPrefix;
     private final BytesReference query;
     private final String username;
-    private final String password;
+    private final SecureString password;
     private final Map<String, String> headers;
     /**
      * Time to wait for a response from each request.
@@ -73,8 +67,18 @@ public class RemoteInfo implements Writeable, ToXContentObject {
      */
     private final TimeValue connectTimeout;
 
-    public RemoteInfo(String scheme, String host, int port, String pathPrefix, BytesReference query, String username, String password,
-                      Map<String, String> headers, TimeValue socketTimeout, TimeValue connectTimeout) {
+    public RemoteInfo(
+        String scheme,
+        String host,
+        int port,
+        String pathPrefix,
+        BytesReference query,
+        String username,
+        SecureString password,
+        Map<String, String> headers,
+        TimeValue socketTimeout,
+        TimeValue connectTimeout
+    ) {
         assert isQueryJson(query) : "Query does not appear to be JSON";
         this.scheme = requireNonNull(scheme, "[scheme] must be specified to reindex from a remote cluster");
         this.host = requireNonNull(host, "[host] must be specified to reindex from a remote cluster");
@@ -97,9 +101,13 @@ public class RemoteInfo implements Writeable, ToXContentObject {
         port = in.readVInt();
         query = in.readBytesReference();
         username = in.readOptionalString();
-        password = in.readOptionalString();
+        if (in.getTransportVersion().before(TransportVersions.V_8_2_0)) {
+            password = new SecureString(in.readOptionalString().toCharArray());
+        } else {
+            password = in.readOptionalSecureString();
+        }
         int headersLength = in.readVInt();
-        Map<String, String> headers = new HashMap<>(headersLength);
+        Map<String, String> headers = Maps.newMapWithExpectedSize(headersLength);
         for (int i = 0; i < headersLength; i++) {
             headers.put(in.readString(), in.readString());
         }
@@ -116,7 +124,11 @@ public class RemoteInfo implements Writeable, ToXContentObject {
         out.writeVInt(port);
         out.writeBytesReference(query);
         out.writeOptionalString(username);
-        out.writeOptionalString(password);
+        if (out.getTransportVersion().before(TransportVersions.V_8_2_0)) {
+            out.writeOptionalString(password.toString());
+        } else {
+            out.writeOptionalSecureString(password);
+        }
         out.writeVInt(headers.size());
         for (Map.Entry<String, String> header : headers.entrySet()) {
             out.writeString(header.getKey());
@@ -125,6 +137,11 @@ public class RemoteInfo implements Writeable, ToXContentObject {
         out.writeTimeValue(socketTimeout);
         out.writeTimeValue(connectTimeout);
         out.writeOptionalString(pathPrefix);
+    }
+
+    @Override
+    public void close() throws IOException {
+        this.password.close();
     }
 
     public String getScheme() {
@@ -154,7 +171,7 @@ public class RemoteInfo implements Writeable, ToXContentObject {
     }
 
     @Nullable
-    public String getPassword() {
+    public SecureString getPassword() {
         return password;
     }
 
@@ -204,11 +221,10 @@ public class RemoteInfo implements Writeable, ToXContentObject {
             builder.field("username", username);
         }
         if (password != null) {
-            builder.field("password", password);
+            builder.field("password", password.toString());
         }
-        builder.field("host", scheme + "://" + host + ":" + port +
-            (pathPrefix == null ? "" : "/" + pathPrefix));
-        if (headers.size() >0 ) {
+        builder.field("host", scheme + "://" + host + ":" + port + (pathPrefix == null ? "" : "/" + pathPrefix));
+        if (headers.size() > 0) {
             builder.field("headers", headers);
         }
         builder.field("socket_timeout", socketTimeout.getStringRep());
@@ -222,16 +238,16 @@ public class RemoteInfo implements Writeable, ToXContentObject {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         RemoteInfo that = (RemoteInfo) o;
-        return port == that.port &&
-            Objects.equals(scheme, that.scheme) &&
-            Objects.equals(host, that.host) &&
-            Objects.equals(pathPrefix, that.pathPrefix) &&
-            Objects.equals(query, that.query) &&
-            Objects.equals(username, that.username) &&
-            Objects.equals(password, that.password) &&
-            Objects.equals(headers, that.headers) &&
-            Objects.equals(socketTimeout, that.socketTimeout) &&
-            Objects.equals(connectTimeout, that.connectTimeout);
+        return port == that.port
+            && Objects.equals(scheme, that.scheme)
+            && Objects.equals(host, that.host)
+            && Objects.equals(pathPrefix, that.pathPrefix)
+            && Objects.equals(query, that.query)
+            && Objects.equals(username, that.username)
+            && Objects.equals(password, that.password)
+            && Objects.equals(headers, that.headers)
+            && Objects.equals(socketTimeout, that.socketTimeout)
+            && Objects.equals(connectTimeout, that.connectTimeout);
     }
 
     @Override
@@ -245,7 +261,7 @@ public class RemoteInfo implements Writeable, ToXContentObject {
         if (query == null) {
             return BytesReference.bytes(matchAllQuery().toXContent(builder, ToXContent.EMPTY_PARAMS));
         }
-        if (!(query instanceof Map)) {
+        if ((query instanceof Map) == false) {
             throw new IllegalArgumentException("Expected [query] to be an object but was [" + query + "]");
         }
         @SuppressWarnings("unchecked")
@@ -253,9 +269,18 @@ public class RemoteInfo implements Writeable, ToXContentObject {
         return BytesReference.bytes(builder.map(map));
     }
 
+    private static final XContentParserConfiguration PARSER_CONFIGURATION = XContentParserConfiguration.EMPTY.withRegistry(
+        NamedXContentRegistry.EMPTY
+    ).withDeprecationHandler(DeprecationHandler.THROW_UNSUPPORTED_OPERATION);
+
     private static boolean isQueryJson(BytesReference bytesReference) {
-        try (XContentParser parser = QUERY_CONTENT_TYPE.createParser(NamedXContentRegistry.EMPTY,
-            DeprecationHandler.THROW_UNSUPPORTED_OPERATION, bytesReference.streamInput())) {
+        try (
+            XContentParser parser = XContentHelper.createParserNotCompressed(
+                PARSER_CONFIGURATION,
+                bytesReference,
+                QUERY_CONTENT_TYPE.type()
+            )
+        ) {
             Map<String, Object> query = parser.map();
             return true;
         } catch (IOException e) {

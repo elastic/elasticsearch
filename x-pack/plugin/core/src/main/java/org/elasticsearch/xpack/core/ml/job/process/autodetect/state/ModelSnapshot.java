@@ -1,31 +1,30 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.job.process.autodetect.state;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.xpack.core.ml.job.config.Job;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ObjectParser.ValueType;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.common.time.TimeUtils;
+import org.elasticsearch.xpack.core.ml.MlConfigVersion;
+import org.elasticsearch.xpack.core.ml.job.config.Job;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
@@ -63,23 +62,39 @@ public class ModelSnapshot implements ToXContentObject, Writeable {
 
         parser.declareString(Builder::setJobId, Job.ID);
         parser.declareString(Builder::setMinVersion, MIN_VERSION);
-        parser.declareField(Builder::setTimestamp,
-                p -> TimeUtils.parseTimeField(p, TIMESTAMP.getPreferredName()), TIMESTAMP, ValueType.VALUE);
+        parser.declareField(
+            Builder::setTimestamp,
+            p -> TimeUtils.parseTimeField(p, TIMESTAMP.getPreferredName()),
+            TIMESTAMP,
+            ValueType.VALUE
+        );
         parser.declareString(Builder::setDescription, DESCRIPTION);
         parser.declareString(Builder::setSnapshotId, ModelSnapshotField.SNAPSHOT_ID);
         parser.declareInt(Builder::setSnapshotDocCount, SNAPSHOT_DOC_COUNT);
-        parser.declareObject(Builder::setModelSizeStats, ignoreUnknownFields ? ModelSizeStats.LENIENT_PARSER : ModelSizeStats.STRICT_PARSER,
-                ModelSizeStats.RESULT_TYPE_FIELD);
-        parser.declareField(Builder::setLatestRecordTimeStamp,
-                p -> TimeUtils.parseTimeField(p, LATEST_RECORD_TIME.getPreferredName()), LATEST_RECORD_TIME, ValueType.VALUE);
-        parser.declareField(Builder::setLatestResultTimeStamp,
-                p -> TimeUtils.parseTimeField(p, LATEST_RESULT_TIME.getPreferredName()), LATEST_RESULT_TIME, ValueType.VALUE);
+        parser.declareObject(
+            Builder::setModelSizeStats,
+            ignoreUnknownFields ? ModelSizeStats.LENIENT_PARSER : ModelSizeStats.STRICT_PARSER,
+            ModelSizeStats.RESULT_TYPE_FIELD
+        );
+        parser.declareField(
+            Builder::setLatestRecordTimeStamp,
+            p -> TimeUtils.parseTimeField(p, LATEST_RECORD_TIME.getPreferredName()),
+            LATEST_RECORD_TIME,
+            ValueType.VALUE
+        );
+        parser.declareField(
+            Builder::setLatestResultTimeStamp,
+            p -> TimeUtils.parseTimeField(p, LATEST_RESULT_TIME.getPreferredName()),
+            LATEST_RESULT_TIME,
+            ValueType.VALUE
+        );
         parser.declareObject(Builder::setQuantiles, ignoreUnknownFields ? Quantiles.LENIENT_PARSER : Quantiles.STRICT_PARSER, QUANTILES);
         parser.declareBoolean(Builder::setRetain, RETAIN);
 
         return parser;
     }
 
+    public static String EMPTY_SNAPSHOT_ID = "empty";
 
     private final String jobId;
 
@@ -87,8 +102,12 @@ public class ModelSnapshot implements ToXContentObject, Writeable {
      * The minimum version a node should have to be able
      * to read this model snapshot.
      */
-    private final Version minVersion;
+    private final MlConfigVersion minVersion;
 
+    /**
+     * This is model snapshot's creation wall clock time.
+     * Use {@code latestResultTimeStamp} if you need model time instead.
+     */
     private final Date timestamp;
     private final String description;
     private final String snapshotId;
@@ -99,10 +118,19 @@ public class ModelSnapshot implements ToXContentObject, Writeable {
     private final Quantiles quantiles;
     private final boolean retain;
 
-
-    private ModelSnapshot(String jobId, Version minVersion, Date timestamp, String description, String snapshotId, int snapshotDocCount,
-                          ModelSizeStats modelSizeStats, Date latestRecordTimeStamp, Date latestResultTimeStamp, Quantiles quantiles,
-                          boolean retain) {
+    private ModelSnapshot(
+        String jobId,
+        MlConfigVersion minVersion,
+        Date timestamp,
+        String description,
+        String snapshotId,
+        int snapshotDocCount,
+        ModelSizeStats modelSizeStats,
+        Date latestRecordTimeStamp,
+        Date latestResultTimeStamp,
+        Quantiles quantiles,
+        boolean retain
+    ) {
         this.jobId = jobId;
         this.minVersion = minVersion;
         this.timestamp = timestamp;
@@ -118,11 +146,7 @@ public class ModelSnapshot implements ToXContentObject, Writeable {
 
     public ModelSnapshot(StreamInput in) throws IOException {
         jobId = in.readString();
-        if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
-            minVersion = Version.readVersion(in);
-        } else {
-            minVersion = Version.CURRENT.minimumCompatibilityVersion();
-        }
+        minVersion = MlConfigVersion.readVersion(in);
         timestamp = in.readBoolean() ? new Date(in.readVLong()) : null;
         description = in.readOptionalString();
         snapshotId = in.readOptionalString();
@@ -137,9 +161,7 @@ public class ModelSnapshot implements ToXContentObject, Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(jobId);
-        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
-            Version.writeVersion(minVersion, out);
-        }
+        MlConfigVersion.writeVersion(minVersion, out);
         if (timestamp != null) {
             out.writeBoolean(true);
             out.writeVLong(timestamp.getTime());
@@ -185,12 +207,18 @@ public class ModelSnapshot implements ToXContentObject, Writeable {
             builder.field(ModelSizeStats.RESULT_TYPE_FIELD.getPreferredName(), modelSizeStats);
         }
         if (latestRecordTimeStamp != null) {
-            builder.timeField(LATEST_RECORD_TIME.getPreferredName(), LATEST_RECORD_TIME.getPreferredName() + "_string",
-                    latestRecordTimeStamp.getTime());
+            builder.timeField(
+                LATEST_RECORD_TIME.getPreferredName(),
+                LATEST_RECORD_TIME.getPreferredName() + "_string",
+                latestRecordTimeStamp.getTime()
+            );
         }
         if (latestResultTimeStamp != null) {
-            builder.timeField(LATEST_RESULT_TIME.getPreferredName(), LATEST_RESULT_TIME.getPreferredName() + "_string",
-                    latestResultTimeStamp.getTime());
+            builder.timeField(
+                LATEST_RESULT_TIME.getPreferredName(),
+                LATEST_RESULT_TIME.getPreferredName() + "_string",
+                latestResultTimeStamp.getTime()
+            );
         }
         if (quantiles != null) {
             builder.field(QUANTILES.getPreferredName(), quantiles);
@@ -204,7 +232,7 @@ public class ModelSnapshot implements ToXContentObject, Writeable {
         return jobId;
     }
 
-    public Version getMinVersion() {
+    public MlConfigVersion getMinVersion() {
         return minVersion;
     }
 
@@ -240,10 +268,25 @@ public class ModelSnapshot implements ToXContentObject, Writeable {
         return latestResultTimeStamp;
     }
 
+    public boolean isRetain() {
+        return retain;
+    }
+
     @Override
     public int hashCode() {
-        return Objects.hash(jobId, minVersion, timestamp, description, snapshotId, quantiles, snapshotDocCount, modelSizeStats,
-                latestRecordTimeStamp, latestResultTimeStamp, retain);
+        return Objects.hash(
+            jobId,
+            minVersion,
+            timestamp,
+            description,
+            snapshotId,
+            quantiles,
+            snapshotDocCount,
+            modelSizeStats,
+            latestRecordTimeStamp,
+            latestResultTimeStamp,
+            retain
+        );
     }
 
     /**
@@ -262,16 +305,16 @@ public class ModelSnapshot implements ToXContentObject, Writeable {
         ModelSnapshot that = (ModelSnapshot) other;
 
         return Objects.equals(this.jobId, that.jobId)
-                && Objects.equals(this.minVersion, that.minVersion)
-                && Objects.equals(this.timestamp, that.timestamp)
-                && Objects.equals(this.description, that.description)
-                && Objects.equals(this.snapshotId, that.snapshotId)
-                && this.snapshotDocCount == that.snapshotDocCount
-                && Objects.equals(this.modelSizeStats, that.modelSizeStats)
-                && Objects.equals(this.quantiles, that.quantiles)
-                && Objects.equals(this.latestRecordTimeStamp, that.latestRecordTimeStamp)
-                && Objects.equals(this.latestResultTimeStamp, that.latestResultTimeStamp)
-                && this.retain == that.retain;
+            && Objects.equals(this.minVersion, that.minVersion)
+            && Objects.equals(this.timestamp, that.timestamp)
+            && Objects.equals(this.description, that.description)
+            && Objects.equals(this.snapshotId, that.snapshotId)
+            && this.snapshotDocCount == that.snapshotDocCount
+            && Objects.equals(this.modelSizeStats, that.modelSizeStats)
+            && Objects.equals(this.quantiles, that.quantiles)
+            && Objects.equals(this.latestRecordTimeStamp, that.latestRecordTimeStamp)
+            && Objects.equals(this.latestResultTimeStamp, that.latestResultTimeStamp)
+            && this.retain == that.retain;
     }
 
     public List<String> stateDocumentIds() {
@@ -283,20 +326,20 @@ public class ModelSnapshot implements ToXContentObject, Writeable {
         return stateDocumentIds;
     }
 
-    /**
-     * This is how the IDs were formed in v5.4
-     */
-    public List<String> legacyStateDocumentIds() {
-        List<String> stateDocumentIds = new ArrayList<>(snapshotDocCount);
-        // The state documents count suffices are 1-based
-        for (int i = 1; i <= snapshotDocCount; i++) {
-            stateDocumentIds.add(ModelState.v54DocumentId(jobId, snapshotId, i));
-        }
-        return stateDocumentIds;
+    public boolean isTheEmptySnapshot() {
+        return isTheEmptySnapshot(snapshotId);
+    }
+
+    public static boolean isTheEmptySnapshot(String snapshotId) {
+        return EMPTY_SNAPSHOT_ID.equals(snapshotId);
     }
 
     public static String documentIdPrefix(String jobId) {
         return jobId + "_" + TYPE + "_";
+    }
+
+    public static String annotationDocumentId(ModelSnapshot snapshot) {
+        return "annotation_for_" + documentId(snapshot);
     }
 
     public static String documentId(ModelSnapshot snapshot) {
@@ -322,9 +365,13 @@ public class ModelSnapshot implements ToXContentObject, Writeable {
     }
 
     public static ModelSnapshot fromJson(BytesReference bytesReference) {
-        try (InputStream stream = bytesReference.streamInput();
-             XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
+        try (
+            XContentParser parser = XContentHelper.createParserNotCompressed(
+                LoggingDeprecationHandler.XCONTENT_PARSER_CONFIG,
+                bytesReference,
+                XContentType.JSON
+            )
+        ) {
             return LENIENT_PARSER.apply(parser, null).build();
         } catch (IOException e) {
             throw new ElasticsearchParseException("failed to parse modelSnapshot", e);
@@ -336,7 +383,7 @@ public class ModelSnapshot implements ToXContentObject, Writeable {
 
         // Stored snapshot documents created prior to 6.3.0 will have no
         // value for min_version.
-        private Version minVersion = Version.fromString("6.3.0");
+        private MlConfigVersion minVersion = MlConfigVersion.fromString("6.3.0");
 
         private Date timestamp;
         private String description;
@@ -348,9 +395,7 @@ public class ModelSnapshot implements ToXContentObject, Writeable {
         private Quantiles quantiles;
         private boolean retain;
 
-
-        public Builder() {
-        }
+        public Builder() {}
 
         public Builder(String jobId) {
             this();
@@ -376,13 +421,13 @@ public class ModelSnapshot implements ToXContentObject, Writeable {
             return this;
         }
 
-        public Builder setMinVersion(Version minVersion) {
+        public Builder setMinVersion(MlConfigVersion minVersion) {
             this.minVersion = minVersion;
             return this;
         }
 
         public Builder setMinVersion(String minVersion) {
-            this.minVersion = Version.fromString(minVersion);
+            this.minVersion = MlConfigVersion.fromString(minVersion);
             return this;
         }
 
@@ -437,8 +482,35 @@ public class ModelSnapshot implements ToXContentObject, Writeable {
         }
 
         public ModelSnapshot build() {
-            return new ModelSnapshot(jobId, minVersion, timestamp, description, snapshotId, snapshotDocCount, modelSizeStats,
-                    latestRecordTimeStamp, latestResultTimeStamp, quantiles, retain);
+            return new ModelSnapshot(
+                jobId,
+                minVersion,
+                timestamp,
+                description,
+                snapshotId,
+                snapshotDocCount,
+                modelSizeStats,
+                latestRecordTimeStamp,
+                latestResultTimeStamp,
+                quantiles,
+                retain
+            );
         }
+    }
+
+    public static ModelSnapshot emptySnapshot(String jobId) {
+        return new ModelSnapshot(
+            jobId,
+            MlConfigVersion.CURRENT,
+            new Date(),
+            "empty snapshot",
+            EMPTY_SNAPSHOT_ID,
+            0,
+            new ModelSizeStats.Builder(jobId).build(),
+            null,
+            null,
+            null,
+            false
+        );
     }
 }

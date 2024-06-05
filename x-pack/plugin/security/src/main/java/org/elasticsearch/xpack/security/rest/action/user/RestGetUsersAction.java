@@ -1,48 +1,48 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.rest.action.user;
 
-import org.apache.logging.log4j.LogManager;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.security.action.user.GetUsersRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.user.GetUsersResponse;
-import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
+import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 /**
  * Rest action to retrieve a user from the security index
  */
-public class RestGetUsersAction extends SecurityBaseRestHandler {
+@ServerlessScope(Scope.INTERNAL)
+public class RestGetUsersAction extends NativeUserBaseRestHandler {
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestGetUsersAction.class));
-
-    public RestGetUsersAction(Settings settings, RestController controller, XPackLicenseState licenseState) {
+    public RestGetUsersAction(Settings settings, XPackLicenseState licenseState) {
         super(settings, licenseState);
-        // TODO: remove deprecated endpoint in 8.0.0
-        controller.registerWithDeprecatedHandler(
-            GET, "/_security/user/", this,
-            GET, "/_xpack/security/user/", deprecationLogger);
-        controller.registerWithDeprecatedHandler(
-            GET, "/_security/user/{username}", this,
-            GET, "/_xpack/security/user/{username}", deprecationLogger);
+    }
+
+    @Override
+    public List<Route> routes() {
+        return List.of(
+            Route.builder(GET, "/_security/user/").replaces(GET, "/_xpack/security/user/", RestApiVersion.V_7).build(),
+            Route.builder(GET, "/_security/user/{username}").replaces(GET, "/_xpack/security/user/{username}", RestApiVersion.V_7).build()
+        );
     }
 
     @Override
@@ -53,26 +53,25 @@ public class RestGetUsersAction extends SecurityBaseRestHandler {
     @Override
     public RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
         String[] usernames = request.paramAsStringArray("username", Strings.EMPTY_ARRAY);
+        final boolean withProfileUid = request.paramAsBoolean("with_profile_uid", false);
 
-        return channel -> new GetUsersRequestBuilder(client).usernames(usernames).execute(new RestBuilderListener<>(channel) {
-            @Override
-            public RestResponse buildResponse(GetUsersResponse response, XContentBuilder builder) throws Exception {
-                builder.startObject();
-                for (User user : response.users()) {
-                    builder.field(user.principal(), user);
+        return channel -> new GetUsersRequestBuilder(client).usernames(usernames)
+            .withProfileUid(withProfileUid)
+            .execute(new RestBuilderListener<>(channel) {
+                @Override
+                public RestResponse buildResponse(GetUsersResponse response, XContentBuilder builder) throws Exception {
+                    response.toXContent(builder, ToXContent.EMPTY_PARAMS);
+
+                    // if the user asked for specific users, but none of them were found
+                    // we'll return an empty result and 404 status code
+                    if (usernames.length != 0 && response.users().length == 0) {
+                        return new RestResponse(RestStatus.NOT_FOUND, builder);
+                    }
+
+                    // either the user asked for all users, or at least one of the users
+                    // was found
+                    return new RestResponse(RestStatus.OK, builder);
                 }
-                builder.endObject();
-
-                // if the user asked for specific users, but none of them were found
-                // we'll return an empty result and 404 status code
-                if (usernames.length != 0 && response.users().length == 0) {
-                    return new BytesRestResponse(RestStatus.NOT_FOUND, builder);
-                }
-
-                // either the user asked for all users, or at least one of the users
-                // was found
-                return new BytesRestResponse(RestStatus.OK, builder);
-            }
-        });
+            });
     }
 }

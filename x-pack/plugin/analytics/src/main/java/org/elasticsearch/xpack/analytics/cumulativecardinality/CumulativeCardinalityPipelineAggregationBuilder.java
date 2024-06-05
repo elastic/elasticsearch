@@ -1,50 +1,39 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.analytics.cumulativecardinality;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.AbstractPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.BucketMetricsParser;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
-import org.elasticsearch.xpack.core.XPackField;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Collection;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.Parser.BUCKETS_PATH;
 import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.Parser.FORMAT;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
-public class CumulativeCardinalityPipelineAggregationBuilder
-        extends AbstractPipelineAggregationBuilder<CumulativeCardinalityPipelineAggregationBuilder> {
+public class CumulativeCardinalityPipelineAggregationBuilder extends AbstractPipelineAggregationBuilder<
+    CumulativeCardinalityPipelineAggregationBuilder> {
     public static final String NAME = "cumulative_cardinality";
 
     public static final ConstructingObjectParser<CumulativeCardinalityPipelineAggregationBuilder, String> PARSER =
-            new ConstructingObjectParser<>(NAME, false, (args, name) -> {
-                if (AnalyticsPlugin.getLicenseState().isDataScienceAllowed() == false) {
-                    throw LicenseUtils.newComplianceException(XPackField.ANALYTICS);
-                }
-
-                // Increment usage here since it is a good boundary between internal and external, and should correlate 1:1 with
-                // usage and not internal instantiations
-                AnalyticsPlugin.cumulativeCardUsage.incrementAndGet();
-
-                return new CumulativeCardinalityPipelineAggregationBuilder(name, (String) args[0]);
-            });
+        new ConstructingObjectParser<>(
+            NAME,
+            false,
+            (args, name) -> new CumulativeCardinalityPipelineAggregationBuilder(name, (String) args[0])
+        );
     static {
         PARSER.declareString(constructorArg(), BUCKETS_PATH_FIELD);
         PARSER.declareString(CumulativeCardinalityPipelineAggregationBuilder::format, FORMAT);
@@ -96,19 +85,17 @@ public class CumulativeCardinalityPipelineAggregationBuilder
     }
 
     @Override
-    protected PipelineAggregator createInternal(Map<String, Object> metaData) {
-        return new CumulativeCardinalityPipelineAggregator(name, bucketsPaths, formatter(), metaData);
+    protected PipelineAggregator createInternal(Map<String, Object> metadata) {
+        return new CumulativeCardinalityPipelineAggregator(name, bucketsPaths, formatter(), metadata);
     }
 
     @Override
-    public void doValidate(AggregatorFactory parent, Collection<AggregationBuilder> aggFactories,
-                           Collection<PipelineAggregationBuilder> pipelineAggregatorFactories) {
+    protected void validate(ValidationContext context) {
         if (bucketsPaths.length != 1) {
-            throw new IllegalStateException(BUCKETS_PATH.getPreferredName()
-                + " must contain a single entry for aggregation [" + name + "]");
+            context.addBucketPathValidationError("must contain a single entry for aggregation [" + name + "]");
         }
 
-        validateSequentiallyOrderedParentAggs(parent, NAME, name);
+        context.validateParentAggSequentiallyOrdered(NAME, name);
     }
 
     @Override
@@ -116,6 +103,7 @@ public class CumulativeCardinalityPipelineAggregationBuilder
         if (format != null) {
             builder.field(BucketMetricsParser.FORMAT.getPreferredName(), format);
         }
+        builder.field(BUCKETS_PATH_FIELD.getPreferredName(), bucketsPaths[0]);
         return builder;
     }
 
@@ -136,5 +124,15 @@ public class CumulativeCardinalityPipelineAggregationBuilder
     @Override
     public String getWriteableName() {
         return NAME;
+    }
+
+    @Override
+    protected boolean overrideBucketsPath() {
+        return true;
+    }
+
+    @Override
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.V_7_4_0;
     }
 }

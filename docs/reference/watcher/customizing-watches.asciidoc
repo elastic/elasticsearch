@@ -1,0 +1,274 @@
+[role="xpack"]
+[[customizing-watches]]
+== Customizing watches
+
+Now that you've seen how to set up simple watches to
+<<watch-log-data,watch your log data>> and
+<<watch-cluster-status,monitor your cluster health>>, let's take a closer
+look at how you can customize a watch by modifying its <<changing-inputs,inputs>>,
+<<changing-conditions,conditions>>, <<using-transforms,transforms>>, and
+<<customizing-actions,actions>>.
+
+[[changing-inputs]]
+=== Changing inputs
+
+The Watch Input is called when the watch triggered to load an initial payload.
+This payload is stored in the _Watch Execution Context_ and from then on is
+available for other watch elements to access (e.g. watch conditions can
+be evaluated based on the data in this payload).
+
+{watcher} supports four types of inputs <<loading-static-data,simple>>,
+<<loading-search-results,search>>, <<loading-http-data,http>>, and
+<<input-chain,chain>>.
+
+[[loading-static-data]]
+==== Loading a static payload with the simple input
+
+To load static data into the watch payload for testing purposes, you can use the
+<<input-simple,simple>> input. For example, the following input stores three
+fields in the payload:
+
+[source,js]
+-------------------------------------
+"input" : {
+  "simple" : {
+    "color"  : "red",
+    "status" : "error",
+    "count"  : 3
+  }
+}
+-------------------------------------
+// NOTCONSOLE
+
+See <<input-simple>> for more details.
+
+[[loading-search-results]]
+==== Loading a payload from Elasticsearch with the search input
+
+You can use the `search` input to load Elasticsearch search results as the watch
+initial payload.
+
+A <<input-search,search>> input contains a `request` object that specifies the
+indices you want to search, the <<search-type,search type>>,
+and the search request body. The `body` field of a search input is the same as
+the body of an Elasticsearch `_search` request, making the full Elasticsearch
+Query DSL available for you to use.
+
+For example, the following `search` input loads the latest VIX quote:
+
+[source,js]
+--------------------------------------------------
+{
+  "input" : {
+    "search" : {
+      "request" : {
+        "indices" : [ "<stock-quotes-{now/d}>" ], <1>
+        "body" : {
+          "size" : 1,
+          "sort" : {
+            "timestamp" : { "order" : "desc"}
+          },
+          "query" : {
+            "term" : { "symbol" : "vix"}
+          }
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE
+<1> Will resolve to today's daily quotes index
+
+See <<input-search>> for more details.
+
+[[loading-http-data]]
+==== Loading a payload from a remote HTTP service with HTTP input
+
+Use the `http` input to issue an HTTP request and load the returned response as
+the watch initial payload. This input expects the response body content type
+to either be JSON or YAML.
+
+For example, the following `http` input loads the current weather forecast for
+Amsterdam using http://openweathermap.org/appid[OpenWeatherMap] online service:
+
+[source,js]
+--------------------------------------------------
+{
+  "input" : {
+    "http" : {
+      "request" : {
+        "url" : "http://api.openweathermap.org/data/2.5/weather",
+        "params" : {
+          "lat" : "52.374031",
+          "lon" : "4.88969",
+          "appid" : "<your openweathermap appid>"
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE
+See <<input-http>> for more details.
+
+[[chaining-inputs]]
+==== Chaining inputs
+
+You can create an <<input-chain,input chain>> to load data from multiple sources
+into a watch payload. The inputs in a chain are processed in order, so the
+data loaded by one input can be used by subsequent inputs.
+
+See <<input-chain>> for more details.
+
+[[changing-conditions]]
+=== Changing conditions
+
+The Watch Condition is evaluated as part of the watch execution. The condition
+determines whether the actions associated with the watch should execute or not.
+
+{watcher} supports four types of conditions <<condition-always,always>>,
+<<condition-never,never>>, <<condition-compare,compare>>, and
+<<condition-script,script>>.
+
+The first two are pretty self-explanatory--they are shortcuts for setting a
+watch's condition to `true` or `false`.
+
+==== Simple value comparison with the compare condition
+
+The `compare` condition enables you to perform simple comparisons against values
+in the Watch payload. While you can also do this with a `script` condition, with
+`compare` you can define inline comparisons without having to enable dynamic
+scripting.
+
+For example, the following compare condition checks to see if the `search` input
+returned any hits:
+
+[source,js]
+--------------------------------------------------
+"condition" : {
+    "compare" : { "ctx.payload.hits.total" : { "gt" : 0 }}
+  },
+--------------------------------------------------
+// NOTCONSOLE
+See <<condition-compare>> for more details.
+
+==== Powerful comparison logic with the script condition
+
+For more complex conditional logic you can use the `script` condition. The
+`script` condition accepts a script that when executed returns `true` (indicating
+the condition is met) or `false` (indicating the condition is not met). The script
+language defaults to the default script language in Elasticsearch, but you can
+also use any other supported language in the system.
+
+NOTE: Starting with 5.0, Elasticsearch is shipped with the new
+      <<modules-scripting-painless,Painless>> scripting language.
+      Painless was created and designed specifically for use in Elasticsearch.
+      Beyond providing an extensive feature set, its biggest trait is that it's
+      properly sandboxed and safe to use anywhere in the system (including in
+      {watcher}) without the need to enable dynamic scripting.
+
+For example, the following `script` condition checks if the change in the latest
+VIX quote loaded by the `http` input is either greater than 5% or lower than -5%:
+
+[source,js]
+--------------------------------------------------
+"condition" : {
+  "script" : {
+    "source" : "Math.abs(ctx.payload.hits.hits[0]._source.ChangePercent) > 5",
+    "lang" : "painless"
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE
+See <<condition-script>> for more details.
+
+[[using-transforms]]
+=== Using transforms
+
+Transforms are constructs in a watch that can change the current payload
+associated with the watch execution context.
+
+{watcher} supports three types of transforms <<transform-search,search>>,
+<<transform-script,script>> and <<transform-chain,chain>>. A `search` transform
+replaces the existing payload with the response of a new search request. You can
+use `script` transforms to modify the existing payload. A `chain` transform
+enables you to perform a series of `search` and `script` transforms.
+
+See <<transform>> for more details.
+
+[[customizing-actions]]
+=== Customizing actions
+
+Actions are associated with a watch and are executed as part of the watch execution
+only when the watch condition is met.
+
+{watcher} supports the following action types: <<actions-email,email>>,
+<<actions-slack,slack>>, <<actions-pagerduty,pagerduty>>,
+<<actions-index,index>>, <<actions-logging,logging>>, and <<actions-webhook,webhook>>.
+
+To use the `email` action, you need to <<configuring-email,configure an email account>>
+in `elasticsearch.yml` that {watcher} can use to send email. Your custom email
+messages can be plain text or styled using HTML. You can include information from
+the watch execution payload using <<templates,templates>>, as well as attach the
+entire watch payload to the message.
+
+For example, the following email action uses a template in the email body and
+attaches the payload data to the message:
+
+[source,js]
+--------------------------------------------------
+"actions" : {
+  "send_email" : { <1>
+    "email" : { <2>
+      "to" : "email@example.org",
+      "subject" : "Watcher Notification",
+      "body" : "{{ctx.payload.hits.total}} error logs found",
+      "attachments" : {
+        "data_attachment" : {
+          "data" : {
+            "format" : "json"
+          }
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE
+<1> The id of the action
+<2> The action type, in this case it's an `email` action
+
+Another example for an action is the `webhook` action. This enables you to send
+a request to any external webservice. For example, the following `webhook` action
+creates a new issue in GitHub
+
+[source,js]
+--------------------------------------------------
+"actions" : {
+  "create_github_issue" : {
+    "webhook" : {
+      "method" : "POST",
+      "url" : "https://api.github.com/repos/<owner>/<repo>/issues", <1>
+      "body" : "{
+        \"title\": \"Found errors in 'contact.html'\",
+        \"body\": \"Found {{ctx.payload.hits.total}} errors in this page in the last 5 minutes\",
+        \"assignee\": \"web-admin\",
+        \"labels\": [ \"bug\", \"sev2\" ]
+      }",
+      "auth" : {
+        "basic" : {
+          "username" : "<username>", <2>
+          "password" : "<password>" <3>
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE
+<1> `<owner>` is the owner of the GitHub repo and `<repo>` is the name of the repo.
+<2> The username that creates the issue
+<3> The password of that user
+
+To learn how to create other actions see <<actions>>.

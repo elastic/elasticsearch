@@ -1,40 +1,30 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.reindex;
 
-import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.search.SearchAction;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 
-public class UpdateByQueryRequestBuilder extends
-        AbstractBulkIndexByScrollRequestBuilder<UpdateByQueryRequest, UpdateByQueryRequestBuilder> {
+public class UpdateByQueryRequestBuilder extends AbstractBulkIndexByScrollRequestBuilder<
+    UpdateByQueryRequest,
+    UpdateByQueryRequestBuilder> {
 
-    public UpdateByQueryRequestBuilder(ElasticsearchClient client, ActionType<BulkByScrollResponse> action) {
-        this(client, action, new SearchRequestBuilder(client, SearchAction.INSTANCE));
+    private Boolean abortOnVersionConflict;
+    private String pipeline;
+
+    public UpdateByQueryRequestBuilder(ElasticsearchClient client) {
+        this(client, new SearchRequestBuilder(client));
     }
 
-    private UpdateByQueryRequestBuilder(ElasticsearchClient client,
-            ActionType<BulkByScrollResponse> action,
-            SearchRequestBuilder search) {
-        super(client, action, search, new UpdateByQueryRequest(search.request()));
+    private UpdateByQueryRequestBuilder(ElasticsearchClient client, SearchRequestBuilder search) {
+        super(client, UpdateByQueryAction.INSTANCE, search);
     }
 
     @Override
@@ -44,12 +34,41 @@ public class UpdateByQueryRequestBuilder extends
 
     @Override
     public UpdateByQueryRequestBuilder abortOnVersionConflict(boolean abortOnVersionConflict) {
-        request.setAbortOnVersionConflict(abortOnVersionConflict);
+        this.abortOnVersionConflict = abortOnVersionConflict;
         return this;
     }
 
     public UpdateByQueryRequestBuilder setPipeline(String pipeline) {
-        request.setPipeline(pipeline);
+        this.pipeline = pipeline;
         return this;
+    }
+
+    @Override
+    public UpdateByQueryRequest request() {
+        SearchRequest search = source().request();
+        try {
+            UpdateByQueryRequest updateByQueryRequest = new UpdateByQueryRequest(search, false);
+            try {
+                apply(updateByQueryRequest);
+                return updateByQueryRequest;
+            } catch (Exception e) {
+                updateByQueryRequest.decRef();
+                throw e;
+            }
+        } catch (Exception e) {
+            search.decRef();
+            throw e;
+        }
+    }
+
+    @Override
+    public void apply(UpdateByQueryRequest request) {
+        super.apply(request);
+        if (abortOnVersionConflict != null) {
+            request.setAbortOnVersionConflict(abortOnVersionConflict);
+        }
+        if (pipeline != null) {
+            request.setPipeline(pipeline);
+        }
     }
 }

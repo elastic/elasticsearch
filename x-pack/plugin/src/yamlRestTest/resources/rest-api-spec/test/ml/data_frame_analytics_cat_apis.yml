@@ -1,0 +1,86 @@
+setup:
+  - skip:
+      features: headers
+  - do:
+      indices.create:
+        index: index-source
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      ml.put_data_frame_analytics:
+        id: dfa-outlier-detection-job
+        body:  >
+          {
+            "source": { "index": "index-source" },
+            "dest": { "index": "index-dest-od" },
+            "analysis": {"outlier_detection": {}}
+          }
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      ml.put_data_frame_analytics:
+        id: dfa-regression-job
+        body:  >
+          {
+            "source": { "index": "index-source" },
+            "dest": { "index": "index-dest-r" },
+            "analysis": { "regression": { "dependent_variable": "dep_var" } }
+          }
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      ml.put_data_frame_analytics:
+        id: dfa-classification-job
+        body:  >
+          {
+            "source": { "index": "index-source" },
+            "dest": { "index": "index-dest-c" },
+            "analysis": { "classification": { "dependent_variable": "dep_var" } }
+          }
+
+---
+"Test cat data frame analytics single job":
+
+  - do:
+      cat.ml_data_frame_analytics:
+        id: dfa-outlier-detection-job
+  - match:
+      $body: |
+        / #id                               type                  create_time state
+        ^ (dfa\-outlier\-detection\-job \s+ outlier_detection \s+ [^\s]+ \s+  stopped \n)+  $/
+
+---
+"Test cat data frame analytics single job with header":
+  - do:
+      cat.ml_data_frame_analytics:
+        id: dfa-outlier-detection-job
+        v: true
+  - match:
+      $body: |
+        /^  id                           \s+ type              \s+ create_time \s+ state   \n
+           (dfa\-outlier\-detection\-job \s+ outlier_detection \s+ [^\s]+      \s+ stopped \n)+  $/
+
+---
+"Test cat data frame analytics all jobs with header":
+  - do:
+      cat.ml_data_frame_analytics:
+        v: true
+  - match:
+      $body: |
+        /^  id                           \s+ type              \s+ create_time \s+ state   \n
+           (dfa\-classification\-job     \s+ classification    \s+ [^\s]+      \s+ stopped \n)+
+           (dfa\-outlier\-detection\-job \s+ outlier_detection \s+ [^\s]+      \s+ stopped \n)+
+           (dfa\-regression\-job         \s+ regression        \s+ [^\s]+      \s+ stopped \n)+  $/
+
+---
+"Test cat data frame analytics all jobs with header and column selection":
+  - do:
+      cat.ml_data_frame_analytics:
+        v: true
+        h: id,t,s,p,source_index,dest_index
+  - match:
+      $body: |
+        /^  id                           \s+ t                 \s+ s       \s+ p                                                         \s+ source_index \s+ dest_index    \n
+           (dfa\-classification\-job     \s+ classification    \s+ stopped \s+ reindexing:0,loading_data:0,feature_selection:0,coarse_parameter_search:0,fine_tuning_parameters:0,final_training:0,writing_results:0,inference:0 \s+ index-source \s+ index-dest-c  \n)+
+           (dfa\-outlier\-detection\-job \s+ outlier_detection \s+ stopped \s+ reindexing:0,loading_data:0,computing_outliers:0,writing_results:0 \s+ index-source \s+ index-dest-od \n)+
+           (dfa\-regression\-job         \s+ regression        \s+ stopped \s+ reindexing:0,loading_data:0,feature_selection:0,coarse_parameter_search:0,fine_tuning_parameters:0,final_training:0,writing_results:0,inference:0 \s+ index-source \s+ index-dest-r  \n)+  $/

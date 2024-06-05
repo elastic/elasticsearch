@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.discovery.azure.classic;
@@ -25,8 +14,6 @@ import com.microsoft.windowsazure.management.compute.models.HostedServiceGetDeta
 import com.microsoft.windowsazure.management.compute.models.InstanceEndpoint;
 import com.microsoft.windowsazure.management.compute.models.RoleInstance;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cloud.azure.classic.AzureServiceDisableException;
 import org.elasticsearch.cloud.azure.classic.AzureServiceRemoteException;
 import org.elasticsearch.cloud.azure.classic.management.AzureComputeService;
@@ -37,8 +24,10 @@ import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.SeedHostsProvider;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -48,17 +37,17 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class AzureSeedHostsProvider implements SeedHostsProvider {
-    
+
     private static final Logger logger = LogManager.getLogger(AzureSeedHostsProvider.class);
 
     public enum HostType {
         PRIVATE_IP("private_ip"),
         PUBLIC_IP("public_ip");
 
-        private String type ;
+        private String type;
 
         HostType(String type) {
-            this.type = type ;
+            this.type = type;
         }
 
         public String getType() {
@@ -110,8 +99,12 @@ public class AzureSeedHostsProvider implements SeedHostsProvider {
     private final String deploymentName;
     private final DeploymentSlot deploymentSlot;
 
-    public AzureSeedHostsProvider(Settings settings, AzureComputeService azureComputeService,
-                                  TransportService transportService, NetworkService networkService) {
+    public AzureSeedHostsProvider(
+        Settings settings,
+        AzureComputeService azureComputeService,
+        TransportService transportService,
+        NetworkService networkService
+    ) {
         this.settings = settings;
         this.azureComputeService = azureComputeService;
         this.transportService = transportService;
@@ -139,8 +132,8 @@ public class AzureSeedHostsProvider implements SeedHostsProvider {
     @Override
     public List<TransportAddress> getSeedAddresses(HostsResolver hostsResolver) {
         if (refreshInterval.millis() != 0) {
-            if (dynamicHosts != null &&
-                    (refreshInterval.millis() < 0 || (System.currentTimeMillis() - lastRefresh) < refreshInterval.millis())) {
+            if (dynamicHosts != null
+                && (refreshInterval.millis() < 0 || (System.currentTimeMillis() - lastRefresh) < refreshInterval.millis())) {
                 logger.trace("using cache to retrieve node list");
                 return dynamicHosts;
             }
@@ -166,7 +159,8 @@ public class AzureSeedHostsProvider implements SeedHostsProvider {
         InetAddress ipAddress = null;
         try {
             ipAddress = networkService.resolvePublishHostAddresses(
-                NetworkService.GLOBAL_NETWORK_PUBLISH_HOST_SETTING.get(settings).toArray(Strings.EMPTY_ARRAY));
+                NetworkService.GLOBAL_NETWORK_PUBLISH_HOST_SETTING.get(settings).toArray(Strings.EMPTY_ARRAY)
+            );
             logger.trace("ip of current node: [{}]", ipAddress);
         } catch (IOException e) {
             // We can't find the publish host address... Hmmm. Too bad :-(
@@ -176,24 +170,26 @@ public class AzureSeedHostsProvider implements SeedHostsProvider {
         for (HostedServiceGetDetailedResponse.Deployment deployment : detailed.getDeployments()) {
             // We check the deployment slot
             if (deployment.getDeploymentSlot() != deploymentSlot) {
-                logger.debug("current deployment slot [{}] for [{}] is different from [{}]. skipping...",
-                        deployment.getDeploymentSlot(), deployment.getName(), deploymentSlot);
+                logger.debug(
+                    "current deployment slot [{}] for [{}] is different from [{}]. skipping...",
+                    deployment.getDeploymentSlot(),
+                    deployment.getName(),
+                    deploymentSlot
+                );
                 continue;
             }
 
             // If provided, we check the deployment name
-            if (Strings.hasLength(deploymentName) && !deploymentName.equals(deployment.getName())) {
-                logger.debug("current deployment name [{}] different from [{}]. skipping...",
-                        deployment.getName(), deploymentName);
+            if (Strings.hasLength(deploymentName) && deploymentName.equals(deployment.getName()) == false) {
+                logger.debug("current deployment name [{}] different from [{}]. skipping...", deployment.getName(), deploymentName);
                 continue;
             }
 
             // We check current deployment status
-            if (deployment.getStatus() != DeploymentStatus.Starting &&
-                    deployment.getStatus() != DeploymentStatus.Deploying &&
-                    deployment.getStatus() != DeploymentStatus.Running) {
-                logger.debug("[{}] status is [{}]. skipping...",
-                        deployment.getName(), deployment.getStatus());
+            if (deployment.getStatus() != DeploymentStatus.Starting
+                && deployment.getStatus() != DeploymentStatus.Deploying
+                && deployment.getStatus() != DeploymentStatus.Running) {
+                logger.debug("[{}] status is [{}]. skipping...", deployment.getName(), deployment.getStatus());
                 continue;
             }
 
@@ -224,15 +220,15 @@ public class AzureSeedHostsProvider implements SeedHostsProvider {
         return dynamicHosts;
     }
 
-    protected String resolveInstanceAddress(final HostType hostType, final RoleInstance instance) {
-        if (hostType == HostType.PRIVATE_IP) {
+    protected String resolveInstanceAddress(final HostType hostTypeValue, final RoleInstance instance) {
+        if (hostTypeValue == HostType.PRIVATE_IP) {
             final InetAddress privateIp = instance.getIPAddress();
             if (privateIp != null) {
                 return InetAddresses.toUriString(privateIp);
             } else {
                 logger.trace("no private ip provided. ignoring [{}]...", instance.getInstanceName());
             }
-        } else if (hostType == HostType.PUBLIC_IP) {
+        } else if (hostTypeValue == HostType.PUBLIC_IP) {
             for (InstanceEndpoint endpoint : instance.getInstanceEndpoints()) {
                 if (publicEndpointName.equals(endpoint.getName())) {
                     return NetworkAddress.format(new InetSocketAddress(endpoint.getVirtualIPAddress(), endpoint.getPort()));

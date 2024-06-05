@@ -5,6 +5,11 @@
       "description":"Allows to retrieve a large numbers of results from a single search request."
     },
     "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
     "url":{
       "paths":[
         {

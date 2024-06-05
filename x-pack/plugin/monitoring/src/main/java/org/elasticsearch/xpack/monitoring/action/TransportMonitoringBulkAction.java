@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.monitoring.action;
 
@@ -14,10 +15,11 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkAction;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkDoc;
@@ -30,7 +32,6 @@ import org.elasticsearch.xpack.monitoring.exporter.Exporters;
 
 import java.util.Collection;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 
 public class TransportMonitoringBulkAction extends HandledTransportAction<MonitoringBulkRequest, MonitoringBulkResponse> {
 
@@ -40,10 +41,15 @@ public class TransportMonitoringBulkAction extends HandledTransportAction<Monito
     private final MonitoringService monitoringService;
 
     @Inject
-    public TransportMonitoringBulkAction(ThreadPool threadPool, ClusterService clusterService,
-                                         TransportService transportService, ActionFilters actionFilters, Exporters exportService,
-                                         MonitoringService monitoringService) {
-        super(MonitoringBulkAction.NAME, transportService, actionFilters, MonitoringBulkRequest::new);
+    public TransportMonitoringBulkAction(
+        ThreadPool threadPool,
+        ClusterService clusterService,
+        TransportService transportService,
+        ActionFilters actionFilters,
+        Exporters exportService,
+        MonitoringService monitoringService
+    ) {
+        super(MonitoringBulkAction.NAME, transportService, actionFilters, MonitoringBulkRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.exportService = exportService;
@@ -61,14 +67,17 @@ public class TransportMonitoringBulkAction extends HandledTransportAction<Monito
         }
 
         final long timestamp = System.currentTimeMillis();
-        final String cluster = clusterService.state().metaData().clusterUUID();
+        final String cluster = clusterService.state().metadata().clusterUUID();
 
         final DiscoveryNode discoveryNode = clusterService.localNode();
-        final MonitoringDoc.Node node = new MonitoringDoc.Node(discoveryNode.getId(),
-                                                               discoveryNode.getHostName(),
-                                                               discoveryNode.getAddress().toString(),
-                                                               discoveryNode.getHostAddress(),
-                                                               discoveryNode.getName(), timestamp);
+        final MonitoringDoc.Node node = new MonitoringDoc.Node(
+            discoveryNode.getId(),
+            discoveryNode.getHostName(),
+            discoveryNode.getAddress().toString(),
+            discoveryNode.getHostAddress(),
+            discoveryNode.getName(),
+            timestamp
+        );
 
         new AsyncAction(threadPool, request, listener, exportService, cluster, timestamp, node).start();
     }
@@ -83,9 +92,15 @@ public class TransportMonitoringBulkAction extends HandledTransportAction<Monito
         private final long defaultTimestamp;
         private final MonitoringDoc.Node defaultNode;
 
-        AsyncAction(ThreadPool threadPool,
-                    MonitoringBulkRequest request, ActionListener<MonitoringBulkResponse> listener, Exporters exportService,
-                    String defaultClusterUUID, long defaultTimestamp, MonitoringDoc.Node defaultNode) {
+        AsyncAction(
+            ThreadPool threadPool,
+            MonitoringBulkRequest request,
+            ActionListener<MonitoringBulkResponse> listener,
+            Exporters exportService,
+            String defaultClusterUUID,
+            long defaultTimestamp,
+            MonitoringDoc.Node defaultNode
+        ) {
             this.threadPool = threadPool;
             this.request = request;
             this.listener = listener;
@@ -105,9 +120,9 @@ public class TransportMonitoringBulkAction extends HandledTransportAction<Monito
          */
         Collection<MonitoringDoc> createMonitoringDocs(Collection<MonitoringBulkDoc> bulkDocs) {
             return bulkDocs.stream()
-                           .filter(bulkDoc -> bulkDoc.getSystem() != MonitoredSystem.UNKNOWN)
-                           .map(this::createMonitoringDoc)
-                           .collect(Collectors.toList());
+                .filter(bulkDoc -> bulkDoc.getSystem() != MonitoredSystem.UNKNOWN)
+                .map(this::createMonitoringDoc)
+                .toList();
         }
 
         /**
@@ -131,25 +146,31 @@ public class TransportMonitoringBulkAction extends HandledTransportAction<Monito
                 timestamp = defaultTimestamp;
             }
 
-            return new BytesReferenceMonitoringDoc(defaultClusterUUID, timestamp, intervalMillis,
-                                                   defaultNode, system, type, id, xContentType, source);
+            return new BytesReferenceMonitoringDoc(
+                defaultClusterUUID,
+                timestamp,
+                intervalMillis,
+                defaultNode,
+                system,
+                type,
+                id,
+                xContentType,
+                source
+            );
         }
 
         /**
          * Exports the documents
          */
-        void executeExport(final Collection<MonitoringDoc> docs, final long startTimeNanos,
-                           final ActionListener<MonitoringBulkResponse> delegate) {
+        void executeExport(
+            final Collection<MonitoringDoc> docs,
+            final long startTimeNanos,
+            final ActionListener<MonitoringBulkResponse> delegate
+        ) {
             threadPool.executor(ThreadPool.Names.GENERIC).execute(new ActionRunnable<MonitoringBulkResponse>(delegate) {
                 @Override
                 protected void doRun() {
-                    exportService.export(
-                        docs,
-                        ActionListener.wrap(
-                            r -> listener.onResponse(response(startTimeNanos)),
-                            this::onFailure
-                        )
-                    );
+                    exportService.export(docs, ActionListener.wrap(r -> listener.onResponse(response(startTimeNanos)), this::onFailure));
                 }
 
                 @Override

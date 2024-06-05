@@ -1,47 +1,33 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.DocValuesType;
-import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
-import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
-import org.elasticsearch.index.mapper.ParseContext.Document;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.script.field.SeqNoDocValuesField;
 
-import java.io.IOException;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
+import java.util.Collection;
+import java.util.Collections;
 
 /**
  * Mapper for the {@code _seq_no} field.
@@ -59,31 +45,79 @@ import java.util.Objects;
  */
 public class SeqNoFieldMapper extends MetadataFieldMapper {
 
+    // Like Lucene's LongField but single-valued (NUMERIC doc values instead of SORTED_NUMERIC doc values)
+    private static class SingleValueLongField extends Field {
+
+        private static final FieldType FIELD_TYPE;
+        static {
+            FieldType ft = new FieldType();
+            ft.setDimensions(1, Long.BYTES);
+            ft.setDocValuesType(DocValuesType.NUMERIC);
+            FIELD_TYPE = freezeAndDeduplicateFieldType(ft);
+        }
+
+        SingleValueLongField(String field) {
+            super(field, FIELD_TYPE);
+            fieldsData = SequenceNumbers.UNASSIGNED_SEQ_NO;
+        }
+
+        @Override
+        public BytesRef binaryValue() {
+            final byte[] pointValue = new byte[Long.BYTES];
+            NumericUtils.longToSortableBytes((Long) fieldsData, pointValue, 0);
+            return new BytesRef(pointValue);
+        }
+
+        @Override
+        public String toString() {
+            return getClass().getSimpleName() + " <" + name + ':' + fieldsData + '>';
+        }
+
+    }
+
     /**
      * A sequence ID, which is made up of a sequence number (both the searchable
      * and doc_value version of the field) and the primary term.
      */
     public static class SequenceIDFields {
 
-        public final Field seqNo;
-        public final Field seqNoDocValue;
-        public final Field primaryTerm;
-        public final Field tombstoneField;
+        private static final Field TOMBSTONE_FIELD = new NumericDocValuesField(TOMBSTONE_NAME, 1);
 
-        public SequenceIDFields(Field seqNo, Field seqNoDocValue, Field primaryTerm, Field tombstoneField) {
-            Objects.requireNonNull(seqNo, "sequence number field cannot be null");
-            Objects.requireNonNull(seqNoDocValue, "sequence number dv field cannot be null");
-            Objects.requireNonNull(primaryTerm, "primary term field cannot be null");
-            this.seqNo = seqNo;
-            this.seqNoDocValue = seqNoDocValue;
-            this.primaryTerm = primaryTerm;
-            this.tombstoneField = tombstoneField;
+        private final Field seqNo = new SingleValueLongField(NAME);
+        private final Field primaryTerm = new NumericDocValuesField(PRIMARY_TERM_NAME, 0);
+        private final boolean isTombstone;
+
+        private SequenceIDFields(boolean isTombstone) {
+            this.isTombstone = isTombstone;
         }
 
+        public void addFields(LuceneDocument document) {
+            document.add(seqNo);
+            document.add(primaryTerm);
+            if (isTombstone) {
+                document.add(TOMBSTONE_FIELD);
+            }
+        }
+
+        /**
+         * Update the values of the {@code _seq_no} and {@code primary_term} fields
+         * to the specified value. Called in the engine long after parsing.
+         */
+        public void set(long seqNo, long primaryTerm) {
+            this.seqNo.setLongValue(seqNo);
+            this.primaryTerm.setLongValue(primaryTerm);
+        }
+
+        /**
+         * Build and empty sequence ID who's values can be assigned later by
+         * calling {@link #set}.
+         */
         public static SequenceIDFields emptySeqID() {
-            return new SequenceIDFields(new LongPoint(NAME, SequenceNumbers.UNASSIGNED_SEQ_NO),
-                    new NumericDocValuesField(NAME, SequenceNumbers.UNASSIGNED_SEQ_NO),
-                    new NumericDocValuesField(PRIMARY_TERM_NAME, 0), new NumericDocValuesField(TOMBSTONE_NAME, 0));
+            return new SequenceIDFields(false);
+        }
+
+        public static SequenceIDFields tombstone() {
+            return new SequenceIDFields(true);
         }
     }
 
@@ -92,56 +126,16 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
     public static final String PRIMARY_TERM_NAME = "_primary_term";
     public static final String TOMBSTONE_NAME = "_tombstone";
 
-    public static class SeqNoDefaults {
-        public static final String NAME = SeqNoFieldMapper.NAME;
-        public static final MappedFieldType FIELD_TYPE = new SeqNoFieldType();
+    public static final SeqNoFieldMapper INSTANCE = new SeqNoFieldMapper();
 
-        static {
-            FIELD_TYPE.setName(NAME);
-            FIELD_TYPE.setDocValuesType(DocValuesType.SORTED);
-            FIELD_TYPE.setHasDocValues(true);
-            FIELD_TYPE.freeze();
-        }
-    }
-
-    public static class Builder extends MetadataFieldMapper.Builder<Builder, SeqNoFieldMapper> {
-
-        public Builder() {
-            super(SeqNoDefaults.NAME, SeqNoDefaults.FIELD_TYPE, SeqNoDefaults.FIELD_TYPE);
-        }
-
-        @Override
-        public SeqNoFieldMapper build(BuilderContext context) {
-            return new SeqNoFieldMapper(context.indexSettings());
-        }
-    }
-
-    public static class TypeParser implements MetadataFieldMapper.TypeParser {
-        @Override
-        public MetadataFieldMapper.Builder<?, ?> parse(String name, Map<String, Object> node, ParserContext parserContext)
-                throws MapperParsingException {
-            throw new MapperParsingException(NAME + " is not configurable");
-        }
-
-        @Override
-        public MetadataFieldMapper getDefault(ParserContext context) {
-            final Settings indexSettings = context.mapperService().getIndexSettings().getSettings();
-            return new SeqNoFieldMapper(indexSettings);
-        }
-    }
+    public static final TypeParser PARSER = new FixedTypeParser(c -> INSTANCE);
 
     static final class SeqNoFieldType extends SimpleMappedFieldType {
 
-        SeqNoFieldType() {
-        }
+        private static final SeqNoFieldType INSTANCE = new SeqNoFieldType();
 
-        protected SeqNoFieldType(SeqNoFieldType ref) {
-            super(ref);
-        }
-
-        @Override
-        public MappedFieldType clone() {
-            return new SeqNoFieldType(this);
+        private SeqNoFieldType() {
+            super(NAME, true, false, true, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, Collections.emptyMap());
         }
 
         @Override
@@ -149,7 +143,7 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
             return CONTENT_TYPE;
         }
 
-        private long parse(Object value) {
+        private static long parse(Object value) {
             if (value instanceof Number) {
                 double doubleValue = ((Number) value).doubleValue();
                 if (doubleValue < Long.MIN_VALUE || doubleValue > Long.MAX_VALUE) {
@@ -167,28 +161,35 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public Query existsQuery(QueryShardContext context) {
-            return new DocValuesFieldExistsQuery(name());
+        public boolean mayExistInIndex(SearchExecutionContext context) {
+            return false;
         }
 
         @Override
-        public Query termQuery(Object value, @Nullable QueryShardContext context) {
+        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+            throw new UnsupportedOperationException("Cannot fetch values for internal field [" + name() + "].");
+        }
+
+        @Override
+        public Query termQuery(Object value, @Nullable SearchExecutionContext context) {
             long v = parse(value);
             return LongPoint.newExactQuery(name(), v);
         }
 
         @Override
-        public Query termsQuery(List<?> values, @Nullable QueryShardContext context) {
-            long[] v = new long[values.size()];
-            for (int i = 0; i < values.size(); ++i) {
-                v[i] = parse(values.get(i));
-            }
+        public Query termsQuery(Collection<?> values, @Nullable SearchExecutionContext context) {
+            long[] v = values.stream().mapToLong(SeqNoFieldType::parse).toArray();
             return LongPoint.newSetQuery(name(), v);
         }
 
         @Override
-        public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower,
-                                boolean includeUpper, QueryShardContext context) {
+        public Query rangeQuery(
+            Object lowerTerm,
+            Object upperTerm,
+            boolean includeLower,
+            boolean includeUpper,
+            SearchExecutionContext context
+        ) {
             long l = Long.MIN_VALUE;
             long u = Long.MAX_VALUE;
             if (lowerTerm != null) {
@@ -213,50 +214,29 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
+        public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             failIfNoDocValues();
-            return new DocValuesIndexFieldData.Builder().numericType(NumericType.LONG);
+            return new SortedNumericIndexFieldData.Builder(name(), NumericType.LONG, SeqNoDocValuesField::new, isIndexed());
         }
-
     }
 
-    public SeqNoFieldMapper(Settings indexSettings) {
-        super(NAME, SeqNoDefaults.FIELD_TYPE, SeqNoDefaults.FIELD_TYPE, indexSettings);
-    }
-
-    @Override
-    public void preParse(ParseContext context) throws IOException {
-        super.parse(context);
+    private SeqNoFieldMapper() {
+        super(SeqNoFieldType.INSTANCE);
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
+    public void postParse(DocumentParserContext context) {
         // see InternalEngine.innerIndex to see where the real version value is set
         // also see ParsedDocument.updateSeqID (called by innerIndex)
-        SequenceIDFields seqID = SequenceIDFields.emptySeqID();
-        context.seqID(seqID);
-        fields.add(seqID.seqNo);
-        fields.add(seqID.seqNoDocValue);
-        fields.add(seqID.primaryTerm);
-    }
-
-    @Override
-    public void parse(ParseContext context) throws IOException {
-        // fields are added in parseCreateField
-    }
-
-    @Override
-    public void postParse(ParseContext context) throws IOException {
         // In the case of nested docs, let's fill nested docs with the original
         // so that Lucene doesn't write a Bitset for documents that
         // don't have the field. This is consistent with the default value
         // for efficiency.
         // we share the parent docs fields to ensure good compression
         SequenceIDFields seqID = context.seqID();
-        assert seqID != null;
-        for (Document doc : context.nonRootDocuments()) {
+        seqID.addFields(context.doc());
+        for (LuceneDocument doc : context.nonRootDocuments()) {
             doc.add(seqID.seqNo);
-            doc.add(seqID.seqNoDocValue);
         }
     }
 
@@ -266,13 +246,7 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder;
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
+        return SourceLoader.SyntheticFieldLoader.NOTHING;
     }
-
-    @Override
-    protected void doMerge(Mapper mergeWith) {
-        // nothing to do
-    }
-
 }

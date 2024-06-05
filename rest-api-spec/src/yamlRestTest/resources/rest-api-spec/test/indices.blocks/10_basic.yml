@@ -1,0 +1,30 @@
+---
+"Basic test for index blocks":
+  - requires:
+      cluster_features: ["gte_v7.9.0"]
+      reason:  "index block APIs have only been made available in 7.9.0"
+  - do:
+      indices.create:
+        index: test_index
+
+  - do:
+      indices.add_block:
+        index: test_index
+        block: write
+  - is_true: acknowledged
+
+  - do:
+      catch: /cluster_block_exception/
+      index:
+        index:  test_index
+        body:   { foo: bar }
+
+  - do:
+      search:
+        index: test_index
+
+  - do:
+      indices.put_settings:
+        index: test_index
+        body:
+          index.blocks.write: false

@@ -1,23 +1,33 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ilm;
 
-
-import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.mockito.Mockito;
 
-import static org.hamcrest.Matchers.equalTo;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
-public class DeleteStepTests extends AbstractStepMasterTimeoutTestCase<DeleteStep> {
+import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
+import static org.hamcrest.Matchers.is;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
+
+public class DeleteStepTests extends AbstractStepTestCase<DeleteStep> {
 
     @Override
     public DeleteStep createRandomInstance() {
@@ -33,14 +43,9 @@ public class DeleteStepTests extends AbstractStepMasterTimeoutTestCase<DeleteSte
         StepKey nextKey = instance.getNextStepKey();
 
         switch (between(0, 1)) {
-        case 0:
-            key = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-            break;
-        case 1:
-            nextKey = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-            break;
-        default:
-            throw new AssertionError("Illegal randomisation branch");
+            case 0 -> key = new StepKey(key.phase(), key.action(), key.name() + randomAlphaOfLength(5));
+            case 1 -> nextKey = new StepKey(nextKey.phase(), nextKey.action(), nextKey.name() + randomAlphaOfLength(5));
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
 
         return new DeleteStep(key, nextKey, instance.getClient());
@@ -51,54 +56,45 @@ public class DeleteStepTests extends AbstractStepMasterTimeoutTestCase<DeleteSte
         return new DeleteStep(instance.getKey(), instance.getNextStepKey(), instance.getClient());
     }
 
-    @Override
-    protected IndexMetaData getIndexMetaData() {
-        return IndexMetaData.builder(randomAlphaOfLength(10)).settings(settings(Version.CURRENT))
-            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+    private static IndexMetadata getIndexMetadata() {
+        return IndexMetadata.builder(randomAlphaOfLength(10))
+            .settings(settings(IndexVersion.current()))
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5))
+            .build();
     }
 
     public void testIndexSurvives() {
         assertFalse(createRandomInstance().indexSurvives());
     }
 
-    public void testDeleted() {
-        IndexMetaData indexMetaData = getIndexMetaData();
+    public void testDeleted() throws Exception {
+        IndexMetadata indexMetadata = getIndexMetadata();
 
         Mockito.doAnswer(invocation -> {
-                DeleteIndexRequest request = (DeleteIndexRequest) invocation.getArguments()[0];
-                @SuppressWarnings("unchecked")
-                ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocation.getArguments()[1];
-                assertNotNull(request);
-                assertEquals(1, request.indices().length);
-                assertEquals(indexMetaData.getIndex().getName(), request.indices()[0]);
-                listener.onResponse(null);
-                return null;
-        }).when(indicesClient).delete(Mockito.any(), Mockito.any());
-
-        SetOnce<Boolean> actionCompleted = new SetOnce<>();
+            DeleteIndexRequest request = (DeleteIndexRequest) invocation.getArguments()[0];
+            @SuppressWarnings("unchecked")
+            ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocation.getArguments()[1];
+            assertNotNull(request);
+            assertEquals(1, request.indices().length);
+            assertEquals(indexMetadata.getIndex().getName(), request.indices()[0]);
+            listener.onResponse(null);
+            return null;
+        }).when(indicesClient).delete(any(), any());
 
         DeleteStep step = createRandomInstance();
-        step.performAction(indexMetaData, emptyClusterState(), null, new AsyncActionStep.Listener() {
-            @Override
-            public void onResponse(boolean complete) {
-                actionCompleted.set(complete);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                throw new AssertionError(e);
-            }
-        });
-
-        assertThat(actionCompleted.get(), equalTo(true));
+        ClusterState clusterState = ClusterState.builder(emptyClusterState())
+            .metadata(Metadata.builder().put(indexMetadata, true).build())
+            .build();
+        PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, clusterState, null, f));
 
         Mockito.verify(client, Mockito.only()).admin();
         Mockito.verify(adminClient, Mockito.only()).indices();
-        Mockito.verify(indicesClient, Mockito.only()).delete(Mockito.any(), Mockito.any());
+        Mockito.verify(indicesClient, Mockito.only()).delete(any(), any());
     }
 
     public void testExceptionThrown() {
-        IndexMetaData indexMetaData = getIndexMetaData();
+        IndexMetadata indexMetadata = getIndexMetadata();
         Exception exception = new RuntimeException();
 
         Mockito.doAnswer(invocation -> {
@@ -107,26 +103,88 @@ public class DeleteStepTests extends AbstractStepMasterTimeoutTestCase<DeleteSte
             ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocation.getArguments()[1];
             assertNotNull(request);
             assertEquals(1, request.indices().length);
-            assertEquals(indexMetaData.getIndex().getName(), request.indices()[0]);
+            assertEquals(indexMetadata.getIndex().getName(), request.indices()[0]);
             listener.onFailure(exception);
             return null;
-        }).when(indicesClient).delete(Mockito.any(), Mockito.any());
+        }).when(indicesClient).delete(any(), any());
 
-        SetOnce<Boolean> exceptionThrown = new SetOnce<>();
         DeleteStep step = createRandomInstance();
-        step.performAction(indexMetaData, emptyClusterState(), null, new AsyncActionStep.Listener() {
+        ClusterState clusterState = ClusterState.builder(emptyClusterState())
+            .metadata(Metadata.builder().put(indexMetadata, true).build())
+            .build();
+        assertSame(
+            exception,
+            expectThrows(
+                Exception.class,
+                () -> PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, clusterState, null, f))
+            )
+        );
+    }
+
+    public void testPerformActionCallsFailureListenerIfIndexIsTheDataStreamWriteIndex() {
+        doThrow(
+            new IllegalStateException(
+                "the client must not be called in this test as we should fail in the step validation phase before we call the delete API"
+            )
+        ).when(indicesClient).delete(any(DeleteIndexRequest.class), anyActionListener());
+
+        String policyName = "test-ilm-policy";
+        String dataStreamName = randomAlphaOfLength(10);
+
+        IndexMetadata index1;
+        {
+            String indexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
+            index1 = IndexMetadata.builder(indexName)
+                .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+                .numberOfShards(randomIntBetween(1, 5))
+                .numberOfReplicas(randomIntBetween(0, 5))
+                .build();
+        }
+        IndexMetadata sourceIndexMetadata;
+        {
+
+            String indexName = DataStream.getDefaultBackingIndexName(dataStreamName, 2);
+            sourceIndexMetadata = IndexMetadata.builder(indexName)
+                .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+                .numberOfShards(randomIntBetween(1, 5))
+                .numberOfReplicas(randomIntBetween(0, 5))
+                .build();
+        }
+
+        DataStream dataStream = DataStreamTestHelper.newInstance(
+            dataStreamName,
+            List.of(index1.getIndex(), sourceIndexMetadata.getIndex())
+        );
+        ClusterState clusterState = ClusterState.builder(emptyClusterState())
+            .metadata(Metadata.builder().put(index1, false).put(sourceIndexMetadata, false).put(dataStream).build())
+            .build();
+
+        AtomicBoolean listenerCalled = new AtomicBoolean(false);
+        createRandomInstance().performDuringNoSnapshot(sourceIndexMetadata, clusterState, new ActionListener<>() {
             @Override
-            public void onResponse(boolean complete) {
-                throw new AssertionError("Unexpected method call");
+            public void onResponse(Void complete) {
+                listenerCalled.set(true);
+                fail("unexpected listener callback");
             }
 
             @Override
             public void onFailure(Exception e) {
-                assertEquals(exception, e);
-                exceptionThrown.set(true);
+                listenerCalled.set(true);
+                assertThat(
+                    e.getMessage(),
+                    is(
+                        "index ["
+                            + sourceIndexMetadata.getIndex().getName()
+                            + "] is the write index for data stream ["
+                            + dataStreamName
+                            + "]. stopping execution of lifecycle [test-ilm-policy] as a data stream's write index cannot be deleted. "
+                            + "manually rolling over the index will resume the execution of the policy as the index will not be the "
+                            + "data stream's write index anymore"
+                    )
+                );
             }
         });
 
-        assertThat(exceptionThrown.get(), equalTo(true));
+        assertThat(listenerCalled.get(), is(true));
     }
 }

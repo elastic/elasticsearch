@@ -1,0 +1,46 @@
+{
+  "rollup.rollup_search":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/rollup-search.html",
+      "description":"Enables searching rolled-up data using the standard query DSL."
+    },
+    "stability":"experimental",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/{index}/_rollup_search",
+          "methods":[
+            "GET",
+            "POST"
+          ],
+          "parts":{
+            "index":{
+              "type":"list",
+              "description":"The indices or index-pattern(s) (containing rollup or regular data) that should be searched"
+            }
+          }
+        }
+      ]
+    },
+    "params":{
+      "typed_keys":{
+        "type":"boolean",
+        "description":"Specify whether aggregation and suggester names should be prefixed by their respective types in the response"
+      },
+      "rest_total_hits_as_int":{
+        "type":"boolean",
+        "description":"Indicates whether hits.total should be rendered as an integer or an object in the rest search response",
+        "default":false
+      }
+    },
+    "body":{
+      "description":"The search request body",
+      "required":true
+    }
+  }
+}

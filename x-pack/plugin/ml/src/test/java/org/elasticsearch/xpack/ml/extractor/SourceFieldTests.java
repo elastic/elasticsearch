@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.extractor;
 
@@ -36,7 +37,8 @@ public class SourceFieldTests extends ESTestCase {
     }
 
     public void testArray() {
-        SearchHit hit = new SearchHitBuilder(42).setSource("{\"array\":[\"a\",\"b\"]}").build();
+        SearchHit hit = new SearchHitBuilder(42).setSource("""
+            {"array":["a","b"]}""").build();
 
         ExtractedField field = new SourceField("array", Collections.singleton("text"));
 
@@ -53,7 +55,8 @@ public class SourceFieldTests extends ESTestCase {
     }
 
     public void testMissing() {
-        SearchHit hit = new SearchHitBuilder(42).setSource("{\"array\":[\"a\",\"b\"]}").build();
+        SearchHit hit = new SearchHitBuilder(42).setSource("""
+            {"array":["a","b"]}""").build();
 
         ExtractedField missing = new SourceField("missing", Collections.singleton("text"));
 
@@ -61,7 +64,8 @@ public class SourceFieldTests extends ESTestCase {
     }
 
     public void testValueGivenNested() {
-        SearchHit hit = new SearchHitBuilder(42).setSource("{\"level_1\":{\"level_2\":{\"foo\":\"bar\"}}}").build();
+        SearchHit hit = new SearchHitBuilder(42).setSource("""
+            {"level_1":{"level_2":{"foo":"bar"}}}""").build();
 
         ExtractedField nested = new SourceField("level_1.level_2.foo", Collections.singleton("text"));
 
@@ -69,7 +73,8 @@ public class SourceFieldTests extends ESTestCase {
     }
 
     public void testValueGivenNestedArray() {
-        SearchHit hit = new SearchHitBuilder(42).setSource("{\"level_1\":{\"level_2\":[{\"foo\":\"bar\"}]}}").build();
+        SearchHit hit = new SearchHitBuilder(42).setSource("""
+            {"level_1":{"level_2":[{"foo":"bar"}]}}""").build();
 
         ExtractedField nested = new SourceField("level_1.level_2.foo", Collections.singleton("text"));
 

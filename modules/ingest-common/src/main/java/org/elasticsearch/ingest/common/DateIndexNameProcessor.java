@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.ingest.common;
@@ -50,10 +39,17 @@ public final class DateIndexNameProcessor extends AbstractProcessor {
     private final ZoneId timezone;
     private final List<Function<String, ZonedDateTime>> dateFormats;
 
-    DateIndexNameProcessor(String tag, String field, List<Function<String, ZonedDateTime>> dateFormats, ZoneId timezone,
-                           TemplateScript.Factory indexNamePrefixTemplate, TemplateScript.Factory dateRoundingTemplate,
-                           TemplateScript.Factory indexNameFormatTemplate) {
-        super(tag);
+    DateIndexNameProcessor(
+        String tag,
+        String description,
+        String field,
+        List<Function<String, ZonedDateTime>> dateFormats,
+        ZoneId timezone,
+        TemplateScript.Factory indexNamePrefixTemplate,
+        TemplateScript.Factory dateRoundingTemplate,
+        TemplateScript.Factory indexNameFormatTemplate
+    ) {
+        super(tag, description);
         this.field = field;
         this.timezone = timezone;
         this.dateFormats = dateFormats;
@@ -78,7 +74,7 @@ public final class DateIndexNameProcessor extends AbstractProcessor {
             try {
                 dateTime = dateParser.apply(date);
             } catch (Exception e) {
-                //try the next parser and keep track of the exceptions
+                // try the next parser and keep track of the exceptions
                 lastException = ExceptionsHelper.useOrSuppress(lastException, e);
             }
         }
@@ -93,16 +89,21 @@ public final class DateIndexNameProcessor extends AbstractProcessor {
         DateFormatter formatter = DateFormatter.forPattern(indexNameFormat);
         // use UTC instead of Z is string representation of UTC, so behaviour is the same between 6.x and 7
         String zone = timezone.equals(ZoneOffset.UTC) ? "UTC" : timezone.getId();
-        StringBuilder builder = new StringBuilder()
-                .append('<')
-                .append(indexNamePrefix)
-                    .append('{')
-                        .append(formatter.format(dateTime)).append("||/").append(dateRounding)
-                            .append('{').append(indexNameFormat).append('|').append(zone).append('}')
-                    .append('}')
-                .append('>');
-        String dynamicIndexName  = builder.toString();
-        ingestDocument.setFieldValue(IngestDocument.MetaData.INDEX.getFieldName(), dynamicIndexName);
+        StringBuilder builder = new StringBuilder().append('<')
+            .append(indexNamePrefix)
+            .append('{')
+            .append(formatter.format(dateTime))
+            .append("||/")
+            .append(dateRounding)
+            .append('{')
+            .append(indexNameFormat)
+            .append('|')
+            .append(zone)
+            .append('}')
+            .append('}')
+            .append('>');
+        String dynamicIndexName = builder.toString();
+        ingestDocument.setFieldValue(IngestDocument.Metadata.INDEX.getFieldName(), dynamicIndexName);
         return ingestDocument;
     }
 
@@ -144,8 +145,12 @@ public final class DateIndexNameProcessor extends AbstractProcessor {
         }
 
         @Override
-        public DateIndexNameProcessor create(Map<String, Processor.Factory> registry, String tag,
-                                             Map<String, Object> config) throws Exception {
+        public DateIndexNameProcessor create(
+            Map<String, Processor.Factory> registry,
+            String tag,
+            String description,
+            Map<String, Object> config
+        ) throws Exception {
             String localeString = ConfigurationUtils.readOptionalStringProperty(TYPE, tag, config, "locale");
             String timezoneString = ConfigurationUtils.readOptionalStringProperty(TYPE, tag, config, "timezone");
             ZoneId timezone = timezoneString == null ? ZoneOffset.UTC : ZoneId.of(timezoneString);
@@ -169,16 +174,39 @@ public final class DateIndexNameProcessor extends AbstractProcessor {
 
             String field = ConfigurationUtils.readStringProperty(TYPE, tag, config, "field");
             String indexNamePrefix = ConfigurationUtils.readStringProperty(TYPE, tag, config, "index_name_prefix", "");
-            TemplateScript.Factory indexNamePrefixTemplate =
-                ConfigurationUtils.compileTemplate(TYPE, tag, "index_name_prefix", indexNamePrefix, scriptService);
+            TemplateScript.Factory indexNamePrefixTemplate = ConfigurationUtils.compileTemplate(
+                TYPE,
+                tag,
+                "index_name_prefix",
+                indexNamePrefix,
+                scriptService
+            );
             String dateRounding = ConfigurationUtils.readStringProperty(TYPE, tag, config, "date_rounding");
-            TemplateScript.Factory dateRoundingTemplate =
-                ConfigurationUtils.compileTemplate(TYPE, tag, "date_rounding", dateRounding, scriptService);
+            TemplateScript.Factory dateRoundingTemplate = ConfigurationUtils.compileTemplate(
+                TYPE,
+                tag,
+                "date_rounding",
+                dateRounding,
+                scriptService
+            );
             String indexNameFormat = ConfigurationUtils.readStringProperty(TYPE, tag, config, "index_name_format", "yyyy-MM-dd");
-            TemplateScript.Factory indexNameFormatTemplate =
-                ConfigurationUtils.compileTemplate(TYPE, tag, "index_name_format", indexNameFormat, scriptService);
-            return new DateIndexNameProcessor(tag, field, dateFormats, timezone, indexNamePrefixTemplate,
-                dateRoundingTemplate, indexNameFormatTemplate);
+            TemplateScript.Factory indexNameFormatTemplate = ConfigurationUtils.compileTemplate(
+                TYPE,
+                tag,
+                "index_name_format",
+                indexNameFormat,
+                scriptService
+            );
+            return new DateIndexNameProcessor(
+                tag,
+                description,
+                field,
+                dateFormats,
+                timezone,
+                indexNamePrefixTemplate,
+                dateRoundingTemplate,
+                indexNameFormatTemplate
+            );
         }
     }
 

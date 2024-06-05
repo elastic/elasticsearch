@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action;
@@ -25,20 +14,36 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
+import java.io.PrintWriter;
 
-public class NoShardAvailableActionException extends ElasticsearchException {
+public final class NoShardAvailableActionException extends ElasticsearchException {
+
+    private static final StackTraceElement[] EMPTY_STACK_TRACE = new StackTraceElement[0];
+
+    // This is set so that no StackTrace is serialized in the scenario when we wrap other shard failures.
+    // It isn't necessary to serialize this field over the wire as the empty stack trace is serialized instead.
+    private final boolean onShardFailureWrapper;
+
+    public static NoShardAvailableActionException forOnShardFailureWrapper(String msg) {
+        return new NoShardAvailableActionException(null, msg, null, true);
+    }
 
     public NoShardAvailableActionException(ShardId shardId) {
-        this(shardId, null);
+        this(shardId, null, null, false);
     }
 
     public NoShardAvailableActionException(ShardId shardId, String msg) {
-        this(shardId, msg, null);
+        this(shardId, msg, null, false);
     }
 
     public NoShardAvailableActionException(ShardId shardId, String msg, Throwable cause) {
+        this(shardId, msg, cause, false);
+    }
+
+    private NoShardAvailableActionException(ShardId shardId, String msg, Throwable cause, boolean onShardFailureWrapper) {
         super(msg, cause);
         setShard(shardId);
+        this.onShardFailureWrapper = onShardFailureWrapper;
     }
 
     @Override
@@ -46,7 +51,24 @@ public class NoShardAvailableActionException extends ElasticsearchException {
         return RestStatus.SERVICE_UNAVAILABLE;
     }
 
-    public NoShardAvailableActionException(StreamInput in) throws IOException{
+    public NoShardAvailableActionException(StreamInput in) throws IOException {
         super(in);
+        onShardFailureWrapper = false;
+    }
+
+    @Override
+    public StackTraceElement[] getStackTrace() {
+        return onShardFailureWrapper ? EMPTY_STACK_TRACE : super.getStackTrace();
+    }
+
+    @Override
+    public void printStackTrace(PrintWriter s) {
+        if (onShardFailureWrapper == false) {
+            super.printStackTrace(s);
+        } else {
+            // Override to simply print the first line of the trace, which is the current exception.
+            // Since we aren't serializing the repetitive stacktrace onShardFailureWrapper, we shouldn't print it out either
+            s.println(this);
+        }
     }
 }

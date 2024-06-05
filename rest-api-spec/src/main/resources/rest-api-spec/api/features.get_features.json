@@ -1,0 +1,29 @@
+{
+  "features.get_features":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/get-features-api.html",
+      "description":"Gets a list of features which can be included in snapshots using the feature_states field when creating a snapshot"
+    },
+    "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_features",
+          "methods":[
+            "GET"
+          ]
+        }
+      ]
+    },
+    "params":{
+      "master_timeout":{
+        "type":"time",
+        "description":"Explicit operation timeout for connection to master node"
+      }
+    }
+  }
+}

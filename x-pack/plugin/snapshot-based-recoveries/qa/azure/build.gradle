@@ -1,0 +1,49 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+
+import org.elasticsearch.gradle.internal.info.BuildParams
+
+apply plugin: 'elasticsearch.internal-java-rest-test'
+
+dependencies {
+  clusterModules project(':modules:repository-azure')
+  clusterModules project(xpackModule('snapshot-based-recoveries'))
+  javaRestTestImplementation(testArtifact(project(xpackModule('snapshot-based-recoveries'))))
+  javaRestTestImplementation(project(':test:fixtures:azure-fixture'))
+}
+
+boolean useFixture = false
+String azureAccount = System.getenv("azure_storage_account")
+String azureKey = System.getenv("azure_storage_key")
+String azureContainer = System.getenv("azure_storage_container")
+String azureBasePath = System.getenv("azure_storage_base_path")
+String azureSasToken = System.getenv("azure_storage_sas_token")
+
+if (!azureAccount && !azureKey && !azureContainer && !azureBasePath && !azureSasToken) {
+  azureAccount = 'azure_integration_test_account'
+  azureKey = 'YXp1cmVfaW50ZWdyYXRpb25fdGVzdF9rZXk=' // The key is "azure_integration_test_key" encoded using base64
+  azureContainer = 'container'
+  azureBasePath = ''
+  azureSasToken = ''
+  useFixture = true
+
+}
+
+tasks.named("javaRestTest").configure {
+  systemProperty 'test.azure.fixture', Boolean.toString(useFixture)
+  systemProperty 'test.azure.account', azureAccount
+  systemProperty 'test.azure.container', azureContainer
+  systemProperty 'test.azure.key', azureKey
+  systemProperty 'test.azure.sas_token', azureSasToken
+  nonInputProperties.systemProperty 'test.azure.base_path', azureBasePath + "_snapshot_based_recoveries_tests_" + BuildParams.testSeed
+}
+
+tasks.register("azureThirdPartyTest") {
+  dependsOn "javaRestTest"
+}
+

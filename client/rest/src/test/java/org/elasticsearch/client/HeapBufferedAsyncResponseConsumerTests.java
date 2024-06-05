@@ -1,13 +1,13 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
+ * Licensed to Elasticsearch B.V. under one or more contributor
  * license agreements. See the NOTICE file distributed with
  * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
+ * ownership. Elasticsearch B.V. licenses this file to you under
  * the Apache License, Version 2.0 (the "License"); you may
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -50,7 +50,7 @@ import static org.mockito.Mockito.verify;
 
 public class HeapBufferedAsyncResponseConsumerTests extends RestClientTestCase {
 
-    //maximum buffer that this test ends up allocating is 50MB
+    // maximum buffer that this test ends up allocating is 50MB
     private static final int MAX_TEST_BUFFER_SIZE = 50 * 1024 * 1024;
     private static final int TEST_BUFFER_LIMIT = 10 * 1024 * 1024;
 
@@ -66,7 +66,7 @@ public class HeapBufferedAsyncResponseConsumerTests extends RestClientTestCase {
         HttpResponse httpResponse = new BasicHttpResponse(statusLine);
         httpResponse.setEntity(new StringEntity("test", ContentType.TEXT_PLAIN));
 
-        //everything goes well
+        // everything goes well
         consumer.responseReceived(httpResponse);
         consumer.consumeContent(contentDecoder, ioControl);
         consumer.responseCompleted(httpContext);
@@ -89,12 +89,12 @@ public class HeapBufferedAsyncResponseConsumerTests extends RestClientTestCase {
     public void testConfiguredBufferLimit() throws Exception {
         try {
             new HeapBufferedAsyncResponseConsumer(randomIntBetween(Integer.MIN_VALUE, 0));
-        } catch(IllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertEquals("bufferLimit must be greater than 0", e.getMessage());
         }
         try {
             new HeapBufferedAsyncResponseConsumer(0);
-        } catch(IllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertEquals("bufferLimit must be greater than 0", e.getMessage());
         }
         int bufferLimit = randomIntBetween(1, MAX_TEST_BUFFER_SIZE - 100);
@@ -103,16 +103,17 @@ public class HeapBufferedAsyncResponseConsumerTests extends RestClientTestCase {
     }
 
     public void testCanConfigureHeapBufferLimitFromOutsidePackage() throws ClassNotFoundException, NoSuchMethodException,
-            IllegalAccessException, InvocationTargetException, InstantiationException {
+        IllegalAccessException, InvocationTargetException, InstantiationException {
         int bufferLimit = randomIntBetween(1, Integer.MAX_VALUE);
-        //we use reflection to make sure that the class can be instantiated from the outside, and the constructor is public
-        Constructor<?> constructor =
-                HttpAsyncResponseConsumerFactory.HeapBufferedResponseConsumerFactory.class.getConstructor(Integer.TYPE);
+        // we use reflection to make sure that the class can be instantiated from the outside, and the constructor is public
+        Constructor<?> constructor = HttpAsyncResponseConsumerFactory.HeapBufferedResponseConsumerFactory.class.getConstructor(
+            Integer.TYPE
+        );
         assertEquals(Modifier.PUBLIC, constructor.getModifiers() & Modifier.PUBLIC);
         Object object = constructor.newInstance(bufferLimit);
         assertThat(object, instanceOf(HttpAsyncResponseConsumerFactory.HeapBufferedResponseConsumerFactory.class));
         HttpAsyncResponseConsumerFactory.HeapBufferedResponseConsumerFactory consumerFactory =
-                (HttpAsyncResponseConsumerFactory.HeapBufferedResponseConsumerFactory) object;
+            (HttpAsyncResponseConsumerFactory.HeapBufferedResponseConsumerFactory) object;
         HttpAsyncResponseConsumer<HttpResponse> consumer = consumerFactory.createHttpAsyncResponseConsumer();
         assertThat(consumer, instanceOf(HeapBufferedAsyncResponseConsumer.class));
         HeapBufferedAsyncResponseConsumer bufferedAsyncResponseConsumer = (HeapBufferedAsyncResponseConsumer) consumer;
@@ -135,15 +136,17 @@ public class HeapBufferedAsyncResponseConsumerTests extends RestClientTestCase {
                 return contentLength.get();
             }
         };
-        contentLength.set(randomLong(bufferLimit));
+        contentLength.set(randomLongBetween(0L, bufferLimit));
         consumer.onEntityEnclosed(entity, ContentType.APPLICATION_JSON);
 
         contentLength.set(randomLongBetween(bufferLimit + 1, MAX_TEST_BUFFER_SIZE));
         try {
             consumer.onEntityEnclosed(entity, ContentType.APPLICATION_JSON);
-        } catch(ContentTooLongException e) {
-            assertEquals("entity content is too long [" + entity.getContentLength() +
-                    "] for the configured buffer limit [" + bufferLimit + "]", e.getMessage());
+        } catch (ContentTooLongException e) {
+            assertEquals(
+                "entity content is too long [" + entity.getContentLength() + "] for the configured buffer limit [" + bufferLimit + "]",
+                e.getMessage()
+            );
         }
     }
 }

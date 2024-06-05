@@ -1,29 +1,27 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.common.http;
 
-import com.sun.net.httpserver.HttpsServer;
 import org.apache.http.HttpHeaders;
 import org.apache.http.HttpHost;
 import org.apache.http.client.ClientProtocolException;
 import org.apache.http.client.config.RequestConfig;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.ssl.SslVerificationMode;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.Strings;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.mocksocket.MockServerSocket;
@@ -31,14 +29,13 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.test.junit.annotations.Network;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.ssl.TestsSSLService;
-import org.elasticsearch.xpack.core.ssl.VerificationMode;
 import org.junit.After;
 import org.junit.Before;
 
-import javax.net.ssl.SSLContext;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -49,16 +46,14 @@ import java.net.SocketTimeoutException;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.List;
-import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicReference;
+
+import javax.net.ssl.SSLContext;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -75,9 +70,10 @@ import static org.mockito.Mockito.when;
 
 public class HttpClientTests extends ESTestCase {
 
-    private MockWebServer webServer = new MockWebServer();
+    private final MockWebServer webServer = new MockWebServer();
+    private final Environment environment = TestEnvironment.newEnvironment(Settings.builder().put("path.home", createTempDir()).build());
+
     private HttpClient httpClient;
-    private Environment environment = TestEnvironment.newEnvironment(Settings.builder().put("path.home", createTempDir()).build());
 
     @Before
     public void init() throws Exception {
@@ -91,7 +87,9 @@ public class HttpClientTests extends ESTestCase {
     @After
     public void shutdown() throws IOException {
         webServer.close();
-        httpClient.close();
+        if (httpClient != null) {
+            httpClient.close();
+        }
     }
 
     public void testBasics() throws Exception {
@@ -100,8 +98,8 @@ public class HttpClientTests extends ESTestCase {
         webServer.enqueue(new MockResponse().setResponseCode(responseCode).setBody(body));
 
         HttpRequest.Builder requestBuilder = HttpRequest.builder("localhost", webServer.getPort())
-                .method(HttpMethod.POST)
-                .path("/" + randomAlphaOfLength(5));
+            .method(HttpMethod.POST)
+            .path("/" + randomAlphaOfLength(5));
 
         String paramKey = randomAlphaOfLength(3);
         String paramValue = randomAlphaOfLength(3);
@@ -127,9 +125,7 @@ public class HttpClientTests extends ESTestCase {
 
     public void testNoQueryString() throws Exception {
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody("body"));
-        HttpRequest.Builder requestBuilder = HttpRequest.builder("localhost", webServer.getPort())
-                .method(HttpMethod.GET)
-                .path("/test");
+        HttpRequest.Builder requestBuilder = HttpRequest.builder("localhost", webServer.getPort()).method(HttpMethod.GET).path("/test");
 
         HttpResponse response = httpClient.execute(requestBuilder.build());
         assertThat(response.status(), equalTo(200));
@@ -143,9 +139,9 @@ public class HttpClientTests extends ESTestCase {
     public void testUrlEncodingWithQueryStrings() throws Exception {
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody("body"));
         HttpRequest.Builder requestBuilder = HttpRequest.builder("localhost", webServer.getPort())
-                .method(HttpMethod.GET)
-                .path("/test")
-                .setParam("key", "value 123:123");
+            .method(HttpMethod.GET)
+            .path("/test")
+            .setParam("key", "value 123:123");
 
         HttpResponse response = httpClient.execute(requestBuilder.build());
         assertThat(response.status(), equalTo(200));
@@ -160,10 +156,10 @@ public class HttpClientTests extends ESTestCase {
     public void testBasicAuth() throws Exception {
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody("body"));
         HttpRequest.Builder request = HttpRequest.builder("localhost", webServer.getPort())
-                .method(HttpMethod.POST)
-                .path("/test")
-                .auth(new BasicAuth("user", "pass".toCharArray()))
-                .body("body");
+            .method(HttpMethod.POST)
+            .path("/test")
+            .auth(new BasicAuth("user", "pass".toCharArray()))
+            .body("body");
         HttpResponse response = httpClient.execute(request.build());
         assertThat(response.status(), equalTo(200));
         assertThat(response.body().utf8ToString(), equalTo("body"));
@@ -202,7 +198,7 @@ public class HttpClientTests extends ESTestCase {
                 .put("xpack.security.http.ssl.enabled", true)
                 .put("xpack.security.http.ssl.key", keyPath)
                 .put("xpack.security.http.ssl.certificate", certPath)
-                .putList("xpack.security.http.ssl.supported_protocols", getProtocols())
+                .putList("xpack.security.http.ssl.supported_protocols", XPackSettings.DEFAULT_SUPPORTED_PROTOCOLS)
                 .setSecureSettings(secureSettings)
                 .build();
 
@@ -214,14 +210,12 @@ public class HttpClientTests extends ESTestCase {
     public void testHttpsDisableHostnameVerification() throws Exception {
         Path certPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode-no-subjaltname.crt");
         Path keyPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode-no-subjaltname.pem");
-        Settings.Builder builder = Settings.builder()
-            .put(environment.settings())
-            .put("xpack.http.ssl.certificate_authorities", certPath);
+        Settings.Builder builder = Settings.builder().put(environment.settings()).put("xpack.http.ssl.certificate_authorities", certPath);
         if (inFipsJvm()) {
-            //Can't use TrustAllConfig in FIPS mode
-            builder.put("xpack.http.ssl.verification_mode", VerificationMode.CERTIFICATE);
+            // Can't use TrustAllConfig in FIPS mode
+            builder.put("xpack.http.ssl.verification_mode", SslVerificationMode.CERTIFICATE);
         } else {
-            builder.put("xpack.http.ssl.verification_mode", randomFrom(VerificationMode.NONE, VerificationMode.CERTIFICATE));
+            builder.put("xpack.http.ssl.verification_mode", randomFrom(SslVerificationMode.NONE, SslVerificationMode.CERTIFICATE));
         }
         final Settings settings = builder.build();
         final SSLService ssl = new SSLService(TestEnvironment.newEnvironment(settings));
@@ -234,7 +228,7 @@ public class HttpClientTests extends ESTestCase {
                 .put("xpack.security.http.ssl.enabled", true)
                 .put("xpack.security.http.ssl.key", keyPath)
                 .put("xpack.security.http.ssl.certificate", certPath)
-                .putList("xpack.security.http.ssl.supported_protocols", getProtocols())
+                .putList("xpack.security.http.ssl.supported_protocols", XPackSettings.DEFAULT_SUPPORTED_PROTOCOLS)
                 .setSecureSettings(secureSettings)
                 .build();
 
@@ -252,7 +246,7 @@ public class HttpClientTests extends ESTestCase {
             .put(environment.settings())
             .put("xpack.http.ssl.key", keyPath)
             .put("xpack.http.ssl.certificate", certPath)
-            .putList("xpack.http.ssl.supported_protocols", getProtocols())
+            .putList("xpack.http.ssl.supported_protocols", XPackSettings.DEFAULT_SUPPORTED_PROTOCOLS)
             .setSecureSettings(secureSettings)
             .build();
 
@@ -267,9 +261,7 @@ public class HttpClientTests extends ESTestCase {
             mockWebServer.enqueue(new MockResponse().setResponseCode(200).setBody("body"));
             mockWebServer.start();
 
-            HttpRequest.Builder request = HttpRequest.builder("localhost", mockWebServer.getPort())
-                    .scheme(Scheme.HTTPS)
-                    .path("/test");
+            HttpRequest.Builder request = HttpRequest.builder("localhost", mockWebServer.getPort()).scheme(Scheme.HTTPS).path("/test");
             HttpResponse response = client.execute(request.build());
             assertThat(response.status(), equalTo(200));
             assertThat(response.body().utf8ToString(), equalTo("body"));
@@ -289,12 +281,12 @@ public class HttpClientTests extends ESTestCase {
         }
         webServer.enqueue(mockResponse);
         HttpRequest.Builder request = HttpRequest.builder("localhost", webServer.getPort())
-                .method(HttpMethod.POST)
-                .path("/test")
-                .auth(new BasicAuth("user", "pass".toCharArray()))
-                .body("body")
-                .connectionTimeout(TimeValue.timeValueMillis(500))
-                .readTimeout(TimeValue.timeValueMillis(500));
+            .method(HttpMethod.POST)
+            .path("/test")
+            .auth(new BasicAuth("user", "pass".toCharArray()))
+            .body("body")
+            .connectionTimeout(TimeValue.timeValueMillis(500))
+            .readTimeout(TimeValue.timeValueMillis(500));
         HttpResponse response = httpClient.execute(request.build());
         assertThat(response.status(), equalTo(statusCode));
         assertThat(response.hasContent(), is(hasBody));
@@ -321,14 +313,12 @@ public class HttpClientTests extends ESTestCase {
             proxyServer.enqueue(new MockResponse().setResponseCode(200).setBody("fullProxiedContent"));
             proxyServer.start();
             Settings settings = Settings.builder()
-                    .put(environment.settings())
-                    .put(HttpSettings.PROXY_HOST.getKey(), "localhost")
-                    .put(HttpSettings.PROXY_PORT.getKey(), proxyServer.getPort())
-                    .build();
+                .put(environment.settings())
+                .put(HttpSettings.PROXY_HOST.getKey(), "localhost")
+                .put(HttpSettings.PROXY_PORT.getKey(), proxyServer.getPort())
+                .build();
 
-            HttpRequest.Builder requestBuilder = HttpRequest.builder("localhost", webServer.getPort())
-                    .method(HttpMethod.GET)
-                    .path("/");
+            HttpRequest.Builder requestBuilder = HttpRequest.builder("localhost", webServer.getPort()).method(HttpMethod.GET).path("/");
 
             final SSLService sslService = new SSLService(TestEnvironment.newEnvironment(settings));
             try (HttpClient client = new HttpClient(settings, sslService, null, mockClusterService())) {
@@ -353,29 +343,34 @@ public class HttpClientTests extends ESTestCase {
 
         // no system wide proxy configured, proxy in request
         config = RequestConfig.custom();
-        HttpClient.setProxy(config,
-                HttpRequest.builder().fromUrl("https://elastic.co").proxy(new HttpProxy("localhost", 23456)).build(),
-                HttpProxy.NO_PROXY);
+        HttpClient.setProxy(
+            config,
+            HttpRequest.builder().fromUrl("https://elastic.co").proxy(new HttpProxy("localhost", 23456)).build(),
+            HttpProxy.NO_PROXY
+        );
         assertThat(config.build().getProxy().toString(), is("http://localhost:23456"));
 
         // system wide proxy configured, no proxy in request
         config = RequestConfig.custom();
-        HttpClient.setProxy(config, HttpRequest.builder().fromUrl("https://elastic.co").build(),
-                localhostHttpProxy);
+        HttpClient.setProxy(config, HttpRequest.builder().fromUrl("https://elastic.co").build(), localhostHttpProxy);
         assertThat(config.build().getProxy().toString(), is("http://localhost:1234"));
 
         // proxy in request, no system wide proxy configured. request
         config = RequestConfig.custom();
-        HttpClient.setProxy(config,
-                HttpRequest.builder().fromUrl("https://elastic.co").proxy(new HttpProxy("localhost", 23456, Scheme.HTTP)).build(),
-                HttpProxy.NO_PROXY);
+        HttpClient.setProxy(
+            config,
+            HttpRequest.builder().fromUrl("https://elastic.co").proxy(new HttpProxy("localhost", 23456, Scheme.HTTP)).build(),
+            HttpProxy.NO_PROXY
+        );
         assertThat(config.build().getProxy().toString(), is("http://localhost:23456"));
 
         // proxy in request, system wide proxy configured. request wins
         config = RequestConfig.custom();
-        HttpClient.setProxy(config,
-                HttpRequest.builder().fromUrl("http://elastic.co").proxy(new HttpProxy("localhost", 23456, Scheme.HTTPS)).build(),
-                localhostHttpProxy);
+        HttpClient.setProxy(
+            config,
+            HttpRequest.builder().fromUrl("http://elastic.co").proxy(new HttpProxy("localhost", 23456, Scheme.HTTPS)).build(),
+            localhostHttpProxy
+        );
         assertThat(config.build().getProxy().toString(), is("https://localhost:23456"));
     }
 
@@ -393,7 +388,7 @@ public class HttpClientTests extends ESTestCase {
             .put("xpack.http.ssl.key", keyPath)
             .put("xpack.http.ssl.certificate", certPath)
             .put("xpack.security.http.ssl.enabled", false)
-            .putList("xpack.security.http.ssl.supported_protocols", getProtocols())
+            .putList("xpack.security.http.ssl.supported_protocols", XPackSettings.DEFAULT_SUPPORTED_PROTOCOLS)
             .setSecureSettings(serverSecureSettings)
             .build();
         TestsSSLService sslService = new TestsSSLService(TestEnvironment.newEnvironment(serverSettings));
@@ -408,14 +403,14 @@ public class HttpClientTests extends ESTestCase {
                 .put(HttpSettings.PROXY_PORT.getKey(), proxyServer.getPort())
                 .put(HttpSettings.PROXY_SCHEME.getKey(), "https")
                 .put("xpack.http.ssl.certificate_authorities", trustedCertPath)
-                .putList("xpack.security.http.ssl.supported_protocols", getProtocols())
+                .putList("xpack.security.http.ssl.supported_protocols", XPackSettings.DEFAULT_SUPPORTED_PROTOCOLS)
                 .put("xpack.security.http.ssl.enabled", false)
                 .build();
 
             HttpRequest.Builder requestBuilder = HttpRequest.builder("localhost", webServer.getPort())
-                    .method(HttpMethod.GET)
-                    .scheme(Scheme.HTTP)
-                    .path("/");
+                .method(HttpMethod.GET)
+                .scheme(Scheme.HTTP)
+                .path("/");
 
             final SSLService ssl = new SSLService(TestEnvironment.newEnvironment(settings));
             try (HttpClient client = new HttpClient(settings, ssl, null, mockClusterService())) {
@@ -436,16 +431,16 @@ public class HttpClientTests extends ESTestCase {
             proxyServer.enqueue(new MockResponse().setResponseCode(200).setBody("fullProxiedContent"));
             proxyServer.start();
             Settings settings = Settings.builder()
-                    .put(environment.settings())
-                    .put(HttpSettings.PROXY_HOST.getKey(), "localhost")
-                    .put(HttpSettings.PROXY_PORT.getKey(), proxyServer.getPort() + 1)
-                    .put(HttpSettings.PROXY_HOST.getKey(), "https")
-                    .build();
+                .put(environment.settings())
+                .put(HttpSettings.PROXY_HOST.getKey(), "localhost")
+                .put(HttpSettings.PROXY_PORT.getKey(), proxyServer.getPort() + 1)
+                .put(HttpSettings.PROXY_HOST.getKey(), "https")
+                .build();
 
             HttpRequest.Builder requestBuilder = HttpRequest.builder("localhost", webServer.getPort())
-                    .method(HttpMethod.GET)
-                    .proxy(new HttpProxy("localhost", proxyServer.getPort(), Scheme.HTTP))
-                    .path("/");
+                .method(HttpMethod.GET)
+                .proxy(new HttpProxy("localhost", proxyServer.getPort(), Scheme.HTTP))
+                .path("/");
 
             final SSLService sslService = new SSLService(TestEnvironment.newEnvironment(settings));
             try (HttpClient client = new HttpClient(settings, sslService, null, mockClusterService())) {
@@ -469,11 +464,14 @@ public class HttpClientTests extends ESTestCase {
         }
 
         final SSLService sslService = new SSLService(TestEnvironment.newEnvironment(settings.build()));
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> new HttpClient(settings.build(), sslService, null,
-                    mockClusterService()));
-        assertThat(e.getMessage(),
-                containsString("HTTP proxy requires both settings: [xpack.http.proxy.host] and [xpack.http.proxy.port]"));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new HttpClient(settings.build(), sslService, null, mockClusterService())
+        );
+        assertThat(
+            e.getMessage(),
+            containsString("HTTP proxy requires both settings: [xpack.http.proxy.host] and [xpack.http.proxy.port]")
+        );
     }
 
     public void testThatUrlPathIsNotEncoded() throws Exception {
@@ -485,7 +483,7 @@ public class HttpClientTests extends ESTestCase {
             request = HttpRequest.builder("localhost", webServer.getPort()).path(path).build();
         } else {
             // ensure that fromUrl acts the same way than the above builder
-            request = HttpRequest.builder().fromUrl(String.format(Locale.ROOT, "http://localhost:%s%s", webServer.getPort(), path)).build();
+            request = HttpRequest.builder().fromUrl(Strings.format("http://localhost:%s%s", webServer.getPort(), path)).build();
         }
         httpClient.execute(request);
 
@@ -498,10 +496,12 @@ public class HttpClientTests extends ESTestCase {
     }
 
     public void testThatDuplicateHeaderKeysAreReturned() throws Exception {
-        MockResponse mockResponse = new MockResponse().setResponseCode(200).setBody("foo")
-                .addHeader("foo", "bar")
-                .addHeader("foo", "baz")
-                .addHeader("Content-Length", "3");
+        MockResponse mockResponse = new MockResponse().setResponseCode(200)
+            .setBody("foo")
+            .addHeader("foo", "bar")
+            .addHeader("foo", "baz")
+            .addHeader("Foo", "bam")
+            .addHeader("Content-Length", "3");
         webServer.enqueue(mockResponse);
 
         HttpRequest request = HttpRequest.builder("localhost", webServer.getPort()).path("/").build();
@@ -510,19 +510,20 @@ public class HttpClientTests extends ESTestCase {
         assertThat(webServer.requests(), hasSize(1));
 
         assertThat(httpResponse.headers(), hasKey("foo"));
-        assertThat(httpResponse.headers().get("foo"), containsInAnyOrder("bar", "baz"));
+        assertThat(httpResponse.headers().get("foo"), containsInAnyOrder("bar", "baz", "bam"));
     }
 
     // finally fixing https://github.com/elastic/x-plugins/issues/1141 - yay! Fixed due to switching to apache http client internally!
     public void testThatClientTakesTimeoutsIntoAccountAfterHeadersAreSent() throws Exception {
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody("foo").setBodyDelay(TimeValue.timeValueSeconds(2)));
 
-        HttpRequest request = HttpRequest.builder("localhost", webServer.getPort()).path("/foo")
-                .method(HttpMethod.POST)
-                .body("foo")
-                .connectionTimeout(TimeValue.timeValueMillis(500))
-                .readTimeout(TimeValue.timeValueMillis(500))
-                .build();
+        HttpRequest request = HttpRequest.builder("localhost", webServer.getPort())
+            .path("/foo")
+            .method(HttpMethod.POST)
+            .body("foo")
+            .connectionTimeout(TimeValue.timeValueMillis(500))
+            .readTimeout(TimeValue.timeValueMillis(500))
+            .build();
         SocketTimeoutException e = expectThrows(SocketTimeoutException.class, () -> httpClient.execute(request));
         assertThat(e.getMessage(), is("Read timed out"));
     }
@@ -539,7 +540,7 @@ public class HttpClientTests extends ESTestCase {
                     socket.getOutputStream().flush();
                 } catch (Exception e) {
                     hasExceptionHappened.set(e);
-                    logger.error((Supplier<?>) () -> new ParameterizedMessage("Error in writing non HTTP response"), e);
+                    logger.error("Error in writing non HTTP response", e);
                 }
             });
             HttpRequest request = HttpRequest.builder("localhost", serverSocket.getLocalPort()).path("/").build();
@@ -565,13 +566,12 @@ public class HttpClientTests extends ESTestCase {
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody(data));
 
         Settings settings = Settings.builder()
-                .put(HttpSettings.MAX_HTTP_RESPONSE_SIZE.getKey(), new ByteSizeValue(randomBytesLength - 1, ByteSizeUnit.BYTES))
-                .build();
+            .put(HttpSettings.MAX_HTTP_RESPONSE_SIZE.getKey(), new ByteSizeValue(randomBytesLength - 1, ByteSizeUnit.BYTES))
+            .build();
 
         HttpRequest.Builder requestBuilder = HttpRequest.builder("localhost", webServer.getPort()).method(HttpMethod.GET).path("/");
 
-        try (HttpClient client = new HttpClient(settings, new SSLService(environment), null,
-            mockClusterService())) {
+        try (HttpClient client = new HttpClient(settings, new SSLService(environment), null, mockClusterService())) {
             IOException e = expectThrows(IOException.class, () -> client.execute(requestBuilder.build()));
             assertThat(e.getMessage(), startsWith("Maximum limit of"));
         }
@@ -588,9 +588,7 @@ public class HttpClientTests extends ESTestCase {
             webServer.enqueue(new MockResponse().setResponseCode(200));
         }
 
-        HttpRequest request = HttpRequest.builder("localhost", webServer.getPort()).path("/")
-                .method(method)
-                .build();
+        HttpRequest request = HttpRequest.builder("localhost", webServer.getPort()).path("/").method(method).build();
         HttpResponse response = httpClient.execute(request);
 
         assertThat(webServer.requests(), hasSize(2));
@@ -618,10 +616,10 @@ public class HttpClientTests extends ESTestCase {
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody(body));
 
         HttpRequest request = HttpRequest.builder("localhost", webServer.getPort())
-                .path("/")
-                .setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType())
-                .body(body)
-                .build();
+            .path("/")
+            .setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType())
+            .body(body)
+            .build();
         HttpResponse response = httpClient.execute(request);
         assertThat(response.body().utf8ToString(), is(body));
 
@@ -633,9 +631,7 @@ public class HttpClientTests extends ESTestCase {
     public void testThatUrlDoesNotContainQuestionMarkAtTheEnd() throws Exception {
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody("whatever"));
 
-        HttpRequest request = HttpRequest.builder("localhost", webServer.getPort())
-                        .path("foo")
-                        .build();
+        HttpRequest request = HttpRequest.builder("localhost", webServer.getPort()).path("foo").build();
         httpClient.execute(request);
         assertThat(webServer.requests(), hasSize(1));
         assertThat(webServer.requests().get(0).getUri().getRawPath(), is("/foo"));
@@ -645,26 +641,26 @@ public class HttpClientTests extends ESTestCase {
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody("whatever"));
         Settings settings = Settings.builder().put(HttpSettings.HOSTS_WHITELIST.getKey(), getWebserverUri()).build();
 
-        try (HttpClient client = new HttpClient(settings, new SSLService(environment), null,
-            mockClusterService())) {
+        try (HttpClient client = new HttpClient(settings, new SSLService(environment), null, mockClusterService())) {
             HttpRequest request = HttpRequest.builder(webServer.getHostName(), webServer.getPort()).path("foo").build();
             client.execute(request);
         }
     }
 
     public void testThatWhiteListBlocksRequests() throws Exception {
-        Settings settings = Settings.builder()
-            .put(HttpSettings.HOSTS_WHITELIST.getKey(), getWebserverUri())
-            .build();
+        Settings settings = Settings.builder().put(HttpSettings.HOSTS_WHITELIST.getKey(), getWebserverUri()).build();
 
-        try (HttpClient client = new HttpClient(settings, new SSLService(environment), null,
-            mockClusterService())) {
-            HttpRequest request = HttpRequest.builder("blocked.domain.org", webServer.getPort())
-                .path("foo")
-                .build();
+        try (HttpClient client = new HttpClient(settings, new SSLService(environment), null, mockClusterService())) {
+            HttpRequest request = HttpRequest.builder("blocked.domain.org", webServer.getPort()).path("foo").build();
             ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> client.execute(request));
-            assertThat(e.getMessage(), is("host [http://blocked.domain.org:" + webServer.getPort() +
-                "] is not whitelisted in setting [xpack.http.whitelist], will not connect"));
+            assertThat(
+                e.getMessage(),
+                is(
+                    "host [http://blocked.domain.org:"
+                        + webServer.getPort()
+                        + "] is not whitelisted in setting [xpack.http.whitelist], will not connect"
+                )
+            );
         }
     }
 
@@ -681,14 +677,13 @@ public class HttpClientTests extends ESTestCase {
 
         Settings settings = Settings.builder().put(HttpSettings.HOSTS_WHITELIST.getKey(), getWebserverUri()).build();
 
-        try (HttpClient client = new HttpClient(settings, new SSLService(environment), null,
-            mockClusterService())) {
-            HttpRequest request = HttpRequest.builder(webServer.getHostName(), webServer.getPort()).path("/")
-                .method(method)
-                .build();
+        try (HttpClient client = new HttpClient(settings, new SSLService(environment), null, mockClusterService())) {
+            HttpRequest request = HttpRequest.builder(webServer.getHostName(), webServer.getPort()).path("/").method(method).build();
             ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> client.execute(request));
-            assertThat(e.getMessage(), is("host [" + redirectUrl + "] is not whitelisted in setting [xpack.http.whitelist], " +
-                "will not redirect"));
+            assertThat(
+                e.getMessage(),
+                is("host [" + redirectUrl + "] is not whitelisted in setting [xpack.http.whitelist], " + "will not redirect")
+            );
         }
     }
 
@@ -702,9 +697,9 @@ public class HttpClientTests extends ESTestCase {
 
         Settings settings = Settings.builder().put(HttpSettings.HOSTS_WHITELIST.getKey(), getWebserverUri() + "*").build();
 
-        try (HttpClient client = new HttpClient(settings, new SSLService(environment), null,
-            mockClusterService())) {
-            HttpRequest request = HttpRequest.builder(webServer.getHostName(), webServer.getPort()).path("/")
+        try (HttpClient client = new HttpClient(settings, new SSLService(environment), null, mockClusterService())) {
+            HttpRequest request = HttpRequest.builder(webServer.getHostName(), webServer.getPort())
+                .path("/")
                 .method(HttpMethod.GET)
                 .build();
             HttpResponse response = client.execute(request);
@@ -721,11 +716,11 @@ public class HttpClientTests extends ESTestCase {
         ClusterSettings clusterSettings = new ClusterSettings(settings, new HashSet<>(HttpSettings.getSettings()));
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
 
-        try (HttpClient client =
-                 new HttpClient(settings, new SSLService(environment), null, clusterService)) {
+        try (HttpClient client = new HttpClient(settings, new SSLService(environment), null, clusterService)) {
 
             // blacklisted
-            HttpRequest request = HttpRequest.builder(webServer.getHostName(), webServer.getPort()).path("/")
+            HttpRequest request = HttpRequest.builder(webServer.getHostName(), webServer.getPort())
+                .path("/")
                 .method(HttpMethod.GET)
                 .build();
             ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> client.execute(request));
@@ -740,8 +735,9 @@ public class HttpClientTests extends ESTestCase {
     }
 
     public void testAutomatonWhitelisting() {
-        CharacterRunAutomaton automaton = HttpClient.createAutomaton(Arrays.asList("https://example*", "https://bar.com/foo",
-            "htt*://www.test.org"));
+        CharacterRunAutomaton automaton = HttpClient.createAutomaton(
+            Arrays.asList("https://example*", "https://bar.com/foo", "htt*://www.test.org")
+        );
         assertThat(automaton.run("https://example.org"), is(true));
         assertThat(automaton.run("https://example.com"), is(true));
         assertThat(automaton.run("https://examples.com"), is(true));
@@ -766,6 +762,76 @@ public class HttpClientTests extends ESTestCase {
         assertCreateUri("https://example.org", "");
     }
 
+    public void testConnectionReuse() throws Exception {
+        final HttpRequest request = HttpRequest.builder("localhost", webServer.getPort())
+            .method(HttpMethod.POST)
+            .path("/" + randomAlphaOfLength(5))
+            .build();
+
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody("whatever"));
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody("whatever"));
+
+        httpClient.execute(request);
+        httpClient.execute(request);
+
+        assertThat(webServer.requests(), hasSize(2));
+        // by default we re-use connections forever
+        assertThat(webServer.requests().get(0).getRemoteAddress(), equalTo(webServer.requests().get(1).getRemoteAddress()));
+        webServer.clearRequests();
+
+        try (
+            HttpClient unpooledHttpClient = new HttpClient(
+                Settings.builder().put(HttpSettings.CONNECTION_POOL_TTL.getKey(), "99ms").build(),
+                new SSLService(environment),
+                null,
+                mockClusterService()
+            )
+        ) {
+
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody("whatever"));
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody("whatever"));
+
+            unpooledHttpClient.execute(request);
+
+            // Connection pool expiry is based on System.currentTimeMillis so wait for this clock to advance far enough for the connection
+            // we just used to expire
+            final long waitStartTime = System.currentTimeMillis();
+            while (System.currentTimeMillis() <= waitStartTime + 100) {
+                // noinspection BusyWait
+                Thread.sleep(100);
+            }
+
+            unpooledHttpClient.execute(request);
+
+            assertThat(webServer.requests(), hasSize(2));
+            // the connection expired before re-use so we made a new one
+            assertThat(webServer.requests().get(0).getRemoteAddress(), not(equalTo(webServer.requests().get(1).getRemoteAddress())));
+        }
+    }
+
+    public void testNoCookies() throws IOException {
+        /*
+         * In this test we make the same request twice, and assert that the second request is not sent with the cookie that the first
+         * response tells us to set.
+         */
+        int responseCode = randomIntBetween(200, 203);
+        String body = randomAlphaOfLengthBetween(2, 8096);
+        webServer.enqueue(
+            new MockResponse().setResponseCode(responseCode).setBody(body).addHeader("Set-Cookie", "test-cookie=" + randomAlphaOfLength(10))
+        );
+        webServer.enqueue(new MockResponse().setResponseCode(responseCode).setBody(body));
+
+        HttpRequest.Builder requestBuilder = HttpRequest.builder("localhost", webServer.getPort())
+            .method(HttpMethod.POST)
+            .path("/" + randomAlphaOfLength(5));
+        requestBuilder.body(randomAlphaOfLength(5));
+        HttpRequest request = requestBuilder.build();
+
+        httpClient.execute(request);
+        httpClient.execute(request);
+        assertNull(webServer.requests().get(1).getHeader("Cookie"));
+    }
+
     private void assertCreateUri(String uri, String expectedPath) {
         final HttpRequest request = HttpRequest.builder().fromUrl(uri).build();
         final Tuple<HttpHost, URI> tuple = HttpClient.createURI(request);
@@ -780,24 +846,6 @@ public class HttpClientTests extends ESTestCase {
     }
 
     private String getWebserverUri() {
-        return String.format(Locale.ROOT, "http://%s:%s", webServer.getHostName(), webServer.getPort());
-    }
-
-    /**
-     * The {@link HttpsServer} in the JDK has issues with TLSv1.3 when running in a JDK prior to
-     * 12.0.1 so we pin to TLSv1.2 when running on an earlier JDK
-     */
-    private static List<String> getProtocols() {
-        if (JavaVersion.current().compareTo(JavaVersion.parse("12")) < 0) {
-            return List.of("TLSv1.2");
-        } else {
-            JavaVersion full =
-                AccessController.doPrivileged(
-                    (PrivilegedAction<JavaVersion>) () -> JavaVersion.parse(System.getProperty("java.version")));
-            if (full.compareTo(JavaVersion.parse("12.0.1")) < 0) {
-                return List.of("TLSv1.2");
-            }
-        }
-        return XPackSettings.DEFAULT_SUPPORTED_PROTOCOLS;
+        return Strings.format("http://%s:%s", webServer.getHostName(), webServer.getPort());
     }
 }

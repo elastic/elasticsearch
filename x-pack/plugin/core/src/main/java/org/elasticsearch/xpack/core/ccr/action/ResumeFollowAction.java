@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.ccr.action;
@@ -12,10 +13,11 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -28,7 +30,7 @@ public final class ResumeFollowAction extends ActionType<AcknowledgedResponse> {
     public static final String NAME = "cluster:admin/xpack/ccr/resume_follow";
 
     private ResumeFollowAction() {
-        super(NAME, AcknowledgedResponse::new);
+        super(NAME);
     }
 
     public static class Request extends MasterNodeRequest<Request> implements ToXContentObject {
@@ -42,9 +44,10 @@ public final class ResumeFollowAction extends ActionType<AcknowledgedResponse> {
             FollowParameters.initParser(PARSER);
         }
 
-        public static Request fromXContent(final XContentParser parser, final String followerIndex) throws IOException {
+        public static Request fromXContent(TimeValue masterNodeTimeout, final XContentParser parser, final String followerIndex)
+            throws IOException {
             FollowParameters parameters = PARSER.parse(parser, null);
-            Request request = new Request();
+            Request request = new Request(masterNodeTimeout);
             request.setFollowerIndex(followerIndex);
             request.setParameters(parameters);
             return request;
@@ -53,7 +56,8 @@ public final class ResumeFollowAction extends ActionType<AcknowledgedResponse> {
         private String followerIndex;
         private FollowParameters parameters = new FollowParameters();
 
-        public Request() {
+        public Request(TimeValue masterNodeTimeout) {
+            super(masterNodeTimeout);
         }
 
         public String getFollowerIndex() {
@@ -109,8 +113,7 @@ public final class ResumeFollowAction extends ActionType<AcknowledgedResponse> {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return Objects.equals(followerIndex, request.followerIndex) &&
-                Objects.equals(parameters, request.parameters);
+            return Objects.equals(followerIndex, request.followerIndex) && Objects.equals(parameters, request.parameters);
         }
 
         @Override

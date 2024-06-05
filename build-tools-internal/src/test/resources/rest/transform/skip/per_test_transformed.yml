@@ -1,0 +1,22 @@
+---
+"One Test":
+  - do:
+      something:
+        id: "something1"
+  - match: { acknowledged: true }
+---
+"Two Test":
+  - skip:
+      awaits_fix: "my reason"
+  - do:
+      something:
+        id: "something2"
+  - match: { acknowledged: true }
+---
+"Three Test":
+  - skip:
+      awaits_fix: "another reason"
+  - do:
+      something:
+        id: "something3"
+  - match: { acknowledged: true }

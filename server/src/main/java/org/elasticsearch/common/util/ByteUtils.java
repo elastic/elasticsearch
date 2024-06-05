@@ -1,34 +1,33 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.util;
 
-import org.apache.lucene.store.ByteArrayDataInput;
-import org.apache.lucene.store.ByteArrayDataOutput;
-
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.VarHandle;
+import java.nio.ByteOrder;
 
 /** Utility methods to do byte-level encoding. These methods are biased towards little-endian byte order because it is the most
  *  common byte order and reading several bytes at once may be optimizable in the future with the help of sun.mist.Unsafe. */
 public enum ByteUtils {
     ;
 
-    public static final int MAX_BYTES_VLONG = 9;
+    public static final VarHandle LITTLE_ENDIAN_CHAR = MethodHandles.byteArrayViewVarHandle(char[].class, ByteOrder.LITTLE_ENDIAN);
+
+    public static final VarHandle LITTLE_ENDIAN_INT = MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.LITTLE_ENDIAN);
+
+    public static final VarHandle LITTLE_ENDIAN_LONG = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.LITTLE_ENDIAN);
+
+    public static final VarHandle BIG_ENDIAN_LONG = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.BIG_ENDIAN);
+
+    private static final VarHandle BIG_ENDIAN_SHORT = MethodHandles.byteArrayViewVarHandle(short[].class, ByteOrder.BIG_ENDIAN);
+
+    private static final VarHandle BIG_ENDIAN_INT = MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.BIG_ENDIAN);
 
     /** Zig-zag decode. */
     public static long zigZagDecode(long n) {
@@ -40,101 +39,150 @@ public enum ByteUtils {
         return (n >> 63) ^ (n << 1);
     }
 
-    /** Write a long in little-endian format. */
-    public static void writeLongLE(long l, byte[] arr, int offset) {
-        for (int i = 0; i < 8; ++i) {
-            arr[offset++] = (byte) l;
-            l >>>= 8;
-        }
-        assert l == 0;
+    /**
+     * Converts a long to a byte array in little endian format.
+     *
+     * @param val The long to convert to a byte array
+     * @param arr The byte array to write the long value in little endian layout
+     * @param offset The offset where in the array to write to
+     */
+    public static void writeLongLE(long val, byte[] arr, int offset) {
+        LITTLE_ENDIAN_LONG.set(arr, offset, val);
     }
 
-    /** Write a long in little-endian format. */
+    /**
+     * Converts a byte array written in little endian format to a long.
+     *
+     * @param arr The byte array to read from in little endian layout
+     * @param offset The offset where in the array to read from
+     */
     public static long readLongLE(byte[] arr, int offset) {
-        long l = arr[offset++] & 0xFFL;
-        for (int i = 1; i < 8; ++i) {
-            l |= (arr[offset++] & 0xFFL) << (8 * i);
-        }
-        return l;
+        return (long) LITTLE_ENDIAN_LONG.get(arr, offset);
     }
 
-    /** Write an int in little-endian format. */
-    public static void writeIntLE(int l, byte[] arr, int offset) {
-        for (int i = 0; i < 4; ++i) {
-            arr[offset++] = (byte) l;
-            l >>>= 8;
-        }
-        assert l == 0;
+    /**
+     * Converts a long to a byte array in big endian format.
+     *
+     * @param val The long to convert to a byte array
+     * @param arr The byte array to write the long value in big endian layout
+     * @param offset The offset where in the array to write to
+     */
+    public static void writeLongBE(long val, byte[] arr, int offset) {
+        BIG_ENDIAN_LONG.set(arr, offset, val);
     }
 
-    /** Read an int in little-endian format. */
+    /**
+     * Converts a byte array written in big endian format to a long.
+     *
+     * @param arr The byte array to read from in big endian layout
+     * @param offset The offset where in the array to read from
+     */
+    public static long readLongBE(byte[] arr, int offset) {
+        return (long) BIG_ENDIAN_LONG.get(arr, offset);
+    }
+
+    /**
+     * Converts an int to a byte array in little endian format.
+     *
+     * @param val The int to convert to a byte array
+     * @param arr The byte array to write the int value in little endian layout
+     * @param offset The offset where in the array to write to
+     */
+    public static void writeIntLE(int val, byte[] arr, int offset) {
+        LITTLE_ENDIAN_INT.set(arr, offset, val);
+    }
+
+    /**
+     * Converts a byte array written in little endian format to an int.
+     *
+     * @param arr The byte array to read from in little endian layout
+     * @param offset The offset where in the array to read from
+     */
     public static int readIntLE(byte[] arr, int offset) {
-        int l = arr[offset++] & 0xFF;
-        for (int i = 1; i < 4; ++i) {
-            l |= (arr[offset++] & 0xFF) << (8 * i);
-        }
-        return l;
+        return (int) LITTLE_ENDIAN_INT.get(arr, offset);
     }
 
-    /** Write a double in little-endian format. */
-    public static void writeDoubleLE(double d, byte[] arr, int offset) {
-        writeLongLE(Double.doubleToRawLongBits(d), arr, offset);
+    /**
+     * Converts a double to a byte array in little endian format.
+     *
+     * @param val The double to convert to a byte array
+     * @param arr The byte array to write the double value in little endian layout
+     * @param offset The offset where in the array to write to
+     */
+    public static void writeDoubleLE(double val, byte[] arr, int offset) {
+        writeLongLE(Double.doubleToRawLongBits(val), arr, offset);
     }
 
-    /** Read a double in little-endian format. */
+    /**
+     * Converts a byte array written in little endian format to a double.
+     *
+     * @param arr The byte array to read from in little endian layout
+     * @param offset The offset where in the array to read from
+     */
     public static double readDoubleLE(byte[] arr, int offset) {
         return Double.longBitsToDouble(readLongLE(arr, offset));
     }
 
-    /** Write a float in little-endian format. */
-    public static void writeFloatLE(float d, byte[] arr, int offset) {
-        writeIntLE(Float.floatToRawIntBits(d), arr, offset);
+    /**
+     * Converts a float to a byte array in little endian format.
+     *
+     * @param val The float to convert to a byte array
+     * @param arr The byte array to write the float value in little endian layout
+     * @param offset The offset where in the array to write to
+     */
+    public static void writeFloatLE(float val, byte[] arr, int offset) {
+        writeIntLE(Float.floatToRawIntBits(val), arr, offset);
     }
 
-    /** Read a float in little-endian format. */
+    /**
+     * Converts a byte array written in little endian format to a float.
+     *
+     * @param arr The byte array to read from in little endian layout
+     * @param offset The offset where in the array to read from
+     */
     public static float readFloatLE(byte[] arr, int offset) {
         return Float.intBitsToFloat(readIntLE(arr, offset));
     }
 
-    /** Same as DataOutput#writeVLong but accepts negative values (written on 9 bytes). */
-    public static void writeVLong(ByteArrayDataOutput out, long i) {
-        for (int k = 0; k < 8 && (i & ~0x7FL) != 0L; ++k) {
-            out.writeByte((byte)((i & 0x7FL) | 0x80L));
-            i >>>= 7;
-        }
-        out.writeByte((byte)i);
+    /**
+     * Converts an int to a byte array in big endian format.
+     *
+     * @param val The int to convert to a byte array
+     * @param arr The byte array to write the int value in big endian layout
+     * @param offset The offset where in the array to write to
+     */
+    public static void writeIntBE(int val, byte[] arr, int offset) {
+        BIG_ENDIAN_INT.set(arr, offset, val);
     }
 
-    /** Same as DataOutput#readVLong but can read negative values (read on 9 bytes). */
-    public static long readVLong(ByteArrayDataInput in) {
-        // unwinded because of hotspot bugs, see Lucene's impl
-        byte b = in.readByte();
-        if (b >= 0) return b;
-        long i = b & 0x7FL;
-        b = in.readByte();
-        i |= (b & 0x7FL) << 7;
-        if (b >= 0) return i;
-        b = in.readByte();
-        i |= (b & 0x7FL) << 14;
-        if (b >= 0) return i;
-        b = in.readByte();
-        i |= (b & 0x7FL) << 21;
-        if (b >= 0) return i;
-        b = in.readByte();
-        i |= (b & 0x7FL) << 28;
-        if (b >= 0) return i;
-        b = in.readByte();
-        i |= (b & 0x7FL) << 35;
-        if (b >= 0) return i;
-        b = in.readByte();
-        i |= (b & 0x7FL) << 42;
-        if (b >= 0) return i;
-        b = in.readByte();
-        i |= (b & 0x7FL) << 49;
-        if (b >= 0) return i;
-        b = in.readByte();
-        i |= (b & 0xFFL) << 56;
-        return i;
+    /**
+     * Converts a byte array written in big endian format to an int.
+     *
+     * @param arr The byte array to read from in big endian layout
+     * @param offset The offset where in the array to read from
+     */
+    public static int readIntBE(byte[] arr, int offset) {
+        return (int) BIG_ENDIAN_INT.get(arr, offset);
     }
 
+    /**
+     * Converts a short to a byte array in big endian format.
+     *
+     * @param val The short to convert to a byte array
+     * @param arr The byte array to write the short value in big endian layout
+     * @param offset The offset where in the array to write to
+     */
+    public static void writeShortBE(short val, byte[] arr, int offset) {
+        BIG_ENDIAN_SHORT.set(arr, offset, val);
+    }
+
+    /**
+     * Converts a byte array written in big endian format to a short.
+     *
+     * @param arr The byte array to read from in big endian layout
+     * @param offset The offset where in the array to read from
+     */
+    public static short readShortBE(byte[] arr, int offset) {
+        return (short) BIG_ENDIAN_SHORT.get(arr, offset);
+    }
 }

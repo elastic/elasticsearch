@@ -1,67 +1,78 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.indices.settings.put;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MetaDataUpdateSettingsService;
+import org.elasticsearch.cluster.metadata.MetadataUpdateSettingsService;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.stream.Collectors;
 
-public class TransportUpdateSettingsAction extends TransportMasterNodeAction<UpdateSettingsRequest, AcknowledgedResponse> {
+import static org.elasticsearch.indices.SystemIndexMappingUpdateService.MANAGED_SYSTEM_INDEX_SETTING_UPDATE_ALLOWLIST;
 
+public class TransportUpdateSettingsAction extends AcknowledgedTransportMasterNodeAction<UpdateSettingsRequest> {
+
+    public static final ActionType<AcknowledgedResponse> TYPE = new ActionType<>("indices:admin/settings/update");
     private static final Logger logger = LogManager.getLogger(TransportUpdateSettingsAction.class);
 
-    private final MetaDataUpdateSettingsService updateSettingsService;
+    private final MetadataUpdateSettingsService updateSettingsService;
+    private final SystemIndices systemIndices;
 
     @Inject
-    public TransportUpdateSettingsAction(TransportService transportService, ClusterService clusterService,
-                                         ThreadPool threadPool, MetaDataUpdateSettingsService updateSettingsService,
-                                         ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(UpdateSettingsAction.NAME, transportService, clusterService, threadPool, actionFilters, UpdateSettingsRequest::new,
-            indexNameExpressionResolver);
+    public TransportUpdateSettingsAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        MetadataUpdateSettingsService updateSettingsService,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        SystemIndices systemIndices
+    ) {
+        super(
+            TYPE.name(),
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            UpdateSettingsRequest::new,
+            indexNameExpressionResolver,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
         this.updateSettingsService = updateSettingsService;
-    }
-
-    @Override
-    protected String executor() {
-        // we go async right away....
-        return ThreadPool.Names.SAME;
+        this.systemIndices = systemIndices;
     }
 
     @Override
@@ -72,42 +83,130 @@ public class TransportUpdateSettingsAction extends TransportMasterNodeAction<Upd
             return globalBlock;
         }
         if (request.settings().size() == 1 &&  // we have to allow resetting these settings otherwise users can't unblock an index
-            IndexMetaData.INDEX_BLOCKS_METADATA_SETTING.exists(request.settings())
-            || IndexMetaData.INDEX_READ_ONLY_SETTING.exists(request.settings())
-            || IndexMetaData.INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING.exists(request.settings())) {
+            IndexMetadata.INDEX_BLOCKS_METADATA_SETTING.exists(request.settings())
+            || IndexMetadata.INDEX_READ_ONLY_SETTING.exists(request.settings())
+            || IndexMetadata.INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING.exists(request.settings())) {
             return null;
         }
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE,
-            indexNameExpressionResolver.concreteIndexNames(state, request));
+        return state.blocks()
+            .indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, indexNameExpressionResolver.concreteIndexNames(state, request));
     }
 
     @Override
-    protected AcknowledgedResponse read(StreamInput in) throws IOException {
-        return new AcknowledgedResponse(in);
-    }
-
-    @Override
-    protected void masterOperation(Task task, final UpdateSettingsRequest request, final ClusterState state,
-                                   final ActionListener<AcknowledgedResponse> listener) {
+    protected void masterOperation(
+        Task task,
+        final UpdateSettingsRequest request,
+        final ClusterState state,
+        final ActionListener<AcknowledgedResponse> listener
+    ) {
         final Index[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, request);
-        UpdateSettingsClusterStateUpdateRequest clusterStateUpdateRequest = new UpdateSettingsClusterStateUpdateRequest()
-                .indices(concreteIndices)
-                .settings(request.settings())
-                .setPreserveExisting(request.isPreserveExisting())
-                .ackTimeout(request.timeout())
-                .masterNodeTimeout(request.masterNodeTimeout());
+        final Settings requestSettings = request.settings();
 
-        updateSettingsService.updateSettings(clusterStateUpdateRequest, new ActionListener<ClusterStateUpdateResponse>() {
-            @Override
-            public void onResponse(ClusterStateUpdateResponse response) {
-                listener.onResponse(new AcknowledgedResponse(response.isAcknowledged()));
-            }
+        final Map<String, List<String>> systemIndexViolations = checkForSystemIndexViolations(concreteIndices, request);
+        if (systemIndexViolations.isEmpty() == false) {
+            final String message = "Cannot override settings on system indices: "
+                + systemIndexViolations.entrySet()
+                    .stream()
+                    .map(entry -> "[" + entry.getKey() + "] -> " + entry.getValue())
+                    .collect(Collectors.joining(", "));
+            logger.warn(message);
+            listener.onFailure(new IllegalStateException(message));
+            return;
+        }
 
-            @Override
-            public void onFailure(Exception t) {
-                logger.debug(() -> new ParameterizedMessage("failed to update settings on indices [{}]", (Object) concreteIndices), t);
-                listener.onFailure(t);
+        final List<String> unhiddenSystemIndexViolations = checkForUnhidingSystemIndex(concreteIndices, request);
+        if (unhiddenSystemIndexViolations.isEmpty() == false) {
+            final String message = "Cannot set [index.hidden] to 'false' on system indices: "
+                + unhiddenSystemIndexViolations.stream().map(entry -> "[" + entry + "]").collect(Collectors.joining(", "));
+            logger.warn(message);
+            listener.onFailure(new IllegalStateException(message));
+            return;
+        }
+
+        UpdateSettingsClusterStateUpdateRequest clusterStateUpdateRequest = new UpdateSettingsClusterStateUpdateRequest().indices(
+            concreteIndices
+        )
+            .settings(requestSettings)
+            .setPreserveExisting(request.isPreserveExisting())
+            .reopenShards(request.reopen())
+            .ackTimeout(request.ackTimeout())
+            .masterNodeTimeout(request.masterNodeTimeout());
+
+        updateSettingsService.updateSettings(clusterStateUpdateRequest, listener.delegateResponse((l, e) -> {
+            logger.debug(() -> "failed to update settings on indices [" + Arrays.toString(concreteIndices) + "]", e);
+            l.onFailure(e);
+        }));
+    }
+
+    /**
+     * Checks that if the request is trying to apply settings changes to any system indices, then the settings' values match those
+     * that the system index's descriptor expects.
+     *
+     * @param concreteIndices the indices being updated
+     * @param request the update request
+     * @return a mapping from system index pattern to the settings whose values would be overridden. Empty if there are no violations.
+     */
+    private Map<String, List<String>> checkForSystemIndexViolations(Index[] concreteIndices, UpdateSettingsRequest request) {
+        // Requests that a cluster generates itself are permitted to have a difference in settings
+        // so that rolling upgrade scenarios still work. We check this via the request's origin.
+        if (Strings.isNullOrEmpty(request.origin()) == false) {
+            return Map.of();
+        }
+
+        final Map<String, List<String>> violationsByIndex = new HashMap<>();
+        final Settings requestSettings = request.settings();
+
+        for (Index index : concreteIndices) {
+            final SystemIndexDescriptor descriptor = systemIndices.findMatchingDescriptor(index.getName());
+            if (descriptor != null && descriptor.isAutomaticallyManaged()) {
+                final Settings descriptorSettings = descriptor.getSettings();
+                List<String> failedKeys = new ArrayList<>();
+                for (String key : requestSettings.keySet()) {
+                    if (MANAGED_SYSTEM_INDEX_SETTING_UPDATE_ALLOWLIST.contains(key)) {
+                        // Don't check the setting if it's on the allowlist.
+                        continue;
+                    }
+                    final String expectedValue = descriptorSettings.get(key);
+                    final String actualValue = requestSettings.get(key);
+
+                    if (Objects.equals(expectedValue, actualValue) == false) {
+                        failedKeys.add(key);
+                    }
+                }
+
+                if (failedKeys.isEmpty() == false) {
+                    violationsByIndex.put(descriptor.getIndexPattern(), failedKeys);
+                }
             }
-        });
+        }
+
+        return violationsByIndex;
+    }
+
+    /**
+     * Checks that the request isn't trying to remove the "hidden" setting on a system
+     * index
+     *
+     * @param concreteIndices the indices being updated
+     * @param request the update request
+     * @return a list of system indexes that this request would make visible
+     */
+    private List<String> checkForUnhidingSystemIndex(Index[] concreteIndices, UpdateSettingsRequest request) {
+        // Requests that a cluster generates itself are permitted to have a difference in settings
+        // so that rolling upgrade scenarios still work. We check this via the request's origin.
+        if (request.settings().getAsBoolean(IndexMetadata.SETTING_INDEX_HIDDEN, true)) {
+            return List.of();
+        }
+
+        final List<String> systemPatterns = new ArrayList<>();
+
+        for (Index index : concreteIndices) {
+            final SystemIndexDescriptor descriptor = systemIndices.findMatchingDescriptor(index.getName());
+            if (descriptor != null) {
+                systemPatterns.add(index.getName());
+            }
+        }
+
+        return systemPatterns;
     }
 }

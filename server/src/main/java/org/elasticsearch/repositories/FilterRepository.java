@@ -1,44 +1,36 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.repositories;
 
-import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.metadata.RepositoryMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleListener;
-import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.recovery.RecoveryState;
+import org.elasticsearch.snapshots.SnapshotDeleteListener;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
-import org.elasticsearch.snapshots.SnapshotShardFailure;
 
 import java.io.IOException;
-import java.util.List;
-import java.util.Map;
+import java.util.Collection;
+import java.util.Set;
+import java.util.concurrent.Executor;
+import java.util.function.BooleanSupplier;
 
 public class FilterRepository implements Repository {
 
@@ -48,43 +40,54 @@ public class FilterRepository implements Repository {
         this.in = in;
     }
 
+    public Repository getDelegate() {
+        return in;
+    }
+
     @Override
-    public RepositoryMetaData getMetadata() {
+    public RepositoryMetadata getMetadata() {
         return in.getMetadata();
     }
 
     @Override
-    public SnapshotInfo getSnapshotInfo(SnapshotId snapshotId) {
-        return in.getSnapshotInfo(snapshotId);
+    public void getSnapshotInfo(
+        Collection<SnapshotId> snapshotIds,
+        boolean abortOnFailure,
+        BooleanSupplier isCancelled,
+        CheckedConsumer<SnapshotInfo, Exception> consumer,
+        ActionListener<Void> listener
+    ) {
+        in.getSnapshotInfo(snapshotIds, abortOnFailure, isCancelled, consumer, listener);
     }
 
     @Override
-    public MetaData getSnapshotGlobalMetaData(SnapshotId snapshotId) {
-        return in.getSnapshotGlobalMetaData(snapshotId);
+    public Metadata getSnapshotGlobalMetadata(SnapshotId snapshotId) {
+        return in.getSnapshotGlobalMetadata(snapshotId);
     }
 
     @Override
-    public IndexMetaData getSnapshotIndexMetaData(SnapshotId snapshotId, IndexId index) throws IOException {
-        return in.getSnapshotIndexMetaData(snapshotId, index);
+    public IndexMetadata getSnapshotIndexMetaData(RepositoryData repositoryData, SnapshotId snapshotId, IndexId index) throws IOException {
+        return in.getSnapshotIndexMetaData(repositoryData, snapshotId, index);
     }
 
     @Override
-    public void getRepositoryData(ActionListener<RepositoryData> listener) {
-        in.getRepositoryData(listener);
+    public void getRepositoryData(Executor responseExecutor, ActionListener<RepositoryData> listener) {
+        in.getRepositoryData(responseExecutor, listener);
     }
 
     @Override
-    public void finalizeSnapshot(SnapshotId snapshotId, ShardGenerations shardGenerations, long startTime, String failure,
-                                 int totalShards, List<SnapshotShardFailure> shardFailures, long repositoryStateId,
-                                 boolean includeGlobalState, MetaData metaData, Map<String, Object> userMetadata,
-                                 boolean writeShardGens, ActionListener<SnapshotInfo> listener) {
-        in.finalizeSnapshot(snapshotId, shardGenerations, startTime, failure, totalShards, shardFailures, repositoryStateId,
-            includeGlobalState, metaData, userMetadata, writeShardGens, listener);
+    public void finalizeSnapshot(final FinalizeSnapshotContext finalizeSnapshotContext) {
+        in.finalizeSnapshot(finalizeSnapshotContext);
     }
 
     @Override
-    public void deleteSnapshot(SnapshotId snapshotId, long repositoryStateId, boolean writeShardGens, ActionListener<Void> listener) {
-        in.deleteSnapshot(snapshotId, repositoryStateId, writeShardGens, listener);
+    public void deleteSnapshots(
+        Collection<SnapshotId> snapshotIds,
+        long repositoryDataGeneration,
+        IndexVersion minimumNodeVersion,
+        SnapshotDeleteListener listener
+    ) {
+        in.deleteSnapshots(snapshotIds, repositoryDataGeneration, minimumNodeVersion, listener);
     }
 
     @Override
@@ -118,26 +121,51 @@ public class FilterRepository implements Repository {
     }
 
     @Override
-    public void snapshotShard(Store store, MapperService mapperService, SnapshotId snapshotId, IndexId indexId,
-                              IndexCommit snapshotIndexCommit, IndexShardSnapshotStatus snapshotStatus, boolean writeShardGens,
-                              Map<String, Object> userMetadata, ActionListener<String> listener) {
-        in.snapshotShard(
-            store, mapperService, snapshotId, indexId, snapshotIndexCommit, snapshotStatus, writeShardGens, userMetadata, listener);
+    public void snapshotShard(SnapshotShardContext context) {
+        in.snapshotShard(context);
     }
+
     @Override
-    public void restoreShard(Store store, SnapshotId snapshotId, IndexId indexId, ShardId snapshotShardId, RecoveryState recoveryState,
-                             ActionListener<Void> listener) {
+    public void restoreShard(
+        Store store,
+        SnapshotId snapshotId,
+        IndexId indexId,
+        ShardId snapshotShardId,
+        RecoveryState recoveryState,
+        ActionListener<Void> listener
+    ) {
         in.restoreShard(store, snapshotId, indexId, snapshotShardId, recoveryState, listener);
     }
 
     @Override
-    public IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
+    public IndexShardSnapshotStatus.Copy getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
         return in.getShardSnapshotStatus(snapshotId, indexId, shardId);
+    }
+
+    @Override
+    public boolean canUpdateInPlace(Settings updatedSettings, Set<String> ignoredSettings) {
+        return in.canUpdateInPlace(updatedSettings, ignoredSettings);
     }
 
     @Override
     public void updateState(ClusterState state) {
         in.updateState(state);
+    }
+
+    @Override
+    public void cloneShardSnapshot(
+        SnapshotId source,
+        SnapshotId target,
+        RepositoryShardId shardId,
+        ShardGeneration shardGeneration,
+        ActionListener<ShardSnapshotResult> listener
+    ) {
+        in.cloneShardSnapshot(source, target, shardId, shardGeneration, listener);
+    }
+
+    @Override
+    public void awaitIdle() {
+        in.awaitIdle();
     }
 
     @Override
@@ -148,11 +176,6 @@ public class FilterRepository implements Repository {
     @Override
     public void addLifecycleListener(LifecycleListener listener) {
         in.addLifecycleListener(listener);
-    }
-
-    @Override
-    public void removeLifecycleListener(LifecycleListener listener) {
-        in.removeLifecycleListener(listener);
     }
 
     @Override

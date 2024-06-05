@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job.results;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.job.results.Forecast;
 
@@ -17,17 +18,20 @@ import java.util.Date;
 
 import static org.hamcrest.Matchers.containsString;
 
-public class ForecastTests extends AbstractSerializingTestCase<Forecast> {
+public class ForecastTests extends AbstractXContentSerializingTestCase<Forecast> {
 
     @Override
     protected Forecast createTestInstance() {
         return createTestInstance("ForecastTest");
     }
 
+    @Override
+    protected Forecast mutateInstance(Forecast instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public Forecast createTestInstance(String jobId) {
-        Forecast forecast =
-                new Forecast(jobId, randomAlphaOfLength(20), randomDate(),
-                        randomNonNegativeLong(), randomInt());
+        Forecast forecast = new Forecast(jobId, randomAlphaOfLength(20), randomDate(), randomNonNegativeLong(), randomInt());
 
         if (randomBoolean()) {
             forecast.setByFieldName(randomAlphaOfLengthBetween(1, 20));
@@ -88,11 +92,17 @@ public class ForecastTests extends AbstractSerializingTestCase<Forecast> {
     }
 
     public void testStrictParser() throws IOException {
-        String json = "{\"job_id\":\"job_1\", \"forecast_id\":\"forecast_1\", \"timestamp\":12354667, \"bucket_span\": 3600," +
-                "\"detector_index\":3, \"foo\":\"bar\"}";
+        String json = """
+            {
+              "job_id": "job_1",
+              "forecast_id": "forecast_1",
+              "timestamp": 12354667,
+              "bucket_span": 3600,
+              "detector_index": 3,
+              "foo": "bar"
+            }""";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
-            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                    () -> Forecast.STRICT_PARSER.apply(parser, null));
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> Forecast.STRICT_PARSER.apply(parser, null));
 
             assertThat(e.getMessage(), containsString("unknown field [foo]"));
         }

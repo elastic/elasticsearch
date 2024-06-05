@@ -6,13 +6,17 @@ After=network-online.target
 
 [Service]
 Type=notify
+# the elasticsearch process currently sends the notifications back to systemd
+# and for some reason exec does not work (even though it is a child). We should change
+# this notify access back to main (the default), see https://github.com/elastic/elasticsearch/issues/86475
+NotifyAccess=all
 RuntimeDirectory=elasticsearch
 PrivateTmp=true
 Environment=ES_HOME=/usr/share/elasticsearch
-Environment=ES_PATH_CONF=${path.conf}
+Environment=ES_PATH_CONF=@path.conf@
 Environment=PID_DIR=/var/run/elasticsearch
 Environment=ES_SD_NOTIFY=true
-EnvironmentFile=-${path.env}
+EnvironmentFile=-@path.env@
 
 WorkingDirectory=/usr/share/elasticsearch
 
@@ -57,7 +61,10 @@ SendSIGKILL=no
 # When a JVM receives a SIGTERM signal it exits with code 143
 SuccessExitStatus=143
 
+# Allow a slow startup before the systemd notifier module kicks in to extend the timeout
+TimeoutStartSec=900
+
 [Install]
 WantedBy=multi-user.target
 
-# Built for ${project.name}-${project.version} (${project.name})
+# Built for @project.name@-@project.version@ (@project.name@)

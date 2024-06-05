@@ -1,0 +1,79 @@
+setup:
+  - do:
+      indices.create:
+        index: test-2-shards
+        body:
+          settings:
+            number_of_shards: "2"
+
+  - do:
+      indices.create:
+        index: test-1-shard
+        body:
+          settings:
+            number_of_shards: "1"
+
+  - do:
+      index:
+        index:  test-1-shard
+        body:   { }
+
+  - do:
+      index:
+        index: test-1-shard
+        body: { }
+
+  - do:
+      indices.refresh: {}
+
+---
+"Get Global Checkpoints":
+  - do:
+      fleet.global_checkpoints:
+        index: "test-2-shards"
+
+  - match: { global_checkpoints.0: -1 }
+  - match: { global_checkpoints.1: -1 }
+
+---
+"Get Global Checkpoints after advance":
+  - do:
+      fleet.global_checkpoints:
+        index: "test-1-shard"
+
+  - match: { global_checkpoints.0: 1 }
+
+---
+"Advance timeout":
+  - do:
+      fleet.global_checkpoints:
+        index: "test-1-shard"
+        wait_for_advance: true
+        checkpoints: [100]
+        timeout: "50ms"
+
+  - match: { global_checkpoints.0: 1 }
+  - match: { timed_out: true }
+
+---
+"Advance no timeout":
+  - do:
+      fleet.global_checkpoints:
+        index: "test-1-shard"
+        wait_for_advance: true
+        checkpoints: [0]
+        timeout: "50ms"
+
+  - match: { global_checkpoints.0: 1 }
+  - match: { timed_out: false }
+
+---
+"Wait for index timeout":
+  - do:
+      catch: missing
+      fleet.global_checkpoints:
+        index: "index-does-not-exist"
+        wait_for_advance: true
+        wait_for_index: true
+        checkpoints: []
+        timeout: "50ms"

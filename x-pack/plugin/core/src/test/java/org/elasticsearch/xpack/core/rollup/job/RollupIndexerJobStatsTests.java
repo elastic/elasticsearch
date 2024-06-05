@@ -1,19 +1,25 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.rollup.job;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
-public class RollupIndexerJobStatsTests extends AbstractSerializingTestCase<RollupIndexerJobStats> {
+public class RollupIndexerJobStatsTests extends AbstractXContentSerializingTestCase<RollupIndexerJobStats> {
 
     @Override
     protected RollupIndexerJobStats createTestInstance() {
         return randomStats();
+    }
+
+    @Override
+    protected RollupIndexerJobStats mutateInstance(RollupIndexerJobStats instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override
@@ -27,13 +33,20 @@ public class RollupIndexerJobStatsTests extends AbstractSerializingTestCase<Roll
     }
 
     public static RollupIndexerJobStats randomStats() {
-        return new RollupIndexerJobStats(randomNonNegativeLong(), randomNonNegativeLong(),
-            randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(),
-            randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong());
+        return new RollupIndexerJobStats(
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong()
+        );
     }
 
-    @Override
-    protected boolean supportsUnknownFields() {
-        return false;
-    }
 }

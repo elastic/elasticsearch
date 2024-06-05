@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.ccr.action;
@@ -12,6 +13,7 @@ import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.TimeValue;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -24,7 +26,7 @@ public class ActivateAutoFollowPatternAction extends ActionType<AcknowledgedResp
     public static final ActivateAutoFollowPatternAction INSTANCE = new ActivateAutoFollowPatternAction();
 
     private ActivateAutoFollowPatternAction() {
-        super(NAME, AcknowledgedResponse::new);
+        super(NAME);
     }
 
     public static class Request extends AcknowledgedRequest<Request> {
@@ -32,7 +34,8 @@ public class ActivateAutoFollowPatternAction extends ActionType<AcknowledgedResp
         private final String name;
         private final boolean active;
 
-        public Request(final String name, final boolean active) {
+        public Request(TimeValue masterNodeTimeout, TimeValue ackTimeout, final String name, final boolean active) {
+            super(masterNodeTimeout, ackTimeout);
             this.name = name;
             this.active = active;
         }
@@ -72,8 +75,7 @@ public class ActivateAutoFollowPatternAction extends ActionType<AcknowledgedResp
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return active == request.active
-                && Objects.equals(name, request.name);
+            return active == request.active && Objects.equals(name, request.name);
         }
 
         @Override

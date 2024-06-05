@@ -1,0 +1,121 @@
+---
+"no segments test":
+  - do:
+      indices.segments:
+        allow_no_indices: true
+
+  - match:   { _shards.total: 0}
+  - match:   { indices: {}}
+
+  - do:
+      catch: missing
+      indices.segments:
+        allow_no_indices: false
+
+---
+"basic segments test":
+
+  - do:
+      indices.create:
+        index: index1
+        body:
+          settings:
+            number_of_shards: "1"
+            number_of_replicas: "0"
+  - do:
+      index:
+        index: index1
+        body: { foo: bar }
+        refresh: true
+
+  - do:
+       cluster.health:
+         wait_for_status: green
+
+  - do:
+      indices.segments:
+          index: index1
+
+  - match:   { _shards.total: 1}
+  - match:   { indices.index1.shards.0.0.routing.primary: true}
+  - match:   { indices.index1.shards.0.0.segments._0.num_docs: 1}
+
+---
+"segments from multiple indices":
+
+  - do:
+      indices.create:
+        index: index1
+        body:
+          settings:
+            number_of_shards: "1"
+            number_of_replicas: "0"
+
+  - do:
+      indices.create:
+        index: index2
+        body:
+          settings:
+            number_of_shards: "1"
+            number_of_replicas: "0"
+
+  - do:
+      index:
+        index: index1
+        body: { foo: bar }
+        refresh: true
+
+  - do:
+      index:
+        index: index2
+        body: { foo: bar }
+        refresh: true
+
+  - do:
+      cluster.health:
+        wait_for_status: green
+
+  - do:
+      indices.segments: {}
+
+  - gte: { _shards.total: 2 }
+  - match:   { indices.index1.shards.0.0.routing.primary: true}
+  - match:   { indices.index1.shards.0.0.segments._0.num_docs: 1}
+  - match:   { indices.index2.shards.0.0.routing.primary: true}
+  - match:   { indices.index2.shards.0.0.segments._0.num_docs: 1}
+
+---
+"closed segments test":
+  - skip:
+      features: ["allowed_warnings"]
+
+  - do:
+      indices.create:
+        index: index1
+        body:
+          settings:
+            number_of_shards: "1"
+            number_of_replicas: "0"
+  - do:
+      index:
+        index: index1
+        body: { foo: bar }
+        refresh: true
+
+  - do:
+      indices.close:
+        index: index1
+      allowed_warnings:
+        - "the default value for the ?wait_for_active_shards parameter will change from '0' to 'index-setting' in version 8; specify '?wait_for_active_shards=index-setting' to adopt the future default behaviour, or '?wait_for_active_shards=0' to preserve today's behaviour"
+
+  - do:
+      catch: bad_request
+      indices.segments:
+          index: index1
+
+  - do:
+      indices.segments:
+          index: index1
+          ignore_unavailable: true
+
+  - match:   { _shards.total: 0}

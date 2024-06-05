@@ -57,7 +57,6 @@ The following classes are available grouped by their respective packages. Click 
 * <<painless-api-reference-shared-Short, Short>>
 * <<painless-api-reference-shared-StackTraceElement, StackTraceElement>>
 * <<painless-api-reference-shared-StrictMath, StrictMath>>
-* <<painless-api-reference-shared-String, String>>
 * <<painless-api-reference-shared-StringBuffer, StringBuffer>>
 * <<painless-api-reference-shared-StringBuilder, StringBuilder>>
 * <<painless-api-reference-shared-StringIndexOutOfBoundsException, StringIndexOutOfBoundsException>>

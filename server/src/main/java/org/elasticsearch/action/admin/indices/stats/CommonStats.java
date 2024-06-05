@@ -1,58 +1,54 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.indices.stats;
 
 import org.apache.lucene.store.AlreadyClosedException;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.bulk.stats.BulkStats;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
 import org.elasticsearch.index.cache.request.RequestCacheStats;
 import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.fielddata.FieldDataStats;
 import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.get.GetStats;
+import org.elasticsearch.index.mapper.NodeMappingStats;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
+import org.elasticsearch.index.shard.DenseVectorStats;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexingStats;
+import org.elasticsearch.index.shard.ShardCountStats;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.index.warmer.WarmerStats;
 import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Objects;
-import java.util.stream.Stream;
 
 public class CommonStats implements Writeable, ToXContentFragment {
+
+    private static final TransportVersion VERSION_SUPPORTING_NODE_MAPPINGS = TransportVersions.V_8_5_0;
+    private static final TransportVersion VERSION_SUPPORTING_DENSE_VECTOR_STATS = TransportVersions.V_8_10_X;
 
     @Nullable
     public DocsStats docs;
@@ -102,6 +98,18 @@ public class CommonStats implements Writeable, ToXContentFragment {
     @Nullable
     public RecoveryStats recoveryStats;
 
+    @Nullable
+    public BulkStats bulk;
+
+    @Nullable
+    public ShardCountStats shards;
+
+    @Nullable
+    public NodeMappingStats nodeMappings;
+
+    @Nullable
+    public DenseVectorStats denseVectorStats;
+
     public CommonStats() {
         this(CommonStatsFlags.NONE);
     }
@@ -111,120 +119,77 @@ public class CommonStats implements Writeable, ToXContentFragment {
 
         for (CommonStatsFlags.Flag flag : setFlags) {
             switch (flag) {
-                case Docs:
-                    docs = new DocsStats();
-                    break;
-                case Store:
-                    store = new StoreStats();
-                    break;
-                case Indexing:
-                    indexing = new IndexingStats();
-                    break;
-                case Get:
-                    get = new GetStats();
-                    break;
-                case Search:
-                    search = new SearchStats();
-                    break;
-                case Merge:
-                    merge = new MergeStats();
-                    break;
-                case Refresh:
-                    refresh = new RefreshStats();
-                    break;
-                case Flush:
-                    flush = new FlushStats();
-                    break;
-                case Warmer:
-                    warmer = new WarmerStats();
-                    break;
-                case QueryCache:
-                    queryCache = new QueryCacheStats();
-                    break;
-                case FieldData:
-                    fieldData = new FieldDataStats();
-                    break;
-                case Completion:
-                    completion = new CompletionStats();
-                    break;
-                case Segments:
-                    segments = new SegmentsStats();
-                    break;
-                case Translog:
-                    translog = new TranslogStats();
-                    break;
-                case RequestCache:
-                    requestCache = new RequestCacheStats();
-                    break;
-                case Recovery:
-                    recoveryStats = new RecoveryStats();
-                    break;
-                default:
-                    throw new IllegalStateException("Unknown Flag: " + flag);
+                case Docs -> docs = new DocsStats();
+                case Store -> store = new StoreStats();
+                case Indexing -> indexing = new IndexingStats();
+                case Get -> get = new GetStats();
+                case Search -> search = new SearchStats();
+                case Merge -> merge = new MergeStats();
+                case Refresh -> refresh = new RefreshStats();
+                case Flush -> flush = new FlushStats();
+                case Warmer -> warmer = new WarmerStats();
+                case QueryCache -> queryCache = new QueryCacheStats();
+                case FieldData -> fieldData = new FieldDataStats();
+                case Completion -> completion = new CompletionStats();
+                case Segments -> segments = new SegmentsStats();
+                case Translog -> translog = new TranslogStats();
+                case RequestCache -> requestCache = new RequestCacheStats();
+                case Recovery -> recoveryStats = new RecoveryStats();
+                case Bulk -> bulk = new BulkStats();
+                case Shards -> shards = new ShardCountStats();
+                case Mappings -> nodeMappings = new NodeMappingStats();
+                case DenseVector -> denseVectorStats = new DenseVectorStats();
+                default -> throw new IllegalStateException("Unknown Flag: " + flag);
             }
         }
     }
 
-    public CommonStats(IndicesQueryCache indicesQueryCache, IndexShard indexShard, CommonStatsFlags flags) {
-        CommonStatsFlags.Flag[] setFlags = flags.getFlags();
-        for (CommonStatsFlags.Flag flag : setFlags) {
+    /**
+     * Filters the given flags for {@link CommonStatsFlags#SHARD_LEVEL} flags and calculates the corresponding statistics.
+     */
+    public static CommonStats getShardLevelStats(IndicesQueryCache indicesQueryCache, IndexShard indexShard, CommonStatsFlags flags) {
+        // Filter shard level flags
+        CommonStatsFlags filteredFlags = flags.clone();
+        for (CommonStatsFlags.Flag flag : filteredFlags.getFlags()) {
+            filteredFlags.set(flag, CommonStatsFlags.SHARD_LEVEL.isSet(flag));
+        }
+        CommonStats stats = new CommonStats(filteredFlags);
+
+        for (CommonStatsFlags.Flag flag : filteredFlags.getFlags()) {
             try {
                 switch (flag) {
-                    case Docs:
-                        docs = indexShard.docStats();
-                        break;
-                    case Store:
-                        store = indexShard.storeStats();
-                        break;
-                    case Indexing:
-                        indexing = indexShard.indexingStats();
-                        break;
-                    case Get:
-                        get = indexShard.getStats();
-                        break;
-                    case Search:
-                        search = indexShard.searchStats(flags.groups());
-                        break;
-                    case Merge:
-                        merge = indexShard.mergeStats();
-                        break;
-                    case Refresh:
-                        refresh = indexShard.refreshStats();
-                        break;
-                    case Flush:
-                        flush = indexShard.flushStats();
-                        break;
-                    case Warmer:
-                        warmer = indexShard.warmerStats();
-                        break;
-                    case QueryCache:
-                        queryCache = indicesQueryCache.getStats(indexShard.shardId());
-                        break;
-                    case FieldData:
-                        fieldData = indexShard.fieldDataStats(flags.fieldDataFields());
-                        break;
-                    case Completion:
-                        completion = indexShard.completionStats(flags.completionDataFields());
-                        break;
-                    case Segments:
-                        segments = indexShard.segmentStats(flags.includeSegmentFileSizes(), flags.includeUnloadedSegments());
-                        break;
-                    case Translog:
-                        translog = indexShard.translogStats();
-                        break;
-                    case RequestCache:
-                        requestCache = indexShard.requestCache().stats();
-                        break;
-                    case Recovery:
-                        recoveryStats = indexShard.recoveryStats();
-                        break;
-                    default:
-                        throw new IllegalStateException("Unknown Flag: " + flag);
+                    case Docs -> stats.docs = indexShard.docStats();
+                    case Store -> stats.store = indexShard.storeStats();
+                    case Indexing -> stats.indexing = indexShard.indexingStats();
+                    case Get -> stats.get = indexShard.getStats();
+                    case Search -> stats.search = indexShard.searchStats(flags.groups());
+                    case Merge -> stats.merge = indexShard.mergeStats();
+                    case Refresh -> stats.refresh = indexShard.refreshStats();
+                    case Flush -> stats.flush = indexShard.flushStats();
+                    case Warmer -> stats.warmer = indexShard.warmerStats();
+                    case QueryCache -> stats.queryCache = indicesQueryCache.getStats(indexShard.shardId());
+                    case FieldData -> stats.fieldData = indexShard.fieldDataStats(flags.fieldDataFields());
+                    case Completion -> stats.completion = indexShard.completionStats(flags.completionDataFields());
+                    case Segments -> stats.segments = indexShard.segmentStats(
+                        flags.includeSegmentFileSizes(),
+                        flags.includeUnloadedSegments()
+                    );
+                    case Translog -> stats.translog = indexShard.translogStats();
+                    case RequestCache -> stats.requestCache = indexShard.requestCache().stats();
+                    case Recovery -> stats.recoveryStats = indexShard.recoveryStats();
+                    case Bulk -> stats.bulk = indexShard.bulkStats();
+                    case Shards ->
+                        // Setting to 1 because the single IndexShard passed to this method implies 1 shard
+                        stats.shards = new ShardCountStats(1);
+                    case DenseVector -> stats.denseVectorStats = indexShard.denseVectorStats();
+                    default -> throw new IllegalStateException("Unknown or invalid flag for shard-level stats: " + flag);
                 }
             } catch (AlreadyClosedException e) {
                 // shard is closed - no stats is fine
             }
         }
+
+        return stats;
     }
 
     public CommonStats(StreamInput in) throws IOException {
@@ -244,6 +209,16 @@ public class CommonStats implements Writeable, ToXContentFragment {
         translog = in.readOptionalWriteable(TranslogStats::new);
         requestCache = in.readOptionalWriteable(RequestCacheStats::new);
         recoveryStats = in.readOptionalWriteable(RecoveryStats::new);
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
+            bulk = in.readOptionalWriteable(BulkStats::new);
+        }
+        shards = in.readOptionalWriteable(ShardCountStats::new);
+        if (in.getTransportVersion().onOrAfter(VERSION_SUPPORTING_NODE_MAPPINGS)) {
+            nodeMappings = in.readOptionalWriteable(NodeMappingStats::new);
+        }
+        if (in.getTransportVersion().onOrAfter(VERSION_SUPPORTING_DENSE_VECTOR_STATS)) {
+            denseVectorStats = in.readOptionalWriteable(DenseVectorStats::new);
+        }
     }
 
     @Override
@@ -264,6 +239,69 @@ public class CommonStats implements Writeable, ToXContentFragment {
         out.writeOptionalWriteable(translog);
         out.writeOptionalWriteable(requestCache);
         out.writeOptionalWriteable(recoveryStats);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
+            out.writeOptionalWriteable(bulk);
+        }
+        out.writeOptionalWriteable(shards);
+        if (out.getTransportVersion().onOrAfter(VERSION_SUPPORTING_NODE_MAPPINGS)) {
+            out.writeOptionalWriteable(nodeMappings);
+        }
+        if (out.getTransportVersion().onOrAfter(VERSION_SUPPORTING_DENSE_VECTOR_STATS)) {
+            out.writeOptionalWriteable(denseVectorStats);
+        }
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        CommonStats that = (CommonStats) o;
+        return Objects.equals(docs, that.docs)
+            && Objects.equals(store, that.store)
+            && Objects.equals(indexing, that.indexing)
+            && Objects.equals(get, that.get)
+            && Objects.equals(search, that.search)
+            && Objects.equals(merge, that.merge)
+            && Objects.equals(refresh, that.refresh)
+            && Objects.equals(flush, that.flush)
+            && Objects.equals(warmer, that.warmer)
+            && Objects.equals(queryCache, that.queryCache)
+            && Objects.equals(fieldData, that.fieldData)
+            && Objects.equals(completion, that.completion)
+            && Objects.equals(segments, that.segments)
+            && Objects.equals(translog, that.translog)
+            && Objects.equals(requestCache, that.requestCache)
+            && Objects.equals(recoveryStats, that.recoveryStats)
+            && Objects.equals(bulk, that.bulk)
+            && Objects.equals(shards, that.shards)
+            && Objects.equals(nodeMappings, that.nodeMappings)
+            && Objects.equals(denseVectorStats, that.denseVectorStats);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(
+            docs,
+            store,
+            indexing,
+            get,
+            search,
+            merge,
+            refresh,
+            flush,
+            warmer,
+            queryCache,
+            fieldData,
+            completion,
+            segments,
+            translog,
+            requestCache,
+            recoveryStats,
+            bulk,
+            shards,
+            nodeMappings,
+            denseVectorStats
+        );
     }
 
     public void add(CommonStats stats) {
@@ -396,6 +434,37 @@ public class CommonStats implements Writeable, ToXContentFragment {
         } else {
             recoveryStats.add(stats.getRecoveryStats());
         }
+        if (bulk == null) {
+            if (stats.getBulk() != null) {
+                bulk = new BulkStats();
+                bulk.add(stats.getBulk());
+            }
+        } else {
+            bulk.add(stats.getBulk());
+        }
+        if (stats.shards != null) {
+            if (shards == null) {
+                shards = stats.shards;
+            } else {
+                shards = shards.add(stats.shards);
+            }
+        }
+        if (stats.getNodeMappings() != null) {
+            if (nodeMappings == null) {
+                nodeMappings = new NodeMappingStats();
+                nodeMappings.add(stats.getNodeMappings());
+            } else {
+                nodeMappings.add(stats.getNodeMappings());
+            }
+        }
+        if (denseVectorStats == null) {
+            if (stats.getDenseVectorStats() != null) {
+                denseVectorStats = new DenseVectorStats();
+                denseVectorStats.add(stats.getDenseVectorStats());
+            }
+        } else {
+            denseVectorStats.add(stats.getDenseVectorStats());
+        }
     }
 
     @Nullable
@@ -478,9 +547,29 @@ public class CommonStats implements Writeable, ToXContentFragment {
         return recoveryStats;
     }
 
+    @Nullable
+    public BulkStats getBulk() {
+        return bulk;
+    }
+
+    @Nullable
+    public ShardCountStats getShards() {
+        return shards;
+    }
+
+    @Nullable
+    public NodeMappingStats getNodeMappings() {
+        return nodeMappings;
+    }
+
+    @Nullable
+    public DenseVectorStats getDenseVectorStats() {
+        return denseVectorStats;
+    }
+
     /**
      * Utility method which computes total memory by adding
-     * FieldData, PercolatorCache, Segments (memory, index writer, version map)
+     * FieldData, PercolatorCache, Segments (index writer, version map)
      */
     public ByteSizeValue getTotalMemory() {
         long size = 0;
@@ -491,24 +580,41 @@ public class CommonStats implements Writeable, ToXContentFragment {
             size += this.getQueryCache().getMemorySizeInBytes();
         }
         if (this.getSegments() != null) {
-            size += this.getSegments().getMemoryInBytes() +
-                    this.getSegments().getIndexWriterMemoryInBytes() +
-                    this.getSegments().getVersionMapMemoryInBytes();
+            size += this.getSegments().getIndexWriterMemoryInBytes() + this.getSegments().getVersionMapMemoryInBytes();
         }
 
-        return new ByteSizeValue(size);
+        return ByteSizeValue.ofBytes(size);
     }
 
     // note, requires a wrapping object
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        final Stream<ToXContent> stream = Arrays.stream(new ToXContent[] {
-            docs, store, indexing, get, search, merge, refresh, flush, warmer, queryCache,
-            fieldData, completion, segments, translog, requestCache, recoveryStats})
-            .filter(Objects::nonNull);
-        for (ToXContent toXContent : ((Iterable<ToXContent>)stream::iterator)) {
+        addIfNonNull(builder, params, docs);
+        addIfNonNull(builder, params, shards);
+        addIfNonNull(builder, params, store);
+        addIfNonNull(builder, params, indexing);
+        addIfNonNull(builder, params, get);
+        addIfNonNull(builder, params, search);
+        addIfNonNull(builder, params, merge);
+        addIfNonNull(builder, params, refresh);
+        addIfNonNull(builder, params, flush);
+        addIfNonNull(builder, params, warmer);
+        addIfNonNull(builder, params, queryCache);
+        addIfNonNull(builder, params, fieldData);
+        addIfNonNull(builder, params, completion);
+        addIfNonNull(builder, params, segments);
+        addIfNonNull(builder, params, translog);
+        addIfNonNull(builder, params, requestCache);
+        addIfNonNull(builder, params, recoveryStats);
+        addIfNonNull(builder, params, bulk);
+        addIfNonNull(builder, params, nodeMappings);
+        addIfNonNull(builder, params, denseVectorStats);
+        return builder;
+    }
+
+    private static void addIfNonNull(XContentBuilder builder, Params params, @Nullable ToXContent toXContent) throws IOException {
+        if (toXContent != null) {
             toXContent.toXContent(builder, params);
         }
-        return builder;
     }
 }

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.profile;
@@ -26,28 +15,19 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Deque;
 import java.util.List;
-import java.util.Map;
 
 public abstract class AbstractInternalProfileTree<PB extends AbstractProfileBreakdown<?>, E> {
 
-    protected ArrayList<PB> timings;
+    private final ArrayList<PB> breakdowns = new ArrayList<>(10);
     /** Maps the Query to it's list of children.  This is basically the dependency tree */
-    protected ArrayList<ArrayList<Integer>> tree;
+    private final ArrayList<ArrayList<Integer>> tree = new ArrayList<>(10);
     /** A list of the original queries, keyed by index position */
-    protected ArrayList<E> elements;
+    private final ArrayList<E> elements = new ArrayList<>(10);
     /** A list of top-level "roots".  Each root can have its own tree of profiles */
-    protected ArrayList<Integer> roots;
+    private final ArrayList<Integer> roots = new ArrayList<>(10);
     /** A temporary stack used to record where we are in the dependency tree. */
-    protected Deque<Integer> stack;
+    private final Deque<Integer> stack = new ArrayDeque<>(10);
     private int currentToken = 0;
-
-    public AbstractInternalProfileTree() {
-        timings = new ArrayList<>(10);
-        stack = new ArrayDeque<>(10);
-        tree = new ArrayList<>(10);
-        elements = new ArrayList<>(10);
-        roots = new ArrayList<>(10);
-    }
 
     /**
      * Returns a {@link QueryProfileBreakdown} for a scoring query.  Scoring queries (e.g. those
@@ -60,7 +40,7 @@ public abstract class AbstractInternalProfileTree<PB extends AbstractProfileBrea
      * @param query The scoring query we wish to profile
      * @return      A ProfileBreakdown for this query
      */
-    public PB getProfileBreakdown(E query) {
+    public final synchronized PB getProfileBreakdown(E query) {
         int token = currentToken;
 
         boolean stackEmpty = stack.isEmpty();
@@ -94,14 +74,14 @@ public abstract class AbstractInternalProfileTree<PB extends AbstractProfileBrea
      * Helper method to add a new node to the dependency tree.
      *
      * Initializes a new list in the dependency tree, saves the query and
-     * generates a new {@link QueryProfileBreakdown} to track the timings of
-     * this query
+     * generates a new {@link AbstractProfileBreakdown} to track the timings
+     * of this element.
      *
      * @param element
      *            The element to profile
      * @param token
      *            The assigned token for this element
-     * @return A ProfileBreakdown to profile this element
+     * @return A {@link AbstractProfileBreakdown} to profile this element
      */
     private PB addDependencyNode(E element, int token) {
 
@@ -111,9 +91,9 @@ public abstract class AbstractInternalProfileTree<PB extends AbstractProfileBrea
         // Save our query for lookup later
         elements.add(element);
 
-        PB queryTimings = createProfileBreakdown();
-        timings.add(token, queryTimings);
-        return queryTimings;
+        PB breakdown = createProfileBreakdown();
+        breakdowns.add(token, breakdown);
+        return breakdown;
     }
 
     protected abstract PB createProfileBreakdown();
@@ -121,19 +101,19 @@ public abstract class AbstractInternalProfileTree<PB extends AbstractProfileBrea
     /**
      * Removes the last (e.g. most recent) value on the stack
      */
-    public void pollLast() {
+    public final synchronized void pollLast() {
         stack.pollLast();
     }
 
     /**
-     * After the query has been run and profiled, we need to merge the flat timing map
+     * After the element has been run and profiled, we need to merge the flat timing map
      * with the dependency graph to build a data structure that mirrors the original
      * query tree
      *
      * @return a hierarchical representation of the profiled query tree
      */
-    public List<ProfileResult> getTree() {
-        ArrayList<ProfileResult> results = new ArrayList<>(5);
+    public final synchronized List<ProfileResult> getTree() {
+        ArrayList<ProfileResult> results = new ArrayList<>(roots.size());
         for (Integer root : roots) {
             results.add(doGetTree(root));
         }
@@ -147,8 +127,7 @@ public abstract class AbstractInternalProfileTree<PB extends AbstractProfileBrea
      */
     private ProfileResult doGetTree(int token) {
         E element = elements.get(token);
-        PB breakdown = timings.get(token);
-        Map<String, Long> timings = breakdown.toTimingMap();
+        PB breakdown = breakdowns.get(token);
         List<Integer> children = tree.get(token);
         List<ProfileResult> childrenProfileResults = Collections.emptyList();
 
@@ -164,7 +143,14 @@ public abstract class AbstractInternalProfileTree<PB extends AbstractProfileBrea
         // calculating the same times over and over...but worth the effort?
         String type = getTypeFromElement(element);
         String description = getDescriptionFromElement(element);
-        return new ProfileResult(type, description, timings, childrenProfileResults);
+        return new ProfileResult(
+            type,
+            description,
+            breakdown.toBreakdownMap(),
+            breakdown.toDebugMap(),
+            breakdown.toNodeTime(),
+            childrenProfileResults
+        );
     }
 
     protected abstract String getTypeFromElement(E element);

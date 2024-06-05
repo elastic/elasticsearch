@@ -1,11 +1,11 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.test;
 
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.core.watcher.execution.Wid;
 import org.elasticsearch.xpack.core.watcher.trigger.TriggerEvent;
@@ -22,7 +22,7 @@ import java.util.Map;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class WatchExecutionContextMockBuilder {
+public final class WatchExecutionContextMockBuilder {
 
     private final WatchExecutionContext ctx;
     private final Watch watch;
@@ -46,7 +46,7 @@ public class WatchExecutionContextMockBuilder {
     }
 
     public WatchExecutionContextMockBuilder payload(String key, Object value) {
-        return payload(new Payload.Simple(MapBuilder.<String, Object>newMapBuilder().put(key, value).map()));
+        return payload(new Payload.Simple(Map.of(key, value)));
     }
 
     public WatchExecutionContextMockBuilder payload(Map<String, Object> payload) {
@@ -78,7 +78,7 @@ public class WatchExecutionContextMockBuilder {
     }
 
     public WatchExecutionContextMockBuilder metadata(String key, String value) {
-        return metadata(MapBuilder.<String, Object>newMapBuilder().put(key, value).map());
+        return metadata(Map.of(key, value));
     }
 
     public WatchExecutionContext buildMock() {

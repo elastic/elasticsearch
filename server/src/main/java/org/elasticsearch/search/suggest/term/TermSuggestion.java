@@ -1,55 +1,35 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.suggest.term;
 
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.text.Text;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.suggest.SortBy;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.Suggest.Suggestion;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry.Option;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Comparator;
 import java.util.Objects;
-
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
  * The suggestion responses corresponding with the suggestions in the request.
  */
 public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
 
-    @Deprecated
-    public static final int TYPE = 1;
-
     public static final Comparator<Suggestion.Entry.Option> SCORE = new Score();
     public static final Comparator<Suggestion.Entry.Option> FREQUENCY = new Frequency();
 
-    private SortBy sort;
+    private final SortBy sort;
 
     public TermSuggestion(String name, int size, SortBy sort) {
         super(name, size);
@@ -101,28 +81,11 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
     }
 
     @Override
-    public int getWriteableType() {
-        return TYPE;
-    }
-
-    public void setSort(SortBy sort) {
-        this.sort = sort;
-    }
-
-    public SortBy getSort() {
-        return sort;
-    }
-
-    @Override
     protected Comparator<Option> sortComparator() {
-        switch (sort) {
-        case SCORE:
-            return SCORE;
-        case FREQUENCY:
-            return FREQUENCY;
-        default:
-            throw new ElasticsearchException("Could not resolve comparator for sort key: [" + sort + "]");
-        }
+        return switch (sort) {
+            case SCORE -> SCORE;
+            case FREQUENCY -> FREQUENCY;
+        };
     }
 
     @Override
@@ -136,13 +99,6 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
         return TermSuggestionBuilder.SUGGESTION_NAME;
     }
 
-    public static TermSuggestion fromXContent(XContentParser parser, String name) throws IOException {
-        // the "size" parameter and the SortBy for TermSuggestion cannot be parsed from the response, use default values
-        TermSuggestion suggestion = new TermSuggestion(name, -1, SortBy.SCORE);
-        parseEntries(parser, suggestion, TermSuggestion.Entry::fromXContent);
-        return suggestion;
-    }
-
     @Override
     protected Entry newEntry(StreamInput in) throws IOException {
         return new Entry(in);
@@ -150,8 +106,7 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
 
     @Override
     public boolean equals(Object other) {
-        return super.equals(other)
-            && Objects.equals(sort, ((TermSuggestion) other).sort);
+        return super.equals(other) && Objects.equals(sort, ((TermSuggestion) other).sort);
     }
 
     @Override
@@ -168,7 +123,7 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
             super(text, offset, length);
         }
 
-        private Entry() {}
+        public Entry() {}
 
         public Entry(StreamInput in) throws IOException {
             super(in);
@@ -177,16 +132,6 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
         @Override
         protected Option newOption(StreamInput in) throws IOException {
             return new Option(in);
-        }
-
-        private static final ObjectParser<Entry, Void> PARSER = new ObjectParser<>("TermSuggestionEntryParser", true, Entry::new);
-        static {
-            declareCommonFields(PARSER);
-            PARSER.declareObjectArray(Entry::addOptions, (p,c) -> Option.fromXContent(p), new ParseField(OPTIONS));
-        }
-
-        public static Entry fromXContent(XContentParser parser) {
-            return PARSER.apply(parser, null);
         }
 
         /**
@@ -214,10 +159,6 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
                 freq += ((Option) otherOption).freq;
             }
 
-            public void setFreq(int freq) {
-                this.freq = freq;
-            }
-
             /**
              * @return How often this suggested text appears in the index.
              */
@@ -236,25 +177,6 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
                 builder = super.toXContent(builder, params);
                 builder.field(FREQ.getPreferredName(), freq);
                 return builder;
-            }
-
-            private static final ConstructingObjectParser<Option, Void> PARSER = new ConstructingObjectParser<>(
-                    "TermSuggestionOptionParser", true,
-                    args -> {
-                        Text text = new Text((String) args[0]);
-                        int freq = (Integer) args[1];
-                        float score = (Float) args[2];
-                        return new Option(text, freq, score);
-                    });
-
-            static {
-                PARSER.declareString(constructorArg(), Suggestion.Entry.Option.TEXT);
-                PARSER.declareInt(constructorArg(), FREQ);
-                PARSER.declareFloat(constructorArg(), Suggestion.Entry.Option.SCORE);
-            }
-
-            public static Option fromXContent(XContentParser parser) {
-                return PARSER.apply(parser, null);
             }
         }
     }

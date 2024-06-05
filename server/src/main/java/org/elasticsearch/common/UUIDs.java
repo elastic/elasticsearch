@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common;
@@ -37,7 +26,7 @@ public class UUIDs {
     /** Returns a Base64 encoded version of a Version 4.0 compatible UUID as defined here: http://www.ietf.org/rfc/rfc4122.txt, using the
      *  provided {@code Random} instance */
     public static String randomBase64UUID(Random random) {
-        return RANDOM_UUID_GENERATOR.getBase64UUID(random);
+        return RandomBasedUUIDGenerator.getBase64UUID(random);
     }
 
     /** Returns a Base64 encoded version of a Version 4.0 compatible UUID as defined here: http://www.ietf.org/rfc/rfc4122.txt, using a
@@ -49,6 +38,6 @@ public class UUIDs {
     /** Returns a Base64 encoded {@link SecureString} of a Version 4.0 compatible UUID as defined here: http://www.ietf.org/rfc/rfc4122.txt,
      *  using a private {@code SecureRandom} instance */
     public static SecureString randomBase64UUIDSecureString() {
-        return RANDOM_UUID_GENERATOR.getBase64UUIDSecureString();
+        return RandomBasedUUIDGenerator.getBase64UUIDSecureString();
     }
 }

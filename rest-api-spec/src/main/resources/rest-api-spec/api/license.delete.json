@@ -1,0 +1,33 @@
+{
+  "license.delete":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/delete-license.html",
+      "description":"Deletes licensing information for the cluster"
+    },
+    "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_license",
+          "methods":[
+            "DELETE"
+          ]
+        }
+      ]
+    },
+    "params":{
+      "master_timeout": {
+        "type": "time",
+        "description": "Timeout for processing on master node"
+      },
+      "timeout": {
+        "type": "time",
+        "description": "Timeout for acknowledgement of update from all nodes in cluster"
+      }
+    }
+  }
+}

@@ -20,7 +20,7 @@ analyzer for indexing and search. It also lets you quickly see which analyzer
 applies to which field using the <<indices-get-mapping,get mapping API>>.
 
 If you don't typically create mappings for your indices, you can use
-<<indices-templates,index templates>> to achieve a similar effect.
+<<index-templates,index templates>> to achieve a similar effect.
 ====
 
 [[specify-index-time-analyzer]]
@@ -48,7 +48,7 @@ The following <<indices-create-index,create index API>> request sets the
 
 [source,console]
 ----
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
     "properties": {
@@ -68,11 +68,11 @@ In addition to a field-level analyzer, you can set a fallback analyzer for
 using the `analysis.analyzer.default` setting.
 
 The following <<indices-create-index,create index API>> request sets the
-`simple` analyzer as the fallback analyzer for `my_index`.
+`simple` analyzer as the fallback analyzer for `my-index-000001`.
 
 [source,console]
 ----
-PUT my_index
+PUT my-index-000001
 {
   "settings": {
     "analysis": {
@@ -128,7 +128,7 @@ the search analyzer for a <<query-dsl-match-query,`match`>> query.
 
 [source,console]
 ----
-GET my_index/_search
+GET my-index-000001/_search
 {
   "query": {
     "match": {
@@ -140,7 +140,7 @@ GET my_index/_search
   }
 }
 ----
-// TEST[s/^/PUT my_index\n/]
+// TEST[s/^/PUT my-index-000001\n/]
 
 [[specify-search-field-analyzer]]
 ==== Specify the search analyzer for a field
@@ -156,7 +156,7 @@ The following <<indices-create-index,create index API>> request sets the
 
 [source,console]
 ----
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
     "properties": {
@@ -180,11 +180,11 @@ If a search analyzer is provided, a default index analyzer must also be
 specified using the `analysis.analyzer.default` setting.
 
 The following  <<indices-create-index,create index API>> request sets the
-`whitespace` analyzer as the default search analyzer for the `my_index` index.
+`whitespace` analyzer as the default search analyzer for the `my-index-000001` index.
 
 [source,console]
 ----
-PUT my_index
+PUT my-index-000001
 {
   "settings": {
     "analysis": {

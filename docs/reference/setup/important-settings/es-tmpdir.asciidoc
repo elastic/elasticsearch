@@ -1,23 +1,25 @@
 [[es-tmpdir]]
-=== Temp directory
+[discrete]
+==== Temporary directory settings
 
-By default, Elasticsearch uses a private temporary directory that the startup
+By default, {es} uses a private temporary directory that the startup
 script creates immediately below the system temporary directory.
 
-On some Linux distributions a system utility will clean files and directories
-from `/tmp` if they have not been recently accessed. This can lead to the
-private temporary directory being removed while Elasticsearch is running if
+On some Linux distributions, a system utility will clean files and directories
+from `/tmp` if they have not been recently accessed. This behavior can lead to
+the private temporary directory being removed while {es} is running if
 features that require the temporary directory are not used for a long time.
-This causes problems if a feature that requires the temporary directory is
-subsequently used.
+Removing the private temporary directory causes problems if a feature that
+requires this directory is subsequently used.
 
-If you install Elasticsearch using the `.deb` or `.rpm` packages and run it
-under `systemd` then the private temporary directory that Elasticsearch uses
+If you install {es} using the `.deb` or `.rpm` packages and run it
+under `systemd`, the private temporary directory that {es} uses
 is excluded from periodic cleanup.
 
-However, if you intend to run the `.tar.gz` distribution on Linux for an
-extended period then you should consider creating a dedicated temporary
-directory for Elasticsearch that is not under a path that will have old files
+If you intend to run the `.tar.gz` distribution on Linux or MacOS for
+an extended period, consider creating a dedicated temporary
+directory for {es} that is not under a path that will have old files
 and directories cleaned from it. This directory should have permissions set
-so that only the user that Elasticsearch runs as can access it. Then set the
-`$ES_TMPDIR` environment variable to point to it before starting Elasticsearch.
+so that only the user that {es} runs as can access it. Then, set the
+`$ES_TMPDIR` environment variable to point to this directory before starting
+{es}.

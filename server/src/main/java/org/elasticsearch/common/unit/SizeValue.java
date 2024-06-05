@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.unit;
@@ -58,88 +47,44 @@ public class SizeValue implements Writeable, Comparable<SizeValue> {
         return sizeUnit.toSingles(size);
     }
 
-    public long getSingles() {
-        return singles();
-    }
-
     public long kilo() {
         return sizeUnit.toKilo(size);
-    }
-
-    public long getKilo() {
-        return kilo();
     }
 
     public long mega() {
         return sizeUnit.toMega(size);
     }
 
-    public long getMega() {
-        return mega();
-    }
-
     public long giga() {
         return sizeUnit.toGiga(size);
-    }
-
-    public long getGiga() {
-        return giga();
     }
 
     public long tera() {
         return sizeUnit.toTera(size);
     }
 
-    public long getTera() {
-        return tera();
-    }
-
     public long peta() {
         return sizeUnit.toPeta(size);
-    }
-
-    public long getPeta() {
-        return peta();
     }
 
     public double kiloFrac() {
         return ((double) singles()) / SizeUnit.C1;
     }
 
-    public double getKiloFrac() {
-        return kiloFrac();
-    }
-
     public double megaFrac() {
         return ((double) singles()) / SizeUnit.C2;
-    }
-
-    public double getMegaFrac() {
-        return megaFrac();
     }
 
     public double gigaFrac() {
         return ((double) singles()) / SizeUnit.C3;
     }
 
-    public double getGigaFrac() {
-        return gigaFrac();
-    }
-
     public double teraFrac() {
         return ((double) singles()) / SizeUnit.C4;
     }
 
-    public double getTeraFrac() {
-        return teraFrac();
-    }
-
     public double petaFrac() {
         return ((double) singles()) / SizeUnit.C5;
-    }
-
-    public double getPetaFrac() {
-        return petaFrac();
     }
 
     @Override

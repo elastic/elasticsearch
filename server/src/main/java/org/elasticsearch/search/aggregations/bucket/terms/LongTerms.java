@@ -1,37 +1,29 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
+import org.elasticsearch.search.aggregations.AggregatorReducer;
+import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.BucketOrder;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Predicate;
 
 /**
  * Result of the {@link TermsAggregator} when the field is some kind of whole number like a integer, long, or a date.
@@ -42,8 +34,14 @@ public class LongTerms extends InternalMappedTerms<LongTerms, LongTerms.Bucket> 
     public static class Bucket extends InternalTerms.Bucket<Bucket> {
         long term;
 
-        public Bucket(long term, long docCount, InternalAggregations aggregations, boolean showDocCountError, long docCountError,
-                DocValueFormat format) {
+        public Bucket(
+            long term,
+            long docCount,
+            InternalAggregations aggregations,
+            boolean showDocCountError,
+            long docCountError,
+            DocValueFormat format
+        ) {
             super(docCount, aggregations, showDocCountError, docCountError, format);
             this.term = term;
         }
@@ -68,12 +66,20 @@ public class LongTerms extends InternalMappedTerms<LongTerms, LongTerms.Bucket> 
 
         @Override
         public Object getKey() {
-            return term;
+            if (format == DocValueFormat.UNSIGNED_LONG_SHIFTED) {
+                return format.format(term);
+            } else {
+                return term;
+            }
         }
 
         @Override
         public Number getKeyAsNumber() {
-            return term;
+            if (format == DocValueFormat.UNSIGNED_LONG_SHIFTED) {
+                return (Number) format.format(term);
+            } else {
+                return term;
+            }
         }
 
         @Override
@@ -83,8 +89,12 @@ public class LongTerms extends InternalMappedTerms<LongTerms, LongTerms.Bucket> 
 
         @Override
         protected final XContentBuilder keyToXContent(XContentBuilder builder) throws IOException {
-            builder.field(CommonFields.KEY.getPreferredName(), term);
-            if (format != DocValueFormat.RAW) {
+            if (format == DocValueFormat.UNSIGNED_LONG_SHIFTED) {
+                builder.field(CommonFields.KEY.getPreferredName(), format.format(term));
+            } else {
+                builder.field(CommonFields.KEY.getPreferredName(), term);
+            }
+            if (format != DocValueFormat.RAW && format != DocValueFormat.UNSIGNED_LONG_SHIFTED) {
                 builder.field(CommonFields.KEY_AS_STRING.getPreferredName(), format.format(term).toString());
             }
             return builder;
@@ -101,11 +111,34 @@ public class LongTerms extends InternalMappedTerms<LongTerms, LongTerms.Bucket> 
         }
     }
 
-    public LongTerms(String name, BucketOrder order, int requiredSize, long minDocCount, List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData, DocValueFormat format, int shardSize, boolean showTermDocCountError, long otherDocCount,
-            List<Bucket> buckets, long docCountError) {
-        super(name, order, requiredSize, minDocCount, pipelineAggregators, metaData, format, shardSize, showTermDocCountError,
-                otherDocCount, buckets, docCountError);
+    public LongTerms(
+        String name,
+        BucketOrder reduceOrder,
+        BucketOrder order,
+        int requiredSize,
+        long minDocCount,
+        Map<String, Object> metadata,
+        DocValueFormat format,
+        int shardSize,
+        boolean showTermDocCountError,
+        long otherDocCount,
+        List<Bucket> buckets,
+        Long docCountError
+    ) {
+        super(
+            name,
+            reduceOrder,
+            order,
+            requiredSize,
+            minDocCount,
+            metadata,
+            format,
+            shardSize,
+            showTermDocCountError,
+            otherDocCount,
+            buckets,
+            docCountError
+        );
     }
 
     /**
@@ -122,57 +155,144 @@ public class LongTerms extends InternalMappedTerms<LongTerms, LongTerms.Bucket> 
 
     @Override
     public LongTerms create(List<Bucket> buckets) {
-        return new LongTerms(name, order, requiredSize, minDocCount, pipelineAggregators(), metaData, format, shardSize,
-                showTermDocCountError, otherDocCount, buckets, docCountError);
+        return new LongTerms(
+            name,
+            reduceOrder,
+            order,
+            requiredSize,
+            minDocCount,
+            metadata,
+            format,
+            shardSize,
+            showTermDocCountError,
+            otherDocCount,
+            buckets,
+            docCountError
+        );
     }
 
     @Override
     public Bucket createBucket(InternalAggregations aggregations, Bucket prototype) {
-        return new Bucket(prototype.term, prototype.docCount, aggregations, prototype.showDocCountError, prototype.docCountError,
-                prototype.format);
+        return new Bucket(
+            prototype.term,
+            prototype.docCount,
+            aggregations,
+            prototype.showDocCountError,
+            prototype.docCountError,
+            prototype.format
+        );
     }
 
     @Override
-    protected LongTerms create(String name, List<Bucket> buckets, long docCountError, long otherDocCount) {
-        return new LongTerms(name, order, requiredSize, minDocCount, pipelineAggregators(), getMetaData(), format, shardSize,
-                showTermDocCountError, otherDocCount, buckets, docCountError);
+    protected LongTerms create(String name, List<Bucket> buckets, BucketOrder reduceOrder, long docCountError, long otherDocCount) {
+        return new LongTerms(
+            name,
+            reduceOrder,
+            order,
+            requiredSize,
+            minDocCount,
+            getMetadata(),
+            format,
+            shardSize,
+            showTermDocCountError,
+            otherDocCount,
+            buckets,
+            docCountError
+        );
     }
 
     @Override
-    protected Bucket[] createBucketsArray(int size) {
-        return new Bucket[size];
-    }
-
-    @Override
-    public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
-        for (InternalAggregation agg : aggregations) {
-            if (agg instanceof DoubleTerms) {
-                return agg.reduce(aggregations, reduceContext);
-            }
+    protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
+        final Predicate<DocValueFormat> needsPromoting;
+        if (format == DocValueFormat.RAW) {
+            needsPromoting = docFormat -> docFormat == DocValueFormat.UNSIGNED_LONG_SHIFTED;
+        } else if (format == DocValueFormat.UNSIGNED_LONG_SHIFTED) {
+            needsPromoting = docFormat -> docFormat == DocValueFormat.RAW;
+        } else {
+            needsPromoting = Predicates.never();
         }
-        return super.reduce(aggregations, reduceContext);
+        return new AggregatorReducer() {
+
+            private List<InternalAggregation> aggregations = new ArrayList<>(size);
+            private boolean isPromotedToDouble = false;
+
+            @Override
+            public void accept(InternalAggregation aggregation) {
+                if (aggregation instanceof DoubleTerms doubleTerms) {
+                    if (isPromotedToDouble == false) {
+                        promoteToDouble(aggregations);
+                        isPromotedToDouble = true;
+                    }
+                    aggregations.add(doubleTerms);
+                } else if (aggregation instanceof LongTerms longTerms) {
+                    if (isPromotedToDouble || needsPromoting.test(longTerms.format)) {
+                        if (isPromotedToDouble == false) {
+                            promoteToDouble(aggregations);
+                            isPromotedToDouble = true;
+                        }
+                        aggregations.add(LongTerms.convertLongTermsToDouble(longTerms, format));
+                    } else {
+                        aggregations.add(aggregation);
+                    }
+                }
+            }
+
+            private void promoteToDouble(List<InternalAggregation> aggregations) {
+                aggregations.replaceAll(aggregation -> LongTerms.convertLongTermsToDouble((LongTerms) aggregation, format));
+            }
+
+            @Override
+            public InternalAggregation get() {
+                try (
+                    AggregatorReducer processor = ((AbstractInternalTerms<?, ?>) aggregations.get(0)).termsAggregationReducer(
+                        reduceContext,
+                        size
+                    )
+                ) {
+                    aggregations.forEach(processor::accept);
+                    aggregations = null; // release memory
+                    return processor.get();
+                }
+            }
+        };
     }
 
     @Override
-    Bucket createBucket(long docCount, InternalAggregations aggs, long docCountError, LongTerms.Bucket prototype) {
+    protected Bucket createBucket(long docCount, InternalAggregations aggs, long docCountError, LongTerms.Bucket prototype) {
         return new Bucket(prototype.term, docCount, aggs, prototype.showDocCountError, docCountError, format);
     }
 
     /**
      * Converts a {@link LongTerms} into a {@link DoubleTerms}, returning the value of the specified long terms as doubles.
      */
-    static DoubleTerms convertLongTermsToDouble(LongTerms longTerms, DocValueFormat decimalFormat) {
+    public static DoubleTerms convertLongTermsToDouble(LongTerms longTerms, DocValueFormat decimalFormat) {
         List<LongTerms.Bucket> buckets = longTerms.getBuckets();
         List<DoubleTerms.Bucket> newBuckets = new ArrayList<>();
         for (Terms.Bucket bucket : buckets) {
-            newBuckets.add(new DoubleTerms.Bucket(bucket.getKeyAsNumber().doubleValue(),
-                bucket.getDocCount(), (InternalAggregations) bucket.getAggregations(), longTerms.showTermDocCountError,
-                longTerms.showTermDocCountError ? bucket.getDocCountError() : 0, decimalFormat));
+            newBuckets.add(
+                new DoubleTerms.Bucket(
+                    bucket.getKeyAsNumber().doubleValue(),
+                    bucket.getDocCount(),
+                    bucket.getAggregations(),
+                    longTerms.showTermDocCountError,
+                    longTerms.showTermDocCountError ? bucket.getDocCountError() : 0,
+                    decimalFormat
+                )
+            );
         }
-        return new DoubleTerms(longTerms.getName(), longTerms.order, longTerms.requiredSize,
-            longTerms.minDocCount, longTerms.pipelineAggregators(),
-            longTerms.metaData, longTerms.format, longTerms.shardSize,
-            longTerms.showTermDocCountError, longTerms.otherDocCount,
-            newBuckets, longTerms.docCountError);
+        return new DoubleTerms(
+            longTerms.getName(),
+            longTerms.reduceOrder,
+            longTerms.order,
+            longTerms.requiredSize,
+            longTerms.minDocCount,
+            longTerms.metadata,
+            longTerms.format,
+            longTerms.shardSize,
+            longTerms.showTermDocCountError,
+            longTerms.otherDocCount,
+            newBuckets,
+            longTerms.docCountError
+        );
     }
 }

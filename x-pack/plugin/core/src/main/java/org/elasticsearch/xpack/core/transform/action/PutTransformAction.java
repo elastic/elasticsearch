@@ -1,20 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.transform.action;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.common.validation.SourceDestValidator;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
@@ -31,11 +31,24 @@ public class PutTransformAction extends ActionType<AcknowledgedResponse> {
     public static final PutTransformAction INSTANCE = new PutTransformAction();
     public static final String NAME = "cluster:admin/transform/put";
 
+    /**
+     * Minimum transform frequency used for validation.
+     *
+     * Note: Depending on the environment (on-prem or serverless) the minimum frequency used by scheduler can be higher than this constant.
+     * The actual value used by scheduler is specified by the {@code TransformExtension.getMinFrequency} method.
+     *
+     * Example:
+     * If the user configures transform with frequency=3s but the TransformExtension.getMinFrequency method returns 5s, the validation will
+     * pass but the scheduler will silently use 5s instead of 3s.
+     */
     private static final TimeValue MIN_FREQUENCY = TimeValue.timeValueSeconds(1);
+    /**
+     * Maximum transform frequency used for validation.
+     */
     private static final TimeValue MAX_FREQUENCY = TimeValue.timeValueHours(1);
 
     private PutTransformAction() {
-        super(NAME, AcknowledgedResponse::new);
+        super(NAME);
     }
 
     public static class Request extends AcknowledgedRequest<Request> {
@@ -43,7 +56,8 @@ public class PutTransformAction extends ActionType<AcknowledgedResponse> {
         private final TransformConfig config;
         private final boolean deferValidation;
 
-        public Request(TransformConfig config, boolean deferValidation) {
+        public Request(TransformConfig config, boolean deferValidation, TimeValue timeout) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, timeout);
             this.config = config;
             this.deferValidation = deferValidation;
         }
@@ -51,15 +65,16 @@ public class PutTransformAction extends ActionType<AcknowledgedResponse> {
         public Request(StreamInput in) throws IOException {
             super(in);
             this.config = new TransformConfig(in);
-            if (in.getVersion().onOrAfter(Version.V_7_4_0)) {
-                this.deferValidation = in.readBoolean();
-            } else {
-                this.deferValidation = false;
-            }
+            this.deferValidation = in.readBoolean();
         }
 
-        public static Request fromXContent(final XContentParser parser, final String id, final boolean deferValidation) {
-            return new Request(TransformConfig.fromXContent(parser, id, false), deferValidation);
+        public static Request fromXContent(
+            final XContentParser parser,
+            final String id,
+            final boolean deferValidation,
+            final TimeValue timeout
+        ) {
+            return new Request(TransformConfig.fromXContent(parser, id, false), deferValidation, timeout);
         }
 
         /**
@@ -69,20 +84,8 @@ public class PutTransformAction extends ActionType<AcknowledgedResponse> {
         @Override
         public ActionRequestValidationException validate() {
             ActionRequestValidationException validationException = null;
-            if (config.getPivotConfig() != null
-                && config.getPivotConfig().getMaxPageSearchSize() != null
-                && (config.getPivotConfig().getMaxPageSearchSize() < 10 || config.getPivotConfig().getMaxPageSearchSize() > 10_000)) {
-                validationException = addValidationError(
-                    "pivot.max_page_search_size ["
-                        + config.getPivotConfig().getMaxPageSearchSize()
-                        + "] must be greater than 10 and less than 10,000",
-                    validationException
-                );
-            }
-            for (String failure : config.getPivotConfig().aggFieldValidation()) {
-                validationException = addValidationError(failure, validationException);
-            }
 
+            validationException = config.validate(validationException);
             validationException = SourceDestValidator.validateRequest(validationException, config.getDestination().getIndex());
 
             if (TransformStrings.isValidId(config.getId()) == false) {
@@ -127,14 +130,13 @@ public class PutTransformAction extends ActionType<AcknowledgedResponse> {
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             this.config.writeTo(out);
-            if (out.getVersion().onOrAfter(Version.V_7_4_0)) {
-                out.writeBoolean(this.deferValidation);
-            }
+            out.writeBoolean(this.deferValidation);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(config, deferValidation);
+            // the base class does not implement hashCode, therefore we need to hash timeout ourselves
+            return Objects.hash(ackTimeout(), config, deferValidation);
         }
 
         @Override
@@ -146,7 +148,11 @@ public class PutTransformAction extends ActionType<AcknowledgedResponse> {
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.equals(config, other.config) && this.deferValidation == other.deferValidation;
+
+            // the base class does not implement equals, therefore we need to check timeout ourselves
+            return Objects.equals(config, other.config)
+                && this.deferValidation == other.deferValidation
+                && ackTimeout().equals(other.ackTimeout());
         }
     }
 

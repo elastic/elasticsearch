@@ -1,32 +1,21 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.bucket;
 
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregatorFactory.ExecutionMode;
 import org.elasticsearch.test.ESIntegTestCase;
 
-import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 
 public abstract class AbstractTermsTestCase extends ESIntegTestCase {
 
@@ -44,36 +33,43 @@ public abstract class AbstractTermsTestCase extends ESIntegTestCase {
 
     public void testOtherDocCount(String... fieldNames) {
         for (String fieldName : fieldNames) {
-            SearchResponse allTerms = client().prepareSearch("idx")
-                    .addAggregation(terms("terms")
-                            .executionHint(randomExecutionHint())
-                            .field(fieldName)
-                            .size(10000)
-                            .collectMode(randomFrom(SubAggCollectionMode.values())))
-                    .get();
-            assertSearchResponse(allTerms);
+            assertResponse(
+                prepareSearch("idx").addAggregation(
+                    new TermsAggregationBuilder("terms").executionHint(randomExecutionHint())
+                        .field(fieldName)
+                        .size(10000)
+                        .collectMode(randomFrom(SubAggCollectionMode.values()))
+                ),
+                allTerms -> {
+                    assertNoFailures(allTerms);
 
-            Terms terms = allTerms.getAggregations().get("terms");
-            assertEquals(0, terms.getSumOfOtherDocCounts()); // size is 0
-            final long sumOfDocCounts = sumOfDocCounts(terms);
-            final int totalNumTerms = terms.getBuckets().size();
+                    Terms terms = allTerms.getAggregations().get("terms");
+                    assertEquals(0, terms.getSumOfOtherDocCounts()); // size is 0
+                    final long sumOfDocCounts = sumOfDocCounts(terms);
+                    final int totalNumTerms = terms.getBuckets().size();
 
-            for (int size = 1; size < totalNumTerms + 2; size += randomIntBetween(1, 5)) {
-                for (int shardSize = size; shardSize <= totalNumTerms + 2; shardSize += randomIntBetween(1, 5)) {
-                    SearchResponse resp = client().prepareSearch("idx")
-                            .addAggregation(terms("terms")
-                                    .executionHint(randomExecutionHint())
-                                    .field(fieldName)
-                                    .size(size)
-                                    .shardSize(shardSize)
-                                    .collectMode(randomFrom(SubAggCollectionMode.values())))
-                            .get();
-                    assertSearchResponse(resp);
-                    terms = resp.getAggregations().get("terms");
-                    assertEquals(Math.min(size, totalNumTerms), terms.getBuckets().size());
-                    assertEquals(sumOfDocCounts, sumOfDocCounts(terms));
+                    for (int size = 1; size < totalNumTerms + 2; size += randomIntBetween(1, 5)) {
+                        for (int shardSize = size; shardSize <= totalNumTerms + 2; shardSize += randomIntBetween(1, 5)) {
+                            final int finalSize = size;
+                            assertResponse(
+                                prepareSearch("idx").addAggregation(
+                                    new TermsAggregationBuilder("terms").executionHint(randomExecutionHint())
+                                        .field(fieldName)
+                                        .size(size)
+                                        .shardSize(shardSize)
+                                        .collectMode(randomFrom(SubAggCollectionMode.values()))
+                                ),
+                                response -> {
+                                    assertNoFailures(response);
+                                    Terms innerTerms = response.getAggregations().get("terms");
+                                    assertEquals(Math.min(finalSize, totalNumTerms), innerTerms.getBuckets().size());
+                                    assertEquals(sumOfDocCounts, sumOfDocCounts(innerTerms));
+                                }
+                            );
+                        }
+                    }
                 }
-            }
+            );
         }
     }
 

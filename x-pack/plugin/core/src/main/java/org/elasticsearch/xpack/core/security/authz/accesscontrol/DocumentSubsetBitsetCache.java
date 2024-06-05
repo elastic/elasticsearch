@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.security.authz.accesscontrol;
@@ -12,7 +13,9 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexReaderContext;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
@@ -20,24 +23,27 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.FixedBitSet;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.cache.RemovalNotification;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
-import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.lucene.util.BitSets;
+import org.elasticsearch.lucene.util.MatchAllBitSet;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
@@ -79,18 +85,24 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
      * The TTL defaults to 2 hours. We default to a large cache size ({@link #CACHE_SIZE_SETTING}), and aggressively
      * expire unused entries so that the cache does not hold on to memory unnecessarily.
      */
-    static final Setting<TimeValue> CACHE_TTL_SETTING =
-        Setting.timeSetting("xpack.security.dls.bitset.cache.ttl", TimeValue.timeValueHours(2), Property.NodeScope);
+    static final Setting<TimeValue> CACHE_TTL_SETTING = Setting.timeSetting(
+        "xpack.security.dls.bitset.cache.ttl",
+        TimeValue.timeValueHours(2),
+        Property.NodeScope
+    );
 
     /**
      * The size defaults to 10% of heap so that it automatically scales up with larger node size
      */
-    static final Setting<ByteSizeValue> CACHE_SIZE_SETTING = Setting.memorySizeSetting("xpack.security.dls.bitset.cache.size",
-            "10%", Property.NodeScope);
+    static final Setting<ByteSizeValue> CACHE_SIZE_SETTING = Setting.memorySizeSetting(
+        "xpack.security.dls.bitset.cache.size",
+        "10%",
+        Property.NodeScope
+    );
 
     private static final BitSet NULL_MARKER = new FixedBitSet(0);
 
-    private final Logger logger;
+    private static final Logger logger = LogManager.getLogger(DocumentSubsetBitsetCache.class);
 
     /**
      * When a {@link BitSet} is evicted from {@link #bitsetCache}, we need to also remove it from {@link #keysByIndex}.
@@ -119,8 +131,6 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
      *                        it is sometimes necessary to run an asynchronous task to synchronize the internal state.
      */
     protected DocumentSubsetBitsetCache(Settings settings, ExecutorService cleanupExecutor) {
-        this.logger = LogManager.getLogger(getClass());
-
         final ReentrantReadWriteLock readWriteLock = new ReentrantReadWriteLock();
         this.cacheEvictionLock = new ReleasableLock(readWriteLock.writeLock());
         this.cacheModificationLock = new ReleasableLock(readWriteLock.readLock());
@@ -168,7 +178,7 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
                 // it's possible for the key to be back in the cache if it was immediately repopulated after it was evicted, so check
                 if (bitsetCache.get(bitsetKey) == null) {
                     // key is no longer in the cache, make sure it is no longer in the lookup map either.
-                    keysByIndex.getOrDefault(indexKey, Set.of()).remove(bitsetKey);
+                    Optional.ofNullable(keysByIndex.get(indexKey)).ifPresent(set -> set.remove(bitsetKey));
                 }
             }
         });
@@ -211,7 +221,11 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
     public BitSet getBitSet(final Query query, final LeafReaderContext context) throws ExecutionException {
         final IndexReader.CacheHelper coreCacheHelper = context.reader().getCoreCacheHelper();
         if (coreCacheHelper == null) {
-            throw new IllegalArgumentException("Reader " + context.reader() + " does not support caching");
+            try {
+                return computeBitSet(query, context);
+            } catch (IOException e) {
+                throw new ExecutionException(e);
+            }
         }
         coreCacheHelper.addClosedListener(this);
         final IndexReader.CacheKey indexKey = coreCacheHelper.getKey();
@@ -222,32 +236,30 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
                 // This ensures all insertions into the set are guarded by ConcurrentHashMap's atomicity guarantees.
                 keysByIndex.compute(indexKey, (ignore2, set) -> {
                     if (set == null) {
-                        set = Sets.newConcurrentHashSet();
+                        set = ConcurrentCollections.newConcurrentSet();
                     }
                     set.add(cacheKey);
                     return set;
                 });
-                final IndexReaderContext topLevelContext = ReaderUtil.getTopLevelContext(context);
-                final IndexSearcher searcher = new IndexSearcher(topLevelContext);
-                searcher.setQueryCache(null);
-                final Weight weight = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1f);
-                Scorer s = weight.scorer(context);
-                if (s == null) {
+                final BitSet result = computeBitSet(query, context);
+                if (result == null) {
                     // A cache loader is not allowed to return null, return a marker object instead.
                     return NULL_MARKER;
-                } else {
-                    final BitSet bs = BitSet.of(s.iterator(), context.reader().maxDoc());
-                    final long bitSetBytes = bs.ramBytesUsed();
-                    if (bitSetBytes > this.maxWeightBytes) {
-                        logger.warn("built a DLS BitSet that uses [{}] bytes; the DLS BitSet cache has a maximum size of [{}] bytes;" +
-                                " this object cannot be cached and will need to be rebuilt for each use;" +
-                                " consider increasing the value of [{}]",
-                            bitSetBytes, maxWeightBytes, CACHE_SIZE_SETTING.getKey());
-                    } else if (bitSetBytes + bitsetCache.weight() > maxWeightBytes) {
-                        maybeLogCacheFullWarning();
-                    }
-                    return bs;
                 }
+                final long bitSetBytes = result.ramBytesUsed();
+                if (bitSetBytes > this.maxWeightBytes) {
+                    logger.warn(
+                        "built a DLS BitSet that uses [{}] bytes; the DLS BitSet cache has a maximum size of [{}] bytes;"
+                            + " this object cannot be cached and will need to be rebuilt for each use;"
+                            + " consider increasing the value of [{}]",
+                        bitSetBytes,
+                        maxWeightBytes,
+                        CACHE_SIZE_SETTING.getKey()
+                    );
+                } else if (bitSetBytes + bitsetCache.weight() > maxWeightBytes) {
+                    maybeLogCacheFullWarning();
+                }
+                return result;
             });
             if (bitSet == NULL_MARKER) {
                 return null;
@@ -255,6 +267,35 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
                 return bitSet;
             }
         }
+    }
+
+    @Nullable
+    private static BitSet computeBitSet(Query query, LeafReaderContext context) throws IOException {
+        final IndexReaderContext topLevelContext = ReaderUtil.getTopLevelContext(context);
+        final IndexSearcher searcher = new IndexSearcher(topLevelContext);
+        searcher.setQueryCache(null);
+        final Query rewrittenQuery = searcher.rewrite(query);
+        if (isEffectiveMatchAllDocsQuery(rewrittenQuery)) {
+            return new MatchAllBitSet(context.reader().maxDoc());
+        }
+        final Weight weight = searcher.createWeight(rewrittenQuery, ScoreMode.COMPLETE_NO_SCORES, 1f);
+        final Scorer s = weight.scorer(context);
+        if (s == null) {
+            return null;
+        } else {
+            return BitSets.of(s.iterator(), context.reader().maxDoc());
+        }
+    }
+
+    // Package private for testing
+    static boolean isEffectiveMatchAllDocsQuery(Query rewrittenQuery) {
+        if (rewrittenQuery instanceof ConstantScoreQuery && ((ConstantScoreQuery) rewrittenQuery).getQuery() instanceof MatchAllDocsQuery) {
+            return true;
+        }
+        if (rewrittenQuery instanceof MatchAllDocsQuery) {
+            return true;
+        }
+        return false;
     }
 
     private void maybeLogCacheFullWarning() {
@@ -267,7 +308,8 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
         if (cacheFullWarningTime.compareAndSet(nextLogTime, nextCheck)) {
             logger.info(
                 "the Document Level Security BitSet cache is full which may impact performance; consider increasing the value of [{}]",
-                CACHE_SIZE_SETTING.getKey());
+                CACHE_SIZE_SETTING.getKey()
+            );
         }
     }
 
@@ -276,15 +318,11 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
     }
 
     public Map<String, Object> usageStats() {
-        final ByteSizeValue ram = new ByteSizeValue(ramBytesUsed(), ByteSizeUnit.BYTES);
-        return Map.of(
-            "count", entryCount(),
-            "memory", ram.toString(),
-            "memory_in_bytes", ram.getBytes()
-        );
+        final ByteSizeValue ram = ByteSizeValue.ofBytes(ramBytesUsed());
+        return Map.of("count", entryCount(), "memory", ram.toString(), "memory_in_bytes", ram.getBytes());
     }
 
-    private class BitsetCacheKey {
+    private static class BitsetCacheKey {
         final IndexReader.CacheKey index;
         final Query query;
 
@@ -302,8 +340,7 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
                 return false;
             }
             final BitsetCacheKey that = (BitsetCacheKey) other;
-            return Objects.equals(this.index, that.index) &&
-                Objects.equals(this.query, that.query);
+            return Objects.equals(this.index, that.index) && Objects.equals(this.query, that.query);
         }
 
         @Override
@@ -325,12 +362,14 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
         this.bitsetCache.keys().forEach(bck -> {
             final Set<BitsetCacheKey> set = this.keysByIndex.get(bck.index);
             if (set == null) {
-                throw new IllegalStateException("Key [" + bck + "] is in the cache, but there is no entry for [" + bck.index +
-                    "] in the lookup map");
+                throw new IllegalStateException(
+                    "Key [" + bck + "] is in the cache, but there is no entry for [" + bck.index + "] in the lookup map"
+                );
             }
             if (set.contains(bck) == false) {
-                throw new IllegalStateException("Key [" + bck + "] is in the cache, but the lookup entry for [" + bck.index +
-                    "] does not contain that key");
+                throw new IllegalStateException(
+                    "Key [" + bck + "] is in the cache, but the lookup entry for [" + bck.index + "] does not contain that key"
+                );
             }
         });
         this.keysByIndex.values().stream().flatMap(Set::stream).forEach(bck -> {
@@ -339,4 +378,5 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
             }
         });
     }
+
 }

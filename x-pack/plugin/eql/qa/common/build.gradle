@@ -1,6 +1,10 @@
-apply plugin: 'elasticsearch.build'
-test.enabled = false
+apply plugin: 'elasticsearch.java'
 
 dependencies {
-  compile project(':test:framework')
+  api project(':test:framework')
+  api project(xpackModule('core'))
+  api testArtifact(project(xpackModule('core')))
+  api project(xpackModule('ql:test-fixtures'))
+  // TOML parser for EqlActionIT tests
+  api 'io.ous:jtoml:2.0.0'
 }

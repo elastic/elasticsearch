@@ -1,13 +1,15 @@
 [[rpm]]
 === Install Elasticsearch with RPM
 
+:include-xpack: true
+
 The RPM for Elasticsearch can be <<install-rpm,downloaded from our website>>
 or from our  <<rpm-repo,RPM repository>>. It can be used to install
 Elasticsearch on any RPM-based system such as OpenSuSE, SLES, Centos, Red Hat,
 and Oracle Enterprise.
 
 NOTE: RPM install is not supported on distributions with old versions of RPM,
-such as SLES 11 and CentOS 5.  Please see <<targz>> instead.
+such as SLES 11 and CentOS 5. Please see <<targz>> instead.
 
 include::license.asciidoc[]
 
@@ -15,12 +17,14 @@ The latest stable version of Elasticsearch can be found on the
 link:/downloads/elasticsearch[Download Elasticsearch] page. Other versions can
 be found on the link:/downloads/past-releases[Past Releases page].
 
-NOTE: Elasticsearch includes a bundled version of http://openjdk.java.net[OpenJDK]
+NOTE: Elasticsearch includes a bundled version of https://openjdk.java.net[OpenJDK]
 from the JDK maintainers (GPLv2+CE). To use your own version of Java,
 see the <<jvm-version, JVM version requirements>>
 
+TIP: For a step-by-step example of setting up the {stack} on your own premises, try out our tutorial: {stack-ref}/installing-stack-demo-self.html[Installing a self-managed Elastic Stack].
+
 [[rpm-key]]
-==== Import the Elasticsearch PGP Key
+==== Import the Elasticsearch GPG Key
 
 include::key.asciidoc[]
 
@@ -34,11 +38,9 @@ rpm --import https://artifacts.elastic.co/GPG-KEY-elasticsearch
 
 ifeval::["{release-state}"=="unreleased"]
 
-Version {version} of Elasticsearch has not yet been released.
+WARNING: Version {version} of Elasticsearch has not yet been released.
 
 endif::[]
-
-ifeval::["{release-state}"!="unreleased"]
 
 Create a file called `elasticsearch.repo` in the `/etc/yum.repos.d/` directory
 for RedHat based distributions, or in the `/etc/zypp/repos.d/` directory for
@@ -57,8 +59,6 @@ enabled=0
 autorefresh=1
 type=rpm-md
 --------------------------------------------------
-
-endif::[]
 
 ifeval::["{release-state}"=="prerelease"]
 
@@ -96,46 +96,14 @@ must explicitly enable the repository as indicated in the sample commands above.
 
 endif::[]
 
-ifeval::["{release-state}"!="unreleased"]
-
-[NOTE]
-==================================================
-
-An alternative package which contains only features that are available under the
-Apache 2.0 license is also available. To install it, use the following `baseurl` in your `elasticsearch.repo` file:
-
-ifeval::["{release-state}"=="prerelease"]
-
-["source","sh",subs="attributes,callouts"]
---------------------------------------------------
-baseurl=https://artifacts.elastic.co/packages/oss-{major-version}-prerelease/yum
---------------------------------------------------
-
-endif::[]
-
-ifeval::["{release-state}"!="prerelease"]
-
-["source","sh",subs="attributes,callouts"]
---------------------------------------------------
-baseurl=https://artifacts.elastic.co/packages/oss-{major-version}/yum
---------------------------------------------------
-
-endif::[]
-
-==================================================
-
-endif::[]
-
 [[install-rpm]]
 ==== Download and install the RPM manually
 
 ifeval::["{release-state}"=="unreleased"]
 
-Version {version} of Elasticsearch has not yet been released.
+WARNING: Version {version} of Elasticsearch has not yet been released.
 
 endif::[]
-
-ifeval::["{release-state}"!="unreleased"]
 
 The RPM for Elasticsearch v{version} can be downloaded from the website and installed as follows:
 
@@ -148,14 +116,13 @@ sudo rpm --install elasticsearch-{version}-x86_64.rpm
 --------------------------------------------
 <1> Compares the SHA of the downloaded RPM and the published checksum, which should output
     `elasticsearch-{version}-x86_64.rpm: OK`.
-    
-Alternatively, you can download the following package, which contains only 
-features that are available under the Apache 2.0 license: 
-https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-oss-{version}-x86_64.rpm    
-
-endif::[]
 
 include::skip-set-kernel-parameters.asciidoc[]
+
+// Set a `distro` attribute so we can reuse files containing anchors
+:distro: rpm
+[id="rpm-security-configuration"]
+include::package-security.asciidoc[]
 
 ifdef::include-xpack[]
 [role="xpack"]
@@ -166,18 +133,16 @@ include::xpack-indices.asciidoc[]
 
 endif::include-xpack[]
 
-[[rpm-sysv-init-vs-systemd]]
-==== SysV `init` vs `systemd`
+:include-xpack!: true
 
-include::init-systemd.asciidoc[]
-
-[[rpm-running-init]]
-include::rpm-init.asciidoc[]
-
-[[rpm-running-systemd]]
+[id="{distro}-running-systemd"]
 include::systemd.asciidoc[]
 
 [[rpm-check-running]]
+
+:es-config:       /etc/elasticsearch
+:slash:        /
+
 include::check-running.asciidoc[]
 
 [[rpm-configuring]]
@@ -192,7 +157,9 @@ include::sysconfig-file.asciidoc[]
 
 NOTE: Distributions that use `systemd` require that system resource limits be
 configured via `systemd` rather than via the `/etc/sysconfig/elasticsearch`
-file.  See <<systemd>> for more information.
+file. See <<systemd>> for more information.
+
+include::connect-clients.asciidoc[]
 
 [[rpm-layout]]
 ==== Directory layout of RPM
@@ -225,15 +192,20 @@ locations for an RPM-based system:
   | /etc/sysconfig/elasticsearch
  d|
 
+| conf
+| Generated TLS keys and certificates for the transport and http layer.
+| /etc/elasticsearch/certs
+d|
+
 | data
   | The location of the data files of each index / shard allocated
-    on the node. Can hold multiple locations.
+    on the node.
   | /var/lib/elasticsearch
   | path.data
 
 | jdk
   | The bundled Java Development Kit used to run Elasticsearch. Can
-    be overridden by setting the `JAVA_HOME` environment variable
+    be overridden by setting the `ES_JAVA_HOME` environment variable
     in `/etc/sysconfig/elasticsearch`.
   | /usr/share/elasticsearch/jdk
  d|
@@ -255,4 +227,5 @@ locations for an RPM-based system:
 
 |=======================================================================
 
+include::security-files-reference.asciidoc[]
 include::next-steps.asciidoc[]

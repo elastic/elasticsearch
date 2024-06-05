@@ -1,59 +1,49 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermInSetQuery;
-import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetRequest;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.lucene.BytesRefs;
-import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.ConstantFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.indices.TermsLookup;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.nio.CharBuffer;
-import java.util.AbstractList;
+import java.io.UncheckedIOException;
+import java.util.AbstractCollection;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashSet;
+import java.util.Collection;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 /**
@@ -63,7 +53,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
     public static final String NAME = "terms";
 
     private final String fieldName;
-    private final List<?> values;
+    private final BinaryValues values;
     private final TermsLookup termsLookup;
     private final Supplier<List<?>> supplier;
 
@@ -74,7 +64,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
     /**
      * constructor used internally for serialization of both value / termslookup variants
      */
-    TermsQueryBuilder(String fieldName, List<Object> values, TermsLookup termsLookup) {
+    private TermsQueryBuilder(String fieldName, List<Object> values, TermsLookup termsLookup) {
         if (Strings.isEmpty(fieldName)) {
             throw new IllegalArgumentException("field name cannot be null.");
         }
@@ -85,7 +75,8 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
             throw new IllegalArgumentException("Both values and termsLookup specified for terms query");
         }
         this.fieldName = fieldName;
-        this.values = values == null ? null : convert(values);
+        // already converted in {@link fromXContent}
+        this.values = values == null ? null : new BinaryValues(values, false);
         this.termsLookup = termsLookup;
         this.supplier = null;
     }
@@ -107,7 +98,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
      * @param values The terms
      */
     public TermsQueryBuilder(String fieldName, int... values) {
-        this(fieldName, values != null ? Arrays.stream(values).mapToObj(s -> s).collect(Collectors.toList()) : (Iterable<?>) null);
+        this(fieldName, values != null ? Arrays.stream(values).boxed().toList() : null);
     }
 
     /**
@@ -117,7 +108,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
      * @param values The terms
      */
     public TermsQueryBuilder(String fieldName, long... values) {
-        this(fieldName, values != null ? Arrays.stream(values).mapToObj(s -> s).collect(Collectors.toList()) : (Iterable<?>) null);
+        this(fieldName, values != null ? Arrays.stream(values).boxed().toList() : null);
     }
 
     /**
@@ -127,8 +118,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
      * @param values The terms
      */
     public TermsQueryBuilder(String fieldName, float... values) {
-        this(fieldName, values != null ? IntStream.range(0, values.length)
-                           .mapToObj(i -> values[i]).collect(Collectors.toList()) : (Iterable<?>) null);
+        this(fieldName, values != null ? IntStream.range(0, values.length).mapToObj(i -> values[i]).toList() : null);
     }
 
     /**
@@ -138,7 +128,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
      * @param values The terms
      */
     public TermsQueryBuilder(String fieldName, double... values) {
-        this(fieldName, values != null ? Arrays.stream(values).mapToObj(s -> s).collect(Collectors.toList()) : (Iterable<?>) null);
+        this(fieldName, values != null ? Arrays.stream(values).boxed().toList() : null);
     }
 
     /**
@@ -148,7 +138,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
      * @param values The terms
      */
     public TermsQueryBuilder(String fieldName, Object... values) {
-        this(fieldName, values != null ? Arrays.asList(values) : (Iterable<?>) null);
+        this(fieldName, values != null ? Arrays.asList(values) : null);
     }
 
     /**
@@ -157,7 +147,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
      * @param fieldName The field name
      * @param values The terms
      */
-    public TermsQueryBuilder(String fieldName, Iterable<?> values) {
+    public TermsQueryBuilder(String fieldName, Collection<?> values) {
         if (Strings.isEmpty(fieldName)) {
             throw new IllegalArgumentException("field name cannot be null.");
         }
@@ -165,7 +155,11 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
             throw new IllegalArgumentException("No value specified for terms query");
         }
         this.fieldName = fieldName;
-        this.values = convert(values);
+        if (values instanceof BinaryValues binaryValues) {
+            this.values = binaryValues;
+        } else {
+            this.values = new BinaryValues(values, true);
+        }
         this.termsLookup = null;
         this.supplier = null;
     }
@@ -182,9 +176,9 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
      */
     public TermsQueryBuilder(StreamInput in) throws IOException {
         super(in);
-        fieldName = in.readString();
-        termsLookup = in.readOptionalWriteable(TermsLookup::new);
-        values = (List<?>) in.readGenericValue();
+        this.fieldName = in.readString();
+        this.termsLookup = in.readOptionalWriteable(TermsLookup::new);
+        this.values = in.readOptionalWriteable(BinaryValues::new);
         this.supplier = null;
     }
 
@@ -195,138 +189,32 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         }
         out.writeString(fieldName);
         out.writeOptionalWriteable(termsLookup);
-        out.writeGenericValue(values);
+        out.writeOptionalWriteable(values);
     }
 
     public String fieldName() {
         return this.fieldName;
     }
 
+    public BinaryValues getValues() {
+        return values;
+    }
+
+    /**
+     * get readable values
+     * only for {@link #toXContent} and tests, don't use this to construct a query.
+     * use {@link #getValues()} instead.
+     */
     public List<Object> values() {
-        return convertBack(this.values);
+        List<Object> readableValues = new ArrayList<>();
+        for (Object value : values) {
+            readableValues.add(AbstractQueryBuilder.maybeConvertToString(value));
+        }
+        return readableValues;
     }
 
     public TermsLookup termsLookup() {
         return this.termsLookup;
-    }
-
-    private static final Set<Class<? extends Number>> INTEGER_TYPES = new HashSet<>(
-            Arrays.asList(Byte.class, Short.class, Integer.class, Long.class));
-    private static final Set<Class<?>> STRING_TYPES = new HashSet<>(
-            Arrays.asList(BytesRef.class, String.class));
-
-    /**
-     * Same as {@link #convert(List)} but on an {@link Iterable}.
-     */
-    private static List<?> convert(Iterable<?> values) {
-        List<?> list;
-        if (values instanceof List<?>) {
-            list = (List<?>) values;
-        } else {
-            ArrayList<Object> arrayList = new ArrayList<>();
-            for (Object o : values) {
-                arrayList.add(o);
-            }
-            list = arrayList;
-        }
-        return convert(list);
-    }
-
-    /**
-     * Convert the list in a way that optimizes storage in the case that all
-     * elements are either integers or {@link String}s/{@link BytesRef}/
-     * {@link CharBuffer}s. This is useful to help garbage collections for
-     * use-cases that involve sending very large terms queries to Elasticsearch.
-     * If the list does not only contain integers or {@link String}s, then a
-     * list is returned where all {@link String}/{@link CharBuffer}s have been
-     * replaced with {@link BytesRef}s.
-     */
-    static List<?> convert(List<?> list) {
-        if (list.isEmpty()) {
-            return Collections.emptyList();
-        }
-
-        final boolean allNumbers = list.stream().allMatch(o -> o != null && INTEGER_TYPES.contains(o.getClass()));
-        if (allNumbers) {
-            final long[] elements = list.stream().mapToLong(o -> ((Number) o).longValue()).toArray();
-            return new AbstractList<Object>() {
-                @Override
-                public Object get(int index) {
-                    return elements[index];
-                }
-                @Override
-                public int size() {
-                    return elements.length;
-                }
-            };
-        }
-
-        final boolean allStrings = list.stream().allMatch(o -> o != null && STRING_TYPES.contains(o.getClass()));
-        if (allStrings) {
-            final BytesRefBuilder builder = new BytesRefBuilder();
-            try (BytesStreamOutput bytesOut = new BytesStreamOutput()) {
-                final int[] endOffsets = new int[list.size()];
-                int i = 0;
-                for (Object o : list) {
-                    BytesRef b;
-                    if (o instanceof BytesRef) {
-                        b = (BytesRef) o;
-                    } else if (o instanceof CharBuffer) {
-                        b = new BytesRef((CharBuffer) o);
-                    } else {
-                        builder.copyChars(o.toString());
-                        b = builder.get();
-                    }
-                    bytesOut.writeBytes(b.bytes, b.offset, b.length);
-                    if (i == 0) {
-                        endOffsets[0] = b.length;
-                    } else {
-                        endOffsets[i] = Math.addExact(endOffsets[i-1], b.length);
-                    }
-                    ++i;
-                }
-                final BytesReference bytes = bytesOut.bytes();
-                return new AbstractList<Object>() {
-                    @Override
-                    public Object get(int i) {
-                        final int startOffset = i == 0 ? 0 : endOffsets[i-1];
-                        final int endOffset = endOffsets[i];
-                        return bytes.slice(startOffset, endOffset - startOffset).toBytesRef();
-                    }
-                    @Override
-                    public int size() {
-                        return endOffsets.length;
-                    }
-                };
-            }
-        }
-
-        return list.stream().map(o -> o instanceof String ? new BytesRef(o.toString()) : o).collect(Collectors.toList());
-    }
-
-    /**
-     * Convert the internal {@link List} of values back to a user-friendly list.
-     * Integers are kept as-is since the terms query does not make any difference
-     * between {@link Integer}s and {@link Long}s, but {@link BytesRef}s are
-     * converted back to {@link String}s.
-     */
-    static List<Object> convertBack(List<?> list) {
-        return new AbstractList<Object>() {
-            @Override
-            public int size() {
-                return list.size();
-            }
-            @Override
-            public Object get(int index) {
-                Object o = list.get(index);
-                if (o instanceof BytesRef) {
-                    o = ((BytesRef) o).utf8ToString();
-                }
-                // we do not convert longs, all integer types are equivalent
-                // as far as this query is concerned
-                return o;
-            }
-        };
     }
 
     @Override
@@ -337,7 +225,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
             termsLookup.toXContent(builder, params);
             builder.endObject();
         } else {
-            builder.field(fieldName, convertBack(values));
+            builder.field(fieldName, values());
         }
         printBoostAndQueryName(builder);
         builder.endObject();
@@ -357,17 +245,27 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_ARRAY) {
-                if  (fieldName != null) {
-                    throw new ParsingException(parser.getTokenLocation(),
-                            "[" + TermsQueryBuilder.NAME + "] query does not support multiple fields");
+                if (fieldName != null) {
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        "[" + TermsQueryBuilder.NAME + "] query does not support multiple fields"
+                    );
                 }
                 fieldName = currentFieldName;
                 values = parseValues(parser);
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if  (fieldName != null) {
-                    throw new ParsingException(parser.getTokenLocation(),
-                            "[" + TermsQueryBuilder.NAME + "] query does not support more than one field. "
-                            + "Already got: [" + fieldName + "] but also found [" + currentFieldName +"]");
+                if (fieldName != null) {
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        "["
+                            + TermsQueryBuilder.NAME
+                            + "] query does not support more than one field. "
+                            + "Already got: ["
+                            + fieldName
+                            + "] but also found ["
+                            + currentFieldName
+                            + "]"
+                    );
                 }
                 fieldName = currentFieldName;
                 termsLookup = TermsLookup.parseTermsLookup(parser);
@@ -377,23 +275,30 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
                 } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     queryName = parser.text();
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(),
-                            "[" + TermsQueryBuilder.NAME + "] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        "[" + TermsQueryBuilder.NAME + "] query does not support [" + currentFieldName + "]"
+                    );
                 }
             } else {
-                throw new ParsingException(parser.getTokenLocation(),
-                        "[" + TermsQueryBuilder.NAME + "] unknown token [" + token + "] after [" + currentFieldName + "]");
+                throw new ParsingException(
+                    parser.getTokenLocation(),
+                    "[" + TermsQueryBuilder.NAME + "] unknown token [" + token + "] after [" + currentFieldName + "]"
+                );
             }
         }
 
         if (fieldName == null) {
-            throw new ParsingException(parser.getTokenLocation(), "[" + TermsQueryBuilder.NAME + "] query requires a field name, " +
-                    "followed by array of terms or a document lookup specification");
+            throw new ParsingException(
+                parser.getTokenLocation(),
+                "["
+                    + TermsQueryBuilder.NAME
+                    + "] query requires a field name, "
+                    + "followed by array of terms or a document lookup specification"
+            );
         }
 
-        TermsQueryBuilder builder = new TermsQueryBuilder(fieldName, values, termsLookup)
-            .boost(boost)
-            .queryName(queryName);
+        TermsQueryBuilder builder = new TermsQueryBuilder(fieldName, values, termsLookup).boost(boost).queryName(queryName);
 
         return builder;
     }
@@ -416,43 +321,41 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
     }
 
     @Override
-    protected Query doToQuery(QueryShardContext context) throws IOException {
-        if (termsLookup != null || supplier != null) {
+    protected Query doToQuery(SearchExecutionContext context) throws IOException {
+        if (termsLookup != null || supplier != null || values == null || values.isEmpty()) {
             throw new UnsupportedOperationException("query must be rewritten first");
         }
-        if (values == null || values.isEmpty()) {
-            return Queries.newMatchNoDocsQuery("No terms supplied for \"" + getName() + "\" query.");
-        }
         int maxTermsCount = context.getIndexSettings().getMaxTermsCount();
-        if (values.size() > maxTermsCount){
+        if (values.size() > maxTermsCount) {
             throw new IllegalArgumentException(
-                "The number of terms ["  + values.size() +  "] used in the Terms Query request has exceeded " +
-                    "the allowed maximum of [" + maxTermsCount + "]. " + "This maximum can be set by changing the [" +
-                    IndexSettings.MAX_TERMS_COUNT_SETTING.getKey() + "] index level setting.");
+                "The number of terms ["
+                    + values.size()
+                    + "] used in the Terms Query request has exceeded "
+                    + "the allowed maximum of ["
+                    + maxTermsCount
+                    + "]. "
+                    + "This maximum can be set by changing the ["
+                    + IndexSettings.MAX_TERMS_COUNT_SETTING.getKey()
+                    + "] index level setting."
+            );
         }
-        MappedFieldType fieldType = context.fieldMapper(fieldName);
-
-        if (fieldType != null) {
-            return fieldType.termsQuery(values, context);
-        } else {
-            BytesRef[] filterValues = new BytesRef[values.size()];
-            for (int i = 0; i < filterValues.length; i++) {
-                filterValues[i] = BytesRefs.toBytesRef(values.get(i));
-            }
-            return new TermInSetQuery(fieldName, filterValues);
+        MappedFieldType fieldType = context.getFieldType(fieldName);
+        if (fieldType == null) {
+            throw new IllegalStateException("Rewrite first");
         }
+        return fieldType.termsQuery(values, context);
     }
 
-    private void fetch(TermsLookup termsLookup, Client client, ActionListener<List<Object>> actionListener) {
+    private static void fetch(TermsLookup termsLookup, Client client, ActionListener<List<Object>> actionListener) {
         GetRequest getRequest = new GetRequest(termsLookup.index(), termsLookup.id());
         getRequest.preference("_local").routing(termsLookup.routing());
-        client.get(getRequest, ActionListener.delegateFailure(actionListener, (delegatedListener, getResponse) -> {
+        client.get(getRequest, actionListener.map(getResponse -> {
             List<Object> terms = new ArrayList<>();
             if (getResponse.isSourceEmpty() == false) { // extract terms only if the doc source exists
                 List<Object> extractedValues = XContentMapValues.extractRawValues(termsLookup.path(), getResponse.getSourceAsMap());
                 terms.addAll(extractedValues);
             }
-            delegatedListener.onResponse(terms);
+            return terms;
         }));
     }
 
@@ -463,40 +366,176 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
 
     @Override
     protected boolean doEquals(TermsQueryBuilder other) {
-        return Objects.equals(fieldName, other.fieldName) &&
-                Objects.equals(values, other.values) &&
-                Objects.equals(termsLookup, other.termsLookup) &&
-                Objects.equals(supplier, other.supplier);
+        return Objects.equals(fieldName, other.fieldName)
+            && Objects.equals(values, other.values)
+            && Objects.equals(termsLookup, other.termsLookup)
+            && Objects.equals(supplier, other.supplier);
     }
 
     @Override
-    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) {
+    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
         if (supplier != null) {
             return supplier.get() == null ? this : new TermsQueryBuilder(this.fieldName, supplier.get());
         } else if (this.termsLookup != null) {
             SetOnce<List<?>> supplier = new SetOnce<>();
-            queryRewriteContext.registerAsyncAction((client, listener) ->
-                fetch(termsLookup, client, ActionListener.map(listener, list -> {
+            queryRewriteContext.registerAsyncAction((client, listener) -> fetch(termsLookup, client, listener.map(list -> {
                 supplier.set(list);
                 return null;
             })));
             return new TermsQueryBuilder(this.fieldName, supplier::get);
         }
-        if ("_index".equals(this.fieldName) && values != null) {
-            // Special-case optimisation for canMatch phase:  
-            // We can skip querying this shard if the index name doesn't match any of the search terms.
-            QueryShardContext shardContext = queryRewriteContext.convertToShardContext();
-            if (shardContext != null) {
-                for (Object localValue : values) {
-                    if (shardContext.indexMatches(BytesRefs.toString(localValue))) {
-                        // We can match - at least one index name matches
-                        return this;
-                    }     
-                }
-                // all index names are invalid - no possibility of a match on this shard.
-                return new MatchNoneQueryBuilder();
+
+        if (values == null || values.isEmpty()) {
+            return new MatchNoneQueryBuilder("The \"" + getName() + "\" query was rewritten to a \"match_none\" query.");
+        }
+        return super.doRewrite(queryRewriteContext);
+    }
+
+    @Override
+    protected QueryBuilder doIndexMetadataRewrite(QueryRewriteContext context) throws IOException {
+        MappedFieldType fieldType = context.getFieldType(this.fieldName);
+        if (fieldType == null) {
+            return new MatchNoneQueryBuilder("The \"" + getName() + "\" query is against a field that does not exist");
+        } else if (fieldType instanceof ConstantFieldType constantFieldType) {
+            // This logic is correct for all field types, but by only applying it to constant
+            // fields we also have the guarantee that it doesn't perform I/O, which is important
+            // since rewrites might happen on a network thread.
+            Query query = constantFieldType.innerTermsQuery(values, context);
+            if (query instanceof MatchAllDocsQuery) {
+                return new MatchAllQueryBuilder();
+            } else if (query instanceof MatchNoDocsQuery) {
+                return new MatchNoneQueryBuilder("The \"" + getName() + "\" query was rewritten to a \"match_none\" query.");
+            } else {
+                assert false : "Constant fields must produce match-all or match-none queries, got " + query;
             }
         }
         return this;
+    }
+
+    /**
+     * Store terms as a {@link BytesReference}.
+     * <p>
+     * When users send a query contain a lot of terms, A {@link BytesReference} can help
+     * gc and reduce the cost of {@link #doWriteTo}, which can be slow for lots of terms.
+     */
+    @SuppressWarnings("rawtypes")
+    public static final class BinaryValues extends AbstractCollection implements Writeable {
+
+        @Nullable
+        private BytesReference valueRef;
+
+        private final boolean convert;
+
+        private final Collection<?> values;
+
+        private BinaryValues(StreamInput in) throws IOException {
+            this.valueRef = null;
+            this.convert = false;
+            int ignored = in.readVInt();
+            int ignored2 = in.readByte();
+            assert ignored2 == StreamOutput.GENERIC_LIST_HEADER;
+            values = in.readCollectionAsImmutableList(StreamInput::readGenericValue);
+        }
+
+        private BinaryValues(Collection<?> values, boolean convert) {
+            this.convert = convert;
+            this.values = values;
+        }
+
+        private static BytesReference serialize(Collection<?> values, boolean convert) {
+            try (BytesStreamOutput output = new BytesStreamOutput()) {
+                output.writeByte(StreamOutput.GENERIC_LIST_HEADER);
+                output.writeVInt(values.size());
+                if (convert) {
+                    for (Object value : values) {
+                        output.writeGenericValue(AbstractQueryBuilder.maybeConvertToBytesRef(value));
+                    }
+                } else {
+                    for (Object value : values) {
+                        output.writeGenericValue(value);
+                    }
+                }
+                return output.bytes();
+            } catch (IOException e) {
+                throw new UncheckedIOException("failed to serialize TermsQueryBuilder", e);
+            }
+        }
+
+        @Override
+        public boolean remove(Object o) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean containsAll(Collection c) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean addAll(Collection c) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean removeAll(Collection c) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean retainAll(Collection c) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void clear() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public int size() {
+            return values.size();
+        }
+
+        @Override
+        public Iterator<?> iterator() {
+            var iter = values.iterator();
+            return convert ? Iterators.map(iter, AbstractQueryBuilder::maybeConvertToBytesRef) : iter;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeBytesReference(asBytes());
+        }
+
+        private BytesReference asBytes() {
+            var ref = valueRef;
+            if (ref == null) {
+                ref = serialize(values, convert);
+                valueRef = ref;
+            }
+            return ref;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            return Iterators.equals(iterator(), ((BinaryValues) o).iterator(), Objects::equals);
+        }
+
+        @Override
+        public int hashCode() {
+            int hash = 1;
+            for (Object o : this) {
+                hash = 31 * hash + o.hashCode();
+            }
+            return hash;
+        }
+
+    }
+
+    @Override
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.ZERO;
     }
 }

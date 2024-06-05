@@ -1,0 +1,13 @@
+"Enterprise Search loaded":
+    - skip:
+          features: contains
+    - do:
+          cluster.state: {}
+
+    # Get master node id
+    - set: { master_node: master }
+
+    - do:
+          nodes.info: {}
+
+    - contains:  { nodes.$master.modules: { name: x-pack-ent-search } }

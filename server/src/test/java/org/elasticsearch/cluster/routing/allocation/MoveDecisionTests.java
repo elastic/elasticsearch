@@ -1,26 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.routing.allocation;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision.Type;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -30,7 +19,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 
 /**
@@ -40,11 +28,12 @@ public class MoveDecisionTests extends ESTestCase {
 
     public void testCachedDecisions() {
         // cached stay decision
-        MoveDecision stay1 = MoveDecision.stay(null);
-        MoveDecision stay2 = MoveDecision.stay(null);
+        MoveDecision stay1 = MoveDecision.stay(Decision.YES);
+        MoveDecision stay2 = MoveDecision.stay(Decision.YES);
         assertSame(stay1, stay2); // not in explain mode, so should use cached decision
-        stay1 = MoveDecision.stay(Decision.YES);
-        stay2 = MoveDecision.stay(Decision.YES);
+
+        stay1 = MoveDecision.stay(new Decision.Single(Type.YES, null, null, (Object[]) null));
+        stay2 = MoveDecision.stay(new Decision.Single(Type.YES, null, null, (Object[]) null));
         assertNotSame(stay1, stay2);
 
         // cached cannot move decision
@@ -52,7 +41,7 @@ public class MoveDecisionTests extends ESTestCase {
         stay2 = MoveDecision.cannotRemain(Decision.NO, AllocationDecision.NO, null, null);
         assertSame(stay1, stay2);
         // final decision is YES, so shouldn't use cached decision
-        DiscoveryNode node1 = new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        DiscoveryNode node1 = DiscoveryNodeUtils.builder("node1").roles(emptySet()).build();
         stay1 = MoveDecision.cannotRemain(Decision.NO, AllocationDecision.YES, node1, null);
         stay2 = MoveDecision.cannotRemain(Decision.NO, AllocationDecision.YES, node1, null);
         assertNotSame(stay1, stay2);
@@ -83,8 +72,8 @@ public class MoveDecisionTests extends ESTestCase {
     }
 
     public void testDecisionWithNodeExplanations() {
-        DiscoveryNode node1 = new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
-        DiscoveryNode node2 = new DiscoveryNode("node2", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        DiscoveryNode node1 = DiscoveryNodeUtils.builder("node1").roles(emptySet()).build();
+        DiscoveryNode node2 = DiscoveryNodeUtils.builder("node2").roles(emptySet()).build();
         Decision nodeDecision = randomFrom(Decision.NO, Decision.THROTTLE, Decision.YES);
         List<NodeAllocationResult> nodeDecisions = new ArrayList<>();
         nodeDecisions.add(new NodeAllocationResult(node1, nodeDecision, 2));
@@ -103,15 +92,24 @@ public class MoveDecisionTests extends ESTestCase {
 
     public void testSerialization() throws IOException {
         List<NodeAllocationResult> nodeDecisions = new ArrayList<>();
-        DiscoveryNode node1 = new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
-        DiscoveryNode node2 = new DiscoveryNode("node2", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        DiscoveryNode node1 = DiscoveryNodeUtils.builder("node1").roles(emptySet()).build();
+        DiscoveryNode node2 = DiscoveryNodeUtils.builder("node2").roles(emptySet()).build();
         Type finalDecision = randomFrom(Type.values());
         DiscoveryNode assignedNode = finalDecision == Type.YES ? node1 : null;
         nodeDecisions.add(new NodeAllocationResult(node1, Decision.NO, 2));
-        nodeDecisions.add(new NodeAllocationResult(node2, finalDecision == Type.YES ? Decision.YES :
-                                                              randomFrom(Decision.NO, Decision.THROTTLE, Decision.YES), 1));
-        MoveDecision moveDecision = MoveDecision.cannotRemain(Decision.NO, AllocationDecision.fromDecisionType(finalDecision),
-            assignedNode, nodeDecisions);
+        nodeDecisions.add(
+            new NodeAllocationResult(
+                node2,
+                finalDecision == Type.YES ? Decision.YES : randomFrom(Decision.NO, Decision.THROTTLE, Decision.YES),
+                1
+            )
+        );
+        MoveDecision moveDecision = MoveDecision.cannotRemain(
+            Decision.NO,
+            AllocationDecision.fromDecisionType(finalDecision),
+            assignedNode,
+            nodeDecisions
+        );
         BytesStreamOutput output = new BytesStreamOutput();
         moveDecision.writeTo(output);
         MoveDecision readDecision = new MoveDecision(output.bytes().streamInput());

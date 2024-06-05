@@ -1,0 +1,215 @@
+---
+"Script upsert":
+
+  - do:
+      update:
+          index:    test_1
+          id:       "1"
+          body:
+            script:
+              source: "ctx._source.foo = params.bar"
+              lang: "painless"
+              params: { bar: 'xxx' }
+            upsert: { foo: baz }
+
+  - do:
+      get:
+          index:  test_1
+          id:     "1"
+
+  - match:  { _source.foo: baz }
+
+
+  - do:
+      update:
+          index:    test_1
+          id:       "1"
+          body:
+            script:
+              source: "ctx._source.foo = params.bar"
+              lang: "painless"
+              params: { bar: 'xxx' }
+            upsert: { foo: baz }
+
+  - do:
+      get:
+          index:  test_1
+          id:     "1"
+
+  - match:  { _source.foo: xxx }
+
+  - do:
+      update:
+          index:    test_1
+          id:       "2"
+          body:
+            script:
+              source: "ctx._source.foo = params.bar"
+              lang: "painless"
+              params: { bar: 'xxx' }
+            upsert: { foo: baz }
+            scripted_upsert: true
+
+  - do:
+      get:
+          index:  test_1
+          id:     "2"
+
+  - match:  { _source.foo: xxx }
+
+  - do:
+      update:
+          index:    test_1
+          id:       "3"
+          body:
+            script:
+              source: "ctx._source.has_now = ctx._now > 0"
+              lang: "painless"
+            upsert: { has_now: false }
+            scripted_upsert: true
+
+  - do:
+      get:
+          index:  test_1
+          id:     "3"
+
+  - match:  { _source.has_now: true }
+
+  - do:
+      update:
+        index: test_1
+        id: "4"
+        body:
+          script:
+            # assume _now is an absolute clock if it's in the range [now - 1m, now]; this tolerance might need adjustment after CI cycles
+            source: "long now = System.currentTimeMillis();ctx._source.within_one_minute = ctx._now <= now && ctx._now >= now - 1000 * 60 * 1"
+            lang: "painless"
+          upsert: { within_one_minute: false }
+          scripted_upsert: true
+
+  - do:
+      get:
+        index: test_1
+        id: "4"
+
+  - match: { _source.within_one_minute: true }
+
+---
+"Script Upsert Metadata":
+  - requires:
+      cluster_features: ["gte_v8.4.0"]
+      reason: "update metadata introduced in 8.4.0"
+
+  - do:
+      catch: /routing is unavailable for insert/
+      update:
+        index:    test_1
+        id:       "1"
+        body:
+          script:
+            source: "ctx._source.foo = metadata().routing"
+            lang: "painless"
+          upsert: {}
+          scripted_upsert: true
+
+  - do:
+      update:
+        index:    test_1
+        id:       "2"
+        body:
+          script:
+            source: "ctx._source.foo = metadata().index + '_1'; ctx._source.bar = 'nothing'"
+            lang: "painless"
+          upsert: {}
+          scripted_upsert: true
+
+  - do:
+      get:
+        index: test_1
+        id: "2"
+
+  - match: { _source.foo: test_1_1 }
+  - match: { _source.bar: nothing }
+
+  - do:
+      update:
+        index:    test_1
+        id:       "3"
+        body:
+          script:
+            source: "metadata().op = 'noop'; ctx._source.bar = 'skipped?'"
+            lang: "painless"
+          upsert: {}
+          scripted_upsert: true
+
+  - do:
+      catch: missing
+      get:
+        index: test_1
+        id: "3"
+
+  - match: { found: false }
+
+  - do:
+      update:
+        index:    test_1
+        id:       "3"
+        body:
+          script:
+            source: "metadata().op = 'create'; ctx._source.bar = 'skipped?'"
+            lang: "painless"
+          upsert: {}
+          scripted_upsert: true
+
+  - do:
+      get:
+        index: test_1
+        id: "3"
+
+  - match: { found: true }
+  - match: { _source.bar: "skipped?" }
+
+  # update
+  - do:
+      update:
+        index:    test_1
+        id:       "2"
+        body:
+          script:
+            source: "ctx._source.bar = metadata().op + '-extra'"
+            lang: "painless"
+          upsert: {}
+          scripted_upsert: true
+
+  - do:
+      get:
+        index: test_1
+        id: "2"
+
+  - match: { _source.bar: index-extra }
+
+---
+"Script Write Field":
+  - requires:
+      cluster_features: ["gte_v8.5.0"]
+      reason: "Write fields api introduced in 8.5.0"
+
+  - do:
+      update:
+        index:    test_1
+        id:       "3"
+        body:
+          script:
+            source: field('foo').set('bar').transform(x -> x + '-baz'); field('nest').doc().field('bar').set(200)
+            lang: painless
+          upsert: {}
+          scripted_upsert: true
+
+  - do:
+      get:
+        index: test_1
+        id: "3"
+
+  - match: { _source.foo: bar-baz }
+  - match: { _source.nest.bar: 200 }
+  - match: { found: true }

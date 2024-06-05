@@ -1,32 +1,30 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.cluster.snapshots.get;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Map;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -35,20 +33,51 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  */
 public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> {
 
-    public static final String ALL_SNAPSHOTS = "_all";
     public static final String CURRENT_SNAPSHOT = "_current";
+    public static final String NO_POLICY_PATTERN = "_none";
     public static final boolean DEFAULT_VERBOSE_MODE = true;
-    public static final Version MULTIPLE_REPOSITORIES_SUPPORT_ADDED = Version.V_8_0_0;
+
+    private static final TransportVersion INDICES_FLAG_VERSION = TransportVersions.V_8_3_0;
+
+    public static final int NO_LIMIT = -1;
+
+    /**
+     * Number of snapshots to fetch information for or {@link #NO_LIMIT} for fetching all snapshots matching the request.
+     */
+    private int size = NO_LIMIT;
+
+    /**
+     * Numeric offset at which to start fetching snapshots. Mutually exclusive with {@link #after} if not equal to {@code 0}.
+     */
+    private int offset = 0;
+
+    /**
+     * Sort key value at which to start fetching snapshots. Mutually exclusive with {@link #offset} if not {@code null}.
+     */
+    @Nullable
+    private SnapshotSortKey.After after;
+
+    @Nullable
+    private String fromSortValue;
+
+    private SnapshotSortKey sort = SnapshotSortKey.START_TIME;
+
+    private SortOrder order = SortOrder.ASC;
 
     private String[] repositories;
 
     private String[] snapshots = Strings.EMPTY_ARRAY;
 
+    private String[] policies = Strings.EMPTY_ARRAY;
+
     private boolean ignoreUnavailable;
 
     private boolean verbose = DEFAULT_VERBOSE_MODE;
 
+    private boolean includeIndexNames = true;
+
     public GetSnapshotsRequest() {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
     }
 
     /**
@@ -58,6 +87,7 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
      * @param snapshots  list of snapshots
      */
     public GetSnapshotsRequest(String[] repositories, String[] snapshots) {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
         this.repositories = repositories;
         this.snapshots = snapshots;
     }
@@ -68,36 +98,45 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
      * @param repositories repository names
      */
     public GetSnapshotsRequest(String... repositories) {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
         this.repositories = repositories;
     }
 
     public GetSnapshotsRequest(StreamInput in) throws IOException {
         super(in);
-        if (in.getVersion().onOrAfter(MULTIPLE_REPOSITORIES_SUPPORT_ADDED)) {
-            repositories = in.readStringArray();
-        } else {
-            repositories = new String[]{in.readString()};
-        }
+        repositories = in.readStringArray();
         snapshots = in.readStringArray();
         ignoreUnavailable = in.readBoolean();
         verbose = in.readBoolean();
+        after = in.readOptionalWriteable(SnapshotSortKey.After::new);
+        sort = in.readEnum(SnapshotSortKey.class);
+        size = in.readVInt();
+        order = SortOrder.readFromStream(in);
+        offset = in.readVInt();
+        policies = in.readStringArray();
+        fromSortValue = in.readOptionalString();
+        if (in.getTransportVersion().onOrAfter(INDICES_FLAG_VERSION)) {
+            includeIndexNames = in.readBoolean();
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getVersion().onOrAfter(MULTIPLE_REPOSITORIES_SUPPORT_ADDED)) {
-            out.writeStringArray(repositories);
-        } else {
-            if (repositories.length != 1) {
-                throw new IllegalArgumentException("Requesting snapshots from multiple repositories is not supported in versions prior " +
-                        "to " + MULTIPLE_REPOSITORIES_SUPPORT_ADDED.toString());
-            }
-            out.writeString(repositories[0]);
-        }
+        out.writeStringArray(repositories);
         out.writeStringArray(snapshots);
         out.writeBoolean(ignoreUnavailable);
         out.writeBoolean(verbose);
+        out.writeOptionalWriteable(after);
+        out.writeEnum(sort);
+        out.writeVInt(size);
+        order.writeTo(out);
+        out.writeVInt(offset);
+        out.writeStringArray(policies);
+        out.writeOptionalString(fromSortValue);
+        if (out.getTransportVersion().onOrAfter(INDICES_FLAG_VERSION)) {
+            out.writeBoolean(includeIndexNames);
+        }
     }
 
     @Override
@@ -105,6 +144,38 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
         ActionRequestValidationException validationException = null;
         if (repositories == null || repositories.length == 0) {
             validationException = addValidationError("repositories are missing", validationException);
+        }
+        if (size == 0 || size < NO_LIMIT) {
+            validationException = addValidationError("size must be -1 or greater than 0", validationException);
+        }
+        if (verbose == false) {
+            if (sort != SnapshotSortKey.START_TIME) {
+                validationException = addValidationError("can't use non-default sort with verbose=false", validationException);
+            }
+            if (size > 0) {
+                validationException = addValidationError("can't use size limit with verbose=false", validationException);
+            }
+            if (offset > 0) {
+                validationException = addValidationError("can't use offset with verbose=false", validationException);
+            }
+            if (after != null) {
+                validationException = addValidationError("can't use after with verbose=false", validationException);
+            }
+            if (order != SortOrder.ASC) {
+                validationException = addValidationError("can't use non-default sort order with verbose=false", validationException);
+            }
+            if (policies.length != 0) {
+                validationException = addValidationError("can't use slm policy filter with verbose=false", validationException);
+            }
+            if (fromSortValue != null) {
+                validationException = addValidationError("can't use from_sort_value with verbose=false", validationException);
+            }
+        } else if (offset > 0) {
+            if (after != null) {
+                validationException = addValidationError("can't use after and offset simultaneously", validationException);
+            }
+        } else if (after != null && fromSortValue != null) {
+            validationException = addValidationError("can't use after and from_sort_value simultaneously", validationException);
         }
         return validationException;
     }
@@ -127,6 +198,33 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
      */
     public String[] repositories() {
         return this.repositories;
+    }
+
+    /**
+     * Sets slm policy patterns
+     *
+     * @param policies policy patterns
+     * @return this request
+     */
+    public GetSnapshotsRequest policies(String... policies) {
+        this.policies = policies;
+        return this;
+    }
+
+    /**
+     * Returns policy patterns
+     *
+     * @return policy patterns
+     */
+    public String[] policies() {
+        return policies;
+    }
+
+    public boolean isSingleRepositoryRequest() {
+        return repositories.length == 1
+            && repositories[0] != null
+            && "_all".equals(repositories[0]) == false
+            && Regex.isSimpleMatchPattern(repositories[0]) == false;
     }
 
     /**
@@ -179,10 +277,90 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
         return this;
     }
 
+    public GetSnapshotsRequest includeIndexNames(boolean indices) {
+        this.includeIndexNames = indices;
+        return this;
+    }
+
+    public boolean includeIndexNames() {
+        return includeIndexNames;
+    }
+
+    @Nullable
+    public SnapshotSortKey.After after() {
+        return after;
+    }
+
+    public SnapshotSortKey sort() {
+        return sort;
+    }
+
+    public GetSnapshotsRequest after(@Nullable SnapshotSortKey.After after) {
+        this.after = after;
+        return this;
+    }
+
+    public GetSnapshotsRequest fromSortValue(@Nullable String fromSortValue) {
+        this.fromSortValue = fromSortValue;
+        return this;
+    }
+
+    @Nullable
+    public String fromSortValue() {
+        return fromSortValue;
+    }
+
+    public GetSnapshotsRequest sort(SnapshotSortKey sort) {
+        this.sort = sort;
+        return this;
+    }
+
+    public GetSnapshotsRequest size(int size) {
+        this.size = size;
+        return this;
+    }
+
+    public int size() {
+        return size;
+    }
+
+    public int offset() {
+        return offset;
+    }
+
+    public GetSnapshotsRequest offset(int offset) {
+        this.offset = offset;
+        return this;
+    }
+
+    public SortOrder order() {
+        return order;
+    }
+
+    public GetSnapshotsRequest order(SortOrder order) {
+        this.order = order;
+        return this;
+    }
+
     /**
      * Returns whether the request will return a verbose response.
      */
     public boolean verbose() {
         return verbose;
+    }
+
+    @Override
+    public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+        return new CancellableTask(id, type, action, getDescription(), parentTaskId, headers);
+    }
+
+    @Override
+    public String getDescription() {
+        final StringBuilder stringBuilder = new StringBuilder("repositories[");
+        Strings.collectionToDelimitedStringWithLimit(Arrays.asList(repositories), ",", "", "", 512, stringBuilder);
+        stringBuilder.append("], snapshots[");
+        Strings.collectionToDelimitedStringWithLimit(Arrays.asList(snapshots), ",", "", "", 1024, stringBuilder);
+        stringBuilder.append("]");
+        return stringBuilder.toString();
     }
 }

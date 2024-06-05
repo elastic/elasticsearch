@@ -1,58 +1,57 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.rest.action.cat;
 
+import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.TaskGroup;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.rest.RestController;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestResponseListener;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskInfo;
 
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Comparator;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.common.util.set.Sets.addToCopy;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.action.admin.cluster.RestListTasksAction.generateListTasksRequest;
 
+@ServerlessScope(Scope.INTERNAL)
 public class RestTasksAction extends AbstractCatAction {
+
+    private static final Set<String> RESPONSE_PARAMS = addToCopy(AbstractCatAction.RESPONSE_PARAMS, "detailed");
+
     private final Supplier<DiscoveryNodes> nodesInCluster;
 
-    public RestTasksAction(RestController controller, Supplier<DiscoveryNodes> nodesInCluster) {
-        controller.registerHandler(GET, "/_cat/tasks", this);
+    public RestTasksAction(Supplier<DiscoveryNodes> nodesInCluster) {
         this.nodesInCluster = nodesInCluster;
+    }
+
+    @Override
+    public List<Route> routes() {
+        return List.of(new Route(GET, "/_cat/tasks"));
     }
 
     @Override
@@ -67,22 +66,13 @@ public class RestTasksAction extends AbstractCatAction {
 
     @Override
     public RestChannelConsumer doCatRequest(final RestRequest request, final NodeClient client) {
-        return channel ->
-                client.admin().cluster().listTasks(generateListTasksRequest(request), new RestResponseListener<ListTasksResponse>(channel) {
+        final ListTasksRequest listTasksRequest = generateListTasksRequest(request);
+        return channel -> client.admin().cluster().listTasks(listTasksRequest, new RestResponseListener<>(channel) {
             @Override
             public RestResponse buildResponse(ListTasksResponse listTasksResponse) throws Exception {
                 return RestTable.buildResponse(buildTable(request, listTasksResponse), channel);
             }
         });
-    }
-
-    private static final Set<String> RESPONSE_PARAMS;
-
-    static {
-        final Set<String> responseParams = new HashSet<>();
-        responseParams.add("detailed");
-        responseParams.addAll(AbstractCatAction.RESPONSE_PARAMS);
-        RESPONSE_PARAMS = Collections.unmodifiableSet(responseParams);
     }
 
     @Override
@@ -113,6 +103,7 @@ public class RestTasksAction extends AbstractCatAction {
         table.addCell("port", "default:false;alias:po;desc:bound transport port");
         table.addCell("node", "default:true;alias:n;desc:node name");
         table.addCell("version", "default:false;alias:v;desc:es version");
+        table.addCell("x_opaque_id", "default:false;alias:x;desc:X-Opaque-ID header");
 
         // Task detailed info
         if (detailed) {
@@ -124,24 +115,24 @@ public class RestTasksAction extends AbstractCatAction {
 
     private static final DateFormatter FORMATTER = DateFormatter.forPattern("HH:mm:ss").withZone(ZoneOffset.UTC);
 
-    private void buildRow(Table table, boolean fullId, boolean detailed, DiscoveryNodes discoveryNodes, TaskInfo taskInfo) {
+    private static void buildRow(Table table, boolean fullId, boolean detailed, DiscoveryNodes discoveryNodes, TaskInfo taskInfo) {
         table.startRow();
-        String nodeId = taskInfo.getTaskId().getNodeId();
+        String nodeId = taskInfo.taskId().getNodeId();
         DiscoveryNode node = discoveryNodes.get(nodeId);
 
-        table.addCell(taskInfo.getId());
-        table.addCell(taskInfo.getAction());
-        table.addCell(taskInfo.getTaskId().toString());
-        if (taskInfo.getParentTaskId().isSet()) {
-            table.addCell(taskInfo.getParentTaskId().toString());
+        table.addCell(taskInfo.id());
+        table.addCell(taskInfo.action());
+        table.addCell(taskInfo.taskId().toString());
+        if (taskInfo.parentTaskId().isSet()) {
+            table.addCell(taskInfo.parentTaskId().toString());
         } else {
             table.addCell("-");
         }
-        table.addCell(taskInfo.getType());
-        table.addCell(taskInfo.getStartTime());
-        table.addCell(FORMATTER.format(Instant.ofEpochMilli(taskInfo.getStartTime())));
-        table.addCell(taskInfo.getRunningTimeNanos());
-        table.addCell(TimeValue.timeValueNanos(taskInfo.getRunningTimeNanos()).toString());
+        table.addCell(taskInfo.type());
+        table.addCell(taskInfo.startTime());
+        table.addCell(FORMATTER.format(Instant.ofEpochMilli(taskInfo.startTime())));
+        table.addCell(taskInfo.runningTimeNanos());
+        table.addCell(TimeValue.timeValueNanos(taskInfo.runningTimeNanos()));
 
         // Node information. Note that the node may be null because it has left the cluster between when we got this response and now.
         table.addCell(fullId ? nodeId : Strings.substring(nodeId, 0, 4));
@@ -149,9 +140,10 @@ public class RestTasksAction extends AbstractCatAction {
         table.addCell(node.getAddress().address().getPort());
         table.addCell(node == null ? "-" : node.getName());
         table.addCell(node == null ? "-" : node.getVersion().toString());
+        table.addCell(taskInfo.headers().getOrDefault(Task.X_OPAQUE_ID_HTTP_HEADER, "-"));
 
         if (detailed) {
-            table.addCell(taskInfo.getDescription());
+            table.addCell(taskInfo.description());
         }
         table.endRow();
     }
@@ -159,10 +151,10 @@ public class RestTasksAction extends AbstractCatAction {
     private void buildGroups(Table table, boolean fullId, boolean detailed, List<TaskGroup> taskGroups) {
         DiscoveryNodes discoveryNodes = nodesInCluster.get();
         List<TaskGroup> sortedGroups = new ArrayList<>(taskGroups);
-        sortedGroups.sort(Comparator.comparingLong(o -> o.getTaskInfo().getStartTime()));
+        sortedGroups.sort(Comparator.comparingLong(o -> o.taskInfo().startTime()));
         for (TaskGroup taskGroup : sortedGroups) {
-            buildRow(table, fullId, detailed, discoveryNodes, taskGroup.getTaskInfo());
-            buildGroups(table, fullId, detailed, taskGroup.getChildTasks());
+            buildRow(table, fullId, detailed, discoveryNodes, taskGroup.taskInfo());
+            buildGroups(table, fullId, detailed, taskGroup.childTasks());
         }
     }
 

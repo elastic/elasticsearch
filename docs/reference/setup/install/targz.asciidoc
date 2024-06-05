@@ -1,16 +1,18 @@
 [[targz]]
-=== Install Elasticsearch from archive on Linux or MacOS
+=== Install {es} from archive on Linux or MacOS
 
-Elasticsearch is as a `.tar.gz` archive for Linux and MacOS. 
+:include-xpack: true
+
+{es} is available as a `.tar.gz` archive for Linux and MacOS.
 
 include::license.asciidoc[]
 
-The latest stable version of Elasticsearch can be found on the
-link:/downloads/elasticsearch[Download Elasticsearch] page.
+The latest stable version of {es} can be found on the
+link:/downloads/elasticsearch[Download {es}] page.
 Other versions can be found on the
 link:/downloads/past-releases[Past Releases page].
 
-NOTE: Elasticsearch includes a bundled version of http://openjdk.java.net[OpenJDK]
+NOTE: {es} includes a bundled version of https://openjdk.java.net[OpenJDK]
 from the JDK maintainers (GPLv2+CE). To use your own version of Java,
 see the <<jvm-version, JVM version requirements>>
 
@@ -19,13 +21,11 @@ see the <<jvm-version, JVM version requirements>>
 
 ifeval::["{release-state}"=="unreleased"]
 
-Version {version} of Elasticsearch has not yet been released.
+WARNING: Version {version} of {es} has not yet been released.
 
 endif::[]
 
-ifeval::["{release-state}"!="unreleased"]
-
-The Linux archive for Elasticsearch v{version} can be downloaded and installed as follows:
+The Linux archive for {es} v{version} can be downloaded and installed as follows:
 
 ["source","sh",subs="attributes"]
 --------------------------------------------
@@ -39,42 +39,44 @@ cd elasticsearch-{version}/ <2>
     `elasticsearch-{version}-linux-x86_64.tar.gz: OK`.
 <2> This directory is known as `$ES_HOME`.
 
-Alternatively, you can download the following package, which includes only 
-Apache 2.0 licensed code: 
-https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-oss-{version}-linux-x86_64.tar.gz
-
-endif::[]
-
 [[install-macos]]
 ==== Download and install archive for MacOS
 
 ifeval::["{release-state}"=="unreleased"]
 
-Version {version} of Elasticsearch has not yet been released.
+WARNING: Version {version} of {es} has not yet been released.
 
 endif::[]
 
-ifeval::["{release-state}"!="unreleased"]
+[IMPORTANT]
+.macOS Gatekeeper warnings
+====
+Apple's rollout of stricter notarization requirements affected the notarization of the {version} {es} artifacts. If macOS displays a dialog when you first run {es} that interrupts it, then you need to take an action to allow it to run.
 
-The MacOS archive for Elasticsearch v{version} can be downloaded and installed as follows:
+To prevent Gatekeeper checks on the {es} files, run the following command on the downloaded .tar.gz archive or the directory to which was extracted:
+
+[source,sh]
+----
+xattr -d -r com.apple.quarantine <archive-or-directory>
+----
+
+Alternatively, you can add a security override by following the instructions in the _If you want to open an app that hasn't been notarized or is from an unidentified developer_ section of https://support.apple.com/en-us/HT202491[Safely open apps on your Mac].
+====
+
+The MacOS archive for {es} v{version} can be downloaded and installed as follows:
 
 ["source","sh",subs="attributes"]
 --------------------------------------------
-wget https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}-darwin-x86_64.tar.gz
-wget https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}-darwin-x86_64.tar.gz.sha512
-shasum -a 512 -c elasticsearch-{version}-darwin-x86_64.tar.gz.sha512 <1>
+curl -O https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}-darwin-x86_64.tar.gz
+curl https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}-darwin-x86_64.tar.gz.sha512 | shasum -a 512 -c - <1>
 tar -xzf elasticsearch-{version}-darwin-x86_64.tar.gz
 cd elasticsearch-{version}/ <2>
 --------------------------------------------
+// NOTCONSOLE
+
 <1> Compares the SHA of the downloaded `.tar.gz` archive and the published checksum, which should output
     `elasticsearch-{version}-darwin-x86_64.tar.gz: OK`.
 <2> This directory is known as `$ES_HOME`.
-
-Alternatively, you can download the following package, which includes only 
-Apache 2.0 licensed code: 
-https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-oss-{version}-darwin-x86_64.tar.gz
-
-endif::[]
 
 ifdef::include-xpack[]
 [role="xpack"]
@@ -88,6 +90,9 @@ endif::include-xpack[]
 [[targz-running]]
 include::targz-start.asciidoc[]
 
+:es-conf:      $ES_HOME/config
+:slash:        /
+
 include::check-running.asciidoc[]
 
 Log printing to `stdout` can be disabled using the `-q` or `--quiet`
@@ -97,10 +102,10 @@ option on the command line.
 include::targz-daemon.asciidoc[]
 
 [[targz-configuring]]
-==== Configuring Elasticsearch on the command line
+==== Configure {es} on the command line
 
-Elasticsearch loads its configuration from the `$ES_HOME/config/elasticsearch.yml`
-file by default.  The format of this config file is explained in
+{es} loads its configuration from the `$ES_HOME/config/elasticsearch.yml`
+file by default. The format of this config file is explained in
 <<settings>>.
 
 Any settings that can be specified in the config file can also be specified on
@@ -115,6 +120,8 @@ TIP: Typically, any cluster-wide settings (like `cluster.name`) should be
 added to the `elasticsearch.yml` config file, while any node-specific settings
 such as `node.name` could be specified on the command line.
 
+include::connect-clients.asciidoc[]
+
 [[targz-layout]]
 ==== Directory layout of archives
 
@@ -123,8 +130,8 @@ directories are, by default, contained within `$ES_HOME` -- the directory
 created when unpacking the archive.
 
 This is very convenient because you don't have to create any directories to
-start using Elasticsearch, and uninstalling Elasticsearch is as easy as
-removing the `$ES_HOME` directory.  However, it is advisable to change the
+start using {es}, and uninstalling {es} is as easy as
+removing the `$ES_HOME` directory. However, it is advisable to change the
 default locations of the config directory, the data directory, and the logs
 directory so that you do not delete important data later on.
 
@@ -133,7 +140,7 @@ directory so that you do not delete important data later on.
 |=======================================================================
 | Type | Description | Default Location | Setting
 | home
-  | Elasticsearch home directory or `$ES_HOME`
+  | {es} home directory or `$ES_HOME`
  d| Directory created by unpacking the archive
   |
 
@@ -148,9 +155,14 @@ directory so that you do not delete important data later on.
   | $ES_HOME/config
   | <<config-files-location,ES_PATH_CONF>>
 
+| conf
+  | Generated TLS keys and certificates for the transport and HTTP layer.
+  | $ES_HOME/config/certs
+ d|
+
 | data
   | The location of the data files of each index / shard allocated
-    on the node. Can hold multiple locations.
+    on the node.
   | $ES_HOME/data
   | path.data
 
@@ -171,5 +183,5 @@ directory so that you do not delete important data later on.
 
 |=======================================================================
 
-
+include::security-files-reference.asciidoc[]
 include::next-steps.asciidoc[]

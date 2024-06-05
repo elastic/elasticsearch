@@ -1,22 +1,22 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.rest.action.privilege;
 
-import org.apache.logging.log4j.LogManager;
-import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.security.action.privilege.DeletePrivilegesRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.privilege.DeletePrivilegesResponse;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
@@ -25,23 +25,27 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
 /**
  * Rest action to delete one or more privileges from the security index
  */
+@ServerlessScope(Scope.INTERNAL)
 public class RestDeletePrivilegesAction extends SecurityBaseRestHandler {
 
-    private static final DeprecationLogger deprecationLogger =
-        new DeprecationLogger(LogManager.getLogger(RestDeletePrivilegesAction.class));
-
-    public RestDeletePrivilegesAction(Settings settings, RestController controller, XPackLicenseState licenseState) {
+    public RestDeletePrivilegesAction(Settings settings, XPackLicenseState licenseState) {
         super(settings, licenseState);
-        // TODO: remove deprecated endpoint in 8.0.0
-        controller.registerWithDeprecatedHandler(
-            DELETE, "/_security/privilege/{application}/{privilege}", this,
-            DELETE, "/_xpack/security/privilege/{application}/{privilege}", deprecationLogger);
+    }
+
+    @Override
+    public List<Route> routes() {
+        return List.of(
+            Route.builder(DELETE, "/_security/privilege/{application}/{privilege}")
+                .replaces(DELETE, "/_xpack/security/privilege/{application}/{privilege}", RestApiVersion.V_7)
+                .build()
+        );
     }
 
     @Override
@@ -54,8 +58,7 @@ public class RestDeletePrivilegesAction extends SecurityBaseRestHandler {
         final String application = request.param("application");
         final String[] privileges = request.paramAsStringArray("privilege", null);
         final String refresh = request.param("refresh");
-        return channel -> new DeletePrivilegesRequestBuilder(client)
-            .application(application)
+        return channel -> new DeletePrivilegesRequestBuilder(client).application(application)
             .privileges(privileges)
             .setRefreshPolicy(refresh)
             .execute(new RestBuilderListener<>(channel) {
@@ -68,7 +71,7 @@ public class RestDeletePrivilegesAction extends SecurityBaseRestHandler {
                     }
                     builder.endObject();
                     builder.endObject();
-                    return new BytesRestResponse(response.found().isEmpty() ? RestStatus.NOT_FOUND : RestStatus.OK, builder);
+                    return new RestResponse(response.found().isEmpty() ? RestStatus.NOT_FOUND : RestStatus.OK, builder);
                 }
             });
     }

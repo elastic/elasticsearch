@@ -1,27 +1,28 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.rest.action.role;
 
-import org.apache.logging.log4j.LogManager;
-import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleRequestBuilder;
+import org.elasticsearch.xpack.core.security.action.role.PutRoleRequestBuilderFactory;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleResponse;
-import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
+import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
@@ -29,19 +30,22 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 /**
  * Rest endpoint to add a Role to the security index
  */
-public class RestPutRoleAction extends SecurityBaseRestHandler {
+@ServerlessScope(Scope.PUBLIC)
+public class RestPutRoleAction extends NativeRoleBaseRestHandler {
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestPutRoleAction.class));
+    private final PutRoleRequestBuilderFactory builderFactory;
 
-    public RestPutRoleAction(Settings settings, RestController controller, XPackLicenseState licenseState) {
+    public RestPutRoleAction(Settings settings, XPackLicenseState licenseState, PutRoleRequestBuilderFactory builderFactory) {
         super(settings, licenseState);
-        // TODO: remove deprecated endpoint in 8.0.0
-        controller.registerWithDeprecatedHandler(
-            POST, "/_security/role/{name}", this,
-            POST, "/_xpack/security/role/{name}", deprecationLogger);
-        controller.registerWithDeprecatedHandler(
-            PUT, "/_security/role/{name}", this,
-            PUT, "/_xpack/security/role/{name}", deprecationLogger);
+        this.builderFactory = builderFactory;
+    }
+
+    @Override
+    public List<Route> routes() {
+        return List.of(
+            Route.builder(POST, "/_security/role/{name}").replaces(POST, "/_xpack/security/role/{name}", RestApiVersion.V_7).build(),
+            Route.builder(PUT, "/_security/role/{name}").replaces(PUT, "/_xpack/security/role/{name}", RestApiVersion.V_7).build()
+        );
     }
 
     @Override
@@ -51,13 +55,14 @@ public class RestPutRoleAction extends SecurityBaseRestHandler {
 
     @Override
     public RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
-        PutRoleRequestBuilder requestBuilder = new PutRoleRequestBuilder(client)
+        final boolean restrictRequest = request.hasParam(RestRequest.PATH_RESTRICTED);
+        final PutRoleRequestBuilder requestBuilder = builderFactory.create(client, restrictRequest)
             .source(request.param("name"), request.requiredContent(), request.getXContentType())
             .setRefreshPolicy(request.param("refresh"));
         return channel -> requestBuilder.execute(new RestBuilderListener<>(channel) {
             @Override
             public RestResponse buildResponse(PutRoleResponse putRoleResponse, XContentBuilder builder) throws Exception {
-                return new BytesRestResponse(RestStatus.OK, builder.startObject().field("role", putRoleResponse).endObject());
+                return new RestResponse(RestStatus.OK, builder.startObject().field("role", putRoleResponse).endObject());
             }
         });
     }

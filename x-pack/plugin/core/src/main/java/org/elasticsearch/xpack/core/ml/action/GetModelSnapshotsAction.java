@@ -1,23 +1,25 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.action.AbstractGetResourcesResponse;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
@@ -26,7 +28,10 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapsho
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Objects;
+
+import static org.elasticsearch.core.Strings.format;
 
 public class GetModelSnapshotsAction extends ActionType<GetModelSnapshotsAction.Response> {
 
@@ -34,7 +39,7 @@ public class GetModelSnapshotsAction extends ActionType<GetModelSnapshotsAction.
     public static final String NAME = "cluster:monitor/xpack/ml/job/model_snapshots/get";
 
     private GetModelSnapshotsAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
     public static class Request extends ActionRequest implements ToXContentObject {
@@ -76,8 +81,7 @@ public class GetModelSnapshotsAction extends ActionType<GetModelSnapshotsAction.
         private boolean desc = true;
         private PageParams pageParams = new PageParams();
 
-        public Request() {
-        }
+        public Request() {}
 
         public Request(StreamInput in) throws IOException {
             super(in);
@@ -117,8 +121,8 @@ public class GetModelSnapshotsAction extends ActionType<GetModelSnapshotsAction.
             return desc;
         }
 
-        public void setDescOrder(boolean desc) {
-            this.desc = desc;
+        public void setDescOrder(boolean descOrder) {
+            this.desc = descOrder;
         }
 
         public PageParams getPageParams() {
@@ -201,11 +205,16 @@ public class GetModelSnapshotsAction extends ActionType<GetModelSnapshotsAction.
             }
             Request other = (Request) obj;
             return Objects.equals(jobId, other.jobId)
-                    && Objects.equals(snapshotId, other.snapshotId)
-                    && Objects.equals(start, other.start)
-                    && Objects.equals(end, other.end)
-                    && Objects.equals(sort, other.sort)
-                    && Objects.equals(desc, other.desc);
+                && Objects.equals(snapshotId, other.snapshotId)
+                && Objects.equals(start, other.start)
+                && Objects.equals(end, other.end)
+                && Objects.equals(sort, other.sort)
+                && Objects.equals(desc, other.desc);
+        }
+
+        @Override
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            return new CancellableTask(id, type, action, format("get_job_model_snapshot[%s:%s]", jobId, snapshotId), parentTaskId, headers);
         }
     }
 
@@ -228,12 +237,4 @@ public class GetModelSnapshotsAction extends ActionType<GetModelSnapshotsAction.
             return ModelSnapshot::new;
         }
     }
-
-    public static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
-
-        public RequestBuilder(ElasticsearchClient client, GetModelSnapshotsAction action) {
-            super(client, action, new Request());
-        }
-    }
-
 }

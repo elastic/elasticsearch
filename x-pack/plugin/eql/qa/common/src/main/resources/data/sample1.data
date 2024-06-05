@@ -1,0 +1,115 @@
+[
+  {
+    "@timestamp_pretty": "12-12-2022",
+    "missing_keyword": "test",
+    "type_test": "abc",
+    "ip": "10.0.0.1",
+    "event_type": "alert",
+    "host": "doom",
+    "uptime": 0,
+    "port": 1234,
+    "os": "win10",
+    "version": "1.0.0",
+    "id": 11
+  },
+  {
+    "@timestamp_pretty": "13-12-2022",
+    "event_type": "alert",
+    "type_test": "abc",
+    "host": "CS",
+    "uptime": 5,
+    "port": 1,
+    "os": "win10",
+    "version": "1.2.0",
+    "id": 12
+  },
+  {
+    "@timestamp_pretty": "12-12-2022",
+    "event_type": "alert",
+    "type_test": "abc",
+    "host": "farcry",
+    "uptime": 1,
+    "port": 1234,
+    "bool": false,
+    "os": "win10",
+    "version": "2.0.0",
+    "id": 13
+  },
+  {
+    "@timestamp_pretty": "13-12-2022",
+    "event_type": "alert",
+    "type_test": "abc",
+    "host": "GTA",
+    "uptime": 3,
+    "port": 12,
+    "os": "slack",
+    "version": "10.0.0",
+    "id": 14
+  },
+  {
+    "@timestamp_pretty": "17-12-2022",
+    "event_type": "alert",
+    "host": "sniper 3d",
+    "uptime": 6,
+    "port": 1234,
+    "os": "fedora",
+    "version": "20.1.0",
+    "id": 15
+  },
+  {
+    "@timestamp_pretty": "17-12-2022",
+    "event_type": "alert",
+    "host": "doom",
+    "port": 65123,
+    "bool": true,
+    "os": "redhat",
+    "version": "20.10.0",
+    "id": 16
+  },
+  {
+    "@timestamp_pretty": "17-12-2022",
+    "missing_keyword": "yyy",
+    "event_type": "failure",
+    "host": "doom",
+    "uptime": 15,
+    "port": 1234,
+    "bool": true,
+    "os": "redhat",
+    "version": "20.2.0",
+    "id": 17
+  },
+  {
+    "@timestamp_pretty": "12-12-2022",
+    "missing_keyword": "test",
+    "event_type": "success",
+    "host": "doom",
+    "uptime": 16,
+    "port": 512,
+    "os": "win10",
+    "version": "1.2.3",
+    "id": 18
+  },
+  {
+    "@timestamp_pretty": "15-12-2022",
+    "missing_keyword": "test",
+    "event_type": "success",
+    "host": "GTA",
+    "port": 12,
+    "bool": true,
+    "os": "win10",
+    "version": "1.2.3",
+    "id": 19
+  },
+  {
+    "missing_keyword": null,
+    "ip": "10.0.0.5",
+    "event_type": "alert",
+    "host": "farcry",
+    "uptime": 1,
+    "port": 1234,
+    "bool": true,
+    "os": "win10",
+    "version": "1.2.3",
+    "id": 110
+  }
+]

@@ -1,0 +1,34 @@
+{
+  "ml.post_calendar_events":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-post-calendar-event.html",
+      "description":"Posts scheduled events in a calendar."
+    },
+    "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_ml/calendars/{calendar_id}/events",
+          "methods":[
+            "POST"
+          ],
+          "parts":{
+            "calendar_id":{
+              "type":"string",
+              "description":"The ID of the calendar to modify"
+            }
+          }
+        }
+      ]
+    },
+    "body":{
+      "description":"A list of events",
+      "required":true
+    }
+  }
+}

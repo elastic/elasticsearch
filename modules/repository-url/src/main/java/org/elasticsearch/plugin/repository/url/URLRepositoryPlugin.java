@@ -1,39 +1,36 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.plugin.repository.url;
 
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.blobstore.url.http.URLHttpClient;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
+import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.url.URLRepository;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 
 public class URLRepositoryPlugin extends Plugin implements RepositoryPlugin {
+    private final AtomicReference<URLHttpClient.Factory> httpClientFactory = new AtomicReference<>();
 
     @Override
     public List<Setting<?>> getSettings() {
@@ -45,9 +42,31 @@ public class URLRepositoryPlugin extends Plugin implements RepositoryPlugin {
     }
 
     @Override
-    public Map<String, Repository.Factory> getRepositories(Environment env, NamedXContentRegistry namedXContentRegistry,
-                                                           ClusterService clusterService) {
-        return Collections.singletonMap(URLRepository.TYPE,
-            metadata -> new URLRepository(metadata, env, namedXContentRegistry, clusterService));
+    public Map<String, Repository.Factory> getRepositories(
+        Environment env,
+        NamedXContentRegistry namedXContentRegistry,
+        ClusterService clusterService,
+        BigArrays bigArrays,
+        RecoverySettings recoverySettings,
+        RepositoriesMetrics repositoriesMetrics
+    ) {
+        return Collections.singletonMap(
+            URLRepository.TYPE,
+            metadata -> new URLRepository(
+                metadata,
+                env,
+                namedXContentRegistry,
+                clusterService,
+                bigArrays,
+                recoverySettings,
+                httpClientFactory.updateAndGet(factory -> factory == null ? new URLHttpClient.Factory() : factory)
+            )
+        );
+    }
+
+    @Override
+    public void close() throws IOException {
+        super.close();
+        IOUtils.closeWhileHandlingException(httpClientFactory.get());
     }
 }

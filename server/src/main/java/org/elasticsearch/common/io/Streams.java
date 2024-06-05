@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.io;
@@ -51,45 +40,20 @@ public abstract class Streams {
 
     public static final int BUFFER_SIZE = 1024 * 8;
 
-
-    //---------------------------------------------------------------------
-    // Copy methods for java.io.InputStream / java.io.OutputStream
-    //---------------------------------------------------------------------
-
-
-    public static long copy(InputStream in, OutputStream out) throws IOException {
-        return copy(in, out, new byte[BUFFER_SIZE]);
-    }
-
     /**
-     * Copy the contents of the given InputStream to the given OutputStream.
-     * Closes both streams when done.
-     *
-     * @param in  the stream to copy from
-     * @param out the stream to copy to
-     * @return the number of bytes copied
-     * @throws IOException in case of I/O errors
+     * OutputStream that just throws all the bytes away
      */
-    public static long copy(InputStream in, OutputStream out, byte[] buffer) throws IOException {
-        Objects.requireNonNull(in, "No InputStream specified");
-        Objects.requireNonNull(out, "No OutputStream specified");
-        // Leverage try-with-resources to close in and out so that exceptions in close() are either propagated or added as suppressed
-        // exceptions to the main exception
-        try (InputStream in2 = in; OutputStream out2 = out) {
-            return doCopy(in2, out2, buffer);
+    public static final OutputStream NULL_OUTPUT_STREAM = new OutputStream() {
+        @Override
+        public void write(int b) {
+            // no-op
         }
-    }
 
-    private static long doCopy(InputStream in, OutputStream out, byte[] buffer) throws IOException {
-        long byteCount = 0;
-        int bytesRead;
-        while ((bytesRead = in.read(buffer)) != -1) {
-            out.write(buffer, 0, bytesRead);
-            byteCount += bytesRead;
+        @Override
+        public void write(byte[] b, int off, int len) {
+            // no-op
         }
-        out.flush();
-        return byteCount;
-    }
+    };
 
     /**
      * Copy the contents of the given byte array to the given OutputStream.
@@ -107,10 +71,9 @@ public abstract class Streams {
         }
     }
 
-
-    //---------------------------------------------------------------------
+    // ---------------------------------------------------------------------
     // Copy methods for java.io.Reader / java.io.Writer
-    //---------------------------------------------------------------------
+    // ---------------------------------------------------------------------
 
     /**
      * Copy the contents of the given Reader to the given Writer.
@@ -173,36 +136,11 @@ public abstract class Streams {
         return out.toString();
     }
 
-    public static int readFully(Reader reader, char[] dest) throws IOException {
-        return readFully(reader, dest, 0, dest.length);
-    }
-
-    public static int readFully(Reader reader, char[] dest, int offset, int len) throws IOException {
-        int read = 0;
-        while (read < len) {
-            final int r = reader.read(dest, offset + read, len - read);
-            if (r == -1) {
-                break;
-            }
-            read += r;
-        }
-        return read;
-    }
-
-    public static int readFully(InputStream reader, byte[] dest) throws IOException {
-        return readFully(reader, dest, 0, dest.length);
-    }
-
-    public static int readFully(InputStream reader, byte[] dest, int offset, int len) throws IOException {
-        int read = 0;
-        while (read < len) {
-            final int r = reader.read(dest, offset + read, len - read);
-            if (r == -1) {
-                break;
-            }
-            read += r;
-        }
-        return read;
+    /**
+     * Fully consumes the input stream, throwing the bytes away. Returns the number of bytes consumed.
+     */
+    public static long consumeFully(InputStream inputStream) throws IOException {
+        return org.elasticsearch.core.Streams.copy(inputStream, NULL_OUTPUT_STREAM);
     }
 
     public static List<String> readAllLines(InputStream input) throws IOException {
@@ -247,11 +185,16 @@ public abstract class Streams {
      * Reads all bytes from the given {@link InputStream} and closes it afterwards.
      */
     public static BytesReference readFully(InputStream in) throws IOException {
-        try (InputStream inputStream = in) {
-            BytesStreamOutput out = new BytesStreamOutput();
-            copy(inputStream, out);
-            return out.bytes();
-        }
+        BytesStreamOutput out = new BytesStreamOutput();
+        org.elasticsearch.core.Streams.copy(in, out);
+        return out.bytes();
+    }
+
+    /**
+     * Limits the given input stream to the provided number of bytes
+     */
+    public static InputStream limitStream(InputStream in, long limit) {
+        return new LimitedInputStream(in, limit);
     }
 
     /**
@@ -288,13 +231,76 @@ public abstract class Streams {
         }
 
         @Override
-        public void reset() throws IOException {
-            delegate.reset();
+        public BytesReference bytes() {
+            return delegate.bytes();
+        }
+    }
+
+    /**
+     * A wrapper around an {@link InputStream} that limits the number of bytes that can be read from the stream.
+     */
+    static class LimitedInputStream extends FilterInputStream {
+
+        private static final long NO_MARK = -1L;
+
+        private long currentLimit; // is always non-negative
+        private long limitOnLastMark;
+
+        LimitedInputStream(InputStream in, long limit) {
+            super(in);
+            if (limit < 0L) {
+                throw new IllegalArgumentException("limit must be non-negative");
+            }
+            this.currentLimit = limit;
+            this.limitOnLastMark = NO_MARK;
         }
 
         @Override
-        public BytesReference bytes() {
-            return delegate.bytes();
+        public int read() throws IOException {
+            final int result;
+            if (currentLimit == 0 || (result = in.read()) == -1) {
+                return -1;
+            } else {
+                currentLimit--;
+                return result;
+            }
+        }
+
+        @Override
+        public int read(byte[] b, int off, int len) throws IOException {
+            final int result;
+            if (currentLimit == 0 || (result = in.read(b, off, Math.toIntExact(Math.min(len, currentLimit)))) == -1) {
+                return -1;
+            } else {
+                currentLimit -= result;
+                return result;
+            }
+        }
+
+        @Override
+        public long skip(long n) throws IOException {
+            final long skipped = in.skip(Math.min(n, currentLimit));
+            currentLimit -= skipped;
+            return skipped;
+        }
+
+        @Override
+        public int available() throws IOException {
+            return Math.toIntExact(Math.min(in.available(), currentLimit));
+        }
+
+        @Override
+        public synchronized void mark(int readlimit) {
+            in.mark(readlimit);
+            limitOnLastMark = currentLimit;
+        }
+
+        @Override
+        public synchronized void reset() throws IOException {
+            in.reset();
+            if (limitOnLastMark != NO_MARK) {
+                currentLimit = limitOnLastMark;
+            }
         }
     }
 }

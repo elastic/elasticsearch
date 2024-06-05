@@ -1,40 +1,29 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.persistent;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.gateway.GatewayService;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskAwareRequest;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -44,6 +33,7 @@ import java.util.Objects;
 import java.util.Set;
 
 import static java.util.Objects.requireNonNull;
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * This component is responsible for coordination of execution of persistent tasks on individual nodes. It runs on all
@@ -53,15 +43,21 @@ public class PersistentTasksNodeService implements ClusterStateListener {
 
     private static final Logger logger = LogManager.getLogger(PersistentTasksNodeService.class);
 
+    private final ThreadPool threadPool;
     private final Map<Long, AllocatedPersistentTask> runningTasks = new HashMap<>();
     private final PersistentTasksService persistentTasksService;
     private final PersistentTasksExecutorRegistry persistentTasksExecutorRegistry;
     private final TaskManager taskManager;
     private final NodePersistentTasksExecutor nodePersistentTasksExecutor;
 
-    public PersistentTasksNodeService(PersistentTasksService persistentTasksService,
-                                      PersistentTasksExecutorRegistry persistentTasksExecutorRegistry,
-                                      TaskManager taskManager, NodePersistentTasksExecutor nodePersistentTasksExecutor) {
+    public PersistentTasksNodeService(
+        ThreadPool threadPool,
+        PersistentTasksService persistentTasksService,
+        PersistentTasksExecutorRegistry persistentTasksExecutorRegistry,
+        TaskManager taskManager,
+        NodePersistentTasksExecutor nodePersistentTasksExecutor
+    ) {
+        this.threadPool = threadPool;
         this.persistentTasksService = persistentTasksService;
         this.persistentTasksExecutorRegistry = persistentTasksExecutorRegistry;
         this.taskManager = taskManager;
@@ -75,17 +71,19 @@ public class PersistentTasksNodeService implements ClusterStateListener {
             // we start cancelling all local tasks before cluster has a chance to recover.
             return;
         }
-        PersistentTasksCustomMetaData tasks = event.state().getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
-        PersistentTasksCustomMetaData previousTasks = event.previousState().getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
+        PersistentTasksCustomMetadata tasks = event.state().getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksCustomMetadata previousTasks = event.previousState().getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
 
-        // Cluster State   Local State      Local Action
-        //   STARTED         NULL          Create as STARTED, Start
-        //   STARTED         STARTED       Noop - running
-        //   STARTED         COMPLETED     Noop - waiting for notification ack
+        // Cluster State Local State Local Action
+        // STARTED NULL Create as STARTED, Start
+        // STARTED STARTED Noop - running
+        // STARTED COMPLETED Noop - waiting for notification ack
+        // STARTED LOCAL_ABORTED Noop - waiting for notification ack
 
-        //   NULL            NULL          Noop - nothing to do
-        //   NULL            STARTED       Remove locally, Mark as PENDING_CANCEL, Cancel
-        //   NULL            COMPLETED     Remove locally
+        // NULL NULL Noop - nothing to do
+        // NULL STARTED Remove locally, Mark as PENDING_CANCEL, Cancel
+        // NULL COMPLETED Remove locally
+        // NULL LOCAL_ABORTED Remove locally
 
         // Master states:
         // NULL - doesn't exist in the cluster state
@@ -96,6 +94,7 @@ public class PersistentTasksNodeService implements ClusterStateListener {
         // STARTED - registered in TaskManager, requires master notification when finishes
         // PENDING_CANCEL - registered in TaskManager, doesn't require master notification when finishes
         // COMPLETED - not registered in TaskManager, notified, waiting for master to remove it from CS so we can remove locally
+        // LOCAL_ABORTED - not registered in TaskManager, notified, waiting for master to adjust it in CS so we can remove locally
 
         // When task finishes if it is marked as STARTED or PENDING_CANCEL it is marked as COMPLETED and unregistered,
         // If the task was STARTED, the master notification is also triggered (this is handled by unregisterTask() method, which is
@@ -115,9 +114,16 @@ public class PersistentTasksNodeService implements ClusterStateListener {
                             try {
                                 startTask(taskInProgress);
                             } catch (Exception e) {
-                                logger.error("Unable to start allocated task [" + taskInProgress.getTaskName()
-                                    + "] with id [" + taskInProgress.getId()
-                                    + "] and allocation id [" + taskInProgress.getAllocationId() + "]", e);
+                                logger.error(
+                                    "Unable to start allocated task ["
+                                        + taskInProgress.getTaskName()
+                                        + "] with id ["
+                                        + taskInProgress.getId()
+                                        + "] and allocation id ["
+                                        + taskInProgress.getAllocationId()
+                                        + "]",
+                                    e
+                                );
                             }
                         } else {
                             // The task is still running
@@ -131,14 +137,23 @@ public class PersistentTasksNodeService implements ClusterStateListener {
                 AllocatedPersistentTask task = runningTasks.get(id);
                 if (task.isCompleted()) {
                     // Result was sent to the caller and the caller acknowledged acceptance of the result
-                    logger.trace("Found completed persistent task [{}] with id [{}] and allocation id [{}] - removing",
-                            task.getAction(), task.getPersistentTaskId(), task.getAllocationId());
+                    logger.trace(
+                        "Found persistent task [{}] with id [{}], allocation id [{}] and status [{}] - removing",
+                        task.getAction(),
+                        task.getPersistentTaskId(),
+                        task.getAllocationId(),
+                        task.getStatus()
+                    );
                     runningTasks.remove(id);
                 } else {
                     // task is running locally, but master doesn't know about it - that means that the persistent task was removed
                     // cancel the task without notifying master
-                    logger.trace("Found unregistered persistent task [{}] with id [{}] and allocation id [{}] - cancelling",
-                            task.getAction(), task.getPersistentTaskId(), task.getAllocationId());
+                    logger.trace(
+                        "Found unregistered persistent task [{}] with id [{}] and allocation id [{}] - cancelling",
+                        task.getAction(),
+                        task.getPersistentTaskId(),
+                        task.getAllocationId()
+                    );
                     cancelTask(id);
                 }
             }
@@ -148,8 +163,9 @@ public class PersistentTasksNodeService implements ClusterStateListener {
     }
 
     private <Params extends PersistentTaskParams> void startTask(PersistentTask<Params> taskInProgress) {
-        PersistentTasksExecutor<Params> executor =
-                persistentTasksExecutorRegistry.getPersistentTaskExecutorSafe(taskInProgress.getTaskName());
+        PersistentTasksExecutor<Params> executor = persistentTasksExecutorRegistry.getPersistentTaskExecutorSafe(
+            taskInProgress.getTaskName()
+        );
 
         TaskAwareRequest request = new TaskAwareRequest() {
             TaskId parentTaskId = new TaskId("cluster", taskInProgress.getAllocationId());
@@ -157,6 +173,11 @@ public class PersistentTasksNodeService implements ClusterStateListener {
             @Override
             public void setParentTask(TaskId taskId) {
                 throw new UnsupportedOperationException("parent task if for persistent tasks shouldn't change");
+            }
+
+            @Override
+            public void setRequestId(long requestId) {
+                throw new UnsupportedOperationException("does not have a request ID");
             }
 
             @Override
@@ -170,22 +191,44 @@ public class PersistentTasksNodeService implements ClusterStateListener {
             }
         };
 
+        try (var ignored = threadPool.getThreadContext().newTraceContext()) {
+            doStartTask(taskInProgress, executor, request);
+        }
+    }
+
+    private <Params extends PersistentTaskParams> void doStartTask(
+        PersistentTask<Params> taskInProgress,
+        PersistentTasksExecutor<Params> executor,
+        TaskAwareRequest request
+    ) {
         AllocatedPersistentTask task;
         try {
             task = (AllocatedPersistentTask) taskManager.register("persistent", taskInProgress.getTaskName() + "[c]", request);
         } catch (Exception e) {
-            logger.error("Fatal error registering persistent task [" + taskInProgress.getTaskName()
-                + "] with id [" + taskInProgress.getId() + "] and allocation id [" + taskInProgress.getAllocationId()
-                + "], removing from persistent tasks", e);
+            logger.error(
+                "Fatal error registering persistent task ["
+                    + taskInProgress.getTaskName()
+                    + "] with id ["
+                    + taskInProgress.getId()
+                    + "] and allocation id ["
+                    + taskInProgress.getAllocationId()
+                    + "], removing from persistent tasks",
+                e
+            );
             notifyMasterOfFailedTask(taskInProgress, e);
             return;
         }
 
         boolean processed = false;
+        Exception initializationException = null;
         try {
             task.init(persistentTasksService, taskManager, taskInProgress.getId(), taskInProgress.getAllocationId());
-            logger.trace("Persistent task [{}] with id [{}] and allocation id [{}] was created", task.getAction(),
-                    task.getPersistentTaskId(), task.getAllocationId());
+            logger.trace(
+                "Persistent task [{}] with id [{}] and allocation id [{}] was created",
+                task.getAction(),
+                task.getPersistentTaskId(),
+                task.getAllocationId()
+            );
             try {
                 runningTasks.put(taskInProgress.getAllocationId(), task);
                 nodePersistentTasksExecutor.executeTask(taskInProgress.getParams(), taskInProgress.getState(), task, executor);
@@ -194,37 +237,63 @@ public class PersistentTasksNodeService implements ClusterStateListener {
                 task.markAsFailed(e);
             }
             processed = true;
+        } catch (Exception e) {
+            initializationException = e;
         } finally {
             if (processed == false) {
                 // something went wrong - unregistering task
-                logger.warn("Persistent task [{}] with id [{}] and allocation id [{}] failed to create", task.getAction(),
-                        task.getPersistentTaskId(), task.getAllocationId());
+                logger.warn(
+                    "Persistent task [{}] with id [{}] and allocation id [{}] failed to create",
+                    task.getAction(),
+                    task.getPersistentTaskId(),
+                    task.getAllocationId()
+                );
                 taskManager.unregister(task);
+                if (initializationException != null) {
+                    notifyMasterOfFailedTask(taskInProgress, initializationException);
+                }
             }
         }
     }
 
-    private <Params extends PersistentTaskParams> void notifyMasterOfFailedTask(PersistentTask<Params> taskInProgress,
-                                                                                Exception originalException) {
-        persistentTasksService.sendCompletionRequest(taskInProgress.getId(), taskInProgress.getAllocationId(), originalException,
+    private <Params extends PersistentTaskParams> void notifyMasterOfFailedTask(
+        PersistentTask<Params> taskInProgress,
+        Exception originalException
+    ) {
+        persistentTasksService.sendCompletionRequest(
+            taskInProgress.getId(),
+            taskInProgress.getAllocationId(),
+            originalException,
+            null,
+            null,
             new ActionListener<>() {
                 @Override
                 public void onResponse(PersistentTask<?> persistentTask) {
-                    logger.trace("completion notification for failed task [{}] with id [{}] was successful", taskInProgress.getTaskName(),
-                        taskInProgress.getAllocationId());
+                    logger.trace(
+                        "completion notification for failed task [{}] with id [{}] was successful",
+                        taskInProgress.getTaskName(),
+                        taskInProgress.getAllocationId()
+                    );
                 }
 
                 @Override
                 public void onFailure(Exception notificationException) {
                     notificationException.addSuppressed(originalException);
-                    logger.warn(new ParameterizedMessage("notification for task [{}] with id [{}] failed",
-                        taskInProgress.getTaskName(), taskInProgress.getAllocationId()), notificationException);
+                    logger.warn(
+                        () -> format(
+                            "notification for task [%s] with id [%s] failed",
+                            taskInProgress.getTaskName(),
+                            taskInProgress.getAllocationId()
+                        ),
+                        notificationException
+                    );
                 }
-            });
+            }
+        );
     }
 
     /**
-     * Unregisters and then cancels the locally running task using the task manager. No notification to master will be send upon
+     * Unregisters and then cancels the locally running task using the task manager. No notification to master will be sent upon
      * cancellation.
      */
     private void cancelTask(Long allocationId) {
@@ -232,19 +301,29 @@ public class PersistentTasksNodeService implements ClusterStateListener {
         if (task.markAsCancelled()) {
             // Cancel the local task using the task manager
             String reason = "task has been removed, cancelling locally";
-            persistentTasksService.sendCancelRequest(task.getId(), reason, new ActionListener<CancelTasksResponse>() {
+            persistentTasksService.sendCancelRequest(task.getId(), reason, null, new ActionListener<>() {
                 @Override
-                public void onResponse(CancelTasksResponse cancelTasksResponse) {
-                    logger.trace("Persistent task [{}] with id [{}] and allocation id [{}] was cancelled", task.getAction(),
-                            task.getPersistentTaskId(), task.getAllocationId());
+                public void onResponse(ListTasksResponse cancelTasksResponse) {
+                    logger.trace(
+                        "Persistent task [{}] with id [{}] and allocation id [{}] was cancelled",
+                        task.getAction(),
+                        task.getPersistentTaskId(),
+                        task.getAllocationId()
+                    );
                 }
 
                 @Override
                 public void onFailure(Exception e) {
                     // There is really nothing we can do in case of failure here
-                    logger.warn(() -> new ParameterizedMessage(
-                        "failed to cancel task [{}] with id [{}] and allocation id [{}]",
-                        task.getAction(), task.getPersistentTaskId(), task.getAllocationId()), e);
+                    logger.warn(
+                        () -> format(
+                            "failed to cancel task [%s] with id [%s] and allocation id [%s]",
+                            task.getAction(),
+                            task.getPersistentTaskId(),
+                            task.getAllocationId()
+                        ),
+                        e
+                    );
                 }
             });
         }
@@ -285,11 +364,6 @@ public class PersistentTasksNodeService implements ClusterStateListener {
         @Override
         public String toString() {
             return Strings.toString(this);
-        }
-
-        @Override
-        public boolean isFragment() {
-            return false;
         }
 
         @Override

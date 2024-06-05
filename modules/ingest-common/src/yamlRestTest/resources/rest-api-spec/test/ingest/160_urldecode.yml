@@ -1,0 +1,38 @@
+---
+teardown:
+  - do:
+      ingest.delete_pipeline:
+        id: "1"
+        ignore: 404
+
+---
+"Test KV Processor":
+  - do:
+      ingest.put_pipeline:
+        id: "1"
+        body:  >
+          {
+            "processors": [
+              {
+                "urldecode" : {
+                  "field" : "my_url"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        pipeline: "1"
+        body: {
+          my_url: "https%3a%2f%2felastic.co%2f"
+        }
+
+  - do:
+      get:
+        index: test
+        id: "1"
+  - match: { _source.my_url: "https://elastic.co/" }

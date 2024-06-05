@@ -1,31 +1,21 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
+import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -33,9 +23,10 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -44,18 +35,35 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
+
+import static org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING;
 
 /**
  * Holds additional information as to why the shard is in unassigned state.
  */
 public final class UnassignedInfo implements ToXContentFragment, Writeable {
 
-    public static final DateFormatter DATE_TIME_FORMATTER = DateFormatter.forPattern("dateOptionalTime").withZone(ZoneOffset.UTC);
+    /**
+     * The version that the {@code lastAllocatedNode} field was added in. Used to adapt streaming of this class as appropriate for the
+     * version of the node sending/receiving it. Should be removed once wire compatibility with this version is no longer necessary.
+     */
+    private static final TransportVersion VERSION_LAST_ALLOCATED_NODE_ADDED = TransportVersions.V_7_15_0;
+    private static final TransportVersion VERSION_UNPROMOTABLE_REPLICA_ADDED = TransportVersions.V_8_7_0;
 
-    public static final Setting<TimeValue> INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING =
-        Setting.positiveTimeSetting("index.unassigned.node_left.delayed_timeout", TimeValue.timeValueMinutes(1), Property.Dynamic,
-            Property.IndexScope);
+    public static final DateFormatter DATE_TIME_FORMATTER = DateFormatter.forPattern("date_optional_time").withZone(ZoneOffset.UTC);
+
+    public static final Setting<TimeValue> INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING = Setting.timeSetting(
+        "index.unassigned.node_left.delayed_timeout",
+        settings -> EXISTING_SHARDS_ALLOCATOR_SETTING.get(settings).equals("stateless")
+            ? TimeValue.timeValueSeconds(10)
+            : TimeValue.timeValueMinutes(1),
+        TimeValue.timeValueMillis(0),
+        Property.Dynamic,
+        Property.IndexScope
+    );
+
     /**
      * Reason why the shard is in unassigned state.
      * <p>
@@ -126,7 +134,16 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
         /**
          * Unassigned as a result of closing an index.
          */
-        INDEX_CLOSED
+        INDEX_CLOSED,
+        /**
+         * Similar to NODE_LEFT, but at the time the node left, it had been registered for a restart via the Node Shutdown API. Note that
+         * there is no verification that it was ready to be restarted, so this may be an intentional restart or a node crash.
+         */
+        NODE_RESTARTING,
+        /**
+         * Replica is unpromotable and the primary failed.
+         */
+        UNPROMOTABLE_REPLICA
     }
 
     /**
@@ -176,34 +193,24 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
 
         public static AllocationStatus readFrom(StreamInput in) throws IOException {
             byte id = in.readByte();
-            switch (id) {
-                case 0:
-                    return DECIDERS_NO;
-                case 1:
-                    return NO_VALID_SHARD_COPY;
-                case 2:
-                    return DECIDERS_THROTTLED;
-                case 3:
-                    return FETCHING_SHARD_DATA;
-                case 4:
-                    return DELAYED_ALLOCATION;
-                case 5:
-                    return NO_ATTEMPT;
-                default:
-                    throw new IllegalArgumentException("Unknown AllocationStatus value [" + id + "]");
-            }
+            return switch (id) {
+                case 0 -> DECIDERS_NO;
+                case 1 -> NO_VALID_SHARD_COPY;
+                case 2 -> DECIDERS_THROTTLED;
+                case 3 -> FETCHING_SHARD_DATA;
+                case 4 -> DELAYED_ALLOCATION;
+                case 5 -> NO_ATTEMPT;
+                default -> throw new IllegalArgumentException("Unknown AllocationStatus value [" + id + "]");
+            };
         }
 
         public static AllocationStatus fromDecision(Decision.Type decision) {
             Objects.requireNonNull(decision);
-            switch (decision) {
-                case NO:
-                    return DECIDERS_NO;
-                case THROTTLE:
-                    return DECIDERS_THROTTLED;
-                default:
-                    throw new IllegalArgumentException("no allocation attempt from decision[" + decision + "]");
-            }
+            return switch (decision) {
+                case NO -> DECIDERS_NO;
+                case THROTTLE -> DECIDERS_THROTTLED;
+                default -> throw new IllegalArgumentException("no allocation attempt from decision[" + decision + "]");
+            };
         }
 
         public String value() {
@@ -220,6 +227,7 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
     private final int failedAllocations;
     private final Set<String> failedNodeIds;
     private final AllocationStatus lastAllocationStatus; // result of the last allocation attempt for this shard
+    private final String lastAllocatedNodeId;
 
     /**
      * creates an UnassignedInfo object based on **current** time
@@ -228,23 +236,43 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
      * @param message more information about cause.
      **/
     public UnassignedInfo(Reason reason, String message) {
-        this(reason, message, null, reason == Reason.ALLOCATION_FAILED ? 1 : 0, System.nanoTime(), System.currentTimeMillis(), false,
-             AllocationStatus.NO_ATTEMPT, Collections.emptySet());
+        this(
+            reason,
+            message,
+            null,
+            reason == Reason.ALLOCATION_FAILED ? 1 : 0,
+            System.nanoTime(),
+            System.currentTimeMillis(),
+            false,
+            AllocationStatus.NO_ATTEMPT,
+            Collections.emptySet(),
+            null
+        );
     }
 
     /**
-     * @param reason               the cause for making this shard unassigned. See {@link Reason} for more information.
-     * @param message              more information about cause.
-     * @param failure              the shard level failure that caused this shard to be unassigned, if exists.
-     * @param unassignedTimeNanos  the time to use as the base for any delayed re-assignment calculation
-     * @param unassignedTimeMillis the time of unassignment used to display to in our reporting.
-     * @param delayed              if allocation of this shard is delayed due to INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.
-     * @param lastAllocationStatus the result of the last allocation attempt for this shard
-     * @param failedNodeIds        a set of nodeIds that failed to complete allocations for this shard
+     * @param reason                          the cause for making this shard unassigned. See {@link Reason} for more information.
+     * @param message                         more information about cause.
+     * @param failure                         the shard level failure that caused this shard to be unassigned, if exists.
+     * @param unassignedTimeNanos             the time to use as the base for any delayed re-assignment calculation
+     * @param unassignedTimeMillis            the time of unassignment used to display to in our reporting.
+     * @param delayed                         if allocation of this shard is delayed due to INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.
+     * @param lastAllocationStatus            the result of the last allocation attempt for this shard
+     * @param failedNodeIds                   a set of nodeIds that failed to complete allocations for this shard
+     * @param lastAllocatedNodeId             the ID of the node this shard was last allocated to
      */
-    public UnassignedInfo(Reason reason, @Nullable String message, @Nullable Exception failure, int failedAllocations,
-                          long unassignedTimeNanos, long unassignedTimeMillis, boolean delayed, AllocationStatus lastAllocationStatus,
-                          Set<String> failedNodeIds) {
+    public UnassignedInfo(
+        Reason reason,
+        @Nullable String message,
+        @Nullable Exception failure,
+        int failedAllocations,
+        long unassignedTimeNanos,
+        long unassignedTimeMillis,
+        boolean delayed,
+        AllocationStatus lastAllocationStatus,
+        Set<String> failedNodeIds,
+        @Nullable String lastAllocatedNodeId
+    ) {
         this.reason = Objects.requireNonNull(reason);
         this.unassignedTimeMillis = unassignedTimeMillis;
         this.unassignedTimeNanos = unassignedTimeNanos;
@@ -253,14 +281,21 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
         this.failure = failure;
         this.failedAllocations = failedAllocations;
         this.lastAllocationStatus = Objects.requireNonNull(lastAllocationStatus);
-        this.failedNodeIds = Collections.unmodifiableSet(failedNodeIds);
-        assert (failedAllocations > 0) == (reason == Reason.ALLOCATION_FAILED) :
-            "failedAllocations: " + failedAllocations + " for reason " + reason;
-        assert !(message == null && failure != null) : "provide a message if a failure exception is provided";
-        assert !(delayed && reason != Reason.NODE_LEFT) : "shard can only be delayed if it is unassigned due to a node leaving";
+        this.failedNodeIds = Set.copyOf(failedNodeIds);
+        this.lastAllocatedNodeId = lastAllocatedNodeId;
+        assert (failedAllocations > 0) == (reason == Reason.ALLOCATION_FAILED)
+            : "failedAllocations: " + failedAllocations + " for reason " + reason;
+        assert (message == null && failure != null) == false : "provide a message if a failure exception is provided";
+        assert (delayed && reason != Reason.NODE_LEFT && reason != Reason.NODE_RESTARTING) == false
+            : "shard can only be delayed if it is unassigned due to a node leaving";
+        // The below check should be expanded to require `lastAllocatedNodeId` for `NODE_LEFT` as well, once we no longer have to consider
+        // BWC with versions prior to `VERSION_LAST_ALLOCATED_NODE_ADDED`.
+        assert (reason == Reason.NODE_RESTARTING && lastAllocatedNodeId == null) == false
+            : "last allocated node ID must be set if the shard is unassigned due to a node restarting";
     }
 
     public UnassignedInfo(StreamInput in) throws IOException {
+        // Because Reason.NODE_RESTARTING is new and can't be sent by older versions, there's no need to vary the deserialization behavior
         this.reason = Reason.values()[(int) in.readByte()];
         this.unassignedTimeMillis = in.readLong();
         // As System.nanoTime() cannot be compared across different JVMs, reset it to now.
@@ -271,15 +306,22 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
         this.failure = in.readException();
         this.failedAllocations = in.readVInt();
         this.lastAllocationStatus = AllocationStatus.readFrom(in);
-        if (in.getVersion().onOrAfter(Version.V_7_5_0)) {
-            this.failedNodeIds = Collections.unmodifiableSet(in.readSet(StreamInput::readString));
+        this.failedNodeIds = in.readCollectionAsImmutableSet(StreamInput::readString);
+        if (in.getTransportVersion().onOrAfter(VERSION_LAST_ALLOCATED_NODE_ADDED)) {
+            this.lastAllocatedNodeId = in.readOptionalString();
         } else {
-            this.failedNodeIds = Collections.emptySet();
+            this.lastAllocatedNodeId = null;
         }
     }
 
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeByte((byte) reason.ordinal());
+        if (reason.equals(Reason.NODE_RESTARTING) && out.getTransportVersion().before(VERSION_LAST_ALLOCATED_NODE_ADDED)) {
+            out.writeByte((byte) Reason.NODE_LEFT.ordinal());
+        } else if (reason.equals(Reason.UNPROMOTABLE_REPLICA) && out.getTransportVersion().before(VERSION_UNPROMOTABLE_REPLICA_ADDED)) {
+            out.writeByte((byte) Reason.PRIMARY_FAILED.ordinal());
+        } else {
+            out.writeByte((byte) reason.ordinal());
+        }
         out.writeLong(unassignedTimeMillis);
         // Do not serialize unassignedTimeNanos as System.nanoTime() cannot be compared across different JVMs
         out.writeBoolean(delayed);
@@ -287,8 +329,9 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
         out.writeException(failure);
         out.writeVInt(failedAllocations);
         lastAllocationStatus.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.V_7_5_0)) {
-            out.writeCollection(failedNodeIds, StreamOutput::writeString);
+        out.writeStringCollection(failedNodeIds);
+        if (out.getTransportVersion().onOrAfter(VERSION_LAST_ALLOCATED_NODE_ADDED)) {
+            out.writeOptionalString(lastAllocatedNodeId);
         }
     }
 
@@ -358,6 +401,14 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
     }
 
     /**
+     * Gets the ID of the node this shard was last allocated to, or null if unavailable.
+     */
+    @Nullable
+    public String getLastAllocatedNodeId() {
+        return lastAllocatedNodeId;
+    }
+
+    /**
      * Get the status for the last allocation attempt for this shard.
      */
     public AllocationStatus getLastAllocationStatus() {
@@ -370,7 +421,7 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
      * This set will be discarded when a shard moves to started. And if a shard is failed while started (i.e., from started to unassigned),
      * the currently assigned node won't be added to this set.
      *
-     * @see org.elasticsearch.gateway.ReplicaShardAllocator#processExistingRecoveries(RoutingAllocation)
+     * @see org.elasticsearch.gateway.ReplicaShardAllocator#processExistingRecoveries
      * @see org.elasticsearch.cluster.routing.allocation.AllocationService#applyFailedShards(ClusterState, List, List)
      */
     public Set<String> getFailedNodeIds() {
@@ -384,9 +435,17 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
      *
      * @return calculated delay in nanoseconds
      */
-    public long getRemainingDelay(final long nanoTimeNow, final Settings indexSettings) {
-        long delayTimeoutNanos = INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.get(indexSettings).nanos();
-        assert nanoTimeNow >= unassignedTimeNanos;
+    public long getRemainingDelay(final long nanoTimeNow, final Settings indexSettings, final NodesShutdownMetadata nodesShutdownMetadata) {
+        final long indexLevelDelay = INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.get(indexSettings).nanos();
+        long delayTimeoutNanos = Optional.ofNullable(lastAllocatedNodeId)
+            // If the node wasn't restarting when this became unassigned, use default delay
+            .filter(nodeId -> reason.equals(Reason.NODE_RESTARTING))
+            .map(nodeId -> nodesShutdownMetadata.get(nodeId, SingleNodeShutdownMetadata.Type.RESTART))
+            .map(SingleNodeShutdownMetadata::getAllocationDelay)
+            .map(TimeValue::nanos)
+            .map(knownRestartDelay -> Math.max(indexLevelDelay, knownRestartDelay))
+            .orElse(indexLevelDelay);
+        assert nanoTimeNow - unassignedTimeNanos >= 0;
         return Math.max(0L, delayTimeoutNanos - (nanoTimeNow - unassignedTimeNanos));
     }
 
@@ -395,7 +454,7 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
      */
     public static int getNumberOfDelayedUnassigned(ClusterState state) {
         int count = 0;
-        for (ShardRouting shard : state.routingTable().shardsWithState(ShardRoutingState.UNASSIGNED)) {
+        for (ShardRouting shard : state.getRoutingNodes().unassigned()) {
             if (shard.unassignedInfo().isDelayed()) {
                 count++;
             }
@@ -409,15 +468,18 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
      * Returns -1 if no delayed shard is found.
      */
     public static long findNextDelayedAllocation(long currentNanoTime, ClusterState state) {
-        MetaData metaData = state.metaData();
-        RoutingTable routingTable = state.routingTable();
+        Metadata metadata = state.metadata();
         long nextDelayNanos = Long.MAX_VALUE;
-        for (ShardRouting shard : routingTable.shardsWithState(ShardRoutingState.UNASSIGNED)) {
+        for (ShardRouting shard : state.getRoutingNodes().unassigned()) {
             UnassignedInfo unassignedInfo = shard.unassignedInfo();
             if (unassignedInfo.isDelayed()) {
-                Settings indexSettings = metaData.index(shard.index()).getSettings();
+                Settings indexSettings = metadata.index(shard.index()).getSettings();
                 // calculate next time to schedule
-                final long newComputedLeftDelayNanos = unassignedInfo.getRemainingDelay(currentNanoTime, indexSettings);
+                final long newComputedLeftDelayNanos = unassignedInfo.getRemainingDelay(
+                    currentNanoTime,
+                    indexSettings,
+                    metadata.nodeShutdowns()
+                );
                 if (newComputedLeftDelayNanos < nextDelayNanos) {
                     nextDelayNanos = newComputedLeftDelayNanos;
                 }
@@ -430,15 +492,17 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
         StringBuilder sb = new StringBuilder();
         sb.append("[reason=").append(reason).append("]");
         sb.append(", at[").append(DATE_TIME_FORMATTER.format(Instant.ofEpochMilli(unassignedTimeMillis))).append("]");
-        if (failedAllocations >  0) {
+        if (failedAllocations > 0) {
             sb.append(", failed_attempts[").append(failedAllocations).append("]");
         }
         if (failedNodeIds.isEmpty() == false) {
             sb.append(", failed_nodes[").append(failedNodeIds).append("]");
         }
         sb.append(", delayed=").append(delayed);
+        if (lastAllocatedNodeId != null) {
+            sb.append(", last_node[").append(lastAllocatedNodeId).append("]");
+        }
         String details = getDetails();
-
         if (details != null) {
             sb.append(", details[").append(details).append("]");
         }
@@ -456,13 +520,16 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
         builder.startObject("unassigned_info");
         builder.field("reason", reason);
         builder.field("at", DATE_TIME_FORMATTER.format(Instant.ofEpochMilli(unassignedTimeMillis)));
-        if (failedAllocations >  0) {
+        if (failedAllocations > 0) {
             builder.field("failed_attempts", failedAllocations);
         }
         if (failedNodeIds.isEmpty() == false) {
-            builder.field("failed_nodes", failedNodeIds);
+            builder.stringListField("failed_nodes", failedNodeIds);
         }
         builder.field("delayed", delayed);
+        if (lastAllocatedNodeId != null) {
+            builder.field("last_node", lastAllocatedNodeId);
+        }
         String details = getDetails();
         if (details != null) {
             builder.field("details", details);
@@ -504,6 +571,11 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
         if (Objects.equals(failure, that.failure) == false) {
             return false;
         }
+
+        if (Objects.equals(lastAllocatedNodeId, that.lastAllocatedNodeId) == false) {
+            return false;
+        }
+
         return failedNodeIds.equals(that.failedNodeIds);
     }
 
@@ -517,6 +589,7 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
         result = 31 * result + (failure != null ? failure.hashCode() : 0);
         result = 31 * result + lastAllocationStatus.hashCode();
         result = 31 * result + failedNodeIds.hashCode();
+        result = 31 * result + (lastAllocatedNodeId != null ? lastAllocatedNodeId.hashCode() : 0);
         return result;
     }
 

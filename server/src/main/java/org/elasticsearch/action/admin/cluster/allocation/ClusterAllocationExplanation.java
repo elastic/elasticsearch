@@ -1,24 +1,14 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.cluster.allocation;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -26,36 +16,55 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
+import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.Collections;
+import java.util.Iterator;
 import java.util.Locale;
 
 import static org.elasticsearch.cluster.routing.allocation.AbstractAllocationDecision.discoveryNodeToXContent;
+import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.singleChunk;
 
 /**
  * A {@code ClusterAllocationExplanation} is an explanation of why a shard is unassigned,
  * or if it is not unassigned, then which nodes it could possibly be relocated to.
  * It is an immutable class.
  */
-public final class ClusterAllocationExplanation implements ToXContentObject, Writeable {
+public final class ClusterAllocationExplanation implements ChunkedToXContentObject, Writeable {
 
+    static final String NO_SHARD_SPECIFIED_MESSAGE = "No shard was specified in the explain API request, so this response "
+        + "explains a randomly chosen unassigned shard. There may be other unassigned shards in this cluster which cannot be assigned for "
+        + "different reasons. It may not be possible to assign this shard until one of the other shards is assigned correctly. To explain "
+        + "the allocation of other shards (whether assigned or unassigned) you must specify the target shard in the request to this API.";
+
+    private final boolean specificShard;
     private final ShardRouting shardRouting;
     private final DiscoveryNode currentNode;
     private final DiscoveryNode relocationTargetNode;
     private final ClusterInfo clusterInfo;
     private final ShardAllocationDecision shardAllocationDecision;
 
-    public ClusterAllocationExplanation(ShardRouting shardRouting, @Nullable DiscoveryNode currentNode,
-                                        @Nullable DiscoveryNode relocationTargetNode, @Nullable ClusterInfo clusterInfo,
-                                        ShardAllocationDecision shardAllocationDecision) {
+    public ClusterAllocationExplanation(
+        boolean specificShard,
+        ShardRouting shardRouting,
+        @Nullable DiscoveryNode currentNode,
+        @Nullable DiscoveryNode relocationTargetNode,
+        @Nullable ClusterInfo clusterInfo,
+        ShardAllocationDecision shardAllocationDecision
+    ) {
+
+        this.specificShard = specificShard;
         this.shardRouting = shardRouting;
         this.currentNode = currentNode;
         this.relocationTargetNode = relocationTargetNode;
@@ -64,6 +73,11 @@ public final class ClusterAllocationExplanation implements ToXContentObject, Wri
     }
 
     public ClusterAllocationExplanation(StreamInput in) throws IOException {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_15_0)) {
+            this.specificShard = in.readBoolean();
+        } else {
+            this.specificShard = true; // suppress "this is a random shard" warning in BwC situations
+        }
         this.shardRouting = new ShardRouting(in);
         this.currentNode = in.readOptionalWriteable(DiscoveryNode::new);
         this.relocationTargetNode = in.readOptionalWriteable(DiscoveryNode::new);
@@ -73,11 +87,18 @@ public final class ClusterAllocationExplanation implements ToXContentObject, Wri
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_15_0)) {
+            out.writeBoolean(specificShard);
+        } // else suppress "this is a random shard" warning in BwC situations
         shardRouting.writeTo(out);
         out.writeOptionalWriteable(currentNode);
         out.writeOptionalWriteable(relocationTargetNode);
         out.writeOptionalWriteable(clusterInfo);
         shardAllocationDecision.writeTo(out);
+    }
+
+    public boolean isSpecificShard() {
+        return specificShard;
     }
 
     /**
@@ -133,15 +154,20 @@ public final class ClusterAllocationExplanation implements ToXContentObject, Wri
         return this.clusterInfo;
     }
 
-    /** \
+    /**
      * Returns the shard allocation decision for attempting to assign or move the shard.
      */
     public ShardAllocationDecision getShardAllocationDecision() {
         return shardAllocationDecision;
     }
 
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(); {
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+        return Iterators.concat(singleChunk((builder, p) -> {
+            builder.startObject();
+
+            if (isSpecificShard() == false) {
+                builder.field("note", NO_SHARD_SPECIFIED_MESSAGE);
+            }
             builder.field("index", shardRouting.getIndexName());
             builder.field("shard", shardRouting.getId());
             builder.field("primary", shardRouting.primary());
@@ -149,50 +175,60 @@ public final class ClusterAllocationExplanation implements ToXContentObject, Wri
             if (shardRouting.unassignedInfo() != null) {
                 unassignedInfoToXContent(shardRouting.unassignedInfo(), builder);
             }
-            if (currentNode != null) {
+
+            if (this.currentNode != null) {
                 builder.startObject("current_node");
-                {
-                    discoveryNodeToXContent(currentNode, true, builder);
-                    if (shardAllocationDecision.getMoveDecision().isDecisionTaken()
-                            && shardAllocationDecision.getMoveDecision().getCurrentNodeRanking() > 0) {
-                        builder.field("weight_ranking", shardAllocationDecision.getMoveDecision().getCurrentNodeRanking());
-                    }
+                discoveryNodeToXContent(this.currentNode, true, builder);
+                if (shardAllocationDecision.getMoveDecision().isDecisionTaken()
+                    && shardAllocationDecision.getMoveDecision().getCurrentNodeRanking() > 0) {
+                    builder.field("weight_ranking", shardAllocationDecision.getMoveDecision().getCurrentNodeRanking());
                 }
                 builder.endObject();
             }
-            if (this.clusterInfo != null) {
-                builder.startObject("cluster_info"); {
-                    this.clusterInfo.toXContent(builder, params);
-                }
-                builder.endObject(); // end "cluster_info"
-            }
-            if (shardAllocationDecision.isDecisionTaken()) {
-                shardAllocationDecision.toXContent(builder, params);
-            } else {
-                String explanation;
-                if (shardRouting.state() == ShardRoutingState.RELOCATING) {
-                    explanation = "the shard is in the process of relocating from node [" + currentNode.getName() + "] " +
-                                  "to node [" + relocationTargetNode.getName() + "], wait until relocation has completed";
-                } else {
-                    assert shardRouting.state() == ShardRoutingState.INITIALIZING;
-                    explanation = "the shard is in the process of initializing on node [" + currentNode.getName() + "], " +
-                                  "wait until initialization has completed";
-                }
-                builder.field("explanation", explanation);
-            }
-        }
-        builder.endObject(); // end wrapping object
-        return builder;
+
+            return builder;
+        }),
+            this.clusterInfo != null
+                ? Iterators.concat(
+                    ChunkedToXContentHelper.startObject("cluster_info"),
+                    this.clusterInfo.toXContentChunked(params),
+                    ChunkedToXContentHelper.endObject()
+                )
+                : Collections.emptyIterator(),
+            getShardAllocationDecisionChunked(params),
+            Iterators.single((builder, p) -> builder.endObject())
+        );
     }
 
-    private XContentBuilder unassignedInfoToXContent(UnassignedInfo unassignedInfo, XContentBuilder builder)
-        throws IOException {
+    private Iterator<? extends ToXContent> getShardAllocationDecisionChunked(ToXContent.Params params) {
+        if (shardAllocationDecision.isDecisionTaken()) {
+            return shardAllocationDecision.toXContentChunked(params);
+        } else {
+            String explanation;
+            if (shardRouting.state() == ShardRoutingState.RELOCATING) {
+                explanation = "the shard is in the process of relocating from node ["
+                    + currentNode.getName()
+                    + "] "
+                    + "to node ["
+                    + relocationTargetNode.getName()
+                    + "], wait until relocation has completed";
+            } else {
+                assert shardRouting.state() == ShardRoutingState.INITIALIZING;
+                explanation = "the shard is in the process of initializing on node ["
+                    + currentNode.getName()
+                    + "], "
+                    + "wait until initialization has completed";
+            }
+            return Iterators.single((builder, p) -> builder.field("explanation", explanation));
+        }
+    }
+
+    private static XContentBuilder unassignedInfoToXContent(UnassignedInfo unassignedInfo, XContentBuilder builder) throws IOException {
 
         builder.startObject("unassigned_info");
         builder.field("reason", unassignedInfo.getReason());
-        builder.field("at",
-            UnassignedInfo.DATE_TIME_FORMATTER.format(Instant.ofEpochMilli(unassignedInfo.getUnassignedTimeInMillis())));
-        if (unassignedInfo.getNumFailedAllocations() >  0) {
+        builder.field("at", UnassignedInfo.DATE_TIME_FORMATTER.format(Instant.ofEpochMilli(unassignedInfo.getUnassignedTimeInMillis())));
+        if (unassignedInfo.getNumFailedAllocations() > 0) {
             builder.field("failed_allocation_attempts", unassignedInfo.getNumFailedAllocations());
         }
         String details = unassignedInfo.getDetails();

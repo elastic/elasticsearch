@@ -1,23 +1,14 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.plugins;
+
+import org.elasticsearch.Version;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -29,19 +20,49 @@ import java.util.Properties;
 public class PluginTestUtil {
 
     public static void writePluginProperties(Path pluginDir, String... stringProps) throws IOException {
-        writeProperties(pluginDir.resolve(PluginInfo.ES_PLUGIN_PROPERTIES), stringProps);
+        writeProperties(pluginDir.resolve(PluginDescriptor.INTERNAL_DESCRIPTOR_FILENAME), stringProps);
+    }
+
+    public static void writeStablePluginProperties(Path pluginDir, String... stringProps) throws IOException {
+        writeProperties(pluginDir.resolve(PluginDescriptor.STABLE_DESCRIPTOR_FILENAME), stringProps);
+    }
+
+    public static void writeSimplePluginDescriptor(Path pluginDir, String name, String classname) throws IOException {
+        PluginTestUtil.writePluginProperties(
+            pluginDir,
+            "description",
+            "description",
+            "name",
+            name,
+            "version",
+            "1.0.0",
+            "elasticsearch.version",
+            Version.CURRENT.toString(),
+            "java.version",
+            System.getProperty("java.specification.version"),
+            "classname",
+            classname
+        );
     }
 
     /** convenience method to write a plugin properties file */
     private static void writeProperties(Path propertiesFile, String... stringProps) throws IOException {
         assert stringProps.length % 2 == 0;
         Files.createDirectories(propertiesFile.getParent());
-        Properties properties =  new Properties();
+        Properties properties = new Properties();
         for (int i = 0; i < stringProps.length; i += 2) {
-            properties.put(stringProps[i], stringProps[i + 1]);
+            String value = stringProps[i + 1];
+            if (value != null) {
+                properties.put(stringProps[i], stringProps[i + 1]);
+            }
         }
         try (OutputStream out = Files.newOutputStream(propertiesFile)) {
             properties.store(out, "");
         }
+    }
+
+    public static void writeNamedComponentsFile(Path pluginDir, String namedComponentsJson) throws IOException {
+        Path namedComponentsFile = pluginDir.resolve(PluginDescriptor.NAMED_COMPONENTS_FILENAME);
+        Files.writeString(namedComponentsFile, namedComponentsJson);
     }
 }

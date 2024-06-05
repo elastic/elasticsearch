@@ -1,22 +1,14 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.common.io.stream;
+
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 
 import java.io.EOFException;
 import java.io.IOException;
@@ -28,12 +20,127 @@ public class ByteBufferStreamInput extends StreamInput {
     private final ByteBuffer buffer;
 
     public ByteBufferStreamInput(ByteBuffer buffer) {
-        this.buffer = buffer;
+        this.buffer = buffer.mark();
+    }
+
+    /**
+     * Read a vInt encoded in the format written by {@link StreamOutput#writeVInt} from a {@link ByteBuffer}.
+     * The buffer is assumed to contain enough bytes to fully read the value and its position is moved by this method.
+     * @param buffer buffer to read from
+     * @return value read from the buffer
+     * @throws IOException if buffer does not contain a valid vInt starting from the current position
+     */
+    public static int readVInt(ByteBuffer buffer) throws IOException {
+        byte b = buffer.get();
+        if (b >= 0) {
+            return b;
+        }
+        int i = b & 0x7F;
+        b = buffer.get();
+        i |= (b & 0x7F) << 7;
+        if (b >= 0) {
+            return i;
+        }
+        b = buffer.get();
+        i |= (b & 0x7F) << 14;
+        if (b >= 0) {
+            return i;
+        }
+        b = buffer.get();
+        i |= (b & 0x7F) << 21;
+        if (b >= 0) {
+            return i;
+        }
+        b = buffer.get();
+        i |= (b & 0x0F) << 28;
+        if ((b & 0xF0) != 0) {
+            throwOnBrokenVInt(b, i);
+        }
+        return i;
+    }
+
+    /**
+     * Read a vLong encoded in the format written by {@link StreamOutput#writeVLong(long)} from a {@link ByteBuffer}.
+     * The buffer is assumed to contain enough bytes to fully read the value and its position is moved by this method.
+     * @param buffer buffer to read from
+     * @return value read from the buffer
+     * @throws IOException if buffer does not contain a valid vLong starting from the current position
+     */
+    public static long readVLong(ByteBuffer buffer) throws IOException {
+        byte b = buffer.get();
+        long i = b & 0x7FL;
+        if ((b & 0x80) == 0) {
+            return i;
+        }
+        b = buffer.get();
+        i |= (b & 0x7FL) << 7;
+        if ((b & 0x80) == 0) {
+            return i;
+        }
+        b = buffer.get();
+        i |= (b & 0x7FL) << 14;
+        if ((b & 0x80) == 0) {
+            return i;
+        }
+        b = buffer.get();
+        i |= (b & 0x7FL) << 21;
+        if ((b & 0x80) == 0) {
+            return i;
+        }
+        b = buffer.get();
+        i |= (b & 0x7FL) << 28;
+        if ((b & 0x80) == 0) {
+            return i;
+        }
+        b = buffer.get();
+        i |= (b & 0x7FL) << 35;
+        if ((b & 0x80) == 0) {
+            return i;
+        }
+        b = buffer.get();
+        i |= (b & 0x7FL) << 42;
+        if ((b & 0x80) == 0) {
+            return i;
+        }
+        b = buffer.get();
+        i |= (b & 0x7FL) << 49;
+        if ((b & 0x80) == 0) {
+            return i;
+        }
+        b = buffer.get();
+        i |= ((b & 0x7FL) << 56);
+        if ((b & 0x80) == 0) {
+            return i;
+        }
+        b = buffer.get();
+        if (b != 0 && b != 1) {
+            throwOnBrokenVLong(b, i);
+        }
+        i |= ((long) b) << 63;
+        return i;
+    }
+
+    @Override
+    public String readString() throws IOException {
+        final int chars = readArraySize();
+        if (buffer.hasArray()) {
+            // attempt reading bytes directly into a string to minimize copying
+            final String string = tryReadStringFromBytes(
+                buffer.array(),
+                buffer.position() + buffer.arrayOffset(),
+                buffer.limit() + buffer.arrayOffset(),
+                chars
+            );
+            if (string != null) {
+                return string;
+            }
+        }
+        return doReadString(chars);
     }
 
     @Override
     public int read() throws IOException {
-        if (!buffer.hasRemaining()) {
+        if (buffer.hasRemaining() == false) {
             return -1;
         }
         return buffer.get() & 0xFF;
@@ -41,15 +148,16 @@ public class ByteBufferStreamInput extends StreamInput {
 
     @Override
     public byte readByte() throws IOException {
-        if (!buffer.hasRemaining()) {
-            throw new EOFException();
+        try {
+            return buffer.get();
+        } catch (BufferUnderflowException ex) {
+            throw newEOFException(ex);
         }
-        return buffer.get();
     }
 
     @Override
     public int read(byte[] b, int off, int len) throws IOException {
-        if (!buffer.hasRemaining()) {
+        if (buffer.hasRemaining() == false) {
             return -1;
         }
 
@@ -60,10 +168,10 @@ public class ByteBufferStreamInput extends StreamInput {
 
     @Override
     public long skip(long n) throws IOException {
-        if (n > buffer.remaining()) {
-            int ret = buffer.position();
+        int remaining = buffer.remaining();
+        if (n > remaining) {
             buffer.position(buffer.limit());
-            return ret;
+            return remaining;
         }
         buffer.position((int) (buffer.position() + n));
         return n;
@@ -71,10 +179,11 @@ public class ByteBufferStreamInput extends StreamInput {
 
     @Override
     public void readBytes(byte[] b, int offset, int len) throws IOException {
-        if (buffer.remaining() < len) {
-            throw new EOFException();
+        try {
+            buffer.get(b, offset, len);
+        } catch (BufferUnderflowException ex) {
+            throw newEOFException(ex);
         }
-        buffer.get(b, offset, len);
     }
 
     @Override
@@ -82,9 +191,7 @@ public class ByteBufferStreamInput extends StreamInput {
         try {
             return buffer.getShort();
         } catch (BufferUnderflowException ex) {
-            EOFException eofException = new EOFException();
-            eofException.initCause(ex);
-            throw eofException;
+            throw newEOFException(ex);
         }
     }
 
@@ -93,9 +200,16 @@ public class ByteBufferStreamInput extends StreamInput {
         try {
             return buffer.getInt();
         } catch (BufferUnderflowException ex) {
-            EOFException eofException = new EOFException();
-            eofException.initCause(ex);
-            throw eofException;
+            throw newEOFException(ex);
+        }
+    }
+
+    @Override
+    public int readVInt() throws IOException {
+        try {
+            return readVInt(buffer);
+        } catch (BufferUnderflowException ex) {
+            throw newEOFException(ex);
         }
     }
 
@@ -104,10 +218,23 @@ public class ByteBufferStreamInput extends StreamInput {
         try {
             return buffer.getLong();
         } catch (BufferUnderflowException ex) {
-            EOFException eofException = new EOFException();
-            eofException.initCause(ex);
-            throw eofException;
+            throw newEOFException(ex);
         }
+    }
+
+    @Override
+    public long readVLong() throws IOException {
+        try {
+            return readVLong(buffer);
+        } catch (BufferUnderflowException ex) {
+            throw newEOFException(ex);
+        }
+    }
+
+    private static EOFException newEOFException(RuntimeException ex) {
+        EOFException eofException = new EOFException();
+        eofException.initCause(ex);
+        return eofException;
     }
 
     @Override
@@ -122,9 +249,21 @@ public class ByteBufferStreamInput extends StreamInput {
 
     @Override
     protected void ensureCanReadBytes(int length) throws EOFException {
-        if (buffer.remaining() < length) {
-            throw new EOFException("tried to read: " + length + " bytes but only " + buffer.remaining() + " remaining");
+        final int available = buffer.remaining();
+        if (length > available) {
+            throwEOF(length, available);
         }
+    }
+
+    @Override
+    public BytesReference readSlicedBytesReference() throws IOException {
+        if (buffer.hasArray()) {
+            int len = readVInt();
+            var res = new BytesArray(buffer.array(), buffer.arrayOffset() + buffer.position(), len);
+            skip(len);
+            return res;
+        }
+        return super.readSlicedBytesReference();
     }
 
     @Override
@@ -138,6 +277,5 @@ public class ByteBufferStreamInput extends StreamInput {
     }
 
     @Override
-    public void close() throws IOException {
-    }
+    public void close() throws IOException {}
 }

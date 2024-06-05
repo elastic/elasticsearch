@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.update;
@@ -22,21 +11,25 @@ package org.elasticsearch.action.update;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
-
 public class UpdateResponse extends DocWriteResponse {
 
-    private static final String GET = "get";
+    static final String GET = "get";
 
     private GetResult getResult;
+
+    public UpdateResponse(ShardId shardId, StreamInput in) throws IOException {
+        super(shardId, in);
+        if (in.readBoolean()) {
+            getResult = new GetResult(in);
+        }
+    }
 
     public UpdateResponse(StreamInput in) throws IOException {
         super(in);
@@ -50,11 +43,11 @@ public class UpdateResponse extends DocWriteResponse {
      * For example: update script with operation set to none
      */
     public UpdateResponse(ShardId shardId, String id, long seqNo, long primaryTerm, long version, Result result) {
-        this(new ShardInfo(0, 0), shardId, id, seqNo, primaryTerm, version, result);
+        this(ShardInfo.EMPTY, shardId, id, seqNo, primaryTerm, version, result);
     }
 
-    public UpdateResponse(
-            ShardInfo shardInfo, ShardId shardId, String id, long seqNo, long primaryTerm, long version, Result result) {
+    @SuppressWarnings("this-escape")
+    public UpdateResponse(ShardInfo shardInfo, ShardId shardId, String id, long seqNo, long primaryTerm, long version, Result result) {
         super(shardId, id, seqNo, primaryTerm, version, result);
         setShardInfo(shardInfo);
     }
@@ -73,8 +66,18 @@ public class UpdateResponse extends DocWriteResponse {
     }
 
     @Override
+    public void writeThin(StreamOutput out) throws IOException {
+        super.writeThin(out);
+        writeGetResult(out);
+    }
+
+    @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
+        writeGetResult(out);
+    }
+
+    private void writeGetResult(StreamOutput out) throws IOException {
         if (getResult == null) {
             out.writeBoolean(false);
         } else {
@@ -108,32 +111,6 @@ public class UpdateResponse extends DocWriteResponse {
         return builder.append("]").toString();
     }
 
-    public static UpdateResponse fromXContent(XContentParser parser) throws IOException {
-        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
-
-        Builder context = new Builder();
-        while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
-            parseXContentFields(parser, context);
-        }
-        return context.build();
-    }
-
-    /**
-     * Parse the current token and update the parsing context appropriately.
-     */
-    public static void parseXContentFields(XContentParser parser, Builder context) throws IOException {
-        XContentParser.Token token = parser.currentToken();
-        String currentFieldName = parser.currentName();
-
-        if (GET.equals(currentFieldName)) {
-            if (token == XContentParser.Token.START_OBJECT) {
-                context.setGetResult(GetResult.fromXContentEmbedded(parser));
-            }
-        } else {
-            DocWriteResponse.parseInnerToXContent(parser, context);
-        }
-    }
-
     /**
      * Builder class for {@link UpdateResponse}. This builder is usually used during xcontent parsing to
      * temporarily store the parsed values, then the {@link DocWriteResponse.Builder#build()} method is called to
@@ -156,10 +133,19 @@ public class UpdateResponse extends DocWriteResponse {
                 update = new UpdateResponse(shardId, id, seqNo, primaryTerm, version, result);
             }
             if (getResult != null) {
-                update.setGetResult(new GetResult(update.getIndex(), update.getId(),
-                    getResult.getSeqNo(), getResult.getPrimaryTerm(), update.getVersion(),
-                    getResult.isExists(), getResult.internalSourceRef(), getResult.getDocumentFields(),
-                    getResult.getMetadataFields()));
+                update.setGetResult(
+                    new GetResult(
+                        update.getIndex(),
+                        update.getId(),
+                        getResult.getSeqNo(),
+                        getResult.getPrimaryTerm(),
+                        update.getVersion(),
+                        getResult.isExists(),
+                        getResult.internalSourceRef(),
+                        getResult.getDocumentFields(),
+                        getResult.getMetadataFields()
+                    )
+                );
             }
             update.setForcedRefresh(forcedRefresh);
             return update;

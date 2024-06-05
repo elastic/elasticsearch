@@ -8,10 +8,13 @@
 
 * <<xpack-rollup,Rolling up your historical data>>
 +
+deprecated::[8.11.0,"Rollups will be removed in a future version. Use <<downsampling,downsampling>> instead."]
++
 include::rollup/index.asciidoc[tag=rollup-intro]
+
 * <<transforms,Transforming your data>>
 +
-include::transform/index.asciidoc[tag=transform-intro]
+include::transform/transforms.asciidoc[tag=transform-intro]
 
 --
 

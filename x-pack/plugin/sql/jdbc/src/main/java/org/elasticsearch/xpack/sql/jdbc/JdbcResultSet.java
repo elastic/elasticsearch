@@ -1,9 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.jdbc;
+
+import org.elasticsearch.xpack.sql.client.SuppressForbidden;
 
 import java.io.InputStream;
 import java.io.Reader;
@@ -30,14 +33,13 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.function.Function;
 
 import static java.lang.String.format;
 import static org.elasticsearch.xpack.sql.jdbc.EsType.DATE;
 import static org.elasticsearch.xpack.sql.jdbc.EsType.DATETIME;
 import static org.elasticsearch.xpack.sql.jdbc.EsType.TIME;
-import static org.elasticsearch.xpack.sql.jdbc.JdbcDateUtils.asDateTimeField;
 import static org.elasticsearch.xpack.sql.jdbc.JdbcDateUtils.asTimestamp;
+import static org.elasticsearch.xpack.sql.jdbc.JdbcDateUtils.asZonedDateTime;
 import static org.elasticsearch.xpack.sql.jdbc.JdbcDateUtils.dateTimeAsMillisSinceEpoch;
 import static org.elasticsearch.xpack.sql.jdbc.JdbcDateUtils.timeAsMillisSinceEpoch;
 import static org.elasticsearch.xpack.sql.jdbc.JdbcDateUtils.timeAsTime;
@@ -52,7 +54,7 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
     private final Calendar defaultCalendar;
 
     private final JdbcStatement statement;
-    private final Cursor cursor;
+    private Cursor cursor;
     private final Map<String, Integer> nameToIndex = new LinkedHashMap<>();
 
     private boolean closed = false;
@@ -124,7 +126,7 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
 
     @Override
     public void close() throws SQLException {
-        if (!closed) {
+        if (closed == false) {
             closed = true;
             if (statement != null) {
                 statement.resultSetWasClosed();
@@ -259,11 +261,11 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
     private Long dateTimeAsMillis(int columnIndex) throws SQLException {
         Object val = column(columnIndex);
         EsType type = columnType(columnIndex);
-        
+
         if (val == null) {
             return null;
         }
-        
+
         try {
             // TODO: the B6 appendix of the jdbc spec does mention CHAR, VARCHAR, LONGVARCHAR, DATE, TIMESTAMP as supported
             // jdbc types that should be handled by getDate and getTime methods. From all of those we support VARCHAR and
@@ -272,7 +274,11 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
                 // the cursor can return an Integer if the date-since-epoch is small enough, XContentParser (Jackson) will
                 // return the "smallest" data type for numbers when parsing
                 // TODO: this should probably be handled server side
-                return asDateTimeField(val, JdbcDateUtils::dateTimeAsMillisSinceEpoch, Function.identity());
+                if (val instanceof String) {
+                    return asZonedDateTime((String) val).toInstant().toEpochMilli();
+                } else {
+                    return ((Number) val).longValue();
+                }
             }
             if (DATE == type) {
                 return dateTimeAsMillisSinceEpoch(val.toString());
@@ -283,7 +289,9 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
             return (Long) val;
         } catch (ClassCastException cce) {
             throw new SQLException(
-                    format(Locale.ROOT, "Unable to convert value [%.128s] of type [%s] to a Long", val, type.getName()), cce);
+                format(Locale.ROOT, "Unable to convert value [%.128s] of type [%s] to a Long", val, type.getName()),
+                cce
+            );
         }
     }
 
@@ -300,11 +308,9 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
         }
 
         try {
-
             return JdbcDateUtils.asDate(val.toString());
         } catch (Exception e) {
-            throw new SQLException(
-                format(Locale.ROOT, "Unable to convert value [%.128s] of type [%s] to a Date", val, type.getName()), e);
+            throw new SQLException(format(Locale.ROOT, "Unable to convert value [%.128s] of type [%s] to a Date", val, type.getName()), e);
         }
     }
 
@@ -326,8 +332,7 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
             }
             return JdbcDateUtils.asTime(val.toString());
         } catch (Exception e) {
-            throw new SQLException(
-                format(Locale.ROOT, "Unable to convert value [%.128s] of type [%s] to a Time", val, type.getName()), e);
+            throw new SQLException(format(Locale.ROOT, "Unable to convert value [%.128s] of type [%s] to a Time", val, type.getName()), e);
         }
     }
 
@@ -349,7 +354,9 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
             return asTimestamp(val.toString());
         } catch (Exception e) {
             throw new SQLException(
-                format(Locale.ROOT, "Unable to convert value [%.128s] of type [%s] to a Timestamp", val, type.getName()), e);
+                format(Locale.ROOT, "Unable to convert value [%.128s] of type [%s] to a Timestamp", val, type.getName()),
+                e
+            );
         }
     }
 
@@ -383,7 +390,11 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
 
     @Override
     public Timestamp getTimestamp(int columnIndex, Calendar cal) throws SQLException {
-        return TypeConverter.convertTimestamp(dateTimeAsMillis(columnIndex), safeCalendar(cal));
+        Timestamp ts = getTimestamp(columnIndex);
+        if (ts == null) {
+            return null;
+        }
+        return TypeConverter.convertTimestamp(ts.getTime(), ts.getNanos(), safeCalendar(cal));
     }
 
     @Override
@@ -525,7 +536,11 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
     @Override
     @Deprecated
     public BigDecimal getBigDecimal(int columnIndex, int scale) throws SQLException {
-        throw new SQLFeatureNotSupportedException("BigDecimal not supported");
+        BigDecimal bd = getBigDecimal(columnIndex);
+        // The API doesn't allow for specifying a rounding behavior, although BigDecimals did have a way of controlling rounding, even
+        // before the API got deprecated => default to fail if scaling can't return an exactly equal value, since this behavior was
+        // expected by (old) callers as well.
+        return bd == null ? null : bd.setScale(scale);
     }
 
     @Override
@@ -546,8 +561,9 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
 
     @Override
     @Deprecated
+    @SuppressForbidden(reason = "implementing deprecated method")
     public BigDecimal getBigDecimal(String columnLabel, int scale) throws SQLException {
-        throw new SQLFeatureNotSupportedException("BigDecimal not supported");
+        return getBigDecimal(column(columnLabel), scale);
     }
 
     @Override
@@ -569,12 +585,21 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
     @Override
     public SQLWarning getWarnings() throws SQLException {
         checkOpen();
-        return null;
+        SQLWarning sqlWarning = null;
+        for (String warning : cursor.warnings()) {
+            if (sqlWarning == null) {
+                sqlWarning = new SQLWarning(warning);
+            } else {
+                sqlWarning.setNextWarning(new SQLWarning(warning));
+            }
+        }
+        return sqlWarning;
     }
 
     @Override
     public void clearWarnings() throws SQLException {
         checkOpen();
+        cursor.clearWarnings();
     }
 
     @Override
@@ -594,12 +619,12 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
 
     @Override
     public BigDecimal getBigDecimal(int columnIndex) throws SQLException {
-        throw new SQLFeatureNotSupportedException("BigDecimal not supported");
+        return convert(columnIndex, BigDecimal.class);
     }
 
     @Override
     public BigDecimal getBigDecimal(String columnLabel) throws SQLException {
-        throw new SQLFeatureNotSupportedException("BigDecimal not supported");
+        return getBigDecimal(column(columnLabel));
     }
 
     @Override
@@ -1231,7 +1256,13 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
 
     @Override
     public String toString() {
-        return format(Locale.ROOT, "%s:row %d:cursor size %d:%s", getClass().getSimpleName(), rowNumber, cursor.batchSize(),
-                cursor.columns());
+        return format(
+            Locale.ROOT,
+            "%s:row %d:cursor size %d:%s",
+            getClass().getSimpleName(),
+            rowNumber,
+            cursor.batchSize(),
+            cursor.columns()
+        );
     }
 }

@@ -12,22 +12,22 @@ The `script_score` query is useful if, for example, a scoring function is expens
 
 [[script-score-query-ex-request]]
 ==== Example request
-The following `script_score` query assigns each returned document a score equal to the `likes` field value divided by `10`.
+The following `script_score` query assigns each returned document a score equal to the `my-int` field value divided by `10`.
 
 [source,console]
 --------------------------------------------------
 GET /_search
 {
-    "query" : {
-        "script_score" : {
-            "query" : {
-                "match": { "message": "elasticsearch" }
-            },
-            "script" : {
-                "source" : "doc['likes'].value / 10 "
-            }
-        }
-     }
+  "query": {
+    "script_score": {
+      "query": {
+        "match": { "message": "elasticsearch" }
+      },
+      "script": {
+        "source": "doc['my-int'].value / 10 "
+      }
+    }
+  }
 }
 --------------------------------------------------
 
@@ -48,9 +48,12 @@ scores be positive or `0`.
 --
 
 `min_score`::
-(Optional, float) Documents with a <<relevance-scores,relevance score>> lower
+(Optional, float) Documents with a score lower
 than this floating point number are excluded from the search results.
 
+`boost`::
+(Optional, float) Documents' scores produced by `script` are
+multiplied by `boost` to produce final documents' scores. Defaults to `1.0`.
 
 [[script-score-query-notes]]
 ==== Notes
@@ -87,7 +90,7 @@ These functions take advantage of efficiencies from {es}' internal mechanisms.
 [source,js]
 --------------------------------------------------
 "script" : {
-    "source" : "saturation(doc['likes'].value, 1)"
+    "source" : "saturation(doc['my-int'].value, 1)"
 }
 --------------------------------------------------
 // NOTCONSOLE
@@ -99,7 +102,7 @@ These functions take advantage of efficiencies from {es}' internal mechanisms.
 [source,js]
 --------------------------------------------------
 "script" : {
-    "source" : "sigmoid(doc['likes'].value, 2, 1)"
+    "source" : "sigmoid(doc['my-int'].value, 2, 1)"
 }
 --------------------------------------------------
 // NOTCONSOLE
@@ -141,7 +144,6 @@ to use a field that has unique values for all documents across a shard.
 A good default choice might be to use the `_seq_no`
 field, whose only drawback is that scores will change if the document is
 updated since update operations also update the value of the `_seq_no` field.
-
 
 [[decay-functions-numeric-fields]]
 ====== Decay functions for numeric fields
@@ -221,6 +223,10 @@ and default time zone. Also calculations with `now` are not supported.
 <<vector-functions, Functions for vector fields>> are accessible through
 `script_score` query.
 
+===== Allow expensive queries
+Script score queries will not be executed if <<query-dsl-allow-expensive-queries, `search.allow_expensive_queries`>>
+is set to false.
+
 [[script-score-faster-alt]]
 ===== Faster alternatives
 The `script_score` query calculates the score for
@@ -234,10 +240,11 @@ can efficiently skip non-competitive hits:
 
 [[script-score-function-score-transition]]
 ===== Transition from the function score query
-We are deprecating the <<query-dsl-function-score-query, `function_score`>>
-query. We recommend using the `script_score` query instead.
+We recommend using the `script_score` query instead of
+<<query-dsl-function-score-query, `function_score`>> query for the simplicity
+of the `script_score` query.
 
-You can implement the following functions from the `function_score` query using
+You can implement the following functions of the `function_score` query using
 the `script_score` query:
 
 * <<script-score>>
@@ -325,38 +332,38 @@ through a script:
 
 [[decay-functions]]
 ====== `decay` functions
-The `script_score` query has equivalent <<decay-functions, decay functions>>
-that can be used in script.
+The `script_score` query has equivalent <<decay-functions-numeric-fields, decay
+functions>> that can be used in scripts.
 
-include::{es-repo-dir}/vectors/vector-functions.asciidoc[]
+include::{es-ref-dir}/vectors/vector-functions.asciidoc[]
 
 [[score-explanation]]
-====== Explain request
+===== Explain request
 Using an <<search-explain, explain request>> provides an explanation of how the parts of a score were computed. The `script_score` query can add its own explanation by setting the `explanation` parameter:
 
 [source,console]
 --------------------------------------------------
-GET /twitter/_explain/0
+GET /my-index-000001/_explain/0
 {
-    "query" : {
-        "script_score" : {
-            "query" : {
-                "match": { "message": "elasticsearch" }
-            },
-            "script" : {
-                "source" : """
-                  long likes = doc['likes'].value;
-                  double normalizedLikes = likes / 10;
-                  if (explanation != null) {
-                    explanation.set('normalized likes = likes / 10 = ' + likes + ' / 10 = ' + normalizedLikes);
-                  }
-                  return normalizedLikes;
-                """
-            }
-        }
-     }
+  "query": {
+    "script_score": {
+      "query": {
+        "match": { "message": "elasticsearch" }
+      },
+      "script": {
+        "source": """
+          long count = doc['count'].value;
+          double normalizedCount = count / 10;
+          if (explanation != null) {
+            explanation.set('normalized count = count / 10 = ' + count + ' / 10 = ' + normalizedCount);
+          }
+          return normalizedCount;
+        """
+      }
+    }
+  }
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 Note that the `explanation` will be null when using in a normal `_search` request, so having a conditional guard is best practice.

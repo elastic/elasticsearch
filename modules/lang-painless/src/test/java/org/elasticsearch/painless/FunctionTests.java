@@ -1,27 +1,18 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.painless;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 public class FunctionTests extends ScriptTestCase {
+
     public void testBasic() {
         assertEquals(5, exec("int get() {5;} get()"));
     }
@@ -48,10 +39,11 @@ public class FunctionTests extends ScriptTestCase {
     }
 
     public void testEmpty() {
-        Exception expected = expectScriptThrows(IllegalArgumentException.class, () -> {
-            exec("void test(int x) {} test()");
-        });
-        assertThat(expected.getMessage(), containsString("Cannot generate an empty function"));
+        Exception expected = expectScriptThrows(IllegalArgumentException.class, () -> { exec("void test(int x) {} test()"); });
+        assertThat(
+            expected.getMessage(),
+            containsString("invalid function definition: found no statements for function [test] with [1] parameters")
+        );
     }
 
     public void testReturnsAreUnboxedIfNeeded() {
@@ -70,7 +62,7 @@ public class FunctionTests extends ScriptTestCase {
         Exception expected = expectScriptThrows(IllegalArgumentException.class, () -> {
             exec("void test(int x) {x = 2;} void test(def y) {y = 3;} test()");
         });
-        assertThat(expected.getMessage(), containsString("Illegal duplicate functions"));
+        assertThat(expected.getMessage(), containsString("found duplicate function"));
     }
 
     public void testBadCastFromMethod() {
@@ -83,11 +75,9 @@ public class FunctionTests extends ScriptTestCase {
     }
 
     public void testInfiniteLoop() {
-        Error expected = expectScriptThrows(PainlessError.class, () -> {
-            exec("void test() {boolean x = true; while (x) {}} test()");
-        });
-        assertThat(expected.getMessage(),
-                containsString("The maximum number of statements that can be executed in a loop has been reached."));
+        var e = expectScriptThrows(ErrorCauseWrapper.class, () -> { exec("void test() {boolean x = true; while (x) {}} test()"); });
+        assertThat(e.realCause.getClass(), equalTo(PainlessError.class));
+        assertThat(e.getMessage(), containsString("The maximum number of statements that can be executed in a loop has been reached."));
     }
 
     public void testReturnVoid() {
@@ -95,7 +85,10 @@ public class FunctionTests extends ScriptTestCase {
         Exception expected = expectScriptThrows(IllegalArgumentException.class, () -> {
             exec("int test(StringBuilder b, int i) {b.setLength(i)} test(new StringBuilder(), 1)");
         });
-        assertEquals("not all paths provide a return value for function [test] with [2] parameters", expected.getMessage());
+        assertEquals(
+            "invalid function definition: " + "not all paths provide a return value for function [test] with [2] parameters",
+            expected.getMessage()
+        );
         expected = expectScriptThrows(ClassCastException.class, () -> {
             exec("int test(StringBuilder b, int i) {return b.setLength(i)} test(new StringBuilder(), 1)");
         });

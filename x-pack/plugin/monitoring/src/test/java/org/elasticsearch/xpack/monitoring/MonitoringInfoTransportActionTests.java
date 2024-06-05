@@ -1,24 +1,25 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.monitoring;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
-import org.elasticsearch.test.rest.yaml.ObjectPath;
+import org.elasticsearch.test.MockUtils;
+import org.elasticsearch.test.TransportVersionUtils;
+import org.elasticsearch.test.rest.ObjectPath;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.monitoring.MonitoringFeatureSetUsage;
@@ -31,7 +32,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.core.Is.is;
@@ -41,34 +42,22 @@ import static org.mockito.Mockito.when;
 public class MonitoringInfoTransportActionTests extends ESTestCase {
 
     private final MonitoringService monitoring = mock(MonitoringService.class);
-    private final XPackLicenseState licenseState = mock(XPackLicenseState.class);
     private final Exporters exporters = mock(Exporters.class);
 
     public void testAvailable() {
-        MonitoringInfoTransportAction featureSet = new MonitoringInfoTransportAction(
-            mock(TransportService.class), mock(ActionFilters.class), Settings.EMPTY, licenseState);
-        boolean available = randomBoolean();
-        when(licenseState.isMonitoringAllowed()).thenReturn(available);
-        assertThat(featureSet.available(), is(available));
+        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
+        MonitoringInfoTransportAction featureSet = new MonitoringInfoTransportAction(transportService, mock(ActionFilters.class));
+        assertThat(featureSet.available(), is(true));
     }
 
-    public void testEnabledSetting() {
-        boolean enabled = randomBoolean();
-        Settings.Builder settings = Settings.builder();
-        settings.put("xpack.monitoring.enabled", enabled);
-        MonitoringInfoTransportAction featureSet = new MonitoringInfoTransportAction(
-            mock(TransportService.class), mock(ActionFilters.class), settings.build(), licenseState);
-        assertThat(featureSet.enabled(), is(enabled));
-    }
-
-    public void testEnabledDefault() {
-        MonitoringInfoTransportAction featureSet = new MonitoringInfoTransportAction(
-            mock(TransportService.class), mock(ActionFilters.class), Settings.EMPTY, licenseState);
+    public void testMonitoringEnabledByDefault() {
+        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
+        MonitoringInfoTransportAction featureSet = new MonitoringInfoTransportAction(transportService, mock(ActionFilters.class));
         assertThat(featureSet.enabled(), is(true));
     }
 
     public void testUsage() throws Exception {
-        final Version serializedVersion = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT);
+        TransportVersion serializedVersion = TransportVersionUtils.randomCompatibleVersion(random());
         final boolean collectionEnabled = randomBoolean();
         int localCount = randomIntBetween(0, 5);
         List<Exporter> exporterList = new ArrayList<>();
@@ -102,20 +91,27 @@ public class MonitoringInfoTransportActionTests extends ESTestCase {
         when(exporters.getEnabledExporters()).thenReturn(exporterList);
         when(monitoring.isMonitoringActive()).thenReturn(collectionEnabled);
 
-        var usageAction = new MonitoringUsageTransportAction(mock(TransportService.class), null, null,
-            mock(ActionFilters.class), null, Settings.EMPTY,licenseState,
-            new MonitoringUsageServices(monitoring, exporters));
+        ThreadPool threadPool = mock(ThreadPool.class);
+        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
+        var usageAction = new MonitoringUsageTransportAction(
+            transportService,
+            null,
+            threadPool,
+            mock(ActionFilters.class),
+            null,
+            new MonitoringUsageServices(monitoring, exporters)
+        );
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
         usageAction.masterOperation(null, null, null, future);
         MonitoringFeatureSetUsage monitoringUsage = (MonitoringFeatureSetUsage) future.get().getUsage();
         BytesStreamOutput out = new BytesStreamOutput();
-        out.setVersion(serializedVersion);
+        out.setTransportVersion(serializedVersion);
         monitoringUsage.writeTo(out);
         StreamInput in = out.bytes().streamInput();
-        in.setVersion(serializedVersion);
+        in.setTransportVersion(serializedVersion);
         XPackFeatureSet.Usage serializedUsage = new MonitoringFeatureSetUsage(in);
         for (XPackFeatureSet.Usage usage : Arrays.asList(monitoringUsage, serializedUsage)) {
-            ObjectPath  source;
+            ObjectPath source;
             try (XContentBuilder builder = jsonBuilder()) {
                 usage.toXContent(builder, ToXContent.EMPTY_PARAMS);
                 source = ObjectPath.createFromXContent(builder.contentType().xContent(), BytesReference.bytes(builder));

@@ -1,33 +1,24 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.cluster.routing.allocation;
 
-import org.apache.lucene.util.TestUtil;
-import org.elasticsearch.Version;
+import org.apache.lucene.tests.util.TestUtil;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
-import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexVersion;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -36,6 +27,7 @@ import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.elasticsearch.cluster.routing.RoutingNodesHelper.shardsWithState;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 
 /**
@@ -55,25 +47,26 @@ public class BalanceUnbalancedClusterTests extends CatAllocationTestCase {
     @Override
     protected ClusterState allocateNew(ClusterState state) {
         String index = "tweets-2014-12-29:00";
-        AllocationService strategy = createAllocationService(Settings.builder()
-                .build());
-        MetaData metaData = MetaData.builder(state.metaData())
-                .put(IndexMetaData.builder(index).settings(settings(Version.CURRENT)).numberOfShards(5).numberOfReplicas(1))
-                .build();
+        AllocationService strategy = createAllocationService(Settings.builder().build());
+        Metadata metadata = Metadata.builder(state.metadata())
+            .put(IndexMetadata.builder(index).settings(settings(IndexVersion.current())).numberOfShards(5).numberOfReplicas(1))
+            .build();
 
-        RoutingTable initialRoutingTable = RoutingTable.builder(state.routingTable())
-                .addAsNew(metaData.index(index))
-                .build();
+        RoutingTable initialRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY, state.routingTable())
+            .addAsNew(metadata.index(index))
+            .build();
 
-        ClusterState clusterState = ClusterState.builder(state).metaData(metaData).routingTable(initialRoutingTable).build();
-        clusterState = strategy.reroute(clusterState, "reroute");
-        while (clusterState.routingTable().shardsWithState(INITIALIZING).isEmpty() == false) {
+        ClusterState clusterState = ClusterState.builder(state).metadata(metadata).routingTable(initialRoutingTable).build();
+        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
+        while (shardsWithState(clusterState.getRoutingNodes(), INITIALIZING).isEmpty() == false) {
             clusterState = ESAllocationTestCase.startInitializingShardsAndReroute(strategy, clusterState);
         }
         Map<String, Integer> counts = new HashMap<>();
-        for (IndexShardRoutingTable table : clusterState.routingTable().index(index)) {
-            for (ShardRouting r : table) {
-                String s = r.currentNodeId();
+        final IndexRoutingTable indexRoutingTable = clusterState.routingTable().index(index);
+        for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
+            final IndexShardRoutingTable indexShardRoutingTable = indexRoutingTable.shard(shardId);
+            for (int copy = 0; copy < indexShardRoutingTable.size(); copy++) {
+                String s = indexShardRoutingTable.shard(copy).currentNodeId();
                 Integer count = counts.get(s);
                 if (count == null) {
                     count = 0;

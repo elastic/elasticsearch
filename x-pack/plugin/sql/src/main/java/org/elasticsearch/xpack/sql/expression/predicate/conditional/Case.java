@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.expression.predicate.conditional;
 
@@ -10,6 +11,7 @@ import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder;
 import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
+import org.elasticsearch.xpack.ql.expression.gen.script.Scripts;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
@@ -19,7 +21,6 @@ import org.elasticsearch.xpack.sql.type.SqlDataTypes;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.StringJoiner;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder.paramsBuilder;
@@ -89,26 +90,41 @@ public class Case extends ConditionalFunction {
 
         for (IfConditional conditional : conditions) {
             if (conditional.condition().dataType() != DataTypes.BOOLEAN) {
-                return new TypeResolution(format(null, "condition of [{}] must be [boolean], found value [{}] type [{}]",
-                    conditional.sourceText(),
-                    Expressions.name(conditional.condition()),
-                    conditional.condition().dataType().typeName()));
+                return new TypeResolution(
+                    format(
+                        null,
+                        "condition of [{}] must be [boolean], found value [{}] type [{}]",
+                        conditional.sourceText(),
+                        Expressions.name(conditional.condition()),
+                        conditional.condition().dataType().typeName()
+                    )
+                );
             }
             if (SqlDataTypes.areCompatible(expectedResultDataType, conditional.dataType()) == false) {
-                return new TypeResolution(format(null, "result of [{}] must be [{}], found value [{}] type [{}]",
-                    conditional.sourceText(),
-                    expectedResultDataType.typeName(),
-                    Expressions.name(conditional.result()),
-                    conditional.dataType().typeName()));
+                return new TypeResolution(
+                    format(
+                        null,
+                        "result of [{}] must be [{}], found value [{}] type [{}]",
+                        conditional.sourceText(),
+                        expectedResultDataType.typeName(),
+                        Expressions.name(conditional.result()),
+                        conditional.dataType().typeName()
+                    )
+                );
             }
         }
 
         if (SqlDataTypes.areCompatible(expectedResultDataType, elseResult.dataType()) == false) {
-            return new TypeResolution(format(null, "ELSE clause of [{}] must be [{}], found value [{}] type [{}]",
-                elseResult.sourceText(),
-                expectedResultDataType.typeName(),
-                Expressions.name(elseResult),
-                elseResult.dataType().typeName()));
+            return new TypeResolution(
+                format(
+                    null,
+                    "ELSE clause of [{}] must be [{}], found value [{}] type [{}]",
+                    elseResult.sourceText(),
+                    expectedResultDataType.typeName(),
+                    Expressions.name(elseResult),
+                    elseResult.dataType().typeName()
+                )
+            );
         }
 
         return TypeResolution.TYPE_RESOLVED;
@@ -161,14 +177,26 @@ public class Case extends ConditionalFunction {
         }
         templates.add(asScript(elseResult));
 
-        StringJoiner template = new StringJoiner(",", "{sql}.caseFunction([", "])");
+        // Use painless ?: expressions to prevent evaluation of return expression
+        // if the condition which guards it evaluates to false (e.g. division by 0)
+        StringBuilder sb = new StringBuilder();
         ParamsBuilder params = paramsBuilder();
-
-        for (ScriptTemplate scriptTemplate : templates) {
-            template.add(scriptTemplate.template());
+        for (int i = 0; i < templates.size(); i++) {
+            ScriptTemplate scriptTemplate = templates.get(i);
+            if (i < templates.size() - 1) {
+                if (i % 2 == 0) {
+                    // painless ? : operator expects primitive boolean, thus we use nullSafeFilter
+                    // to convert object Boolean to primitive boolean (null => false)
+                    sb.append(Scripts.nullSafeFilter(scriptTemplate).template()).append(" ? ");
+                } else {
+                    sb.append(scriptTemplate.template()).append(" : ");
+                }
+            } else {
+                sb.append(scriptTemplate.template());
+            }
             params.script(scriptTemplate.params());
         }
 
-        return new ScriptTemplate(formatTemplate(template.toString()), params.build(), dataType());
+        return new ScriptTemplate(formatTemplate(sb.toString()), params.build(), dataType());
     }
 }

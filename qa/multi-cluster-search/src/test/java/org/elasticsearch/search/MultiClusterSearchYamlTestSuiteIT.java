@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search;
@@ -22,12 +11,64 @@ package org.elasticsearch.search;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
-import org.apache.lucene.util.TimeUnits;
+
+import org.apache.lucene.tests.util.TimeUnits;
+import org.elasticsearch.test.rest.TestFeatureService;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
+import org.elasticsearch.test.rest.yaml.ClientYamlTestClient;
+import org.elasticsearch.test.rest.yaml.ClientYamlTestExecutionContext;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
+import org.junit.BeforeClass;
+
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
 
 @TimeoutSuite(millis = 5 * TimeUnits.MINUTE) // to account for slow as hell VMs
 public class MultiClusterSearchYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
+
+    private static String remoteEsVersion = null;
+
+    @BeforeClass
+    public static void readRemoteClusterVersion() {
+        String remoteClusterVersion = System.getProperty("tests.rest.remote_cluster_version");
+        if (remoteClusterVersion != null) {
+            remoteEsVersion = remoteClusterVersion;
+        }
+    }
+
+    @Override
+    protected ClientYamlTestExecutionContext createRestTestExecutionContext(
+        ClientYamlTestCandidate clientYamlTestCandidate,
+        ClientYamlTestClient clientYamlTestClient,
+        final Set<String> nodesVersions,
+        final TestFeatureService testFeatureService,
+        final Set<String> osSet
+    ) {
+        /*
+         * Since the esVersion is used to skip tests in ESClientYamlSuiteTestCase, we also take into account the
+         * remote cluster version here. This is used to skip tests if some feature isn't available on the remote cluster yet.
+         */
+        final Set<String> commonVersions;
+        if (remoteEsVersion == null || nodesVersions.contains(remoteEsVersion)) {
+            commonVersions = nodesVersions;
+        } else {
+            var versionsCopy = new HashSet<>(nodesVersions);
+            versionsCopy.add(remoteEsVersion);
+            commonVersions = Collections.unmodifiableSet(versionsCopy);
+        }
+
+        // TODO: same for os and features. Better to do that once this test(s) have been migrated to the new ElasticsearchCluster-based
+        // framework. See CcsCommonYamlTestSuiteIT for example.
+        return new ClientYamlTestExecutionContext(
+            clientYamlTestCandidate,
+            clientYamlTestClient,
+            randomizeContentType(),
+            commonVersions,
+            testFeatureService,
+            osSet
+        );
+    }
 
     @Override
     protected boolean preserveIndicesUponCompletion() {

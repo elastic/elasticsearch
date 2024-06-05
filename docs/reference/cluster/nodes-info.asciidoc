@@ -18,6 +18,12 @@ Returns cluster nodes information.
 
 `GET /_nodes/<node_id>/<metric>`
 
+[[cluster-nodes-info-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `monitor` or
+`manage` <<privileges-list-cluster,cluster privilege>> to use this API.
+
 
 [[cluster-nodes-info-api-desc]]
 ==== {api-description-title}
@@ -28,60 +34,74 @@ the cluster nodes information. All the nodes selective options are explained
 
 By default, it returns all attributes and core settings for a node.
 
-
+[role="child_attributes"]
 [[cluster-nodes-info-api-path-params]]
 ==== {api-path-parms-title}
 
 `<metric>`::
-		(Optional, string) Limits the information returned to the specific metrics. 
-		A comma-separated list of the following options:
+(Optional, string)
+Limits the information returned to the specific metrics. Supports a
+comma-separated list, such as `http,ingest`.
 +
---
-
+[%collapsible%open]
+.Valid values for `<metric>`
+====
+`aggregations`::
+Information about the available types of aggregation.
 
 `http`::
-		HTTP connection information.
+Information about the HTTP interface of this node.
 
-`ingest`::
-		Statistics about ingest preprocessing.
-
-`jvm`::
-		JVM stats, memory pool information, garbage collection, buffer pools, number 
-		of loaded/unloaded classes.
-
-`os`::
-		Operating system stats, load average, mem, swap.
-		
-`plugins`::
-		Details about the installed plugins and modules per node. The following 
-		information are available for each plugin and module:
+`indices`::
 +
----
-		* `name`: plugin name
-		* `version`: version of Elasticsearch the plugin was built for
-		* `description`: short description of the plugin's purpose
-		* `classname`: fully-qualified class name of the plugin's entry point
-		* `has_native_controller`: whether or not the plugin has a native controller 
-		process
----
-	
-`process`::
-		Process statistics, memory consumption, cpu usage, open file descriptors.
+--
+Node-level configuration related to indexing:
 
-`settings`::
-		
-
-`thread_pool`::
-		Statistics about each thread pool, including current size, queue and 
-		rejected tasks
-		
-`transport`::
-		Transport statistics about sent and received bytes in cluster communication.
+* `total_indexing_buffer`: the maximum size of the indexing buffer on this node.
 --
 
+`ingest`::
+Information about ingest pipelines and processors.
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=node-id]
+`jvm`::
+JVM information, including its name, its version, and its configuration.
 
+`os`::
+Operating system information, including its name and version.
+
+`plugins`::
++
+--
+Details about the installed plugins and modules per node. The following
+information is available for each plugin and module:
+
+* `name`: plugin name
+* `version`: version of Elasticsearch the plugin was built for
+* `description`: short description of the plugin's purpose
+* `classname`: fully-qualified class name of the plugin's entry point
+* `has_native_controller`: whether or not the plugin has a native controller
+process
+--
+
+`process`::
+Process information, including the numeric process ID.
+
+`settings`::
+Lists all node settings in use as defined in the `elasticsearch.yml` file.
+
+`thread_pool`::
+Information about the configuration of each thread pool.
+
+`transport`::
+Information about the transport interface of the node.
+====
+
+If you use the full `GET /_nodes/<node_id>/<metric>` form of this API then you
+can also request the metric `_all` to retrieve all metrics, or you can request
+the metric `_none` to suppress all metrics and retrieve only the identity of
+the node.
+
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=node-id]
 
 [[cluster-nodes-info-api-response-body]]
 ==== {api-response-body-title}
@@ -100,7 +120,7 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=node-id]
 
 `total_indexing_buffer`::
 		Total heap allowed to be used to hold recently indexed
-		documents before they must be written to disk.  This size is
+		documents before they must be written to disk. This size is
 		a shared pool across all shards on this node, and is
     controlled by <<indexing-buffer,Indexing Buffer settings>>.
 
@@ -113,7 +133,16 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=node-id]
 `version`::
 		{es} version running on this node.
 
-The `os` flag can be set to retrieve information that concern the operating 
+`transport_version`::
+		The most recent transport version that this node can communicate with.
+
+`index_version`::
+		The most recent index version that this node can read.
+
+`component_versions`::
+		The version numbers of individual components loaded in this node.
+
+The `os` flag can be set to retrieve information that concern the operating
 system:
 
 `os.refresh_interval_in_millis`::
@@ -132,12 +161,12 @@ system:
 		Number of processors available to the Java virtual machine
 
 `os.allocated_processors`::
-	  The number of processors actually used to calculate thread pool size. This 
-		number can be set with the `processors` setting of a node and defaults to 
-		the number of processors reported by the OS. In both cases this number will 
-		never be larger than 32.
+	  The number of processors actually used to calculate thread pool size. This
+		number can be set with the <<node.processors, `node.processors`>>
+		setting of a node and defaults to the number of processors reported by
+		the OS.
 
-The `process` flag can be set to retrieve information that concern the current 
+The `process` flag can be set to retrieve information that concern the current
 running process:
 
 `process.refresh_interval_in_millis`::
@@ -153,9 +182,9 @@ running process:
 [[cluster-nodes-info-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=flat-settings]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=flat-settings]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=timeout-nodes-request]
 
 
 [[cluster-nodes-info-api-example]]
@@ -185,7 +214,7 @@ The `_all` flag can be set to return all the information - or you can omit it.
 [[cluster-nodes-info-api-example-plugins]]
 ===== Example for plugins metric
 
-If `plugins` is specified, the result will contain details about the installed 
+If `plugins` is specified, the result will contain details about the installed
 plugins and modules:
 
 [source,console]
@@ -208,7 +237,13 @@ The API returns the following response:
       "host": "node-0.elastic.co",
       "ip": "192.168.17",
       "version": "{version}",
-      "build_flavor": "{build_flavor}",
+      "transport_version": 100000298,
+      "index_version": 100000074,
+      "component_versions": {
+        "ml_config_version": 100000162,
+        "transform_config_version": 100000096
+      },
+      "build_flavor": "default",
       "build_type": "{build_type}",
       "build_hash": "587409e",
       "roles": [
@@ -246,6 +281,9 @@ The API returns the following response:
 // TESTRESPONSE[s/"transport_address": "192.168.17:9300"/"transport_address": $body.$_path/]
 // TESTRESPONSE[s/"host": "node-0.elastic.co"/"host": $body.$_path/]
 // TESTRESPONSE[s/"ip": "192.168.17"/"ip": $body.$_path/]
+// TESTRESPONSE[s/"transport_version": 100000298/"transport_version": $body.$_path/]
+// TESTRESPONSE[s/"index_version": 100000074/"index_version": $body.$_path/]
+// TESTRESPONSE[s/"component_versions": \{[^\}]*\}/"component_versions": $body.$_path/]
 // TESTRESPONSE[s/"build_hash": "587409e"/"build_hash": $body.$_path/]
 // TESTRESPONSE[s/"roles": \[[^\]]*\]/"roles": $body.$_path/]
 // TESTRESPONSE[s/"attributes": \{[^\}]*\}/"attributes": $body.$_path/]
@@ -256,7 +294,7 @@ The API returns the following response:
 [[cluster-nodes-info-api-example-ingest]]
 ===== Example for ingest metric
 
-If `ingest` is specified, the response contains details about the available 
+If `ingest` is specified, the response contains details about the available
 processors per node:
 
 [source,console]
@@ -279,7 +317,13 @@ The API returns the following response:
       "host": "node-0.elastic.co",
       "ip": "192.168.17",
       "version": "{version}",
-      "build_flavor": "{build_flavor}",
+      "transport_version": 100000298,
+      "index_version": 100000074,
+      "component_versions": {
+        "ml_config_version": 100000162,
+        "transform_config_version": 100000096
+      },
+      "build_flavor": "default",
       "build_type": "{build_type}",
       "build_hash": "587409e",
       "roles": [],
@@ -341,6 +385,9 @@ The API returns the following response:
 // TESTRESPONSE[s/"transport_address": "192.168.17:9300"/"transport_address": $body.$_path/]
 // TESTRESPONSE[s/"host": "node-0.elastic.co"/"host": $body.$_path/]
 // TESTRESPONSE[s/"ip": "192.168.17"/"ip": $body.$_path/]
+// TESTRESPONSE[s/"transport_version": 100000298/"transport_version": $body.$_path/]
+// TESTRESPONSE[s/"index_version": 100000074/"index_version": $body.$_path/]
+// TESTRESPONSE[s/"component_versions": \{[^\}]*\}/"component_versions": $body.$_path/]
 // TESTRESPONSE[s/"build_hash": "587409e"/"build_hash": $body.$_path/]
 // TESTRESPONSE[s/"roles": \[[^\]]*\]/"roles": $body.$_path/]
 // TESTRESPONSE[s/"attributes": \{[^\}]*\}/"attributes": $body.$_path/]

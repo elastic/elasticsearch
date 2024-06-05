@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.lucene.search.function;
@@ -28,21 +17,22 @@ import java.io.IOException;
 
 /** A {@link Scorer} that filters out documents that have a score that is
  *  lower than a configured constant. */
-final class MinScoreScorer extends Scorer {
+public final class MinScoreScorer extends Scorer {
 
     private final Scorer in;
     private final float minScore;
-
     private float curScore;
+    private final float boost;
 
-    MinScoreScorer(Weight weight, Scorer scorer, float minScore) {
+    public MinScoreScorer(Weight weight, Scorer scorer, float minScore) {
+        this(weight, scorer, minScore, 1f);
+    }
+
+    public MinScoreScorer(Weight weight, Scorer scorer, float minScore, float boost) {
         super(weight);
         this.in = scorer;
         this.minScore = minScore;
-    }
-
-    public Scorer getScorer() {
-        return in;
+        this.boost = boost;
     }
 
     @Override
@@ -52,7 +42,7 @@ final class MinScoreScorer extends Scorer {
 
     @Override
     public float score() {
-        return curScore;
+        return curScore * boost;
     }
 
     @Override
@@ -72,15 +62,25 @@ final class MinScoreScorer extends Scorer {
 
     @Override
     public TwoPhaseIterator twoPhaseIterator() {
-        final TwoPhaseIterator inTwoPhase = this.in.twoPhaseIterator();
-        final DocIdSetIterator approximation = inTwoPhase == null ? in.iterator() : inTwoPhase.approximation();
+        TwoPhaseIterator inTwoPhase = in.twoPhaseIterator();
+        DocIdSetIterator approximation;
+        if (inTwoPhase == null) {
+            approximation = in.iterator();
+            if (TwoPhaseIterator.unwrap(approximation) != null) {
+                inTwoPhase = TwoPhaseIterator.unwrap(approximation);
+                approximation = inTwoPhase.approximation();
+            }
+        } else {
+            approximation = inTwoPhase.approximation();
+        }
+        final TwoPhaseIterator finalTwoPhase = inTwoPhase;
         return new TwoPhaseIterator(approximation) {
 
             @Override
             public boolean matches() throws IOException {
                 // we need to check the two-phase iterator first
                 // otherwise calling score() is illegal
-                if (inTwoPhase != null && inTwoPhase.matches() == false) {
+                if (finalTwoPhase != null && finalTwoPhase.matches() == false) {
                     return false;
                 }
                 curScore = in.score();
@@ -90,7 +90,7 @@ final class MinScoreScorer extends Scorer {
             @Override
             public float matchCost() {
                 return 1000f // random constant for the score computation
-                        + (inTwoPhase == null ? 0 : inTwoPhase.matchCost());
+                    + (finalTwoPhase == null ? 0 : finalTwoPhase.matchCost());
             }
         };
     }

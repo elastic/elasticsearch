@@ -1,29 +1,17 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.ParsedAggregation;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.test.InternalAggregationTestCase;
 
 import java.util.ArrayList;
@@ -34,15 +22,10 @@ import java.util.Map;
 public class InternalAvgTests extends InternalAggregationTestCase<InternalAvg> {
 
     @Override
-    protected InternalAvg createTestInstance(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
+    protected InternalAvg createTestInstance(String name, Map<String, Object> metadata) {
         DocValueFormat formatter = randomNumericDocValueFormat();
         long count = frequently() ? randomNonNegativeLong() % 100000 : 0;
-        return new InternalAvg(name, randomDoubleBetween(0, 100000, true), count, formatter, pipelineAggregators, metaData);
-    }
-
-    @Override
-    protected Reader<InternalAvg> instanceReader() {
-        return InternalAvg::new;
+        return new InternalAvg(name, randomDoubleBetween(0, 100000, true), count, formatter, metadata);
     }
 
     @Override
@@ -58,8 +41,18 @@ public class InternalAvgTests extends InternalAggregationTestCase<InternalAvg> {
         assertEquals(sum / counts, reduced.value(), 0.0000001);
     }
 
+    @Override
+    protected boolean supportsSampling() {
+        return true;
+    }
+
+    @Override
+    protected void assertSampled(InternalAvg sampled, InternalAvg reduced, SamplingContext samplingContext) {
+        assertEquals(sampled.value(), reduced.value(), 1e-12);
+    }
+
     public void testSummationAccuracy() {
-        double[] values = new double[]{0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.9, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7};
+        double[] values = new double[] { 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.9, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7 };
         verifyAvgOfDoubles(values, 0.9, 0d);
 
         int n = randomIntBetween(5, 10);
@@ -90,21 +83,10 @@ public class InternalAvgTests extends InternalAggregationTestCase<InternalAvg> {
     private void verifyAvgOfDoubles(double[] values, double expected, double delta) {
         List<InternalAggregation> aggregations = new ArrayList<>(values.length);
         for (double value : values) {
-            aggregations.add(new InternalAvg("dummy1", value, 1, null, null, null));
+            aggregations.add(new InternalAvg("dummy1", value, 1, null, null));
         }
-        InternalAvg internalAvg = new InternalAvg("dummy2", 0, 0, null, null, null);
-        InternalAvg reduced = internalAvg.reduce(aggregations, null);
+        InternalAvg reduced = (InternalAvg) InternalAggregationTestCase.reduce(aggregations, null);
         assertEquals(expected, reduced.getValue(), delta);
-    }
-
-    @Override
-    protected void assertFromXContent(InternalAvg avg, ParsedAggregation parsedAggregation) {
-        ParsedAvg parsed = ((ParsedAvg) parsedAggregation);
-        assertEquals(avg.getValue(), parsed.getValue(), Double.MIN_VALUE);
-        // we don't print out VALUE_AS_STRING for avg.getCount() == 0, so we cannot get the exact same value back
-        if (avg.getCount() != 0) {
-            assertEquals(avg.getValueAsString(), parsed.getValueAsString());
-        }
     }
 
     @Override
@@ -113,37 +95,33 @@ public class InternalAvgTests extends InternalAggregationTestCase<InternalAvg> {
         double sum = instance.getSum();
         long count = instance.getCount();
         DocValueFormat formatter = instance.getFormatter();
-        List<PipelineAggregator> pipelineAggregators = instance.pipelineAggregators();
-        Map<String, Object> metaData = instance.getMetaData();
-        switch (between(0, 2)) {
-        case 0:
-            name += randomAlphaOfLength(5);
-            break;
-        case 1:
-            if (Double.isFinite(sum)) {
-                sum += between(1, 100);
-            } else {
-                sum = between(1, 100);
+        Map<String, Object> metadata = instance.getMetadata();
+        switch (between(0, 3)) {
+            case 0 -> name += randomAlphaOfLength(5);
+            case 1 -> {
+                if (Double.isFinite(sum)) {
+                    sum += between(1, 100);
+                } else {
+                    sum = between(1, 100);
+                }
             }
-            break;
-        case 2:
-            if (Double.isFinite(count)) {
-                count += between(1, 100);
-            } else {
-                count = between(1, 100);
+            case 2 -> {
+                if (Double.isFinite(count)) {
+                    count += between(1, 100);
+                } else {
+                    count = between(1, 100);
+                }
             }
-            break;
-        case 3:
-            if (metaData == null) {
-                metaData = new HashMap<>(1);
-            } else {
-                metaData = new HashMap<>(instance.getMetaData());
+            case 3 -> {
+                if (metadata == null) {
+                    metadata = Maps.newMapWithExpectedSize(1);
+                } else {
+                    metadata = new HashMap<>(instance.getMetadata());
+                }
+                metadata.put(randomAlphaOfLength(15), randomInt());
             }
-            metaData.put(randomAlphaOfLength(15), randomInt());
-            break;
-        default:
-            throw new AssertionError("Illegal randomisation branch");
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
-        return new InternalAvg(name, sum, count, formatter, pipelineAggregators, metaData);
+        return new InternalAvg(name, sum, count, formatter, metadata);
     }
 }

@@ -1,0 +1,301 @@
+---
+"Help":
+
+  - requires:
+      cluster_features: ["gte_v8.14.0"]
+      reason:  "shards.undesired, write_load.forecast and disk.indices.forecast are added in 8.14.0"
+
+  - do:
+      cat.allocation:
+        help: true
+
+  - match:
+      $body: |
+               /^  shards                .+   \n
+                   shards.undesired      .+   \n
+                   write_load.forecast   .+   \n
+                   disk.indices.forecast .+   \n
+                   disk.indices          .+   \n
+                   disk.used             .+   \n
+                   disk.avail            .+   \n
+                   disk.total            .+   \n
+                   disk.percent          .+   \n
+                   host                  .+   \n
+                   ip                    .+   \n
+                   node                  .+   \n
+                   node.role             .+   \n
+               $/
+
+---
+"One index":
+
+  - requires:
+      cluster_features: ["gte_v8.14.0"]
+      reason:  "shards.undesired, write_load.forecast and disk.indices.forecast columns are added in 8.14.0"
+
+  - do:
+        indices.create:
+            index: test
+
+  - do:
+        cat.allocation: {}
+
+  - match:
+      $body: |
+            /^
+              ( \s*                          #allow leading spaces to account for right-justified text
+                \d+                    \s+
+                \d+                    \s+
+                \d+(\.\d+)?            \s+
+                \d+(\.\d+)?[kmgt]?b    \s+
+                \d+(\.\d+)?[kmgt]?b    \s+
+                \d+(\.\d+)?[kmgt]?b    \s+
+                (\d+(\.\d+)?[kmgt]b   \s+)  #always should return value since we filter out non data nodes by default
+                (\d+(\.\d+)?[kmgt]b   \s+)  #always should return value since we filter out non data nodes by default
+                (\d+                  \s+)  #always should return value since we filter out non data nodes by default
+                [-\w.]+                \s+
+                \d+(\.\d+){3}          \s+
+                [-\w.]+                \s+
+                [\w]+
+                \n
+              )+
+              (
+                \s*                          #allow leading spaces to account for right-justified text
+                \d+                    \s+
+                UNASSIGNED             \s*
+                \n
+              )?
+            $/
+
+---
+"Node ID":
+
+  - requires:
+      cluster_features: ["gte_v8.14.0"]
+      reason:  "shards.undesired, write_load.forecast and disk.indices.forecast columns are added in 8.14.0"
+
+  - do:
+        cat.allocation:
+            node_id: _master
+
+  - match:
+      $body: |
+            /^
+              ( \d+                    \s+   #usually 0, unless some system index has been recreated before this runs
+                \d+                    \s+
+                \d+(\.\d+)?            \s+
+                \d+(\.\d+)?[kmgt]?b    \s+
+                \d+(\.\d+)?[kmgt]?b    \s+
+                \d+(\.\d+)?[kmgt]?b    \s+
+                (\d+(\.\d+)?[kmgt]b   \s+)?  #no value from client nodes
+                (\d+(\.\d+)?[kmgt]b   \s+)?  #no value from client nodes
+                (\d+                  \s+)?  #no value from client nodes
+                [-\w.]+                \s+
+                \d+(\.\d+){3}          \s+
+                [-\w.]+                \s+
+                [\w]+
+                \n
+              )
+            $/
+
+  - do:
+        cat.allocation:
+            node_id: non_existent
+
+  - match:
+      $body: |
+            /^
+            $/
+
+---
+"All Nodes":
+
+   - requires:
+      cluster_features: ["gte_v8.14.0"]
+      reason:  "shards.undesired, write_load.forecast and disk.indices.forecast columns are added in 8.14.0"
+
+   - do:
+         cat.allocation:
+           node_id: "*"
+
+   - match:
+       $body: |
+             /^
+               ( \s*                          #allow leading spaces to account for right-justified text
+                 \d+                    \s+   #usually 0, unless some system index has been recreated before this runs
+                 \d+                    \s+
+                 \d+(\.\d+)?            \s+
+                 \d+(\.\d+)?[kmgt]?b    \s+
+                 \d+(\.\d+)?[kmgt]?b    \s+
+                 \d+(\.\d+)?[kmgt]?b    \s+
+                 (\d+(\.\d+)?[kmgt]b   \s+)?  #no value from client nodes
+                 (\d+(\.\d+)?[kmgt]b   \s+)?  #no value from client nodes
+                 (\d+                  \s+)?  #no value from client nodes
+                 [-\w.]+                \s+
+                 \d+(\.\d+){3}          \s+
+                 [-\w.]+                \s+
+                 [\w]+
+                 \n
+               )+
+               (
+                 \s*                          #allow leading spaces to account for right-justified text
+                 \d+                    \s+
+                 UNASSIGNED             \s*
+                 \n
+               )?
+             $/
+
+---
+"Column headers":
+
+  - requires:
+      cluster_features: ["gte_v8.14.0"]
+      reason:  "shards.undesired, write_load.forecast and disk.indices.forecast columns are added in 8.14.0"
+
+  - do:
+        cat.allocation:
+            v: true
+  - match:
+
+      $body: |
+           /^  shards                  \s+
+               shards.undesired        \s+
+               write_load.forecast     \s+
+               disk.indices.forecast   \s+
+               disk.indices            \s+
+               disk.used               \s+
+               disk.avail              \s+
+               disk.total              \s+
+               disk.percent            \s+
+               host                    \s+
+               ip                      \s+
+               node                    \s+
+               node.role
+               \n
+
+              ( \s*                          #allow leading spaces to account for right-justified text
+                \d+                    \s+   #usually 0, unless some system index has been recreated before this runs
+                \d+                    \s+
+                \d+(\.\d+)?            \s+
+                \d+(\.\d+)?[kmgt]?b    \s+
+                \d+(\.\d+)?[kmgt]?b    \s+
+                \d+(\.\d+)?[kmgt]?b    \s+
+                (\d+(\.\d+)?[kmgt]b   \s+)  #always should return value since we filter out non data nodes by default
+                (\d+(\.\d+)?[kmgt]b   \s+)  #always should return value since we filter out non data nodes by default
+                (\d+                  \s+)  #always should return value since we filter out non data nodes by default
+                [-\w.]+                \s+
+                \d+(\.\d+){3}          \s+
+                [-\w.]+                \s+
+                [\w]+
+                \n
+              )+
+            $/
+
+---
+"Select columns":
+
+  - do:
+        cat.allocation:
+            h: [disk.percent, node]
+            v: false
+
+  - match:
+      $body: |
+            /^
+              ( \d*                 \s+
+                [-\w.]+
+                \n
+              )+
+            $/
+
+  - do:
+        cat.allocation:
+            h: [disk.percent, node]
+            v: true
+
+  - match:
+      $body: |
+            /^
+              disk.percent          \s+
+              node
+              \n
+              (
+                \s+\d*           \s+
+                [-\w.]+
+                \n
+              )+
+            $/
+
+
+---
+"Bytes":
+
+  - requires:
+      cluster_features: ["gte_v8.14.0"]
+      reason:  "shards.undesired, write_load.forecast and disk.indices.forecast columns are added in 8.14.0"
+
+  - do:
+      cat.allocation:
+        bytes: gb
+
+  - match:
+      $body: |
+            /^
+              ( \d+                 \s+    #usually 0, unless some system index has been recreated before this runs
+                \d+                 \s+
+                \d+(\.\d+)?         \s+
+                \d+                 \s+
+                0                   \s+
+                \d+                 \s+
+                (\d+                 \s+)  #always should return value since we filter out non data nodes by default
+                (\d+                 \s+)  #always should return value since we filter out non data nodes by default
+                (\d+                 \s+)  #always should return value since we filter out non data nodes by default
+                [-\w.]+             \s+
+                \d+(\.\d+){3}       \s+
+                [-\w.]+             \s+
+                [\w]+
+                \n
+              )+
+            $/
+
+---
+"Node roles":
+
+  - requires:
+      cluster_features: ["gte_v8.10.0"]
+      reason:  "node.role column added in 8.10.0"
+
+  - do:
+      cat.allocation:
+        h: [node, node.role]
+
+  - match:
+      $body: |
+        /^
+          ( [-\w.]+                \s+
+            [\w]+
+            \n
+          )+
+        $/
+
+---
+"Node forecasts":
+
+  - requires:
+      cluster_features: ["gte_v8.14.0"]
+      reason:  "write_load.forecast and disk.indices.forecast columns added in 8.14.0"
+
+  - do:
+      cat.allocation:
+        h: [node, shards.undesired, write_load.forecast, disk.indices.forecast]
+
+  - match:
+      $body: |
+        /^
+          ( [-\w.]+                \s+
+            [-\w.]+                \s+
+            [-\w.]+                \s+
+            [\w]+
+            \n
+          )+
+        $/

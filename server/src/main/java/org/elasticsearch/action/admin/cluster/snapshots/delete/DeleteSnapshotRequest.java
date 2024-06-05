@@ -1,83 +1,59 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.cluster.snapshots.delete;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
  * Delete snapshot request
  * <p>
- * Delete snapshot request removes the snapshot record from the repository and cleans up all
- * files that are associated with this particular snapshot. All files that are shared with
- * at least one other existing snapshot are left intact.
+ * Delete snapshot request removes snapshots from the repository and cleans up all files that are associated with the snapshots.
+ * All files that are shared with at least one other existing snapshot are left intact.
  */
 public class DeleteSnapshotRequest extends MasterNodeRequest<DeleteSnapshotRequest> {
 
     private String repository;
 
-    private String snapshot;
+    private String[] snapshots;
 
     /**
-     * Constructs a new delete snapshots request
-     */
-    public DeleteSnapshotRequest() {
-    }
-
-    /**
-     * Constructs a new delete snapshots request with repository and snapshot name
+     * Constructs a new delete snapshots request with repository and snapshot names
      *
      * @param repository repository name
-     * @param snapshot   snapshot name
+     * @param snapshots  snapshot names
      */
-    public DeleteSnapshotRequest(String repository, String snapshot) {
+    public DeleteSnapshotRequest(String repository, String... snapshots) {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
         this.repository = repository;
-        this.snapshot = snapshot;
-    }
-
-    /**
-     * Constructs a new delete snapshots request with repository name
-     *
-     * @param repository repository name
-     */
-    public DeleteSnapshotRequest(String repository) {
-        this.repository = repository;
+        this.snapshots = snapshots;
     }
 
     public DeleteSnapshotRequest(StreamInput in) throws IOException {
         super(in);
         repository = in.readString();
-        snapshot = in.readString();
+        snapshots = in.readStringArray();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(repository);
-        out.writeString(snapshot);
+        out.writeStringArray(snapshots);
     }
 
     @Override
@@ -86,12 +62,11 @@ public class DeleteSnapshotRequest extends MasterNodeRequest<DeleteSnapshotReque
         if (repository == null) {
             validationException = addValidationError("repository is missing", validationException);
         }
-        if (snapshot == null) {
-            validationException = addValidationError("snapshot is missing", validationException);
+        if (snapshots == null || snapshots.length == 0) {
+            validationException = addValidationError("snapshots are missing", validationException);
         }
         return validationException;
     }
-
 
     public DeleteSnapshotRequest repository(String repository) {
         this.repository = repository;
@@ -108,21 +83,26 @@ public class DeleteSnapshotRequest extends MasterNodeRequest<DeleteSnapshotReque
     }
 
     /**
-     * Returns repository name
+     * Returns snapshot names
      *
-     * @return repository name
+     * @return snapshot names
      */
-    public String snapshot() {
-        return this.snapshot;
+    public String[] snapshots() {
+        return this.snapshots;
     }
 
     /**
-     * Sets snapshot name
+     * Sets snapshot names
      *
      * @return this request
      */
-    public DeleteSnapshotRequest snapshot(String snapshot) {
-        this.snapshot = snapshot;
+    public DeleteSnapshotRequest snapshots(String... snapshots) {
+        this.snapshots = snapshots;
         return this;
+    }
+
+    @Override
+    public String getDescription() {
+        return Strings.format("[%s]%s", repository, Arrays.toString(snapshots));
     }
 }

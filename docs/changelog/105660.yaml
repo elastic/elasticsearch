@@ -1,0 +1,5 @@
+pr: 105660
+summary: "Text structure endpoints to determine the structure of a list of messages and of an indexed field"
+area: Machine Learning
+type: feature
+issues: []

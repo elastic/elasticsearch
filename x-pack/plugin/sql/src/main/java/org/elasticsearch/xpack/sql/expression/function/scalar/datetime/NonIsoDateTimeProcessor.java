@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
@@ -18,7 +19,7 @@ import java.util.Objects;
 import java.util.function.Function;
 
 public class NonIsoDateTimeProcessor extends BaseDateTimeProcessor {
-    
+
     public enum NonIsoDateTimeExtractor {
         DAY_OF_WEEK(zdt -> {
             // by ISO 8601 standard, Monday is the first day of the week and has the value 1
@@ -26,9 +27,7 @@ public class NonIsoDateTimeProcessor extends BaseDateTimeProcessor {
             int dayOfWeek = zdt.get(ChronoField.DAY_OF_WEEK) + 1;
             return dayOfWeek == 8 ? 1 : dayOfWeek;
         }),
-        WEEK_OF_YEAR(zdt -> {
-            return zdt.get(WeekFields.SUNDAY_START.weekOfYear());
-        });
+        WEEK_OF_YEAR(zdt -> { return zdt.get(WeekFields.SUNDAY_START.weekOfYear()); });
 
         private final Function<ZonedDateTime, Integer> apply;
 
@@ -44,7 +43,7 @@ public class NonIsoDateTimeProcessor extends BaseDateTimeProcessor {
             return apply.apply(millis.withZoneSameInstant(ZoneId.of(tzId)));
         }
     }
-    
+
     public static final String NAME = "nidt";
 
     private final NonIsoDateTimeExtractor extractor;
@@ -89,8 +88,7 @@ public class NonIsoDateTimeProcessor extends BaseDateTimeProcessor {
             return false;
         }
         NonIsoDateTimeProcessor other = (NonIsoDateTimeProcessor) obj;
-        return Objects.equals(extractor, other.extractor)
-                && Objects.equals(zoneId(), other.zoneId());
+        return Objects.equals(extractor, other.extractor) && Objects.equals(zoneId(), other.zoneId());
     }
 
     @Override

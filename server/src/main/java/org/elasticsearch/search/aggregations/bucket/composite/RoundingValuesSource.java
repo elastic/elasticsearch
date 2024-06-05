@@ -1,25 +1,16 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.bucket.composite;
 
+import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
@@ -34,14 +25,14 @@ import java.io.IOException;
  */
 class RoundingValuesSource extends ValuesSource.Numeric {
     private final ValuesSource.Numeric vs;
-    private final Rounding rounding;
+    private final Rounding.Prepared rounding;
 
     /**
      *
      * @param vs The original values source
      * @param rounding How to round the values
      */
-    RoundingValuesSource(Numeric vs, Rounding rounding) {
+    RoundingValuesSource(Numeric vs, Rounding.Prepared rounding) {
         this.vs = vs;
         this.rounding = rounding;
     }
@@ -55,9 +46,22 @@ class RoundingValuesSource extends ValuesSource.Numeric {
         return rounding.round(value);
     }
 
+    public double roundingSize(long milliSeconds, Rounding.DateTimeUnit unit) {
+        return rounding.roundingSize(milliSeconds, unit);
+    }
+
+    public double roundingSize(Rounding.DateTimeUnit unit) {
+        return rounding.roundingSize(unit);
+    }
+
     @Override
     public SortedNumericDocValues longValues(LeafReaderContext context) throws IOException {
-        SortedNumericDocValues values = vs.longValues(context);
+        final SortedNumericDocValues values = vs.longValues(context);
+        final NumericDocValues singleton = DocValues.unwrapSingleton(values);
+        return singleton != null ? DocValues.singleton(longSingleValues(singleton)) : longMultiValues(values);
+    }
+
+    private SortedNumericDocValues longMultiValues(SortedNumericDocValues values) {
         return new SortedNumericDocValues() {
             @Override
             public long nextValue() throws IOException {
@@ -67,6 +71,40 @@ class RoundingValuesSource extends ValuesSource.Numeric {
             @Override
             public int docValueCount() {
                 return values.docValueCount();
+            }
+
+            @Override
+            public boolean advanceExact(int target) throws IOException {
+                return values.advanceExact(target);
+            }
+
+            @Override
+            public int docID() {
+                return values.docID();
+            }
+
+            @Override
+            public int nextDoc() throws IOException {
+                return values.nextDoc();
+            }
+
+            @Override
+            public int advance(int target) throws IOException {
+                return values.advance(target);
+            }
+
+            @Override
+            public long cost() {
+                return values.cost();
+            }
+        };
+    }
+
+    private NumericDocValues longSingleValues(NumericDocValues values) {
+        return new NumericDocValues() {
+            @Override
+            public long longValue() throws IOException {
+                return round(values.longValue());
             }
 
             @Override

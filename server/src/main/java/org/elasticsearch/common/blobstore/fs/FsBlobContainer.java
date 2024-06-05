@@ -1,39 +1,49 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.blobstore.fs;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.Constants;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
-import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.DeleteResult;
+import org.elasticsearch.common.blobstore.OperationPurpose;
+import org.elasticsearch.common.blobstore.OptionalBytesReference;
 import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
-import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
-import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.core.internal.io.Streams;
+import org.elasticsearch.common.blobstore.support.BlobContainerUtils;
+import org.elasticsearch.common.blobstore.support.BlobMetadata;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Iterators;
+import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.util.concurrent.KeyedLock;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Strings;
+import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.repositories.blobstore.RequestedRangeNotSatisfiedException;
 
-import java.io.BufferedInputStream;
+import java.io.Closeable;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.ByteBuffer;
+import java.nio.channels.Channels;
+import java.nio.channels.FileChannel;
+import java.nio.channels.OverlappingFileLockException;
+import java.nio.channels.SeekableByteChannel;
+import java.nio.file.AccessDeniedException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.FileVisitResult;
@@ -44,11 +54,14 @@ import java.nio.file.SimpleFileVisitor;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.ReentrantLock;
 
 import static java.util.Collections.unmodifiableMap;
 
@@ -62,6 +75,8 @@ import static java.util.Collections.unmodifiableMap;
  */
 public class FsBlobContainer extends AbstractBlobContainer {
 
+    private static final Logger logger = LogManager.getLogger(FsBlobContainer.class);
+
     private static final String TEMP_FILE_PREFIX = "pending-";
 
     protected final FsBlobStore blobStore;
@@ -74,12 +89,12 @@ public class FsBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public Map<String, BlobMetaData> listBlobs() throws IOException {
-        return listBlobsByPrefix(null);
+    public Map<String, BlobMetadata> listBlobs(OperationPurpose purpose) throws IOException {
+        return listBlobsByPrefix(purpose, null);
     }
 
     @Override
-    public Map<String, BlobContainer> children() throws IOException {
+    public Map<String, BlobContainer> children(OperationPurpose purpose) throws IOException {
         Map<String, BlobContainer> builder = new HashMap<>();
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(path)) {
             for (Path file : stream) {
@@ -93,29 +108,51 @@ public class FsBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public Map<String, BlobMetaData> listBlobsByPrefix(String blobNamePrefix) throws IOException {
-        Map<String, BlobMetaData> builder = new HashMap<>();
+    public Map<String, BlobMetadata> listBlobsByPrefix(OperationPurpose purpose, String blobNamePrefix) throws IOException {
+        Map<String, BlobMetadata> builder = new HashMap<>();
 
         blobNamePrefix = blobNamePrefix == null ? "" : blobNamePrefix;
-        try (DirectoryStream<Path> stream = Files.newDirectoryStream(path, blobNamePrefix + "*")) {
+        try (DirectoryStream<Path> stream = newDirectoryStreamIfFound(blobNamePrefix)) {
             for (Path file : stream) {
                 final BasicFileAttributes attrs;
                 try {
                     attrs = Files.readAttributes(file, BasicFileAttributes.class);
                 } catch (FileNotFoundException | NoSuchFileException e) {
-                    // The file was concurrently deleted between listing files and trying to get its attributes so we skip it here
+                    // The file was concurrently deleted trying to get its attributes so we skip it here
+                    continue;
+                } catch (AccessDeniedException e) {
+                    // The file became inaccessible for some reason, possibly an artefact of concurrent deletion (Windows?): warn and skip
+                    logger.warn(Strings.format("file [%s] became inaccessible while listing [%s/%s]", file, path, blobNamePrefix), e);
+                    assert Constants.WINDOWS : e;
                     continue;
                 }
                 if (attrs.isRegularFile()) {
-                    builder.put(file.getFileName().toString(), new PlainBlobMetaData(file.getFileName().toString(), attrs.size()));
+                    builder.put(file.getFileName().toString(), new BlobMetadata(file.getFileName().toString(), attrs.size()));
                 }
             }
         }
         return unmodifiableMap(builder);
     }
 
+    private DirectoryStream<Path> newDirectoryStreamIfFound(String blobNamePrefix) throws IOException {
+        try {
+            return Files.newDirectoryStream(path, blobNamePrefix + "*");
+        } catch (FileNotFoundException | NoSuchFileException e) {
+            // a nonexistent directory contains no blobs
+            return new DirectoryStream<>() {
+                @Override
+                public Iterator<Path> iterator() {
+                    return Collections.emptyIterator();
+                }
+
+                @Override
+                public void close() {}
+            };
+        }
+    }
+
     @Override
-    public DeleteResult delete() throws IOException {
+    public DeleteResult delete(OperationPurpose purpose) throws IOException {
         final AtomicLong filesDeleted = new AtomicLong(0L);
         final AtomicLong bytesDeleted = new AtomicLong(0L);
         Files.walkFileTree(path, new SimpleFileVisitor<>() {
@@ -138,47 +175,144 @@ public class FsBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public void deleteBlobsIgnoringIfNotExists(List<String> blobNames) throws IOException {
-        IOUtils.rm(blobNames.stream().map(path::resolve).toArray(Path[]::new));
+    public void deleteBlobsIgnoringIfNotExists(OperationPurpose purpose, Iterator<String> blobNames) throws IOException {
+        blobStore.deleteBlobsIgnoringIfNotExists(purpose, Iterators.map(blobNames, blobName -> path.resolve(blobName).toString()));
     }
 
     @Override
-    public InputStream readBlob(String name) throws IOException {
+    public boolean blobExists(OperationPurpose purpose, String blobName) {
+        return Files.exists(path.resolve(blobName));
+    }
+
+    @Override
+    public InputStream readBlob(OperationPurpose purpose, String name) throws IOException {
+        assert BlobContainer.assertPurposeConsistency(purpose, name);
         final Path resolvedPath = path.resolve(name);
         try {
-            return new BufferedInputStream(Files.newInputStream(resolvedPath), blobStore.bufferSizeInBytes());
+            return Files.newInputStream(resolvedPath);
         } catch (FileNotFoundException fnfe) {
             throw new NoSuchFileException("[" + name + "] blob not found");
         }
     }
 
     @Override
-    public void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException {
-        if (failIfAlreadyExists == false) {
-            deleteBlobsIgnoringIfNotExists(Collections.singletonList(blobName));
+    public InputStream readBlob(OperationPurpose purpose, String blobName, long position, long length) throws IOException {
+        assert BlobContainer.assertPurposeConsistency(purpose, blobName);
+        final SeekableByteChannel channel = Files.newByteChannel(path.resolve(blobName));
+        if (position > 0L) {
+            if (channel.size() <= position) {
+                try (channel) {
+                    throw new RequestedRangeNotSatisfiedException(blobName, position, length);
+                }
+            }
+            channel.position(position);
         }
+        assert channel.position() == position;
+        return Streams.limitStream(Channels.newInputStream(channel), length);
+    }
+
+    @Override
+    public long readBlobPreferredLength() {
+        // This container returns streams that are cheap to close early, so we can tell consumers to request as much data as possible.
+        return Long.MAX_VALUE;
+    }
+
+    @Override
+    public void writeBlob(OperationPurpose purpose, String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists)
+        throws IOException {
+        assert BlobContainer.assertPurposeConsistency(purpose, blobName);
         final Path file = path.resolve(blobName);
-        try (OutputStream outputStream = Files.newOutputStream(file, StandardOpenOption.CREATE_NEW)) {
-            Streams.copy(inputStream, outputStream);
+        try {
+            writeToPath(inputStream, file, blobSize);
+        } catch (FileAlreadyExistsException faee) {
+            if (failIfAlreadyExists) {
+                throw faee;
+            }
+            deleteBlobsIgnoringIfNotExists(purpose, Iterators.single(blobName));
+            writeToPath(inputStream, file, blobSize);
         }
-        IOUtils.fsync(file, false);
         IOUtils.fsync(path, true);
     }
 
     @Override
-    public void writeBlobAtomic(final String blobName, final InputStream inputStream, final long blobSize, boolean failIfAlreadyExists)
+    public void writeBlob(OperationPurpose purpose, String blobName, BytesReference bytes, boolean failIfAlreadyExists) throws IOException {
+        assert BlobContainer.assertPurposeConsistency(purpose, blobName);
+        final Path file = path.resolve(blobName);
+        try {
+            writeToPath(bytes, file);
+        } catch (FileAlreadyExistsException faee) {
+            if (failIfAlreadyExists) {
+                throw faee;
+            }
+            deleteBlobsIgnoringIfNotExists(purpose, Iterators.single(blobName));
+            writeToPath(bytes, file);
+        }
+        IOUtils.fsync(path, true);
+    }
+
+    @Override
+    public void writeMetadataBlob(
+        OperationPurpose purpose,
+        String blobName,
+        boolean failIfAlreadyExists,
+        boolean atomic,
+        CheckedConsumer<OutputStream, IOException> writer
+    ) throws IOException {
+        assert purpose != OperationPurpose.SNAPSHOT_DATA && BlobContainer.assertPurposeConsistency(purpose, blobName) : purpose;
+        if (atomic) {
+            final String tempBlob = tempBlobName(blobName);
+            try {
+                writeToPath(purpose, tempBlob, true, writer);
+                moveBlobAtomic(purpose, tempBlob, blobName, failIfAlreadyExists);
+            } catch (IOException ex) {
+                try {
+                    deleteBlobsIgnoringIfNotExists(purpose, Iterators.single(tempBlob));
+                } catch (IOException e) {
+                    ex.addSuppressed(e);
+                }
+                throw ex;
+            }
+        } else {
+            writeToPath(purpose, blobName, failIfAlreadyExists, writer);
+        }
+        IOUtils.fsync(path, true);
+    }
+
+    private void writeToPath(
+        OperationPurpose purpose,
+        String blobName,
+        boolean failIfAlreadyExists,
+        CheckedConsumer<OutputStream, IOException> writer
+    ) throws IOException {
+        final Path file = path.resolve(blobName);
+        try {
+            try (OutputStream out = blobOutputStream(file)) {
+                writer.accept(out);
+            }
+        } catch (FileAlreadyExistsException faee) {
+            if (failIfAlreadyExists) {
+                throw faee;
+            }
+            deleteBlobsIgnoringIfNotExists(purpose, Iterators.single(blobName));
+            try (OutputStream out = blobOutputStream(file)) {
+                writer.accept(out);
+            }
+        }
+        IOUtils.fsync(file, false);
+    }
+
+    @Override
+    public void writeBlobAtomic(OperationPurpose purpose, final String blobName, BytesReference bytes, boolean failIfAlreadyExists)
         throws IOException {
+        assert purpose != OperationPurpose.SNAPSHOT_DATA && BlobContainer.assertPurposeConsistency(purpose, blobName) : purpose;
         final String tempBlob = tempBlobName(blobName);
         final Path tempBlobPath = path.resolve(tempBlob);
         try {
-            try (OutputStream outputStream = Files.newOutputStream(tempBlobPath, StandardOpenOption.CREATE_NEW)) {
-                Streams.copy(inputStream, outputStream);
-            }
-            IOUtils.fsync(tempBlobPath, false);
-            moveBlobAtomic(tempBlob, blobName, failIfAlreadyExists);
+            writeToPath(bytes, tempBlobPath);
+            moveBlobAtomic(purpose, tempBlob, blobName, failIfAlreadyExists);
         } catch (IOException ex) {
             try {
-                deleteBlobsIgnoringIfNotExists(Collections.singletonList(tempBlob));
+                deleteBlobsIgnoringIfNotExists(purpose, Iterators.single(tempBlob));
             } catch (IOException e) {
                 ex.addSuppressed(e);
             }
@@ -188,24 +322,62 @@ public class FsBlobContainer extends AbstractBlobContainer {
         }
     }
 
-    public void moveBlobAtomic(final String sourceBlobName, final String targetBlobName, final boolean failIfAlreadyExists)
-        throws IOException {
+    private static void writeToPath(BytesReference bytes, Path tempBlobPath) throws IOException {
+        try (OutputStream outputStream = Files.newOutputStream(tempBlobPath, StandardOpenOption.CREATE_NEW)) {
+            bytes.writeTo(outputStream);
+        }
+        IOUtils.fsync(tempBlobPath, false);
+    }
+
+    private void writeToPath(InputStream inputStream, Path tempBlobPath, long blobSize) throws IOException {
+        try (OutputStream outputStream = Files.newOutputStream(tempBlobPath, StandardOpenOption.CREATE_NEW)) {
+            final int bufferSize = blobStore.bufferSizeInBytes();
+            org.elasticsearch.core.Streams.copy(
+                inputStream,
+                outputStream,
+                new byte[blobSize < bufferSize ? Math.toIntExact(blobSize) : bufferSize]
+            );
+        }
+        IOUtils.fsync(tempBlobPath, false);
+    }
+
+    public void moveBlobAtomic(
+        OperationPurpose purpose,
+        final String sourceBlobName,
+        final String targetBlobName,
+        final boolean failIfAlreadyExists
+    ) throws IOException {
         final Path sourceBlobPath = path.resolve(sourceBlobName);
         final Path targetBlobPath = path.resolve(targetBlobName);
-        // If the target file exists then Files.move() behaviour is implementation specific
-        // the existing file might be replaced or this method fails by throwing an IOException.
-        if (Files.exists(targetBlobPath)) {
-            if (failIfAlreadyExists) {
+        try {
+            if (failIfAlreadyExists && Files.exists(targetBlobPath)) {
                 throw new FileAlreadyExistsException("blob [" + targetBlobPath + "] already exists, cannot overwrite");
-            } else {
-                deleteBlobsIgnoringIfNotExists(Collections.singletonList(targetBlobName));
             }
+            Files.move(sourceBlobPath, targetBlobPath, StandardCopyOption.ATOMIC_MOVE);
+        } catch (IOException e) {
+            // If the target file exists then Files.move() behaviour is implementation specific
+            // the existing file might be replaced or this method fails by throwing an IOException so we retry in a non-atomic
+            // way by deleting and then writing.
+            if (failIfAlreadyExists) {
+                throw e;
+            }
+            moveBlobNonAtomic(purpose, targetBlobName, sourceBlobPath, targetBlobPath, e);
         }
-        Files.move(sourceBlobPath, targetBlobPath, StandardCopyOption.ATOMIC_MOVE);
+    }
+
+    private void moveBlobNonAtomic(OperationPurpose purpose, String targetBlobName, Path sourceBlobPath, Path targetBlobPath, IOException e)
+        throws IOException {
+        try {
+            deleteBlobsIgnoringIfNotExists(purpose, Iterators.single(targetBlobName));
+            Files.move(sourceBlobPath, targetBlobPath, StandardCopyOption.ATOMIC_MOVE);
+        } catch (IOException ex) {
+            ex.addSuppressed(e);
+            throw e;
+        }
     }
 
     public static String tempBlobName(final String blobName) {
-        return "pending-" + blobName + "-" + UUIDs.randomBase64UUID();
+        return TEMP_FILE_PREFIX + blobName + "-" + UUIDs.randomBase64UUID();
     }
 
     /**
@@ -215,5 +387,132 @@ public class FsBlobContainer extends AbstractBlobContainer {
      */
     public static boolean isTempBlobName(final String blobName) {
         return blobName.startsWith(TEMP_FILE_PREFIX);
+    }
+
+    private static OutputStream blobOutputStream(Path file) throws IOException {
+        return Files.newOutputStream(file, StandardOpenOption.CREATE_NEW);
+    }
+
+    @Override
+    public void getRegister(OperationPurpose purpose, String key, ActionListener<OptionalBytesReference> listener) {
+        // no lock to acquire here, we are emulating the lack of read/read and read/write contention in cloud repositories
+        ActionListener.completeWith(
+            listener,
+            () -> doUncontendedCompareAndExchangeRegister(path.resolve(key), BytesArray.EMPTY, BytesArray.EMPTY)
+        );
+    }
+
+    @Override
+    public void compareAndExchangeRegister(
+        OperationPurpose purpose,
+        String key,
+        BytesReference expected,
+        BytesReference updated,
+        ActionListener<OptionalBytesReference> listener
+    ) {
+        ActionListener.completeWith(listener, () -> doCompareAndExchangeRegister(path.resolve(key), expected, updated));
+    }
+
+    private static final KeyedLock<Path> writeMutexes = new KeyedLock<>();
+
+    private static OptionalBytesReference doCompareAndExchangeRegister(Path registerPath, BytesReference expected, BytesReference updated)
+        throws IOException {
+        // Emulate write/write contention as might happen in cloud repositories, at least for the case where the writers are all in this
+        // JVM (e.g. for an ESIntegTestCase).
+        try (var mutex = writeMutexes.tryAcquire(registerPath)) {
+            return mutex == null
+                ? OptionalBytesReference.MISSING
+                : doUncontendedCompareAndExchangeRegister(registerPath, expected, updated);
+        }
+    }
+
+    @SuppressForbidden(reason = "write to channel that we have open for locking purposes already directly")
+    private static OptionalBytesReference doUncontendedCompareAndExchangeRegister(
+        Path registerPath,
+        BytesReference expected,
+        BytesReference updated
+    ) throws IOException {
+        BlobContainerUtils.ensureValidRegisterContent(updated);
+        try (LockedFileChannel lockedFileChannel = LockedFileChannel.open(registerPath)) {
+            final FileChannel fileChannel = lockedFileChannel.fileChannel();
+            final ByteBuffer readBuf = ByteBuffer.allocate(BlobContainerUtils.MAX_REGISTER_CONTENT_LENGTH);
+            while (readBuf.remaining() > 0) {
+                if (fileChannel.read(readBuf) == -1) {
+                    break;
+                }
+            }
+            final var found = new BytesArray(readBuf.array(), readBuf.arrayOffset(), readBuf.position());
+            readBuf.clear();
+            if (fileChannel.read(readBuf) != -1) {
+                throw new IllegalStateException(
+                    "register contains more than [" + BlobContainerUtils.MAX_REGISTER_CONTENT_LENGTH + "] bytes"
+                );
+            }
+
+            if (expected.equals(found)) {
+                var pageStart = 0L;
+                final var iterator = updated.iterator();
+                BytesRef page;
+                while ((page = iterator.next()) != null) {
+                    final var writeBuf = ByteBuffer.wrap(page.bytes, page.offset, page.length);
+                    while (writeBuf.remaining() > 0) {
+                        fileChannel.write(writeBuf, pageStart + writeBuf.position());
+                    }
+                    pageStart += page.length;
+                }
+                fileChannel.force(true);
+            }
+            return OptionalBytesReference.of(found);
+        } catch (OverlappingFileLockException e) {
+            assert false : e; // should be impossible, we protect against all concurrent operations within this JVM
+            return OptionalBytesReference.MISSING;
+        }
+    }
+
+    private record LockedFileChannel(FileChannel fileChannel, Closeable fileLock) implements Closeable {
+
+        // Avoid concurrently opening/closing locked files, because this can trip an assertion within the JDK (see #93955 for details).
+        // Perhaps it would work with finer-grained locks too, but we don't currently need to be fancy here.
+        //
+        // Also, avoid concurrent operations on FsBlobContainer registers within a single JVM with a simple blocking lock, to avoid
+        // OverlappingFileLockException. FileChannel#lock blocks on concurrent operations on the file in a different process. This emulates
+        // the lack of read/read and read/write contention that can happen on a cloud repository register.
+        private static final ReentrantLock mutex = new ReentrantLock();
+
+        static LockedFileChannel open(Path path) throws IOException {
+            List<Closeable> resources = new ArrayList<>(3);
+            try {
+                mutex.lock();
+                resources.add(mutex::unlock);
+
+                final FileChannel fileChannel = openOrCreateAtomic(path);
+                resources.add(fileChannel);
+
+                final Closeable fileLock = fileChannel.lock()::close;
+                resources.add(fileLock);
+
+                final var result = new LockedFileChannel(fileChannel, fileLock);
+                resources.clear();
+                return result;
+            } finally {
+                IOUtils.closeWhileHandlingException(resources);
+            }
+        }
+
+        private static FileChannel openOrCreateAtomic(Path path) throws IOException {
+            try {
+                if (Files.exists(path) == false) {
+                    return FileChannel.open(path, StandardOpenOption.READ, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE);
+                }
+            } catch (FileAlreadyExistsException e) {
+                // ok, created concurrently by another process
+            }
+            return FileChannel.open(path, StandardOpenOption.READ, StandardOpenOption.WRITE);
+        }
+
+        @Override
+        public void close() throws IOException {
+            IOUtils.close(fileLock, fileChannel, mutex::unlock);
+        }
     }
 }

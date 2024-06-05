@@ -1,12 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ccr.action;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
 import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction;
@@ -25,6 +27,11 @@ public class StatsResponsesTests extends AbstractWireSerializingTestCase<FollowS
     @Override
     protected FollowStatsAction.StatsResponses createTestInstance() {
         return createStatsResponse();
+    }
+
+    @Override
+    protected FollowStatsAction.StatsResponses mutateInstance(FollowStatsAction.StatsResponses instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     static FollowStatsAction.StatsResponses createStatsResponse() {
@@ -59,10 +66,22 @@ public class StatsResponsesTests extends AbstractWireSerializingTestCase<FollowS
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
                 Collections.emptyNavigableMap(),
-                randomLong(),
-                randomBoolean() ? new ElasticsearchException("fatal error") : null);
+                randomNonNegativeLong(),
+                randomBoolean() ? new ElasticsearchException("fatal error") : null
+            );
             responses.add(new FollowStatsAction.StatsResponse(status));
         }
         return new FollowStatsAction.StatsResponses(Collections.emptyList(), Collections.emptyList(), responses);
+    }
+
+    public void testChunking() {
+        AbstractChunkedSerializingTestCase.assertChunkCount(
+            createTestInstance(),
+            instance -> Math.toIntExact(
+                2 * instance.getStatsResponses().stream().map(s -> s.status().followerIndex()).distinct().count() + instance
+                    .getStatsResponses()
+                    .size() + 2
+            )
+        );
     }
 }

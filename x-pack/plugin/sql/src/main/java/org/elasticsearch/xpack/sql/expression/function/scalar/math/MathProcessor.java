@@ -1,26 +1,27 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.math;
 
-import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
+import org.elasticsearch.xpack.ql.InvalidArgumentException;
 import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.ql.type.DataTypeConverter;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 
 import java.io.IOException;
+import java.math.BigInteger;
 import java.util.Random;
 import java.util.function.DoubleFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
 public class MathProcessor implements Processor {
-    
+
     public enum MathOperation {
         ABS((Object l) -> {
             if (l instanceof Double) {
@@ -29,19 +30,22 @@ public class MathProcessor implements Processor {
             if (l instanceof Float) {
                 return Math.abs(((Float) l).floatValue());
             }
+            if (l instanceof BigInteger) {
+                return ((BigInteger) l).abs();
+            }
 
             // fallback to integer
             long lo = ((Number) l).longValue();
 
             if (lo == Long.MIN_VALUE) {
-                throw new QlIllegalArgumentException("[" + lo + "] cannot be negated since the result is outside the range");
+                throw new InvalidArgumentException("[" + lo + "] cannot be negated since the result is outside the range");
             }
 
             lo = lo < 0 ? -lo : lo;
 
             if (l instanceof Integer) {
                 if ((int) lo == Integer.MIN_VALUE) {
-                    throw new QlIllegalArgumentException("[" + lo + "] cannot be negated since the result is outside the range");
+                    throw new InvalidArgumentException("[" + lo + "] cannot be negated since the result is outside the range");
                 }
                 return DataTypeConverter.safeToInt(lo);
             }
@@ -72,31 +76,19 @@ public class MathProcessor implements Processor {
         LOG10(Math::log10),
         PI(() -> Math.PI),
         RADIANS(Math::toRadians),
-        RANDOM((Object l) -> l != null ?
-                new Random(((Number) l).longValue()).nextDouble() :
-                Randomness.get().nextDouble(), true),
+        RANDOM((Object l) -> new Random(((Number) l).longValue()).nextDouble()),
         SIGN((Object l) -> {
             if (l instanceof Double) {
-                return Math.signum((Double) l);
+                return (int) Math.signum((Double) l);
             }
             if (l instanceof Float) {
-                return Math.signum((Float) l);
+                return (int) Math.signum((Float) l);
+            }
+            if (l instanceof BigInteger) {
+                return ((BigInteger) l).signum();
             }
 
-            long lo = Long.signum(((Number) l).longValue());
-
-            if (l instanceof Integer) {
-                return DataTypeConverter.safeToInt(lo);
-            }
-            if (l instanceof Short) {
-                return DataTypeConverter.safeToShort(lo);
-            }
-            if (l instanceof Byte) {
-                return DataTypeConverter.safeToByte(lo);
-            }
-
-            //fallback to generic double
-            return lo;
+            return Long.signum(((Number) l).longValue());
         }),
         SIN(Math::sin),
         SINH(Math::sinh),
@@ -106,20 +98,7 @@ public class MathProcessor implements Processor {
         private final Function<Object, Number> apply;
 
         MathOperation(Function<Object, Number> apply) {
-            this(apply, false);
-        }
-
-        /**
-         * Wrapper for nulls around the given function.
-         * If true, nulls are passed through, otherwise the function is short-circuited
-         * and null returned.
-         */
-        MathOperation(Function<Object, Number> apply, boolean nullAware) {
-            if (nullAware) {
-                this.apply = apply;
-            } else {
-                this.apply = l -> l == null ? null : apply.apply(l);
-            }
+            this.apply = l -> l == null ? null : apply.apply(l);
         }
 
         MathOperation(DoubleFunction<Double> apply) {
@@ -134,7 +113,7 @@ public class MathProcessor implements Processor {
             return apply.apply(l);
         }
     }
-    
+
     public static final String NAME = "m";
 
     private final MathOperation processor;
@@ -159,7 +138,7 @@ public class MathProcessor implements Processor {
 
     @Override
     public Object process(Object input) {
-        if (input != null && !(input instanceof Number)) {
+        if (input != null && (input instanceof Number) == false) {
             throw new SqlIllegalArgumentException("A number is required; received [{}]", input);
         }
 

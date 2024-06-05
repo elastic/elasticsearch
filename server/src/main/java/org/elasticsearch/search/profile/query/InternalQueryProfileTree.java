@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.profile.query;
@@ -22,6 +11,9 @@ package org.elasticsearch.search.profile.query;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.search.profile.AbstractInternalProfileTree;
 import org.elasticsearch.search.profile.ProfileResult;
+import org.elasticsearch.search.profile.Timer;
+
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * This class tracks the dependency tree for queries (scoring and rewriting) and
@@ -31,8 +23,7 @@ import org.elasticsearch.search.profile.ProfileResult;
 final class InternalQueryProfileTree extends AbstractInternalProfileTree<QueryProfileBreakdown, Query> {
 
     /** Rewrite time */
-    private long rewriteTime;
-    private long rewriteScratch;
+    private final AtomicLong rewriteTime = new AtomicLong(0L);
 
     @Override
     protected QueryProfileBreakdown createProfileBreakdown() {
@@ -55,11 +46,12 @@ final class InternalQueryProfileTree extends AbstractInternalProfileTree<QueryPr
     }
 
     /**
-     * Begin timing a query for a specific Timing context
+     * Begin timing a query for a specific Timing context and return the running timer
      */
-    public void startRewriteTime() {
-        assert rewriteScratch == 0;
-        rewriteScratch = System.nanoTime();
+    public Timer startRewriteTime() {
+        Timer timer = new Timer();
+        timer.start();
+        return timer;
     }
 
     /**
@@ -70,14 +62,15 @@ final class InternalQueryProfileTree extends AbstractInternalProfileTree<QueryPr
      *
      * @return          The elapsed time
      */
-    public long stopAndAddRewriteTime() {
-        long time = Math.max(1, System.nanoTime() - rewriteScratch);
-        rewriteTime += time;
-        rewriteScratch = 0;
-        return time;
+    public long stopAndAddRewriteTime(Timer timer) {
+        timer.stop();
+        assert timer.getCount() == 1L : "stopAndAddRewriteTime() called without a matching startRewriteTime()";
+        long time = Math.max(1, timer.getApproximateTiming());
+        return rewriteTime.addAndGet(time);
     }
 
     public long getRewriteTime() {
-        return rewriteTime;
+        return rewriteTime.get();
     }
+
 }

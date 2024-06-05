@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ql.expression.gen.script;
 
@@ -27,7 +28,6 @@ abstract class Param<T> {
         return format(null, "{{}={}}", prefix(), value);
     }
 
-
     @Override
     public int hashCode() {
         if (this.value == null) {
@@ -38,12 +38,12 @@ abstract class Param<T> {
 
     @Override
     public boolean equals(Object obj) {
-        if ((obj instanceof  Param) == false) {
+        if ((obj instanceof Param) == false) {
             return false;
         }
         if (this.value == null) {
-            return ((Param)obj).value == null;
+            return ((Param) obj).value == null;
         }
-        return this.value.equals(((Param)obj).value);
+        return this.value.equals(((Param) obj).value);
     }
 }

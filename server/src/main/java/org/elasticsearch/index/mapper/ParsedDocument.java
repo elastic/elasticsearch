@@ -1,29 +1,23 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.StoredField;
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.mapper.ParseContext.Document;
+import org.elasticsearch.index.mapper.MapperService.MergeReason;
+import org.elasticsearch.plugins.internal.DocumentSizeObserver;
+import org.elasticsearch.xcontent.XContentType;
 
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -38,21 +32,76 @@ public class ParsedDocument {
 
     private final String routing;
 
-    private final List<Document> documents;
+    private final List<LuceneDocument> documents;
+
+    private final DocumentSizeObserver documentSizeObserver;
 
     private BytesReference source;
     private XContentType xContentType;
-
     private Mapping dynamicMappingsUpdate;
 
-    public ParsedDocument(Field version,
-                          SeqNoFieldMapper.SequenceIDFields seqID,
-                          String id,
-                          String routing,
-                          List<Document> documents,
-                          BytesReference source,
-                          XContentType xContentType,
-                          Mapping dynamicMappingsUpdate) {
+    /**
+     * Create a no-op tombstone document
+     * @param reason    the reason for the no-op
+     */
+    public static ParsedDocument noopTombstone(String reason) {
+        LuceneDocument document = new LuceneDocument();
+        SeqNoFieldMapper.SequenceIDFields seqIdFields = SeqNoFieldMapper.SequenceIDFields.tombstone();
+        seqIdFields.addFields(document);
+        Field versionField = VersionFieldMapper.versionField();
+        document.add(versionField);
+        // Store the reason of a noop as a raw string in the _source field
+        final BytesRef byteRef = new BytesRef(reason);
+        document.add(new StoredField(SourceFieldMapper.NAME, byteRef.bytes, byteRef.offset, byteRef.length));
+        return new ParsedDocument(
+            versionField,
+            seqIdFields,
+            "",
+            null,
+            Collections.singletonList(document),
+            new BytesArray("{}"),
+            XContentType.JSON,
+            null,
+            DocumentSizeObserver.EMPTY_INSTANCE
+        );
+    }
+
+    /**
+     * Create a delete tombstone document, which will be used in soft-update methods.
+     * The returned document consists only _uid, _seqno, _term and _version fields; other metadata fields are excluded.
+     * @param id    the id of the deleted document
+     */
+    public static ParsedDocument deleteTombstone(String id) {
+        LuceneDocument document = new LuceneDocument();
+        SeqNoFieldMapper.SequenceIDFields seqIdFields = SeqNoFieldMapper.SequenceIDFields.tombstone();
+        seqIdFields.addFields(document);
+        Field versionField = VersionFieldMapper.versionField();
+        document.add(versionField);
+        document.add(IdFieldMapper.standardIdField(id));
+        return new ParsedDocument(
+            versionField,
+            seqIdFields,
+            id,
+            null,
+            Collections.singletonList(document),
+            new BytesArray("{}"),
+            XContentType.JSON,
+            null,
+            DocumentSizeObserver.EMPTY_INSTANCE
+        );
+    }
+
+    public ParsedDocument(
+        Field version,
+        SeqNoFieldMapper.SequenceIDFields seqID,
+        String id,
+        String routing,
+        List<LuceneDocument> documents,
+        BytesReference source,
+        XContentType xContentType,
+        Mapping dynamicMappingsUpdate,
+        DocumentSizeObserver documentSizeObserver
+    ) {
         this.version = version;
         this.seqID = seqID;
         this.id = id;
@@ -61,6 +110,7 @@ public class ParsedDocument {
         this.source = source;
         this.dynamicMappingsUpdate = dynamicMappingsUpdate;
         this.xContentType = xContentType;
+        this.documentSizeObserver = documentSizeObserver;
     }
 
     public String id() {
@@ -71,32 +121,23 @@ public class ParsedDocument {
         return version;
     }
 
-    public void updateSeqID(long sequenceNumber, long primaryTerm) {
-        this.seqID.seqNo.setLongValue(sequenceNumber);
-        this.seqID.seqNoDocValue.setLongValue(sequenceNumber);
-        this.seqID.primaryTerm.setLongValue(primaryTerm);
-    }
-
     /**
-     * Makes the processing document as a tombstone document rather than a regular document.
-     * Tombstone documents are stored in Lucene index to represent delete operations or Noops.
+     * Update the values of the {@code _seq_no} and {@code primary_term} fields
+     * to the specified value. Called in the engine long after parsing.
      */
-    ParsedDocument toTombstone() {
-        assert docs().size() == 1 : "Tombstone should have a single doc [" + docs() + "]";
-        this.seqID.tombstoneField.setLongValue(1);
-        rootDoc().add(this.seqID.tombstoneField);
-        return this;
+    public void updateSeqID(long seqNo, long primaryTerm) {
+        seqID.set(seqNo, primaryTerm);
     }
 
     public String routing() {
         return this.routing;
     }
 
-    public Document rootDoc() {
+    public LuceneDocument rootDoc() {
         return documents.get(documents.size() - 1);
     }
 
-    public List<Document> docs() {
+    public List<LuceneDocument> docs() {
         return this.documents;
     }
 
@@ -125,13 +166,21 @@ public class ParsedDocument {
         if (dynamicMappingsUpdate == null) {
             dynamicMappingsUpdate = update;
         } else {
-            dynamicMappingsUpdate = dynamicMappingsUpdate.merge(update);
+            dynamicMappingsUpdate = dynamicMappingsUpdate.merge(update, MergeReason.MAPPING_AUTO_UPDATE, Long.MAX_VALUE);
         }
     }
 
     @Override
     public String toString() {
         return "Document id[" + id + "] doc [" + documents + ']';
+    }
+
+    public String documentDescription() {
+        return "id";
+    }
+
+    public DocumentSizeObserver getDocumentSizeObserver() {
+        return documentSizeObserver;
     }
 
 }

@@ -1,0 +1,116 @@
+# Integration tests for stored scripts
+
+"Test runtime field contexts allowed as stored script":
+
+  - do:
+      put_script:
+        id: score_script
+        context: score
+        body:
+          script:
+            source: "Math.log(doc['my_field']) + 1"
+            lang: painless
+
+  - match:  { acknowledged: true }
+
+---
+
+"Test runtime field contexts not allowed as stored script":
+
+  - do:
+      catch: bad_request
+      put_script:
+        id: boolean_field_script
+        context: boolean_field
+        body:
+          script:
+            source: "'should not reach compilation or this will error''"
+            lang: painless
+
+  - match: { error.root_cause.0.type: "illegal_argument_exception" }
+  - match: { error.type: "illegal_argument_exception" }
+  - match: { error.caused_by.reason: "cannot store a script for context [boolean_field]" }
+
+  - do:
+      catch: bad_request
+      put_script:
+        id: date_field_script
+        context: date_field
+        body:
+          script:
+            source: "'should not reach compilation or this will error''"
+            lang: painless
+
+  - match: { error.root_cause.0.type: "illegal_argument_exception" }
+  - match: { error.type: "illegal_argument_exception" }
+  - match: { error.caused_by.reason: "cannot store a script for context [date_field]" }
+
+  - do:
+      catch: bad_request
+      put_script:
+        id: double_field_script
+        context: double_field
+        body:
+          script:
+            source: "'should not reach compilation or this will error''"
+            lang: painless
+
+  - match: { error.root_cause.0.type: "illegal_argument_exception" }
+  - match: { error.type: "illegal_argument_exception" }
+  - match: { error.caused_by.reason: "cannot store a script for context [double_field]" }
+
+  - do:
+      catch: bad_request
+      put_script:
+        id: geo_point_field_script
+        context: geo_point_field
+        body:
+          script:
+            source: "'should not reach compilation or this will error''"
+            lang: painless
+
+  - match: { error.root_cause.0.type: "illegal_argument_exception" }
+  - match: { error.type: "illegal_argument_exception" }
+  - match: { error.caused_by.reason: "cannot store a script for context [geo_point_field]" }
+
+  - do:
+      catch: bad_request
+      put_script:
+        id: ip_field_script
+        context: ip_field
+        body:
+          script:
+            source: "'should not reach compilation or this will error''"
+            lang: painless
+
+  - match: { error.root_cause.0.type: "illegal_argument_exception" }
+  - match: { error.type: "illegal_argument_exception" }
+  - match: { error.caused_by.reason: "cannot store a script for context [ip_field]" }
+
+  - do:
+      catch: bad_request
+      put_script:
+        id: long_field_script
+        context: long_field
+        body:
+          script:
+            source: "'should not reach compilation or this will error''"
+            lang: painless
+
+  - match: { error.root_cause.0.type: "illegal_argument_exception" }
+  - match: { error.type: "illegal_argument_exception" }
+  - match: { error.caused_by.reason: "cannot store a script for context [long_field]" }
+
+  - do:
+      catch: bad_request
+      put_script:
+        id: keyword_field_script
+        context: keyword_field
+        body:
+          script:
+            source: "'should not reach compilation or this will error''"
+            lang: painless
+
+  - match: { error.root_cause.0.type: "illegal_argument_exception" }
+  - match: { error.type: "illegal_argument_exception" }
+  - match: { error.caused_by.reason: "cannot store a script for context [keyword_field]" }

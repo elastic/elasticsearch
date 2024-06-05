@@ -1,35 +1,69 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.cluster.snapshots.status;
 
+import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.xcontent.XContentParserUtils;
+import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
+
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Predicate;
 
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentParserUtils;
-import org.elasticsearch.test.AbstractXContentTestCase;
-
+import static java.util.Collections.emptyMap;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 public class SnapshotIndexStatusTests extends AbstractXContentTestCase<SnapshotIndexStatus> {
+
+    static final ObjectParser.NamedObjectParser<SnapshotIndexStatus, Void> PARSER;
+    static {
+        ConstructingObjectParser<SnapshotIndexStatus, String> innerParser = new ConstructingObjectParser<>(
+            "snapshot_index_status",
+            true,
+            (Object[] parsedObjects, String index) -> {
+                int i = 0;
+                SnapshotShardsStats shardsStats = ((SnapshotShardsStats) parsedObjects[i++]);
+                SnapshotStats stats = ((SnapshotStats) parsedObjects[i++]);
+                @SuppressWarnings("unchecked")
+                List<SnapshotIndexShardStatus> shardStatuses = (List<SnapshotIndexShardStatus>) parsedObjects[i];
+
+                final Map<Integer, SnapshotIndexShardStatus> indexShards;
+                if (shardStatuses == null || shardStatuses.isEmpty()) {
+                    indexShards = emptyMap();
+                } else {
+                    indexShards = Maps.newMapWithExpectedSize(shardStatuses.size());
+                    for (SnapshotIndexShardStatus shardStatus : shardStatuses) {
+                        indexShards.put(shardStatus.getShardId().getId(), shardStatus);
+                    }
+                }
+                return new SnapshotIndexStatus(index, indexShards, shardsStats, stats);
+            }
+        );
+        innerParser.declareObject(
+            constructorArg(),
+            (p, c) -> SnapshotShardsStatsTests.PARSER.apply(p, null),
+            new ParseField(SnapshotShardsStats.Fields.SHARDS_STATS)
+        );
+        innerParser.declareObject(constructorArg(), (p, c) -> SnapshotStats.fromXContent(p), new ParseField(SnapshotStats.Fields.STATS));
+        innerParser.declareNamedObjects(
+            constructorArg(),
+            SnapshotIndexShardStatus.PARSER,
+            new ParseField(SnapshotIndexStatus.Fields.SHARDS)
+        );
+        PARSER = ((p, c, name) -> innerParser.apply(p, name));
+    }
 
     @Override
     protected SnapshotIndexStatus createTestInstance() {
@@ -50,10 +84,11 @@ public class SnapshotIndexStatusTests extends AbstractXContentTestCase<SnapshotI
 
     @Override
     protected SnapshotIndexStatus doParseInstance(XContentParser parser) throws IOException {
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser::getTokenLocation);
-        SnapshotIndexStatus status = SnapshotIndexStatus.fromXContent(parser);
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser::getTokenLocation);
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser);
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser);
+        SnapshotIndexStatus status = PARSER.parse(parser, null, parser.currentName());
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser);
         return status;
     }
 

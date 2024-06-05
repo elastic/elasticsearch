@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job.retention;
 
@@ -9,13 +10,13 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.OriginSettingClient;
-import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
-import org.elasticsearch.xpack.core.ml.MlMetadata;
+import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Classification;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Regression;
@@ -26,7 +27,6 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.CategorizerS
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelState;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
 import org.elasticsearch.xpack.ml.dataframe.StoredProgress;
-import org.elasticsearch.xpack.ml.job.persistence.BatchedJobsIterator;
 import org.elasticsearch.xpack.ml.job.persistence.BatchedStateDocIdsIterator;
 import org.elasticsearch.xpack.ml.utils.persistence.DocIdBatchedDocumentIterator;
 
@@ -37,35 +37,35 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.BooleanSupplier;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 /**
- * If for any reason a job is deleted by some of its state documents
+ * If for any reason a job is deleted but some of its state documents
  * are left behind, this class deletes any unused documents stored
- * in the .ml-state index.
+ * in the .ml-state* indices.
  */
 public class UnusedStateRemover implements MlDataRemover {
 
     private static final Logger LOGGER = LogManager.getLogger(UnusedStateRemover.class);
 
     private final OriginSettingClient client;
-    private final ClusterService clusterService;
+    private final TaskId parentTaskId;
 
-    public UnusedStateRemover(OriginSettingClient client, ClusterService clusterService) {
+    public UnusedStateRemover(OriginSettingClient client, TaskId parentTaskId) {
         this.client = Objects.requireNonNull(client);
-        this.clusterService = Objects.requireNonNull(clusterService);
+        this.parentTaskId = Objects.requireNonNull(parentTaskId);
     }
 
     @Override
-    public void remove(ActionListener<Boolean> listener, Supplier<Boolean> isTimedOutSupplier) {
+    public void remove(float requestsPerSec, ActionListener<Boolean> listener, BooleanSupplier isTimedOutSupplier) {
         try {
             List<String> unusedStateDocIds = findUnusedStateDocIds();
-            if (isTimedOutSupplier.get()) {
+            if (isTimedOutSupplier.getAsBoolean()) {
                 listener.onResponse(false);
             } else {
                 if (unusedStateDocIds.size() > 0) {
-                    executeDeleteUnusedStateDocs(unusedStateDocIds, listener);
+                    executeDeleteUnusedStateDocs(unusedStateDocIds, requestsPerSec, listener);
                 } else {
                     listener.onResponse(true);
                 }
@@ -78,8 +78,10 @@ public class UnusedStateRemover implements MlDataRemover {
     private List<String> findUnusedStateDocIds() {
         Set<String> jobIds = getJobIds();
         List<String> stateDocIdsToDelete = new ArrayList<>();
-        BatchedStateDocIdsIterator stateDocIdsIterator = new BatchedStateDocIdsIterator(client,
-            AnomalyDetectorsIndex.jobStateIndexPattern());
+        BatchedStateDocIdsIterator stateDocIdsIterator = new BatchedStateDocIdsIterator(
+            client,
+            AnomalyDetectorsIndex.jobStateIndexPattern()
+        );
         while (stateDocIdsIterator.hasNext()) {
             Deque<String> stateDocIds = stateDocIdsIterator.next();
             for (String stateDocId : stateDocIds) {
@@ -98,22 +100,22 @@ public class UnusedStateRemover implements MlDataRemover {
 
     private Set<String> getJobIds() {
         Set<String> jobIds = new HashSet<>();
-        jobIds.addAll(getAnamalyDetectionJobIds());
+        jobIds.addAll(getAnomalyDetectionJobIds());
         jobIds.addAll(getDataFrameAnalyticsJobIds());
         return jobIds;
     }
 
-    private Set<String> getAnamalyDetectionJobIds() {
+    private Set<String> getAnomalyDetectionJobIds() {
         Set<String> jobIds = new HashSet<>();
 
-        // TODO Once at 8.0, we can stop searching for jobs in cluster state
-        // and remove cluster service as a member all together.
-        jobIds.addAll(MlMetadata.getMlMetadata(clusterService.state()).getJobs().keySet());
-
-        BatchedJobsIterator jobsIterator = new BatchedJobsIterator(client, AnomalyDetectorsIndex.configIndexName());
-        while (jobsIterator.hasNext()) {
-            Deque<Job.Builder> jobs = jobsIterator.next();
-            jobs.stream().map(Job.Builder::getId).forEach(jobIds::add);
+        DocIdBatchedDocumentIterator iterator = new DocIdBatchedDocumentIterator(
+            client,
+            MlConfigIndex.indexName(),
+            QueryBuilders.termQuery(Job.JOB_TYPE.getPreferredName(), Job.ANOMALY_DETECTOR_JOB_TYPE)
+        );
+        while (iterator.hasNext()) {
+            Deque<String> docIds = iterator.next();
+            docIds.stream().map(Job::extractJobIdFromDocumentId).filter(Objects::nonNull).forEach(jobIds::add);
         }
         return jobIds;
     }
@@ -121,8 +123,11 @@ public class UnusedStateRemover implements MlDataRemover {
     private Set<String> getDataFrameAnalyticsJobIds() {
         Set<String> jobIds = new HashSet<>();
 
-        DocIdBatchedDocumentIterator iterator = new DocIdBatchedDocumentIterator(client, AnomalyDetectorsIndex.configIndexName(),
-            QueryBuilders.termQuery(DataFrameAnalyticsConfig.CONFIG_TYPE.getPreferredName(), DataFrameAnalyticsConfig.TYPE));
+        DocIdBatchedDocumentIterator iterator = new DocIdBatchedDocumentIterator(
+            client,
+            MlConfigIndex.indexName(),
+            QueryBuilders.termQuery(DataFrameAnalyticsConfig.CONFIG_TYPE.getPreferredName(), DataFrameAnalyticsConfig.TYPE)
+        );
         while (iterator.hasNext()) {
             Deque<String> docIds = iterator.next();
             docIds.stream().map(DataFrameAnalyticsConfig::extractJobIdFromDocId).filter(Objects::nonNull).forEach(jobIds::add);
@@ -130,37 +135,40 @@ public class UnusedStateRemover implements MlDataRemover {
         return jobIds;
     }
 
-    private void executeDeleteUnusedStateDocs(List<String> unusedDocIds, ActionListener<Boolean> listener) {
-        LOGGER.info("Found [{}] unused state documents; attempting to delete",
-                unusedDocIds.size());
+    private void executeDeleteUnusedStateDocs(List<String> unusedDocIds, float requestsPerSec, ActionListener<Boolean> listener) {
+        LOGGER.info("Found [{}] unused state documents; attempting to delete", unusedDocIds.size());
         DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest(AnomalyDetectorsIndex.jobStateIndexPattern())
             .setIndicesOptions(IndicesOptions.lenientExpandOpen())
+            .setAbortOnVersionConflict(false)
+            .setRequestsPerSecond(requestsPerSec)
+            .setTimeout(DEFAULT_MAX_DURATION)
             .setQuery(QueryBuilders.idsQuery().addIds(unusedDocIds.toArray(new String[0])));
 
         // _doc is the most efficient sort order and will also disable scoring
         deleteByQueryRequest.getSearchRequest().source().sort(ElasticsearchMappings.ES_DOC);
+        deleteByQueryRequest.setParentTask(parentTaskId);
 
-        client.execute(DeleteByQueryAction.INSTANCE, deleteByQueryRequest, ActionListener.wrap(
-            response -> {
-                if (response.getBulkFailures().size() > 0 || response.getSearchFailures().size() > 0) {
-                    LOGGER.error("Some unused state documents could not be deleted due to failures: {}",
-                        Strings.collectionToCommaDelimitedString(response.getBulkFailures()) +
-                            "," + Strings.collectionToCommaDelimitedString(response.getSearchFailures()));
-                } else {
-                    LOGGER.info("Successfully deleted all unused state documents");
-                }
-                listener.onResponse(true);
-            },
-            e -> {
-                LOGGER.error("Error deleting unused model state documents: ", e);
-                listener.onFailure(e);
+        client.execute(DeleteByQueryAction.INSTANCE, deleteByQueryRequest, ActionListener.wrap(response -> {
+            if (response.getBulkFailures().size() > 0 || response.getSearchFailures().size() > 0) {
+                LOGGER.error(
+                    "Some unused state documents could not be deleted due to failures: {}",
+                    Strings.collectionToCommaDelimitedString(response.getBulkFailures())
+                        + ","
+                        + Strings.collectionToCommaDelimitedString(response.getSearchFailures())
+                );
+            } else {
+                LOGGER.info("Successfully deleted all unused state documents");
             }
-        ));
+            listener.onResponse(true);
+        }, e -> {
+            LOGGER.error("Error deleting unused model state documents: ", e);
+            listener.onFailure(e);
+        }));
     }
 
     private static class JobIdExtractor {
 
-        private static List<Function<String, String>> extractors = Arrays.asList(
+        private static final List<Function<String, String>> extractors = Arrays.asList(
             ModelState::extractJobId,
             Quantiles::extractJobId,
             CategorizerState::extractJobId,

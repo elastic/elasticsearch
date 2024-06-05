@@ -7,7 +7,7 @@
         timeout: 70s
 
   - do:
-      data_frame_transform_deprecated.put_transform:
+      transform.put_transform:
         transform_id: "mixed-simple-transform"
         body: >
           {
@@ -21,31 +21,31 @@
   - match: { acknowledged: true }
 
   - do:
-      data_frame_transform_deprecated.start_transform:
+      transform.start_transform:
         transform_id: "mixed-simple-transform"
   - match: { acknowledged: true }
   - do:
-      data_frame_transform_deprecated.get_transform_stats:
+      transform.get_transform_stats:
         transform_id: "mixed-simple-transform"
   - match: { count: 1 }
   - match: { transforms.0.id: "mixed-simple-transform" }
   - match: { transforms.0.state: "/started|indexing|stopping|stopped/" }
 
   - do:
-      data_frame_transform_deprecated.stop_transform:
+      transform.stop_transform:
         transform_id: "mixed-simple-transform"
         wait_for_completion: true
   - match: { acknowledged: true }
 
   - do:
-      data_frame_transform_deprecated.get_transform_stats:
+      transform.get_transform_stats:
         transform_id: "mixed-simple-transform"
   - match: { count: 1 }
   - match: { transforms.0.id: "mixed-simple-transform" }
   - match: { transforms.0.state: "stopped" }
 
   - do:
-      data_frame_transform_deprecated.put_transform:
+      transform.put_transform:
         transform_id: "mixed-complex-transform"
         body: >
           {
@@ -73,7 +73,7 @@
   - match: { acknowledged: true }
 
   - do:
-      data_frame_transform_deprecated.get_transform:
+      transform.get_transform:
         transform_id: "mixed-complex-transform"
   - match: { count: 1 }
   - match: { transforms.0.id: "mixed-complex-transform" }
@@ -81,24 +81,24 @@
   - is_true: transforms.0.create_time
 
   - do:
-      data_frame_transform_deprecated.start_transform:
+      transform.start_transform:
         transform_id: "mixed-complex-transform"
   - match: { acknowledged: true }
   - do:
-      data_frame_transform_deprecated.get_transform_stats:
+      transform.get_transform_stats:
         transform_id: "mixed-complex-transform"
   - match: { count: 1 }
   - match: { transforms.0.id: "mixed-complex-transform" }
   - match: { transforms.0.state: "/started|indexing|stopping|stopped/" }
 
   - do:
-      data_frame_transform_deprecated.stop_transform:
+      transform.stop_transform:
         transform_id: "mixed-complex-transform"
         wait_for_completion: true
   - match: { acknowledged: true }
 
   - do:
-      data_frame_transform_deprecated.get_transform_stats:
+      transform.get_transform_stats:
         transform_id: "mixed-complex-transform"
   - match: { count: 1 }
   - match: { transforms.0.id: "mixed-complex-transform" }
@@ -113,7 +113,7 @@
         timeout: 70s
 
   - do:
-      data_frame_transform_deprecated.put_transform:
+      transform.put_transform:
         transform_id: "mixed-simple-continuous-transform"
         body: >
           {
@@ -133,7 +133,7 @@
   - match: { acknowledged: true }
 
   - do:
-      data_frame_transform_deprecated.get_transform:
+      transform.get_transform:
         transform_id: "mixed-simple-continuous-transform"
   - match: { count: 1 }
   - match: { transforms.0.id: "mixed-simple-continuous-transform" }
@@ -143,29 +143,35 @@
   - is_true: transforms.0.create_time
 
   - do:
-      data_frame_transform_deprecated.start_transform:
+      transform.start_transform:
         transform_id: "mixed-simple-continuous-transform"
   - match: { acknowledged: true }
   - do:
-      data_frame_transform_deprecated.get_transform_stats:
+      transform.get_transform_stats:
         transform_id: "mixed-simple-continuous-transform"
   - match: { count: 1 }
   - match: { transforms.0.id: "mixed-simple-continuous-transform" }
   - match: { transforms.0.state: "/started|indexing/" }
 
   - do:
-      data_frame_transform_deprecated.stop_transform:
+      transform.stop_transform:
         transform_id: "mixed-simple-continuous-transform"
         wait_for_completion: true
   - match: { acknowledged: true }
 
   - do:
-      data_frame_transform_deprecated.get_transform_stats:
+      transform.get_transform_stats:
         transform_id: "mixed-simple-continuous-transform"
   - match: { count: 1 }
   - match: { transforms.0.id: "mixed-simple-continuous-transform" }
   - match: { transforms.0.state: "stopped" }
-
+  - do:
+      transform.update_transform:
+        transform_id: "mixed-simple-continuous-transform"
+        body: >
+          {
+            "description": "Simple continuous transform"
+          }
 ---
 "Test GET, start, and stop old cluster batch transforms":
   - do:
@@ -175,7 +181,7 @@
         timeout: 70s
 
   - do:
-      data_frame_transform_deprecated.get_transform:
+      transform.get_transform:
         transform_id: "old-simple-transform"
   - match: { count: 1 }
   - match: { transforms.0.id: "old-simple-transform" }
@@ -185,30 +191,30 @@
   - match: { transforms.0.pivot.aggregations.avg_response.avg.field: "responsetime" }
 
   - do:
-      data_frame_transform_deprecated.start_transform:
+      transform.start_transform:
         transform_id: "old-simple-transform"
   - match: { acknowledged: true }
   - do:
-      data_frame_transform_deprecated.get_transform_stats:
+      transform.get_transform_stats:
         transform_id: "old-simple-transform"
   - match: { count: 1 }
   - match: { transforms.0.id: "old-simple-transform" }
   - match: { transforms.0.state: "/started|indexing|stopping|stopped/" }
 
   - do:
-      data_frame_transform_deprecated.stop_transform:
+      transform.stop_transform:
         transform_id: "old-simple-transform"
         wait_for_completion: true
   - match: { acknowledged: true }
   - do:
-      data_frame_transform_deprecated.get_transform_stats:
+      transform.get_transform_stats:
         transform_id: "old-simple-transform"
   - match: { count: 1 }
   - match: { transforms.0.id: "old-simple-transform" }
   - match: { transforms.0.state: "stopped" }
 
   - do:
-      data_frame_transform_deprecated.get_transform:
+      transform.get_transform:
         transform_id: "old-complex-transform"
   - match: { count: 1 }
   - match: { transforms.0.id: "old-complex-transform" }
@@ -221,28 +227,34 @@
   - match: { transforms.0.pivot.aggregations.avg_response.avg.field: "responsetime" }
 
   - do:
-      data_frame_transform_deprecated.start_transform:
+      transform.start_transform:
         transform_id: "old-complex-transform"
   - match: { acknowledged: true }
   - do:
-      data_frame_transform_deprecated.get_transform_stats:
+      transform.get_transform_stats:
         transform_id: "old-complex-transform"
   - match: { count: 1 }
   - match: { transforms.0.id: "old-complex-transform" }
   - match: { transforms.0.state: "/started|indexing|stopping|stopped/" }
 
   - do:
-      data_frame_transform_deprecated.stop_transform:
+      transform.stop_transform:
         transform_id: "old-complex-transform"
         wait_for_completion: true
   - match: { acknowledged: true }
   - do:
-      data_frame_transform_deprecated.get_transform_stats:
+      transform.get_transform_stats:
         transform_id: "old-complex-transform"
   - match: { count: 1 }
   - match: { transforms.0.id: "old-complex-transform" }
   - match: { transforms.0.state: "stopped" }
-
+  - do:
+      transform.update_transform:
+        transform_id: "old-complex-transform"
+        body: >
+          {
+            "description": "old complex transform"
+          }
 ---
 "Test GET, stop, start, old continuous transforms":
   - do:
@@ -252,7 +264,7 @@
         timeout: 70s
 
   - do:
-      data_frame_transform_deprecated.get_transform:
+      transform.get_transform:
         transform_id: "old-simple-continuous-transform"
   - match: { count: 1 }
   - match: { transforms.0.id: "old-simple-continuous-transform" }
@@ -262,25 +274,32 @@
   - is_true: transforms.0.create_time
 
   - do:
-      data_frame_transform_deprecated.start_transform:
+      transform.start_transform:
         transform_id: "old-simple-continuous-transform"
   - match: { acknowledged: true }
   - do:
-      data_frame_transform_deprecated.get_transform_stats:
+      transform.get_transform_stats:
         transform_id: "old-simple-continuous-transform"
   - match: { count: 1 }
   - match: { transforms.0.id: "old-simple-continuous-transform" }
   - match: { transforms.0.state: "/started|indexing/" }
 
   - do:
-      data_frame_transform_deprecated.stop_transform:
+      transform.stop_transform:
         transform_id: "old-simple-continuous-transform"
         wait_for_completion: true
   - match: { acknowledged: true }
 
   - do:
-      data_frame_transform_deprecated.get_transform_stats:
+      transform.get_transform_stats:
         transform_id: "old-simple-continuous-transform"
   - match: { count: 1 }
   - match: { transforms.0.id: "old-simple-continuous-transform" }
   - match: { transforms.0.state: "stopped" }
+  - do:
+      transform.update_transform:
+        transform_id: "old-simple-continuous-transform"
+        body: >
+          {
+            "description": "old simple continuous transform"
+          }

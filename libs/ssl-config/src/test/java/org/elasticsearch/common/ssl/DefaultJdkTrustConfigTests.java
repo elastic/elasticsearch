@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.ssl;
@@ -22,12 +11,13 @@ package org.elasticsearch.common.ssl;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Assert;
 
-import javax.net.ssl.X509ExtendedTrustManager;
 import java.security.cert.X509Certificate;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.function.BiFunction;
 import java.util.stream.Stream;
+
+import javax.net.ssl.X509ExtendedTrustManager;
 
 import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.emptyIterable;
@@ -55,22 +45,23 @@ public class DefaultJdkTrustConfigTests extends ESTestCase {
         assertThat(trustManager.getAcceptedIssuers(), not(emptyArray()));
         // This is a sample of the CAs that we expect on every JRE.
         // We can safely change this list if the JRE's issuer list changes, but we want to assert something useful.
-        assertHasTrustedIssuer(trustManager, "VeriSign");
-        assertHasTrustedIssuer(trustManager, "GeoTrust");
         assertHasTrustedIssuer(trustManager, "DigiCert");
-        assertHasTrustedIssuer(trustManager, "thawte");
         assertHasTrustedIssuer(trustManager, "COMODO");
+        assertHasTrustedIssuer(trustManager, "GlobalSign");
+        assertHasTrustedIssuer(trustManager, "GoDaddy");
+        assertHasTrustedIssuer(trustManager, "QuoVadis");
+        assertHasTrustedIssuer(trustManager, "Internet Security Research Group");
     }
 
     private void assertHasTrustedIssuer(X509ExtendedTrustManager trustManager, String name) {
         final String lowerName = name.toLowerCase(Locale.ROOT);
         final Optional<X509Certificate> ca = Stream.of(trustManager.getAcceptedIssuers())
-            .filter(cert -> cert.getSubjectDN().getName().toLowerCase(Locale.ROOT).contains(lowerName))
+            .filter(cert -> cert.getSubjectX500Principal().getName().toLowerCase(Locale.ROOT).contains(lowerName))
             .findAny();
         if (ca.isPresent() == false) {
             logger.info("Failed to find issuer [{}] in trust manager, but did find ...", lowerName);
             for (X509Certificate cert : trustManager.getAcceptedIssuers()) {
-                logger.info(" - {}", cert.getSubjectDN().getName().replaceFirst("^\\w+=([^,]+),.*", "$1"));
+                logger.info(" - {}", cert.getSubjectX500Principal().getName().replaceFirst("^\\w+=([^,]+),.*", "$1"));
             }
             Assert.fail("Cannot find trusted issuer with name [" + name + "].");
         }

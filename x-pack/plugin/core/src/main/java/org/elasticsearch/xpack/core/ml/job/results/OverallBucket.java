@@ -1,16 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.job.results;
 
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
@@ -54,7 +55,7 @@ public class OverallBucket implements ToXContentObject, Writeable {
         timestamp = new Date(in.readLong());
         bucketSpan = in.readLong();
         overallScore = in.readDouble();
-        jobs = in.readList(JobInfo::new);
+        jobs = in.readCollectionAsList(JobInfo::new);
         isInterim = in.readBoolean();
     }
 
@@ -63,7 +64,7 @@ public class OverallBucket implements ToXContentObject, Writeable {
         out.writeLong(timestamp.getTime());
         out.writeLong(bucketSpan);
         out.writeDouble(overallScore);
-        out.writeList(jobs);
+        out.writeCollection(jobs);
         out.writeBoolean(isInterim);
     }
 
@@ -124,10 +125,10 @@ public class OverallBucket implements ToXContentObject, Writeable {
         OverallBucket that = (OverallBucket) other;
 
         return Objects.equals(this.timestamp, that.timestamp)
-                && this.bucketSpan == that.bucketSpan
-                && this.overallScore == that.overallScore
-                && Objects.equals(this.jobs, that.jobs)
-                && this.isInterim == that.isInterim;
+            && this.bucketSpan == that.bucketSpan
+            && this.overallScore == that.overallScore
+            && Objects.equals(this.jobs, that.jobs)
+            && this.isInterim == that.isInterim;
     }
 
     public static class JobInfo implements ToXContentObject, Writeable, Comparable<JobInfo> {

@@ -1,18 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble;
 
-
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TargetType;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
@@ -40,7 +40,8 @@ public class WeightedMode implements StrictlyParsedOutputAggregator, LenientlyPa
         ConstructingObjectParser<WeightedMode, Void> parser = new ConstructingObjectParser<>(
             NAME.getPreferredName(),
             lenient,
-            a -> new WeightedMode((Integer) a[0], (List<Double>)a[1]));
+            a -> new WeightedMode((Integer) a[0], (List<Double>) a[1])
+        );
         parser.declareInt(ConstructingObjectParser.constructorArg(), NUM_CLASSES);
         parser.declareDoubleArray(ConstructingObjectParser.optionalConstructorArg(), WEIGHTS);
         return parser;
@@ -89,21 +90,37 @@ public class WeightedMode implements StrictlyParsedOutputAggregator, LenientlyPa
     }
 
     @Override
-    public List<Double> processValues(List<Double> values) {
+    public double[] processValues(double[][] values) {
         Objects.requireNonNull(values, "values must not be null");
-        if (weights != null && values.size() != weights.length) {
+        if (weights != null && values.length != weights.length) {
             throw new IllegalArgumentException("values must be the same length as weights.");
         }
-        List<Integer> freqArray = new ArrayList<>();
-        Integer maxVal = 0;
-        for (Double value : values) {
-            if (value == null) {
-                throw new IllegalArgumentException("values must not contain null values");
+        // Multiple leaf values
+        if (values[0].length > 1) {
+            double[] sumOnAxis1 = new double[values[0].length];
+            for (int j = 0; j < values.length; j++) {
+                double[] value = values[j];
+                double weight = weights == null ? 1.0 : weights[j];
+                for (int i = 0; i < value.length; i++) {
+                    if (i >= sumOnAxis1.length) {
+                        throw new IllegalArgumentException("value entries must have the same dimensions");
+                    }
+                    sumOnAxis1[i] += (value[i] * weight);
+                }
             }
-            if (Double.isNaN(value) || Double.isInfinite(value) || value < 0.0 || value != Math.rint(value)) {
+            return softMax(sumOnAxis1);
+        }
+        // Singular leaf values
+        List<Integer> freqArray = new ArrayList<>();
+        int maxVal = 0;
+        for (double[] value : values) {
+            if (value.length != 1) {
+                throw new IllegalArgumentException("value entries must have the same dimensions");
+            }
+            if (Double.isNaN(value[0]) || Double.isInfinite(value[0]) || value[0] < 0.0 || value[0] != Math.rint(value[0])) {
                 throw new IllegalArgumentException("values must be whole, non-infinite, and positive");
             }
-            Integer integerValue = value.intValue();
+            int integerValue = Double.valueOf(value[0]).intValue();
             freqArray.add(integerValue);
             if (integerValue > maxVal) {
                 maxVal = integerValue;
@@ -112,27 +129,27 @@ public class WeightedMode implements StrictlyParsedOutputAggregator, LenientlyPa
         if (maxVal >= numClasses) {
             throw new IllegalArgumentException("values contain entries larger than expected max of [" + (numClasses - 1) + "]");
         }
-        List<Double> frequencies = new ArrayList<>(Collections.nCopies(numClasses, Double.NEGATIVE_INFINITY));
+        double[] frequencies = Collections.nCopies(numClasses, Double.NEGATIVE_INFINITY)
+            .stream()
+            .mapToDouble(Double::doubleValue)
+            .toArray();
         for (int i = 0; i < freqArray.size(); i++) {
-            Double weight = weights == null ? 1.0 : weights[i];
-            Integer value = freqArray.get(i);
-            Double frequency = frequencies.get(value) == Double.NEGATIVE_INFINITY ? weight : frequencies.get(value) + weight;
-            frequencies.set(value, frequency);
+            double weight = weights == null ? 1.0 : weights[i];
+            int value = freqArray.get(i);
+            double frequency = frequencies[value] == Double.NEGATIVE_INFINITY ? weight : frequencies[value] + weight;
+            frequencies[value] = frequency;
         }
         return softMax(frequencies);
     }
 
     @Override
-    public double aggregate(List<Double> values) {
+    public double aggregate(double[] values) {
         Objects.requireNonNull(values, "values must not be null");
         int bestValue = 0;
         double bestFreq = Double.NEGATIVE_INFINITY;
-        for (int i = 0; i < values.size(); i++) {
-            if (values.get(i) == null) {
-                throw new IllegalArgumentException("values must not contain null values");
-            }
-            if (values.get(i) > bestFreq) {
-                bestFreq = values.get(i);
+        for (int i = 0; i < values.length; i++) {
+            if (values[i] > bestFreq) {
+                bestFreq = values[i];
                 bestValue = i;
             }
         }

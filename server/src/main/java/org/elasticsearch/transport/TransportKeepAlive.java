@@ -1,35 +1,22 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.transport;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.AsyncBiFunction;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.metrics.CounterMetric;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.AbstractLifecycleRunnable;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
@@ -48,29 +35,30 @@ final class TransportKeepAlive implements Closeable {
 
     static final int PING_DATA_SIZE = -1;
 
-    private final Logger logger = LogManager.getLogger(TransportKeepAlive.class);
-    private final CounterMetric successfulPings = new CounterMetric();
-    private final CounterMetric failedPings = new CounterMetric();
-    private final ConcurrentMap<TimeValue, ScheduledPing> pingIntervals = ConcurrentCollections.newConcurrentMap();
-    private final Lifecycle lifecycle = new Lifecycle();
-    private final ThreadPool threadPool;
-    private final AsyncBiFunction<TcpChannel, BytesReference, Void> pingSender;
-    private final BytesReference pingMessage;
+    private static final BytesReference PING_MESSAGE;
 
-    TransportKeepAlive(ThreadPool threadPool, AsyncBiFunction<TcpChannel, BytesReference, Void> pingSender) {
-        this.threadPool = threadPool;
-        this.pingSender = pingSender;
-
+    static {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.writeByte((byte) 'E');
             out.writeByte((byte) 'S');
             out.writeInt(PING_DATA_SIZE);
-            pingMessage = out.bytes();
+            PING_MESSAGE = out.copyBytes();
         } catch (IOException e) {
             throw new AssertionError(e.getMessage(), e); // won't happen
         }
+    }
 
-        this.lifecycle.moveToStarted();
+    private static final Logger logger = LogManager.getLogger(TransportKeepAlive.class);
+    private final CounterMetric successfulPings = new CounterMetric();
+    private final CounterMetric failedPings = new CounterMetric();
+    private final ConcurrentMap<TimeValue, ScheduledPing> pingIntervals = ConcurrentCollections.newConcurrentMap();
+    private final ThreadPool threadPool;
+    private final AsyncBiFunction<TcpChannel, BytesReference, Void> pingSender;
+    private volatile boolean isClosed;
+
+    TransportKeepAlive(ThreadPool threadPool, AsyncBiFunction<TcpChannel, BytesReference, Void> pingSender) {
+        this.threadPool = threadPool;
+        this.pingSender = pingSender;
     }
 
     void registerNodeConnection(List<TcpChannel> nodeChannels, ConnectionProfile connectionProfile) {
@@ -84,7 +72,7 @@ final class TransportKeepAlive implements Closeable {
 
         for (TcpChannel channel : nodeChannels) {
             scheduledPing.addChannel(channel);
-            channel.addCloseListener(ActionListener.wrap(() -> scheduledPing.removeChannel(channel)));
+            channel.addCloseListener(ActionListener.running(() -> scheduledPing.removeChannel(channel)));
         }
     }
 
@@ -112,7 +100,7 @@ final class TransportKeepAlive implements Closeable {
     }
 
     private void sendPing(TcpChannel channel) {
-        pingSender.apply(channel, pingMessage, new ActionListener<Void>() {
+        pingSender.apply(channel, PING_MESSAGE, new ActionListener<Void>() {
 
             @Override
             public void onResponse(Void v) {
@@ -122,10 +110,10 @@ final class TransportKeepAlive implements Closeable {
             @Override
             public void onFailure(Exception e) {
                 if (channel.isOpen()) {
-                    logger.debug(() -> new ParameterizedMessage("[{}] failed to send transport ping", channel), e);
+                    logger.debug(() -> "[" + channel + "] failed to send transport ping", e);
                     failedPings.inc();
                 } else {
-                    logger.trace(() -> new ParameterizedMessage("[{}] failed to send transport ping (channel closed)", channel), e);
+                    logger.trace(() -> "[" + channel + "] failed to send transport ping (channel closed)", e);
                 }
             }
         });
@@ -133,13 +121,10 @@ final class TransportKeepAlive implements Closeable {
 
     @Override
     public void close() {
-        synchronized (lifecycle) {
-            lifecycle.moveToStopped();
-            lifecycle.moveToClosed();
-        }
+        isClosed = true;
     }
 
-    private class ScheduledPing extends AbstractLifecycleRunnable {
+    private class ScheduledPing extends AbstractRunnable {
 
         private final TimeValue pingInterval;
 
@@ -149,14 +134,13 @@ final class TransportKeepAlive implements Closeable {
         private volatile long lastPingRelativeMillis;
 
         private ScheduledPing(TimeValue pingInterval) {
-            super(lifecycle, logger);
             this.pingInterval = pingInterval;
             this.lastPingRelativeMillis = threadPool.relativeTimeInMillis();
         }
 
         void ensureStarted() {
             if (isStarted.get() == false && isStarted.compareAndSet(false, true)) {
-                threadPool.schedule(this, pingInterval, ThreadPool.Names.GENERIC);
+                threadPool.schedule(this, pingInterval, threadPool.generic());
             }
         }
 
@@ -169,7 +153,11 @@ final class TransportKeepAlive implements Closeable {
         }
 
         @Override
-        protected void doRunInLifecycle() {
+        protected void doRun() throws Exception {
+            if (isClosed) {
+                return;
+            }
+
             for (TcpChannel channel : channels) {
                 // In the future it is possible that we may want to kill a channel if we have not read from
                 // the channel since the last ping. However, this will need to be backwards compatible with
@@ -182,8 +170,12 @@ final class TransportKeepAlive implements Closeable {
         }
 
         @Override
-        protected void onAfterInLifecycle() {
-            threadPool.scheduleUnlessShuttingDown(pingInterval, ThreadPool.Names.GENERIC, this);
+        public void onAfter() {
+            if (isClosed) {
+                return;
+            }
+
+            threadPool.scheduleUnlessShuttingDown(pingInterval, threadPool.generic(), this);
         }
 
         @Override

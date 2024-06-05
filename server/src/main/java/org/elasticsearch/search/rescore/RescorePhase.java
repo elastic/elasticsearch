@@ -1,65 +1,97 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.rescore;
 
+import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
-import org.elasticsearch.search.SearchPhase;
+import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.lucene.grouping.TopFieldGroups;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.Map;
 
 /**
  * Rescore phase of a search request, used to run potentially expensive scoring models against the top matching documents.
  */
-public class RescorePhase implements SearchPhase {
-    @Override
-    public void preProcess(SearchContext context) {
-    }
+public class RescorePhase {
 
-    @Override
-    public void execute(SearchContext context) {
+    private RescorePhase() {}
+
+    public static void execute(SearchContext context) {
+        if (context.size() == 0 || context.rescore() == null || context.rescore().isEmpty()) {
+            return;
+        }
+
         TopDocs topDocs = context.queryResult().topDocs().topDocs;
         if (topDocs.scoreDocs.length == 0) {
             return;
+        }
+        TopFieldGroups topGroups = null;
+        if (topDocs instanceof TopFieldGroups topFieldGroups) {
+            assert context.collapse() != null;
+            topGroups = topFieldGroups;
         }
         try {
             for (RescoreContext ctx : context.rescore()) {
                 topDocs = ctx.rescorer().rescore(topDocs, context.searcher(), ctx);
                 // It is the responsibility of the rescorer to sort the resulted top docs,
                 // here we only assert that this condition is met.
-                assert context.sort() == null && topDocsSortedByScore(topDocs): "topdocs should be sorted after rescore";
+                assert context.sort() == null && topDocsSortedByScore(topDocs) : "topdocs should be sorted after rescore";
             }
-            context.queryResult().topDocs(new TopDocsAndMaxScore(topDocs, topDocs.scoreDocs[0].score),
-                    context.queryResult().sortValueFormats());
+            if (topGroups != null) {
+                assert context.collapse() != null;
+                /**
+                 * Since rescorers don't preserve collapsing, we must reconstruct the group and field
+                 * values from the originalTopGroups to create a new {@link TopFieldGroups} from the
+                 * rescored top documents.
+                 */
+                topDocs = rewriteTopGroups(topGroups, topDocs);
+            }
+            context.queryResult()
+                .topDocs(new TopDocsAndMaxScore(topDocs, topDocs.scoreDocs[0].score), context.queryResult().sortValueFormats());
         } catch (IOException e) {
             throw new ElasticsearchException("Rescore Phase Failed", e);
         }
     }
 
+    private static TopFieldGroups rewriteTopGroups(TopFieldGroups originalTopGroups, TopDocs rescoredTopDocs) {
+        assert originalTopGroups.fields.length == 1 && SortField.FIELD_SCORE.equals(originalTopGroups.fields[0])
+            : "rescore must always sort by score descending";
+        Map<Integer, Object> docIdToGroupValue = Maps.newMapWithExpectedSize(originalTopGroups.scoreDocs.length);
+        for (int i = 0; i < originalTopGroups.scoreDocs.length; i++) {
+            docIdToGroupValue.put(originalTopGroups.scoreDocs[i].doc, originalTopGroups.groupValues[i]);
+        }
+        var newScoreDocs = new FieldDoc[rescoredTopDocs.scoreDocs.length];
+        var newGroupValues = new Object[originalTopGroups.groupValues.length];
+        int pos = 0;
+        for (var doc : rescoredTopDocs.scoreDocs) {
+            newScoreDocs[pos] = new FieldDoc(doc.doc, doc.score, new Object[] { doc.score });
+            newGroupValues[pos++] = docIdToGroupValue.get(doc.doc);
+        }
+        return new TopFieldGroups(
+            originalTopGroups.field,
+            originalTopGroups.totalHits,
+            newScoreDocs,
+            originalTopGroups.fields,
+            newGroupValues
+        );
+    }
+
     /**
      * Returns true if the provided docs are sorted by score.
      */
-    private boolean topDocsSortedByScore(TopDocs topDocs) {
+    private static boolean topDocsSortedByScore(TopDocs topDocs) {
         if (topDocs == null || topDocs.scoreDocs == null || topDocs.scoreDocs.length < 2) {
             return true;
         }

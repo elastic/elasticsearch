@@ -1,14 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job.results;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.ml.annotations.Annotation;
+import org.elasticsearch.xpack.core.ml.annotations.AnnotationTests;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.output.FlushAcknowledgement;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.CategorizerStats;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshotTests;
@@ -25,7 +29,7 @@ import org.elasticsearch.xpack.core.ml.job.results.ModelPlot;
 import java.util.ArrayList;
 import java.util.List;
 
-public class AutodetectResultTests extends AbstractSerializingTestCase<AutodetectResult> {
+public class AutodetectResultTests extends AbstractXContentSerializingTestCase<AutodetectResult> {
 
     @Override
     protected AutodetectResult doParseInstance(XContentParser parser) {
@@ -41,9 +45,11 @@ public class AutodetectResultTests extends AbstractSerializingTestCase<Autodetec
         ModelSnapshot modelSnapshot;
         ModelSizeStats.Builder modelSizeStats;
         ModelPlot modelPlot;
+        Annotation annotation;
         Forecast forecast;
         ForecastRequestStats forecastRequestStats;
         CategoryDefinition categoryDefinition;
+        CategorizerStats.Builder categorizerStats;
         FlushAcknowledgement flushAcknowledgement;
         String jobId = "foo";
         if (randomBoolean()) {
@@ -65,8 +71,13 @@ public class AutodetectResultTests extends AbstractSerializingTestCase<Autodetec
             int size = randomInt(10);
             influencers = new ArrayList<>(size);
             for (int i = 0; i < size; i++) {
-                Influencer influencer = new Influencer(jobId, randomAlphaOfLength(10), randomAlphaOfLength(10),
-                        randomDate(), randomNonNegativeLong());
+                Influencer influencer = new Influencer(
+                    jobId,
+                    randomAlphaOfLength(10),
+                    randomAlphaOfLength(10),
+                    randomDate(),
+                    randomNonNegativeLong()
+                );
                 influencer.setProbability(randomDoubleBetween(0.0, 1.0, true));
                 influencers.add(influencer);
             }
@@ -82,8 +93,7 @@ public class AutodetectResultTests extends AbstractSerializingTestCase<Autodetec
             modelSnapshot = null;
         }
         if (randomBoolean()) {
-            modelSizeStats = new ModelSizeStats.Builder(jobId);
-            modelSizeStats.setModelBytes(randomNonNegativeLong());
+            modelSizeStats = new ModelSizeStats.Builder(jobId).setModelBytes(randomNonNegativeLong());
         } else {
             modelSizeStats = null;
         }
@@ -93,8 +103,12 @@ public class AutodetectResultTests extends AbstractSerializingTestCase<Autodetec
             modelPlot = null;
         }
         if (randomBoolean()) {
-            forecast = new Forecast(jobId, randomAlphaOfLength(20), randomDate(),
-                randomNonNegativeLong(), randomInt());
+            annotation = AnnotationTests.randomAnnotation(jobId);
+        } else {
+            annotation = null;
+        }
+        if (randomBoolean()) {
+            forecast = new Forecast(jobId, randomAlphaOfLength(20), randomDate(), randomNonNegativeLong(), randomInt());
         } else {
             forecast = null;
         }
@@ -110,19 +124,39 @@ public class AutodetectResultTests extends AbstractSerializingTestCase<Autodetec
             categoryDefinition = null;
         }
         if (randomBoolean()) {
-            flushAcknowledgement = new FlushAcknowledgement(randomAlphaOfLengthBetween(1, 20),
-                randomDate());
+            categorizerStats = new CategorizerStats.Builder(jobId).setCategorizedDocCount(randomNonNegativeLong());
+        } else {
+            categorizerStats = null;
+        }
+        if (randomBoolean()) {
+            flushAcknowledgement = new FlushAcknowledgement(randomAlphaOfLengthBetween(1, 20), randomInstant(), randomBoolean());
         } else {
             flushAcknowledgement = null;
         }
-        return new AutodetectResult(bucket, records, influencers, quantiles, modelSnapshot,
-                modelSizeStats == null ? null : modelSizeStats.build(), modelPlot, forecast, forecastRequestStats, categoryDefinition,
-                flushAcknowledgement);
+        return new AutodetectResult(
+            bucket,
+            records,
+            influencers,
+            quantiles,
+            modelSnapshot,
+            modelSizeStats == null ? null : modelSizeStats.build(),
+            modelPlot,
+            annotation,
+            forecast,
+            forecastRequestStats,
+            categoryDefinition,
+            categorizerStats == null ? null : categorizerStats.build(),
+            flushAcknowledgement
+        );
+    }
+
+    @Override
+    protected AutodetectResult mutateInstance(AutodetectResult instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override
     protected Reader<AutodetectResult> instanceReader() {
         return AutodetectResult::new;
     }
-
 }

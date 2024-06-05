@@ -1,0 +1,19 @@
+pr: 106133
+summary: Add a SIMD (Neon) optimised vector distance function for int8
+area: Search
+type: enhancement
+issues: []
+highlight:
+  title: A SIMD (Neon) optimised vector distance function for merging int8 Scalar Quantized vectors has been added
+  body: |-
+    An optimised int8 vector distance implementation for aarch64 has been added.
+    This implementation is currently only used during merging.
+    The vector distance implementation outperforms Lucene's Pamana Vector
+    implementation for binary comparisons by approx 5x (depending on the number
+    of dimensions). It does so by means of SIMD (Neon) intrinsics compiled into a
+    separate native library and link by Panama's FFI. Comparisons are performed on
+    off-heap mmap'ed vector data.
+    Macro benchmarks, SO_Dense_Vector with scalar quantization enabled, shows
+    significant improvements in merge times, approximately 3 times faster. 
+  notable: true
+  

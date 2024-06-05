@@ -1,57 +1,46 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.plugins;
 
-import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.RequestValidators;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.support.ActionFilter;
+import org.elasticsearch.action.support.MappedActionFilter;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestHeaderDefinition;
 
 import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
 import java.util.Objects;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
-import java.util.function.UnaryOperator;
-import java.util.stream.Collectors;
 
 /**
  * An additional extension point for {@link Plugin}s that extends Elasticsearch's scripting functionality. Implement it like this:
  * <pre>{@code
  *   {@literal @}Override
  *   public List<ActionHandler<?, ?>> getActions() {
- *       return Arrays.asList(new ActionHandler<>(ReindexAction.INSTANCE, TransportReindexAction.class),
+ *       return List.of(new ActionHandler<>(ReindexAction.INSTANCE, TransportReindexAction.class),
  *               new ActionHandler<>(UpdateByQueryAction.INSTANCE, TransportUpdateByQueryAction.class),
  *               new ActionHandler<>(DeleteByQueryAction.INSTANCE, TransportDeleteByQueryAction.class),
  *               new ActionHandler<>(RethrottleAction.INSTANCE, TransportRethrottleAction.class));
@@ -62,30 +51,38 @@ public interface ActionPlugin {
     /**
      * Actions added by this plugin.
      */
-    default List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+    default Collection<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         return Collections.emptyList();
-    }
-
-    /**
-     * Client actions added by this plugin. This defaults to all of the {@linkplain ActionType} in
-     * {@linkplain ActionPlugin#getActions()}.
-     */
-    default List<ActionType<? extends ActionResponse>> getClientActions() {
-        return getActions().stream().map(a -> a.action).collect(Collectors.toList());
     }
 
     /**
      * ActionType filters added by this plugin.
      */
-    default List<ActionFilter> getActionFilters() {
+    default Collection<ActionFilter> getActionFilters() {
         return Collections.emptyList();
     }
+
+    /**
+     * Action filters applying to a single action added by this plugin.
+     */
+    default Collection<MappedActionFilter> getMappedActionFilters() {
+        return Collections.emptyList();
+    }
+
     /**
      * Rest handlers added by this plugin.
      */
-    default List<RestHandler> getRestHandlers(Settings settings, RestController restController, ClusterSettings clusterSettings,
-            IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter,
-            IndexNameExpressionResolver indexNameExpressionResolver, Supplier<DiscoveryNodes> nodesInCluster) {
+    default Collection<RestHandler> getRestHandlers(
+        Settings settings,
+        NamedWriteableRegistry namedWriteableRegistry,
+        RestController restController,
+        ClusterSettings clusterSettings,
+        IndexScopedSettings indexScopedSettings,
+        SettingsFilter settingsFilter,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Supplier<DiscoveryNodes> nodesInCluster,
+        Predicate<NodeFeature> clusterSupportsFeature
+    ) {
         return Collections.emptyList();
     }
 
@@ -101,31 +98,6 @@ public interface ActionPlugin {
      */
     default Collection<String> getTaskHeaders() {
         return Collections.emptyList();
-    }
-
-    /**
-     * Returns a function used to wrap each rest request before handling the request.
-     * The returned {@link UnaryOperator} is called for every incoming rest request and receives
-     * the original rest handler as it's input. This allows adding arbitrary functionality around
-     * rest request handlers to do for instance logging or authentication.
-     * A simple example of how to only allow GET request is here:
-     * <pre>
-     * {@code
-     *    UnaryOperator<RestHandler> getRestHandlerWrapper(ThreadContext threadContext) {
-     *      return originalHandler -> (RestHandler) (request, channel, client) -> {
-     *        if (request.method() != Method.GET) {
-     *          throw new IllegalStateException("only GET requests are allowed");
-     *        }
-     *        originalHandler.handleRequest(request, channel, client);
-     *      };
-     *    }
-     * }
-     * </pre>
-     *
-     * Note: Only one installed plugin may implement a rest wrapper.
-     */
-    default UnaryOperator<RestHandler> getRestHandlerWrapper(ThreadContext threadContext) {
-        return null;
     }
 
     final class ActionHandler<Request extends ActionRequest, Response extends ActionResponse> {
@@ -159,8 +131,7 @@ public interface ActionPlugin {
                 return false;
             }
             ActionHandler<?, ?> other = (ActionHandler<?, ?>) obj;
-            return Objects.equals(action, other.action)
-                    && Objects.equals(transportAction, other.transportAction);
+            return Objects.equals(action, other.action) && Objects.equals(transportAction, other.transportAction);
         }
 
         @Override

@@ -1,12 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.jdbc;
 
+import org.elasticsearch.xpack.sql.client.ClientVersion;
 import org.elasticsearch.xpack.sql.client.ObjectUtils;
-import org.elasticsearch.xpack.sql.client.Version;
 
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
@@ -17,6 +18,7 @@ import java.sql.ResultSet;
 import java.sql.RowIdLifetime;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import static java.sql.JDBCType.BIGINT;
@@ -94,7 +96,7 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
 
     @Override
     public String getDatabaseProductVersion() throws SQLException {
-        return Version.CURRENT.toString();
+        return ClientVersion.CURRENT.toString();
     }
 
     @Override
@@ -104,17 +106,17 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
 
     @Override
     public String getDriverVersion() throws SQLException {
-        return Version.CURRENT.major + "." + Version.CURRENT.minor;
+        return ClientVersion.CURRENT.major + "." + ClientVersion.CURRENT.minor;
     }
 
     @Override
     public int getDriverMajorVersion() {
-        return Version.CURRENT.major;
+        return ClientVersion.CURRENT.major;
     }
 
     @Override
     public int getDriverMinorVersion() {
-        return Version.CURRENT.minor;
+        return ClientVersion.CURRENT.minor;
     }
 
     @Override
@@ -144,7 +146,7 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
 
     @Override
     public boolean storesMixedCaseIdentifiers() throws SQLException {
-        //TODO: is the javadoc accurate
+        // TODO: is the javadoc accurate
         return false;
     }
 
@@ -181,33 +183,33 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
 
     @Override
     public String getNumericFunctions() throws SQLException {
-        //https://docs.microsoft.com/en-us/sql/odbc/reference/appendixes/numeric-functions?view=sql-server-2017
+        // https://docs.microsoft.com/en-us/sql/odbc/reference/appendixes/numeric-functions?view=sql-server-2017
         return "ABS,ACOS,ASIN,ATAN,ATAN2,"
-                + "CEILING,COS,"
-                + "DEGREES,"
-                + "EXP,"
-                + "FLOOR,"
-                + "LOG,LOG10,"
-                + "MOD,"
-                + "PI,POWER,"
-                + "RADIANS,RAND,ROUND,"
-                + "SIGN,SIN,SQRT,"
-                + "TAN,TRUNCATE";
+            + "CEILING,COS,"
+            + "DEGREES,"
+            + "EXP,"
+            + "FLOOR,"
+            + "LOG,LOG10,"
+            + "MOD,"
+            + "PI,POWER,"
+            + "RADIANS,RAND,ROUND,"
+            + "SIGN,SIN,SQRT,"
+            + "TAN,TRUNCATE";
     }
 
     @Override
     public String getStringFunctions() throws SQLException {
-        //https://docs.microsoft.com/en-us/sql/odbc/reference/appendixes/string-functions?view=sql-server-2017
+        // https://docs.microsoft.com/en-us/sql/odbc/reference/appendixes/string-functions?view=sql-server-2017
         return "ASCII,"
-                + "BIT_LENGTH,"
-                + "CHAR,CHAR_LENGTH,CHARACTER_LENGTH,CONCAT,"
-                + "INSERT,"
-                + "LCASE,LEFT,LENGTH,LOCATE,LTRIM,"
-                + "OCTET_LENGTH,"
-                + "POSITION,"
-                + "REPEAT,REPLACE,RIGHT,RTRIM,"
-                + "SPACE,SUBSTRING,"
-                + "UCASE";
+            + "BIT_LENGTH,"
+            + "CHAR,CHAR_LENGTH,CHARACTER_LENGTH,CONCAT,"
+            + "INSERT,"
+            + "LCASE,LEFT,LENGTH,LOCATE,LTRIM,"
+            + "OCTET_LENGTH,"
+            + "POSITION,"
+            + "REPEAT,REPLACE,RIGHT,RTRIM,"
+            + "SPACE,SUBSTRING,"
+            + "UCASE";
     }
 
     @Override
@@ -218,15 +220,15 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
 
     @Override
     public String getTimeDateFunctions() throws SQLException {
-        //https://docs.microsoft.com/en-us/sql/odbc/reference/appendixes/time-date-and-interval-functions?view=sql-server-2017
+        // https://docs.microsoft.com/en-us/sql/odbc/reference/appendixes/time-date-and-interval-functions?view=sql-server-2017
         return "DAYNAME,DAYOFMONTH,DAYOFWEEK,DAYOFYEAR"
-                + "EXTRACT,"
-                + "HOUR,"
-                + "MINUTE,MONTH,MONTHNAME"
-                + "QUARTER,"
-                + "SECOND,"
-                + "WEEK,"
-                + "YEAR";
+            + "EXTRACT,"
+            + "HOUR,"
+            + "MINUTE,MONTH,MONTHNAME"
+            + "QUARTER,"
+            + "SECOND,"
+            + "WEEK,"
+            + "YEAR";
     }
 
     @Override
@@ -667,62 +669,63 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
     // https://www.postgresql.org/docs/9.0/static/infoschema-routines.html
     @Override
     public ResultSet getProcedures(String catalog, String schemaPattern, String procedureNamePattern) throws SQLException {
-        return emptySet(con.cfg, "ROUTINES",
-                     "PROCEDURE_CAT",
-                     "PROCEDURE_SCHEM",
-                     "PROCEDURE_NAME",
-                     "NUM_INPUT_PARAMS", INTEGER,
-                     "NUM_OUTPUT_PARAMS", INTEGER,
-                     "NUM_RESULT_SETS", INTEGER,
-                     "REMARKS",
-                     "PROCEDURE_TYPE", SMALLINT,
-                     "SPECIFIC_NAME");
+        return emptySet(
+            con.cfg,
+            "ROUTINES",
+            "PROCEDURE_CAT",
+            "PROCEDURE_SCHEM",
+            "PROCEDURE_NAME",
+            "NUM_INPUT_PARAMS",
+            INTEGER,
+            "NUM_OUTPUT_PARAMS",
+            INTEGER,
+            "NUM_RESULT_SETS",
+            INTEGER,
+            "REMARKS",
+            "PROCEDURE_TYPE",
+            SMALLINT,
+            "SPECIFIC_NAME"
+        );
     }
 
     @Override
     public ResultSet getProcedureColumns(String catalog, String schemaPattern, String procedureNamePattern, String columnNamePattern)
-            throws SQLException {
-        return emptySet(con.cfg, "ROUTINES_COLUMNS",
-                     "PROCEDURE_CAT",
-                     "PROCEDURE_SCHEM",
-                     "PROCEDURE_NAME",
-                     "COLUMN_NAME",
-                     "COLUMN_TYPE", SMALLINT,
-                     "DATA_TYPE", INTEGER,
-                     "TYPE_NAME",
-                     "PRECISION", INTEGER,
-                     "LENGTH", INTEGER,
-                     "SCALE", SMALLINT,
-                     "RADIX", SMALLINT,
-                     "NULLABLE", SMALLINT,
-                     "REMARKS",
-                     "COLUMN_DEF",
-                     "SQL_DATA_TYPE", INTEGER,
-                     "SQL_DATETIME_SUB", INTEGER,
-                     "CHAR_OCTET_LENGTH", INTEGER,
-                     "ORDINAL_POSITION", INTEGER,
-                     "IS_NULLABLE",
-                     "SPECIFIC_NAME");
-    }
-
-    // return the cluster name as the catalog (database)
-    // helps with the various UIs
-    private String defaultCatalog() throws SQLException {
-        return con.client.serverInfo().cluster;
-    }
-
-    private boolean isDefaultCatalog(String catalog) throws SQLException {
-        // null means catalog info is irrelevant
-        // % means return all catalogs
-        // EMPTY means return those without a catalog
-        return catalog == null || catalog.equals(EMPTY) || catalog.equals(WILDCARD) || catalog.equals(defaultCatalog());
-    }
-
-    private boolean isDefaultSchema(String schema) {
-        // null means schema info is irrelevant
-        // % means return all schemas`
-        // EMPTY means return those without a schema
-        return schema == null || schema.equals(EMPTY) || schema.equals(WILDCARD);
+        throws SQLException {
+        return emptySet(
+            con.cfg,
+            "ROUTINES_COLUMNS",
+            "PROCEDURE_CAT",
+            "PROCEDURE_SCHEM",
+            "PROCEDURE_NAME",
+            "COLUMN_NAME",
+            "COLUMN_TYPE",
+            SMALLINT,
+            "DATA_TYPE",
+            INTEGER,
+            "TYPE_NAME",
+            "PRECISION",
+            INTEGER,
+            "LENGTH",
+            INTEGER,
+            "SCALE",
+            SMALLINT,
+            "RADIX",
+            SMALLINT,
+            "NULLABLE",
+            SMALLINT,
+            "REMARKS",
+            "COLUMN_DEF",
+            "SQL_DATA_TYPE",
+            INTEGER,
+            "SQL_DATETIME_SUB",
+            INTEGER,
+            "CHAR_OCTET_LENGTH",
+            INTEGER,
+            "ORDINAL_POSITION",
+            INTEGER,
+            "IS_NULLABLE",
+            "SPECIFIC_NAME"
+        );
     }
 
     @Override
@@ -754,9 +757,7 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
 
     @Override
     public ResultSet getSchemas() throws SQLException {
-        return emptySet(con.cfg, "SCHEMATA",
-                "TABLE_SCHEM",
-                "TABLE_CATALOG");
+        return emptySet(con.cfg, "SCHEMATA", "TABLE_SCHEM", "TABLE_CATALOG");
     }
 
     @Override
@@ -778,10 +779,9 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
         return memorySet(con.cfg, columnInfo("TABLE_TYPES", "TABLE_TYPE"), data);
     }
 
-
     @Override
     public ResultSet getColumns(String catalog, String schemaPattern, String tableNamePattern, String columnNamePattern)
-            throws SQLException {
+        throws SQLException {
         PreparedStatement ps = con.prepareStatement("SYS COLUMNS CATALOG ? TABLE LIKE ? ESCAPE '\\' LIKE ? ESCAPE '\\'");
         // NB: catalog is not a pattern hence why null is send instead
         ps.setString(1, catalog != null ? catalog.trim() : null);
@@ -792,128 +792,160 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
 
     @Override
     public ResultSet getColumnPrivileges(String catalog, String schema, String table, String columnNamePattern) throws SQLException {
-        return emptySet(con.cfg, "",
-                "TABLE_CAT",
-                "TABLE_SCHEM",
-                "TABLE_NAME",
-                "COLUMN_NAME",
-                "GRANTOR",
-                "GRANTEE",
-                "PRIVILEGE",
-                "IS_GRANTABLE");
+        return emptySet(
+            con.cfg,
+            "",
+            "TABLE_CAT",
+            "TABLE_SCHEM",
+            "TABLE_NAME",
+            "COLUMN_NAME",
+            "GRANTOR",
+            "GRANTEE",
+            "PRIVILEGE",
+            "IS_GRANTABLE"
+        );
     }
 
     @Override
     public ResultSet getTablePrivileges(String catalog, String schemaPattern, String tableNamePattern) throws SQLException {
-        return emptySet(con.cfg, "",
-                "TABLE_CAT",
-                "TABLE_SCHEM",
-                "TABLE_NAME",
-                "GRANTOR",
-                "GRANTEE",
-                "PRIVILEGE",
-                "IS_GRANTABLE");
+        return emptySet(con.cfg, "", "TABLE_CAT", "TABLE_SCHEM", "TABLE_NAME", "GRANTOR", "GRANTEE", "PRIVILEGE", "IS_GRANTABLE");
     }
 
     @Override
     public ResultSet getBestRowIdentifier(String catalog, String schema, String table, int scope, boolean nullable) throws SQLException {
-        return emptySet(con.cfg, "",
-                "SCOPE", SMALLINT,
-                "COLUMN_NAME",
-                "DATA_TYPE", INTEGER,
-                "TYPE_NAME",
-                "COLUMN_SIZE", INTEGER,
-                "BUFFER_LENGTH", INTEGER,
-                "DECIMAL_DIGITS", SMALLINT,
-                "PSEUDO_COLUMN", SMALLINT);
+        return emptySet(
+            con.cfg,
+            "",
+            "SCOPE",
+            SMALLINT,
+            "COLUMN_NAME",
+            "DATA_TYPE",
+            INTEGER,
+            "TYPE_NAME",
+            "COLUMN_SIZE",
+            INTEGER,
+            "BUFFER_LENGTH",
+            INTEGER,
+            "DECIMAL_DIGITS",
+            SMALLINT,
+            "PSEUDO_COLUMN",
+            SMALLINT
+        );
     }
 
     @Override
     public ResultSet getVersionColumns(String catalog, String schema, String table) throws SQLException {
-        return emptySet(con.cfg, "",
-                "SCOPE", SMALLINT,
-                "COLUMN_NAME",
-                "DATA_TYPE", INTEGER,
-                "TYPE_NAME",
-                "COLUMN_SIZE", INTEGER,
-                "BUFFER_LENGTH", INTEGER,
-                "DECIMAL_DIGITS", SMALLINT,
-                "PSEUDO_COLUMN", SMALLINT);
+        return emptySet(
+            con.cfg,
+            "",
+            "SCOPE",
+            SMALLINT,
+            "COLUMN_NAME",
+            "DATA_TYPE",
+            INTEGER,
+            "TYPE_NAME",
+            "COLUMN_SIZE",
+            INTEGER,
+            "BUFFER_LENGTH",
+            INTEGER,
+            "DECIMAL_DIGITS",
+            SMALLINT,
+            "PSEUDO_COLUMN",
+            SMALLINT
+        );
     }
 
     @Override
     public ResultSet getPrimaryKeys(String catalog, String schema, String table) throws SQLException {
-        return emptySet(con.cfg, "",
-                "TABLE_CAT",
-                "TABLE_SCHEM",
-                "TABLE_NAME",
-                "COLUMN_NAME",
-                "KEY_SEQ", SMALLINT,
-                "PK_NAME");
+        return emptySet(con.cfg, "", "TABLE_CAT", "TABLE_SCHEM", "TABLE_NAME", "COLUMN_NAME", "KEY_SEQ", SMALLINT, "PK_NAME");
     }
 
     @Override
     public ResultSet getImportedKeys(String catalog, String schema, String table) throws SQLException {
-        return emptySet(con.cfg, "",
-                "PKTABLE_CAT",
-                "PKTABLE_SCHEM",
-                "PKTABLE_NAME",
-                "PKCOLUMN_NAME",
-                "FKTABLE_CAT",
-                "FKTABLE_SCHEM",
-                "FKTABLE_NAME",
-                "FKCOLUMN_NAME",
-                "KEY_SEQ", SMALLINT,
-                "UPDATE_RULE ", SMALLINT,
-                "DELETE_RULE ", SMALLINT,
-                "FK_NAME",
-                "PK_NAME ",
-                "DEFERRABILITY", SMALLINT,
-                "IS_NULLABLE"
-                );
+        return emptySet(
+            con.cfg,
+            "",
+            "PKTABLE_CAT",
+            "PKTABLE_SCHEM",
+            "PKTABLE_NAME",
+            "PKCOLUMN_NAME",
+            "FKTABLE_CAT",
+            "FKTABLE_SCHEM",
+            "FKTABLE_NAME",
+            "FKCOLUMN_NAME",
+            "KEY_SEQ",
+            SMALLINT,
+            "UPDATE_RULE ",
+            SMALLINT,
+            "DELETE_RULE ",
+            SMALLINT,
+            "FK_NAME",
+            "PK_NAME ",
+            "DEFERRABILITY",
+            SMALLINT,
+            "IS_NULLABLE"
+        );
     }
 
     @Override
     public ResultSet getExportedKeys(String catalog, String schema, String table) throws SQLException {
-        return emptySet(con.cfg, "",
-                "PKTABLE_CAT",
-                "PKTABLE_SCHEM",
-                "PKTABLE_NAME",
-                "PKCOLUMN_NAME",
-                "FKTABLE_CAT",
-                "FKTABLE_SCHEM",
-                "FKTABLE_NAME",
-                "FKCOLUMN_NAME",
-                "KEY_SEQ", SMALLINT,
-                "UPDATE_RULE ", SMALLINT,
-                "DELETE_RULE ", SMALLINT,
-                "FK_NAME",
-                "PK_NAME ",
-                "DEFERRABILITY", SMALLINT,
-                "IS_NULLABLE"
-                );
+        return emptySet(
+            con.cfg,
+            "",
+            "PKTABLE_CAT",
+            "PKTABLE_SCHEM",
+            "PKTABLE_NAME",
+            "PKCOLUMN_NAME",
+            "FKTABLE_CAT",
+            "FKTABLE_SCHEM",
+            "FKTABLE_NAME",
+            "FKCOLUMN_NAME",
+            "KEY_SEQ",
+            SMALLINT,
+            "UPDATE_RULE ",
+            SMALLINT,
+            "DELETE_RULE ",
+            SMALLINT,
+            "FK_NAME",
+            "PK_NAME ",
+            "DEFERRABILITY",
+            SMALLINT,
+            "IS_NULLABLE"
+        );
     }
 
     @Override
-    public ResultSet getCrossReference(String parentCatalog, String parentSchema, String parentTable, String foreignCatalog,
-            String foreignSchema, String foreignTable) throws SQLException {
-        return emptySet(con.cfg, "",
-                "PKTABLE_CAT",
-                "PKTABLE_SCHEM",
-                "PKTABLE_NAME",
-                "PKCOLUMN_NAME",
-                "FKTABLE_CAT",
-                "FKTABLE_SCHEM",
-                "FKTABLE_NAME",
-                "FKCOLUMN_NAME",
-                "KEY_SEQ", SMALLINT,
-                "UPDATE_RULE ", SMALLINT,
-                "DELETE_RULE ", SMALLINT,
-                "FK_NAME",
-                "PK_NAME ",
-                "DEFERRABILITY", SMALLINT,
-                "IS_NULLABLE"
-                );
+    public ResultSet getCrossReference(
+        String parentCatalog,
+        String parentSchema,
+        String parentTable,
+        String foreignCatalog,
+        String foreignSchema,
+        String foreignTable
+    ) throws SQLException {
+        return emptySet(
+            con.cfg,
+            "",
+            "PKTABLE_CAT",
+            "PKTABLE_SCHEM",
+            "PKTABLE_NAME",
+            "PKCOLUMN_NAME",
+            "FKTABLE_CAT",
+            "FKTABLE_SCHEM",
+            "FKTABLE_NAME",
+            "FKCOLUMN_NAME",
+            "KEY_SEQ",
+            SMALLINT,
+            "UPDATE_RULE ",
+            SMALLINT,
+            "DELETE_RULE ",
+            SMALLINT,
+            "FK_NAME",
+            "PK_NAME ",
+            "DEFERRABILITY",
+            SMALLINT,
+            "IS_NULLABLE"
+        );
     }
 
     @Override
@@ -923,22 +955,29 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
 
     @Override
     public ResultSet getIndexInfo(String catalog, String schema, String table, boolean unique, boolean approximate) throws SQLException {
-        return emptySet(con.cfg, "",
-                "TABLE_CAT",
-                "TABLE_SCHEM",
-                "TABLE_NAME",
-                "NON_UNIQUE", BOOLEAN,
-                "INDEX_QUALIFIER",
-                "INDEX_NAME",
-                "TYPE", SMALLINT,
-                "ORDINAL_POSITION", SMALLINT,
-                "COLUMN_NAME",
-                "ASC_OR_DESC",
-                "CARDINALITY", BIGINT,
-                "PAGES", BIGINT,
-                "FILTER_CONDITION",
-                "TYPE_NAME"
-                );
+        return emptySet(
+            con.cfg,
+            "",
+            "TABLE_CAT",
+            "TABLE_SCHEM",
+            "TABLE_NAME",
+            "NON_UNIQUE",
+            BOOLEAN,
+            "INDEX_QUALIFIER",
+            "INDEX_NAME",
+            "TYPE",
+            SMALLINT,
+            "ORDINAL_POSITION",
+            SMALLINT,
+            "COLUMN_NAME",
+            "ASC_OR_DESC",
+            "CARDINALITY",
+            BIGINT,
+            "PAGES",
+            BIGINT,
+            "FILTER_CONDITION",
+            "TYPE_NAME"
+        );
     }
 
     @Override
@@ -1003,15 +1042,20 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
 
     @Override
     public ResultSet getUDTs(String catalog, String schemaPattern, String typeNamePattern, int[] types) throws SQLException {
-        return emptySet(con.cfg, "",
-                    "USER_DEFINED_TYPES",
-                    "TYPE_CAT",
-                    "TYPE_SCHEM",
-                    "TYPE_NAME",
-                    "CLASS_NAME",
-                    "DATA_TYPE", INTEGER,
-                    "REMARKS",
-                    "BASE_TYPE", SMALLINT);
+        return emptySet(
+            con.cfg,
+            "",
+            "USER_DEFINED_TYPES",
+            "TYPE_CAT",
+            "TYPE_SCHEM",
+            "TYPE_NAME",
+            "CLASS_NAME",
+            "DATA_TYPE",
+            INTEGER,
+            "REMARKS",
+            "BASE_TYPE",
+            SMALLINT
+        );
     }
 
     @Override
@@ -1041,52 +1085,64 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
 
     @Override
     public ResultSet getSuperTypes(String catalog, String schemaPattern, String typeNamePattern) throws SQLException {
-        return emptySet(con.cfg, "",
-                     "SUPER_TYPES",
-                     "TYPE_CAT",
-                     "TYPE_SCHEM",
-                     "TYPE_NAME",
-                     "SUPERTYPE_CAT",
-                     "SUPERTYPE_SCHEM",
-                     "SUPERTYPE_NAME",
-                     "BASE_TYPE");
+        return emptySet(
+            con.cfg,
+            "",
+            "SUPER_TYPES",
+            "TYPE_CAT",
+            "TYPE_SCHEM",
+            "TYPE_NAME",
+            "SUPERTYPE_CAT",
+            "SUPERTYPE_SCHEM",
+            "SUPERTYPE_NAME",
+            "BASE_TYPE"
+        );
     }
 
     @Override
     public ResultSet getSuperTables(String catalog, String schemaPattern, String tableNamePattern) throws SQLException {
-        return emptySet(con.cfg, "",
-                     "TABLE_CAT",
-                     "TABLE_SCHEM",
-                     "TABLE_NAME",
-                     "SUPERTABLE_NAME");
+        return emptySet(con.cfg, "", "TABLE_CAT", "TABLE_SCHEM", "TABLE_NAME", "SUPERTABLE_NAME");
     }
 
     @Override
     public ResultSet getAttributes(String catalog, String schemaPattern, String typeNamePattern, String attributeNamePattern)
-            throws SQLException {
-        return emptySet(con.cfg, "",
-                     "ATTRIBUTES",
-                     "TYPE_CAT",
-                     "TYPE_SCHEM",
-                     "TYPE_NAME",
-                     "ATTR_NAME",
-                     "DATA_TYPE", INTEGER,
-                     "ATTR_TYPE_NAME",
-                     "ATTR_SIZE", INTEGER,
-                     "DECIMAL_DIGITS", INTEGER,
-                     "NUM_PREC_RADIX", INTEGER,
-                     "NULLABLE", INTEGER,
-                     "REMARKS",
-                     "ATTR_DEF",
-                     "SQL_DATA_TYPE", INTEGER,
-                     "SQL_DATETIME_SUB", INTEGER,
-                     "CHAR_OCTET_LENGTH", INTEGER,
-                     "ORDINAL_POSITION", INTEGER,
-                     "IS_NULLABLE",
-                     "SCOPE_CATALOG",
-                     "SCOPE_SCHEMA",
-                     "SCOPE_TABLE",
-                     "SOURCE_DATA_TYPE", SMALLINT);
+        throws SQLException {
+        return emptySet(
+            con.cfg,
+            "",
+            "ATTRIBUTES",
+            "TYPE_CAT",
+            "TYPE_SCHEM",
+            "TYPE_NAME",
+            "ATTR_NAME",
+            "DATA_TYPE",
+            INTEGER,
+            "ATTR_TYPE_NAME",
+            "ATTR_SIZE",
+            INTEGER,
+            "DECIMAL_DIGITS",
+            INTEGER,
+            "NUM_PREC_RADIX",
+            INTEGER,
+            "NULLABLE",
+            INTEGER,
+            "REMARKS",
+            "ATTR_DEF",
+            "SQL_DATA_TYPE",
+            INTEGER,
+            "SQL_DATETIME_SUB",
+            INTEGER,
+            "CHAR_OCTET_LENGTH",
+            INTEGER,
+            "ORDINAL_POSITION",
+            INTEGER,
+            "IS_NULLABLE",
+            "SCOPE_CATALOG",
+            "SCOPE_SCHEMA",
+            "SCOPE_TABLE",
+            "SOURCE_DATA_TYPE",
+            SMALLINT
+        );
     }
 
     @Override
@@ -1111,12 +1167,12 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
 
     @Override
     public int getJDBCMajorVersion() throws SQLException {
-        return Version.jdbcMajorVersion();
+        return ClientVersion.jdbcMajorVersion();
     }
 
     @Override
     public int getJDBCMinorVersion() throws SQLException {
-        return Version.jdbcMinorVersion();
+        return ClientVersion.jdbcMinorVersion();
     }
 
     @Override
@@ -1162,64 +1218,82 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
             data[i][3] = EMPTY;
         }
 
-        return memorySet(con.cfg, columnInfo("",
-                                    "NAME",
-                                    "MAX_LEN", INTEGER,
-                                    "DEFAULT_VALUE",
-                                    "DESCRIPTION"), data);
+        return memorySet(con.cfg, columnInfo("", "NAME", "MAX_LEN", INTEGER, "DEFAULT_VALUE", "DESCRIPTION"), data);
     }
 
     @Override
     public ResultSet getFunctions(String catalog, String schemaPattern, String functionNamePattern) throws SQLException {
-        return emptySet(con.cfg, "",
-                     "FUNCTIONS",
-                     "FUNCTION_CAT",
-                     "FUNCTION_SCHEM",
-                     "FUNCTION_NAME",
-                     "REMARKS",
-                     "FUNCTION_TYPE", SMALLINT,
-                     "SPECIFIC_NAME");
+        return emptySet(
+            con.cfg,
+            "",
+            "FUNCTIONS",
+            "FUNCTION_CAT",
+            "FUNCTION_SCHEM",
+            "FUNCTION_NAME",
+            "REMARKS",
+            "FUNCTION_TYPE",
+            SMALLINT,
+            "SPECIFIC_NAME"
+        );
     }
 
     @Override
     public ResultSet getFunctionColumns(String catalog, String schemaPattern, String functionNamePattern, String columnNamePattern)
-            throws SQLException {
-        return emptySet(con.cfg, "",
-                     "FUNCTION_COLUMNS",
-                     "FUNCTION_CAT",
-                     "FUNCTION_SCHEM",
-                     "FUNCTION_NAME",
-                     "COLUMN_NAME",
-                     "DATA_TYPE", INTEGER,
-                     "TYPE_NAME",
-                     "PRECISION", INTEGER,
-                     "LENGTH", INTEGER,
-                     "SCALE", SMALLINT,
-                     "RADIX", SMALLINT,
-                     "NULLABLE", SMALLINT,
-                     "REMARKS",
-                     "CHAR_OCTET_LENGTH", INTEGER,
-                     "ORDINAL_POSITION", INTEGER,
-                     "IS_NULLABLE",
-                     "SPECIFIC_NAME");
+        throws SQLException {
+        return emptySet(
+            con.cfg,
+            "",
+            "FUNCTION_COLUMNS",
+            "FUNCTION_CAT",
+            "FUNCTION_SCHEM",
+            "FUNCTION_NAME",
+            "COLUMN_NAME",
+            "DATA_TYPE",
+            INTEGER,
+            "TYPE_NAME",
+            "PRECISION",
+            INTEGER,
+            "LENGTH",
+            INTEGER,
+            "SCALE",
+            SMALLINT,
+            "RADIX",
+            SMALLINT,
+            "NULLABLE",
+            SMALLINT,
+            "REMARKS",
+            "CHAR_OCTET_LENGTH",
+            INTEGER,
+            "ORDINAL_POSITION",
+            INTEGER,
+            "IS_NULLABLE",
+            "SPECIFIC_NAME"
+        );
     }
 
     @Override
     public ResultSet getPseudoColumns(String catalog, String schemaPattern, String tableNamePattern, String columnNamePattern)
-            throws SQLException {
-        return emptySet(con.cfg, "",
-                     "PSEUDO_COLUMNS",
-                     "TABLE_CAT",
-                     "TABLE_SCHEM",
-                     "TABLE_NAME",
-                     "COLUMN_NAME",
-                     "DATA_TYPE", INTEGER,
-                     "COLUMN_SIZE", INTEGER,
-                     "DECIMAL_DIGITS", INTEGER,
-                     "NUM_PREC_RADIX", INTEGER,
-                     "REMARKS",
-                     "COLUMN_USAGE",
-                     "IS_NULLABLE");
+        throws SQLException {
+        return emptySet(
+            con.cfg,
+            "",
+            "PSEUDO_COLUMNS",
+            "TABLE_CAT",
+            "TABLE_SCHEM",
+            "TABLE_NAME",
+            "COLUMN_NAME",
+            "DATA_TYPE",
+            INTEGER,
+            "COLUMN_SIZE",
+            INTEGER,
+            "DECIMAL_DIGITS",
+            INTEGER,
+            "NUM_PREC_RADIX",
+            INTEGER,
+            "REMARKS",
+            "COLUMN_USAGE",
+            "IS_NULLABLE"
+        );
     }
 
     @Override
@@ -1242,10 +1316,9 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
                 data.add(row);
             }
         }
-        
+
         return data.toArray(new Object[][] {});
     }
-
 
     private static List<JdbcColumnInfo> columnInfo(String tableName, Object... cols) throws JdbcSQLException {
         List<JdbcColumnInfo> columns = new ArrayList<>();
@@ -1269,8 +1342,7 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
                     // it's not, use the default and move on
                 }
                 columns.add(new JdbcColumnInfo(name, type, tableName, "INFORMATION_SCHEMA", EMPTY, EMPTY, 0));
-            }
-            else {
+            } else {
                 throw new JdbcSQLException("Invalid metadata schema definition");
             }
         }
@@ -1279,10 +1351,6 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
 
     private static ResultSet emptySet(JdbcConfiguration cfg, String tableName, Object... cols) throws JdbcSQLException {
         return new JdbcResultSet(cfg, null, new InMemoryCursor(columnInfo(tableName, cols), null));
-    }
-
-    private static ResultSet emptySet(JdbcConfiguration cfg, List<JdbcColumnInfo> columns) {
-        return memorySet(cfg, columns, null);
     }
 
     private static ResultSet memorySet(JdbcConfiguration cfg, List<JdbcColumnInfo> columns, Object[][] data) {
@@ -1308,7 +1376,7 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
 
         @Override
         public boolean next() {
-            if (!ObjectUtils.isEmpty(data) && row < data.length - 1) {
+            if (ObjectUtils.isEmpty(data) == false && row < data.length - 1) {
                 row++;
                 return true;
             }
@@ -1329,5 +1397,13 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
         public void close() throws SQLException {
             // this cursor doesn't hold any resource - no need to clean up
         }
+
+        @Override
+        public List<String> warnings() {
+            return Collections.emptyList();
+        }
+
+        @Override
+        public void clearWarnings() {}
     }
 }

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.enrich.action;
 
@@ -9,14 +10,14 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -25,9 +26,9 @@ import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction.Response.Coo
 import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction.Response.ExecutingPolicy;
 import org.elasticsearch.xpack.enrich.EnrichPolicyExecutor;
 
-import java.io.IOException;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 public class TransportEnrichStatsAction extends TransportMasterNodeAction<EnrichStatsAction.Request, EnrichStatsAction.Response> {
@@ -50,19 +51,11 @@ public class TransportEnrichStatsAction extends TransportMasterNodeAction<Enrich
             threadPool,
             actionFilters,
             EnrichStatsAction.Request::new,
-            indexNameExpressionResolver
+            indexNameExpressionResolver,
+            EnrichStatsAction.Response::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.client = client;
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected EnrichStatsAction.Response read(StreamInput in) throws IOException {
-        return new EnrichStatsAction.Response(in);
     }
 
     @Override
@@ -71,9 +64,9 @@ public class TransportEnrichStatsAction extends TransportMasterNodeAction<Enrich
         EnrichStatsAction.Request request,
         ClusterState state,
         ActionListener<EnrichStatsAction.Response> listener
-    ) throws Exception {
+    ) {
         EnrichCoordinatorStatsAction.Request statsRequest = new EnrichCoordinatorStatsAction.Request();
-        ActionListener<EnrichCoordinatorStatsAction.Response> statsListener = ActionListener.wrap(response -> {
+        ActionListener<EnrichCoordinatorStatsAction.Response> statsListener = listener.delegateFailureAndWrap((delegate, response) -> {
             if (response.hasFailures()) {
                 // Report failures even if some node level requests succeed:
                 Exception failure = null;
@@ -84,25 +77,31 @@ public class TransportEnrichStatsAction extends TransportMasterNodeAction<Enrich
                         failure.addSuppressed(nodeFailure);
                     }
                 }
-                listener.onFailure(failure);
+                delegate.onFailure(failure);
                 return;
             }
 
             List<CoordinatorStats> coordinatorStats = response.getNodes()
                 .stream()
                 .map(EnrichCoordinatorStatsAction.NodeResponse::getCoordinatorStats)
-                .sorted(Comparator.comparing(CoordinatorStats::getNodeId))
+                .sorted(Comparator.comparing(CoordinatorStats::nodeId))
                 .collect(Collectors.toList());
             List<ExecutingPolicy> policyExecutionTasks = taskManager.getTasks()
                 .values()
                 .stream()
                 .filter(t -> t.getAction().equals(EnrichPolicyExecutor.TASK_ACTION))
                 .map(t -> t.taskInfo(clusterService.localNode().getId(), true))
-                .map(t -> new ExecutingPolicy(t.getDescription(), t))
-                .sorted(Comparator.comparing(ExecutingPolicy::getName))
+                .map(t -> new ExecutingPolicy(t.description(), t))
+                .sorted(Comparator.comparing(ExecutingPolicy::name))
                 .collect(Collectors.toList());
-            listener.onResponse(new EnrichStatsAction.Response(policyExecutionTasks, coordinatorStats));
-        }, listener::onFailure);
+            List<EnrichStatsAction.Response.CacheStats> cacheStats = response.getNodes()
+                .stream()
+                .map(EnrichCoordinatorStatsAction.NodeResponse::getCacheStats)
+                .filter(Objects::nonNull)
+                .sorted(Comparator.comparing(EnrichStatsAction.Response.CacheStats::nodeId))
+                .collect(Collectors.toList());
+            delegate.onResponse(new EnrichStatsAction.Response(policyExecutionTasks, coordinatorStats, cacheStats));
+        });
         client.execute(EnrichCoordinatorStatsAction.INSTANCE, statsRequest, statsListener);
     }
 

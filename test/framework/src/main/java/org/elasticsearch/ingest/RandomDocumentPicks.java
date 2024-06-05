@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.ingest;
@@ -22,6 +11,7 @@ package org.elasticsearch.ingest;
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
+
 import org.elasticsearch.index.VersionType;
 
 import java.util.ArrayList;
@@ -29,6 +19,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.Set;
 import java.util.TreeMap;
 
 public final class RandomDocumentPicks {
@@ -44,7 +35,7 @@ public final class RandomDocumentPicks {
     public static String randomFieldName(Random random) {
         int numLevels = RandomNumbers.randomIntBetween(random, 1, 5);
         StringBuilder fieldName = new StringBuilder();
-        for (int i = 0; i < numLevels-1; i++) {
+        for (int i = 0; i < numLevels - 1; i++) {
             if (i > 0) {
                 fieldName.append('.');
             }
@@ -67,21 +58,40 @@ public final class RandomDocumentPicks {
 
     /**
      * Returns a randomly selected existing field name out of the fields that are contained
-     * in the document provided as an argument.
+     * in the document provided as an argument.  Does not return the _version field unless it is the only
+     * field.
      */
     public static String randomExistingFieldName(Random random, IngestDocument ingestDocument) {
         Map<String, Object> source = new TreeMap<>(ingestDocument.getSourceAndMetadata());
-        Map.Entry<String, Object> randomEntry = RandomPicks.randomFrom(random, source.entrySet());
+        Map.Entry<String, Object> randomEntry = getRandomEntry(random, source.entrySet());
         String key = randomEntry.getKey();
         while (randomEntry.getValue() instanceof Map) {
             @SuppressWarnings("unchecked")
             Map<String, Object> map = (Map<String, Object>) randomEntry.getValue();
+            // we have reached an empty map hence the max depth we can reach
+            if (map.isEmpty()) {
+                break;
+            }
             Map<String, Object> treeMap = new TreeMap<>(map);
             randomEntry = RandomPicks.randomFrom(random, treeMap.entrySet());
             key += "." + randomEntry.getKey();
         }
         assert ingestDocument.getFieldValue(key, Object.class) != null;
         return key;
+    }
+
+    /**
+     * Return a random entry from a set as long as the entry is not _version.  Returns _version only if it is the only entry.
+     * Since _verison has special validation, tests should test it explicitly rather than randomly
+     */
+    static Map.Entry<String, Object> getRandomEntry(Random random, Set<Map.Entry<String, Object>> entrySet) {
+        Map.Entry<String, Object> randomEntry = RandomPicks.randomFrom(random, entrySet);
+        String key = randomEntry.getKey();
+        while (IngestDocument.Metadata.VERSION.getFieldName().equals(key) && entrySet.size() > 1) {
+            randomEntry = RandomPicks.randomFrom(random, entrySet);
+            key = randomEntry.getKey();
+        }
+        return randomEntry;
     }
 
     /**
@@ -139,12 +149,14 @@ public final class RandomDocumentPicks {
         String id = randomString(random);
         String routing = null;
         Long version = randomNonNegtiveLong(random);
-        VersionType versionType = RandomPicks.randomFrom(random,
-            new VersionType[]{VersionType.INTERNAL, VersionType.EXTERNAL, VersionType.EXTERNAL_GTE});
+        VersionType versionType = RandomPicks.randomFrom(
+            random,
+            new VersionType[] { VersionType.INTERNAL, VersionType.EXTERNAL, VersionType.EXTERNAL_GTE }
+        );
         if (random.nextBoolean()) {
             routing = randomString(random);
         }
-        return new IngestDocument(index, id, routing, version, versionType, source);
+        return new IngestDocument(index, id, version, routing, versionType, source);
     }
 
     public static Map<String, Object> randomSource(Random random) {
@@ -161,7 +173,7 @@ public final class RandomDocumentPicks {
     }
 
     private static Object randomFieldValue(Random random, int currentDepth) {
-        switch(RandomNumbers.randomIntBetween(random, 0, 9)) {
+        switch (RandomNumbers.randomIntBetween(random, 0, 9)) {
             case 0:
                 return randomString(random);
             case 1:

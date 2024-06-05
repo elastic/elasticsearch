@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="platinum"]
 [[ccr-get-stats]]
 === Get {ccr} stats API
 [subs="attributes"]
@@ -51,39 +50,49 @@ This API gets {ccr} stats. This API will return all stats related to {ccr}. In
 particular, this API returns stats about auto-following, and returns the same
 shard-level stats as in the <<ccr-get-follow-stats,get follower stats API>>.
 
+[[ccr-get-stats-query-params]]
+==== {api-query-parms-title}
+
+`timeout`::
+(Optional, time) Controls the amount of time to wait for results. Defaults to unlimited.
+
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
+
+[role="child_attributes"]
 [[ccr-get-stats-response-body]]
 ==== {api-response-body-title}
 
-This API returns the following information:
-
+//Begin auto_follow_stats
 `auto_follow_stats`::
-  (object) An object representing stats for the auto-follow coordinator.
+(object) An object representing stats for the auto-follow coordinator.
++
+.Properties of `auto_follow_stats`
+[%collapsible%open]
+====
+`number_of_failed_follow_indices`::
+(long) The number of indices that the auto-follow coordinator failed to
+automatically follow. The causes of recent failures are captured in the logs
+of the elected master node and in the
+`auto_follow_stats.recent_auto_follow_errors` field.
 
-This object consists of the following fields:
+`number_of_failed_remote_cluster_state_requests`::
+(long) The number of times that the auto-follow coordinator failed to retrieve
+the cluster state from a remote cluster registered in a collection of
+auto-follow patterns.
 
-`auto_follow_stats.number_of_failed_follow_indices`::
-  (long) The number of indices that the auto-follow coordinator failed to
-  automatically follow. The causes of recent failures are captured in the logs
-  of the elected master node and in the
-  `auto_follow_stats.recent_auto_follow_errors` field.
+`number_of_successful_follow_indices`::
+(long) The number of indices that the auto-follow coordinator successfully
+followed.
 
-`auto_follow_stats.number_of_failed_remote_cluster_state_requests`::
-  (long) The number of times that the auto-follow coordinator failed to retrieve
-  the cluster state from a remote cluster registered in a collection of
-  auto-follow patterns.
-
-`auto_follow_stats.number_of_successful_follow_indices`::
-  (long) The number of indices that the auto-follow coordinator successfully
-  followed.
-
-`auto_follow_stats.recent_auto_follow_errors`::
-  (array) An array of objects representing failures by the auto-follow
-  coordinator.
+`recent_auto_follow_errors`::
+(array) An array of objects representing failures by the auto-follow coordinator.
+====
+//End auto_follow_stats
 
 `follow_stats`::
-  (object) An object representing shard-level stats for follower indices; refer
-  to the details of the response in the
-  <<ccr-get-follow-stats,get follower stats API>>.
+(object) An object representing shard-level stats for follower indices; refer to
+the details of the response in the
+<<ccr-get-follow-stats,get follower stats API>>.
 
 [[ccr-get-stats-examples]]
 ==== {api-examples-title}
@@ -111,6 +120,7 @@ The API returns the following results:
     "indices" : [
       {
         "index" : "follower_index",
+        "total_global_checkpoint_lag" : 256,
         "shards" : [
           {
             "remote_cluster" : "remote_cluster",
@@ -148,6 +158,7 @@ The API returns the following results:
   }
 }
 --------------------------------------------------
+// TESTRESPONSE[s/"total_global_checkpoint_lag" : 256/"total_global_checkpoint_lag" : 0/]
 // TESTRESPONSE[s/"number_of_failed_follow_indices" : 0/"number_of_failed_follow_indices" : $body.auto_follow_stats.number_of_failed_follow_indices/]
 // TESTRESPONSE[s/"number_of_failed_remote_cluster_state_requests" : 0/"number_of_failed_remote_cluster_state_requests" : $body.auto_follow_stats.number_of_failed_remote_cluster_state_requests/]
 // TESTRESPONSE[s/"number_of_successful_follow_indices" : 1/"number_of_successful_follow_indices" : $body.auto_follow_stats.number_of_successful_follow_indices/]

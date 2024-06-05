@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.jdbc;
 
@@ -23,10 +24,11 @@ public class ColumnInfoTests extends ESTestCase {
     }
 
     public void testToString() {
-        assertEquals("test.doc.a<type=[KEYWORD] catalog=[as] schema=[ads] label=[lab]>",
-                new JdbcColumnInfo("a", EsType.KEYWORD, "test.doc", "as", "ads", "lab", 0).toString());
-        assertEquals("test.doc.a<type=[KEYWORD]>",
-                new JdbcColumnInfo("a", EsType.KEYWORD, "test.doc", EMPTY, EMPTY, EMPTY, 0).toString());
+        assertEquals(
+            "test.doc.a<type=[KEYWORD] catalog=[as] schema=[ads] label=[lab]>",
+            new JdbcColumnInfo("a", EsType.KEYWORD, "test.doc", "as", "ads", "lab", 0).toString()
+        );
+        assertEquals("test.doc.a<type=[KEYWORD]>", new JdbcColumnInfo("a", EsType.KEYWORD, "test.doc", EMPTY, EMPTY, EMPTY, 0).toString());
         assertEquals("string<type=[KEYWORD]>", varcharInfo("string").toString());
         assertEquals("int<type=[INTEGER]>", intInfo("int").toString());
         assertEquals("d<type=[DOUBLE]>", doubleInfo("d").toString());

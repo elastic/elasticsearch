@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
 import java.util.List;
@@ -34,6 +35,11 @@ public class SetPriorityActionTests extends AbstractActionTestCase<SetPriorityAc
     }
 
     @Override
+    protected SetPriorityAction mutateInstance(SetPriorityAction instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Reader<SetPriorityAction> instanceReader() {
         return SetPriorityAction::new;
     }
@@ -43,7 +49,7 @@ public class SetPriorityActionTests extends AbstractActionTestCase<SetPriorityAc
         assertThat(e.getMessage(), equalTo("[priority] must be 0 or greater"));
     }
 
-    public void testNullPriorityAllowed(){
+    public void testNullPriorityAllowed() {
         SetPriorityAction nullPriority = new SetPriorityAction((Integer) null);
         assertNull(nullPriority.recoveryPriority);
     }
@@ -51,8 +57,11 @@ public class SetPriorityActionTests extends AbstractActionTestCase<SetPriorityAc
     public void testToSteps() {
         SetPriorityAction action = createTestInstance();
         String phase = randomAlphaOfLengthBetween(1, 10);
-        StepKey nextStepKey = new StepKey(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10),
-            randomAlphaOfLengthBetween(1, 10));
+        StepKey nextStepKey = new StepKey(
+            randomAlphaOfLengthBetween(1, 10),
+            randomAlphaOfLengthBetween(1, 10),
+            randomAlphaOfLengthBetween(1, 10)
+        );
         List<Step> steps = action.toSteps(null, phase, nextStepKey);
         assertNotNull(steps);
         assertEquals(1, steps.size());
@@ -61,14 +70,17 @@ public class SetPriorityActionTests extends AbstractActionTestCase<SetPriorityAc
         assertThat(firstStep.getKey(), equalTo(expectedFirstStepKey));
         assertThat(firstStep.getNextStepKey(), equalTo(nextStepKey));
         assertThat(firstStep.getSettings().size(), equalTo(1));
-        assertEquals(priority, (long) IndexMetaData.INDEX_PRIORITY_SETTING.get(firstStep.getSettings()));
+        assertEquals(priority, (long) IndexMetadata.INDEX_PRIORITY_SETTING.get(firstStep.getSettings()));
     }
 
     public void testNullPriorityStep() {
-        SetPriorityAction action = new SetPriorityAction((Integer)null);
+        SetPriorityAction action = new SetPriorityAction((Integer) null);
         String phase = randomAlphaOfLengthBetween(1, 10);
-        StepKey nextStepKey = new StepKey(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10),
-            randomAlphaOfLengthBetween(1, 10));
+        StepKey nextStepKey = new StepKey(
+            randomAlphaOfLengthBetween(1, 10),
+            randomAlphaOfLengthBetween(1, 10),
+            randomAlphaOfLengthBetween(1, 10)
+        );
         List<Step> steps = action.toSteps(null, phase, nextStepKey);
         assertNotNull(steps);
         assertEquals(1, steps.size());
@@ -77,8 +89,10 @@ public class SetPriorityActionTests extends AbstractActionTestCase<SetPriorityAc
         assertThat(firstStep.getKey(), equalTo(expectedFirstStepKey));
         assertThat(firstStep.getNextStepKey(), equalTo(nextStepKey));
         assertThat(firstStep.getSettings().size(), equalTo(1));
-        assertThat(IndexMetaData.INDEX_PRIORITY_SETTING.get(firstStep.getSettings()),
-            equalTo(IndexMetaData.INDEX_PRIORITY_SETTING.getDefault(firstStep.getSettings())));
+        assertThat(
+            IndexMetadata.INDEX_PRIORITY_SETTING.get(firstStep.getSettings()),
+            equalTo(IndexMetadata.INDEX_PRIORITY_SETTING.getDefault(firstStep.getSettings()))
+        );
     }
 
     public void testEqualsAndHashCode() {

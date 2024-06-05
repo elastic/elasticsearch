@@ -1,0 +1,37 @@
+---
+"Compare And Swap Sequence Numbers":
+ - do:
+      index:
+          index:  test_1
+          id:     "1"
+          body:   { foo: bar }
+ - match:   { _version: 1}
+ - set: { _seq_no: seqno }
+ - set: { _primary_term: primary_term }
+
+ - do:
+      bulk:
+        body:
+          - index:
+              _index:          test_1
+              _id:             "1"
+              if_seq_no:       10000
+              if_primary_term: $primary_term
+          - foo: bar2
+
+ - match: { errors: true }
+ - match: { items.0.index.status: 409 }
+ - match: { items.0.index.error.type: version_conflict_engine_exception }
+
+ - do:
+     bulk:
+       body:
+         - index:
+             _index:          test_1
+             _id:             "1"
+             if_seq_no:       $seqno
+             if_primary_term: $primary_term
+         - foo: bar2
+
+ - match: { errors: false}
+ - match: { items.0.index.status: 200 }

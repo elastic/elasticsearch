@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.monitoring.exporter;
 
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 
@@ -25,15 +26,17 @@ public class BytesReferenceMonitoringDoc extends MonitoringDoc {
     private final XContentType xContentType;
     private final BytesReference source;
 
-    public BytesReferenceMonitoringDoc(final String cluster,
-                                       final long timestamp,
-                                       final long intervalMillis,
-                                       @Nullable final Node node,
-                                       final MonitoredSystem system,
-                                       final String type,
-                                       @Nullable final String id,
-                                       final XContentType xContentType,
-                                       final BytesReference source) {
+    public BytesReferenceMonitoringDoc(
+        final String cluster,
+        final long timestamp,
+        final long intervalMillis,
+        @Nullable final Node node,
+        final MonitoredSystem system,
+        final String type,
+        @Nullable final String id,
+        final XContentType xContentType,
+        final BytesReference source
+    ) {
         super(cluster, timestamp, intervalMillis, node, system, type, id);
         this.xContentType = Objects.requireNonNull(xContentType);
         this.source = Objects.requireNonNull(source);
@@ -66,7 +69,7 @@ public class BytesReferenceMonitoringDoc extends MonitoringDoc {
         if (o == null || getClass() != o.getClass()) {
             return false;
         }
-        if (!super.equals(o)) {
+        if (super.equals(o) == false) {
             return false;
         }
         BytesReferenceMonitoringDoc that = (BytesReferenceMonitoringDoc) o;

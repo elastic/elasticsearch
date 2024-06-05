@@ -1,0 +1,139 @@
+---
+"Test neither job id nor body":
+  - do:
+      catch: /Please provide a job \[id\] or the config object/
+      ml.preview_data_frame_analytics:
+        id: ""
+
+---
+"Test both job id and body":
+  - do:
+      catch: /Please provide either a job \[id\] or the config object but not both/
+      ml.preview_data_frame_analytics:
+        id: "foo"
+        body:
+          config:
+            source: { index: "index-source" }
+            analysis: { outlier_detection: {} }
+
+---
+"Test missing job":
+  - do:
+      catch: missing
+      ml.preview_data_frame_analytics:
+        id: "no_such_job"
+
+---
+"Test id that matches multiple jobs":
+
+  - do:
+      indices.create:
+        index: index-source
+
+  - do:
+      ml.put_data_frame_analytics:
+        id: "foo-1"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {"outlier_detection":{}}
+          }
+
+  - do:
+      ml.put_data_frame_analytics:
+        id: "foo-2"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {"outlier_detection":{}}
+          }
+
+  - do:
+      catch: /expected only one config but matched \[foo-1, foo-2\]/
+      ml.preview_data_frame_analytics:
+        id: "foo-*"
+
+---
+"Test feature preview given body":
+
+  - do:
+      indices.create:
+        index: index-source
+        body:
+          mappings:
+            properties:
+              field_1:
+                type: integer
+              field_2:
+                type: double
+              field_3:
+                type: date
+
+  - do:
+      index:
+        index: index-source
+        refresh: true
+        body: { field_1: 3, field_2: 3.14, field_3: "2019-11-11T00:00:00", field_4: "blah" }
+  - match: { result: "created" }
+
+  - do:
+      ml.preview_data_frame_analytics:
+        body:
+          config:
+            source: { index: "index-source" }
+            analysis: { regression: { dependent_variable: "field_1", feature_processors: [{n_gram_encoding: {field: "field_4", feature_prefix: "f", length: 2, n_grams: [1]}}] } }
+  - match: { feature_values.0: {"field_2": "3.14", "f.10": "b", "f.11": "l", "field_1": "3" } }
+  - is_false: feature_values.0.field_4
+
+---
+"Test feature preview given job":
+
+  - do:
+      indices.create:
+        index: index-source
+        body:
+          mappings:
+            properties:
+              field_1:
+                type: integer
+              field_2:
+                type: double
+              field_3:
+                type: date
+
+  - do:
+      index:
+        index: index-source
+        refresh: true
+        body: { field_1: 3, field_2: 3.14, field_3: "2019-11-11T00:00:00", field_4: "blah" }
+  - match: { result: "created" }
+
+  - do:
+      ml.put_data_frame_analytics:
+        id: "ngram-encoding-preview-job"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": { "regression": { "dependent_variable": "field_1", "feature_processors": [{"n_gram_encoding": {"field": "field_4", "feature_prefix": "f", "length": 2, "n_grams": [1]}}] } }
+          }
+  - do:
+      ml.preview_data_frame_analytics:
+        id: "ngram-encoding-preview-job"
+
+  - match: { feature_values.0: {"field_2": "3.14", "f.10": "b", "f.11": "l", "field_1": "3" } }
+  - is_false: feature_values.0.field_4

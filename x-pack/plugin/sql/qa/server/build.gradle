@@ -1,0 +1,117 @@
+apply plugin: 'elasticsearch.java'
+
+description = 'Integration tests for SQL'
+
+dependencies {
+  api project(":test:framework")
+
+  // JDBC testing dependencies
+  api project(path: xpackModule('sql:jdbc'))
+  // Common utilities from QL
+  api project(xpackModule('ql:test-fixtures'))
+
+  api "net.sourceforge.csvjdbc:csvjdbc:${csvjdbcVersion}"
+
+  // CLI testing dependencies
+  api project(path: xpackModule('sql:sql-cli'))
+
+  // H2GIS testing dependencies
+  api("org.orbisgis:h2gis:${h2gisVersion}") {
+    exclude group: "org.locationtech.jts"
+  }
+
+  // select just the parts of JLine that are needed
+  api("org.jline:jline-terminal-jna:${jlineVersion}") {
+    exclude group: "net.java.dev.jna"
+  }
+  api "org.jline:jline-terminal:${jlineVersion}"
+  api "org.jline:jline-reader:${jlineVersion}"
+  api "org.jline:jline-style:${jlineVersion}"
+
+  testRuntimeOnly "net.java.dev.jna:jna:${versions.jna}"
+}
+
+subprojects {
+  if (subprojects.isEmpty()) {
+    // leaf project
+  } else {
+    apply plugin: 'elasticsearch.java'
+  }
+
+  if (project.name != 'security') {
+    // The security project just configures its subprojects
+
+    if (project.parent.name == 'security')
+    {
+      apply plugin: 'elasticsearch.legacy-java-rest-test'
+
+      testClusters.matching { it.name == "javaRestTest" }.configureEach {
+        testDistribution = 'DEFAULT'
+        setting 'xpack.ml.enabled', 'false'
+        setting 'xpack.watcher.enabled', 'false'
+      }
+    } else {
+      apply plugin: 'elasticsearch.internal-java-rest-test'
+      tasks.named('javaRestTest') {
+        usesDefaultDistribution()
+      }
+    }
+
+    dependencies {
+      configurations.javaRestTestRuntimeClasspath {
+        resolutionStrategy.force "org.slf4j:slf4j-api:1.7.25"
+      }
+      configurations.javaRestTestRuntimeOnly {
+        // This is also required to make resolveAllDependencies work
+        resolutionStrategy.force "org.slf4j:slf4j-api:1.7.25"
+      }
+
+      /* Since we're a standalone rest test we actually get transitive
+       * dependencies but we don't really want them because they cause
+       * all kinds of trouble with the jar hell checks. So we suppress
+       * them explicitly for non-es projects. */
+      javaRestTestImplementation(project(':x-pack:plugin:sql:qa:server')) {
+        transitive = false
+      }
+      javaRestTestImplementation project(":test:framework")
+      javaRestTestImplementation project(xpackModule('ql:test-fixtures'))
+
+      // JDBC testing dependencies
+      javaRestTestRuntimeOnly "net.sourceforge.csvjdbc:csvjdbc:${csvjdbcVersion}"
+      javaRestTestRuntimeOnly "com.h2database:h2:${h2Version}"
+
+      // H2GIS testing dependencies
+      javaRestTestRuntimeOnly("org.orbisgis:h2gis:${h2gisVersion}")
+      javaRestTestRuntimeOnly("org.orbisgis:h2gis-api:${h2gisVersion}")
+      javaRestTestRuntimeOnly("org.orbisgis:h2gis-utilities:${h2gisVersion}")
+      javaRestTestRuntimeOnly("org.orbisgis:cts:1.5.2")
+
+
+      javaRestTestRuntimeOnly project(path: xpackModule('sql:jdbc'))
+      javaRestTestRuntimeOnly project(':x-pack:plugin:sql:sql-client')
+
+      // CLI testing dependencies
+      javaRestTestRuntimeOnly project(path: xpackModule('sql:sql-cli'))
+      javaRestTestRuntimeOnly(project(':x-pack:plugin:sql:sql-action')) {
+        transitive = false
+      }
+
+      javaRestTestRuntimeOnly("org.jline:jline-terminal-jna:${jlineVersion}") {
+        exclude group: "net.java.dev.jna"
+      }
+      javaRestTestRuntimeOnly "org.jline:jline-terminal:${jlineVersion}"
+      javaRestTestRuntimeOnly "org.jline:jline-reader:${jlineVersion}"
+      javaRestTestRuntimeOnly "org.jline:jline-style:${jlineVersion}"
+
+      javaRestTestRuntimeOnly "net.java.dev.jna:jna:${versions.jna}"
+
+      // spatial dependency
+      javaRestTestRuntimeOnly project(path: xpackModule('spatial'))
+      javaRestTestRuntimeOnly project(path: ':modules:legacy-geo')
+
+      javaRestTestRuntimeOnly project(path: ':modules:rest-root')
+
+      javaRestTestRuntimeOnly "org.slf4j:slf4j-api:1.7.25"
+    }
+  }
+}

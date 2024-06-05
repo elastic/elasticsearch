@@ -1,26 +1,30 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
-import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xpack.core.action.AbstractGetResourcesResponse;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Objects;
+
+import static org.elasticsearch.core.Strings.format;
 
 public class GetDatafeedsAction extends ActionType<GetDatafeedsAction.Response> {
 
@@ -30,15 +34,15 @@ public class GetDatafeedsAction extends ActionType<GetDatafeedsAction.Response> 
     public static final String ALL = "_all";
 
     private GetDatafeedsAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
-    public static class Request extends MasterNodeReadRequest<Request> {
+    public static final class Request extends MasterNodeReadRequest<Request> {
 
-        public static final ParseField ALLOW_NO_DATAFEEDS = new ParseField("allow_no_datafeeds");
+        public static final String ALLOW_NO_MATCH = "allow_no_match";
 
         private String datafeedId;
-        private boolean allowNoDatafeeds = true;
+        private boolean allowNoMatch = true;
 
         public Request(String datafeedId) {
             this();
@@ -46,32 +50,33 @@ public class GetDatafeedsAction extends ActionType<GetDatafeedsAction.Response> 
         }
 
         public Request() {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
             local(true);
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
             datafeedId = in.readString();
-            allowNoDatafeeds = in.readBoolean();
+            allowNoMatch = in.readBoolean();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(datafeedId);
-            out.writeBoolean(allowNoDatafeeds);
+            out.writeBoolean(allowNoMatch);
         }
 
         public String getDatafeedId() {
             return datafeedId;
         }
 
-        public boolean allowNoDatafeeds() {
-            return allowNoDatafeeds;
+        public boolean allowNoMatch() {
+            return allowNoMatch;
         }
 
-        public void setAllowNoDatafeeds(boolean allowNoDatafeeds) {
-            this.allowNoDatafeeds = allowNoDatafeeds;
+        public void setAllowNoMatch(boolean allowNoMatch) {
+            this.allowNoMatch = allowNoMatch;
         }
 
         @Override
@@ -81,7 +86,7 @@ public class GetDatafeedsAction extends ActionType<GetDatafeedsAction.Response> 
 
         @Override
         public int hashCode() {
-            return Objects.hash(datafeedId, allowNoDatafeeds);
+            return Objects.hash(datafeedId, allowNoMatch);
         }
 
         @Override
@@ -93,14 +98,12 @@ public class GetDatafeedsAction extends ActionType<GetDatafeedsAction.Response> 
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.equals(datafeedId, other.datafeedId) && Objects.equals(allowNoDatafeeds, other.allowNoDatafeeds);
+            return Objects.equals(datafeedId, other.datafeedId) && Objects.equals(allowNoMatch, other.allowNoMatch);
         }
-    }
 
-    public static class RequestBuilder extends MasterNodeReadOperationRequestBuilder<Request, Response, RequestBuilder> {
-
-        public RequestBuilder(ElasticsearchClient client, GetDatafeedsAction action) {
-            super(client, action, new Request());
+        @Override
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            return new CancellableTask(id, type, action, format("get_datafeeds[%s]", datafeedId), parentTaskId, headers);
         }
     }
 

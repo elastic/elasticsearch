@@ -11,7 +11,7 @@ Use an integer literal to specify an integer type value in decimal, octal, or
 hex notation of a <<primitive-types, primitive type>> `int`, `long`, `float`,
 or `double`. Use the following single letter designations to specify the
 primitive type: `l` or `L` for `long`, `f` or `F` for `float`, and `d` or `D`
-for `double`. If not specified, the type defaults to `int`.  Use `0` as a prefix
+for `double`. If not specified, the type defaults to `int`. Use `0` as a prefix
 to specify an integer literal as octal, and use `0x` or `0X` as a prefix to
 specify an integer literal as hex.
 
@@ -86,7 +86,7 @@ EXPONENT: ( [eE] [+\-]? [0-9]+ );
 Use a string literal to specify a <<string-type, `String` type>> value with
 either single-quotes or double-quotes. Use a `\"` token to include a
 double-quote as part of a double-quoted string literal. Use a `\'` token to
-include a single-quote as part of a single-quoted string literal.  Use a `\\`
+include a single-quote as part of a single-quoted string literal. Use a `\\`
 token to include a backslash as part of any string literal.
 
 *Grammar*

@@ -1,0 +1,176 @@
+---
+setup:
+  - do:
+      indices.create:
+        index: testindex
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            runtime:
+              rtf:
+                type: long
+                script: |
+                  if(doc['name'].value.equals("")) throw new Exception("empty");
+                  emit(doc['name'].value.length());
+                on_script_error: continue
+              rtf_strict_error:
+                type: long
+                script: |
+                  if(doc['name'].value.equals("")) throw new Exception("empty");
+                  emit(doc['name'].value.length());
+                on_script_error: fail
+            properties:
+              name:
+                type: keyword
+
+  - do:
+      bulk:
+        index: testindex
+        refresh: true
+        body: |
+          {"index":{}}
+          {"name": "foo"}
+          {"index":{}}
+          {"name": ""}
+
+---
+"Query rtf with on_script_error continue":
+  - do:
+      search:
+        index: testindex
+        body:
+          query:
+            match:
+              rtf: 3
+          fields: [ name, rtf ]
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0.fields.name: [ foo ] }
+  - match: { hits.hits.0.fields.rtf: [ 3 ] }
+
+---
+"Query rtf with on_script_error fail":
+  - do:
+      catch: /type=script_exception, reason=runtime error/
+      search:
+        index: testindex
+        body:
+          query:
+            match:
+              rtf_strict_error: 3
+          fields: [ name, rtf_strict_error ]
+
+---
+"Aggregate on rtf with on_script_error continue":
+  - do:
+      search:
+        index: testindex
+        body:
+          aggs:
+            firstchar:
+              terms:
+                field: rtf
+  - length: { aggregations.firstchar.buckets: 1 }
+  - match: { aggregations.firstchar.buckets.0.key: 3 }
+
+---
+"Aggregate on rtf with on_script_error fail":
+  - do:
+      catch: /type=script_exception, reason=runtime error/
+      search:
+        index: testindex
+        body:
+          aggs:
+            firstchar:
+              terms:
+                field: rtf_strict_error
+
+---
+"Fields retrieval with ignoring error":
+  - do:
+      search:
+        index: testindex
+        body:
+          query: { match_all: { } }
+          fields: [ name, rtf ]
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0.fields.name: [ foo ] }
+  - match: { hits.hits.0.fields.rtf: [ 3 ] }
+  - match: { hits.hits.1.fields.name: [ "" ] }
+  - is_false: hits.hits.1.fields.rtf
+
+---
+"Fields retrieval with failing on error":
+  - do:
+      catch: /type=script_exception, reason=runtime error/
+      search:
+        index: testindex
+        body:
+          query: { match_all: { } }
+          fields: [ name, rtf_strict_error ]
+
+---
+"Sorting with ignoring error":
+  - do:
+      search:
+        index: testindex
+        body:
+          query: { match_all: { } }
+          fields: [ name ]
+          sort: rtf
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0.fields.name: [ foo ] }
+  - match: { hits.hits.1.fields.name: [ "" ] }
+
+---
+"Sorting with with failing on error":
+  - do:
+      catch: /type=script_exception, reason=runtime error/
+      search:
+        index: testindex
+        body:
+          query: { match_all: { } }
+          fields: [ name ]
+          sort: rtf_strict_error
+
+---
+"Query search time rtf with on_script_error continue":
+  - do:
+      search:
+        index: testindex
+        body:
+          query:
+            match:
+              rtf_search: 3
+          fields: [ name, rtf_search ]
+          runtime_mappings:
+            rtf_search:
+              type: long
+              script: |
+                if(doc['name'].value.equals("")) throw new Exception("empty");
+                emit(doc['name'].value.length());
+              on_script_error: continue
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0.fields.name: [ foo ] }
+  - match: { hits.hits.0.fields.rtf_search: [ 3 ] }
+
+---
+"Query search time rtf with on_script_error fail":
+  - do:
+      catch: /type=script_exception, reason=runtime error/
+      search:
+        index: testindex
+        body:
+          query:
+            match:
+              rtf_search: 3
+          fields: [ name, rtf_search ]
+          runtime_mappings:
+            rtf_search:
+              type: long
+              script: |
+                if(doc['name'].value.equals("")) throw new Exception("empty");
+                emit(doc['name'].value.length());
+              on_script_error: fail

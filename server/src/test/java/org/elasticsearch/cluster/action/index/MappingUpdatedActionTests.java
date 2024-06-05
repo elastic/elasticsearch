@@ -1,34 +1,43 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.cluster.action.index;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.mapping.put.TransportAutoPutMappingAction;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.cluster.action.index.MappingUpdatedAction.AdjustableSemaphore;
+import org.elasticsearch.client.internal.AdminClient;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.IndicesAdminClient;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.AdjustableSemaphore;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.Mapping;
+import org.elasticsearch.index.mapper.MetadataFieldMapper;
+import org.elasticsearch.index.mapper.ObjectMapper;
+import org.elasticsearch.index.mapper.RootObjectMapper;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
+
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class MappingUpdatedActionTests extends ESTestCase {
 
@@ -81,9 +90,10 @@ public class MappingUpdatedActionTests extends ESTestCase {
 
     public void testMappingUpdatedActionBlocks() throws Exception {
         List<ActionListener<Void>> inFlightListeners = new CopyOnWriteArrayList<>();
-        final MappingUpdatedAction mua = new MappingUpdatedAction(Settings.builder()
-            .put(MappingUpdatedAction.INDICES_MAX_IN_FLIGHT_UPDATES_SETTING.getKey(), 1).build(),
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)) {
+        final MappingUpdatedAction mua = new MappingUpdatedAction(
+            Settings.builder().put(MappingUpdatedAction.INDICES_MAX_IN_FLIGHT_UPDATES_SETTING.getKey(), 1).build(),
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        ) {
 
             @Override
             protected void sendUpdateMapping(Index index, Mapping mappingUpdate, ActionListener<Void> listener) {
@@ -114,5 +124,32 @@ public class MappingUpdatedActionTests extends ESTestCase {
         assertFalse(fut2.isDone());
         inFlightListeners.remove(0).onResponse(null);
         assertTrue(fut2.isDone());
+    }
+
+    public void testSendUpdateMappingUsingAutoPutMappingAction() {
+        DiscoveryNodes nodes = DiscoveryNodes.builder().add(DiscoveryNodeUtils.builder("first").build()).build();
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).nodes(nodes).build();
+        ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.state()).thenReturn(clusterState);
+
+        IndicesAdminClient indicesAdminClient = mock(IndicesAdminClient.class);
+        AdminClient adminClient = mock(AdminClient.class);
+        when(adminClient.indices()).thenReturn(indicesAdminClient);
+        Client client = mock(Client.class);
+        when(client.admin()).thenReturn(adminClient);
+
+        MappingUpdatedAction mua = new MappingUpdatedAction(
+            Settings.EMPTY,
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
+        mua.setClient(client);
+
+        RootObjectMapper rootObjectMapper = new RootObjectMapper.Builder("name", ObjectMapper.Defaults.SUBOBJECTS).build(
+            MapperBuilderContext.root(false, false)
+        );
+        Mapping update = new Mapping(rootObjectMapper, new MetadataFieldMapper[0], Map.of());
+
+        mua.sendUpdateMapping(new Index("name", "uuid"), update, ActionListener.noop());
+        verify(indicesAdminClient).execute(eq(TransportAutoPutMappingAction.TYPE), any(), any());
     }
 }

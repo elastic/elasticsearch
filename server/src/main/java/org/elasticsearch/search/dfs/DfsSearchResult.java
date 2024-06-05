@@ -1,68 +1,76 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.dfs;
 
-import com.carrotsearch.hppc.ObjectObjectHashMap;
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.collect.HppcMaps;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.search.internal.ShardSearchContextId;
+import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.search.profile.SearchProfileDfsPhaseResult;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
-public class DfsSearchResult extends SearchPhaseResult {
+public final class DfsSearchResult extends SearchPhaseResult {
 
     private static final Term[] EMPTY_TERMS = new Term[0];
     private static final TermStatistics[] EMPTY_TERM_STATS = new TermStatistics[0];
     private Term[] terms;
     private TermStatistics[] termStatistics;
-    private ObjectObjectHashMap<String, CollectionStatistics> fieldStatistics = HppcMaps.newNoNullKeysMap();
+    private Map<String, CollectionStatistics> fieldStatistics = new HashMap<>();
+    private List<DfsKnnResults> knnResults;
     private int maxDoc;
+    private SearchProfileDfsPhaseResult searchProfileDfsPhaseResult;
 
     public DfsSearchResult(StreamInput in) throws IOException {
         super(in);
-        requestId = in.readLong();
+        contextId = new ShardSearchContextId(in);
         int termsSize = in.readVInt();
         if (termsSize == 0) {
             terms = EMPTY_TERMS;
         } else {
             terms = new Term[termsSize];
             for (int i = 0; i < terms.length; i++) {
-                terms[i] = new Term(in.readString(), in.readBytesRef());
+                terms[i] = new Term(in.readString(), in.readSlicedBytesReference().toBytesRef());
             }
         }
         this.termStatistics = readTermStats(in, terms);
         fieldStatistics = readFieldStats(in);
 
         maxDoc = in.readVInt();
+        setShardSearchRequest(in.readOptionalWriteable(ShardSearchRequest::new));
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
+                knnResults = in.readOptionalCollectionAsList(DfsKnnResults::new);
+            } else {
+                DfsKnnResults results = in.readOptionalWriteable(DfsKnnResults::new);
+                knnResults = results != null ? List.of(results) : List.of();
+            }
+        }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_6_0)) {
+            searchProfileDfsPhaseResult = in.readOptionalWriteable(SearchProfileDfsPhaseResult::new);
+        }
     }
 
-    public DfsSearchResult(long id, SearchShardTarget shardTarget) {
+    public DfsSearchResult(ShardSearchContextId contextId, SearchShardTarget shardTarget, ShardSearchRequest shardSearchRequest) {
         this.setSearchShardTarget(shardTarget);
-        this.requestId = id;
+        this.contextId = contextId;
+        setShardSearchRequest(shardSearchRequest);
     }
 
     public DfsSearchResult maxDoc(int maxDoc) {
@@ -80,8 +88,18 @@ public class DfsSearchResult extends SearchPhaseResult {
         return this;
     }
 
-    public DfsSearchResult fieldStatistics(ObjectObjectHashMap<String, CollectionStatistics> fieldStatistics) {
+    public DfsSearchResult fieldStatistics(Map<String, CollectionStatistics> fieldStatistics) {
         this.fieldStatistics = fieldStatistics;
+        return this;
+    }
+
+    public DfsSearchResult knnResults(List<DfsKnnResults> knnResults) {
+        this.knnResults = knnResults;
+        return this;
+    }
+
+    public DfsSearchResult profileResult(SearchProfileDfsPhaseResult searchProfileDfsPhaseResult) {
+        this.searchProfileDfsPhaseResult = searchProfileDfsPhaseResult;
         return this;
     }
 
@@ -93,47 +111,66 @@ public class DfsSearchResult extends SearchPhaseResult {
         return termStatistics;
     }
 
-    public ObjectObjectHashMap<String, CollectionStatistics> fieldStatistics() {
+    public Map<String, CollectionStatistics> fieldStatistics() {
         return fieldStatistics;
     }
 
-  @Override
+    public List<DfsKnnResults> knnResults() {
+        return knnResults;
+    }
+
+    public SearchProfileDfsPhaseResult searchProfileDfsPhaseResult() {
+        return searchProfileDfsPhaseResult;
+    }
+
+    @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeLong(requestId);
-        out.writeVInt(terms.length);
-        for (Term term : terms) {
-            out.writeString(term.field());
-            out.writeBytesRef(term.bytes());
-        }
+        contextId.writeTo(out);
+        out.writeArray((o, term) -> {
+            o.writeString(term.field());
+            o.writeBytesRef(term.bytes());
+        }, terms);
         writeTermStats(out, termStatistics);
         writeFieldStats(out, fieldStatistics);
         out.writeVInt(maxDoc);
+        out.writeOptionalWriteable(getShardSearchRequest());
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
+                out.writeOptionalCollection(knnResults);
+            } else {
+                if (knnResults != null && knnResults.size() > 1) {
+                    throw new IllegalArgumentException(
+                        "Cannot serialize multiple KNN results to nodes using previous transport version ["
+                            + out.getTransportVersion().toReleaseVersion()
+                            + "], minimum required transport version is ["
+                            + TransportVersions.V_8_7_0.toReleaseVersion()
+                            + "]"
+                    );
+                }
+                out.writeOptionalWriteable(knnResults == null || knnResults.isEmpty() ? null : knnResults.get(0));
+            }
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_6_0)) {
+            out.writeOptionalWriteable(searchProfileDfsPhaseResult);
+        }
     }
 
-    public static void writeFieldStats(StreamOutput out, ObjectObjectHashMap<String,
-            CollectionStatistics> fieldStatistics) throws IOException {
-        out.writeVInt(fieldStatistics.size());
-
-        for (ObjectObjectCursor<String, CollectionStatistics> c : fieldStatistics) {
-            out.writeString(c.key);
-            CollectionStatistics statistics = c.value;
+    public static void writeFieldStats(StreamOutput out, Map<String, CollectionStatistics> fieldStatistics) throws IOException {
+        out.writeMap(fieldStatistics, (o, statistics) -> {
             assert statistics.maxDoc() >= 0;
-            out.writeVLong(statistics.maxDoc());
+            o.writeVLong(statistics.maxDoc());
             // stats are always positive numbers
-            out.writeVLong(statistics.docCount());
-            out.writeVLong(statistics.sumTotalTermFreq());
-            out.writeVLong(statistics.sumDocFreq());
-        }
+            o.writeVLong(statistics.docCount());
+            o.writeVLong(statistics.sumTotalTermFreq());
+            o.writeVLong(statistics.sumDocFreq());
+        });
     }
 
     public static void writeTermStats(StreamOutput out, TermStatistics[] termStatistics) throws IOException {
-        out.writeVInt(termStatistics.length);
-        for (TermStatistics termStatistic : termStatistics) {
-            writeSingleTermStats(out, termStatistic);
-        }
+        out.writeArray(DfsSearchResult::writeSingleTermStats, termStatistics);
     }
 
-    public  static void writeSingleTermStats(StreamOutput out, TermStatistics termStatistic) throws IOException {
+    public static void writeSingleTermStats(StreamOutput out, TermStatistics termStatistic) throws IOException {
         if (termStatistic != null) {
             assert termStatistic.docFreq() > 0;
             out.writeVLong(termStatistic.docFreq());
@@ -144,9 +181,9 @@ public class DfsSearchResult extends SearchPhaseResult {
         }
     }
 
-    static ObjectObjectHashMap<String, CollectionStatistics> readFieldStats(StreamInput in) throws IOException {
+    static Map<String, CollectionStatistics> readFieldStats(StreamInput in) throws IOException {
         final int numFieldStatistics = in.readVInt();
-        ObjectObjectHashMap<String, CollectionStatistics> fieldStatistics = HppcMaps.newNoNullKeysMap(numFieldStatistics);
+        Map<String, CollectionStatistics> fieldStatistics = new HashMap<>(numFieldStatistics);
         for (int i = 0; i < numFieldStatistics; i++) {
             final String field = in.readString();
             assert field != null;

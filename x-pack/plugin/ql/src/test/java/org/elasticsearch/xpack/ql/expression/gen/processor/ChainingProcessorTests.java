@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ql.expression.gen.processor;
 
@@ -13,7 +14,6 @@ import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Binar
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparisonProcessorTests;
 import org.elasticsearch.xpack.ql.expression.processor.Processors;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
@@ -39,13 +39,12 @@ public class ChainingProcessorTests extends AbstractWireSerializingTestCase<Chai
     }
 
     @Override
-    protected ChainingProcessor mutateInstance(ChainingProcessor instance) throws IOException {
+    protected ChainingProcessor mutateInstance(ChainingProcessor instance) {
         @SuppressWarnings("unchecked")
         Supplier<ChainingProcessor> supplier = randomFrom(
-            () -> new ChainingProcessor(
-                    instance.first(), randomValueOtherThan(instance.second(), () -> randomProcessor())),
-            () -> new ChainingProcessor(
-                    randomValueOtherThan(instance.first(), () -> randomProcessor()), instance.second()));
+            () -> new ChainingProcessor(instance.first(), randomValueOtherThan(instance.second(), () -> randomProcessor())),
+            () -> new ChainingProcessor(randomValueOtherThan(instance.first(), () -> randomProcessor()), instance.second())
+        );
         return supplier.get();
     }
 

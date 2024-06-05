@@ -1,21 +1,24 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.watcher.transport.actions.stats;
 
 import org.elasticsearch.action.FailedNodeException;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.watcher.WatcherMetaData;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.watcher.WatcherMetadata;
 import org.elasticsearch.xpack.core.watcher.WatcherState;
 import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
 import org.elasticsearch.xpack.core.watcher.execution.QueuedWatch;
@@ -25,41 +28,38 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
 
-public class WatcherStatsResponse extends BaseNodesResponse<WatcherStatsResponse.Node>
-        implements ToXContentObject {
+public class WatcherStatsResponse extends BaseNodesResponse<WatcherStatsResponse.Node> implements ToXContentObject {
 
-    private WatcherMetaData watcherMetaData;
+    private final WatcherMetadata watcherMetadata;
 
-    public WatcherStatsResponse(StreamInput in) throws IOException {
-        super(in);
-        watcherMetaData = new WatcherMetaData(in.readBoolean());
-    }
-
-    public WatcherStatsResponse(ClusterName clusterName, WatcherMetaData watcherMetaData,
-                                List<Node> nodes, List<FailedNodeException> failures) {
+    public WatcherStatsResponse(
+        ClusterName clusterName,
+        WatcherMetadata watcherMetadata,
+        List<Node> nodes,
+        List<FailedNodeException> failures
+    ) {
         super(clusterName, nodes, failures);
-        this.watcherMetaData = watcherMetaData;
+        this.watcherMetadata = watcherMetadata;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeBoolean(watcherMetaData.manuallyStopped());
+        TransportAction.localOnly();
     }
 
     @Override
     protected List<Node> readNodesFrom(StreamInput in) throws IOException {
-        return in.readList(Node::new);
+        return TransportAction.localOnly();
     }
 
     @Override
     protected void writeNodesTo(StreamOutput out, List<Node> nodes) throws IOException {
-        out.writeList(nodes);
+        TransportAction.localOnly();
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        watcherMetaData.toXContent(builder, params);
+        ChunkedToXContent.wrapAsToXContent(watcherMetadata).toXContent(builder, params);
         builder.startArray("stats");
         for (Node node : getNodes()) {
             node.toXContent(builder, params);
@@ -78,8 +78,8 @@ public class WatcherStatsResponse extends BaseNodesResponse<WatcherStatsResponse
         return getNodes().stream().mapToLong(WatcherStatsResponse.Node::getWatchesCount).sum();
     }
 
-    public WatcherMetaData watcherMetaData() {
-        return watcherMetaData;
+    public WatcherMetadata watcherMetadata() {
+        return watcherMetadata;
     }
 
     public static class Node extends BaseNodeResponse implements ToXContentObject {
@@ -100,10 +100,10 @@ public class WatcherStatsResponse extends BaseNodesResponse<WatcherStatsResponse
             watcherState = WatcherState.fromId(in.readByte());
 
             if (in.readBoolean()) {
-                snapshots = in.readList(WatchExecutionSnapshot::new);
+                snapshots = in.readCollectionAsList(WatchExecutionSnapshot::new);
             }
             if (in.readBoolean()) {
-                queuedWatches = in.readList(QueuedWatch::new);
+                queuedWatches = in.readCollectionAsList(QueuedWatch::new);
             }
             if (in.readBoolean()) {
                 stats = new Counters(in);
@@ -194,11 +194,11 @@ public class WatcherStatsResponse extends BaseNodesResponse<WatcherStatsResponse
 
             out.writeBoolean(snapshots != null);
             if (snapshots != null) {
-                out.writeList(snapshots);
+                out.writeCollection(snapshots);
             }
             out.writeBoolean(queuedWatches != null);
             if (queuedWatches != null) {
-                out.writeList(queuedWatches);
+                out.writeCollection(queuedWatches);
             }
             out.writeBoolean(stats != null);
             if (stats != null) {
@@ -206,10 +206,8 @@ public class WatcherStatsResponse extends BaseNodesResponse<WatcherStatsResponse
             }
         }
 
-
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params)
-                throws IOException {
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field("node_id", getNode().getId());
             builder.field("watcher_state", watcherState.toString().toLowerCase(Locale.ROOT));

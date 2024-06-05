@@ -22,7 +22,7 @@ would make replaying its operations take a considerable amount of time during
 recovery. The ability to perform a flush manually is also exposed through an
 API, although this is rarely needed.
 
-[float]
+[discrete]
 === Translog settings
 
 The data in the translog is only persisted to disk when the translog is

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 /**
@@ -143,7 +144,7 @@
  * {@code instanceof} checks. Which is how many rules are implemented in
  * the SQL engine as well. Where possible though, one can use <i>typed</i>
  * traversal by passing a {@code Class} token to the lambdas (i.e.
- * {@link org.elasticsearch.xpack.ql.tree.Node#transformDown(java.util.function.Function, Class)
+ * {@link org.elasticsearch.xpack.ql.tree.Node#transformDown(Class, java.util.function.Function)
  * pre-order transformation}).
  *
  * <h2>Components</h2>
@@ -154,7 +155,7 @@
  *  <dd>Tokenizer and Lexer of the SQL grammar. Translates user query into an
  *  AST tree ({@code LogicalPlan}. Makes sure the user query is <b>syntactically</b>
  *  valid.</dd>
- *  <dt>{@link org.elasticsearch.xpack.sql.analysis.analyzer.PreAnalyzer PreAnalyzer}</dt>
+ *  <dt>{@link org.elasticsearch.xpack.ql.analyzer.PreAnalyzer PreAnalyzer}</dt>
  *  <dd>Performs basic inspection of the {@code LogicalPlan} for gathering critical
  *  information for the main analysis. This stage is separate from {@code Analysis}
  *  since it performs async/remote calls to the cluster. </dd>

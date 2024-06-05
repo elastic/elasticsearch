@@ -1,27 +1,19 @@
-apply plugin: 'elasticsearch.testclusters'
-apply plugin: 'elasticsearch.standalone-rest-test'
-apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
 
 dependencies {
-  testCompile project(":x-pack:plugin:core")
+  yamlRestTestImplementation project(":x-pack:plugin:core")
 }
 
 // bring in graph rest test suite
-task copyGraphRestTests(type: Copy) {
-  into project.sourceSets.test.output.resourcesDir
-  from project(xpackProject('plugin').path).sourceSets.test.resources.srcDirs
-  include 'rest-api-spec/test/graph/**'
+restResources {
+  restApi {
+    include '_common', 'cluster', 'indices', 'index', 'graph'
+  }
+  restTests {
+    includeXpack 'graph'
+  }
 }
 
-integTest.dependsOn copyGraphRestTests
-
-testClusters.integTest {
-  testDistribution = 'DEFAULT'
-  setting 'xpack.security.enabled', 'true'
-  setting 'xpack.license.self_generated.type', 'trial'
-
-  extraConfigFile 'roles.yml', file('roles.yml')
-  user username: 'test_admin', password: 'x-pack-test-password'
-  user username: 'graph_explorer', password: 'x-pack-test-password', role: 'graph_explorer'
-  user username: 'no_graph_explorer', password: 'x-pack-test-password', role: 'no_graph_explorer'
+tasks.named("yamlRestTest") {
+  usesDefaultDistribution()
 }

@@ -1,0 +1,576 @@
+{
+  "index_patterns": [ ".watcher-history-${xpack.watcher.template.version}*" ],
+  "priority": 2147483647,
+  "data_stream": {
+    "hidden":true
+  },
+  "template": {
+    "settings": {
+      "index.number_of_shards": 1,
+      "index.number_of_replicas": 0,
+      "index.auto_expand_replicas": "0-1",
+      "index.lifecycle.name": "watch-history-ilm-policy-16",
+      "index.hidden": true,
+      "index.format": 6
+    },
+    "mappings": {
+      "_meta": {
+        "watcher-history-version": "${xpack.watcher.template.version}"
+      },
+      "dynamic_templates": [
+        {
+          "disabled_payload_fields": {
+            "path_match": "result\\.(input(\\..+)*|(transform(\\..+)*)|(actions\\.transform(\\..+)*))\\.payload",
+            "match_pattern": "regex",
+            "mapping": {
+              "type": "object",
+              "enabled": false
+            }
+          }
+        },
+        {
+          "disabled_search_request_body_fields": {
+            "path_match": "result\\.(input(\\..+)*|(transform(\\..+)*)|(actions\\.transform(\\..+)*))\\.search\\.request\\.(body|template)",
+            "match_pattern": "regex",
+            "mapping": {
+              "type": "object",
+              "enabled": false
+            }
+          }
+        },
+        {
+          "disabled_exception_fields": {
+            "path_match": "result\\.(input(\\..+)*|(transform(\\..+)*)|(actions\\.transform(\\..+)*)|actions)\\.error",
+            "match_pattern": "regex",
+            "mapping": {
+              "type": "object",
+              "enabled": false
+            }
+          }
+        },
+        {
+          "disabled_jira_custom_fields": {
+            "path_match": "result.actions.jira.fields.customfield_*",
+            "mapping": {
+              "type": "object",
+              "enabled": false
+            }
+          }
+        }
+      ],
+      "dynamic": false,
+      "properties": {
+        "watch_id": {
+          "type": "keyword"
+        },
+        "node": {
+          "type": "keyword"
+        },
+        "trigger_event": {
+          "type": "object",
+          "dynamic": true,
+          "properties": {
+            "type": {
+              "type": "keyword"
+            },
+            "triggered_time": {
+              "type": "date"
+            },
+            "manual": {
+              "type": "object",
+              "dynamic": true,
+              "properties": {
+                "schedule": {
+                  "type": "object",
+                  "dynamic": true,
+                  "properties": {
+                    "scheduled_time": {
+                      "type": "date"
+                    }
+                  }
+                }
+              }
+            },
+            "schedule": {
+              "type": "object",
+              "dynamic": true,
+              "properties": {
+                "scheduled_time": {
+                  "type": "date"
+                }
+              }
+            }
+          }
+        },
+        "vars": {
+          "type": "object",
+          "enabled": false
+        },
+        "input": {
+          "type": "object",
+          "enabled": false
+        },
+        "condition": {
+          "type": "object",
+          "enabled": false
+        },
+        "state": {
+          "type": "keyword"
+        },
+        "status": {
+          "type": "object",
+          "enabled": false,
+          "dynamic": true
+        },
+        "messages": {
+          "type": "text"
+        },
+        "user": {
+          "type": "text"
+        },
+        "exception": {
+          "type": "object",
+          "enabled": false
+        },
+        "result": {
+          "type": "object",
+          "dynamic": true,
+          "properties": {
+            "execution_time": {
+              "type": "date"
+            },
+            "execution_duration": {
+              "type": "long"
+            },
+            "input": {
+              "type": "object",
+              "dynamic": true,
+              "properties": {
+                "type": {
+                  "type": "keyword"
+                },
+                "status": {
+                  "type": "keyword"
+                },
+                "payload": {
+                  "type": "object",
+                  "enabled": false
+                },
+                "search": {
+                  "type": "object",
+                  "dynamic": true,
+                  "properties": {
+                    "request": {
+                      "type": "object",
+                      "dynamic": true,
+                      "properties": {
+                        "search_type": {
+                          "type": "keyword"
+                        },
+                        "indices": {
+                          "type": "keyword"
+                        },
+                        "types": {
+                          "type": "keyword"
+                        }
+                      }
+                    }
+                  }
+                },
+                "http": {
+                  "type": "object",
+                  "dynamic": true,
+                  "properties": {
+                    "request": {
+                      "type": "object",
+                      "dynamic": true,
+                      "properties": {
+                        "path": {
+                          "type": "keyword"
+                        },
+                        "host": {
+                          "type": "keyword"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "condition": {
+              "type": "object",
+              "dynamic": true,
+              "properties": {
+                "type": {
+                  "type": "keyword"
+                },
+                "status": {
+                  "type": "keyword"
+                },
+                "met": {
+                  "type": "boolean"
+                },
+                "compare": {
+                  "type": "object",
+                  "enabled": false
+                },
+                "array_compare": {
+                  "type": "object",
+                  "enabled": false
+                },
+                "script": {
+                  "type": "object",
+                  "enabled": false
+                }
+              }
+            },
+            "transform": {
+              "type": "object",
+              "dynamic": true,
+              "properties": {
+                "type": {
+                  "type": "keyword"
+                },
+                "search": {
+                  "type": "object",
+                  "dynamic": true,
+                  "properties": {
+                    "request": {
+                      "type": "object",
+                      "dynamic": true,
+                      "properties": {
+                        "indices": {
+                          "type": "keyword"
+                        },
+                        "types": {
+                          "type": "keyword"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "actions": {
+              "type": "nested",
+              "include_in_parent": true,
+              "dynamic": true,
+              "properties": {
+                "id": {
+                  "type": "keyword"
+                },
+                "type": {
+                  "type": "keyword"
+                },
+                "status": {
+                  "type": "keyword"
+                },
+                "reason": {
+                  "type": "keyword"
+                },
+                "number_of_actions_executed": {
+                  "type": "integer"
+                },
+                "foreach": {
+                  "type": "object",
+                  "enabled": false
+                },
+                "email": {
+                  "type": "object",
+                  "dynamic": true,
+                  "properties": {
+                    "message": {
+                      "type": "object",
+                      "dynamic": true,
+                      "properties": {
+                        "id": {
+                          "type": "keyword"
+                        },
+                        "from": {
+                          "type": "keyword"
+                        },
+                        "reply_to": {
+                          "type": "keyword"
+                        },
+                        "to": {
+                          "type": "keyword"
+                        },
+                        "cc": {
+                          "type": "keyword"
+                        },
+                        "bcc": {
+                          "type": "keyword"
+                        }
+                      }
+                    }
+                  }
+                },
+                "webhook": {
+                  "type": "object",
+                  "dynamic": true,
+                  "properties": {
+                    "request": {
+                      "type": "object",
+                      "dynamic": true,
+                      "properties": {
+                        "path": {
+                          "type": "keyword"
+                        },
+                        "host": {
+                          "type": "keyword"
+                        }
+                      }
+                    }
+                  }
+                },
+                "index": {
+                  "type": "object",
+                  "dynamic": true,
+                  "properties": {
+                    "response": {
+                      "type": "object",
+                      "dynamic": true,
+                      "properties": {
+                        "index": {
+                          "type": "keyword"
+                        },
+                        "type": {
+                          "type": "keyword"
+                        },
+                        "id": {
+                          "type": "keyword"
+                        }
+                      }
+                    }
+                  }
+                },
+                "jira": {
+                  "type": "object",
+                  "dynamic": true,
+                  "properties": {
+                    "account": {
+                      "type": "keyword"
+                    },
+                    "reason": {
+                      "type": "text"
+                    },
+                    "request": {
+                      "type": "object",
+                      "enabled": false
+                    },
+                    "response": {
+                      "type": "object",
+                      "enabled": false
+                    },
+                    "fields": {
+                      "type": "object",
+                      "dynamic": true,
+                      "properties": {
+                        "summary": {
+                          "type": "text"
+                        },
+                        "description": {
+                          "type": "text"
+                        },
+                        "labels": {
+                          "type": "text"
+                        },
+                        "project": {
+                          "type": "object",
+                          "dynamic": true,
+                          "properties": {
+                            "key": {
+                              "type": "keyword"
+                            },
+                            "id": {
+                              "type": "keyword"
+                            }
+                          }
+                        },
+                        "issuetype": {
+                          "type": "object",
+                          "dynamic": true,
+                          "properties": {
+                            "name": {
+                              "type": "keyword"
+                            },
+                            "id": {
+                              "type": "keyword"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "result": {
+                      "type": "object",
+                      "dynamic": true,
+                      "properties": {
+                        "id": {
+                          "type": "keyword"
+                        },
+                        "key": {
+                          "type": "keyword"
+                        },
+                        "self": {
+                          "type": "keyword"
+                        }
+                      }
+                    }
+                  }
+                },
+                "slack": {
+                  "type": "object",
+                  "dynamic": true,
+                  "properties": {
+                    "account": {
+                      "type": "keyword"
+                    },
+                    "sent_messages": {
+                      "type": "nested",
+                      "include_in_parent": true,
+                      "dynamic": true,
+                      "properties": {
+                        "status": {
+                          "type": "keyword"
+                        },
+                        "reason": {
+                          "type": "text"
+                        },
+                        "request": {
+                          "type": "object",
+                          "enabled": false
+                        },
+                        "response": {
+                          "type": "object",
+                          "enabled": false
+                        },
+                        "to": {
+                          "type": "keyword"
+                        },
+                        "message": {
+                          "type": "object",
+                          "dynamic": true,
+                          "properties": {
+                            "from": {
+                              "type": "text"
+                            },
+                            "icon": {
+                              "type": "keyword"
+                            },
+                            "text": {
+                              "type": "text"
+                            },
+                            "attachments": {
+                              "type": "nested",
+                              "include_in_parent": true,
+                              "dynamic": true,
+                              "properties": {
+                                "color": {
+                                  "type": "keyword"
+                                },
+                                "fields": {
+                                  "properties": {
+                                    "value": {
+                                      "type": "text"
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "pagerduty": {
+                  "type": "object",
+                  "dynamic": true,
+                  "properties": {
+                    "account": {
+                      "type": "keyword"
+                    },
+                    "sent_event": {
+                      "type": "nested",
+                      "include_in_parent": true,
+                      "dynamic": true,
+                      "properties": {
+                        "reason": {
+                          "type": "text"
+                        },
+                        "request": {
+                          "type": "object",
+                          "enabled": false
+                        },
+                        "response": {
+                          "type": "object",
+                          "enabled": false
+                        },
+                        "event": {
+                          "type": "object",
+                          "dynamic": true,
+                          "properties": {
+                            "type": {
+                              "type": "keyword"
+                            },
+                            "client": {
+                              "type": "text"
+                            },
+                            "client_url": {
+                              "type": "keyword"
+                            },
+                            "account": {
+                              "type": "keyword"
+                            },
+                            "attach_payload": {
+                              "type": "boolean"
+                            },
+                            "incident_key": {
+                              "type": "keyword"
+                            },
+                            "description": {
+                              "type": "text"
+                            },
+                            "context": {
+                              "type": "nested",
+                              "include_in_parent": true,
+                              "dynamic": true,
+                              "properties": {
+                                "type": {
+                                  "type": "keyword"
+                                },
+                                "href": {
+                                  "type": "keyword"
+                                },
+                                "src": {
+                                  "type": "keyword"
+                                },
+                                "alt": {
+                                  "type": "text"
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "metadata": {
+          "type": "object",
+          "dynamic": true
+        }
+      }
+    }
+  },
+  "allow_auto_create": true,
+  "_meta": {
+    "description": "index template for watcher history indices",
+    "managed": true
+  },
+  "version": ${xpack.watcher.template.version}
+}

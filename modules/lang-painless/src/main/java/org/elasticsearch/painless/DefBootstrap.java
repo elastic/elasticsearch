@@ -1,25 +1,14 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.painless;
 
-import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.symbol.FunctionTable;
 
@@ -29,6 +18,8 @@ import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 import java.lang.invoke.MutableCallSite;
 import java.lang.invoke.WrongMethodTypeException;
+import java.util.Map;
+import java.util.Objects;
 
 /**
  * Painless invokedynamic bootstrap for the call site.
@@ -107,31 +98,51 @@ public final class DefBootstrap {
 
         private final PainlessLookup painlessLookup;
         private final FunctionTable functions;
+        private final Map<String, Object> constants;
         private final MethodHandles.Lookup methodHandlesLookup;
         private final String name;
         private final int flavor;
         private final Object[] args;
         int depth; // pkg-protected for testing
 
-        PIC(PainlessLookup painlessLookup, FunctionTable functions,
-                MethodHandles.Lookup methodHandlesLookup, String name, MethodType type, int initialDepth, int flavor, Object[] args) {
+        PIC(
+            PainlessLookup painlessLookup,
+            FunctionTable functions,
+            Map<String, Object> constants,
+            MethodHandles.Lookup methodHandlesLookup,
+            String name,
+            MethodType type,
+            int initialDepth,
+            int flavor,
+            Object[] args
+        ) {
             super(type);
             if (type.parameterType(0) != Object.class) {
                 throw new BootstrapMethodError("The receiver type (1st arg) of invokedynamic descriptor must be Object.");
             }
             this.painlessLookup = painlessLookup;
             this.functions = functions;
+            this.constants = constants;
             this.methodHandlesLookup = methodHandlesLookup;
             this.name = name;
             this.flavor = flavor;
             this.args = args;
             this.depth = initialDepth;
 
-            MethodHandle fallback = FALLBACK.bindTo(this)
-              .asCollector(Object[].class, type.parameterCount())
-              .asType(type);
+            MethodHandle fallback = FALLBACK.bindTo(this).asCollector(Object[].class, type.parameterCount()).asType(type);
 
             setTarget(fallback);
+        }
+
+        /**
+         * guard method to give a more descriptive error message when a def receiver is null
+         */
+        static Class<?> checkNull(Object receiver, String name) {
+            if (receiver == null) {
+                throw new NullPointerException("cannot access method/field [" + name + "] from a null def reference");
+            }
+
+            return receiver.getClass();
         }
 
         /**
@@ -139,32 +150,41 @@ public final class DefBootstrap {
          * as the cached class
          */
         static boolean checkClass(Class<?> clazz, Object receiver) {
-            return receiver.getClass() == clazz;
+            return receiver != null && receiver.getClass() == clazz;
         }
 
         /**
          * Does a slow lookup against the whitelist.
          */
-        private MethodHandle lookup(int flavor, String name, Class<?> receiver) throws Throwable {
-            switch(flavor) {
-                case METHOD_CALL:
-                    return Def.lookupMethod(painlessLookup, functions, methodHandlesLookup, type(), receiver, name, args);
-                case LOAD:
-                    return Def.lookupGetter(painlessLookup, receiver, name);
-                case STORE:
-                    return Def.lookupSetter(painlessLookup, receiver, name);
-                case ARRAY_LOAD:
-                    return Def.lookupArrayLoad(receiver);
-                case ARRAY_STORE:
-                    return Def.lookupArrayStore(receiver);
-                case ITERATOR:
-                    return Def.lookupIterator(receiver);
-                case REFERENCE:
-                    return Def.lookupReference(painlessLookup, functions, methodHandlesLookup, (String) args[0], receiver, name);
-                case INDEX_NORMALIZE:
-                    return Def.lookupIndexNormalize(receiver);
-                default: throw new AssertionError();
-            }
+        private MethodHandle lookup(int flavorValue, String nameValue, Class<?> receiver) throws Throwable {
+            return switch (flavorValue) {
+                case METHOD_CALL -> Def.lookupMethod(
+                    painlessLookup,
+                    functions,
+                    constants,
+                    methodHandlesLookup,
+                    type(),
+                    receiver,
+                    nameValue,
+                    args
+                );
+                case LOAD -> Def.lookupGetter(painlessLookup, receiver, nameValue);
+                case STORE -> Def.lookupSetter(painlessLookup, receiver, nameValue);
+                case ARRAY_LOAD -> Def.lookupArrayLoad(receiver);
+                case ARRAY_STORE -> Def.lookupArrayStore(receiver);
+                case ITERATOR -> Def.lookupIterator(receiver);
+                case REFERENCE -> Def.lookupReference(
+                    painlessLookup,
+                    functions,
+                    constants,
+                    methodHandlesLookup,
+                    (String) args[0],
+                    receiver,
+                    nameValue
+                );
+                case INDEX_NORMALIZE -> Def.lookupIndexNormalize(receiver);
+                default -> throw new AssertionError();
+            };
         }
 
         /**
@@ -185,8 +205,13 @@ public final class DefBootstrap {
                     }
                 }
             };
-            return MethodHandles.foldArguments(MethodHandles.exactInvoker(type),
-                    MEGAMORPHIC_LOOKUP.bindTo(megamorphicCache));
+            MethodHandle lookup = MethodHandles.filterArguments(
+                CLASSVALUE_GET.bindTo(megamorphicCache),
+                0,
+                MethodHandles.insertArguments(CHECK_NULL, 1, name)
+            );
+            lookup = lookup.asType(lookup.type().changeReturnType(MethodHandle.class));
+            return MethodHandles.foldArguments(MethodHandles.exactInvoker(type), lookup);
         }
 
         /**
@@ -203,7 +228,7 @@ public final class DefBootstrap {
                 setTarget(target);
                 return target.invokeWithArguments(callArgs);
             } else {
-                final Class<?> receiver = callArgs[0].getClass();
+                final Class<?> receiver = checkNull(callArgs[0], name);
                 final MethodHandle target = lookup(flavor, name, receiver).asType(type());
 
                 MethodHandle test = CHECK_CLASS.bindTo(receiver);
@@ -216,22 +241,34 @@ public final class DefBootstrap {
             }
         }
 
+        private static final MethodHandle CHECK_NULL;
         private static final MethodHandle CHECK_CLASS;
         private static final MethodHandle FALLBACK;
-        private static final MethodHandle MEGAMORPHIC_LOOKUP;
+        private static final MethodHandle CLASSVALUE_GET;
         static {
             final MethodHandles.Lookup methodHandlesLookup = MethodHandles.lookup();
             final MethodHandles.Lookup publicMethodHandlesLookup = MethodHandles.publicLookup();
             try {
-                CHECK_CLASS = methodHandlesLookup.findStatic(methodHandlesLookup.lookupClass(), "checkClass",
-                        MethodType.methodType(boolean.class, Class.class, Object.class));
-                FALLBACK = methodHandlesLookup.findVirtual(methodHandlesLookup.lookupClass(), "fallback",
-                        MethodType.methodType(Object.class, Object[].class));
-                MethodHandle mh = publicMethodHandlesLookup.findVirtual(ClassValue.class, "get",
-                        MethodType.methodType(Object.class, Class.class));
-                mh = MethodHandles.filterArguments(mh, 1,
-                        publicMethodHandlesLookup.findVirtual(Object.class, "getClass", MethodType.methodType(Class.class)));
-                MEGAMORPHIC_LOOKUP = mh.asType(mh.type().changeReturnType(MethodHandle.class));
+                CHECK_NULL = methodHandlesLookup.findStatic(
+                    PIC.class,
+                    "checkNull",
+                    MethodType.methodType(Class.class, Object.class, String.class)
+                );
+                CHECK_CLASS = methodHandlesLookup.findStatic(
+                    methodHandlesLookup.lookupClass(),
+                    "checkClass",
+                    MethodType.methodType(boolean.class, Class.class, Object.class)
+                );
+                FALLBACK = methodHandlesLookup.findVirtual(
+                    methodHandlesLookup.lookupClass(),
+                    "fallback",
+                    MethodType.methodType(Object.class, Object[].class)
+                );
+                CLASSVALUE_GET = publicMethodHandlesLookup.findVirtual(
+                    ClassValue.class,
+                    "get",
+                    MethodType.methodType(Object.class, Class.class)
+                );
             } catch (ReflectiveOperationException e) {
                 throw new AssertionError(e);
             }
@@ -257,9 +294,7 @@ public final class DefBootstrap {
                 initialized = true;
             }
 
-            MethodHandle fallback = FALLBACK.bindTo(this)
-              .asCollector(Object[].class, type.parameterCount())
-              .asType(type);
+            MethodHandle fallback = FALLBACK.bindTo(this).asCollector(Object[].class, type.parameterCount()).asType(type);
 
             setTarget(fallback);
         }
@@ -268,7 +303,7 @@ public final class DefBootstrap {
          * Does a slow lookup for the operator
          */
         private MethodHandle lookup(Object[] args) throws Throwable {
-            switch(flavor) {
+            switch (flavor) {
                 case UNARY_OPERATOR:
                 case SHIFT_OPERATOR:
                     // shifts are treated as unary, as java allows long arguments without a cast (but bits are ignored)
@@ -291,7 +326,8 @@ public final class DefBootstrap {
                         }
                         return binary;
                     }
-                default: throw new AssertionError();
+                default:
+                    throw new AssertionError();
             }
         }
 
@@ -331,44 +367,42 @@ public final class DefBootstrap {
                 throw exc;
             }
 
-            final MethodHandle test;
+            MethodHandle test;
+            MethodHandle nullCheck = null;
             if (flavor == BINARY_OPERATOR || flavor == SHIFT_OPERATOR) {
                 // some binary operators support nulls, we handle them separate
                 Class<?> clazz0 = args[0] == null ? null : args[0].getClass();
                 Class<?> clazz1 = args[1] == null ? null : args[1].getClass();
                 if (type.parameterType(1) != Object.class) {
                     // case 1: only the receiver is unknown, just check that
+                    MethodType testType = MethodType.methodType(boolean.class, type.parameterType(0));
                     MethodHandle unaryTest = CHECK_LHS.bindTo(clazz0);
-                    test = unaryTest.asType(unaryTest.type()
-                                            .changeParameterType(0, type.parameterType(0)));
+                    test = unaryTest.asType(testType);
+                    nullCheck = NON_NULL.asType(testType);
                 } else if (type.parameterType(0) != Object.class) {
                     // case 2: only the argument is unknown, just check that
-                    MethodHandle unaryTest = CHECK_RHS.bindTo(clazz0).bindTo(clazz1);
-                    test = unaryTest.asType(unaryTest.type()
-                                            .changeParameterType(0, type.parameterType(0))
-                                            .changeParameterType(1, type.parameterType(1)));
+                    MethodType testType = MethodType.methodType(boolean.class, type);
+                    MethodHandle unaryTest = CHECK_RHS.bindTo(clazz1);
+                    test = MethodHandles.dropArguments(unaryTest, 0, Object.class).asType(testType);
+                    nullCheck = MethodHandles.dropArguments(NON_NULL, 0, clazz0).asType(testType);
                 } else {
                     // case 3: check both receiver and argument
-                    MethodHandle binaryTest = CHECK_BOTH.bindTo(clazz0).bindTo(clazz1);
-                    test = binaryTest.asType(binaryTest.type()
-                                            .changeParameterType(0, type.parameterType(0))
-                                            .changeParameterType(1, type.parameterType(1)));
+                    MethodType testType = MethodType.methodType(boolean.class, type);
+                    MethodHandle binaryTest = MethodHandles.insertArguments(CHECK_BOTH, 0, clazz0, clazz1);
+                    test = binaryTest.asType(testType);
+                    nullCheck = BOTH_NON_NULL.asType(testType);
                 }
             } else {
                 // unary operator
                 MethodHandle receiverTest = CHECK_LHS.bindTo(args[0].getClass());
-                test = receiverTest.asType(receiverTest.type()
-                                        .changeParameterType(0, type.parameterType(0)));
+                test = receiverTest.asType(MethodType.methodType(boolean.class, type.parameterType(0)));
             }
 
             MethodHandle guard = MethodHandles.guardWithTest(test, target, getTarget());
             // very special cases, where even the receiver can be null (see JLS rules for string concat)
-            // we wrap + with an NPE catcher, and use our generic method in that case.
+            // we wrap op with a null check, and use our generic method in that case.
             if (flavor == BINARY_OPERATOR && (flags & OPERATOR_ALLOWS_NULL) != 0) {
-                MethodHandle handler = MethodHandles.dropArguments(lookupGeneric().asType(type()),
-                                                                   0,
-                                                                   NullPointerException.class);
-                guard = MethodHandles.catchException(guard, NullPointerException.class, handler);
+                guard = MethodHandles.guardWithTest(nullCheck, guard, lookupGeneric().asType(type()));
             }
 
             initialized = true;
@@ -389,7 +423,7 @@ public final class DefBootstrap {
          * guard method for inline caching: checks the first argument is the same
          * as the cached first argument.
          */
-        static boolean checkRHS(Class<?> left, Class<?> right, Object leftObject, Object rightObject) {
+        static boolean checkRHS(Class<?> right, Object rightObject) {
             return rightObject.getClass() == right;
         }
 
@@ -401,21 +435,49 @@ public final class DefBootstrap {
             return leftObject.getClass() == left && rightObject.getClass() == right;
         }
 
+        /**
+         * Null guard method for caching - ensures both left and right are non-null,
+         * so checkBoth can be called successfully
+         */
+        static boolean bothNonNull(Object leftObject, Object rightObject) {
+            return leftObject != null && rightObject != null;
+        }
+
         private static final MethodHandle CHECK_LHS;
         private static final MethodHandle CHECK_RHS;
         private static final MethodHandle CHECK_BOTH;
         private static final MethodHandle FALLBACK;
+        private static final MethodHandle NON_NULL;
+        private static final MethodHandle BOTH_NON_NULL;
         static {
             final MethodHandles.Lookup methodHandlesLookup = MethodHandles.lookup();
             try {
-                CHECK_LHS = methodHandlesLookup.findStatic(methodHandlesLookup.lookupClass(), "checkLHS",
-                        MethodType.methodType(boolean.class, Class.class, Object.class));
-                CHECK_RHS = methodHandlesLookup.findStatic(methodHandlesLookup.lookupClass(), "checkRHS",
-                        MethodType.methodType(boolean.class, Class.class, Class.class, Object.class, Object.class));
-                CHECK_BOTH = methodHandlesLookup.findStatic(methodHandlesLookup.lookupClass(), "checkBoth",
-                        MethodType.methodType(boolean.class, Class.class, Class.class, Object.class, Object.class));
-                FALLBACK = methodHandlesLookup.findVirtual(methodHandlesLookup.lookupClass(), "fallback",
-                        MethodType.methodType(Object.class, Object[].class));
+                CHECK_LHS = methodHandlesLookup.findStatic(
+                    methodHandlesLookup.lookupClass(),
+                    "checkLHS",
+                    MethodType.methodType(boolean.class, Class.class, Object.class)
+                );
+                CHECK_RHS = methodHandlesLookup.findStatic(
+                    methodHandlesLookup.lookupClass(),
+                    "checkRHS",
+                    MethodType.methodType(boolean.class, Class.class, Object.class)
+                );
+                CHECK_BOTH = methodHandlesLookup.findStatic(
+                    methodHandlesLookup.lookupClass(),
+                    "checkBoth",
+                    MethodType.methodType(boolean.class, Class.class, Class.class, Object.class, Object.class)
+                );
+                FALLBACK = methodHandlesLookup.findVirtual(
+                    methodHandlesLookup.lookupClass(),
+                    "fallback",
+                    MethodType.methodType(Object.class, Object[].class)
+                );
+                NON_NULL = methodHandlesLookup.findStatic(Objects.class, "nonNull", MethodType.methodType(boolean.class, Object.class));
+                BOTH_NON_NULL = methodHandlesLookup.findStatic(
+                    methodHandlesLookup.lookupClass(),
+                    "bothNonNull",
+                    MethodType.methodType(boolean.class, Object.class, Object.class)
+                );
             } catch (ReflectiveOperationException e) {
                 throw new AssertionError(e);
             }
@@ -436,12 +498,21 @@ public final class DefBootstrap {
      * see https://docs.oracle.com/javase/specs/jvms/se7/html/jvms-6.html#jvms-6.5.invokedynamic
      */
     @SuppressWarnings("unchecked")
-    public static CallSite bootstrap(PainlessLookup painlessLookup, FunctionTable functions,
-            MethodHandles.Lookup methodHandlesLookup, String name, MethodType type, int initialDepth, int flavor, Object... args) {
+    public static CallSite bootstrap(
+        PainlessLookup painlessLookup,
+        FunctionTable functions,
+        Map<String, Object> constants,
+        MethodHandles.Lookup methodHandlesLookup,
+        String name,
+        MethodType type,
+        int initialDepth,
+        int flavor,
+        Object... args
+    ) {
         // validate arguments
-        switch(flavor) {
+        switch (flavor) {
             // "function-call" like things get a polymorphic cache
-            case METHOD_CALL:
+            case METHOD_CALL -> {
                 if (args.length == 0) {
                     throw new BootstrapMethodError("Invalid number of parameters for method call");
                 }
@@ -456,37 +527,33 @@ public final class DefBootstrap {
                 if (args.length != numLambdas + 1) {
                     throw new BootstrapMethodError("Illegal number of parameters: expected " + numLambdas + " references");
                 }
-                return new PIC(painlessLookup, functions, methodHandlesLookup, name, type, initialDepth, flavor, args);
-            case LOAD:
-            case STORE:
-            case ARRAY_LOAD:
-            case ARRAY_STORE:
-            case ITERATOR:
-            case INDEX_NORMALIZE:
+                return new PIC(painlessLookup, functions, constants, methodHandlesLookup, name, type, initialDepth, flavor, args);
+            }
+            case LOAD, STORE, ARRAY_LOAD, ARRAY_STORE, ITERATOR, INDEX_NORMALIZE -> {
                 if (args.length > 0) {
                     throw new BootstrapMethodError("Illegal static bootstrap parameters for flavor: " + flavor);
                 }
-                return new PIC(painlessLookup, functions, methodHandlesLookup, name, type, initialDepth, flavor, args);
-            case REFERENCE:
+                return new PIC(painlessLookup, functions, constants, methodHandlesLookup, name, type, initialDepth, flavor, args);
+            }
+            case REFERENCE -> {
                 if (args.length != 1) {
                     throw new BootstrapMethodError("Invalid number of parameters for reference call");
                 }
                 if (args[0] instanceof String == false) {
                     throw new BootstrapMethodError("Illegal parameter for reference call: " + args[0]);
                 }
-                return new PIC(painlessLookup, functions, methodHandlesLookup, name, type, initialDepth, flavor, args);
+                return new PIC(painlessLookup, functions, constants, methodHandlesLookup, name, type, initialDepth, flavor, args);
+            }
 
             // operators get monomorphic cache, with a generic impl for a fallback
-            case UNARY_OPERATOR:
-            case SHIFT_OPERATOR:
-            case BINARY_OPERATOR:
+            case UNARY_OPERATOR, SHIFT_OPERATOR, BINARY_OPERATOR -> {
                 if (args.length != 1) {
                     throw new BootstrapMethodError("Invalid number of parameters for operator call");
                 }
                 if (args[0] instanceof Integer == false) {
                     throw new BootstrapMethodError("Illegal parameter for reference call: " + args[0]);
                 }
-                int flags = (int)args[0];
+                int flags = (int) args[0];
                 if ((flags & OPERATOR_ALLOWS_NULL) != 0 && flavor != BINARY_OPERATOR) {
                     // we just don't need it anywhere else.
                     throw new BootstrapMethodError("This parameter is only supported for BINARY_OPERATORs");
@@ -496,8 +563,8 @@ public final class DefBootstrap {
                     throw new BootstrapMethodError("This parameter is only supported for BINARY/SHIFT_OPERATORs");
                 }
                 return new MIC(name, type, initialDepth, flavor, flags);
-            default:
-                throw new BootstrapMethodError("Illegal static bootstrap parameter for flavor: " + flavor);
+            }
+            default -> throw new BootstrapMethodError("Illegal static bootstrap parameter for flavor: " + flavor);
         }
     }
 }

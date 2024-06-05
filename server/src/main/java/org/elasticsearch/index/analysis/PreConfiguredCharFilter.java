@@ -1,27 +1,16 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.CharFilter;
 import org.apache.lucene.analysis.TokenFilter;
-import org.elasticsearch.Version;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.analysis.PreBuiltCacheFactory.CachingStrategy;
 
 import java.io.Reader;
@@ -36,41 +25,61 @@ public class PreConfiguredCharFilter extends PreConfiguredAnalysisComponent<Char
      * Create a pre-configured char filter that may not vary at all.
      */
     public static PreConfiguredCharFilter singleton(String name, boolean useFilterForMultitermQueries, Function<Reader, Reader> create) {
-        return new PreConfiguredCharFilter(name, CachingStrategy.ONE, useFilterForMultitermQueries,
-                (reader, version) -> create.apply(reader));
+        return new PreConfiguredCharFilter(
+            name,
+            CachingStrategy.ONE,
+            useFilterForMultitermQueries,
+            (reader, version) -> create.apply(reader)
+        );
     }
 
     /**
-     * Create a pre-configured char filter that may not vary at all, provide access to the elasticsearch version
+     * Create a pre-configured char filter that may not vary at all, provide access to the index version
      */
-    public static PreConfiguredCharFilter singletonWithVersion(String name, boolean useFilterForMultitermQueries,
-            BiFunction<Reader, org.elasticsearch.Version, Reader> create) {
-        return new PreConfiguredCharFilter(name, CachingStrategy.ONE, useFilterForMultitermQueries,
-                (reader, version) -> create.apply(reader, version));
+    public static PreConfiguredCharFilter singletonWithVersion(
+        String name,
+        boolean useFilterForMultitermQueries,
+        BiFunction<Reader, IndexVersion, Reader> create
+    ) {
+        return new PreConfiguredCharFilter(name, CachingStrategy.ONE, useFilterForMultitermQueries, create);
     }
 
     /**
      * Create a pre-configured token filter that may vary based on the Lucene version.
      */
-    public static PreConfiguredCharFilter luceneVersion(String name, boolean useFilterForMultitermQueries,
-            BiFunction<Reader, org.apache.lucene.util.Version, Reader> create) {
-        return new PreConfiguredCharFilter(name, CachingStrategy.LUCENE, useFilterForMultitermQueries,
-                (reader, version) -> create.apply(reader, version.luceneVersion));
+    public static PreConfiguredCharFilter luceneVersion(
+        String name,
+        boolean useFilterForMultitermQueries,
+        BiFunction<Reader, org.apache.lucene.util.Version, Reader> create
+    ) {
+        return new PreConfiguredCharFilter(
+            name,
+            CachingStrategy.LUCENE,
+            useFilterForMultitermQueries,
+            (reader, version) -> create.apply(reader, version.luceneVersion())
+        );
     }
 
     /**
-     * Create a pre-configured token filter that may vary based on the Elasticsearch version.
+     * Create a pre-configured token filter that may vary based on the index version.
      */
-    public static PreConfiguredCharFilter elasticsearchVersion(String name, boolean useFilterForMultitermQueries,
-            BiFunction<Reader, org.elasticsearch.Version, Reader> create) {
-        return new PreConfiguredCharFilter(name, CachingStrategy.ELASTICSEARCH, useFilterForMultitermQueries, create);
+    public static PreConfiguredCharFilter indexVersion(
+        String name,
+        boolean useFilterForMultitermQueries,
+        BiFunction<Reader, IndexVersion, Reader> create
+    ) {
+        return new PreConfiguredCharFilter(name, CachingStrategy.INDEX, useFilterForMultitermQueries, create);
     }
 
     private final boolean useFilterForMultitermQueries;
-    private final BiFunction<Reader, Version, Reader> create;
+    private final BiFunction<Reader, IndexVersion, Reader> create;
 
-    protected PreConfiguredCharFilter(String name, CachingStrategy cache, boolean useFilterForMultitermQueries,
-            BiFunction<Reader, org.elasticsearch.Version, Reader> create) {
+    protected PreConfiguredCharFilter(
+        String name,
+        CachingStrategy cache,
+        boolean useFilterForMultitermQueries,
+        BiFunction<Reader, IndexVersion, Reader> create
+    ) {
         super(name, cache);
         this.useFilterForMultitermQueries = useFilterForMultitermQueries;
         this.create = create;
@@ -84,7 +93,7 @@ public class PreConfiguredCharFilter extends PreConfiguredAnalysisComponent<Char
     }
 
     @Override
-    protected CharFilterFactory create(Version version) {
+    protected CharFilterFactory create(IndexVersion version) {
         if (useFilterForMultitermQueries) {
             return new NormalizingCharFilterFactory() {
                 @Override

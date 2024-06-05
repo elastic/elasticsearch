@@ -1,37 +1,28 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.monitor.fs;
 
-import org.elasticsearch.cluster.DiskUsage;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.HashSet;
+import java.nio.file.FileStore;
 import java.util.Iterator;
 import java.util.Set;
 
@@ -40,19 +31,22 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
     public static class Path implements Writeable, ToXContentObject {
 
         String path;
-        @Nullable
-        String mount;
-        /** File system type from {@code java.nio.file.FileStore type()}, if available. */
-        @Nullable
-        String type;
+        /** File system string from {@link FileStore#toString()}. The concrete subclasses of FileStore have meaningful toString methods. */
+        String mount; // e.g. "/app (/dev/mapper/lxc-data)", "/System/Volumes/Data (/dev/disk1s2)", "Local Disk (C:)", etc.
+        /** File system type from {@link FileStore#type()}. */
+        String type; // e.g. "xfs", "apfs", "NTFS", etc.
         long total = -1;
         long free = -1;
         long available = -1;
 
-        public Path() {
-        }
+        ByteSizeValue lowWatermarkFreeSpace = null;
+        ByteSizeValue highWatermarkFreeSpace = null;
+        ByteSizeValue floodStageWatermarkFreeSpace = null;
+        ByteSizeValue frozenFloodStageWatermarkFreeSpace = null;
 
-        public Path(String path, @Nullable String mount, long total, long free, long available) {
+        public Path() {}
+
+        public Path(String path, String mount, long total, long free, long available) {
             this.path = path;
             this.mount = mount;
             this.total = total;
@@ -64,7 +58,7 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
          * Read from a stream.
          */
         public Path(StreamInput in) throws IOException {
-            path = in.readOptionalString();
+            path = in.readOptionalString(); // total aggregates do not have a path, mount, or type
             mount = in.readOptionalString();
             type = in.readOptionalString();
             total = in.readLong();
@@ -74,7 +68,7 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeOptionalString(path); // total aggregates do not have a path
+            out.writeOptionalString(path); // total aggregates do not have a path, mount, or type
             out.writeOptionalString(mount);
             out.writeOptionalString(type);
             out.writeLong(total);
@@ -95,28 +89,50 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
         }
 
         public ByteSizeValue getTotal() {
-            return new ByteSizeValue(total);
+            return ByteSizeValue.ofBytes(total);
         }
 
         public ByteSizeValue getFree() {
-            return new ByteSizeValue(free);
+            return ByteSizeValue.ofBytes(free);
         }
 
         public ByteSizeValue getAvailable() {
-            return new ByteSizeValue(available);
+            return ByteSizeValue.ofBytes(available);
         }
 
-        private long addLong(long current, long other) {
-            if (other == -1) {
-                return current;
+        public void setEffectiveWatermarks(final DiskThresholdSettings masterThresholdSettings, boolean isDedicatedFrozenNode) {
+            lowWatermarkFreeSpace = masterThresholdSettings.getFreeBytesThresholdLowStage(new ByteSizeValue(total, ByteSizeUnit.BYTES));
+            highWatermarkFreeSpace = masterThresholdSettings.getFreeBytesThresholdHighStage(new ByteSizeValue(total, ByteSizeUnit.BYTES));
+            floodStageWatermarkFreeSpace = masterThresholdSettings.getFreeBytesThresholdFloodStage(
+                new ByteSizeValue(total, ByteSizeUnit.BYTES)
+            );
+            if (isDedicatedFrozenNode) {
+                frozenFloodStageWatermarkFreeSpace = masterThresholdSettings.getFreeBytesThresholdFrozenFloodStage(
+                    new ByteSizeValue(total, ByteSizeUnit.BYTES)
+                );
             }
-            if (current == -1) {
-                return other;
-            }
-            return current + other;
         }
 
-        private double addDouble(double current, double other) {
+        public ByteSizeValue getLowWatermarkFreeSpace() {
+            return lowWatermarkFreeSpace;
+        }
+
+        public ByteSizeValue getHighWatermarkFreeSpace() {
+            return highWatermarkFreeSpace;
+        }
+
+        public ByteSizeValue getFloodStageWatermarkFreeSpace() {
+            return floodStageWatermarkFreeSpace;
+        }
+
+        public ByteSizeValue getFrozenFloodStageWatermarkFreeSpace() {
+            return frozenFloodStageWatermarkFreeSpace;
+        }
+
+        private static long addLong(long current, long other) {
+            if (current == -1 && other == -1) {
+                return 0;
+            }
             if (other == -1) {
                 return current;
             }
@@ -142,6 +158,14 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
             static final String FREE_IN_BYTES = "free_in_bytes";
             static final String AVAILABLE = "available";
             static final String AVAILABLE_IN_BYTES = "available_in_bytes";
+            static final String LOW_WATERMARK_FREE_SPACE = "low_watermark_free_space";
+            static final String LOW_WATERMARK_FREE_SPACE_IN_BYTES = "low_watermark_free_space_in_bytes";
+            static final String HIGH_WATERMARK_FREE_SPACE = "high_watermark_free_space";
+            static final String HIGH_WATERMARK_FREE_SPACE_IN_BYTES = "high_watermark_free_space_in_bytes";
+            static final String FLOOD_STAGE_FREE_SPACE = "flood_stage_free_space";
+            static final String FLOOD_STAGE_FREE_SPACE_IN_BYTES = "flood_stage_free_space_in_bytes";
+            static final String FROZEN_FLOOD_STAGE_FREE_SPACE = "frozen_flood_stage_free_space";
+            static final String FROZEN_FLOOD_STAGE_FREE_SPACE_IN_BYTES = "frozen_flood_stage_free_space_in_bytes";
         }
 
         @Override
@@ -167,6 +191,35 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
                 builder.humanReadableField(Fields.AVAILABLE_IN_BYTES, Fields.AVAILABLE, getAvailable());
             }
 
+            if (lowWatermarkFreeSpace != null) {
+                builder.humanReadableField(
+                    Fields.LOW_WATERMARK_FREE_SPACE_IN_BYTES,
+                    Fields.LOW_WATERMARK_FREE_SPACE,
+                    getLowWatermarkFreeSpace()
+                );
+            }
+            if (highWatermarkFreeSpace != null) {
+                builder.humanReadableField(
+                    Fields.HIGH_WATERMARK_FREE_SPACE_IN_BYTES,
+                    Fields.HIGH_WATERMARK_FREE_SPACE,
+                    getHighWatermarkFreeSpace()
+                );
+            }
+            if (floodStageWatermarkFreeSpace != null) {
+                builder.humanReadableField(
+                    Fields.FLOOD_STAGE_FREE_SPACE_IN_BYTES,
+                    Fields.FLOOD_STAGE_FREE_SPACE,
+                    getFloodStageWatermarkFreeSpace()
+                );
+            }
+            if (frozenFloodStageWatermarkFreeSpace != null) {
+                builder.humanReadableField(
+                    Fields.FROZEN_FLOOD_STAGE_FREE_SPACE_IN_BYTES,
+                    Fields.FROZEN_FLOOD_STAGE_FREE_SPACE,
+                    getFrozenFloodStageWatermarkFreeSpace()
+                );
+            }
+
             builder.endObject();
             return builder;
         }
@@ -185,42 +238,52 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
         final long previousWritesCompleted;
         final long currentSectorsWritten;
         final long previousSectorsWritten;
+        final long currentIOTime;
+        final long previousIOTime;
 
         public DeviceStats(
-                final int majorDeviceNumber,
-                final int minorDeviceNumber,
-                final String deviceName,
-                final long currentReadsCompleted,
-                final long currentSectorsRead,
-                final long currentWritesCompleted,
-                final long currentSectorsWritten,
-                final DeviceStats previousDeviceStats) {
+            final int majorDeviceNumber,
+            final int minorDeviceNumber,
+            final String deviceName,
+            final long currentReadsCompleted,
+            final long currentSectorsRead,
+            final long currentWritesCompleted,
+            final long currentSectorsWritten,
+            final long currentIOTime,
+            final DeviceStats previousDeviceStats
+        ) {
             this(
-                    majorDeviceNumber,
-                    minorDeviceNumber,
-                    deviceName,
-                    currentReadsCompleted,
-                    previousDeviceStats != null ? previousDeviceStats.currentReadsCompleted : -1,
-                    currentSectorsWritten,
-                    previousDeviceStats != null ? previousDeviceStats.currentSectorsWritten : -1,
-                    currentSectorsRead,
-                    previousDeviceStats != null ? previousDeviceStats.currentSectorsRead : -1,
-                    currentWritesCompleted,
-                    previousDeviceStats != null ? previousDeviceStats.currentWritesCompleted : -1);
+                majorDeviceNumber,
+                minorDeviceNumber,
+                deviceName,
+                currentReadsCompleted,
+                previousDeviceStats != null ? previousDeviceStats.currentReadsCompleted : -1,
+                currentSectorsWritten,
+                previousDeviceStats != null ? previousDeviceStats.currentSectorsWritten : -1,
+                currentSectorsRead,
+                previousDeviceStats != null ? previousDeviceStats.currentSectorsRead : -1,
+                currentWritesCompleted,
+                previousDeviceStats != null ? previousDeviceStats.currentWritesCompleted : -1,
+                currentIOTime,
+                previousDeviceStats != null ? previousDeviceStats.currentIOTime : -1
+            );
         }
 
         private DeviceStats(
-                final int majorDeviceNumber,
-                final int minorDeviceNumber,
-                final String deviceName,
-                final long currentReadsCompleted,
-                final long previousReadsCompleted,
-                final long currentSectorsWritten,
-                final long previousSectorsWritten,
-                final long currentSectorsRead,
-                final long previousSectorsRead,
-                final long currentWritesCompleted,
-                final long previousWritesCompleted) {
+            final int majorDeviceNumber,
+            final int minorDeviceNumber,
+            final String deviceName,
+            final long currentReadsCompleted,
+            final long previousReadsCompleted,
+            final long currentSectorsWritten,
+            final long previousSectorsWritten,
+            final long currentSectorsRead,
+            final long previousSectorsRead,
+            final long currentWritesCompleted,
+            final long previousWritesCompleted,
+            final long currentIOTime,
+            final long previousIOTime
+        ) {
             this.majorDeviceNumber = majorDeviceNumber;
             this.minorDeviceNumber = minorDeviceNumber;
             this.deviceName = deviceName;
@@ -232,6 +295,8 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
             this.previousSectorsRead = previousSectorsRead;
             this.currentSectorsWritten = currentSectorsWritten;
             this.previousSectorsWritten = previousSectorsWritten;
+            this.currentIOTime = currentIOTime;
+            this.previousIOTime = previousIOTime;
         }
 
         public DeviceStats(StreamInput in) throws IOException {
@@ -246,6 +311,8 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
             previousSectorsRead = in.readLong();
             currentSectorsWritten = in.readLong();
             previousSectorsWritten = in.readLong();
+            currentIOTime = in.readLong();
+            previousIOTime = in.readLong();
         }
 
         @Override
@@ -261,13 +328,18 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
             out.writeLong(previousSectorsRead);
             out.writeLong(currentSectorsWritten);
             out.writeLong(previousSectorsWritten);
+            out.writeLong(currentIOTime);
+            out.writeLong(previousIOTime);
+        }
+
+        public String getDeviceName() {
+            return deviceName;
         }
 
         public long operations() {
             if (previousReadsCompleted == -1 || previousWritesCompleted == -1) return -1;
 
-            return (currentReadsCompleted - previousReadsCompleted) +
-                (currentWritesCompleted - previousWritesCompleted);
+            return (currentReadsCompleted - previousReadsCompleted) + (currentWritesCompleted - previousWritesCompleted);
         }
 
         public long readOperations() {
@@ -294,6 +366,12 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
             return (currentSectorsWritten - previousSectorsWritten) / 2;
         }
 
+        public long ioTimeInMillis() {
+            if (previousIOTime == -1) return -1;
+
+            return (currentIOTime - previousIOTime);
+        }
+
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field("device_name", deviceName);
@@ -302,6 +380,7 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
             builder.field(IoStats.WRITE_OPERATIONS, writeOperations());
             builder.field(IoStats.READ_KILOBYTES, readKilobytes());
             builder.field(IoStats.WRITE_KILOBYTES, writeKilobytes());
+            builder.field(IoStats.IO_TIMEMS, ioTimeInMillis());
             return builder;
         }
 
@@ -314,6 +393,7 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
         private static final String WRITE_OPERATIONS = "write_operations";
         private static final String READ_KILOBYTES = "read_kilobytes";
         private static final String WRITE_KILOBYTES = "write_kilobytes";
+        private static final String IO_TIMEMS = "io_time_in_millis";
 
         final DeviceStats[] devicesStats;
         final long totalOperations;
@@ -321,6 +401,7 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
         final long totalWriteOperations;
         final long totalReadKilobytes;
         final long totalWriteKilobytes;
+        final long totalIOTimeInMillis;
 
         public IoStats(final DeviceStats[] devicesStats) {
             this.devicesStats = devicesStats;
@@ -329,18 +410,21 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
             long totalWriteOperations = 0;
             long totalReadKilobytes = 0;
             long totalWriteKilobytes = 0;
+            long totalIOTimeInMillis = 0;
             for (DeviceStats deviceStats : devicesStats) {
                 totalOperations += deviceStats.operations() != -1 ? deviceStats.operations() : 0;
                 totalReadOperations += deviceStats.readOperations() != -1 ? deviceStats.readOperations() : 0;
                 totalWriteOperations += deviceStats.writeOperations() != -1 ? deviceStats.writeOperations() : 0;
                 totalReadKilobytes += deviceStats.readKilobytes() != -1 ? deviceStats.readKilobytes() : 0;
                 totalWriteKilobytes += deviceStats.writeKilobytes() != -1 ? deviceStats.writeKilobytes() : 0;
+                totalIOTimeInMillis += deviceStats.ioTimeInMillis() != -1 ? deviceStats.ioTimeInMillis() : 0;
             }
             this.totalOperations = totalOperations;
             this.totalReadOperations = totalReadOperations;
             this.totalWriteOperations = totalWriteOperations;
             this.totalReadKilobytes = totalReadKilobytes;
             this.totalWriteKilobytes = totalWriteKilobytes;
+            this.totalIOTimeInMillis = totalIOTimeInMillis;
         }
 
         public IoStats(StreamInput in) throws IOException {
@@ -355,6 +439,7 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
             this.totalWriteOperations = in.readLong();
             this.totalReadKilobytes = in.readLong();
             this.totalWriteKilobytes = in.readLong();
+            this.totalIOTimeInMillis = in.readLong();
         }
 
         @Override
@@ -368,6 +453,7 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
             out.writeLong(totalWriteOperations);
             out.writeLong(totalReadKilobytes);
             out.writeLong(totalWriteKilobytes);
+            out.writeLong(totalIOTimeInMillis);
         }
 
         public DeviceStats[] getDevicesStats() {
@@ -394,6 +480,10 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
             return totalWriteKilobytes;
         }
 
+        public long getTotalIOTimeMillis() {
+            return totalIOTimeInMillis;
+        }
+
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             if (devicesStats.length > 0) {
@@ -411,6 +501,7 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
                 builder.field(WRITE_OPERATIONS, totalWriteOperations);
                 builder.field(READ_KILOBYTES, totalReadKilobytes);
                 builder.field(WRITE_KILOBYTES, totalWriteKilobytes);
+                builder.field(IO_TIMEMS, totalIOTimeInMillis);
                 builder.endObject();
             }
             return builder;
@@ -422,20 +513,12 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
     private final Path[] paths;
     private final IoStats ioStats;
     private final Path total;
-    private final DiskUsage leastDiskEstimate;
-    private final DiskUsage mostDiskEstimate;
 
     public FsInfo(long timestamp, IoStats ioStats, Path[] paths) {
-        this(timestamp, ioStats, paths, null, null);
-    }
-
-    public FsInfo(long timestamp, IoStats ioStats, Path[] paths, @Nullable DiskUsage leastUsage, @Nullable DiskUsage mostUsage) {
         this.timestamp = timestamp;
         this.ioStats = ioStats;
         this.paths = paths;
         this.total = total();
-        this.leastDiskEstimate = leastUsage;
-        this.mostDiskEstimate = mostUsage;
     }
 
     /**
@@ -449,42 +532,38 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
             paths[i] = new Path(in);
         }
         this.total = total();
-        this.leastDiskEstimate = in.readOptionalWriteable(DiskUsage::new);
-        this.mostDiskEstimate = in.readOptionalWriteable(DiskUsage::new);
+    }
+
+    public static FsInfo setEffectiveWatermarks(
+        @Nullable final FsInfo fsInfo,
+        @Nullable final DiskThresholdSettings masterThresholdSettings,
+        boolean isDedicatedFrozenNode
+    ) {
+        if (fsInfo != null && masterThresholdSettings != null) {
+            for (Path path : fsInfo.paths) {
+                path.setEffectiveWatermarks(masterThresholdSettings, isDedicatedFrozenNode);
+            }
+        }
+        return fsInfo;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(timestamp);
         out.writeOptionalWriteable(ioStats);
-        out.writeVInt(paths.length);
-        for (Path path : paths) {
-            path.writeTo(out);
-        }
-        out.writeOptionalWriteable(this.leastDiskEstimate);
-        out.writeOptionalWriteable(this.mostDiskEstimate);
+        out.writeArray(paths);
     }
 
     public Path getTotal() {
         return total;
     }
 
-    @Nullable
-    public DiskUsage getLeastDiskEstimate() {
-        return this.leastDiskEstimate;
-    }
-
-    @Nullable
-    public DiskUsage getMostDiskEstimate() {
-        return this.mostDiskEstimate;
-    }
-
     private Path total() {
         Path res = new Path();
-        Set<String> seenDevices = new HashSet<>(paths.length);
+        Set<String> seenDevices = Sets.newHashSetWithExpectedSize(paths.length);
         for (Path subPath : paths) {
-            if (subPath.path != null) {
-                if (!seenDevices.add(subPath.path)) {
+            if (subPath.mount != null) {
+                if (seenDevices.add(subPath.mount) == false) {
                     continue; // already added numbers for this device;
                 }
             }
@@ -503,7 +582,7 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
 
     @Override
     public Iterator<Path> iterator() {
-        return Arrays.stream(paths).iterator();
+        return Iterators.forArray(paths);
     }
 
     @Override
@@ -512,28 +591,7 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
         builder.field(Fields.TIMESTAMP, timestamp);
         builder.field(Fields.TOTAL);
         total().toXContent(builder, params);
-        if (leastDiskEstimate != null) {
-            builder.startObject(Fields.LEAST_ESTIMATE);
-            {
-                builder.field(Fields.PATH, leastDiskEstimate.getPath());
-                builder.humanReadableField(Fields.TOTAL_IN_BYTES, Fields.TOTAL, new ByteSizeValue(leastDiskEstimate.getTotalBytes()));
-                builder.humanReadableField(Fields.AVAILABLE_IN_BYTES, Fields.AVAILABLE,
-                    new ByteSizeValue(leastDiskEstimate.getFreeBytes()));
-                builder.field(Fields.USAGE_PERCENTAGE, leastDiskEstimate.getUsedDiskAsPercentage());
-            }
-            builder.endObject();
-        }
 
-        if (mostDiskEstimate != null) {
-            builder.startObject(Fields.MOST_ESTIMATE);
-            {
-                builder.field(Fields.PATH, mostDiskEstimate.getPath());
-                builder.humanReadableField(Fields.TOTAL_IN_BYTES, Fields.TOTAL, new ByteSizeValue(mostDiskEstimate.getTotalBytes()));
-                builder.humanReadableField(Fields.AVAILABLE_IN_BYTES, Fields.AVAILABLE, new ByteSizeValue(mostDiskEstimate.getFreeBytes()));
-                builder.field(Fields.USAGE_PERCENTAGE, mostDiskEstimate.getUsedDiskAsPercentage());
-            }
-            builder.endObject();
-        }
         builder.startArray(Fields.DATA);
         for (Path path : paths) {
             path.toXContent(builder, params);
@@ -553,13 +611,6 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
         static final String TIMESTAMP = "timestamp";
         static final String DATA = "data";
         static final String TOTAL = "total";
-        static final String TOTAL_IN_BYTES = "total_in_bytes";
         static final String IO_STATS = "io_stats";
-        static final String LEAST_ESTIMATE = "least_usage_estimate";
-        static final String MOST_ESTIMATE = "most_usage_estimate";
-        static final String USAGE_PERCENTAGE = "used_disk_percent";
-        static final String AVAILABLE = "available";
-        static final String AVAILABLE_IN_BYTES = "available_in_bytes";
-        static final String PATH = "path";
     }
 }

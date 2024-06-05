@@ -1,18 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.authc.support;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.CharArrays;
-import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.core.CharArrays;
+import org.elasticsearch.core.SuppressForbidden;
 
-import javax.crypto.SecretKeyFactory;
-import javax.crypto.spec.PBEKeySpec;
 import java.nio.CharBuffer;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -23,6 +22,9 @@ import java.util.Base64;
 import java.util.List;
 import java.util.Locale;
 import java.util.stream.Collectors;
+
+import javax.crypto.SecretKeyFactory;
+import javax.crypto.spec.PBEKeySpec;
 
 public enum Hasher {
 
@@ -185,12 +187,12 @@ public enum Hasher {
     PBKDF2() {
         @Override
         public char[] hash(SecureString data) {
-            return getPbkdf2Hash(data, PBKDF2_DEFAULT_COST);
+            return getPbkdf2Hash(data, PBKDF2_DEFAULT_COST, PBKDF2_PREFIX);
         }
 
         @Override
         public boolean verify(SecureString data, char[] hash) {
-            return verifyPbkdf2Hash(data, hash);
+            return verifyPbkdf2Hash(data, hash, PBKDF2_DEFAULT_COST, PBKDF2_PREFIX);
         }
 
     },
@@ -198,12 +200,12 @@ public enum Hasher {
     PBKDF2_1000() {
         @Override
         public char[] hash(SecureString data) {
-            return getPbkdf2Hash(data, 1000);
+            return getPbkdf2Hash(data, 1000, PBKDF2_PREFIX);
         }
 
         @Override
         public boolean verify(SecureString data, char[] hash) {
-            return verifyPbkdf2Hash(data, hash);
+            return verifyPbkdf2Hash(data, hash, 1000, PBKDF2_PREFIX);
         }
 
     },
@@ -211,12 +213,12 @@ public enum Hasher {
     PBKDF2_10000() {
         @Override
         public char[] hash(SecureString data) {
-            return getPbkdf2Hash(data, 10000);
+            return getPbkdf2Hash(data, 10000, PBKDF2_PREFIX);
         }
 
         @Override
         public boolean verify(SecureString data, char[] hash) {
-            return verifyPbkdf2Hash(data, hash);
+            return verifyPbkdf2Hash(data, hash, 10000, PBKDF2_PREFIX);
         }
 
     },
@@ -224,12 +226,12 @@ public enum Hasher {
     PBKDF2_50000() {
         @Override
         public char[] hash(SecureString data) {
-            return getPbkdf2Hash(data, 50000);
+            return getPbkdf2Hash(data, 50000, PBKDF2_PREFIX);
         }
 
         @Override
         public boolean verify(SecureString data, char[] hash) {
-            return verifyPbkdf2Hash(data, hash);
+            return verifyPbkdf2Hash(data, hash, 50000, PBKDF2_PREFIX);
         }
 
     },
@@ -237,12 +239,12 @@ public enum Hasher {
     PBKDF2_100000() {
         @Override
         public char[] hash(SecureString data) {
-            return getPbkdf2Hash(data, 100000);
+            return getPbkdf2Hash(data, 100000, PBKDF2_PREFIX);
         }
 
         @Override
         public boolean verify(SecureString data, char[] hash) {
-            return verifyPbkdf2Hash(data, hash);
+            return verifyPbkdf2Hash(data, hash, 100000, PBKDF2_PREFIX);
         }
 
     },
@@ -250,12 +252,12 @@ public enum Hasher {
     PBKDF2_500000() {
         @Override
         public char[] hash(SecureString data) {
-            return getPbkdf2Hash(data, 500000);
+            return getPbkdf2Hash(data, 500000, PBKDF2_PREFIX);
         }
 
         @Override
         public boolean verify(SecureString data, char[] hash) {
-            return verifyPbkdf2Hash(data, hash);
+            return verifyPbkdf2Hash(data, hash, 500000, PBKDF2_PREFIX);
         }
 
     },
@@ -263,12 +265,103 @@ public enum Hasher {
     PBKDF2_1000000() {
         @Override
         public char[] hash(SecureString data) {
-            return getPbkdf2Hash(data, 1000000);
+            return getPbkdf2Hash(data, 1000000, PBKDF2_PREFIX);
         }
 
         @Override
         public boolean verify(SecureString data, char[] hash) {
-            return verifyPbkdf2Hash(data, hash);
+            return verifyPbkdf2Hash(data, hash, 1000000, PBKDF2_PREFIX);
+        }
+
+    },
+
+    PBKDF2_STRETCH() {
+        @Override
+        public char[] hash(SecureString data) {
+            return getPbkdf2Hash(new SecureString(hashSha512(data)), PBKDF2_DEFAULT_COST, PBKDF2_STRETCH_PREFIX);
+        }
+
+        @Override
+        public boolean verify(SecureString data, char[] hash) {
+            return verifyPbkdf2Hash(new SecureString(hashSha512(data)), hash, PBKDF2_DEFAULT_COST, PBKDF2_STRETCH_PREFIX);
+        }
+
+    },
+
+    PBKDF2_STRETCH_1000() {
+        @Override
+        public char[] hash(SecureString data) {
+            return getPbkdf2Hash(new SecureString(hashSha512(data)), 1000, PBKDF2_STRETCH_PREFIX);
+        }
+
+        @Override
+        public boolean verify(SecureString data, char[] hash) {
+            return verifyPbkdf2Hash(new SecureString(hashSha512(data)), hash, 1000, PBKDF2_STRETCH_PREFIX);
+        }
+
+    },
+
+    PBKDF2_STRETCH_10000() {
+        @Override
+        public char[] hash(SecureString data) {
+            return getPbkdf2Hash(new SecureString(hashSha512(data)), 10000, PBKDF2_STRETCH_PREFIX);
+        }
+
+        @Override
+        public boolean verify(SecureString data, char[] hash) {
+            return verifyPbkdf2Hash(new SecureString(hashSha512(data)), hash, 10000, PBKDF2_STRETCH_PREFIX);
+        }
+
+    },
+
+    PBKDF2_STRETCH_50000() {
+        @Override
+        public char[] hash(SecureString data) {
+            return getPbkdf2Hash(new SecureString(hashSha512(data)), 50000, PBKDF2_STRETCH_PREFIX);
+        }
+
+        @Override
+        public boolean verify(SecureString data, char[] hash) {
+            return verifyPbkdf2Hash(new SecureString(hashSha512(data)), hash, 50000, PBKDF2_STRETCH_PREFIX);
+        }
+
+    },
+
+    PBKDF2_STRETCH_100000() {
+        @Override
+        public char[] hash(SecureString data) {
+            return getPbkdf2Hash(new SecureString(hashSha512(data)), 100000, PBKDF2_STRETCH_PREFIX);
+        }
+
+        @Override
+        public boolean verify(SecureString data, char[] hash) {
+            return verifyPbkdf2Hash(new SecureString(hashSha512(data)), hash, 100000, PBKDF2_STRETCH_PREFIX);
+        }
+
+    },
+
+    PBKDF2_STRETCH_500000() {
+        @Override
+        public char[] hash(SecureString data) {
+            return getPbkdf2Hash(new SecureString(hashSha512(data)), 500000, PBKDF2_STRETCH_PREFIX);
+        }
+
+        @Override
+        public boolean verify(SecureString data, char[] hash) {
+            return verifyPbkdf2Hash(new SecureString(hashSha512(data)), hash, 500000, PBKDF2_STRETCH_PREFIX);
+        }
+
+    },
+
+    PBKDF2_STRETCH_1000000() {
+        @Override
+        public char[] hash(SecureString data) {
+            return getPbkdf2Hash(new SecureString(hashSha512(data)), 1000000, PBKDF2_STRETCH_PREFIX);
+        }
+
+        @Override
+        public boolean verify(SecureString data, char[] hash) {
+            return verifyPbkdf2Hash(new SecureString(hashSha512(data)), hash, 1000000, PBKDF2_STRETCH_PREFIX);
         }
 
     },
@@ -383,77 +476,62 @@ public enum Hasher {
         }
     };
 
-    private static final String BCRYPT_PREFIX = "$2a$";
+    private static final int BCRYPT_PREFIX_LENGTH = 4;
     private static final String SHA1_PREFIX = "{SHA}";
     private static final String MD5_PREFIX = "{MD5}";
     private static final String SSHA256_PREFIX = "{SSHA256}";
     private static final String PBKDF2_PREFIX = "{PBKDF2}";
+    private static final String PBKDF2_STRETCH_PREFIX = "{PBKDF2_STRETCH}";
     private static final int PBKDF2_DEFAULT_COST = 10000;
     private static final int PBKDF2_KEY_LENGTH = 256;
     private static final int BCRYPT_DEFAULT_COST = 10;
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
+    private static final int HMAC_SHA512_BLOCK_SIZE_IN_BITS = 128;
+    private static final int PBKDF2_MIN_SALT_LENGTH_IN_BYTES = 8;
 
     /**
      * Returns a {@link Hasher} instance of the appropriate algorithm and associated cost as
      * indicated by the {@code name}. Name identifiers for the default costs for
-     * BCRYPT and PBKDF2 return the he default BCRYPT and PBKDF2 Hasher instead of the specific
+     * BCRYPT and PBKDF2 return the default BCRYPT and PBKDF2 Hasher instead of the specific
      * instances for the associated cost.
      *
      * @param name The name of the algorithm and cost combination identifier
      * @return the hasher associated with the identifier
      */
     public static Hasher resolve(String name) {
-        switch (name.toLowerCase(Locale.ROOT)) {
-            case "bcrypt":
-                return BCRYPT;
-            case "bcrypt4":
-                return BCRYPT4;
-            case "bcrypt5":
-                return BCRYPT5;
-            case "bcrypt6":
-                return BCRYPT6;
-            case "bcrypt7":
-                return BCRYPT7;
-            case "bcrypt8":
-                return BCRYPT8;
-            case "bcrypt9":
-                return BCRYPT9;
-            case "bcrypt10":
-                return BCRYPT;
-            case "bcrypt11":
-                return BCRYPT11;
-            case "bcrypt12":
-                return BCRYPT12;
-            case "bcrypt13":
-                return BCRYPT13;
-            case "bcrypt14":
-                return BCRYPT14;
-            case "pbkdf2":
-                return PBKDF2;
-            case "pbkdf2_1000":
-                return PBKDF2_1000;
-            case "pbkdf2_10000":
-                return PBKDF2;
-            case "pbkdf2_50000":
-                return PBKDF2_50000;
-            case "pbkdf2_100000":
-                return PBKDF2_100000;
-            case "pbkdf2_500000":
-                return PBKDF2_500000;
-            case "pbkdf2_1000000":
-                return PBKDF2_1000000;
-            case "sha1":
-                return SHA1;
-            case "md5":
-                return MD5;
-            case "ssha256":
-                return SSHA256;
-            case "noop":
-            case "clear_text":
-                return NOOP;
-            default:
-                throw new IllegalArgumentException("unknown hash function [" + name + "]");
-        }
+        return switch (name.toLowerCase(Locale.ROOT)) {
+            case "bcrypt" -> BCRYPT;
+            case "bcrypt4" -> BCRYPT4;
+            case "bcrypt5" -> BCRYPT5;
+            case "bcrypt6" -> BCRYPT6;
+            case "bcrypt7" -> BCRYPT7;
+            case "bcrypt8" -> BCRYPT8;
+            case "bcrypt9" -> BCRYPT9;
+            case "bcrypt10" -> BCRYPT;
+            case "bcrypt11" -> BCRYPT11;
+            case "bcrypt12" -> BCRYPT12;
+            case "bcrypt13" -> BCRYPT13;
+            case "bcrypt14" -> BCRYPT14;
+            case "pbkdf2" -> PBKDF2;
+            case "pbkdf2_1000" -> PBKDF2_1000;
+            case "pbkdf2_10000" -> PBKDF2;
+            case "pbkdf2_50000" -> PBKDF2_50000;
+            case "pbkdf2_100000" -> PBKDF2_100000;
+            case "pbkdf2_500000" -> PBKDF2_500000;
+            case "pbkdf2_1000000" -> PBKDF2_1000000;
+            case "pbkdf2_stretch" -> PBKDF2_STRETCH;
+            case "pbkdf2_stretch_1000" -> PBKDF2_STRETCH_1000;
+            case "pbkdf2_stretch_10000" -> PBKDF2_STRETCH_10000;
+            case "pbkdf2_stretch_50000" -> PBKDF2_STRETCH_50000;
+            case "pbkdf2_stretch_100000" -> PBKDF2_STRETCH_100000;
+            case "pbkdf2_stretch_500000" -> PBKDF2_STRETCH_500000;
+            case "pbkdf2_stretch_1000000" -> PBKDF2_STRETCH_1000000;
+            case "sha1" -> SHA1;
+            case "md5" -> MD5;
+            case "ssha256" -> SSHA256;
+            case "noop", "clear_text" -> NOOP;
+            default -> throw new IllegalArgumentException("unknown hash function [" + name + "]");
+        };
     }
 
     /**
@@ -465,11 +543,14 @@ public enum Hasher {
      * @return the hasher that can be used for validation
      */
     public static Hasher resolveFromHash(char[] hash) {
-        if (CharArrays.charsBeginsWith(BCRYPT_PREFIX, hash)) {
-            int cost = Integer.parseInt(new String(Arrays.copyOfRange(hash, BCRYPT_PREFIX.length(), hash.length - 54)));
+        if (isBcryptPrefix(hash)) {
+            int cost = Integer.parseInt(new String(Arrays.copyOfRange(hash, BCRYPT_PREFIX_LENGTH, hash.length - 54)));
             return cost == BCRYPT_DEFAULT_COST ? Hasher.BCRYPT : resolve("bcrypt" + cost);
+        } else if (CharArrays.charsBeginsWith(PBKDF2_STRETCH_PREFIX, hash)) {
+            int cost = parsePbkdf2Iterations(hash, PBKDF2_STRETCH_PREFIX);
+            return cost == PBKDF2_DEFAULT_COST ? Hasher.PBKDF2_STRETCH : resolve("pbkdf2_stretch_" + cost);
         } else if (CharArrays.charsBeginsWith(PBKDF2_PREFIX, hash)) {
-            int cost = Integer.parseInt(new String(Arrays.copyOfRange(hash, PBKDF2_PREFIX.length(), hash.length - 90)));
+            int cost = parsePbkdf2Iterations(hash, PBKDF2_PREFIX);
             return cost == PBKDF2_DEFAULT_COST ? Hasher.PBKDF2 : resolve("pbkdf2_" + cost);
         } else if (CharArrays.charsBeginsWith(SHA1_PREFIX, hash)) {
             return Hasher.SHA1;
@@ -481,6 +562,16 @@ public enum Hasher {
             // This is either a non hashed password from cache or a corrupted hash string.
             return Hasher.NOOP;
         }
+    }
+
+    private static boolean isBcryptPrefix(char[] hash) {
+        if (hash.length < 4) {
+            return false;
+        }
+        if (hash[0] == '$' && hash[1] == '2' && hash[3] == '$') {
+            return BCrypt.valid_minor(hash[2]);
+        }
+        return false;
     }
 
     /**
@@ -497,12 +588,12 @@ public enum Hasher {
         return hasher.verify(data, hash);
     }
 
-    private static char[] getPbkdf2Hash(SecureString data, int cost) {
+    private static char[] getPbkdf2Hash(SecureString data, int cost, String prefix) {
         try {
             // Base64 string length : (4*(n/3)) rounded up to the next multiple of 4 because of padding.
             // n is 32 (PBKDF2_KEY_LENGTH in bytes) and 2 is because of the dollar sign delimiters.
-            CharBuffer result = CharBuffer.allocate(PBKDF2_PREFIX.length() + String.valueOf(cost).length() + 2 + 44 + 44);
-            result.put(PBKDF2_PREFIX);
+            CharBuffer result = CharBuffer.allocate(prefix.length() + String.valueOf(cost).length() + 2 + 44 + 44);
+            result.put(prefix);
             result.put(String.valueOf(cost));
             result.put("$");
             byte[] salt = generateSalt(32);
@@ -513,33 +604,80 @@ public enum Hasher {
             result.put(Base64.getEncoder().encodeToString(secretKeyFactory.generateSecret(keySpec).getEncoded()));
             return result.array();
         } catch (InvalidKeySpecException | NoSuchAlgorithmException e) {
-            throw new ElasticsearchException("Can't use PBKDF2 for password hashing", e);
+            throw new ElasticsearchException("Error using PBKDF2 for password hashing", e);
+        } catch (Error e) {
+            // Security Providers might throw a subclass of Error in FIPS 140 mode, if some prerequisite like
+            // salt, iv, or password length is not met. We catch this because we don't want the JVM to exit.
+            throw new ElasticsearchException("Error using PBKDF2 implementation from the selected Security Provider", e);
         }
     }
 
-    private static boolean verifyPbkdf2Hash(SecureString data, char[] hash) {
-        // Base64 string length : (4*(n/3)) rounded up to the next multiple of 4 because of padding.
-        // n is 32 (PBKDF2_KEY_LENGTH in bytes), so tokenLength is 44
-        final int tokenLength = 44;
+    private static int parsePbkdf2Iterations(char[] hash, String prefix) {
+        int separator = -1;
+        for (int i = prefix.length(); i < hash.length; i++) {
+            if (hash[i] == '$') {
+                separator = i;
+                break;
+            }
+        }
+        if (separator == -1) {
+            throw new IllegalArgumentException("The number of iterations could not be determined from the provided PBKDF2 hash.");
+        }
+        try {
+            return Integer.parseInt(new String(hash, prefix.length(), separator - prefix.length()));
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("The number of iterations could not be determined from the provided PBKDF2 hash.", e);
+        }
+    }
+
+    /**
+     * Hashes the given clear text password {@code data} and compares it against the given {@code hash}.
+     *
+     * <p>
+     * <b>Note:</b> When verifying the password hashes we dynamically determine the key and salt lengths for user provided hashes,
+     * but for hashes we create we always use the get method to create hashes with fixed key {@link #PBKDF2_KEY_LENGTH}
+     * and fixed salt lengths.
+     *
+     * @param data the clear text password to hash and verify
+     * @param hash the stored hash against to verify password
+     * @param iterations the number of iterations for PBKDF2 function
+     * @param prefix the PBKDF2 hash prefix
+     * @return {@code true} if password data matches given hash after hashing it, otherwise {@code false}
+     */
+    private static boolean verifyPbkdf2Hash(final SecureString data, final char[] hash, final int iterations, final String prefix) {
+        if (CharArrays.charsBeginsWith(prefix, hash) == false) {
+            return false;
+        }
+
+        int separator1 = -1, separator2 = -1;
+        for (int i = prefix.length() + String.valueOf(iterations).length(); i < hash.length; i++) {
+            if (hash[i] == '$') {
+                separator1 = i;
+                break;
+            }
+        }
+        if (separator1 == -1) {
+            return false;
+        }
+        for (int i = separator1 + 1; i < hash.length; i++) {
+            if (hash[i] == '$') {
+                separator2 = i;
+                break;
+            }
+        }
+        if (separator2 == -1) {
+            return false;
+        }
+
         char[] hashChars = null;
         char[] saltChars = null;
-        char[] computedPwdHash = null;
         try {
-            if (CharArrays.charsBeginsWith(PBKDF2_PREFIX, hash) == false) {
-                return false;
-            }
-            hashChars = Arrays.copyOfRange(hash, hash.length - tokenLength, hash.length);
-            saltChars = Arrays.copyOfRange(hash, hash.length - (2 * tokenLength + 1), hash.length - (tokenLength + 1));
-            int cost = Integer.parseInt(new String(Arrays.copyOfRange(hash, PBKDF2_PREFIX.length(), hash.length - (2 * tokenLength + 2))));
-            SecretKeyFactory secretKeyFactory = SecretKeyFactory.getInstance("PBKDF2withHMACSHA512");
-            PBEKeySpec keySpec = new PBEKeySpec(data.getChars(), Base64.getDecoder().decode(CharArrays.toUtf8Bytes(saltChars)),
-                cost, PBKDF2_KEY_LENGTH);
-            computedPwdHash = CharArrays.utf8BytesToChars(Base64.getEncoder()
-                .encode(secretKeyFactory.generateSecret(keySpec).getEncoded()));
-            final boolean result = CharArrays.constantTimeEquals(computedPwdHash, hashChars);
-            return result;
-        } catch (InvalidKeySpecException | NoSuchAlgorithmException e) {
-            throw new ElasticsearchException("Can't use PBKDF2 for password hashing", e);
+            hashChars = Arrays.copyOfRange(hash, separator2 + 1, hash.length);
+            saltChars = Arrays.copyOfRange(hash, separator1 + 1, separator2);
+            // Convert from base64 (n * 3/4) to the nearest multiple of 16 bytes (/16 * 16) to bits (*8)
+            // (n * 3/4) / 16 * 16 * 8 ==> n * 3 / 64 * 128
+            final int keySize = (hashChars.length * 3) / 64 * 128;
+            return verifyPbkdf2Hash(data, iterations, keySize, saltChars, hashChars);
         } finally {
             if (null != hashChars) {
                 Arrays.fill(hashChars, '\u0000');
@@ -547,6 +685,35 @@ public enum Hasher {
             if (null != saltChars) {
                 Arrays.fill(saltChars, '\u0000');
             }
+        }
+    }
+
+    private static boolean verifyPbkdf2Hash(SecureString data, int iterations, int keyLength, char[] saltChars, char[] hashChars) {
+        if (keyLength <= 0 || keyLength % HMAC_SHA512_BLOCK_SIZE_IN_BITS != 0) {
+            throw new ElasticsearchException(
+                "PBKDF2 key length must be positive and multiple of [" + HMAC_SHA512_BLOCK_SIZE_IN_BITS + " bits]"
+            );
+        }
+        final byte[] saltBytes = Base64.getDecoder().decode(CharArrays.toUtf8Bytes(saltChars));
+        if (saltBytes.length < PBKDF2_MIN_SALT_LENGTH_IN_BYTES) {
+            throw new ElasticsearchException("PBKDF2 salt must be at least [" + PBKDF2_MIN_SALT_LENGTH_IN_BYTES + " bytes] long");
+        }
+        char[] computedPwdHash = null;
+        try {
+            SecretKeyFactory secretKeyFactory = SecretKeyFactory.getInstance("PBKDF2withHMACSHA512");
+            PBEKeySpec keySpec = new PBEKeySpec(data.getChars(), saltBytes, iterations, keyLength);
+            computedPwdHash = CharArrays.utf8BytesToChars(
+                Base64.getEncoder().encode(secretKeyFactory.generateSecret(keySpec).getEncoded())
+            );
+            final boolean result = CharArrays.constantTimeEquals(computedPwdHash, hashChars);
+            return result;
+        } catch (InvalidKeySpecException | NoSuchAlgorithmException e) {
+            throw new ElasticsearchException("Error using PBKDF2 for password hashing", e);
+        } catch (Error e) {
+            // Security Providers might throw a subclass of Error in FIPS 140 mode, if some prerequisite like
+            // salt, iv, or password length is not met. We catch this because we don't want the JVM to exit.
+            throw new ElasticsearchException("Error using PBKDF2 implementation from the selected Security Provider", e);
+        } finally {
             if (null != computedPwdHash) {
                 Arrays.fill(computedPwdHash, '\u0000');
             }
@@ -555,7 +722,7 @@ public enum Hasher {
 
     private static boolean verifyBcryptHash(SecureString text, char[] hash) {
         String hashStr = new String(hash);
-        if (hashStr.startsWith(BCRYPT_PREFIX) == false) {
+        if (isBcryptPrefix(hash) == false) {
             return false;
         }
         return BCrypt.checkpw(text, hashStr);
@@ -568,7 +735,9 @@ public enum Hasher {
      */
     @SuppressForbidden(reason = "This is the only allowed way to get available values")
     public static List<String> getAvailableAlgoStoredHash() {
-        return Arrays.stream(Hasher.values()).map(Hasher::name).map(name -> name.toLowerCase(Locale.ROOT))
+        return Arrays.stream(Hasher.values())
+            .map(Hasher::name)
+            .map(name -> name.toLowerCase(Locale.ROOT))
             .filter(name -> (name.startsWith("pbkdf2") || name.startsWith("bcrypt")))
             .collect(Collectors.toList());
     }
@@ -580,7 +749,9 @@ public enum Hasher {
      */
     @SuppressForbidden(reason = "This is the only allowed way to get available values")
     public static List<String> getAvailableAlgoCacheHash() {
-        return Arrays.stream(Hasher.values()).map(Hasher::name).map(name -> name.toLowerCase(Locale.ROOT))
+        return Arrays.stream(Hasher.values())
+            .map(Hasher::name)
+            .map(name -> name.toLowerCase(Locale.ROOT))
             .filter(name -> (name.equals("sha256") == false))
             .collect(Collectors.toList());
     }
@@ -596,5 +767,11 @@ public enum Hasher {
         byte[] salt = new byte[length];
         SECURE_RANDOM.nextBytes(salt);
         return salt;
+    }
+
+    private static char[] hashSha512(SecureString text) {
+        MessageDigest md = MessageDigests.sha512();
+        md.update(CharArrays.toUtf8Bytes(text.getChars()));
+        return MessageDigests.toHexCharArray(md.digest());
     }
 }

@@ -4,6 +4,13 @@
 <titleabbrev>cat thread pool</titleabbrev>
 ++++
 
+[IMPORTANT]
+====
+cat APIs are only intended for human consumption using the command line or {kib} 
+console. They are _not_ intended for use by applications. For application 
+consumption, use the <<cluster-nodes-info,nodes info API>>.
+====
+
 Returns thread pool statistics for each node in a cluster. Returned information
 includes all <<modules-threadpool,built-in thread pools>> and custom thread
 pools.
@@ -16,6 +23,11 @@ pools.
 
 `GET /_cat/thread_pool`
 
+[[cat-thread-pool-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `monitor` or
+`manage` <<privileges-list-cluster,cluster privilege>> to use this API.
 
 [[cat-thread-pool-path-params]]
 ==== {api-path-parms-title}
@@ -28,9 +40,9 @@ request. Accepts wildcard expressions.
 [[cat-thread-pool-query-params]]
 ==== {api-query-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=http-format]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=http-format]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-h]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=cat-h]
 +
 --
 If you do not specify which columns to include, the API returns the default
@@ -97,22 +109,21 @@ Maximum number of tasks permitted in the queue for the current thread pool.
 Configured fixed number of active threads allowed in the current thread pool.
 
 `type`, `t`::
-Type of thread pool. Returned values are `fixed` or `scaling`.
+Type of thread pool. Returned values are `fixed`, `fixed_auto_queue_size`, `direct`, or `scaling`.
 
 --
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=help]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=help]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=local]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=local]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=master-timeout]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-s]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=cat-s]
 
-`size`::
-(Optional, <<size-units, size unit>>) Multiplier used to display quantities.
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=time]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-v]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=cat-v]
 
 
 [[cat-thread-pool-api-example]]
@@ -159,7 +170,7 @@ thread pool.
 
 [source,console]
 --------------------------------------------------
-GET /_cat/thread_pool/generic?v&h=id,name,active,rejected,completed
+GET /_cat/thread_pool/generic?v=true&h=id,name,active,rejected,completed
 --------------------------------------------------
 
 The API returns the following response:

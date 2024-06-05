@@ -1,25 +1,25 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.action.role;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
-import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
-import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
+import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
-import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
-import org.elasticsearch.xpack.core.security.support.MetadataUtils;
+import org.elasticsearch.xpack.core.security.support.NativeRealmValidationUtil;
+import org.elasticsearch.xpack.core.security.support.Validation;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -27,14 +27,13 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
  * Request object for adding a role to the security index
  */
-public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRoleRequest> {
+public class PutRoleRequest extends ActionRequest {
 
     private String name;
     private String[] clusterPrivileges = Strings.EMPTY_ARRAY;
@@ -42,104 +41,103 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
     private List<RoleDescriptor.IndicesPrivileges> indicesPrivileges = new ArrayList<>();
     private List<RoleDescriptor.ApplicationResourcePrivileges> applicationPrivileges = new ArrayList<>();
     private String[] runAs = Strings.EMPTY_ARRAY;
-    private RefreshPolicy refreshPolicy = RefreshPolicy.IMMEDIATE;
+    private WriteRequest.RefreshPolicy refreshPolicy = WriteRequest.RefreshPolicy.IMMEDIATE;
     private Map<String, Object> metadata;
+    private List<RoleDescriptor.RemoteIndicesPrivileges> remoteIndicesPrivileges = new ArrayList<>();
+    private RemoteClusterPermissions remoteClusterPermissions = RemoteClusterPermissions.NONE;
+    private boolean restrictRequest = false;
+    private String description;
 
-    public PutRoleRequest(StreamInput in) throws IOException {
-        super(in);
-        name = in.readString();
-        clusterPrivileges = in.readStringArray();
-        int indicesSize = in.readVInt();
-        indicesPrivileges = new ArrayList<>(indicesSize);
-        for (int i = 0; i < indicesSize; i++) {
-            indicesPrivileges.add(new RoleDescriptor.IndicesPrivileges(in));
-        }
-        applicationPrivileges = in.readList(RoleDescriptor.ApplicationResourcePrivileges::new);
-        configurableClusterPrivileges = ConfigurableClusterPrivileges.readArray(in);
-        runAs = in.readStringArray();
-        refreshPolicy = RefreshPolicy.readFrom(in);
-        metadata = in.readMap();
-    }
-
-    public PutRoleRequest() {
-    }
+    public PutRoleRequest() {}
 
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if (name == null) {
-            validationException = addValidationError("role name is missing", validationException);
+        Validation.Error error = NativeRealmValidationUtil.validateRoleName(this.name, false);
+        if (error != null) {
+            validationException = addValidationError(error.toString(), validationException);
         }
-        if (clusterPrivileges != null) {
-            for (String cp : clusterPrivileges) {
-                try {
-                    ClusterPrivilegeResolver.resolve(cp);
-                } catch (IllegalArgumentException ile) {
-                    validationException = addValidationError(ile.getMessage(), validationException);
-                }
-            }
-        }
-        if (indicesPrivileges != null) {
-            for (RoleDescriptor.IndicesPrivileges idp : indicesPrivileges) {
-                try {
-                    IndexPrivilege.get(Set.of(idp.getPrivileges()));
-                } catch (IllegalArgumentException ile) {
-                    validationException = addValidationError(ile.getMessage(), validationException);
-                }
-            }
-        }
-        if(applicationPrivileges != null) {
-            for (RoleDescriptor.ApplicationResourcePrivileges privilege : applicationPrivileges) {
-                try {
-                    ApplicationPrivilege.validateApplicationNameOrWildcard(privilege.getApplication());
-                } catch (IllegalArgumentException e) {
-                    validationException = addValidationError(e.getMessage(), validationException);
-                }
-                for (String name : privilege.getPrivileges()) {
-                    try {
-                        ApplicationPrivilege.validatePrivilegeOrActionName(name);
-                    } catch (IllegalArgumentException e) {
-                        validationException = addValidationError(e.getMessage(), validationException);
-                    }
-                }
-            }
-        }
-        if (metadata != null && MetadataUtils.containsReservedMetadata(metadata)) {
-            validationException =
-                addValidationError("metadata keys may not start with [" + MetadataUtils.RESERVED_PREFIX + "]", validationException);
-        }
-        return validationException;
+        return RoleDescriptorRequestValidator.validate(roleDescriptor(), validationException);
     }
 
     public void name(String name) {
         this.name = name;
     }
 
-    public void cluster(String... clusterPrivileges) {
-        this.clusterPrivileges = clusterPrivileges;
+    public void description(String description) {
+        this.description = description;
     }
 
-    void conditionalCluster(ConfigurableClusterPrivilege... configurableClusterPrivileges) {
-        this.configurableClusterPrivileges = configurableClusterPrivileges;
+    public void cluster(String... clusterPrivilegesArray) {
+        this.clusterPrivileges = clusterPrivilegesArray;
     }
 
-    void addIndex(RoleDescriptor.IndicesPrivileges... privileges) {
+    public void conditionalCluster(ConfigurableClusterPrivilege... configurableClusterPrivilegesArray) {
+        this.configurableClusterPrivileges = configurableClusterPrivilegesArray;
+    }
+
+    public void addIndex(RoleDescriptor.IndicesPrivileges... privileges) {
         this.indicesPrivileges.addAll(Arrays.asList(privileges));
     }
 
-    public void addIndex(String[] indices, String[] privileges, String[] grantedFields, String[] deniedFields,
-                         @Nullable BytesReference query, boolean allowRestrictedIndices) {
-        this.indicesPrivileges.add(RoleDescriptor.IndicesPrivileges.builder()
+    public void addRemoteIndex(RoleDescriptor.RemoteIndicesPrivileges... privileges) {
+        remoteIndicesPrivileges.addAll(Arrays.asList(privileges));
+    }
+
+    public void restrictRequest(boolean restrictRequest) {
+        this.restrictRequest = restrictRequest;
+    }
+
+    public boolean restrictRequest() {
+        return restrictRequest;
+    }
+
+    public void putRemoteCluster(RemoteClusterPermissions remoteClusterPermissions) {
+        this.remoteClusterPermissions = remoteClusterPermissions;
+    }
+
+    public void addRemoteIndex(
+        final String[] remoteClusters,
+        final String[] indices,
+        final String[] privileges,
+        final String[] grantedFields,
+        final String[] deniedFields,
+        final @Nullable BytesReference query,
+        final boolean allowRestrictedIndices
+    ) {
+        remoteIndicesPrivileges.add(
+            RoleDescriptor.RemoteIndicesPrivileges.builder(remoteClusters)
                 .indices(indices)
                 .privileges(privileges)
                 .grantedFields(grantedFields)
                 .deniedFields(deniedFields)
                 .query(query)
                 .allowRestrictedIndices(allowRestrictedIndices)
-                .build());
+                .build()
+        );
     }
 
-    void addApplicationPrivileges(RoleDescriptor.ApplicationResourcePrivileges... privileges) {
+    public void addIndex(
+        String[] indices,
+        String[] privileges,
+        String[] grantedFields,
+        String[] deniedFields,
+        @Nullable BytesReference query,
+        boolean allowRestrictedIndices
+    ) {
+        this.indicesPrivileges.add(
+            RoleDescriptor.IndicesPrivileges.builder()
+                .indices(indices)
+                .privileges(privileges)
+                .grantedFields(grantedFields)
+                .deniedFields(deniedFields)
+                .query(query)
+                .allowRestrictedIndices(allowRestrictedIndices)
+                .build()
+        );
+    }
+
+    public void addApplicationPrivileges(RoleDescriptor.ApplicationResourcePrivileges... privileges) {
         this.applicationPrivileges.addAll(Arrays.asList(privileges));
     }
 
@@ -147,17 +145,18 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
         this.runAs = usernames;
     }
 
-    @Override
-    public PutRoleRequest setRefreshPolicy(RefreshPolicy refreshPolicy) {
+    public PutRoleRequest setRefreshPolicy(@Nullable String refreshPolicy) {
+        if (refreshPolicy != null) {
+            setRefreshPolicy(WriteRequest.RefreshPolicy.parse(refreshPolicy));
+        }
+        return this;
+    }
+
+    public PutRoleRequest setRefreshPolicy(WriteRequest.RefreshPolicy refreshPolicy) {
         this.refreshPolicy = refreshPolicy;
         return this;
     }
 
-    /**
-     * Should this request trigger a refresh ({@linkplain RefreshPolicy#IMMEDIATE}, the default), wait for a refresh (
-     * {@linkplain RefreshPolicy#WAIT_UNTIL}), or proceed ignore refreshes entirely ({@linkplain RefreshPolicy#NONE}).
-     */
-    @Override
     public WriteRequest.RefreshPolicy getRefreshPolicy() {
         return refreshPolicy;
     }
@@ -170,12 +169,24 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
         return name;
     }
 
+    public String description() {
+        return description;
+    }
+
     public String[] cluster() {
         return clusterPrivileges;
     }
 
     public RoleDescriptor.IndicesPrivileges[] indices() {
         return indicesPrivileges.toArray(new RoleDescriptor.IndicesPrivileges[indicesPrivileges.size()]);
+    }
+
+    public RoleDescriptor.RemoteIndicesPrivileges[] remoteIndices() {
+        return remoteIndicesPrivileges.toArray(new RoleDescriptor.RemoteIndicesPrivileges[0]);
+    }
+
+    public boolean hasRemoteIndicesPrivileges() {
+        return false == remoteIndicesPrivileges.isEmpty();
     }
 
     public List<RoleDescriptor.ApplicationResourcePrivileges> applicationPrivileges() {
@@ -196,29 +207,23 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeString(name);
-        out.writeStringArray(clusterPrivileges);
-        out.writeVInt(indicesPrivileges.size());
-        for (RoleDescriptor.IndicesPrivileges index : indicesPrivileges) {
-            index.writeTo(out);
-        }
-        out.writeList(applicationPrivileges);
-        ConfigurableClusterPrivileges.writeArray(out, this.configurableClusterPrivileges);
-        out.writeStringArray(runAs);
-        refreshPolicy.writeTo(out);
-        out.writeMap(metadata);
+        TransportAction.localOnly();
     }
 
     public RoleDescriptor roleDescriptor() {
-        return new RoleDescriptor(name,
-                clusterPrivileges,
-                indicesPrivileges.toArray(new RoleDescriptor.IndicesPrivileges[indicesPrivileges.size()]),
-                applicationPrivileges.toArray(new RoleDescriptor.ApplicationResourcePrivileges[applicationPrivileges.size()]),
+        return new RoleDescriptor(
+            name,
+            clusterPrivileges,
+            indicesPrivileges.toArray(new RoleDescriptor.IndicesPrivileges[indicesPrivileges.size()]),
+            applicationPrivileges.toArray(new RoleDescriptor.ApplicationResourcePrivileges[applicationPrivileges.size()]),
             configurableClusterPrivileges,
-                runAs,
-                metadata,
-                Collections.emptyMap());
+            runAs,
+            metadata,
+            Collections.emptyMap(),
+            remoteIndicesPrivileges.toArray(new RoleDescriptor.RemoteIndicesPrivileges[0]),
+            remoteClusterPermissions,
+            null,
+            description
+        );
     }
-
 }

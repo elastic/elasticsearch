@@ -1,38 +1,28 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.search.stats;
 
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 
 public class SearchStats implements Writeable, ToXContentFragment {
 
@@ -59,10 +49,18 @@ public class SearchStats implements Writeable, ToXContentFragment {
         }
 
         public Stats(
-                long queryCount, long queryTimeInMillis, long queryCurrent,
-                long fetchCount, long fetchTimeInMillis, long fetchCurrent,
-                long scrollCount, long scrollTimeInMillis, long scrollCurrent,
-                long suggestCount, long suggestTimeInMillis, long suggestCurrent
+            long queryCount,
+            long queryTimeInMillis,
+            long queryCurrent,
+            long fetchCount,
+            long fetchTimeInMillis,
+            long fetchCurrent,
+            long scrollCount,
+            long scrollTimeInMillis,
+            long scrollCurrent,
+            long suggestCount,
+            long suggestTimeInMillis,
+            long suggestCurrent
         ) {
             this.queryCount = queryCount;
             this.queryTimeInMillis = queryTimeInMillis;
@@ -240,6 +238,43 @@ public class SearchStats implements Writeable, ToXContentFragment {
 
             return builder;
         }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Stats that = (Stats) o;
+            return queryCount == that.queryCount
+                && queryTimeInMillis == that.queryTimeInMillis
+                && queryCurrent == that.queryCurrent
+                && fetchCount == that.fetchCount
+                && fetchTimeInMillis == that.fetchTimeInMillis
+                && fetchCurrent == that.fetchCurrent
+                && scrollCount == that.scrollCount
+                && scrollTimeInMillis == that.scrollTimeInMillis
+                && scrollCurrent == that.scrollCurrent
+                && suggestCount == that.suggestCount
+                && suggestTimeInMillis == that.suggestTimeInMillis
+                && suggestCurrent == that.suggestCurrent;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(
+                queryCount,
+                queryTimeInMillis,
+                queryCurrent,
+                fetchCount,
+                fetchTimeInMillis,
+                fetchCurrent,
+                scrollCount,
+                scrollTimeInMillis,
+                scrollCurrent,
+                suggestCount,
+                suggestTimeInMillis,
+                suggestCurrent
+            );
+        }
     }
 
     private final Stats totalStats;
@@ -262,7 +297,7 @@ public class SearchStats implements Writeable, ToXContentFragment {
         totalStats = Stats.readStats(in);
         openContexts = in.readVLong();
         if (in.readBoolean()) {
-            groupStats = in.readMap(StreamInput::readString, Stats::readStats);
+            groupStats = in.readMap(Stats::readStats);
         }
     }
 
@@ -272,9 +307,9 @@ public class SearchStats implements Writeable, ToXContentFragment {
         }
         addTotals(searchStats);
         openContexts += searchStats.openContexts;
-        if (searchStats.groupStats != null && !searchStats.groupStats.isEmpty()) {
+        if (searchStats.groupStats != null && searchStats.groupStats.isEmpty() == false) {
             if (groupStats == null) {
-                groupStats = new HashMap<>(searchStats.groupStats.size());
+                groupStats = Maps.newMapWithExpectedSize(searchStats.groupStats.size());
             }
             for (Map.Entry<String, Stats> entry : searchStats.groupStats.entrySet()) {
                 groupStats.putIfAbsent(entry.getKey(), new Stats());
@@ -315,7 +350,7 @@ public class SearchStats implements Writeable, ToXContentFragment {
         builder.startObject(Fields.SEARCH);
         builder.field(Fields.OPEN_CONTEXTS, openContexts);
         totalStats.toXContent(builder, params);
-        if (groupStats != null && !groupStats.isEmpty()) {
+        if (groupStats != null && groupStats.isEmpty() == false) {
             builder.startObject(Fields.GROUPS);
             for (Map.Entry<String, Stats> entry : groupStats.entrySet()) {
                 builder.startObject(entry.getKey());
@@ -363,7 +398,22 @@ public class SearchStats implements Writeable, ToXContentFragment {
             out.writeBoolean(false);
         } else {
             out.writeBoolean(true);
-            out.writeMap(groupStats, StreamOutput::writeString, (stream, stats) -> stats.writeTo(stream));
+            out.writeMap(groupStats, StreamOutput::writeWriteable);
         }
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        SearchStats that = (SearchStats) o;
+        return Objects.equals(totalStats, that.totalStats)
+            && openContexts == that.openContexts
+            && Objects.equals(groupStats, that.groupStats);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(totalStats, openContexts, groupStats);
     }
 }

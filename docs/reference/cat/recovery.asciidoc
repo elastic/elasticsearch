@@ -4,18 +4,33 @@
 <titleabbrev>cat recovery</titleabbrev>
 ++++
 
+[IMPORTANT]
+====
+cat APIs are only intended for human consumption using the command line or {kib} 
+console. They are _not_ intended for use by applications. For application 
+consumption, use the <<indices-recovery,index recovery API>>.
+====
 
 Returns information about ongoing and completed shard recoveries,
 similar to the <<indices-recovery, index recovery>> API.
 
+For data streams, the API returns information about the stream's backing
+indices.
 
 [[cat-recovery-api-request]]
 ==== {api-request-title}
 
-`GET /_cat/recovery/<index>`
+`GET /_cat/recovery/<target>`
 
 `GET /_cat/recovery`
 
+[[cat-recovery-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `monitor` or
+`manage` <<privileges-list-cluster,cluster privilege>> to use this API. You must
+also have the `monitor` or `manage` <<privileges-list-indices,index privilege>>
+for any data stream, index, or alias you retrieve.
 
 [[cat-recovery-api-desc]]
 ==== {api-description-title}
@@ -24,37 +39,39 @@ The cat recovery API returns information about shard recoveries, both
 ongoing and completed. It is a more compact view of the JSON
 <<indices-recovery,index recovery>> API.
 
-include::{docdir}/indices/recovery.asciidoc[tag=shard-recovery-desc]
+include::{es-ref-dir}/indices/recovery.asciidoc[tag=shard-recovery-desc]
 
 
 [[cat-recovery-path-params]]
 ==== {api-path-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=index]
-
+`<target>`::
+(Optional, string) Comma-separated list of data streams, indices, and aliases
+used to limit the request. Supports wildcards (`*`). To target all data streams
+and indices, omit this parameter or use `*` or `_all`.
 
 [[cat-recovery-query-params]]
 ==== {api-query-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=active-only]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=active-only]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=bytes]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=bytes]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=detailed]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=detailed]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=http-format]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=http-format]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-h]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=cat-h]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=help]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=help]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=index-query-parm]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=index-query-parm]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-s]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=cat-s]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=time]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=time]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-v]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=cat-v]
 
 
 [[cat-recovery-api-example]]
@@ -65,16 +82,16 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-v]
 
 [source,console]
 ----------------------------------------------------------------------------
-GET _cat/recovery?v
+GET _cat/recovery?v=true
 ----------------------------------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 The API returns the following response:
 
 [source,txt]
 ---------------------------------------------------------------------------
-index   shard time type  stage source_host source_node target_host target_node repository snapshot files files_recovered files_percent files_total bytes bytes_recovered bytes_percent bytes_total translog_ops translog_ops_recovered translog_ops_percent
-twitter 0     13ms store done  n/a         n/a         127.0.0.1   node-0      n/a        n/a      0     0               100%          13          0b    0b              100%          9928b       0            0                      100.0%
+index             shard time type  stage source_host source_node target_host target_node repository snapshot files files_recovered files_percent files_total bytes bytes_recovered bytes_percent bytes_total translog_ops translog_ops_recovered translog_ops_percent
+my-index-000001   0     13ms store done  n/a         n/a         127.0.0.1   node-0      n/a        n/a      0     0               100%          13          0b    0b              100%          9928b       0            0                      100.0%
 ---------------------------------------------------------------------------
 // TESTRESPONSE[s/store/empty_store/]
 // TESTRESPONSE[s/100%/0.0%/]
@@ -94,16 +111,16 @@ host the replicas, you can retrieve information about an ongoing recovery.
 
 [source,console]
 ----------------------------------------------------------------------------
-GET _cat/recovery?v&h=i,s,t,ty,st,shost,thost,f,fp,b,bp
+GET _cat/recovery?v=true&h=i,s,t,ty,st,shost,thost,f,fp,b,bp
 ----------------------------------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 The API returns the following response:
 
 [source,txt]
 ----------------------------------------------------------------------------
-i       s t      ty   st    shost       thost       f     fp      b  bp
-twitter 0 1252ms peer done  192.168.1.1 192.168.1.2 0     100.0%  0b 100.0%
+i               s t      ty   st    shost       thost       f     fp      b  bp
+my-index-000001 0 1252ms peer done  192.168.1.1 192.168.1.2 0     100.0%  0b 100.0%
 ----------------------------------------------------------------------------
 // TESTRESPONSE[s/peer/empty_store/]
 // TESTRESPONSE[s/192.168.1.2/127.0.0.1/]
@@ -118,13 +135,13 @@ measurements.
 [[cat-recovery-api-ex-snapshot]]
 ===== Example with a snapshot recovery
 
-You can restore backups of an index using the <<modules-snapshots,snapshot and
+You can restore backups of an index using the <<snapshot-restore,snapshot and
 restore>> API. You can use the cat recovery API retrieve information about a
 snapshot recovery.
 
 [source,console]
 --------------------------------------------------------------------------------
-GET _cat/recovery?v&h=i,s,t,ty,st,rep,snap,f,fp,b,bp
+GET _cat/recovery?v=true&h=i,s,t,ty,st,rep,snap,f,fp,b,bp
 --------------------------------------------------------------------------------
 // TEST[skip:no need to execute snapshot/restore here]
 
@@ -132,7 +149,7 @@ The API returns the following response with a recovery type of `snapshot`:
 
 [source,txt]
 --------------------------------------------------------------------------------
-i       s t      ty       st    rep     snap   f  fp   b     bp
-twitter 0 1978ms snapshot done  twitter snap_1 79 8.0% 12086 9.0%
+i               s t      ty       st    rep     snap   f  fp   b     bp
+my-index-000001 0 1978ms snapshot done  my-repo snap-1 79 8.0% 12086 9.0%
 --------------------------------------------------------------------------------
 // TESTRESPONSE[non_json]

@@ -1,12 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.transform.persistence;
 
-import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.search.SearchHit;
 
 import java.util.Objects;
@@ -23,7 +24,7 @@ public class SeqNoPrimaryTermAndIndex {
         return new SeqNoPrimaryTermAndIndex(hit.getSeqNo(), hit.getPrimaryTerm(), hit.getIndex());
     }
 
-    public static SeqNoPrimaryTermAndIndex fromIndexResponse(IndexResponse response) {
+    public static SeqNoPrimaryTermAndIndex fromIndexResponse(DocWriteResponse response) {
         return new SeqNoPrimaryTermAndIndex(response.getSeqNo(), response.getPrimaryTerm(), response.getIndex());
     }
 

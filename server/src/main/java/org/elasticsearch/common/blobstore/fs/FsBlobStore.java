@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.blobstore.fs;
@@ -23,13 +12,14 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.blobstore.OperationPurpose;
+import org.elasticsearch.core.IOUtils;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Iterator;
+import java.util.List;
 
 public class FsBlobStore implements BlobStore {
 
@@ -39,14 +29,13 @@ public class FsBlobStore implements BlobStore {
 
     private final boolean readOnly;
 
-    public FsBlobStore(Settings settings, Path path, boolean readonly) throws IOException {
+    public FsBlobStore(int bufferSizeInBytes, Path path, boolean readonly) throws IOException {
         this.path = path;
         this.readOnly = readonly;
         if (this.readOnly == false) {
             Files.createDirectories(path);
         }
-        this.bufferSizeInBytes = (int) settings.getAsBytesSize("repositories.fs.buffer_size",
-            new ByteSizeValue(100, ByteSizeUnit.KB)).getBytes();
+        this.bufferSizeInBytes = bufferSizeInBytes;
     }
 
     @Override
@@ -64,10 +53,46 @@ public class FsBlobStore implements BlobStore {
 
     @Override
     public BlobContainer blobContainer(BlobPath path) {
-        try {
-            return new FsBlobContainer(this, path, buildAndCreate(path));
-        } catch (IOException ex) {
-            throw new ElasticsearchException("failed to create blob container", ex);
+        Path f = buildPath(path);
+        if (readOnly == false) {
+            try {
+                Files.createDirectories(f);
+            } catch (IOException ex) {
+                throw new ElasticsearchException("failed to create blob container", ex);
+            }
+        }
+        return new FsBlobContainer(this, path, f);
+    }
+
+    @Override
+    public void deleteBlobsIgnoringIfNotExists(OperationPurpose purpose, Iterator<String> blobNames) throws IOException {
+        IOException ioe = null;
+        long suppressedExceptions = 0;
+        while (blobNames.hasNext()) {
+            try {
+                // FsBlobContainer uses this method to delete blobs; in that case each blob name is already an absolute path meaning that
+                // the resolution done here is effectively a non-op.
+                Path resolve = path.resolve(blobNames.next());
+                IOUtils.rm(resolve);
+            } catch (IOException e) {
+                // IOUtils.rm puts the original exception as a string in the IOException message. Ignore no such file exception.
+                if (e.getMessage().contains("NoSuchFileException") == false) {
+                    // track up to 10 delete exceptions and try to continue deleting on exceptions
+                    if (ioe == null) {
+                        ioe = e;
+                    } else if (ioe.getSuppressed().length < 10) {
+                        ioe.addSuppressed(e);
+                    } else {
+                        ++suppressedExceptions;
+                    }
+                }
+            }
+        }
+        if (ioe != null) {
+            if (suppressedExceptions > 0) {
+                ioe.addSuppressed(new IOException("Failed to delete files, suppressed [" + suppressedExceptions + "] failures"));
+            }
+            throw ioe;
         }
     }
 
@@ -76,24 +101,14 @@ public class FsBlobStore implements BlobStore {
         // nothing to do here...
     }
 
-    private synchronized Path buildAndCreate(BlobPath path) throws IOException {
-        Path f = buildPath(path);
-        if (readOnly == false) {
-            Files.createDirectories(f);
-        }
-        return f;
-    }
-
     private Path buildPath(BlobPath path) {
-        String[] paths = path.toArray();
-        if (paths.length == 0) {
+        List<String> paths = path.parts();
+        if (paths.isEmpty()) {
             return path();
         }
-        Path blobPath = this.path.resolve(paths[0]);
-        if (paths.length > 1) {
-            for (int i = 1; i < paths.length; i++) {
-                blobPath = blobPath.resolve(paths[i]);
-            }
+        Path blobPath = this.path.resolve(paths.get(0));
+        for (int i = 1; i < paths.size(); i++) {
+            blobPath = blobPath.resolve(paths.get(i));
         }
         return blobPath;
     }

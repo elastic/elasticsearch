@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.util;
@@ -25,6 +14,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.BitSet;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class ArrayUtilsTests extends ESTestCase {
@@ -74,12 +64,12 @@ public class ArrayUtilsTests extends ESTestCase {
     }
 
     public void testConcat() {
-        assertArrayEquals(new String[]{"a", "b", "c", "d"}, ArrayUtils.concat(new String[]{"a", "b"}, new String[]{"c", "d"}));
+        assertArrayEquals(new String[] { "a", "b", "c", "d" }, ArrayUtils.concat(new String[] { "a", "b" }, new String[] { "c", "d" }));
         int firstSize = randomIntBetween(0, 10);
         String[] first = new String[firstSize];
         ArrayList<String> sourceOfTruth = new ArrayList<>();
         for (int i = 0; i < firstSize; i++) {
-            first[i] = randomRealisticUnicodeOfCodepointLengthBetween(0,10);
+            first[i] = randomRealisticUnicodeOfCodepointLengthBetween(0, 10);
             sourceOfTruth.add(first[i]);
         }
         int secondSize = randomIntBetween(0, 10);
@@ -89,5 +79,30 @@ public class ArrayUtilsTests extends ESTestCase {
             sourceOfTruth.add(second[i]);
         }
         assertArrayEquals(sourceOfTruth.toArray(new String[0]), ArrayUtils.concat(first, second));
+    }
+
+    public void testReverseSubArray() {
+        final int length = randomIntBetween(10, 50);
+        final double[] array = new double[length];
+        for (int i = 0; i < array.length; i++) {
+            array[i] = randomDoubleBetween(Double.NEGATIVE_INFINITY, Double.MAX_VALUE, true);
+        }
+        assertReverseSubArray(array, 0, array.length);
+        for (int i = 0; i < 10; i++) {
+            final int start = randomInt(length);
+            final int end = randomIntBetween(start, length);
+            assertReverseSubArray(array, start, end - start);
+        }
+    }
+
+    private void assertReverseSubArray(double[] array, int from, int length) {
+        final double[] copy = array.clone();
+        ArrayUtils.reverseSubArray(copy, from, length);
+        final int endOffset = from + length - 1;
+        for (int i = 0; i < length; i++) {
+            assertThat(copy[endOffset - i], equalTo(array[from + i]));
+        }
+        ArrayUtils.reverseSubArray(copy, from, length);
+        assertThat(copy, equalTo(array));
     }
 }

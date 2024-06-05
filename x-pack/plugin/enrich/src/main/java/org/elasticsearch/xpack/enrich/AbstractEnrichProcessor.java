@@ -1,24 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.enrich;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.routing.Preference;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.script.TemplateScript;
-import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
-import org.elasticsearch.xpack.enrich.action.EnrichCoordinatorProxyAction;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -28,7 +24,7 @@ import java.util.function.BiConsumer;
 public abstract class AbstractEnrichProcessor extends AbstractProcessor {
 
     private final String policyName;
-    private final BiConsumer<SearchRequest, BiConsumer<SearchResponse, Exception>> searchRunner;
+    private final BiConsumer<SearchRequest, BiConsumer<List<Map<?, ?>>, Exception>> searchRunner;
     private final TemplateScript.Factory field;
     private final TemplateScript.Factory targetField;
     private final boolean ignoreMissing;
@@ -38,7 +34,8 @@ public abstract class AbstractEnrichProcessor extends AbstractProcessor {
 
     protected AbstractEnrichProcessor(
         String tag,
-        Client client,
+        String description,
+        BiConsumer<SearchRequest, BiConsumer<List<Map<?, ?>>, Exception>> searchRunner,
         String policyName,
         TemplateScript.Factory field,
         TemplateScript.Factory targetField,
@@ -47,21 +44,7 @@ public abstract class AbstractEnrichProcessor extends AbstractProcessor {
         String matchField,
         int maxMatches
     ) {
-        this(tag, createSearchRunner(client), policyName, field, targetField, ignoreMissing, overrideEnabled, matchField, maxMatches);
-    }
-
-    protected AbstractEnrichProcessor(
-        String tag,
-        BiConsumer<SearchRequest, BiConsumer<SearchResponse, Exception>> searchRunner,
-        String policyName,
-        TemplateScript.Factory field,
-        TemplateScript.Factory targetField,
-        boolean ignoreMissing,
-        boolean overrideEnabled,
-        String matchField,
-        int maxMatches
-    ) {
-        super(tag);
+        super(tag, description);
         this.policyName = policyName;
         this.searchRunner = searchRunner;
         this.field = field;
@@ -78,8 +61,8 @@ public abstract class AbstractEnrichProcessor extends AbstractProcessor {
     public void execute(IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
         try {
             // If a document does not have the enrich key, return the unchanged document
-            String field = ingestDocument.renderTemplate(this.field);
-            final Object value = ingestDocument.getFieldValue(field, Object.class, ignoreMissing);
+            String renderedField = ingestDocument.renderTemplate(this.field);
+            final Object value = ingestDocument.getFieldValue(renderedField, Object.class, ignoreMissing);
             if (value == null) {
                 handler.accept(ingestDocument, null);
                 return;
@@ -98,7 +81,7 @@ public abstract class AbstractEnrichProcessor extends AbstractProcessor {
             req.preference(Preference.LOCAL.type());
             req.source(searchBuilder);
 
-            searchRunner.accept(req, (searchResponse, e) -> {
+            searchRunner.accept(req, (searchHits, e) -> {
                 if (e != null) {
                     handler.accept(null, e);
                     return;
@@ -107,24 +90,20 @@ public abstract class AbstractEnrichProcessor extends AbstractProcessor {
                 // If the index is empty, return the unchanged document
                 // If the enrich key does not exist in the index, throw an error
                 // If no documents match the key, return the unchanged document
-                SearchHit[] searchHits = searchResponse.getHits().getHits();
-                if (searchHits.length < 1) {
+                if (searchHits.size() < 1) {
                     handler.accept(ingestDocument, null);
                     return;
                 }
 
-                String targetField = ingestDocument.renderTemplate(this.targetField);
-                if (overrideEnabled || ingestDocument.hasField(targetField) == false) {
+                String renderedTargetField = ingestDocument.renderTemplate(this.targetField);
+                if (overrideEnabled || ingestDocument.hasField(renderedTargetField) == false) {
                     if (maxMatches == 1) {
-                        Map<String, Object> firstDocument = searchHits[0].getSourceAsMap();
-                        ingestDocument.setFieldValue(targetField, firstDocument);
+                        Map<?, ?> firstDocument = searchHits.get(0);
+                        ingestDocument.setFieldValue(renderedTargetField, firstDocument);
                     } else {
-                        List<Map<String, Object>> enrichDocuments = new ArrayList<>(searchHits.length);
-                        for (SearchHit searchHit : searchHits) {
-                            Map<String, Object> enrichDocument = searchHit.getSourceAsMap();
-                            enrichDocuments.add(enrichDocument);
-                        }
-                        ingestDocument.setFieldValue(targetField, enrichDocuments);
+                        List<Map<?, ?>> enrichDocuments = new ArrayList<>(searchHits.size());
+                        enrichDocuments.addAll(searchHits);
+                        ingestDocument.setFieldValue(renderedTargetField, enrichDocuments);
                     }
                 }
                 handler.accept(ingestDocument, null);
@@ -137,6 +116,11 @@ public abstract class AbstractEnrichProcessor extends AbstractProcessor {
     @Override
     public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
         throw new UnsupportedOperationException("this method should not get executed");
+    }
+
+    @Override
+    public boolean isAsync() {
+        return true;
     }
 
     public String getPolicyName() {
@@ -174,13 +158,4 @@ public abstract class AbstractEnrichProcessor extends AbstractProcessor {
         return maxMatches;
     }
 
-    private static BiConsumer<SearchRequest, BiConsumer<SearchResponse, Exception>> createSearchRunner(Client client) {
-        return (req, handler) -> {
-            client.execute(
-                EnrichCoordinatorProxyAction.INSTANCE,
-                req,
-                ActionListener.wrap(resp -> { handler.accept(resp, null); }, e -> { handler.accept(null, e); })
-            );
-        };
-    }
 }

@@ -1,13 +1,13 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
+ * Licensed to Elasticsearch B.V. under one or more contributor
  * license agreements. See the NOTICE file distributed with
  * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
+ * ownership. Elasticsearch B.V. licenses this file to you under
  * the Apache License, Version 2.0 (the "License"); you may
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -22,6 +22,7 @@ package org.elasticsearch.client;
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
+
 import org.apache.http.Header;
 import org.apache.http.message.BasicHeader;
 
@@ -32,7 +33,7 @@ import java.util.Random;
 
 final class RestClientTestUtil {
 
-    private static final String[] HTTP_METHODS = new String[]{"DELETE", "HEAD", "GET", "OPTIONS", "PATCH", "POST", "PUT", "TRACE"};
+    private static final String[] HTTP_METHODS = new String[] { "DELETE", "HEAD", "GET", "OPTIONS", "PATCH", "POST", "PUT", "TRACE" };
     private static final List<Integer> ALL_STATUS_CODES;
     private static final List<Integer> OK_STATUS_CODES = Arrays.asList(200, 201);
     private static final List<Integer> ALL_ERROR_STATUS_CODES;
@@ -96,7 +97,7 @@ final class RestClientTestUtil {
         final Header[] headers = new Header[numHeaders];
         for (int i = 0; i < numHeaders; i++) {
             String headerName = baseName;
-            //randomly exercise the code path that supports multiple headers with same key
+            // randomly exercise the code path that supports multiple headers with same key
             if (random.nextBoolean()) {
                 headerName = headerName + i;
             }

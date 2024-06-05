@@ -1,29 +1,21 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.painless;
 
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.Map;
+
 import static java.util.Collections.singletonMap;
 
 public class EqualsTests extends ScriptTestCase {
+
     public void testTypesEquals() {
         assertEquals(true, exec("return false === false;"));
         assertEquals(false, exec("boolean x = false; boolean y = true; return x === y;"));
@@ -131,7 +123,7 @@ public class EqualsTests extends ScriptTestCase {
         assertEquals(1, exec("def a = 1; Number b = a; Number c = a; if (c === b) return 1; else return 0;"));
         assertEquals(0, exec("def a = 1; Object b = new HashMap(); if (a === (Object)b) return 1; else return 0;"));
     }
-    
+
     public void testEqualsDefAndPrimitive() {
         /* This test needs an Integer that isn't cached by Integer.valueOf so we draw one randomly. We can't use any fixed integer because
          * we can never be sure that the JVM hasn't configured itself to cache that Integer. It is sneaky like that. */
@@ -166,18 +158,18 @@ public class EqualsTests extends ScriptTestCase {
          * we can never be sure that the JVM hasn't configured itself to cache that Integer. It is sneaky like that. */
         int uncachedAutoboxedInt = randomValueOtherThanMany(i -> Integer.valueOf(i) == Integer.valueOf(i), ESTestCase::randomInt);
         assertEquals(false, exec("def x = params.i; int y = params.i; return x != y;", singletonMap("i", uncachedAutoboxedInt), true));
-        assertEquals(true,  exec("def x = params.i; int y = params.i; return x !== y;", singletonMap("i", uncachedAutoboxedInt), true));
+        assertEquals(true, exec("def x = params.i; int y = params.i; return x !== y;", singletonMap("i", uncachedAutoboxedInt), true));
         assertEquals(false, exec("def x = params.i; int y = params.i; return y != x;", singletonMap("i", uncachedAutoboxedInt), true));
-        assertEquals(true,  exec("def x = params.i; int y = params.i; return y !== x;", singletonMap("i", uncachedAutoboxedInt), true));
+        assertEquals(true, exec("def x = params.i; int y = params.i; return y !== x;", singletonMap("i", uncachedAutoboxedInt), true));
 
         /* Now check that we use valueOf with the boxing used for comparing primitives to def. For this we need an
          * integer that is cached by Integer.valueOf. The JLS says 0 should always be cached. */
         int cachedAutoboxedInt = 0;
         assertSame(Integer.valueOf(cachedAutoboxedInt), Integer.valueOf(cachedAutoboxedInt));
         assertEquals(false, exec("def x = params.i; int y = params.i; return x != y;", singletonMap("i", cachedAutoboxedInt), true));
-        assertEquals(false,  exec("def x = params.i; int y = params.i; return x !== y;", singletonMap("i", cachedAutoboxedInt), true));
+        assertEquals(false, exec("def x = params.i; int y = params.i; return x !== y;", singletonMap("i", cachedAutoboxedInt), true));
         assertEquals(false, exec("def x = params.i; int y = params.i; return y != x;", singletonMap("i", cachedAutoboxedInt), true));
-        assertEquals(false,  exec("def x = params.i; int y = params.i; return y !== x;", singletonMap("i", cachedAutoboxedInt), true));
+        assertEquals(false, exec("def x = params.i; int y = params.i; return y !== x;", singletonMap("i", cachedAutoboxedInt), true));
     }
 
     public void testRightHandNull() {
@@ -192,5 +184,38 @@ public class EqualsTests extends ScriptTestCase {
         assertEquals(false, exec("HashMap a = new HashMap(); return null === a;"));
         assertEquals(true, exec("HashMap a = new HashMap(); return null != a;"));
         assertEquals(true, exec("HashMap a = new HashMap(); return null !== a;"));
+    }
+
+    public void testStringEquals() {
+        assertEquals(false, exec("def x = null; return \"a\" == x"));
+        assertEquals(true, exec("def x = \"a\"; return \"a\" == x"));
+        assertEquals(true, exec("def x = null; return \"a\" != x"));
+        assertEquals(false, exec("def x = \"a\"; return \"a\" != x"));
+
+        assertEquals(false, exec("def x = null; return x == \"a\""));
+        assertEquals(true, exec("def x = \"a\"; return x == \"a\""));
+        assertEquals(true, exec("def x = null; return x != \"a\""));
+        assertEquals(false, exec("def x = \"a\"; return x != \"a\""));
+    }
+
+    public void testStringEqualsMethodCall() {
+        assertBytecodeExists("def x = \"a\"; return \"a\" == x", "INVOKEVIRTUAL java/lang/Object.equals (Ljava/lang/Object;)Z");
+        assertBytecodeExists("def x = \"a\"; return \"a\" != x", "INVOKEVIRTUAL java/lang/Object.equals (Ljava/lang/Object;)Z");
+        assertBytecodeExists("def x = \"a\"; return x == \"a\"", "INVOKEVIRTUAL java/lang/Object.equals (Ljava/lang/Object;)Z");
+    }
+
+    public void testEqualsNullCheck() {
+        // get the same callsite working once, then with a null
+        // need to specify call site depth as 0 to force MIC to execute
+        assertEquals(false, exec("""
+            def list = [2, 2, 3, 3, 4, null];
+            boolean b;
+            for (int i=0; i<list.length; i+=2) {
+                b = list[i] == list[i+1];
+                b = list[i+1] == 10;
+                b = 10 == list[i+1];
+            }
+            return b;
+            """, Map.of(), Map.of(CompilerSettings.INITIAL_CALL_SITE_DEPTH, "0"), false));
     }
 }

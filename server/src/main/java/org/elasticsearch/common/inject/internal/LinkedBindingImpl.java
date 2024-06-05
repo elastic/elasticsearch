@@ -16,7 +16,6 @@
 
 package org.elasticsearch.common.inject.internal;
 
-import org.elasticsearch.common.inject.Binder;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.Key;
 import org.elasticsearch.common.inject.spi.BindingTargetVisitor;
@@ -26,9 +25,14 @@ public final class LinkedBindingImpl<T> extends BindingImpl<T> implements Linked
 
     final Key<? extends T> targetKey;
 
-    public LinkedBindingImpl(Injector injector, Key<T> key, Object source,
-                             InternalFactory<? extends T> internalFactory, Scoping scoping,
-                             Key<? extends T> targetKey) {
+    public LinkedBindingImpl(
+        Injector injector,
+        Key<T> key,
+        Object source,
+        InternalFactory<? extends T> internalFactory,
+        Scoping scoping,
+        Key<? extends T> targetKey
+    ) {
         super(injector, key, source, internalFactory, scoping);
         this.targetKey = targetKey;
     }
@@ -39,8 +43,8 @@ public final class LinkedBindingImpl<T> extends BindingImpl<T> implements Linked
     }
 
     @Override
-    public <V> V acceptTargetVisitor(BindingTargetVisitor<? super T, V> visitor) {
-        return visitor.visit(this);
+    public <V> void acceptTargetVisitor(BindingTargetVisitor<? super T, V> visitor) {
+        visitor.visit(this);
     }
 
     @Override
@@ -49,27 +53,16 @@ public final class LinkedBindingImpl<T> extends BindingImpl<T> implements Linked
     }
 
     @Override
-    public BindingImpl<T> withScoping(Scoping scoping) {
-        return new LinkedBindingImpl<>(getSource(), getKey(), scoping, targetKey);
-    }
-
-    @Override
-    public BindingImpl<T> withKey(Key<T> key) {
-        return new LinkedBindingImpl<>(getSource(), key, getScoping(), targetKey);
-    }
-
-    @Override
-    public void applyTo(Binder binder) {
-        getScoping().applyTo(binder.withSource(getSource()).bind(getKey()).to(getLinkedKey()));
+    public BindingImpl<T> withEagerSingletonScoping() {
+        return new LinkedBindingImpl<>(getSource(), getKey(), Scoping.EAGER_SINGLETON, targetKey);
     }
 
     @Override
     public String toString() {
-        return new ToStringBuilder(LinkedKeyBinding.class)
-                .add("key", getKey())
-                .add("source", getSource())
-                .add("scope", getScoping())
-                .add("target", targetKey)
-                .toString();
+        return new ToStringBuilder(LinkedKeyBinding.class).add("key", getKey())
+            .add("source", getSource())
+            .add("scope", getScoping())
+            .add("target", targetKey)
+            .toString();
     }
 }

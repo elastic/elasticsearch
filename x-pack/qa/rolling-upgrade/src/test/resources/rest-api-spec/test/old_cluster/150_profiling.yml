@@ -1,0 +1,24 @@
+---
+"Test Profiling Index Management creates indices":
+  - requires:
+      cluster_features: ["gte_v8.11.0"]
+      reason:  status check API has been introduced with 8.11.0
+
+  - do:
+      profiling.status:
+        wait_for_resources_created: false
+  - is_false: 'resource_management.enabled'
+  - is_false: 'resources.created'
+
+  - do:
+      cluster.put_settings:
+        body:
+          transient:
+            xpack.profiling.templates.enabled: "true"
+        flat_settings: true
+
+  - do:
+      profiling.status:
+        wait_for_resources_created: true
+  - is_true: 'resource_management.enabled'
+  - is_true: 'resources.created'

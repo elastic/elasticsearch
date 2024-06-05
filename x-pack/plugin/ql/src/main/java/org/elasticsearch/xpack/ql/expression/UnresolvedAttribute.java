@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ql.expression;
 
@@ -34,8 +35,15 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
         this(source, name, qualifier, null, unresolvedMessage, null);
     }
 
-    public UnresolvedAttribute(Source source, String name, String qualifier, NameId id, String unresolvedMessage,
-            Object resolutionMetadata) {
+    @SuppressWarnings("this-escape")
+    public UnresolvedAttribute(
+        Source source,
+        String name,
+        String qualifier,
+        NameId id,
+        String unresolvedMessage,
+        Object resolutionMetadata
+    ) {
         super(source, name, qualifier, id);
         this.customMessage = unresolvedMessage != null;
         this.unresolvedMsg = unresolvedMessage == null ? errorMessage(qualifiedName(), null) : unresolvedMessage;
@@ -44,8 +52,7 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
 
     @Override
     protected NodeInfo<UnresolvedAttribute> info() {
-        return NodeInfo.create(this, UnresolvedAttribute::new,
-            name(), qualifier(), id(), unresolvedMsg, resolutionMetadata);
+        return NodeInfo.create(this, UnresolvedAttribute::new, name(), qualifier(), id(), unresolvedMsg, resolutionMetadata);
     }
 
     public Object resolutionMetadata() {
@@ -62,13 +69,20 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
     }
 
     @Override
-    protected Attribute clone(Source source, String name, DataType dataType, String qualifier, Nullability nullability,
-                              NameId id, boolean synthetic) {
+    protected Attribute clone(
+        Source source,
+        String name,
+        DataType dataType,
+        String qualifier,
+        Nullability nullability,
+        NameId id,
+        boolean synthetic
+    ) {
         return this;
     }
 
-    public UnresolvedAttribute withUnresolvedMessage(String unresolvedMsg) {
-        return new UnresolvedAttribute(source(), name(), qualifier(), id(), unresolvedMsg, resolutionMetadata());
+    public UnresolvedAttribute withUnresolvedMessage(String unresolvedMessage) {
+        return new UnresolvedAttribute(source(), name(), qualifier(), id(), unresolvedMessage, resolutionMetadata());
     }
 
     @Override
@@ -98,9 +112,10 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
 
     public static String errorMessage(String name, List<String> potentialMatches) {
         String msg = "Unknown column [" + name + "]";
-        if (!CollectionUtils.isEmpty(potentialMatches)) {
-            msg += ", did you mean " + (potentialMatches.size() == 1 ? "[" + potentialMatches.get(0)
-                    + "]": "any of " + potentialMatches.toString()) + "?";
+        if (CollectionUtils.isEmpty(potentialMatches) == false) {
+            msg += ", did you mean "
+                + (potentialMatches.size() == 1 ? "[" + potentialMatches.get(0) + "]" : "any of " + potentialMatches.toString())
+                + "?";
         }
         return msg;
     }

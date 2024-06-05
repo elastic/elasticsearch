@@ -1,25 +1,14 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.cache;
 
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -33,7 +22,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
-import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
@@ -64,14 +52,13 @@ public class CacheTests extends ESTestCase {
     public void testCacheStats() {
         AtomicLong evictions = new AtomicLong();
         Set<Integer> keys = new HashSet<>();
-        Cache<Integer, String> cache =
-                CacheBuilder.<Integer, String>builder()
-                        .setMaximumWeight(numberOfEntries / 2)
-                        .removalListener(notification -> {
-                            keys.remove(notification.getKey());
-                            evictions.incrementAndGet();
-                        })
-                        .build();
+        Cache<Integer, String> cache = CacheBuilder.<Integer, String>builder()
+            .setMaximumWeight(numberOfEntries / 2)
+            .removalListener(notification -> {
+                keys.remove(notification.getKey());
+                evictions.incrementAndGet();
+            })
+            .build();
 
         for (int i = 0; i < numberOfEntries; i++) {
             // track the keys, which will be removed upon eviction (see the RemovalListener)
@@ -105,18 +92,17 @@ public class CacheTests extends ESTestCase {
         int maximumWeight = randomIntBetween(1, numberOfEntries);
         AtomicLong evictions = new AtomicLong();
         List<Integer> evictedKeys = new ArrayList<>();
-        Cache<Integer, String> cache =
-                CacheBuilder.<Integer, String>builder()
-                        .setMaximumWeight(maximumWeight)
-                        .removalListener(notification -> {
-                            evictions.incrementAndGet();
-                            evictedKeys.add(notification.getKey());
-                        })
-                        .build();
+        Cache<Integer, String> cache = CacheBuilder.<Integer, String>builder()
+            .setMaximumWeight(maximumWeight)
+            .removalListener(notification -> {
+                evictions.incrementAndGet();
+                evictedKeys.add(notification.getKey());
+            })
+            .build();
         // cache entries up to numberOfEntries - maximumWeight; all of these entries will ultimately be evicted in
         // batches of size maximumWeight, first the odds in the batch, then the evens in the batch
         List<Integer> expectedEvictions = new ArrayList<>();
-        int iterations = (int)Math.ceil((numberOfEntries - maximumWeight) / (1.0 * maximumWeight));
+        int iterations = (int) Math.ceil((numberOfEntries - maximumWeight) / (1.0 * maximumWeight));
         for (int i = 0; i < iterations; i++) {
             for (int j = i * maximumWeight; j < (i + 1) * maximumWeight && j < numberOfEntries - maximumWeight; j++) {
                 cache.put(j, Integer.toString(j));
@@ -153,8 +139,8 @@ public class CacheTests extends ESTestCase {
         for (int i = numberOfEntries - maximumWeight; i < numberOfEntries; i++) {
             assertTrue(keys.contains(i));
             assertEquals(
-                    numberOfEntries - i + (numberOfEntries - maximumWeight) - 1,
-                    (int) remainingKeys.get(i - (numberOfEntries - maximumWeight))
+                numberOfEntries - i + (numberOfEntries - maximumWeight) - 1,
+                (int) remainingKeys.get(i - (numberOfEntries - maximumWeight))
             );
         }
     }
@@ -165,12 +151,11 @@ public class CacheTests extends ESTestCase {
         int maximumWeight = 2 * numberOfEntries;
         int weight = randomIntBetween(2, 10);
         AtomicLong evictions = new AtomicLong();
-        Cache<Integer, String> cache =
-                CacheBuilder.<Integer, String>builder()
-                        .setMaximumWeight(maximumWeight)
-                        .weigher((k, v) -> weight)
-                        .removalListener(notification -> evictions.incrementAndGet())
-                        .build();
+        Cache<Integer, String> cache = CacheBuilder.<Integer, String>builder()
+            .setMaximumWeight(maximumWeight)
+            .weigher((k, v) -> weight)
+            .removalListener(notification -> evictions.incrementAndGet())
+            .build();
         for (int i = 0; i < numberOfEntries; i++) {
             cache.put(i, Integer.toString(i));
         }
@@ -185,10 +170,7 @@ public class CacheTests extends ESTestCase {
 
     // cache some entries, randomly invalidate some of them, then check that the weight of the cache is correct
     public void testWeight() {
-        Cache<Integer, String> cache =
-                CacheBuilder.<Integer, String>builder()
-                        .weigher((k, v) -> k)
-                        .build();
+        Cache<Integer, String> cache = CacheBuilder.<Integer, String>builder().weigher((k, v) -> k).build();
         int weight = 0;
         for (int i = 0; i < numberOfEntries; i++) {
             weight += i;
@@ -276,7 +258,7 @@ public class CacheTests extends ESTestCase {
             assertEquals(cache.get(i), Integer.toString(i));
         }
         now.set(2);
-        for(int i = 0; i < numberOfEntries; i++) {
+        for (int i = 0; i < numberOfEntries; i++) {
             assertNull(cache.get(i));
         }
     }
@@ -344,35 +326,32 @@ public class CacheTests extends ESTestCase {
         assertEquals(numberOfEntries, cache.stats().getEvictions());
     }
 
-    public void testComputeIfAbsentDeadlock() throws BrokenBarrierException, InterruptedException {
+    public void testComputeIfAbsentDeadlock() {
         final int numberOfThreads = randomIntBetween(2, 32);
-        final Cache<Integer, String> cache =
-                CacheBuilder.<Integer, String>builder().setExpireAfterAccess(TimeValue.timeValueNanos(1)).build();
+        final Cache<Integer, String> cache = CacheBuilder.<Integer, String>builder()
+            .setExpireAfterAccess(TimeValue.timeValueNanos(1))
+            .build();
 
         final CyclicBarrier barrier = new CyclicBarrier(1 + numberOfThreads);
         for (int i = 0; i < numberOfThreads; i++) {
             final Thread thread = new Thread(() -> {
-                try {
-                    barrier.await();
-                    for (int j = 0; j < numberOfEntries; j++) {
-                        try {
-                            cache.computeIfAbsent(0, k -> Integer.toString(k));
-                        } catch (final ExecutionException e) {
-                            throw new AssertionError(e);
-                        }
+                safeAwait(barrier);
+                for (int j = 0; j < numberOfEntries; j++) {
+                    try {
+                        cache.computeIfAbsent(0, k -> Integer.toString(k));
+                    } catch (final ExecutionException e) {
+                        throw new AssertionError(e);
                     }
-                    barrier.await();
-                } catch (final BrokenBarrierException | InterruptedException e) {
-                    throw new AssertionError(e);
                 }
+                safeAwait(barrier);
             });
             thread.start();
         }
 
         // wait for all threads to be ready
-        barrier.await();
+        safeAwait(barrier);
         // wait for all threads to finish
-        barrier.await();
+        safeAwait(barrier);
     }
 
     // randomly promote some entries, step the clock forward, then check that the promoted entries remain and the
@@ -410,7 +389,6 @@ public class CacheTests extends ESTestCase {
         }
     }
 
-
     // randomly invalidate some cached entries, then check that a lookup for each of those and only those keys is null
     public void testInvalidate() {
         Cache<Integer, String> cache = CacheBuilder.<Integer, String>builder().build();
@@ -437,13 +415,10 @@ public class CacheTests extends ESTestCase {
     // those entries
     public void testNotificationOnInvalidate() {
         Set<Integer> notifications = new HashSet<>();
-        Cache<Integer, String> cache =
-                CacheBuilder.<Integer, String>builder()
-                        .removalListener(notification -> {
-                            assertEquals(RemovalNotification.RemovalReason.INVALIDATED, notification.getRemovalReason());
-                            notifications.add(notification.getKey());
-                        })
-                        .build();
+        Cache<Integer, String> cache = CacheBuilder.<Integer, String>builder().removalListener(notification -> {
+            assertEquals(RemovalNotification.RemovalReason.INVALIDATED, notification.getRemovalReason());
+            notifications.add(notification.getKey());
+        }).build();
         for (int i = 0; i < numberOfEntries; i++) {
             cache.put(i, Integer.toString(i));
         }
@@ -488,13 +463,10 @@ public class CacheTests extends ESTestCase {
     // those entries
     public void testNotificationOnInvalidateWithValue() {
         Set<Integer> notifications = new HashSet<>();
-        Cache<Integer, String> cache =
-            CacheBuilder.<Integer, String>builder()
-                .removalListener(notification -> {
-                    assertEquals(RemovalNotification.RemovalReason.INVALIDATED, notification.getRemovalReason());
-                    notifications.add(notification.getKey());
-                })
-                .build();
+        Cache<Integer, String> cache = CacheBuilder.<Integer, String>builder().removalListener(notification -> {
+            assertEquals(RemovalNotification.RemovalReason.INVALIDATED, notification.getRemovalReason());
+            notifications.add(notification.getKey());
+        }).build();
         for (int i = 0; i < numberOfEntries; i++) {
             cache.put(i, Integer.toString(i));
         }
@@ -527,13 +499,10 @@ public class CacheTests extends ESTestCase {
     // invalidate all cached entries, then check that we receive invalidate notifications for all entries
     public void testNotificationOnInvalidateAll() {
         Set<Integer> notifications = new HashSet<>();
-        Cache<Integer, String> cache =
-                CacheBuilder.<Integer, String>builder()
-                        .removalListener(notification -> {
-                            assertEquals(RemovalNotification.RemovalReason.INVALIDATED, notification.getRemovalReason());
-                            notifications.add(notification.getKey());
-                        })
-                        .build();
+        Cache<Integer, String> cache = CacheBuilder.<Integer, String>builder().removalListener(notification -> {
+            assertEquals(RemovalNotification.RemovalReason.INVALIDATED, notification.getRemovalReason());
+            notifications.add(notification.getKey());
+        }).build();
         Set<Integer> invalidated = new HashSet<>();
         for (int i = 0; i < numberOfEntries; i++) {
             cache.put(i, Integer.toString(i));
@@ -591,13 +560,10 @@ public class CacheTests extends ESTestCase {
     // entries
     public void testNotificationOnReplace() {
         Set<Integer> notifications = new HashSet<>();
-        Cache<Integer, String> cache =
-                CacheBuilder.<Integer, String>builder()
-                        .removalListener(notification -> {
-                            assertEquals(RemovalNotification.RemovalReason.REPLACED, notification.getRemovalReason());
-                            notifications.add(notification.getKey());
-                        })
-                        .build();
+        Cache<Integer, String> cache = CacheBuilder.<Integer, String>builder().removalListener(notification -> {
+            assertEquals(RemovalNotification.RemovalReason.REPLACED, notification.getRemovalReason());
+            notifications.add(notification.getKey());
+        }).build();
         for (int i = 0; i < numberOfEntries; i++) {
             cache.put(i, Integer.toString(i));
         }
@@ -630,10 +596,10 @@ public class CacheTests extends ESTestCase {
         }
     }
 
-    public void testComputeIfAbsentCallsOnce() throws BrokenBarrierException, InterruptedException {
+    public void testComputeIfAbsentCallsOnce() {
         int numberOfThreads = randomIntBetween(2, 32);
         final Cache<Integer, String> cache = CacheBuilder.<Integer, String>builder().build();
-        AtomicReferenceArray flags = new AtomicReferenceArray(numberOfEntries);
+        AtomicReferenceArray<Object> flags = new AtomicReferenceArray<>(numberOfEntries);
         for (int j = 0; j < numberOfEntries; j++) {
             flags.set(j, false);
         }
@@ -643,31 +609,27 @@ public class CacheTests extends ESTestCase {
         CyclicBarrier barrier = new CyclicBarrier(1 + numberOfThreads);
         for (int i = 0; i < numberOfThreads; i++) {
             Thread thread = new Thread(() -> {
-                try {
-                    barrier.await();
-                    for (int j = 0; j < numberOfEntries; j++) {
-                        try {
-                            cache.computeIfAbsent(j, key -> {
-                                assertTrue(flags.compareAndSet(key, false, true));
-                                return Integer.toString(key);
-                            });
-                        } catch (ExecutionException e) {
-                            failures.add(e);
-                            break;
-                        }
+                safeAwait(barrier);
+                for (int j = 0; j < numberOfEntries; j++) {
+                    try {
+                        cache.computeIfAbsent(j, key -> {
+                            assertTrue(flags.compareAndSet(key, false, true));
+                            return Integer.toString(key);
+                        });
+                    } catch (ExecutionException e) {
+                        failures.add(e);
+                        break;
                     }
-                    barrier.await();
-                } catch (BrokenBarrierException | InterruptedException e) {
-                    throw new AssertionError(e);
                 }
+                safeAwait(barrier);
             });
             thread.start();
         }
 
         // wait for all threads to be ready
-        barrier.await();
+        safeAwait(barrier);
         // wait for all threads to finish
-        barrier.await();
+        safeAwait(barrier);
 
         assertThat(failures, is(empty()));
     }
@@ -682,7 +644,7 @@ public class CacheTests extends ESTestCase {
         }
     }
 
-    public void testDependentKeyDeadlock() throws BrokenBarrierException, InterruptedException {
+    public void testDependentKeyDeadlock() throws InterruptedException {
         class Key {
             private final int key;
 
@@ -711,6 +673,7 @@ public class CacheTests extends ESTestCase {
         final Cache<Key, Integer> cache = CacheBuilder.<Key, Integer>builder().build();
 
         CopyOnWriteArrayList<ExecutionException> failures = new CopyOnWriteArrayList<>();
+        AtomicBoolean reachedTimeLimit = new AtomicBoolean();
 
         CyclicBarrier barrier = new CyclicBarrier(1 + numberOfThreads);
         CountDownLatch deadlockLatch = new CountDownLatch(numberOfThreads);
@@ -718,13 +681,9 @@ public class CacheTests extends ESTestCase {
         for (int i = 0; i < numberOfThreads; i++) {
             Thread thread = new Thread(() -> {
                 try {
-                    try {
-                        barrier.await();
-                    } catch (BrokenBarrierException | InterruptedException e) {
-                        throw new AssertionError(e);
-                    }
+                    safeAwait(barrier);
                     Random random = new Random(random().nextLong());
-                    for (int j = 0; j < numberOfEntries; j++) {
+                    for (int j = 0; j < numberOfEntries && reachedTimeLimit.get() == false; j++) {
                         Key key = new Key(random.nextInt(numberOfEntries));
                         try {
                             cache.computeIfAbsent(key, k -> {
@@ -750,7 +709,7 @@ public class CacheTests extends ESTestCase {
         }
 
         AtomicBoolean deadlock = new AtomicBoolean();
-        assert !deadlock.get();
+        assert deadlock.get() == false;
 
         // start a watchdog service
         ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
@@ -758,7 +717,7 @@ public class CacheTests extends ESTestCase {
             Set<Long> ids = threads.stream().map(t -> t.getId()).collect(Collectors.toSet());
             ThreadMXBean mxBean = ManagementFactory.getThreadMXBean();
             long[] deadlockedThreads = mxBean.findDeadlockedThreads();
-            if (!deadlock.get() && deadlockedThreads != null) {
+            if (deadlock.get() == false && deadlockedThreads != null) {
                 for (long deadlockedThread : deadlockedThreads) {
                     // ensure that we detected deadlock on our threads
                     if (ids.contains(deadlockedThread)) {
@@ -774,10 +733,15 @@ public class CacheTests extends ESTestCase {
         }, 1, 1, TimeUnit.SECONDS);
 
         // everything is setup, release the hounds
-        barrier.await();
+        safeAwait(barrier);
 
-        // wait for either deadlock to be detected or the threads to terminate
-        deadlockLatch.await();
+        // run the test for a limited amount of time; if threads are still running after that, let them know and exit gracefully
+        if (deadlockLatch.await(1, TimeUnit.SECONDS) == false) {
+            reachedTimeLimit.set(true);
+        }
+
+        // wait for either deadlock to be detected or the threads to terminate (end operations or time limit reached)
+        safeAwait(deadlockLatch);
 
         // shutdown the watchdog service
         scheduler.shutdown();
@@ -787,7 +751,7 @@ public class CacheTests extends ESTestCase {
         assertFalse("deadlock", deadlock.get());
     }
 
-    public void testCachePollution() throws BrokenBarrierException, InterruptedException {
+    public void testCachePollution() {
         int numberOfThreads = randomIntBetween(2, 32);
         final Cache<Integer, String> cache = CacheBuilder.<Integer, String>builder().build();
 
@@ -795,52 +759,48 @@ public class CacheTests extends ESTestCase {
 
         for (int i = 0; i < numberOfThreads; i++) {
             Thread thread = new Thread(() -> {
-                try {
-                    barrier.await();
-                    Random random = new Random(random().nextLong());
-                    for (int j = 0; j < numberOfEntries; j++) {
-                        Integer key = random.nextInt(numberOfEntries);
-                        boolean first;
-                        boolean second;
-                        do {
-                            first = random.nextBoolean();
-                            second = random.nextBoolean();
-                        } while (first && second);
-                        if (first) {
-                            try {
-                                cache.computeIfAbsent(key, k -> {
-                                    if (random.nextBoolean()) {
-                                        return Integer.toString(k);
-                                    } else {
-                                        throw new Exception("testCachePollution");
-                                    }
-                                });
-                            } catch (ExecutionException e) {
-                                assertNotNull(e.getCause());
-                                assertThat(e.getCause(), instanceOf(Exception.class));
-                                assertEquals(e.getCause().getMessage(), "testCachePollution");
-                            }
-                        } else if (second) {
-                            cache.invalidate(key);
-                        } else {
-                            cache.get(key);
+                safeAwait(barrier);
+                Random random = new Random(random().nextLong());
+                for (int j = 0; j < numberOfEntries; j++) {
+                    Integer key = random.nextInt(numberOfEntries);
+                    boolean first;
+                    boolean second;
+                    do {
+                        first = random.nextBoolean();
+                        second = random.nextBoolean();
+                    } while (first && second);
+                    if (first) {
+                        try {
+                            cache.computeIfAbsent(key, k -> {
+                                if (random.nextBoolean()) {
+                                    return Integer.toString(k);
+                                } else {
+                                    throw new Exception("testCachePollution");
+                                }
+                            });
+                        } catch (ExecutionException e) {
+                            assertNotNull(e.getCause());
+                            assertThat(e.getCause(), instanceOf(Exception.class));
+                            assertEquals(e.getCause().getMessage(), "testCachePollution");
                         }
+                    } else if (second) {
+                        cache.invalidate(key);
+                    } else {
+                        cache.get(key);
                     }
-                    barrier.await();
-                } catch (BrokenBarrierException | InterruptedException e) {
-                    throw new AssertionError(e);
                 }
+                safeAwait(barrier);
             });
             thread.start();
         }
 
         // wait for all threads to be ready
-        barrier.await();
+        safeAwait(barrier);
         // wait for all threads to finish
-        barrier.await();
+        safeAwait(barrier);
     }
 
-    public void testExceptionThrownDuringConcurrentComputeIfAbsent() throws BrokenBarrierException, InterruptedException {
+    public void testExceptionThrownDuringConcurrentComputeIfAbsent() {
         int numberOfThreads = randomIntBetween(2, 32);
         final Cache<String, String> cache = CacheBuilder.<String, String>builder().build();
 
@@ -849,66 +809,52 @@ public class CacheTests extends ESTestCase {
         final String key = randomAlphaOfLengthBetween(2, 32);
         for (int i = 0; i < numberOfThreads; i++) {
             Thread thread = new Thread(() -> {
-                try {
-                    barrier.await();
-                    for (int j = 0; j < numberOfEntries; j++) {
-                        try {
-                            String value = cache.computeIfAbsent(key, k -> {
-                                throw new RuntimeException("failed to load");
-                            });
-                            fail("expected exception but got: " + value);
-                        } catch (ExecutionException e) {
-                            assertNotNull(e.getCause());
-                            assertThat(e.getCause(), instanceOf(RuntimeException.class));
-                            assertEquals(e.getCause().getMessage(), "failed to load");
-                        }
+                safeAwait(barrier);
+                for (int j = 0; j < numberOfEntries; j++) {
+                    try {
+                        String value = cache.computeIfAbsent(key, k -> { throw new RuntimeException("failed to load"); });
+                        fail("expected exception but got: " + value);
+                    } catch (ExecutionException e) {
+                        assertNotNull(e.getCause());
+                        assertThat(e.getCause(), instanceOf(RuntimeException.class));
+                        assertEquals(e.getCause().getMessage(), "failed to load");
                     }
-                    barrier.await();
-                } catch (BrokenBarrierException | InterruptedException e) {
-                    throw new AssertionError(e);
                 }
+                safeAwait(barrier);
             });
             thread.start();
         }
 
         // wait for all threads to be ready
-        barrier.await();
+        safeAwait(barrier);
         // wait for all threads to finish
-        barrier.await();
+        safeAwait(barrier);
     }
 
     // test that the cache is not corrupted under lots of concurrent modifications, even hitting the same key
     // here be dragons: this test did catch one subtle bug during development; do not remove lightly
-    public void testTorture() throws BrokenBarrierException, InterruptedException {
+    public void testTorture() {
         int numberOfThreads = randomIntBetween(2, 32);
-        final Cache<Integer, String> cache =
-                CacheBuilder.<Integer, String>builder()
-                        .setMaximumWeight(1000)
-                        .weigher((k, v) -> 2)
-                        .build();
+        final Cache<Integer, String> cache = CacheBuilder.<Integer, String>builder().setMaximumWeight(1000).weigher((k, v) -> 2).build();
 
         CyclicBarrier barrier = new CyclicBarrier(1 + numberOfThreads);
         for (int i = 0; i < numberOfThreads; i++) {
             Thread thread = new Thread(() -> {
-                try {
-                    barrier.await();
-                    Random random = new Random(random().nextLong());
-                    for (int j = 0; j < numberOfEntries; j++) {
-                        Integer key = random.nextInt(numberOfEntries);
-                        cache.put(key, Integer.toString(j));
-                    }
-                    barrier.await();
-                } catch (BrokenBarrierException | InterruptedException e) {
-                    throw new AssertionError(e);
+                safeAwait(barrier);
+                Random random = new Random(random().nextLong());
+                for (int j = 0; j < numberOfEntries; j++) {
+                    Integer key = random.nextInt(numberOfEntries);
+                    cache.put(key, Integer.toString(j));
                 }
+                safeAwait(barrier);
             });
             thread.start();
         }
 
         // wait for all threads to be ready
-        barrier.await();
+        safeAwait(barrier);
         // wait for all threads to finish
-        barrier.await();
+        safeAwait(barrier);
 
         cache.refresh();
         assertEquals(500, cache.count());
@@ -916,11 +862,10 @@ public class CacheTests extends ESTestCase {
 
     public void testRemoveUsingValuesIterator() {
         final List<RemovalNotification<Integer, String>> removalNotifications = new ArrayList<>();
-        Cache<Integer, String> cache =
-            CacheBuilder.<Integer, String>builder()
-                .setMaximumWeight(numberOfEntries)
-                .removalListener(removalNotifications::add)
-                .build();
+        Cache<Integer, String> cache = CacheBuilder.<Integer, String>builder()
+            .setMaximumWeight(numberOfEntries)
+            .removalListener(removalNotifications::add)
+            .build();
 
         for (int i = 0; i < numberOfEntries; i++) {
             cache.put(i, Integer.toString(i));

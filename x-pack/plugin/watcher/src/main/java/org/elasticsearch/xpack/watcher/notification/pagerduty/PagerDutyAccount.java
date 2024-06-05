@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.notification.pagerduty;
 
@@ -53,7 +54,8 @@ public class PagerDutyAccount {
         SecureString secureString = SECURE_SERVICE_API_KEY_SETTING.get(accountSettings);
         if (secureString == null || secureString.length() < 1) {
             throw new SettingsException(
-                    "invalid pagerduty account [" + name + "]. missing required [" + SECURE_SERVICE_API_KEY_SETTING.getKey() + "] setting");
+                "invalid pagerduty account [" + name + "]. missing required [" + SECURE_SERVICE_API_KEY_SETTING.getKey() + "] setting"
+            );
         }
         return secureString.toString();
     }

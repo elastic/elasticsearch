@@ -1,35 +1,27 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.aggregations.bucket.range;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
+import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.bucket.FixedMultiBucketAggregatorsReducer;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValueType;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -38,7 +30,9 @@ import java.util.Map;
 import java.util.Objects;
 
 public class InternalRange<B extends InternalRange.Bucket, R extends InternalRange<B, R>> extends InternalMultiBucketAggregation<R, B>
-        implements Range {
+    implements
+        Range {
+    @SuppressWarnings("rawtypes")
     static final Factory FACTORY = new Factory();
 
     public static class Bucket extends InternalMultiBucketAggregation.InternalBucket implements Range.Bucket {
@@ -51,11 +45,18 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
         private final InternalAggregations aggregations;
         private final String key;
 
-        public Bucket(String key, double from, double to, long docCount, InternalAggregations aggregations, boolean keyed,
-                DocValueFormat format) {
+        public Bucket(
+            String key,
+            double from,
+            double to,
+            long docCount,
+            InternalAggregations aggregations,
+            boolean keyed,
+            DocValueFormat format
+        ) {
             this.keyed = keyed;
             this.format = format;
-            this.key = key != null ? key : generateKey(from, to, format);
+            this.key = key;
             this.from = from;
             this.to = to;
             this.docCount = docCount;
@@ -69,7 +70,7 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
 
         @Override
         public String getKeyAsString() {
-            return key;
+            return this.key == null ? generateKey(this.from, this.to, this.format) : this.key;
         }
 
         @Override
@@ -114,29 +115,26 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
         }
 
         @Override
-        public Aggregations getAggregations() {
+        public InternalAggregations getAggregations() {
             return aggregations;
-        }
-
-        protected Factory<? extends Bucket, ?> getFactory() {
-            return FACTORY;
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            final String key = getKeyAsString();
             if (keyed) {
                 builder.startObject(key);
             } else {
                 builder.startObject();
                 builder.field(CommonFields.KEY.getPreferredName(), key);
             }
-            if (!Double.isInfinite(from)) {
+            if (Double.isInfinite(from) == false) {
                 builder.field(CommonFields.FROM.getPreferredName(), from);
                 if (format != DocValueFormat.RAW) {
                     builder.field(CommonFields.FROM_AS_STRING.getPreferredName(), format.format(from));
                 }
             }
-            if (!Double.isInfinite(to)) {
+            if (Double.isInfinite(to) == false) {
                 builder.field(CommonFields.TO.getPreferredName(), to);
                 if (format != DocValueFormat.RAW) {
                     builder.field(CommonFields.TO_AS_STRING.getPreferredName(), format.format(to));
@@ -149,18 +147,28 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
         }
 
         private static String generateKey(double from, double to, DocValueFormat format) {
-            StringBuilder builder = new StringBuilder()
-                .append(Double.isInfinite(from) ? "*" : format.format(from))
-                .append("-")
-                .append(Double.isInfinite(to) ? "*" : format.format(to));
-            return builder.toString();
+            return (Double.isInfinite(from) ? "*" : format.format(from)) + "-" + (Double.isInfinite(to) ? "*" : format.format(to));
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(key);
+            // NOTE: the key is required in version == 8.0.0 and version <= 7.17.0,
+            // while it is optional for all subsequent versions.
+            if (out.getTransportVersion().equals(TransportVersions.V_8_0_0)) {
+                out.writeString(key == null ? generateKey(from, to, format) : key);
+            } else if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_17_1)) {
+                out.writeOptionalString(key);
+            } else {
+                out.writeString(key == null ? generateKey(from, to, format) : key);
+            }
             out.writeDouble(from);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_17_0)) {
+                out.writeOptionalDouble(from);
+            }
             out.writeDouble(to);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_17_0)) {
+                out.writeOptionalDouble(to);
+            }
             out.writeVLong(docCount);
             aggregations.writeTo(out);
         }
@@ -175,10 +183,10 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
             }
             Bucket that = (Bucket) other;
             return Objects.equals(from, that.from)
-                    && Objects.equals(to, that.to)
-                    && Objects.equals(docCount, that.docCount)
-                    && Objects.equals(aggregations, that.aggregations)
-                    && Objects.equals(key, that.key);
+                && Objects.equals(to, that.to)
+                && Objects.equals(docCount, that.docCount)
+                && Objects.equals(aggregations, that.aggregations)
+                && Objects.equals(key, that.key);
         }
 
         @Override
@@ -192,32 +200,40 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
             return CoreValuesSourceType.NUMERIC;
         }
 
-        public ValueType getValueType() {
-            return ValueType.NUMERIC;
+        @SuppressWarnings("unchecked")
+        public R create(String name, List<B> ranges, DocValueFormat format, boolean keyed, Map<String, Object> metadata) {
+            return (R) new InternalRange<B, R>(name, ranges, format, keyed, metadata);
         }
 
         @SuppressWarnings("unchecked")
-        public R create(String name, List<B> ranges, DocValueFormat format, boolean keyed, List<PipelineAggregator> pipelineAggregators,
-                Map<String, Object> metaData) {
-            return (R) new InternalRange<B, R>(name, ranges, format, keyed, pipelineAggregators, metaData);
-        }
-
-        @SuppressWarnings("unchecked")
-        public B createBucket(String key, double from, double to, long docCount, InternalAggregations aggregations, boolean keyed,
-                DocValueFormat format) {
+        public B createBucket(
+            String key,
+            double from,
+            double to,
+            long docCount,
+            InternalAggregations aggregations,
+            boolean keyed,
+            DocValueFormat format
+        ) {
             return (B) new Bucket(key, from, to, docCount, aggregations, keyed, format);
         }
 
         @SuppressWarnings("unchecked")
         public R create(List<B> ranges, R prototype) {
-            return (R) new InternalRange<B, R>(prototype.name, ranges, prototype.format, prototype.keyed, prototype.pipelineAggregators(),
-                    prototype.metaData);
+            return (R) new InternalRange<B, R>(prototype.name, ranges, prototype.format, prototype.keyed, prototype.metadata);
         }
 
         @SuppressWarnings("unchecked")
         public B createBucket(InternalAggregations aggregations, B prototype) {
-            return (B) new Bucket(prototype.getKey(), prototype.from, prototype.to, prototype.getDocCount(), aggregations, prototype.keyed,
-                    prototype.format);
+            return (B) new Bucket(
+                prototype.getKey(),
+                prototype.from,
+                prototype.to,
+                prototype.getDocCount(),
+                aggregations,
+                prototype.keyed,
+                prototype.format
+            );
         }
     }
 
@@ -225,10 +241,8 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
     protected final DocValueFormat format;
     protected final boolean keyed;
 
-    public InternalRange(String name, List<B> ranges, DocValueFormat format, boolean keyed,
-            List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData) {
-        super(name, pipelineAggregators, metaData);
+    public InternalRange(String name, List<B> ranges, DocValueFormat format, boolean keyed, Map<String, Object> metadata) {
+        super(name, metadata);
         this.ranges = ranges;
         this.format = format;
         this.keyed = keyed;
@@ -237,6 +251,7 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
     /**
      * Read from a stream.
      */
+    @SuppressWarnings("this-escape")
     public InternalRange(StreamInput in) throws IOException {
         super(in);
         format = in.readNamedWriteable(DocValueFormat.class);
@@ -244,9 +259,32 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
         int size = in.readVInt();
         List<B> ranges = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
-            String key = in.readString();
-            ranges.add(getFactory().createBucket(key, in.readDouble(), in.readDouble(), in.readVLong(),
-                    new InternalAggregations(in), keyed, format));
+            // NOTE: the key is required in version == 8.0.0 and version <= 7.17.0,
+            // while it is optional for all subsequent versions.
+            final String key = in.getTransportVersion().equals(TransportVersions.V_8_0_0) ? in.readString()
+                : in.getTransportVersion().onOrAfter(TransportVersions.V_7_17_1) ? in.readOptionalString()
+                : in.readString();
+            double from = in.readDouble();
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_17_0)) {
+                final Double originalFrom = in.readOptionalDouble();
+                if (originalFrom != null) {
+                    from = originalFrom;
+                } else {
+                    from = Double.NEGATIVE_INFINITY;
+                }
+            }
+            double to = in.readDouble();
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_17_0)) {
+                final Double originalTo = in.readOptionalDouble();
+                if (originalTo != null) {
+                    to = originalTo;
+                } else {
+                    to = Double.POSITIVE_INFINITY;
+                }
+            }
+            long docCount = in.readVLong();
+            InternalAggregations aggregations = InternalAggregations.readFrom(in);
+            ranges.add(getFactory().createBucket(key, from, to, docCount, aggregations, keyed, format));
         }
         this.ranges = ranges;
     }
@@ -255,10 +293,7 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeNamedWriteable(format);
         out.writeBoolean(keyed);
-        out.writeVInt(ranges.size());
-        for (B bucket : ranges) {
-            bucket.writeTo(out);
-        }
+        out.writeCollection(ranges);
     }
 
     @Override
@@ -271,6 +306,7 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
         return ranges;
     }
 
+    @SuppressWarnings("unchecked")
     public Factory<B, R> getFactory() {
         return FACTORY;
     }
@@ -288,39 +324,61 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
 
     @SuppressWarnings("unchecked")
     @Override
-    public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
-        reduceContext.consumeBucketsAndMaybeBreak(ranges.size());
-        List<B>[] rangeList = new List[ranges.size()];
-        for (int i = 0; i < rangeList.length; ++i) {
-            rangeList[i] = new ArrayList<>();
-        }
-        for (InternalAggregation aggregation : aggregations) {
-            InternalRange<B, R> ranges = (InternalRange<B, R>) aggregation;
-            int i = 0;
-            for (B range : ranges.ranges) {
-                rangeList[i++].add(range);
-            }
-        }
+    protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
+        return new AggregatorReducer() {
+            final FixedMultiBucketAggregatorsReducer<B> reducer = new FixedMultiBucketAggregatorsReducer<>(
+                reduceContext,
+                size,
+                getBuckets()
+            ) {
 
-        final List<B> ranges = new ArrayList<>();
-        for (int i = 0; i < this.ranges.size(); ++i) {
-            ranges.add((B) reduceBucket(rangeList[i], reduceContext));
-        }
-        return getFactory().create(name, ranges, format, keyed, pipelineAggregators(), getMetaData());
+                @Override
+                protected Bucket createBucket(Bucket proto, long docCount, InternalAggregations aggregations) {
+                    return getFactory().createBucket(proto.key, proto.from, proto.to, docCount, aggregations, proto.keyed, proto.format);
+                }
+            };
+
+            @Override
+            public void accept(InternalAggregation aggregation) {
+                @SuppressWarnings("unchecked")
+                final InternalRange<B, R> ranges = (InternalRange<B, R>) aggregation;
+                reducer.accept(ranges.ranges);
+            }
+
+            @Override
+            public InternalAggregation get() {
+                return getFactory().create(name, reducer.get(), format, keyed, getMetadata());
+            }
+
+            @Override
+            public void close() {
+                Releasables.close(reducer);
+            }
+        };
     }
 
     @Override
-    protected B reduceBucket(List<B> buckets, ReduceContext context) {
-        assert buckets.size() > 0;
-        long docCount = 0;
-        List<InternalAggregations> aggregationsList = new ArrayList<>(buckets.size());
-        for (Bucket bucket : buckets) {
-            docCount += bucket.docCount;
-            aggregationsList.add(bucket.aggregations);
-        }
-        final InternalAggregations aggs = InternalAggregations.reduce(aggregationsList, context);
-        Bucket prototype = buckets.get(0);
-        return getFactory().createBucket(prototype.key, prototype.from, prototype.to, docCount, aggs, keyed, format);
+    public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
+        InternalRange.Factory<B, R> factory = getFactory();
+        return factory.create(
+            name,
+            ranges.stream()
+                .map(
+                    b -> factory.createBucket(
+                        b.getKey(),
+                        b.from,
+                        b.to,
+                        samplingContext.scaleUp(b.getDocCount()),
+                        InternalAggregations.finalizeSampling(b.getAggregations(), samplingContext),
+                        b.keyed,
+                        b.format
+                    )
+                )
+                .toList(),
+            format,
+            keyed,
+            getMetadata()
+        );
     }
 
     @Override
@@ -352,9 +410,7 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
         if (obj == null || getClass() != obj.getClass()) return false;
         if (super.equals(obj) == false) return false;
 
-        InternalRange<?,?> that = (InternalRange<?,?>) obj;
-        return Objects.equals(ranges, that.ranges)
-                && Objects.equals(format, that.format)
-                && Objects.equals(keyed, that.keyed);
+        InternalRange<?, ?> that = (InternalRange<?, ?>) obj;
+        return Objects.equals(ranges, that.ranges) && Objects.equals(format, that.format) && Objects.equals(keyed, that.keyed);
     }
 }

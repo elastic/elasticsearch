@@ -1,0 +1,161 @@
+---
+setup:
+  - skip:
+      features: [ "allowed_warnings" ]
+
+  - do:
+      allowed_warnings:
+        - "index template [add_final_pipeline] has index patterns [foo] matching patterns from existing older templates [global] with patterns (global => [*]); this template [add_final_pipeline] will take precedence during new index creation"
+      indices.put_index_template:
+        name: add_final_pipeline
+        body:
+          index_patterns: [ "foo" ]
+          template:
+            settings:
+              final_pipeline: "final_pipeline"
+
+  - do:
+      ingest.put_pipeline:
+        id: "final_pipeline"
+        body:  >
+          {
+            "processors": [
+              {
+                "append" : {
+                  "field" : "accumulator",
+                  "value" : [
+                    "non-repeated-value"
+                  ]
+                }
+              }
+            ]
+          }
+
+---
+teardown:
+- do:
+    ingest.delete_pipeline:
+      id: "retarget"
+      ignore: 404
+
+- do:
+    indices.delete:
+      index: foo
+
+- do:
+    ingest.delete_pipeline:
+      id: final_pipeline
+      ignore: 404
+---
+"Test Change Target Index with Explicit Pipeline":
+
+- do:
+    ingest.put_pipeline:
+      id: "retarget"
+      body:  >
+        {
+          "processors": [
+            {
+              "set" : {
+                "field" : "_index",
+                "value" : "foo"
+              }
+            }
+          ]
+        }
+- match: { acknowledged: true }
+
+# no indices
+- do:
+    cat.indices: {}
+
+- match:
+    $body: |
+      /^$/
+
+- do:
+    index:
+      index: test
+      id: "1"
+      pipeline: "retarget"
+      body: {
+        a: true
+      }
+
+- do:
+    get:
+      index: foo
+      id: "1"
+- match: { _source.a: true }
+- match: { _source.accumulator: [ "non-repeated-value" ] }
+
+# only the foo index
+- do:
+    cat.indices:
+      h: i
+
+- match:
+    $body: |
+      /^foo\n$/
+
+---
+"Test Change Target Index with Default Pipeline":
+
+- do:
+    allowed_warnings:
+      - "index template [index_template] has index patterns [test] matching patterns from existing older templates [global] with patterns (global => [*]); this template [index_template] will take precedence during new index creation"
+    indices.put_index_template:
+      name: index_template
+      body:
+        index_patterns: test
+        template:
+          settings:
+            default_pipeline: "retarget"
+
+- do:
+    ingest.put_pipeline:
+      id: "retarget"
+      body:  >
+        {
+          "processors": [
+            {
+              "set" : {
+                "field" : "_index",
+                "value" : "foo"
+              }
+            }
+          ]
+        }
+- match: { acknowledged: true }
+
+# no indices
+- do:
+    cat.indices: {}
+
+- match:
+    $body: |
+      /^$/
+
+- do:
+    index:
+      index: test
+      id: "1"
+      body: {
+        a: true
+      }
+
+- do:
+    get:
+      index: foo
+      id: "1"
+- match: { _source.a: true }
+- match: { _source.accumulator: [ "non-repeated-value" ] }
+
+# only the foo index
+- do:
+    cat.indices:
+      h: i
+
+- match:
+    $body: |
+      /^foo\n$/

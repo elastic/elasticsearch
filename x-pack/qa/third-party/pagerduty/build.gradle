@@ -1,24 +1,34 @@
-apply plugin: 'elasticsearch.testclusters'
-apply plugin: 'elasticsearch.standalone-rest-test'
-apply plugin: 'elasticsearch.rest-test'
+import org.elasticsearch.gradle.internal.info.BuildParams
+
+apply plugin: 'elasticsearch.legacy-yaml-rest-test'
 
 dependencies {
-  testCompile project(':x-pack:plugin:core')
-  testCompile project(path: xpackModule('watcher'), configuration: 'runtime')
+  yamlRestTestImplementation project(':x-pack:plugin:core')
+  yamlRestTestImplementation project(path: xpackModule('watcher'))
 }
 
 String pagerDutyServiceKey = System.getenv('pagerduty_service_api_key')
 
+restResources {
+  restApi {
+    include 'watcher'
+  }
+}
+
 if (!pagerDutyServiceKey) {
-  integTest.enabled = false
-  testingConventions.enabled = false
+  tasks.named("yamlRestTest").configure { enabled = false }
 } else {
-  testClusters.integTest {
+  testClusters.matching { it.name == "yamlRestTest" }.configureEach {
+    testDistribution = 'DEFAULT'
     setting 'xpack.security.enabled', 'false'
-    setting 'xpack.monitoring.enabled', 'false'
     setting 'xpack.ml.enabled', 'false'
     setting 'xpack.license.self_generated.type', 'trial'
     setting 'logger.org.elasticsearch.xpack.watcher', 'DEBUG'
     keystore 'xpack.notification.pagerduty.account.test_account.secure_service_api_key', pagerDutyServiceKey
   }
+}
+
+if (BuildParams.inFipsJvm){
+  // Test clusters run with security disabled
+  tasks.named("yamlRestTest").configure{enabled = false }
 }

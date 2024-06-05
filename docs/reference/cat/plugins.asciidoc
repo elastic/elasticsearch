@@ -4,31 +4,44 @@
 <titleabbrev>cat plugins</titleabbrev>
 ++++
 
+
+[IMPORTANT]
+====
+cat APIs are only intended for human consumption using the command line or {kib}
+console. They are _not_ intended for use by applications. For application
+consumption, use the <<cluster-nodes-info,nodes info API>>.
+====
+
 Returns a list of plugins running on each node of a cluster.
 
 
-[[cat-plugins-tasks-api-request]]
+[[cat-plugins-api-request]]
 ==== {api-request-title}
 
 `GET /_cat/plugins`
 
+[[cat-plugins-api-prereqs]]
+==== {api-prereq-title}
 
-[[cat-plugins-tasks-api-query-params]]
+* If the {es} {security-features} are enabled, you must have the `monitor` or
+`manage` <<privileges-list-cluster,cluster privilege>> to use this API.
+
+[[cat-plugins-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=http-format]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=http-format]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-h]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=cat-h]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=help]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=help]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=local]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=local]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=master-timeout]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-s]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=cat-s]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-v]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=cat-v]
 
 
 [[cat-plugins-api-example]]
@@ -36,7 +49,7 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-v]
 
 [source,console]
 ------------------------------------------------------------------------------
-GET /_cat/plugins?v&s=component&h=name,component,version,description
+GET /_cat/plugins?v=true&s=component&h=name,component,version,description
 ------------------------------------------------------------------------------
 
 The API returns the following response:
@@ -54,11 +67,9 @@ U7321H6 analysis-ukrainian      {version_qualified} The Ukrainian Analysis plugi
 U7321H6 discovery-azure-classic {version_qualified} The Azure Classic Discovery plugin allows to use Azure Classic API for the unicast discovery mechanism
 U7321H6 discovery-ec2           {version_qualified} The EC2 discovery plugin allows to use AWS API for the unicast discovery mechanism.
 U7321H6 discovery-gce           {version_qualified} The Google Compute Engine (GCE) Discovery plugin allows to use GCE API for the unicast discovery mechanism.
-U7321H6 ingest-attachment       {version_qualified} Ingest processor that uses Apache Tika to extract contents
 U7321H6 mapper-annotated-text   {version_qualified} The Mapper Annotated_text plugin adds support for text fields with markup used to inject annotation tokens into the index.
 U7321H6 mapper-murmur3          {version_qualified} The Mapper Murmur3 plugin allows to compute hashes of a field's values at index-time and to store them in the index.
 U7321H6 mapper-size             {version_qualified} The Mapper Size plugin allows document to record their uncompressed size at index time.
 U7321H6 store-smb               {version_qualified} The Store SMB plugin adds support for SMB stores.
-U7321H6 transport-nio           {version_qualified} The nio transport.
 ------------------------------------------------------------------------------
 // TESTRESPONSE[s/([.()])/\\$1/ s/U7321H6/.+/ non_json]

@@ -5,6 +5,10 @@
       "description":"Returns information about custom node attributes."
     },
     "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "text/plain", "application/json"]
+    },
     "url":{
       "paths":[
         {

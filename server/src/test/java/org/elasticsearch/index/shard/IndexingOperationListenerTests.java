@@ -1,27 +1,16 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.index.shard;
 
 import org.apache.lucene.index.Term;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.engine.InternalEngineTests;
+import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -35,7 +24,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.is;
 
-public class IndexingOperationListenerTests extends ESTestCase{
+public class IndexingOperationListenerTests extends ESTestCase {
 
     // this test also tests if calls are correct if one or more listeners throw exceptions
     public void testListenersAreExecuted() {
@@ -58,14 +47,9 @@ public class IndexingOperationListenerTests extends ESTestCase{
             public void postIndex(ShardId shardId, Engine.Index index, Engine.IndexResult result) {
                 assertThat(shardId, is(randomShardId));
                 switch (result.getResultType()) {
-                    case SUCCESS:
-                        postIndex.incrementAndGet();
-                        break;
-                    case FAILURE:
-                        postIndex(shardId, index, result.getFailure());
-                        break;
-                    default:
-                        throw new IllegalArgumentException("unknown result type: " + result.getResultType());
+                    case SUCCESS -> postIndex.incrementAndGet();
+                    case FAILURE -> postIndex(shardId, index, result.getFailure());
+                    default -> throw new IllegalArgumentException("unknown result type: " + result.getResultType());
                 }
             }
 
@@ -86,14 +70,9 @@ public class IndexingOperationListenerTests extends ESTestCase{
             public void postDelete(ShardId shardId, Engine.Delete delete, Engine.DeleteResult result) {
                 assertThat(shardId, is(randomShardId));
                 switch (result.getResultType()) {
-                    case SUCCESS:
-                        postDelete.incrementAndGet();
-                        break;
-                    case FAILURE:
-                        postDelete(shardId, delete, result.getFailure());
-                        break;
-                    default:
-                        throw new IllegalArgumentException("unknown result type: " + result.getResultType());
+                    case SUCCESS -> postDelete.incrementAndGet();
+                    case FAILURE -> postDelete(shardId, delete, result.getFailure());
+                    default -> throw new IllegalArgumentException("unknown result type: " + result.getResultType());
                 }
             }
 
@@ -143,12 +122,18 @@ public class IndexingOperationListenerTests extends ESTestCase{
             }
         }
         Collections.shuffle(indexingOperationListeners, random());
-        IndexingOperationListener.CompositeListener compositeListener =
-            new IndexingOperationListener.CompositeListener(indexingOperationListeners, logger);
-        ParsedDocument doc = InternalEngineTests.createParsedDoc("1", null);
+        IndexingOperationListener.CompositeListener compositeListener = new IndexingOperationListener.CompositeListener(
+            indexingOperationListeners,
+            logger
+        );
+        ParsedDocument doc = EngineTestCase.createParsedDoc("1", null);
         Engine.Delete delete = new Engine.Delete("1", new Term("_id", Uid.encodeId(doc.id())), randomNonNegativeLong());
         Engine.Index index = new Engine.Index(new Term("_id", Uid.encodeId(doc.id())), randomNonNegativeLong(), doc);
-        compositeListener.postDelete(randomShardId, delete, new Engine.DeleteResult(1, 0, SequenceNumbers.UNASSIGNED_SEQ_NO, true));
+        compositeListener.postDelete(
+            randomShardId,
+            delete,
+            new Engine.DeleteResult(1, 0, SequenceNumbers.UNASSIGNED_SEQ_NO, true, delete.id())
+        );
         assertEquals(0, preIndex.get());
         assertEquals(0, postIndex.get());
         assertEquals(0, postIndexException.get());
@@ -172,7 +157,11 @@ public class IndexingOperationListenerTests extends ESTestCase{
         assertEquals(2, postDelete.get());
         assertEquals(2, postDeleteException.get());
 
-        compositeListener.postIndex(randomShardId, index, new Engine.IndexResult(0, 0, SequenceNumbers.UNASSIGNED_SEQ_NO, false));
+        compositeListener.postIndex(
+            randomShardId,
+            index,
+            new Engine.IndexResult(0, 0, SequenceNumbers.UNASSIGNED_SEQ_NO, false, index.id())
+        );
         assertEquals(0, preIndex.get());
         assertEquals(2, postIndex.get());
         assertEquals(0, postIndexException.get());

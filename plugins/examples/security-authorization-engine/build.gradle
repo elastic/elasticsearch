@@ -1,32 +1,34 @@
-apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'elasticsearch.java-rest-test'
 
 esplugin {
   name 'security-authorization-engine'
   description 'An example spi extension plugin for security that implements an Authorization Engine'
   classname 'org.elasticsearch.example.AuthorizationEnginePlugin'
   extendedPlugins = ['x-pack-security']
-  licenseFile rootProject.file('licenses/APACHE-LICENSE-2.0.txt')
+  licenseFile rootProject.file('SSPL-1.0+ELASTIC-LICENSE-2.0.txt')
   noticeFile rootProject.file('NOTICE.txt')
 }
 
 dependencies {
-  compileOnly "org.elasticsearch.plugin:x-pack-core:${versions.elasticsearch}"
-  testCompile "org.elasticsearch.client:elasticsearch-rest-high-level-client:${versions.elasticsearch}"
+  compileOnly "org.elasticsearch.plugin:x-pack-core:${elasticsearchVersion}"
+  testImplementation "org.apache.logging.log4j:log4j-core:${log4jVersion}"
+  testImplementation "org.elasticsearch.plugin:x-pack-core:${elasticsearchVersion}"
+  javaRestTestImplementation "org.elasticsearch.plugin:x-pack-core:${elasticsearchVersion}"
+  javaRestTestImplementation "org.apache.logging.log4j:log4j-core:${log4jVersion}"
+  javaRestTestImplementation("co.elastic.clients:elasticsearch-java:${elasticsearchVersion}")
+  javaRestTestImplementation "org.elasticsearch.client:elasticsearch-rest-client:${elasticsearchVersion}"
+  javaRestTestImplementation 'com.fasterxml.jackson.core:jackson-databind:2.12.3'
+  javaRestTestImplementation "org.elasticsearch.test:framework:${elasticsearchVersion}"
 }
 
-integTest {
-  dependsOn buildZip
-  runner {
-    systemProperty 'tests.security.manager', 'false'
-  }
+tasks.named("javaRestTest").configure {
+  systemProperty 'tests.security.manager', 'false'
 }
 
-testClusters.integTest {
+testClusters.matching { it.name == "javaRestTest" }.configureEach {
   setting 'xpack.security.enabled', 'true'
-  setting 'xpack.ilm.enabled', 'false'
   setting 'xpack.ml.enabled', 'false'
-  setting 'xpack.monitoring.enabled', 'false'
   setting 'xpack.license.self_generated.type', 'trial'
 
   // This is important, so that all the modules are available too.
@@ -37,4 +39,3 @@ testClusters.integTest {
   user role: 'custom_superuser'
 }
 
-check.dependsOn integTest

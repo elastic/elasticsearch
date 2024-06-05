@@ -1,48 +1,42 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.threadpool;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.BaseFuture;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.Scheduler.Cancellable;
-import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.threadpool.Scheduler.ReschedulingRunnable;
 import org.junit.After;
 import org.junit.Before;
 
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.oneOf;
 import static org.hamcrest.Matchers.sameInstance;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -56,7 +50,10 @@ public class ScheduleWithFixedDelayTests extends ESTestCase {
 
     @Before
     public void setup() {
-        threadPool = new ThreadPool(Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "fixed delay tests").build());
+        threadPool = new ThreadPool(
+            Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "fixed delay tests").build(),
+            MeterRegistry.NOOP
+        );
     }
 
     @After
@@ -69,7 +66,7 @@ public class ScheduleWithFixedDelayTests extends ESTestCase {
         final CountDownLatch startLatch = new CountDownLatch(1);
         final CountDownLatch pauseLatch = new CountDownLatch(1);
         ThreadPool threadPool = mock(ThreadPool.class);
-        final Runnable runnable = () ->  {
+        final Runnable runnable = () -> {
             // notify that the runnable is started
             startLatch.countDown();
             try {
@@ -79,10 +76,14 @@ public class ScheduleWithFixedDelayTests extends ESTestCase {
                 Thread.currentThread().interrupt();
             }
         };
-        ReschedulingRunnable reschedulingRunnable = new ReschedulingRunnable(runnable, delay, Names.GENERIC, threadPool,
-                (e) -> {}, (e) -> {});
-        // this call was made during construction of the runnable
-        verify(threadPool, times(1)).schedule(reschedulingRunnable, delay, Names.GENERIC);
+        final Executor executor = mock(Executor.class);
+        ReschedulingRunnable reschedulingRunnable = new ReschedulingRunnable(runnable, delay, executor, threadPool, e -> {}, e -> {});
+        // not scheduled yet
+        verify(threadPool, never()).schedule(any(), any(), any(Executor.class));
+
+        reschedulingRunnable.start();
+        // this call was made by start
+        verify(threadPool, times(1)).schedule(same(reschedulingRunnable), same(delay), same(executor));
 
         // create a thread and start the runnable
         Thread runThread = new Thread() {
@@ -102,7 +103,7 @@ public class ScheduleWithFixedDelayTests extends ESTestCase {
         runThread.join();
 
         // validate schedule was called again
-        verify(threadPool, times(2)).schedule(reschedulingRunnable, delay, Names.GENERIC);
+        verify(threadPool, times(2)).schedule(same(reschedulingRunnable), same(delay), same(executor));
     }
 
     public void testThatRunnableIsRescheduled() throws Exception {
@@ -119,7 +120,7 @@ public class ScheduleWithFixedDelayTests extends ESTestCase {
             }
         };
 
-        Cancellable cancellable = threadPool.scheduleWithFixedDelay(countingRunnable, TimeValue.timeValueMillis(10L), Names.GENERIC);
+        Cancellable cancellable = threadPool.scheduleWithFixedDelay(countingRunnable, TimeValue.timeValueMillis(10L), threadPool.generic());
         assertNotNull(cancellable);
 
         // wait for the number of successful count down operations
@@ -167,7 +168,7 @@ public class ScheduleWithFixedDelayTests extends ESTestCase {
                 throw new RuntimeException("throw at end");
             }
         };
-        Cancellable cancellable = threadPool.scheduleWithFixedDelay(countingRunnable, TimeValue.timeValueMillis(10L), Names.GENERIC);
+        Cancellable cancellable = threadPool.scheduleWithFixedDelay(countingRunnable, TimeValue.timeValueMillis(10L), threadPool.generic());
         cancellableRef.set(cancellable);
         // wait for the runnable to finish
         doneLatch.await();
@@ -183,8 +184,8 @@ public class ScheduleWithFixedDelayTests extends ESTestCase {
     }
 
     public void testBlockingCallOnSchedulerThreadFails() throws Exception {
-        final BaseFuture<Object> future = new BaseFuture<Object>() {};
-        final TestFuture resultsFuture = new TestFuture();
+        final PlainActionFuture<Object> future = new PlainActionFuture<>();
+        final PlainActionFuture<Object> resultsFuture = new PlainActionFuture<>();
         final boolean getWithTimeout = randomBoolean();
 
         final Runnable runnable = () -> {
@@ -195,13 +196,17 @@ public class ScheduleWithFixedDelayTests extends ESTestCase {
                 } else {
                     obj = future.get();
                 }
-                resultsFuture.futureDone(obj);
+                resultsFuture.onResponse(obj);
             } catch (Throwable t) {
-                resultsFuture.futureDone(t);
+                resultsFuture.onResponse(t);
             }
         };
 
-        Cancellable cancellable = threadPool.scheduleWithFixedDelay(runnable, TimeValue.timeValueMillis(10L), Names.SAME);
+        Cancellable cancellable = threadPool.scheduleWithFixedDelay(
+            runnable,
+            TimeValue.timeValueMillis(10L),
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
         Object resultingObject = resultsFuture.get();
         assertNotNull(resultingObject);
         assertThat(resultingObject, instanceOf(Throwable.class));
@@ -212,8 +217,8 @@ public class ScheduleWithFixedDelayTests extends ESTestCase {
     }
 
     public void testBlockingCallOnNonSchedulerThreadAllowed() throws Exception {
-        final TestFuture future = new TestFuture();
-        final TestFuture resultsFuture = new TestFuture();
+        final PlainActionFuture<Object> future = new PlainActionFuture<>();
+        final PlainActionFuture<Object> resultsFuture = new PlainActionFuture<>();
         final boolean rethrow = randomBoolean();
         final boolean getWithTimeout = randomBoolean();
 
@@ -225,20 +230,20 @@ public class ScheduleWithFixedDelayTests extends ESTestCase {
                 } else {
                     obj = future.get();
                 }
-                resultsFuture.futureDone(obj);
+                resultsFuture.onResponse(obj);
             } catch (Throwable t) {
-                resultsFuture.futureDone(t);
+                resultsFuture.onResponse(t);
                 if (rethrow) {
                     throw new RuntimeException(t);
                 }
             }
         };
 
-        final Cancellable cancellable = threadPool.scheduleWithFixedDelay(runnable, TimeValue.timeValueMillis(10L), Names.GENERIC);
+        final Cancellable cancellable = threadPool.scheduleWithFixedDelay(runnable, TimeValue.timeValueMillis(10L), threadPool.generic());
         assertFalse(resultsFuture.isDone());
 
         final Object o = new Object();
-        future.futureDone(o);
+        future.onResponse(o);
 
         final Object resultingObject = resultsFuture.get();
         assertThat(resultingObject, sameInstance(o));
@@ -248,9 +253,12 @@ public class ScheduleWithFixedDelayTests extends ESTestCase {
     public void testOnRejectionCausesCancellation() throws Exception {
         final TimeValue delay = TimeValue.timeValueMillis(10L);
         terminate(threadPool);
-        threadPool = new ThreadPool(Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "fixed delay tests").build()) {
+        threadPool = new ThreadPool(
+            Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "fixed delay tests").build(),
+            MeterRegistry.NOOP
+        ) {
             @Override
-            public ScheduledCancellable schedule(Runnable command, TimeValue delay, String executor) {
+            public ScheduledCancellable schedule(Runnable command, TimeValue delay, Executor executor) {
                 if (command instanceof ReschedulingRunnable) {
                     ((ReschedulingRunnable) command).onRejection(new EsRejectedExecutionException());
                 } else {
@@ -260,39 +268,40 @@ public class ScheduleWithFixedDelayTests extends ESTestCase {
             }
         };
         Runnable runnable = () -> {};
-        ReschedulingRunnable reschedulingRunnable = new ReschedulingRunnable(runnable, delay, Names.GENERIC,
-                threadPool, (e) -> {}, (e) -> {});
+        ReschedulingRunnable reschedulingRunnable = new ReschedulingRunnable(
+            runnable,
+            delay,
+            threadPool.generic(),
+            threadPool,
+            (e) -> {},
+            (e) -> {}
+        );
+        reschedulingRunnable.start();
         assertTrue(reschedulingRunnable.isCancelled());
     }
 
-    public void testRunnableDoesNotRunAfterCancellation() throws Exception {
-        final int iterations = scaledRandomIntBetween(2, 12);
+    public void testRunnableRunsAtMostOnceAfterCancellation() throws Exception {
+        final var intervalMillis = randomLongBetween(1, 50);
         final AtomicInteger counter = new AtomicInteger();
-        final CountDownLatch doneLatch = new CountDownLatch(iterations);
+        final CountDownLatch doneLatch = new CountDownLatch(scaledRandomIntBetween(1, 12));
         final Runnable countingRunnable = () -> {
             counter.incrementAndGet();
             doneLatch.countDown();
         };
 
-        final TimeValue interval = TimeValue.timeValueMillis(50L);
-        final Cancellable cancellable = threadPool.scheduleWithFixedDelay(countingRunnable, interval, Names.GENERIC);
-        doneLatch.await();
-        cancellable.cancel();
-
-        final int counterValue = counter.get();
-        assertThat(counterValue, equalTo(iterations));
-
+        final Cancellable cancellable = threadPool.scheduleWithFixedDelay(
+            countingRunnable,
+            TimeValue.timeValueMillis(intervalMillis),
+            threadPool.generic()
+        );
+        safeAwait(doneLatch);
+        assertTrue(cancellable.cancel());
+        final var iterations = counter.get();
         if (rarely()) {
-            assertBusy(
-                () -> assertThat(counter.get(), equalTo(iterations)),
-                5 * interval.millis(),
-                TimeUnit.MILLISECONDS);
+            Thread.sleep(randomLongBetween(0, intervalMillis * 5));
+        } else if (randomBoolean()) {
+            Thread.yield();
         }
-    }
-
-    static final class TestFuture extends BaseFuture<Object> {
-        boolean futureDone(Object value) {
-            return set(value);
-        }
+        assertThat(counter.get(), oneOf(iterations, iterations + 1));
     }
 }

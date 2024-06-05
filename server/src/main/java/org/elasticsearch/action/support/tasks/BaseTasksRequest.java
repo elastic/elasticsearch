@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.support.tasks;
@@ -25,7 +14,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 
@@ -48,19 +38,18 @@ public class BaseTasksRequest<Request extends BaseTasksRequest<Request>> extends
 
     private String[] actions = ALL_ACTIONS;
 
-    private TaskId parentTaskId = TaskId.EMPTY_TASK_ID;
+    private TaskId targetParentTaskId = TaskId.EMPTY_TASK_ID;
 
-    private TaskId taskId = TaskId.EMPTY_TASK_ID;
+    private TaskId targetTaskId = TaskId.EMPTY_TASK_ID;
 
     // NOTE: This constructor is only needed, because the setters in this class,
     // otherwise it can be removed and above fields can be made final.
-    public BaseTasksRequest() {
-    }
+    public BaseTasksRequest() {}
 
     protected BaseTasksRequest(StreamInput in) throws IOException {
         super(in);
-        taskId = TaskId.readFromStream(in);
-        parentTaskId = TaskId.readFromStream(in);
+        targetTaskId = TaskId.readFromStream(in);
+        targetParentTaskId = TaskId.readFromStream(in);
         nodes = in.readStringArray();
         actions = in.readStringArray();
         timeout = in.readOptionalTimeValue();
@@ -69,8 +58,8 @@ public class BaseTasksRequest<Request extends BaseTasksRequest<Request>> extends
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        taskId.writeTo(out);
-        parentTaskId.writeTo(out);
+        targetTaskId.writeTo(out);
+        targetParentTaskId.writeTo(out);
         out.writeStringArrayNullable(nodes);
         out.writeStringArrayNullable(actions);
         out.writeOptionalTimeValue(timeout);
@@ -79,9 +68,8 @@ public class BaseTasksRequest<Request extends BaseTasksRequest<Request>> extends
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if (taskId.isSet() && nodes.length > 0) {
-            validationException = addValidationError("task id cannot be used together with node ids",
-                validationException);
+        if (targetTaskId.isSet() && nodes.length > 0) {
+            validationException = addValidationError("task id cannot be used together with node ids", validationException);
         }
         return validationException;
     }
@@ -117,30 +105,60 @@ public class BaseTasksRequest<Request extends BaseTasksRequest<Request>> extends
      *
      * By default tasks with any ids are returned.
      */
-    public TaskId getTaskId() {
-        return taskId;
+    public TaskId getTargetTaskId() {
+        return targetTaskId;
     }
 
     @SuppressWarnings("unchecked")
-    public final Request setTaskId(TaskId taskId) {
-        this.taskId = taskId;
+    public final Request setTargetTaskId(TaskId targetTaskId) {
+        this.targetTaskId = targetTaskId;
         return (Request) this;
     }
 
+    /**
+     * @deprecated Use {@link #getTargetTaskId()}
+     */
+    @Deprecated
+    public TaskId getTaskId() {
+        return getTargetTaskId();
+    }
+
+    /**
+     * @deprecated Use {@link #setTargetTaskId(TaskId)}
+     */
+    @Deprecated
+    public final Request setTaskId(TaskId taskId) {
+        return setTargetTaskId(taskId);
+    }
 
     /**
      * Returns the parent task id that tasks should be filtered by
      */
-    public TaskId getParentTaskId() {
-        return parentTaskId;
+    public TaskId getTargetParentTaskId() {
+        return targetParentTaskId;
     }
 
     @SuppressWarnings("unchecked")
-    public Request setParentTaskId(TaskId parentTaskId) {
-        this.parentTaskId = parentTaskId;
+    public Request setTargetParentTaskId(TaskId targetParentTaskId) {
+        this.targetParentTaskId = targetParentTaskId;
         return (Request) this;
     }
 
+    /**
+     * @deprecated Use {@link #getTargetParentTaskId()}
+     */
+    @Deprecated
+    public TaskId getParentTaskId() {
+        return getTargetParentTaskId();
+    }
+
+    /**
+     * @deprecated Use {@link #setTargetParentTaskId(TaskId)}
+     */
+    @Deprecated
+    public Request setParentTaskId(TaskId parentTaskId) {
+        return setTargetParentTaskId(parentTaskId);
+    }
 
     public TimeValue getTimeout() {
         return this.timeout;
@@ -152,23 +170,17 @@ public class BaseTasksRequest<Request extends BaseTasksRequest<Request>> extends
         return (Request) this;
     }
 
-    @SuppressWarnings("unchecked")
-    public final Request setTimeout(String timeout) {
-        this.timeout = TimeValue.parseTimeValue(timeout, null, getClass().getSimpleName() + ".timeout");
-        return (Request) this;
-    }
-
     public boolean match(Task task) {
-        if (getActions() != null && getActions().length > 0 && Regex.simpleMatch(getActions(), task.getAction()) == false) {
+        if (CollectionUtils.isEmpty(getActions()) == false && Regex.simpleMatch(getActions(), task.getAction()) == false) {
             return false;
         }
-        if (getTaskId().isSet()) {
-            if(getTaskId().getId() != task.getId()) {
+        if (getTargetTaskId().isSet()) {
+            if (getTargetTaskId().getId() != task.getId()) {
                 return false;
             }
         }
-        if (parentTaskId.isSet()) {
-            if (parentTaskId.equals(task.getParentTaskId()) == false) {
+        if (targetParentTaskId.isSet()) {
+            if (targetParentTaskId.equals(task.getParentTaskId()) == false) {
                 return false;
             }
         }

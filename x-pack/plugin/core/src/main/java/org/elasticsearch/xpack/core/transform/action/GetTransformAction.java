@@ -1,20 +1,24 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.transform.action;
 
-import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.action.AbstractGetResourcesRequest;
 import org.elasticsearch.xpack.core.action.AbstractGetResourcesResponse;
 import org.elasticsearch.xpack.core.action.util.PageParams;
@@ -25,19 +29,20 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.core.Strings.format;
 
 public class GetTransformAction extends ActionType<GetTransformAction.Response> {
 
     public static final GetTransformAction INSTANCE = new GetTransformAction();
     public static final String NAME = "cluster:monitor/transform/get";
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
-            LogManager.getLogger(GetTransformAction.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(GetTransformAction.class);
 
     private GetTransformAction() {
-        super(NAME, GetTransformAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends AbstractGetResourcesRequest {
@@ -64,10 +69,17 @@ public class GetTransformAction extends ActionType<GetTransformAction.Response> 
         public ActionRequestValidationException validate() {
             ActionRequestValidationException exception = null;
             if (getPageParams() != null && getPageParams().getSize() > MAX_SIZE_RETURN) {
-                exception = addValidationError("Param [" + PageParams.SIZE.getPreferredName() +
-                    "] has a max acceptable value of [" + MAX_SIZE_RETURN + "]", exception);
+                exception = addValidationError(
+                    "Param [" + PageParams.SIZE.getPreferredName() + "] has a max acceptable value of [" + MAX_SIZE_RETURN + "]",
+                    exception
+                );
             }
             return exception;
+        }
+
+        @Override
+        public String getCancelableTaskDescription() {
+            return format("get_transforms[%s]", getResourceId());
         }
 
         @Override
@@ -76,25 +88,75 @@ public class GetTransformAction extends ActionType<GetTransformAction.Response> 
         }
     }
 
-    public static class Response extends AbstractGetResourcesResponse<TransformConfig> implements Writeable, ToXContentObject {
+    public static class Response extends AbstractGetResourcesResponse<TransformConfig> implements ToXContentObject {
+
+        public static class Error implements Writeable, ToXContentObject {
+            private static final ParseField TYPE = new ParseField("type");
+            private static final ParseField REASON = new ParseField("reason");
+
+            private final String type;
+            private final String reason;
+
+            public Error(String type, String reason) {
+                this.type = Objects.requireNonNull(type);
+                this.reason = Objects.requireNonNull(reason);
+            }
+
+            public Error(StreamInput in) throws IOException {
+                this.type = in.readString();
+                this.reason = in.readString();
+            }
+
+            @Override
+            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+                builder.startObject();
+                builder.field(TYPE.getPreferredName(), type);
+                builder.field(REASON.getPreferredName(), reason);
+                builder.endObject();
+                return builder;
+            }
+
+            @Override
+            public void writeTo(StreamOutput out) throws IOException {
+                out.writeString(type);
+                out.writeString(reason);
+            }
+        }
 
         public static final String INVALID_TRANSFORMS_DEPRECATION_WARNING = "Found [{}] invalid transforms";
         private static final ParseField INVALID_TRANSFORMS = new ParseField("invalid_transforms");
+        private static final ParseField ERRORS = new ParseField("errors");
 
-        public Response(List<TransformConfig> transformConfigs, long count) {
+        private final List<Error> errors;
+
+        public Response(List<TransformConfig> transformConfigs, long count, List<Error> errors) {
             super(new QueryPage<>(transformConfigs, count, TransformField.TRANSFORMS));
-        }
-
-        public Response() {
-            super();
+            this.errors = errors;
         }
 
         public Response(StreamInput in) throws IOException {
             super(in);
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0)) {
+                if (in.readBoolean()) {
+                    this.errors = in.readCollectionAsList(Error::new);
+                } else {
+                    this.errors = null;
+                }
+            } else {
+                this.errors = null;
+            }
         }
 
         public List<TransformConfig> getTransformConfigurations() {
             return getResources().results();
+        }
+
+        public long getTransformConfigurationCount() {
+            return getResources().count();
+        }
+
+        public List<Error> getErrors() {
+            return errors;
         }
 
         @Override
@@ -107,7 +169,8 @@ public class GetTransformAction extends ActionType<GetTransformAction.Response> 
             builder.startArray();
             for (TransformConfig configResponse : getResources().results()) {
                 configResponse.toXContent(builder, params);
-                if (configResponse.isValid() == false) {
+                ValidationException validationException = configResponse.validate(null);
+                if (validationException != null) {
                     invalidTransforms.add(configResponse.getId());
                 }
             }
@@ -117,11 +180,31 @@ public class GetTransformAction extends ActionType<GetTransformAction.Response> 
                 builder.field(TransformField.COUNT.getPreferredName(), invalidTransforms.size());
                 builder.field(TransformField.TRANSFORMS.getPreferredName(), invalidTransforms);
                 builder.endObject();
-                deprecationLogger.deprecated(INVALID_TRANSFORMS_DEPRECATION_WARNING, invalidTransforms.size());
+                deprecationLogger.warn(
+                    DeprecationCategory.OTHER,
+                    "invalid_transforms",
+                    INVALID_TRANSFORMS_DEPRECATION_WARNING,
+                    invalidTransforms.size()
+                );
             }
-
+            if (errors != null) {
+                builder.field(ERRORS.getPreferredName(), errors);
+            }
             builder.endObject();
             return builder;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0)) {
+                if (errors != null) {
+                    out.writeBoolean(true);
+                    out.writeCollection(errors);
+                } else {
+                    out.writeBoolean(false);
+                }
+            }
         }
 
         @Override

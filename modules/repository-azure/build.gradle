@@ -1,0 +1,236 @@
+import org.apache.tools.ant.filters.ReplaceTokens
+import org.elasticsearch.gradle.internal.test.InternalClusterTestPlugin
+
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.internal-cluster-test'
+
+esplugin {
+  description 'The Azure Repository plugin adds support for Azure storage repositories.'
+  classname 'org.elasticsearch.repositories.azure.AzureRepositoryPlugin'
+}
+
+versions << [
+  'azure': '12.20.1',
+  'azureCommon': '12.19.1',
+  'azureCore': '1.34.0',
+  'azureCoreHttpNetty': '1.12.7',
+  'azureJackson': '2.13.4',
+  'azureJacksonDatabind': '2.13.4.2',
+  'azureAvro': '12.5.3',
+
+  'jakartaActivation': '1.2.1',
+  'jakartaXMLBind': '2.3.2',
+  'stax2API': '4.2.1',
+  'woodstox': '6.4.0',
+
+  'reactorNetty': '1.0.39',
+  'reactorCore': '3.4.34',
+  'reactiveStreams': '1.0.4',
+]
+
+dependencies {
+  api "com.azure:azure-storage-blob:${versions.azure}"
+  api "com.azure:azure-storage-common:${versions.azureCommon}"
+  api "com.azure:azure-core-http-netty:${versions.azureCoreHttpNetty}"
+  api "com.azure:azure-core:${versions.azureCore}"
+  // jackson
+  api "com.fasterxml.jackson.core:jackson-core:${versions.azureJackson}"
+  api "com.fasterxml.jackson.core:jackson-databind:${versions.azureJacksonDatabind}"
+  api "com.fasterxml.jackson.core:jackson-annotations:${versions.azureJackson}"
+
+  // jackson xml
+  api "com.fasterxml.jackson.dataformat:jackson-dataformat-xml:${versions.azureJackson}"
+  api "com.fasterxml.jackson.datatype:jackson-datatype-jsr310:${versions.azureJackson}"
+  api "com.fasterxml.jackson.module:jackson-module-jaxb-annotations:${versions.azureJackson}"
+  api "jakarta.activation:jakarta.activation-api:${versions.jakartaActivation}"
+  // The SDK uses javax.xml bindings
+  api "jakarta.xml.bind:jakarta.xml.bind-api:${versions.jakartaXMLBind}"
+  api "org.codehaus.woodstox:stax2-api:${versions.stax2API}"
+  api "com.fasterxml.woodstox:woodstox-core:${versions.woodstox}"
+
+  // netty
+  api "io.netty:netty-codec-dns:${versions.netty}"
+  api "io.netty:netty-codec-http2:${versions.netty}"
+  api "io.netty:netty-codec-socks:${versions.netty}"
+  api "io.netty:netty-handler-proxy:${versions.netty}"
+  api "io.netty:netty-resolver-dns:${versions.netty}"
+
+  // reactor
+  api "io.projectreactor.netty:reactor-netty-core:${versions.reactorNetty}"
+  api "io.projectreactor.netty:reactor-netty-http:${versions.reactorNetty}"
+  api "io.projectreactor:reactor-core:${versions.reactorCore}"
+  api "org.reactivestreams:reactive-streams:${versions.reactiveStreams}"
+
+  implementation project(":modules:transport-netty4")
+  implementation("org.slf4j:slf4j-api:${versions.slf4j}")
+  runtimeOnly "org.slf4j:slf4j-nop:${versions.slf4j}"
+//  runtimeOnly("org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}") https://github.com/elastic/elasticsearch/issues/93714
+
+
+  runtimeOnly "com.azure:azure-storage-internal-avro:${versions.azureAvro}"
+
+  testImplementation project(':test:fixtures:azure-fixture')
+  yamlRestTestImplementation project(':test:fixtures:azure-fixture')
+}
+
+restResources {
+  restApi {
+    include '_common', 'cluster', 'nodes', 'snapshot', 'bulk', 'count', 'indices'
+  }
+}
+
+tasks.named("dependencyLicenses").configure {
+  mapping from: /azure-.*/, to: 'azure'
+  mapping from: /jackson-.*/, to: 'jackson'
+  mapping from: /netty-.*/, to: 'netty'
+  mapping from: /jaxb-.*/, to: 'jaxb'
+  mapping from: /stax-.*/, to: 'stax'
+  mapping from: /reactor-netty-.*/, to: 'reactor-netty'
+  mapping from: /reactive-streams.*/, to: 'reactive-streams'
+}
+
+tasks.named("thirdPartyAudit").configure {
+  ignoreMissingClasses(
+    // from reactory-netty metric collection
+    'io.micrometer.core.instrument.Clock',
+    'io.micrometer.core.instrument.Counter',
+    'io.micrometer.core.instrument.Counter$Builder',
+    'io.micrometer.core.instrument.DistributionSummary',
+    'io.micrometer.core.instrument.DistributionSummary$Builder',
+    'io.micrometer.core.instrument.Meter',
+    'io.micrometer.core.instrument.Meter$Type',
+    'io.micrometer.core.instrument.MeterRegistry',
+    'io.micrometer.core.instrument.Metrics',
+    'io.micrometer.core.instrument.Tag',
+    'io.micrometer.core.instrument.Tags',
+    'io.micrometer.core.instrument.Timer',
+    'io.micrometer.core.instrument.Timer$Builder',
+    'io.micrometer.core.instrument.Timer$Sample',
+    'io.micrometer.core.instrument.binder.jvm.ExecutorServiceMetrics',
+    'io.micrometer.core.instrument.composite.CompositeMeterRegistry',
+    'io.micrometer.core.instrument.search.Search',
+    'io.micrometer.core.instrument.Gauge',
+    'io.micrometer.core.instrument.Gauge$Builder',
+    'io.micrometer.context.ContextAccessor',
+
+    // from reactor-core kotlin extensions (to be deprecated from the library at some point on 3.3.x release)
+    'kotlin.collections.ArraysKt',
+    'kotlin.jvm.JvmClassMappingKt',
+    'kotlin.jvm.functions.Function0',
+    'kotlin.jvm.functions.Function1',
+    'kotlin.jvm.internal.FunctionReference',
+    'kotlin.jvm.internal.Intrinsics',
+    'kotlin.jvm.internal.Reflection',
+    'kotlin.jvm.internal.markers.KMappedMarker',
+    'kotlin.reflect.KClass',
+    'kotlin.reflect.KDeclarationContainer',
+    'kotlin.sequences.Sequence',
+
+    // from io.netty.util.internal.Hidden (netty-common optional dependency)
+    'reactor.blockhound.BlockHound$Builder',
+    'reactor.blockhound.integration.BlockHoundIntegration',
+
+    // it uses NIO
+    'io.netty.channel.kqueue.KQueue',
+    'io.netty.channel.kqueue.KQueueDatagramChannel',
+    'io.netty.channel.kqueue.KQueueServerSocketChannel',
+    'io.netty.channel.kqueue.KQueueSocketChannel',
+
+    'io.netty.channel.epoll.Epoll',
+    'io.netty.channel.epoll.EpollDatagramChannel',
+    'io.netty.channel.epoll.EpollServerSocketChannel',
+    'io.netty.channel.epoll.EpollSocketChannel',
+
+    'io.netty.incubator.channel.uring.IOUring',
+    'io.netty.incubator.channel.uring.IOUringDatagramChannel',
+    'io.netty.incubator.channel.uring.IOUringServerSocketChannel',
+    'io.netty.incubator.channel.uring.IOUringSocketChannel',
+
+    // from reactor.netty.http.server.HttpServer (reactor-netty)
+    'io.netty.handler.codec.haproxy.HAProxyMessage',
+    'io.netty.handler.codec.haproxy.HAProxyMessageDecoder',
+
+    // from com.ctc.wstx.osgi.WstxBundleActivator (woodstox-core)
+    'org.osgi.framework.BundleActivator',
+    'org.osgi.framework.BundleContext',
+
+    // from com.ctc.wstx.shaded.msv_core.driver.textui.Driver (woodstox-core)
+    'com.ctc.wstx.shaded.msv_core.driver.textui.Driver',
+    // [missing classes] SLF4j includes an optional class that depends on an extension class. see Log4jLogger#createConverter
+    //    'org.slf4j.ext.EventData' - bring back when https://github.com/elastic/elasticsearch/issues/93714 is done
+  )
+
+  ignoreViolations(
+    'javax.activation.MailcapCommandMap',
+    'javax.activation.MimetypesFileTypeMap',
+    'reactor.core.publisher.Traces$SharedSecretsCallSiteSupplierFactory$TracingException',
+  )
+}
+
+boolean useFixture = false
+String azureAccount = System.getenv("azure_storage_account")
+String azureKey = System.getenv("azure_storage_key")
+String azureContainer = System.getenv("azure_storage_container")
+String azureBasePath = System.getenv("azure_storage_base_path")
+String azureSasToken = System.getenv("azure_storage_sas_token")
+
+if (!azureAccount && !azureKey && !azureContainer && !azureBasePath && !azureSasToken) {
+  azureAccount = 'azure_integration_test_account'
+  azureKey = 'YXp1cmVfaW50ZWdyYXRpb25fdGVzdF9rZXk=' // The key is "azure_integration_test_key" encoded using base64
+  azureContainer = 'container'
+  azureBasePath = ''
+  azureSasToken = ''
+  useFixture = true
+}
+
+Map<String, String> expansions = [
+  'container': azureContainer,
+  'base_path': azureBasePath + "_integration_tests"
+]
+
+tasks.named("processYamlRestTestResources") {
+  inputs.properties(expansions)
+  filter("tokens" : expansions, ReplaceTokens.class)
+}
+
+tasks.named("internalClusterTest") {
+  // this is tested explicitly in a separate test task
+  exclude '**/AzureStorageCleanupThirdPartyTests.class'
+}
+
+tasks.named("yamlRestTest") {
+  systemProperty 'test.azure.fixture', Boolean.toString(useFixture)
+  systemProperty 'test.azure.account', azureAccount
+  systemProperty 'test.azure.container', azureContainer
+  systemProperty 'test.azure.key', azureKey
+  systemProperty 'test.azure.sas_token', azureSasToken
+}
+
+tasks.register("azureThirdPartyUnitTest", Test) {
+  SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
+  SourceSet internalTestSourceSet = sourceSets.getByName(InternalClusterTestPlugin.SOURCE_SET_NAME)
+  setTestClassesDirs(internalTestSourceSet.getOutput().getClassesDirs())
+  setClasspath(internalTestSourceSet.getRuntimeClasspath())
+  include '**/AzureStorageCleanupThirdPartyTests.class'
+  systemProperty 'test.azure.fixture', Boolean.toString(useFixture)
+  systemProperty 'test.azure.account', azureAccount ?: ""
+  systemProperty 'test.azure.key', azureKey ?: ""
+  systemProperty 'test.azure.sas_token', azureSasToken ?: ""
+  systemProperty 'test.azure.container', azureContainer ?: ""
+  systemProperty 'test.azure.base', (azureBasePath ?: "") + "_third_party_tests_"
+}
+
+tasks.register('azureThirdPartyTest') {
+  dependsOn 'azureThirdPartyUnitTest', 'yamlRestTest'
+}
+
+tasks.named("check") {
+  dependsOn("azureThirdPartyUnitTest")
+}

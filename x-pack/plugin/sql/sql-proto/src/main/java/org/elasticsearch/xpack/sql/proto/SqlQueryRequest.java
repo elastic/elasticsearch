@@ -1,21 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.sql.proto;
 
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.sql.proto.core.Nullable;
+import org.elasticsearch.xpack.sql.proto.core.TimeValue;
 
-import java.io.IOException;
 import java.time.ZoneId;
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+
+import static java.util.Collections.emptyList;
 
 /**
  * Sql query request for JDBC/CLI client
@@ -25,40 +24,121 @@ public class SqlQueryRequest extends AbstractSqlRequest {
     private final String cursor;
     private final String query;
     private final ZoneId zoneId;
+    private final String catalog;
     private final int fetchSize;
     private final TimeValue requestTimeout;
     private final TimeValue pageTimeout;
-    @Nullable
-    private final ToXContent filter;
     private final Boolean columnar;
     private final List<SqlTypedParamValue> params;
     private final boolean fieldMultiValueLeniency;
     private final boolean indexIncludeFrozen;
     private final Boolean binaryCommunication;
+    // Async settings
+    private final TimeValue waitForCompletionTimeout;
+    private final boolean keepOnCompletion;
+    private final TimeValue keepAlive;
 
-    public SqlQueryRequest(String query, List<SqlTypedParamValue> params, ZoneId zoneId, int fetchSize,
-                           TimeValue requestTimeout, TimeValue pageTimeout, ToXContent filter, Boolean columnar,
-                           String cursor, RequestInfo requestInfo, boolean fieldMultiValueLeniency, boolean indexIncludeFrozen,
-                           Boolean binaryCommunication) {
+    private final boolean allowPartialSearchResults;
+
+    public SqlQueryRequest(
+        String query,
+        List<SqlTypedParamValue> params,
+        ZoneId zoneId,
+        String catalog,
+        int fetchSize,
+        TimeValue requestTimeout,
+        TimeValue pageTimeout,
+        Boolean columnar,
+        String cursor,
+        RequestInfo requestInfo,
+        boolean fieldMultiValueLeniency,
+        boolean indexIncludeFrozen,
+        Boolean binaryCommunication,
+        TimeValue waitForCompletionTimeout,
+        boolean keepOnCompletion,
+        TimeValue keepAlive,
+        boolean allowPartialSearchResults
+    ) {
         super(requestInfo);
         this.query = query;
         this.params = params;
         this.zoneId = zoneId;
+        this.catalog = catalog;
         this.fetchSize = fetchSize;
         this.requestTimeout = requestTimeout;
         this.pageTimeout = pageTimeout;
-        this.filter = filter;
         this.columnar = columnar;
         this.cursor = cursor;
         this.fieldMultiValueLeniency = fieldMultiValueLeniency;
         this.indexIncludeFrozen = indexIncludeFrozen;
         this.binaryCommunication = binaryCommunication;
+        this.waitForCompletionTimeout = waitForCompletionTimeout;
+        this.keepOnCompletion = keepOnCompletion;
+        this.keepAlive = keepAlive;
+        this.allowPartialSearchResults = allowPartialSearchResults;
     }
 
-    public SqlQueryRequest(String cursor, TimeValue requestTimeout, TimeValue pageTimeout, RequestInfo requestInfo,
-                           boolean binaryCommunication) {
-        this("", Collections.emptyList(), Protocol.TIME_ZONE, Protocol.FETCH_SIZE, requestTimeout, pageTimeout,
-                null, false, cursor, requestInfo, Protocol.FIELD_MULTI_VALUE_LENIENCY, Protocol.INDEX_INCLUDE_FROZEN, binaryCommunication);
+    public SqlQueryRequest(
+        String query,
+        List<SqlTypedParamValue> params,
+        ZoneId zoneId,
+        String catalog,
+        int fetchSize,
+        TimeValue requestTimeout,
+        TimeValue pageTimeout,
+        Boolean columnar,
+        String cursor,
+        RequestInfo requestInfo,
+        boolean fieldMultiValueLeniency,
+        boolean indexIncludeFrozen,
+        Boolean binaryCommunication,
+        boolean allowPartialSearchResults
+    ) {
+        this(
+            query,
+            params,
+            zoneId,
+            catalog,
+            fetchSize,
+            requestTimeout,
+            pageTimeout,
+            columnar,
+            cursor,
+            requestInfo,
+            fieldMultiValueLeniency,
+            indexIncludeFrozen,
+            binaryCommunication,
+            CoreProtocol.DEFAULT_WAIT_FOR_COMPLETION_TIMEOUT,
+            CoreProtocol.DEFAULT_KEEP_ON_COMPLETION,
+            CoreProtocol.DEFAULT_KEEP_ALIVE,
+            allowPartialSearchResults
+        );
+    }
+
+    public SqlQueryRequest(
+        String cursor,
+        TimeValue requestTimeout,
+        TimeValue pageTimeout,
+        RequestInfo requestInfo,
+        boolean binaryCommunication,
+        boolean allowPartialSearchResults
+    ) {
+        this(
+            "",
+            emptyList(),
+            CoreProtocol.TIME_ZONE,
+            null,
+            CoreProtocol.FETCH_SIZE,
+            requestTimeout,
+            pageTimeout,
+            false,
+            cursor,
+            requestInfo,
+            CoreProtocol.FIELD_MULTI_VALUE_LENIENCY,
+            CoreProtocol.INDEX_INCLUDE_FROZEN,
+            binaryCommunication,
+            allowPartialSearchResults
+        );
     }
 
     /**
@@ -90,6 +170,9 @@ public class SqlQueryRequest extends AbstractSqlRequest {
         return zoneId;
     }
 
+    public String catalog() {
+        return catalog;
+    }
 
     /**
      * Hint about how many results to fetch at once.
@@ -113,13 +196,6 @@ public class SqlQueryRequest extends AbstractSqlRequest {
     }
 
     /**
-     * An optional Query DSL defined query that can added as a filter on the top of the SQL query
-     */
-    public ToXContent filter() {
-        return filter;
-    }
-    
-    /**
      * Optional setting for returning the result values in a columnar fashion (as opposed to rows of values).
      * Each column will have all its values in a list. Defaults to false.
      */
@@ -130,15 +206,31 @@ public class SqlQueryRequest extends AbstractSqlRequest {
     public boolean fieldMultiValueLeniency() {
         return fieldMultiValueLeniency;
     }
-    
+
     public boolean indexIncludeFrozen() {
         return indexIncludeFrozen;
     }
-    
+
     public Boolean binaryCommunication() {
         return binaryCommunication;
     }
-    
+
+    public TimeValue waitForCompletionTimeout() {
+        return waitForCompletionTimeout;
+    }
+
+    public boolean keepOnCompletion() {
+        return keepOnCompletion;
+    }
+
+    public TimeValue keepAlive() {
+        return keepAlive;
+    }
+
+    public boolean allowPartialSearchResults() {
+        return allowPartialSearchResults;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) {
@@ -147,77 +239,47 @@ public class SqlQueryRequest extends AbstractSqlRequest {
         if (o == null || getClass() != o.getClass()) {
             return false;
         }
-        if (!super.equals(o)) {
+        if (super.equals(o) == false) {
             return false;
         }
         SqlQueryRequest that = (SqlQueryRequest) o;
         return fetchSize == that.fetchSize
-                && Objects.equals(query, that.query)
-                && Objects.equals(params, that.params)
-                && Objects.equals(zoneId, that.zoneId)
-                && Objects.equals(requestTimeout, that.requestTimeout)
-                && Objects.equals(pageTimeout, that.pageTimeout)
-                && Objects.equals(filter, that.filter)
-                && Objects.equals(columnar,  that.columnar)
-                && Objects.equals(cursor, that.cursor)
-                && fieldMultiValueLeniency == that.fieldMultiValueLeniency
-                && indexIncludeFrozen == that.indexIncludeFrozen
-                && Objects.equals(binaryCommunication,  that.binaryCommunication);
+            && fieldMultiValueLeniency == that.fieldMultiValueLeniency
+            && indexIncludeFrozen == that.indexIncludeFrozen
+            && keepOnCompletion == that.keepOnCompletion
+            && allowPartialSearchResults == that.allowPartialSearchResults
+            && Objects.equals(query, that.query)
+            && Objects.equals(params, that.params)
+            && Objects.equals(zoneId, that.zoneId)
+            && Objects.equals(catalog, that.catalog)
+            && Objects.equals(requestTimeout, that.requestTimeout)
+            && Objects.equals(pageTimeout, that.pageTimeout)
+            && Objects.equals(columnar, that.columnar)
+            && Objects.equals(cursor, that.cursor)
+            && Objects.equals(binaryCommunication, that.binaryCommunication)
+            && Objects.equals(waitForCompletionTimeout, that.waitForCompletionTimeout)
+            && Objects.equals(keepAlive, that.keepAlive);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), query, zoneId, fetchSize, requestTimeout, pageTimeout,
-                filter, columnar, cursor, fieldMultiValueLeniency, indexIncludeFrozen, binaryCommunication);
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        if (query != null) {
-            builder.field("query", query);
-        }
-        builder.field("mode", mode().toString());
-        if (clientId() != null) {
-            builder.field("client_id", clientId());
-        }
-        if (this.params != null && this.params.isEmpty() == false) {
-            builder.startArray("params");
-            for (SqlTypedParamValue val : this.params) {
-                val.toXContent(builder, params);
-            }
-            builder.endArray();
-        }
-        if (zoneId != null) {
-            builder.field("time_zone", zoneId.getId());
-        }
-        if (fetchSize != Protocol.FETCH_SIZE) {
-            builder.field("fetch_size", fetchSize);
-        }
-        if (requestTimeout != Protocol.REQUEST_TIMEOUT) {
-            builder.field("request_timeout", requestTimeout.getStringRep());
-        }
-        if (pageTimeout != Protocol.PAGE_TIMEOUT) {
-            builder.field("page_timeout", pageTimeout.getStringRep());
-        }
-        if (filter != null) {
-            builder.field("filter");
-            filter.toXContent(builder, params);
-        }
-        if (columnar != null) {
-            builder.field("columnar", columnar);
-        }
-        if (fieldMultiValueLeniency) {
-            builder.field("field_multi_value_leniency", fieldMultiValueLeniency);
-        }
-        if (indexIncludeFrozen) {
-            builder.field("index_include_frozen", indexIncludeFrozen);
-        }
-        if (binaryCommunication != null) {
-            builder.field("binary_format", binaryCommunication);
-        }
-        if (cursor != null) {
-            builder.field("cursor", cursor);
-        }
-        return builder;
+        return Objects.hash(
+            super.hashCode(),
+            query,
+            zoneId,
+            catalog,
+            fetchSize,
+            requestTimeout,
+            pageTimeout,
+            columnar,
+            cursor,
+            fieldMultiValueLeniency,
+            indexIncludeFrozen,
+            binaryCommunication,
+            waitForCompletionTimeout,
+            keepOnCompletion,
+            keepAlive,
+            allowPartialSearchResults
+        );
     }
 }

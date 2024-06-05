@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.index.fielddata.ordinals;
 
@@ -25,21 +14,23 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.Accountable;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.index.AbstractIndexComponent;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.fielddata.AtomicOrdinalsFieldData;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
-import org.elasticsearch.index.fielddata.ScriptDocValues;
-import org.elasticsearch.index.fielddata.plain.AbstractAtomicOrdinalsFieldData;
+import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
+import org.elasticsearch.index.fielddata.plain.AbstractLeafOrdinalsFieldData;
+import org.elasticsearch.script.field.ToScriptFieldFactory;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.search.sort.BucketedSort;
+import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Collection;
-import java.util.Collections;
-import java.util.function.Function;
 
 /**
  * Concrete implementation of {@link IndexOrdinalsFieldData} for global ordinals.
@@ -50,35 +41,41 @@ import java.util.function.Function;
  * this is done to avoid creating all segment's {@link TermsEnum} each time we want to access the values of a single
  * segment.
  */
-public final class GlobalOrdinalsIndexFieldData extends AbstractIndexComponent implements IndexOrdinalsFieldData, Accountable {
+public final class GlobalOrdinalsIndexFieldData implements IndexOrdinalsFieldData, Accountable, GlobalOrdinalsAccounting {
 
     private final String fieldName;
+    private final ValuesSourceType valuesSourceType;
     private final long memorySizeInBytes;
 
     private final OrdinalMap ordinalMap;
-    private final AtomicOrdinalsFieldData[] segmentAfd;
-    private final Function<SortedSetDocValues, ScriptDocValues<?>> scriptFunction;
+    private final LeafOrdinalsFieldData[] segmentAfd;
+    private final ToScriptFieldFactory<SortedSetDocValues> toScriptFieldFactory;
+    private final TimeValue took;
 
-    protected GlobalOrdinalsIndexFieldData(IndexSettings indexSettings,
-                                           String fieldName,
-                                           AtomicOrdinalsFieldData[] segmentAfd,
-                                           OrdinalMap ordinalMap,
-                                           long memorySizeInBytes,
-                                           Function<SortedSetDocValues, ScriptDocValues<?>> scriptFunction) {
-        super(indexSettings);
+    GlobalOrdinalsIndexFieldData(
+        String fieldName,
+        ValuesSourceType valuesSourceType,
+        LeafOrdinalsFieldData[] segmentAfd,
+        OrdinalMap ordinalMap,
+        long memorySizeInBytes,
+        ToScriptFieldFactory<SortedSetDocValues> toScriptFieldFactory,
+        TimeValue took
+    ) {
         this.fieldName = fieldName;
+        this.valuesSourceType = valuesSourceType;
         this.memorySizeInBytes = memorySizeInBytes;
         this.ordinalMap = ordinalMap;
         this.segmentAfd = segmentAfd;
-        this.scriptFunction = scriptFunction;
+        this.toScriptFieldFactory = toScriptFieldFactory;
+        this.took = took;
     }
 
     public IndexOrdinalsFieldData newConsumer(DirectoryReader source) {
-        return new Consumer(source, indexSettings);
+        return new Consumer(source);
     }
 
     @Override
-    public AtomicOrdinalsFieldData loadDirect(LeafReaderContext context) throws Exception {
+    public LeafOrdinalsFieldData loadDirect(LeafReaderContext context) throws Exception {
         throw new IllegalStateException("loadDirect(LeafReaderContext) should not be called in this context");
     }
 
@@ -88,7 +85,7 @@ public final class GlobalOrdinalsIndexFieldData extends AbstractIndexComponent i
     }
 
     @Override
-    public IndexOrdinalsFieldData localGlobalDirect(DirectoryReader indexReader) throws Exception {
+    public IndexOrdinalsFieldData loadGlobalDirect(DirectoryReader indexReader) throws Exception {
         return this;
     }
 
@@ -98,12 +95,28 @@ public final class GlobalOrdinalsIndexFieldData extends AbstractIndexComponent i
     }
 
     @Override
+    public ValuesSourceType getValuesSourceType() {
+        return valuesSourceType;
+    }
+
+    @Override
     public SortField sortField(@Nullable Object missingValue, MultiValueMode sortMode, Nested nested, boolean reverse) {
         throw new UnsupportedOperationException("no global ordinals sorting yet");
     }
 
     @Override
-    public void clear() {}
+    public BucketedSort newBucketedSort(
+        BigArrays bigArrays,
+        Object missingValue,
+        MultiValueMode sortMode,
+        Nested nested,
+        SortOrder sortOrder,
+        DocValueFormat format,
+        int bucketSize,
+        BucketedSort.ExtraData extra
+    ) {
+        throw new IllegalArgumentException("only supported on numeric fields");
+    }
 
     @Override
     public long ramBytesUsed() {
@@ -111,13 +124,7 @@ public final class GlobalOrdinalsIndexFieldData extends AbstractIndexComponent i
     }
 
     @Override
-    public Collection<Accountable> getChildResources() {
-        // TODO: break down ram usage?
-        return Collections.emptyList();
-    }
-
-    @Override
-    public AtomicOrdinalsFieldData load(LeafReaderContext context) {
+    public LeafOrdinalsFieldData load(LeafReaderContext context) {
         throw new IllegalStateException("load(LeafReaderContext) should not be called in this context");
     }
 
@@ -131,16 +138,25 @@ public final class GlobalOrdinalsIndexFieldData extends AbstractIndexComponent i
         return true;
     }
 
+    @Override
+    public long getValueCount() {
+        return ordinalMap.getValueCount();
+    }
+
+    @Override
+    public TimeValue getBuildingTime() {
+        return took;
+    }
+
     /**
      * A non-thread safe {@link IndexOrdinalsFieldData} for global ordinals that creates the {@link TermsEnum} of each
      * segment once and use them to provide a single lookup per segment.
      */
-    public class Consumer extends AbstractIndexComponent implements IndexOrdinalsFieldData, Accountable {
+    public class Consumer implements IndexOrdinalsFieldData, Accountable {
         private final DirectoryReader source;
         private TermsEnum[] lookups;
 
-        Consumer(DirectoryReader source, IndexSettings settings) {
-            super(settings);
+        Consumer(DirectoryReader source) {
             this.source = source;
         }
 
@@ -162,7 +178,7 @@ public final class GlobalOrdinalsIndexFieldData extends AbstractIndexComponent i
         }
 
         @Override
-        public AtomicOrdinalsFieldData loadDirect(LeafReaderContext context) throws Exception {
+        public LeafOrdinalsFieldData loadDirect(LeafReaderContext context) throws Exception {
             return load(context);
         }
 
@@ -172,7 +188,7 @@ public final class GlobalOrdinalsIndexFieldData extends AbstractIndexComponent i
         }
 
         @Override
-        public IndexOrdinalsFieldData localGlobalDirect(DirectoryReader indexReader) throws Exception {
+        public IndexOrdinalsFieldData loadGlobalDirect(DirectoryReader indexReader) throws Exception {
             return this;
         }
 
@@ -182,12 +198,28 @@ public final class GlobalOrdinalsIndexFieldData extends AbstractIndexComponent i
         }
 
         @Override
+        public ValuesSourceType getValuesSourceType() {
+            return valuesSourceType;
+        }
+
+        @Override
         public SortField sortField(@Nullable Object missingValue, MultiValueMode sortMode, Nested nested, boolean reverse) {
             throw new UnsupportedOperationException("no global ordinals sorting yet");
         }
 
         @Override
-        public void clear() {}
+        public BucketedSort newBucketedSort(
+            BigArrays bigArrays,
+            Object missingValue,
+            MultiValueMode sortMode,
+            Nested nested,
+            SortOrder sortOrder,
+            DocValueFormat format,
+            int bucketSize,
+            BucketedSort.ExtraData extra
+        ) {
+            throw new IllegalArgumentException("only supported on numeric fields");
+        }
 
         @Override
         public long ramBytesUsed() {
@@ -195,14 +227,9 @@ public final class GlobalOrdinalsIndexFieldData extends AbstractIndexComponent i
         }
 
         @Override
-        public Collection<Accountable> getChildResources() {
-            return Collections.emptyList();
-        }
-
-        @Override
-        public AtomicOrdinalsFieldData load(LeafReaderContext context) {
+        public LeafOrdinalsFieldData load(LeafReaderContext context) {
             assert source.getReaderCacheHelper().getKey() == context.parent.reader().getReaderCacheHelper().getKey();
-            return new AbstractAtomicOrdinalsFieldData(scriptFunction) {
+            return new AbstractLeafOrdinalsFieldData(toScriptFieldFactory) {
                 @Override
                 public SortedSetDocValues getOrdinalsValues() {
                     final SortedSetDocValues values = segmentAfd[context.ord].getOrdinalsValues();
@@ -210,15 +237,20 @@ public final class GlobalOrdinalsIndexFieldData extends AbstractIndexComponent i
                         // segment ordinals match global ordinals
                         return values;
                     }
-                    final TermsEnum[] atomicLookups = getOrLoadTermsEnums();
-                    return new GlobalOrdinalMapping(ordinalMap, values, atomicLookups, context.ord);
+                    TermsEnum[] atomicLookups = getOrLoadTermsEnums();
+                    SortedSetDocValues singleton = SingletonGlobalOrdinalMapping.singletonIfPossible(
+                        ordinalMap,
+                        values,
+                        atomicLookups,
+                        context.ord
+                    );
+                    return singleton == null ? new GlobalOrdinalMapping(ordinalMap, values, atomicLookups, context.ord) : singleton;
                 }
 
                 @Override
                 public long ramBytesUsed() {
                     return segmentAfd[context.ord].ramBytesUsed();
                 }
-
 
                 @Override
                 public Collection<Accountable> getChildResources() {

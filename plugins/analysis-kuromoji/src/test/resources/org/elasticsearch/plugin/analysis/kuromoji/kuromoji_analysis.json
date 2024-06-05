@@ -1,0 +1,94 @@
+{
+    "index":{
+        "analysis":{
+            "filter":{
+                "kuromoji_rf":{
+                    "type":"kuromoji_readingform",
+                    "use_romaji" : "true"
+                },
+                "kuromoji_pos" : {
+                    "type": "kuromoji_part_of_speech",
+                    "stoptags" : ["#  verb-main:", "動詞-自立"]
+                },
+                "kuromoji_ks" : {
+                    "type": "kuromoji_stemmer",
+                    "minimum_length" : 6
+                },
+                "ja_stop" : {
+                    "type": "ja_stop",
+                    "stopwords": ["_japanese_", "スピード"]
+                },
+                "kuromoji_completion_index" : {
+                    "type": "kuromoji_completion",
+                    "mode": "index"
+                },
+                "kuromoji_completion_query" : {
+                    "type": "kuromoji_completion",
+                    "mode": "query"
+                }
+            },
+
+            "char_filter":{
+                "kuromoji_im_only_kanji":{
+                    "type":"kuromoji_iteration_mark",
+                    "normalize_kanji":true,
+                    "normalize_kana":false
+                },
+                "kuromoji_im_only_kana":{
+                    "type":"kuromoji_iteration_mark",
+                    "normalize_kanji":false,
+                    "normalize_kana":true
+                },
+                "kuromoji_im_default":{
+                    "type":"kuromoji_iteration_mark"
+                }
+            },
+
+            "tokenizer" : {
+                "kuromoji" : {
+                    "type":"kuromoji_tokenizer"
+                },
+                "kuromoji_empty_user_dict" : {
+                    "type":"kuromoji_tokenizer",
+                    "user_dictionary":"empty_user_dict.txt"
+                },
+                "kuromoji_user_dict" : {
+                    "type":"kuromoji_tokenizer",
+                    "user_dictionary":"user_dict.txt"
+                },
+                "kuromoji_nbest_cost" : {
+                    "type": "kuromoji_tokenizer",
+                    "nbest_cost" : "2000"
+                },
+                "kuromoji_nbest_examples" : {
+                    "type": "kuromoji_tokenizer",
+                    "nbest_examples" : "/鳩山積み-鳩山/鳩山積み-鳩/"
+                },
+                "kuromoji_nbest_both" : {
+                    "type": "kuromoji_tokenizer",
+                    "nbest_examples" : "/鳩山積み-鳩山/鳩山積み-鳩/",
+                    "nbest_cost" : "1000"
+                },
+                "kuromoji_discard_compound_token": {
+                    "type": "kuromoji_tokenizer",
+                    "discard_compound_token": true
+                }
+            },
+            "analyzer" : {
+                "my_analyzer" : {
+                    "type" : "custom",
+                    "tokenizer" : "kuromoji_tokenizer"
+                },
+                "completion_index_analyzer" : {
+                    "type" : "kuromoji_completion",
+                    "mode" : "index"
+                },
+                "completion_query_analyzer" : {
+                    "type" : "kuromoji_completion",
+                    "mode" : "query"
+                }
+            }
+
+        }
+    }
+}

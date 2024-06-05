@@ -1,20 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.utils;
 
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.common.time.TimeUtils;
 
 import java.io.IOException;
@@ -24,7 +25,7 @@ import java.time.temporal.ChronoUnit;
 import java.time.temporal.TemporalUnit;
 import java.util.Objects;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * Utility for calculating current value of exponentially-weighted moving average per fixed-sized time window.
@@ -55,19 +56,20 @@ public class ExponentialAverageCalculationContext implements Writeable, ToXConte
     public static final ParseField LATEST_TIMESTAMP = new ParseField("latest_timestamp");
     public static final ParseField PREVIOUS_EXPONENTIAL_AVERAGE_MS = new ParseField("previous_exponential_average_ms");
 
-    public static final ConstructingObjectParser<ExponentialAverageCalculationContext, Void> PARSER =
-        new ConstructingObjectParser<>(
-            "exponential_average_calculation_context",
-            true,
-            args -> {
-                Double incrementalMetricValueMs = (Double) args[0];
-                Instant latestTimestamp = (Instant) args[1];
-                Double previousExponentialAverageMs = (Double) args[2];
-                return new ExponentialAverageCalculationContext(
-                    getOrDefault(incrementalMetricValueMs, 0.0),
-                    latestTimestamp,
-                    previousExponentialAverageMs);
-            });
+    public static final ConstructingObjectParser<ExponentialAverageCalculationContext, Void> PARSER = new ConstructingObjectParser<>(
+        "exponential_average_calculation_context",
+        true,
+        args -> {
+            Double incrementalMetricValueMs = (Double) args[0];
+            Instant latestTimestamp = (Instant) args[1];
+            Double previousExponentialAverageMs = (Double) args[2];
+            return new ExponentialAverageCalculationContext(
+                getOrDefault(incrementalMetricValueMs, 0.0),
+                latestTimestamp,
+                previousExponentialAverageMs
+            );
+        }
+    );
 
     static {
         PARSER.declareDouble(optionalConstructorArg(), INCREMENTAL_METRIC_VALUE_MS);
@@ -75,7 +77,8 @@ public class ExponentialAverageCalculationContext implements Writeable, ToXConte
             optionalConstructorArg(),
             p -> TimeUtils.parseTimeFieldToInstant(p, LATEST_TIMESTAMP.getPreferredName()),
             LATEST_TIMESTAMP,
-            ObjectParser.ValueType.VALUE);
+            ObjectParser.ValueType.VALUE
+        );
         PARSER.declareDouble(optionalConstructorArg(), PREVIOUS_EXPONENTIAL_AVERAGE_MS);
     }
 
@@ -91,9 +94,10 @@ public class ExponentialAverageCalculationContext implements Writeable, ToXConte
     }
 
     public ExponentialAverageCalculationContext(
-            double incrementalMetricValueMs,
-            @Nullable Instant latestTimestamp,
-            @Nullable Double previousExponentialAverageMs) {
+        double incrementalMetricValueMs,
+        @Nullable Instant latestTimestamp,
+        @Nullable Double previousExponentialAverageMs
+    ) {
         this.incrementalMetricValueMs = incrementalMetricValueMs;
         this.latestTimestamp = latestTimestamp != null ? Instant.ofEpochMilli(latestTimestamp.toEpochMilli()) : null;
         this.previousExponentialAverageMs = previousExponentialAverageMs;
@@ -128,7 +132,8 @@ public class ExponentialAverageCalculationContext implements Writeable, ToXConte
         if (previousExponentialAverageMs == null || latestTimestamp == null) return incrementalMetricValueMs;
         Instant currentWindowStartTimestamp = latestTimestamp.truncatedTo(WINDOW_UNIT);
         double alpha = Math.exp(
-            - (double) Duration.between(currentWindowStartTimestamp, latestTimestamp).toMillis() / WINDOW_SIZE.toMillis());
+            -(double) Duration.between(currentWindowStartTimestamp, latestTimestamp).toMillis() / WINDOW_SIZE.toMillis()
+        );
         return alpha * previousExponentialAverageMs + (1 - alpha) * incrementalMetricValueMs;
     }
 
@@ -176,7 +181,8 @@ public class ExponentialAverageCalculationContext implements Writeable, ToXConte
             builder.timeField(
                 LATEST_TIMESTAMP.getPreferredName(),
                 LATEST_TIMESTAMP.getPreferredName() + "_string",
-                latestTimestamp.toEpochMilli());
+                latestTimestamp.toEpochMilli()
+            );
         }
         if (previousExponentialAverageMs != null) {
             builder.field(PREVIOUS_EXPONENTIAL_AVERAGE_MS.getPreferredName(), previousExponentialAverageMs);

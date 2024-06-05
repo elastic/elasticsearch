@@ -1,11 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.datafeed;
 
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
+import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 
 import java.util.Objects;
@@ -33,28 +35,30 @@ class ProblemTracker {
     private volatile boolean hadProblems;
     private volatile String previousProblem;
     private volatile int emptyDataCount;
+    private final long numberOfSearchesInADay;
 
-    ProblemTracker(AnomalyDetectionAuditor auditor, String jobId) {
+    ProblemTracker(AnomalyDetectionAuditor auditor, String jobId, long numberOfSearchesInADay) {
         this.auditor = Objects.requireNonNull(auditor);
         this.jobId = Objects.requireNonNull(jobId);
+        this.numberOfSearchesInADay = Math.max(numberOfSearchesInADay, 1);
     }
 
     /**
      * Reports as analysis problem if it is different than the last seen problem
      *
-     * @param problemMessage the problem message
+     * @param error the exception
      */
-    public void reportAnalysisProblem(String problemMessage) {
-        reportProblem(Messages.JOB_AUDIT_DATAFEED_DATA_ANALYSIS_ERROR, problemMessage);
+    public void reportAnalysisProblem(DatafeedJob.AnalysisProblemException error) {
+        reportProblem(Messages.JOB_AUDIT_DATAFEED_DATA_ANALYSIS_ERROR, ExceptionsHelper.unwrapCause(error).getMessage());
     }
 
     /**
      * Reports as extraction problem if it is different than the last seen problem
      *
-     * @param problemMessage the problem message
+     * @param error the exception
      */
-    public void reportExtractionProblem(String problemMessage) {
-        reportProblem(Messages.JOB_AUDIT_DATAFEED_DATA_EXTRACTION_ERROR, problemMessage);
+    public void reportExtractionProblem(DatafeedJob.ExtractionProblemException error) {
+        reportProblem(Messages.JOB_AUDIT_DATAFEED_DATA_EXTRACTION_ERROR, ExceptionsHelper.findSearchExceptionRootCause(error).getMessage());
     }
 
     /**
@@ -64,7 +68,7 @@ class ProblemTracker {
      */
     private void reportProblem(String template, String problemMessage) {
         hasProblems = true;
-        if (!Objects.equals(previousProblem, problemMessage)) {
+        if (Objects.equals(previousProblem, problemMessage) == false) {
             previousProblem = problemMessage;
             auditor.error(jobId, Messages.getMessage(template, problemMessage));
         }
@@ -72,10 +76,11 @@ class ProblemTracker {
 
     /**
      * Updates the tracking of empty data cycles. If the number of consecutive empty data
-     * cycles reaches {@code EMPTY_DATA_WARN_COUNT}, a warning is reported.
+     * cycles reaches {@code EMPTY_DATA_WARN_COUNT} or the 24 hours of empty data counts
+     * have passed a warning is reported.
      */
     public int reportEmptyDataCount() {
-        if (++emptyDataCount == EMPTY_DATA_WARN_COUNT) {
+        if (++emptyDataCount == EMPTY_DATA_WARN_COUNT || (emptyDataCount % numberOfSearchesInADay) == 0) {
             auditor.warning(jobId, Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_NO_DATA));
         }
         return emptyDataCount;
@@ -96,7 +101,7 @@ class ProblemTracker {
      * Issues a recovery message if appropriate and prepares for next report
      */
     public void finishReport() {
-        if (!hasProblems && hadProblems) {
+        if (hasProblems == false && hadProblems) {
             auditor.info(jobId, Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_RECOVERED));
         }
 

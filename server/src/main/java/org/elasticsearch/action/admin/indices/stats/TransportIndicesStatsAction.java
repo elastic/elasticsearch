@@ -1,27 +1,16 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.indices.stats;
 
 import org.apache.lucene.store.AlreadyClosedException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.node.TransportBroadcastByNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -37,23 +26,35 @@ import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.seqno.RetentionLeaseStats;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.List;
 
 public class TransportIndicesStatsAction extends TransportBroadcastByNodeAction<IndicesStatsRequest, IndicesStatsResponse, ShardStats> {
 
     private final IndicesService indicesService;
 
     @Inject
-    public TransportIndicesStatsAction(ClusterService clusterService, TransportService transportService, IndicesService indicesService,
-                                       ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(IndicesStatsAction.NAME, clusterService, transportService, actionFilters, indexNameExpressionResolver,
-                IndicesStatsRequest::new, ThreadPool.Names.MANAGEMENT);
+    public TransportIndicesStatsAction(
+        ClusterService clusterService,
+        TransportService transportService,
+        IndicesService indicesService,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        super(
+            IndicesStatsAction.NAME,
+            clusterService,
+            transportService,
+            actionFilters,
+            indexNameExpressionResolver,
+            IndicesStatsRequest::new,
+            transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT)
+        );
         this.indicesService = indicesService;
     }
 
@@ -81,11 +82,20 @@ public class TransportIndicesStatsAction extends TransportBroadcastByNodeAction<
     }
 
     @Override
-    protected IndicesStatsResponse newResponse(IndicesStatsRequest request, int totalShards, int successfulShards, int failedShards,
-                                               List<ShardStats> responses, List<DefaultShardOperationFailedException> shardFailures,
-                                               ClusterState clusterState) {
-        return new IndicesStatsResponse(responses.toArray(new ShardStats[responses.size()]), totalShards, successfulShards, failedShards,
-            shardFailures);
+    protected ResponseFactory<IndicesStatsResponse, ShardStats> getResponseFactory(IndicesStatsRequest request, ClusterState clusterState) {
+        // NB avoid capture of full cluster state
+        final var metadata = clusterState.getMetadata();
+        final var routingTable = clusterState.routingTable();
+
+        return (totalShards, successfulShards, failedShards, responses, shardFailures) -> new IndicesStatsResponse(
+            responses.toArray(new ShardStats[0]),
+            totalShards,
+            successfulShards,
+            failedShards,
+            shardFailures,
+            metadata,
+            routingTable
+        );
     }
 
     @Override
@@ -94,34 +104,35 @@ public class TransportIndicesStatsAction extends TransportBroadcastByNodeAction<
     }
 
     @Override
-    protected ShardStats shardOperation(IndicesStatsRequest request, ShardRouting shardRouting) {
-        IndexService indexService = indicesService.indexServiceSafe(shardRouting.shardId().getIndex());
-        IndexShard indexShard = indexService.getShard(shardRouting.shardId().id());
-        // if we don't have the routing entry yet, we need it stats wise, we treat it as if the shard is not ready yet
-        if (indexShard.routingEntry() == null) {
-            throw new ShardNotFoundException(indexShard.shardId());
-        }
-
-        CommonStats commonStats = new CommonStats(indicesService.getIndicesQueryCache(), indexShard, request.flags());
-        CommitStats commitStats;
-        SeqNoStats seqNoStats;
-        RetentionLeaseStats retentionLeaseStats;
-        try {
-            commitStats = indexShard.commitStats();
-            seqNoStats = indexShard.seqNoStats();
-            retentionLeaseStats = indexShard.getRetentionLeaseStats();
-        } catch (final AlreadyClosedException e) {
-            // shard is closed - no stats is fine
-            commitStats = null;
-            seqNoStats = null;
-            retentionLeaseStats = null;
-        }
-        return new ShardStats(
+    protected void shardOperation(IndicesStatsRequest request, ShardRouting shardRouting, Task task, ActionListener<ShardStats> listener) {
+        ActionListener.completeWith(listener, () -> {
+            assert task instanceof CancellableTask;
+            IndexService indexService = indicesService.indexServiceSafe(shardRouting.shardId().getIndex());
+            IndexShard indexShard = indexService.getShard(shardRouting.shardId().id());
+            CommonStats commonStats = CommonStats.getShardLevelStats(indicesService.getIndicesQueryCache(), indexShard, request.flags());
+            CommitStats commitStats;
+            SeqNoStats seqNoStats;
+            RetentionLeaseStats retentionLeaseStats;
+            try {
+                commitStats = indexShard.commitStats();
+                seqNoStats = indexShard.seqNoStats();
+                retentionLeaseStats = indexShard.getRetentionLeaseStats();
+            } catch (final AlreadyClosedException e) {
+                // shard is closed - no stats is fine
+                commitStats = null;
+                seqNoStats = null;
+                retentionLeaseStats = null;
+            }
+            return new ShardStats(
                 indexShard.routingEntry(),
                 indexShard.shardPath(),
                 commonStats,
                 commitStats,
                 seqNoStats,
-                retentionLeaseStats);
+                retentionLeaseStats,
+                indexShard.isSearchIdle(),
+                indexShard.searchIdleTime()
+            );
+        });
     }
 }

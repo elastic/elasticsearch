@@ -1,26 +1,16 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.ingest.useragent;
 
-import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
@@ -41,7 +31,7 @@ import static org.elasticsearch.ingest.ConfigurationUtils.readStringProperty;
 
 public class UserAgentProcessor extends AbstractProcessor {
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(UserAgentProcessor.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(UserAgentProcessor.class);
 
     public static final String TYPE = "user_agent";
 
@@ -49,16 +39,30 @@ public class UserAgentProcessor extends AbstractProcessor {
     private final String targetField;
     private final Set<Property> properties;
     private final UserAgentParser parser;
+    private final boolean extractDeviceType;
     private final boolean ignoreMissing;
 
-    public UserAgentProcessor(String tag, String field, String targetField, UserAgentParser parser, Set<Property> properties,
-                              boolean ignoreMissing) {
-        super(tag);
+    public UserAgentProcessor(
+        String tag,
+        String description,
+        String field,
+        String targetField,
+        UserAgentParser parser,
+        Set<Property> properties,
+        boolean extractDeviceType,
+        boolean ignoreMissing
+    ) {
+        super(tag, description);
         this.field = field;
         this.targetField = targetField;
         this.parser = parser;
         this.properties = properties;
+        this.extractDeviceType = extractDeviceType;
         this.ignoreMissing = ignoreMissing;
+    }
+
+    boolean isExtractDeviceType() {
+        return extractDeviceType;
     }
 
     boolean isIgnoreMissing() {
@@ -75,7 +79,7 @@ public class UserAgentProcessor extends AbstractProcessor {
             throw new IllegalArgumentException("field [" + field + "] is null, cannot parse user-agent.");
         }
 
-        Details uaClient = parser.parse(userAgent);
+        Details uaClient = parser.parse(userAgent, extractDeviceType);
 
         Map<String, Object> uaDetails = new HashMap<>();
 
@@ -86,22 +90,22 @@ public class UserAgentProcessor extends AbstractProcessor {
                     uaDetails.put("original", userAgent);
                     break;
                 case NAME:
-                    if (uaClient.userAgent != null && uaClient.userAgent.name != null) {
-                        uaDetails.put("name", uaClient.userAgent.name);
+                    if (uaClient.userAgent() != null && uaClient.userAgent().name() != null) {
+                        uaDetails.put("name", uaClient.userAgent().name());
                     } else {
                         uaDetails.put("name", "Other");
                     }
                     break;
                 case VERSION:
                     StringBuilder version = new StringBuilder();
-                    if (uaClient.userAgent != null && uaClient.userAgent.major != null) {
-                        version.append(uaClient.userAgent.major);
-                        if (uaClient.userAgent.minor != null) {
-                            version.append(".").append(uaClient.userAgent.minor);
-                            if (uaClient.userAgent.patch != null) {
-                                version.append(".").append(uaClient.userAgent.patch);
-                                if (uaClient.userAgent.build != null) {
-                                    version.append(".").append(uaClient.userAgent.build);
+                    if (uaClient.userAgent() != null && uaClient.userAgent().major() != null) {
+                        version.append(uaClient.userAgent().major());
+                        if (uaClient.userAgent().minor() != null) {
+                            version.append(".").append(uaClient.userAgent().minor());
+                            if (uaClient.userAgent().patch() != null) {
+                                version.append(".").append(uaClient.userAgent().patch());
+                                if (uaClient.userAgent().build() != null) {
+                                    version.append(".").append(uaClient.userAgent().build());
                                 }
                             }
                         }
@@ -109,35 +113,45 @@ public class UserAgentProcessor extends AbstractProcessor {
                     }
                     break;
                 case OS:
-                    if (uaClient.operatingSystem != null) {
-                        Map<String, String> osDetails = new HashMap<>(3);
-                        if (uaClient.operatingSystem.name != null) {
-                            osDetails.put("name", uaClient.operatingSystem.name);
+                    if (uaClient.operatingSystem() != null) {
+                        Map<String, String> osDetails = Maps.newMapWithExpectedSize(3);
+                        if (uaClient.operatingSystem().name() != null) {
+                            osDetails.put("name", uaClient.operatingSystem().name());
                             StringBuilder sb = new StringBuilder();
-                            if (uaClient.operatingSystem.major != null) {
-                                sb.append(uaClient.operatingSystem.major);
-                                if (uaClient.operatingSystem.minor != null) {
-                                    sb.append(".").append(uaClient.operatingSystem.minor);
-                                    if (uaClient.operatingSystem.patch != null) {
-                                        sb.append(".").append(uaClient.operatingSystem.patch);
-                                        if (uaClient.operatingSystem.build != null) {
-                                            sb.append(".").append(uaClient.operatingSystem.build);
+                            if (uaClient.operatingSystem().major() != null) {
+                                sb.append(uaClient.operatingSystem().major());
+                                if (uaClient.operatingSystem().minor() != null) {
+                                    sb.append(".").append(uaClient.operatingSystem().minor());
+                                    if (uaClient.operatingSystem().patch() != null) {
+                                        sb.append(".").append(uaClient.operatingSystem().patch());
+                                        if (uaClient.operatingSystem().build() != null) {
+                                            sb.append(".").append(uaClient.operatingSystem().build());
                                         }
                                     }
                                 }
                                 osDetails.put("version", sb.toString());
-                                osDetails.put("full", uaClient.operatingSystem.name + " " + sb.toString());
+                                osDetails.put("full", uaClient.operatingSystem().name() + " " + sb.toString());
                             }
                             uaDetails.put("os", osDetails);
                         }
                     }
                     break;
                 case DEVICE:
-                    Map<String, String> deviceDetails = new HashMap<>(1);
-                    if (uaClient.device != null && uaClient.device.name != null) {
-                        deviceDetails.put("name", uaClient.device.name);
+                    Map<String, String> deviceDetails = Maps.newMapWithExpectedSize(1);
+                    if (uaClient.device() != null && uaClient.device().name() != null) {
+                        deviceDetails.put("name", uaClient.device().name());
+                        if (extractDeviceType) {
+                            deviceDetails.put("type", uaClient.deviceType());
+                        }
                     } else {
                         deviceDetails.put("name", "Other");
+                        if (extractDeviceType) {
+                            if (uaClient.deviceType() != null) {
+                                deviceDetails.put("type", uaClient.deviceType());
+                            } else {
+                                deviceDetails.put("type", "Other");
+                            }
+                        }
                     }
                     uaDetails.put("device", deviceDetails);
                     break;
@@ -178,22 +192,35 @@ public class UserAgentProcessor extends AbstractProcessor {
         }
 
         @Override
-        public UserAgentProcessor create(Map<String, Processor.Factory> factories, String processorTag,
-                                         Map<String, Object> config) throws Exception {
+        public UserAgentProcessor create(
+            Map<String, Processor.Factory> factories,
+            String processorTag,
+            String description,
+            Map<String, Object> config
+        ) throws Exception {
             String field = readStringProperty(TYPE, processorTag, config, "field");
             String targetField = readStringProperty(TYPE, processorTag, config, "target_field", "user_agent");
             String regexFilename = readStringProperty(TYPE, processorTag, config, "regex_file", IngestUserAgentPlugin.DEFAULT_PARSER_NAME);
             List<String> propertyNames = readOptionalList(TYPE, processorTag, config, "properties");
+            boolean extractDeviceType = readBooleanProperty(TYPE, processorTag, config, "extract_device_type", false);
             boolean ignoreMissing = readBooleanProperty(TYPE, processorTag, config, "ignore_missing", false);
             Object ecsValue = config.remove("ecs");
             if (ecsValue != null) {
-                deprecationLogger.deprecated("setting [ecs] is deprecated as ECS format is the default and only option");
+                deprecationLogger.warn(
+                    DeprecationCategory.SETTINGS,
+                    "ingest_useragent_ecs_settings",
+                    "setting [ecs] is deprecated as ECS format is the default and only option"
+                );
             }
 
             UserAgentParser parser = userAgentParsers.get(regexFilename);
             if (parser == null) {
-                throw newConfigurationException(TYPE, processorTag,
-                        "regex_file", "regex file [" + regexFilename + "] doesn't exist (has to exist at node startup)");
+                throw newConfigurationException(
+                    TYPE,
+                    processorTag,
+                    "regex_file",
+                    "regex file [" + regexFilename + "] doesn't exist (has to exist at node startup)"
+                );
             }
 
             final Set<Property> properties;
@@ -210,7 +237,16 @@ public class UserAgentProcessor extends AbstractProcessor {
                 properties = EnumSet.allOf(Property.class);
             }
 
-            return new UserAgentProcessor(processorTag, field, targetField, parser, properties, ignoreMissing);
+            return new UserAgentProcessor(
+                processorTag,
+                description,
+                field,
+                targetField,
+                parser,
+                properties,
+                extractDeviceType,
+                ignoreMissing
+            );
         }
     }
 
@@ -226,8 +262,12 @@ public class UserAgentProcessor extends AbstractProcessor {
             try {
                 return valueOf(propertyName.toUpperCase(Locale.ROOT));
             } catch (IllegalArgumentException e) {
-                throw new IllegalArgumentException("illegal property value [" + propertyName + "]. valid values are " +
-                        Arrays.toString(EnumSet.allOf(Property.class).toArray()));
+                throw new IllegalArgumentException(
+                    "illegal property value ["
+                        + propertyName
+                        + "]. valid values are "
+                        + Arrays.toString(EnumSet.allOf(Property.class).toArray())
+                );
             }
         }
     }

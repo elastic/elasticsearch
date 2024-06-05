@@ -1,218 +1,361 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.cluster.reroute;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.ClusterStateTests;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.RerouteExplanation;
 import org.elasticsearch.cluster.routing.allocation.RoutingExplanations;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateReplicaAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
-import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+
+import static org.elasticsearch.common.util.CollectionUtils.appendToCopy;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
 public class ClusterRerouteResponseTests extends ESTestCase {
 
+    @Override
+    protected List<String> filteredWarnings() {
+        return appendToCopy(super.filteredWarnings(), ClusterRerouteResponse.STATE_FIELD_DEPRECATION_MESSAGE);
+    }
+
     public void testToXContent() throws IOException {
-        DiscoveryNode node0 = new DiscoveryNode("node0", new TransportAddress(TransportAddress.META_ADDRESS, 9000), Version.CURRENT);
-        DiscoveryNodes nodes = new DiscoveryNodes.Builder().add(node0).masterNodeId(node0.getId()).build();
-        IndexMetaData indexMetaData = IndexMetaData.builder("index").settings(Settings.builder()
-                .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), true)
-                .put(IndexSettings.MAX_SCRIPT_FIELDS_SETTING.getKey(), 10)
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build()).build();
-        ImmutableOpenMap.Builder<String, IndexMetaData> openMapBuilder = ImmutableOpenMap.builder();
-        openMapBuilder.put("index", indexMetaData);
-        MetaData metaData = MetaData.builder().indices(openMapBuilder.build()).build();
-        ClusterState clusterState = ClusterState.builder(new ClusterName("test")).nodes(nodes).metaData(metaData).build();
+        assertXContent(createClusterRerouteResponse(createClusterState()), new ToXContent.MapParams(Map.of("metric", "none")), """
+            {
+              "acknowledged": true
+            }""");
+    }
 
-        RoutingExplanations routingExplanations = new RoutingExplanations();
-        routingExplanations.add(new RerouteExplanation(new AllocateReplicaAllocationCommand("index", 0, "node0"), Decision.YES));
-        ClusterRerouteResponse clusterRerouteResponse = new ClusterRerouteResponse(true, clusterState, routingExplanations);
-        {
-            XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
-            clusterRerouteResponse.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            assertEquals("{\n" +
-                    "  \"acknowledged\" : true,\n" +
-                    "  \"state\" : {\n" +
-                    "    \"cluster_uuid\" : \"_na_\",\n" +
-                    "    \"version\" : 0,\n" +
-                    "    \"state_uuid\" : \"" + clusterState.stateUUID() + "\",\n" +
-                    "    \"master_node\" : \"node0\",\n" +
-                    "    \"blocks\" : { },\n" +
-                    "    \"nodes\" : {\n" +
-                    "      \"node0\" : {\n" +
-                    "        \"name\" : \"\",\n" +
-                    "        \"ephemeral_id\" : \"" + node0.getEphemeralId() + "\",\n" +
-                    "        \"transport_address\" : \"0.0.0.0:9000\",\n" +
-                    "        \"attributes\" : { }\n" +
-                    "      }\n" +
-                    "    },\n" +
-                    "    \"metadata\" : {\n" +
-                    "      \"cluster_uuid\" : \"_na_\",\n" +
-                    "      \"cluster_coordination\" : {\n" +
-                    "        \"term\" : 0,\n" +
-                    "        \"last_committed_config\" : [ ],\n" +
-                    "        \"last_accepted_config\" : [ ],\n" +
-                    "        \"voting_config_exclusions\" : [ ]\n" +
-                    "      },\n" +
-                    "      \"templates\" : { },\n" +
-                    "      \"indices\" : {\n" +
-                    "        \"index\" : {\n" +
-                    "          \"state\" : \"open\",\n" +
-                    "          \"settings\" : {\n" +
-                    "            \"index\" : {\n" +
-                    "              \"shard\" : {\n" +
-                    "                \"check_on_startup\" : \"true\"\n" +
-                    "              },\n" +
-                    "              \"number_of_shards\" : \"1\",\n" +
-                    "              \"number_of_replicas\" : \"0\",\n" +
-                    "              \"version\" : {\n" +
-                    "                \"created\" : \"" + Version.CURRENT.id + "\"\n" +
-                    "              },\n" +
-                    "              \"max_script_fields\" : \"10\"\n" +
-                    "            }\n" +
-                    "          },\n" +
-                    "          \"mappings\" : { },\n" +
-                    "          \"aliases\" : [ ],\n" +
-                    "          \"primary_terms\" : {\n" +
-                    "            \"0\" : 0\n" +
-                    "          },\n" +
-                    "          \"in_sync_allocations\" : {\n" +
-                    "            \"0\" : [ ]\n" +
-                    "          }\n" +
-                    "        }\n" +
-                    "      },\n" +
-                    "      \"index-graveyard\" : {\n" +
-                    "        \"tombstones\" : [ ]\n" +
-                    "      }\n" +
-                    "    },\n" +
-                    "    \"routing_table\" : {\n" +
-                    "      \"indices\" : { }\n" +
-                    "    },\n" +
-                    "    \"routing_nodes\" : {\n" +
-                    "      \"unassigned\" : [ ],\n" +
-                    "      \"nodes\" : {\n" +
-                    "        \"node0\" : [ ]\n" +
-                    "      }\n" +
-                    "    }\n" +
-                    "  }\n" +
-                    "}", Strings.toString(builder));
+    public void testToXContentWithExplain() {
+        var clusterState = createClusterState();
+        assertXContent(
+            createClusterRerouteResponse(clusterState),
+            new ToXContent.MapParams(Map.of("explain", "true", "metric", "none")),
+            Strings.format("""
+                {
+                  "acknowledged": true,
+                  "explanations": [
+                    {
+                      "command": "allocate_replica",
+                      "parameters": {
+                        "index": "index",
+                        "shard": 0,
+                        "node": "node0"
+                      },
+                      "decisions": [
+                        {
+                          "decider": null,
+                          "decision": "YES",
+                          "explanation": "none"
+                        }
+                      ]
+                    }
+                  ]
+                }""", clusterState.stateUUID())
+        );
+    }
 
+    public void testToXContentWithDeprecatedClusterState() {
+        var clusterState = createClusterState();
+        assertXContent(
+            createClusterRerouteResponse(clusterState),
+            ToXContent.EMPTY_PARAMS,
+            Strings.format(
+                """
+                    {
+                      "acknowledged": true,
+                      "state": {
+                        "cluster_uuid": "_na_",
+                        "version": 0,
+                        "state_uuid": "%s",
+                        "master_node": "node0",
+                        "blocks": {},
+                        "nodes": {
+                          "node0": {
+                            "name": "",
+                            "ephemeral_id": "%s",
+                            "transport_address": "0.0.0.0:9000",
+                            "external_id": "",
+                            "attributes": {},
+                            "roles": [
+                              "data",
+                              "data_cold",
+                              "data_content",
+                              "data_frozen",
+                              "data_hot",
+                              "data_warm",
+                              "index",
+                              "ingest",
+                              "master",
+                              "ml",
+                              "remote_cluster_client",
+                              "search",
+                              "transform",
+                              "voting_only"
+                            ],
+                            "version": "%s",
+                            "min_index_version": %s,
+                            "max_index_version": %s
+                          }
+                        },
+                        "nodes_versions": [
+                          {
+                            "node_id": "node0",
+                            "transport_version": "8000099",
+                            "mappings_versions": {
+                              ".system-index": {
+                                "version": 1,
+                                "hash": 0
+                              }
+                            }
+                          }
+                        ],
+                        "nodes_features": [
+                          {
+                            "node_id": "node0",
+                            "features": []
+                          }
+                        ],
+                        "metadata": {
+                          "cluster_uuid": "_na_",
+                          "cluster_uuid_committed": false,
+                          "cluster_coordination": {
+                            "term": 0,
+                            "last_committed_config": [],
+                            "last_accepted_config": [],
+                            "voting_config_exclusions": []
+                          },
+                          "templates": {},
+                          "indices": {
+                            "index": {
+                              "version": 1,
+                              "mapping_version": 1,
+                              "settings_version": 1,
+                              "aliases_version": 1,
+                              "routing_num_shards": 1,
+                              "state": "open",
+                              "settings": {
+                                "index": {
+                                  "shard": {
+                                    "check_on_startup": "true"
+                                  },
+                                  "number_of_shards": "1",
+                                  "number_of_replicas": "0",
+                                  "version": {
+                                    "created": "%s"
+                                  },
+                                  "max_script_fields": "10"
+                                }
+                              },
+                              "mappings": {},
+                              "aliases": [],
+                              "primary_terms": {
+                                "0": 0
+                              },
+                              "in_sync_allocations": {
+                                "0": []
+                              },
+                              "rollover_info": {},
+                              "system": false,
+                              "timestamp_range": {
+                                "shards": []
+                              }
+                            }
+                          },
+                          "index-graveyard": {
+                            "tombstones": []
+                          },
+                          "reserved_state":{}
+                        },
+                        "routing_table": {
+                          "indices": {}
+                        },
+                        "routing_nodes": {
+                          "unassigned": [],
+                          "nodes": {
+                            "node0": []
+                          }
+                        }
+                      }
+                    }""",
+                clusterState.stateUUID(),
+                clusterState.getNodes().get("node0").getEphemeralId(),
+                Version.CURRENT,
+                IndexVersions.MINIMUM_COMPATIBLE,
+                IndexVersion.current(),
+                IndexVersion.current()
+            ),
+            """
+                The [state] field in the response to the reroute API is deprecated and will be removed in a future version. \
+                Specify ?metric=none to adopt the future behaviour."""
+        );
+    }
+
+    public void testToXContentWithDeprecatedClusterStateAndMetadata() {
+        assertXContent(
+            createClusterRerouteResponse(createClusterState()),
+            new ToXContent.MapParams(Map.of("metric", "metadata", "settings_filter", "index.number*,index.version.created")),
+            """
+                {
+                  "acknowledged" : true,
+                  "state" : {
+                    "cluster_uuid" : "_na_",
+                    "metadata" : {
+                      "cluster_uuid" : "_na_",
+                      "cluster_uuid_committed" : false,
+                      "cluster_coordination" : {
+                        "term" : 0,
+                        "last_committed_config" : [ ],
+                        "last_accepted_config" : [ ],
+                        "voting_config_exclusions" : [ ]
+                      },
+                      "templates" : { },
+                      "indices" : {
+                        "index" : {
+                          "version" : 1,
+                          "mapping_version" : 1,
+                          "settings_version" : 1,
+                          "aliases_version" : 1,
+                          "routing_num_shards" : 1,
+                          "state" : "open",
+                          "settings" : {
+                            "index" : {
+                              "max_script_fields" : "10",
+                              "shard" : {
+                                "check_on_startup" : "true"
+                              }
+                            }
+                          },
+                          "mappings" : { },
+                          "aliases" : [ ],
+                          "primary_terms" : {
+                            "0" : 0
+                          },
+                          "in_sync_allocations" : {
+                            "0" : [ ]
+                          },
+                          "rollover_info" : { },
+                          "system" : false,
+                          "timestamp_range" : {
+                            "shards" : [ ]
+                          }
+                        }
+                      },
+                      "index-graveyard" : {
+                        "tombstones" : [ ]
+                      },
+                      "reserved_state":{}
+                    }
+                  }
+                }""",
+            """
+                The [state] field in the response to the reroute API is deprecated and will be removed in a future version. \
+                Specify ?metric=none to adopt the future behaviour."""
+        );
+    }
+
+    private void assertXContent(
+        ClusterRerouteResponse response,
+        ToXContent.Params params,
+        String expectedBody,
+        String... criticalDeprecationWarnings
+    ) {
+        try {
+            var builder = jsonBuilder();
+            if (randomBoolean()) {
+                builder.prettyPrint();
+            }
+            ChunkedToXContent.wrapAsToXContent(response).toXContent(builder, params);
+            assertEquals(XContentHelper.stripWhitespace(expectedBody), XContentHelper.stripWhitespace(Strings.toString(builder)));
+        } catch (IOException e) {
+            fail(e);
         }
-        {
-            XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
-            Map<String, String> params = new HashMap<>();
-            params.put("explain", "true");
-            params.put("metric", "version,master_node");
-            clusterRerouteResponse.toXContent(builder, new ToXContent.MapParams(params));
-            assertEquals("{\n" +
-                    "  \"acknowledged\" : true,\n" +
-                    "  \"state\" : {\n" +
-                    "    \"cluster_uuid\" : \"_na_\",\n" +
-                    "    \"version\" : 0,\n" +
-                    "    \"state_uuid\" : \"" + clusterState.stateUUID() + "\",\n" +
-                    "    \"master_node\" : \"node0\"\n" +
-                    "  },\n" +
-                    "  \"explanations\" : [\n" +
-                    "    {\n" +
-                    "      \"command\" : \"allocate_replica\",\n" +
-                    "      \"parameters\" : {\n" +
-                    "        \"index\" : \"index\",\n" +
-                    "        \"shard\" : 0,\n" +
-                    "        \"node\" : \"node0\"\n" +
-                    "      },\n" +
-                    "      \"decisions\" : [\n" +
-                    "        {\n" +
-                    "          \"decider\" : null,\n" +
-                    "          \"decision\" : \"YES\",\n" +
-                    "          \"explanation\" : \"none\"\n" +
-                    "        }\n" +
-                    "      ]\n" +
-                    "    }\n" +
-                    "  ]\n" +
-                    "}", Strings.toString(builder));
-        }
-        {
-            XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
-            Map<String, String> params = new HashMap<>();
-            params.put("metric", "metadata");
-            params.put("settings_filter", "index.number*,index.version.created");
-            clusterRerouteResponse.toXContent(builder, new ToXContent.MapParams(params));
-            assertEquals("{\n" +
-                    "  \"acknowledged\" : true,\n" +
-                    "  \"state\" : {\n" +
-                    "    \"cluster_uuid\" : \"_na_\",\n" +
-                    "    \"metadata\" : {\n" +
-                    "      \"cluster_uuid\" : \"_na_\",\n" +
-                    "      \"cluster_coordination\" : {\n" +
-                    "        \"term\" : 0,\n" +
-                    "        \"last_committed_config\" : [ ],\n" +
-                    "        \"last_accepted_config\" : [ ],\n" +
-                    "        \"voting_config_exclusions\" : [ ]\n" +
-                    "      },\n" +
-                    "      \"templates\" : { },\n" +
-                    "      \"indices\" : {\n" +
-                    "        \"index\" : {\n" +
-                    "          \"state\" : \"open\",\n" +
-                    "          \"settings\" : {\n" +
-                    "            \"index\" : {\n" +
-                    "              \"max_script_fields\" : \"10\",\n" +
-                    "              \"shard\" : {\n" +
-                    "                \"check_on_startup\" : \"true\"\n" +
-                    "              }\n" +
-                    "            }\n" +
-                    "          },\n" +
-                    "          \"mappings\" : { },\n" +
-                    "          \"aliases\" : [ ],\n" +
-                    "          \"primary_terms\" : {\n" +
-                    "            \"0\" : 0\n" +
-                    "          },\n" +
-                    "          \"in_sync_allocations\" : {\n" +
-                    "            \"0\" : [ ]\n" +
-                    "          }\n" +
-                    "        }\n" +
-                    "      },\n" +
-                    "      \"index-graveyard\" : {\n" +
-                    "        \"tombstones\" : [ ]\n" +
-                    "      }\n" +
-                    "    }\n" +
-                    "  }\n" +
-                    "}", Strings.toString(builder));
-        }
+
+        final var expectedChunks = Objects.equals(params.param("metric"), "none")
+            ? 2
+            : 4 + ClusterStateTests.expectedChunkCount(params, response.getState());
+
+        AbstractChunkedSerializingTestCase.assertChunkCount(response, params, ignored -> expectedChunks);
+        assertCriticalWarnings(criticalDeprecationWarnings);
+
+        // check the v7 API too
+        AbstractChunkedSerializingTestCase.assertChunkCount(new ChunkedToXContent() {
+            @Override
+            public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params outerParams) {
+                return response.toXContentChunkedV7(outerParams);
+            }
+
+            @Override
+            public boolean isFragment() {
+                return response.isFragment();
+            }
+        }, params, ignored -> expectedChunks);
+        // the v7 API should not emit any deprecation warnings
+        assertCriticalWarnings();
+    }
+
+    private static ClusterRerouteResponse createClusterRerouteResponse(ClusterState clusterState) {
+        return new ClusterRerouteResponse(
+            true,
+            clusterState,
+            new RoutingExplanations().add(new RerouteExplanation(new AllocateReplicaAllocationCommand("index", 0, "node0"), Decision.YES))
+        );
+    }
+
+    private static ClusterState createClusterState() {
+        var node0 = DiscoveryNodeUtils.create("node0", new TransportAddress(TransportAddress.META_ADDRESS, 9000));
+        return ClusterState.builder(new ClusterName("test"))
+            .nodes(new DiscoveryNodes.Builder().add(node0).masterNodeId(node0.getId()).build())
+            .putCompatibilityVersions(
+                node0.getId(),
+                TransportVersions.V_8_0_0,
+                Map.of(".system-index", new SystemIndexDescriptor.MappingsVersion(1, 0))
+            )
+            .metadata(
+                Metadata.builder()
+                    .put(
+                        IndexMetadata.builder("index")
+                            .settings(
+                                indexSettings(1, 0).put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), true)
+                                    .put(IndexSettings.MAX_SCRIPT_FIELDS_SETTING.getKey(), 10)
+                                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                                    .build()
+                            )
+                            .build(),
+                        false
+                    )
+                    .build()
+            )
+            .build();
     }
 }

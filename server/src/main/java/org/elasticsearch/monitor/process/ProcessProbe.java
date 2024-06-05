@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.monitor.process;
@@ -54,13 +43,12 @@ public class ProcessProbe {
         return ProcessProbeHolder.INSTANCE;
     }
 
-    private ProcessProbe() {
-    }
+    private ProcessProbe() {}
 
     /**
      * Returns the maximum number of file descriptors allowed on the system, or -1 if not supported.
      */
-    public long getMaxFileDescriptorCount() {
+    public static long getMaxFileDescriptorCount() {
         if (getMaxFileDescriptorCountField == null) {
             return -1;
         }
@@ -74,7 +62,7 @@ public class ProcessProbe {
     /**
      * Returns the number of opened file descriptors associated with the current process, or -1 if not supported.
      */
-    public long getOpenFileDescriptorCount() {
+    public static long getOpenFileDescriptorCount() {
         if (getOpenFileDescriptorCountField == null) {
             return -1;
         }
@@ -88,14 +76,14 @@ public class ProcessProbe {
     /**
      * Returns the process CPU usage in percent
      */
-    public short getProcessCpuPercent() {
+    public static short getProcessCpuPercent() {
         return Probes.getLoadAndScaleToPercent(getProcessCpuLoad, osMxBean);
     }
 
     /**
      * Returns the CPU time (in milliseconds) used by the process on which the Java virtual machine is running, or -1 if not supported.
      */
-    public long getProcessCpuTotalTime() {
+    public static long getProcessCpuTotalTime() {
         if (getProcessCpuTime != null) {
             try {
                 long time = (long) getProcessCpuTime.invoke(osMxBean);
@@ -112,7 +100,7 @@ public class ProcessProbe {
     /**
      * Returns the size (in bytes) of virtual memory that is guaranteed to be available to the running process
      */
-    public long getTotalVirtualMemorySize() {
+    public static long getTotalVirtualMemorySize() {
         if (getCommittedVirtualMemorySize != null) {
             try {
                 long virtual = (long) getCommittedVirtualMemorySize.invoke(osMxBean);
@@ -126,11 +114,11 @@ public class ProcessProbe {
         return -1;
     }
 
-    public ProcessInfo processInfo(long refreshInterval) {
+    public static ProcessInfo processInfo(long refreshInterval) {
         return new ProcessInfo(jvmInfo().pid(), BootstrapInfo.isMemoryLocked(), refreshInterval);
     }
 
-    public ProcessStats processStats() {
+    public static ProcessStats processStats() {
         ProcessStats.Cpu cpu = new ProcessStats.Cpu(getProcessCpuPercent(), getProcessCpuTotalTime());
         ProcessStats.Mem mem = new ProcessStats.Mem(getTotalVirtualMemorySize());
         return new ProcessStats(System.currentTimeMillis(), getOpenFileDescriptorCount(), getMaxFileDescriptorCount(), cpu, mem);

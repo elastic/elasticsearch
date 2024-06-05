@@ -1,58 +1,61 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.rest.action.admin.cluster;
 
-import org.elasticsearch.action.admin.cluster.settings.ClusterGetSettingsResponse;
+import org.elasticsearch.action.admin.cluster.settings.ClusterGetSettingsAction;
+import org.elasticsearch.action.admin.cluster.settings.RestClusterGetSettingsResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
-import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
-import org.elasticsearch.client.Requests;
-import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.action.support.master.MasterNodeReadRequest;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestResponse;
-import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
+import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Set;
+import java.util.function.Predicate;
 
+import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
+
+@ServerlessScope(Scope.INTERNAL)
 public class RestClusterGetSettingsAction extends BaseRestHandler {
+
+    public static final NodeFeature SUPPORTS_GET_SETTINGS_ACTION = new NodeFeature("rest.get_settings_action");
 
     private final Settings settings;
     private final ClusterSettings clusterSettings;
     private final SettingsFilter settingsFilter;
+    private final Predicate<NodeFeature> clusterSupportsFeature;
 
-    public RestClusterGetSettingsAction(Settings settings, RestController controller, ClusterSettings clusterSettings,
-            SettingsFilter settingsFilter) {
+    public RestClusterGetSettingsAction(
+        Settings settings,
+        ClusterSettings clusterSettings,
+        SettingsFilter settingsFilter,
+        Predicate<NodeFeature> clusterSupportsFeature
+    ) {
         this.settings = settings;
         this.clusterSettings = clusterSettings;
-        controller.registerHandler(RestRequest.Method.GET, "/_cluster/settings", this);
         this.settingsFilter = settingsFilter;
+        this.clusterSupportsFeature = clusterSupportsFeature;
+    }
+
+    @Override
+    public List<Route> routes() {
+        return List.of(new Route(GET, "/_cluster/settings"));
     }
 
     @Override
@@ -60,20 +63,53 @@ public class RestClusterGetSettingsAction extends BaseRestHandler {
         return "cluster_get_settings_action";
     }
 
+    private static void setUpRequestParams(MasterNodeReadRequest<?> clusterRequest, RestRequest request) {
+        clusterRequest.local(request.paramAsBoolean("local", clusterRequest.local()));
+        clusterRequest.masterNodeTimeout(getMasterNodeTimeout(request));
+    }
+
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        ClusterStateRequest clusterStateRequest = Requests.clusterStateRequest()
-                .routingTable(false)
-                .nodes(false);
         final boolean renderDefaults = request.paramAsBoolean("include_defaults", false);
-        clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
-        clusterStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterStateRequest.masterNodeTimeout()));
-        return channel -> client.admin().cluster().state(clusterStateRequest, new RestBuilderListener<ClusterStateResponse>(channel) {
-            @Override
-            public RestResponse buildResponse(ClusterStateResponse response, XContentBuilder builder) throws Exception {
-                return new BytesRestResponse(RestStatus.OK, renderResponse(response.getState(), renderDefaults, builder, request));
-            }
-        });
+
+        if (clusterSupportsFeature.test(SUPPORTS_GET_SETTINGS_ACTION) == false) {
+            return prepareLegacyRequest(request, client, renderDefaults);
+        }
+
+        ClusterGetSettingsAction.Request clusterSettingsRequest = new ClusterGetSettingsAction.Request();
+
+        setUpRequestParams(clusterSettingsRequest, request);
+
+        return channel -> client.execute(
+            ClusterGetSettingsAction.INSTANCE,
+            clusterSettingsRequest,
+            new RestToXContentListener<RestClusterGetSettingsResponse>(channel).map(
+                r -> response(r, renderDefaults, settingsFilter, clusterSettings, settings)
+            )
+        );
+    }
+
+    private RestChannelConsumer prepareLegacyRequest(final RestRequest request, final NodeClient client, final boolean renderDefaults) {
+        ClusterStateRequest clusterStateRequest = new ClusterStateRequest().routingTable(false).nodes(false);
+        setUpRequestParams(clusterStateRequest, request);
+        return channel -> client.admin()
+            .cluster()
+            .state(
+                clusterStateRequest,
+                new RestToXContentListener<RestClusterGetSettingsResponse>(channel).map(
+                    r -> response(
+                        new ClusterGetSettingsAction.Response(
+                            r.getState().metadata().persistentSettings(),
+                            r.getState().metadata().transientSettings(),
+                            r.getState().metadata().settings()
+                        ),
+                        renderDefaults,
+                        settingsFilter,
+                        clusterSettings,
+                        settings
+                    )
+                )
+            );
     }
 
     @Override
@@ -86,21 +122,18 @@ public class RestClusterGetSettingsAction extends BaseRestHandler {
         return false;
     }
 
-    private XContentBuilder renderResponse(ClusterState state, boolean renderDefaults, XContentBuilder builder, ToXContent.Params params)
-            throws IOException {
-        return response(state, renderDefaults, settingsFilter, clusterSettings, settings).toXContent(builder, params);
-    }
-
-    static ClusterGetSettingsResponse response(
-            final ClusterState state,
-            final boolean renderDefaults,
-            final SettingsFilter settingsFilter,
-            final ClusterSettings clusterSettings,
-            final Settings settings) {
-        return new ClusterGetSettingsResponse(
-                settingsFilter.filter(state.metaData().persistentSettings()),
-                settingsFilter.filter(state.metaData().transientSettings()),
-                renderDefaults ? settingsFilter.filter(clusterSettings.diff(state.metaData().settings(), settings)) : Settings.EMPTY);
+    static RestClusterGetSettingsResponse response(
+        final ClusterGetSettingsAction.Response response,
+        final boolean renderDefaults,
+        final SettingsFilter settingsFilter,
+        final ClusterSettings clusterSettings,
+        final Settings settings
+    ) {
+        return new RestClusterGetSettingsResponse(
+            settingsFilter.filter(response.persistentSettings()),
+            settingsFilter.filter(response.transientSettings()),
+            renderDefaults ? settingsFilter.filter(clusterSettings.diff(response.settings(), settings)) : Settings.EMPTY
+        );
     }
 
 }

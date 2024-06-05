@@ -1,29 +1,21 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.support;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
 
@@ -50,32 +42,47 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
      * Use this method when the transport action should continue to run in the context of the current task
      */
     public final void execute(Task task, Request request, ActionListener<Response> listener) {
-        ActionRequestValidationException validationException = request.validate();
+        final ActionRequestValidationException validationException;
+        try {
+            validationException = request.validate();
+        } catch (Exception e) {
+            assert false : new AssertionError("validating of request [" + request + "] threw exception", e);
+            logger.warn("validating of request [" + request + "] threw exception", e);
+            listener.onFailure(e);
+            return;
+        }
         if (validationException != null) {
             listener.onFailure(validationException);
             return;
         }
-
         if (task != null && request.getShouldStoreResult()) {
             listener = new TaskResultStoringActionListener<>(taskManager, task, listener);
         }
 
-        RequestFilterChain<Request, Response> requestFilterChain = new RequestFilterChain<>(this, logger);
-        requestFilterChain.proceed(task, actionName, request, listener);
+        // Note on request refcounting: we can be sure that either we get to the end of the chain (and execute the actual action) or
+        // we complete the response listener and short-circuit the outer chain, so we release our request ref on both paths, using
+        // Releasables#releaseOnce to avoid a double-release.
+        request.mustIncRef();
+        final var releaseRef = Releasables.releaseOnce(request::decRef);
+        RequestFilterChain<Request, Response> requestFilterChain = new RequestFilterChain<>(this, logger, releaseRef);
+        requestFilterChain.proceed(task, actionName, request, ActionListener.runBefore(listener, releaseRef::close));
     }
 
     protected abstract void doExecute(Task task, Request request, ActionListener<Response> listener);
 
     private static class RequestFilterChain<Request extends ActionRequest, Response extends ActionResponse>
-            implements ActionFilterChain<Request, Response> {
+        implements
+            ActionFilterChain<Request, Response> {
 
         private final TransportAction<Request, Response> action;
         private final AtomicInteger index = new AtomicInteger();
         private final Logger logger;
+        private final Releasable releaseRef;
 
-        private RequestFilterChain(TransportAction<Request, Response> action, Logger logger) {
+        private RequestFilterChain(TransportAction<Request, Response> action, Logger logger, Releasable releaseRef) {
             this.action = action;
             this.logger = logger;
+            this.releaseRef = releaseRef;
         }
 
         @Override
@@ -85,11 +92,13 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
                 if (i < this.action.filters.length) {
                     this.action.filters[i].apply(task, actionName, request, listener, this);
                 } else if (i == this.action.filters.length) {
-                    this.action.doExecute(task, request, listener);
+                    try (releaseRef) {
+                        this.action.doExecute(task, request, listener);
+                    }
                 } else {
                     listener.onFailure(new IllegalStateException("proceed was called too many times"));
                 }
-            } catch(Exception e) {
+            } catch (Exception e) {
                 logger.trace("Error during transport action execution.", e);
                 listener.onFailure(e);
             }
@@ -113,11 +122,7 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
 
         @Override
         public void onResponse(Response response) {
-            try {
-                taskManager.storeResult(task, response, delegate);
-            } catch (Exception e) {
-                delegate.onFailure(e);
-            }
+            ActionListener.run(delegate, l -> taskManager.storeResult(task, response, l));
         }
 
         @Override
@@ -129,5 +134,15 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
                 delegate.onFailure(inner);
             }
         }
+    }
+
+    /**
+     * A method to use as a placeholder in implementations of {@link TransportAction} which only ever run on the local node, and therefore
+     * do not need to serialize or deserialize any messages.
+     */
+    // TODO remove this when https://github.com/elastic/elasticsearch/issues/100111 is resolved
+    public static <T> T localOnly() {
+        assert false : "local-only action";
+        throw new UnsupportedOperationException("local-only action");
     }
 }

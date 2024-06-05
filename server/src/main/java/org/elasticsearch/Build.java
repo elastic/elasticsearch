@@ -1,80 +1,152 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch;
 
-import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Booleans;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.internal.BuildExtension;
+import org.elasticsearch.plugins.ExtensionLoader;
 
 import java.io.IOException;
 import java.net.URL;
 import java.security.CodeSource;
-import java.util.Objects;
+import java.util.Locale;
+import java.util.ServiceLoader;
 import java.util.jar.JarInputStream;
 import java.util.jar.Manifest;
+import java.util.regex.Pattern;
 
 /**
  * Information about a build of Elasticsearch.
  */
-public class Build {
+public record Build(
+    String flavor,
+    Type type,
+    String hash,
+    String date,
+    String version,
+    String qualifier,
+    boolean isSnapshot,
+    String minWireCompatVersion,
+    String minIndexCompatVersion,
+    String displayString
+) {
+
+    private static class CurrentHolder {
+        private static final Build CURRENT = findCurrent();
+
+        // finds the pluggable current build, or uses the local build as a fallback
+        private static Build findCurrent() {
+            return ExtensionLoader.loadSingleton(ServiceLoader.load(BuildExtension.class))
+                .map(BuildExtension::getCurrentBuild)
+                .orElseGet(Build::findLocalBuild);
+        }
+    }
+
+    private static final Pattern qualfiedVersionRegex = Pattern.compile("([^-]+)(?:-((:?alpha|beta|rc)[0-9]+))?(?:-SNAPSHOT)?");
+
     /**
-     * The current build of Elasticsearch. Filled with information scanned at
-     * startup from the jar.
+     * Finds build info scanned from the server jar.
      */
-    public static final Build CURRENT;
+    private static Build findLocalBuild() {
+        final Type type;
+        final String hash;
+        final String date;
+        final boolean isSnapshot;
+        final String qualifier;
+        final String version;
 
-    public enum Flavor {
+        // these are parsed at startup, and we require that we are able to recognize the values passed in by the startup scripts
+        type = Type.fromDisplayName(System.getProperty("es.distribution.type", "unknown"), true);
 
-        DEFAULT("default"),
-        OSS("oss"),
-        UNKNOWN("unknown");
-
-        final String displayName;
-
-        Flavor(final String displayName) {
-            this.displayName = displayName;
-        }
-
-        public String displayName() {
-            return displayName;
-        }
-
-        public static Flavor fromDisplayName(final String displayName, final boolean strict) {
-            switch (displayName) {
-                case "default":
-                    return Flavor.DEFAULT;
-                case "oss":
-                    return Flavor.OSS;
-                case "unknown":
-                    return Flavor.UNKNOWN;
-                default:
-                    if (strict) {
-                        final String message = "unexpected distribution flavor [" + displayName + "]; your distribution is broken";
-                        throw new IllegalStateException(message);
-                    } else {
-                        return Flavor.UNKNOWN;
-                    }
+        final String esPrefix = "elasticsearch-" + Version.CURRENT;
+        final URL url = getElasticsearchCodeSourceLocation();
+        final String urlStr = url == null ? "" : url.toString();
+        if (urlStr.startsWith("file:/")
+            && (urlStr.endsWith(esPrefix + ".jar") || urlStr.matches("(.*)" + esPrefix + "(-)?((alpha|beta|rc)[0-9]+)?(-SNAPSHOT)?.jar"))) {
+            try (JarInputStream jar = new JarInputStream(FileSystemUtils.openFileURLStream(url))) {
+                Manifest manifest = jar.getManifest();
+                hash = manifest.getMainAttributes().getValue("Change");
+                date = manifest.getMainAttributes().getValue("Build-Date");
+                isSnapshot = "true".equals(manifest.getMainAttributes().getValue("X-Compile-Elasticsearch-Snapshot"));
+                String rawVersion = manifest.getMainAttributes().getValue("X-Compile-Elasticsearch-Version");
+                var versionMatcher = qualfiedVersionRegex.matcher(rawVersion);
+                if (versionMatcher.matches() == false) {
+                    throw new IllegalStateException(String.format(Locale.ROOT, "Malformed elasticsearch compile version: %s", rawVersion));
+                }
+                version = versionMatcher.group(1);
+                qualifier = versionMatcher.group(2);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
             }
+        } else {
+            // not running from the official elasticsearch jar file (unit tests, IDE, uber client jar, shadiness)
+            hash = "unknown";
+            date = "unknown";
+            version = Version.CURRENT.toString();
+            final String buildSnapshot = System.getProperty("build.snapshot");
+            if (buildSnapshot != null) {
+                try {
+                    Class.forName("com.carrotsearch.randomizedtesting.RandomizedContext");
+                } catch (final ClassNotFoundException e) {
+                    // we are not in tests but build.snapshot is set, bail hard
+                    throw new IllegalStateException("build.snapshot set to [" + buildSnapshot + "] but not running tests");
+                }
+                isSnapshot = Booleans.parseBoolean(buildSnapshot);
+            } else {
+                isSnapshot = true;
+            }
+            qualifier = System.getProperty("build.version_qualifier");
+        }
+        if (hash == null) {
+            throw new IllegalStateException(
+                "Error finding the build hash. "
+                    + "Stopping Elasticsearch now so it doesn't run in subtly broken ways. This is likely a build bug."
+            );
+        }
+        if (date == null) {
+            throw new IllegalStateException(
+                "Error finding the build date. "
+                    + "Stopping Elasticsearch now so it doesn't run in subtly broken ways. This is likely a build bug."
+            );
+        }
+        if (version == null) {
+            throw new IllegalStateException(
+                "Error finding the build version. "
+                    + "Stopping Elasticsearch now so it doesn't run in subtly broken ways. This is likely a build bug."
+            );
         }
 
+        final String flavor = "default";
+        String minWireCompat = Version.CURRENT.minimumCompatibilityVersion().toString();
+        String minIndexCompat = minimumCompatString(IndexVersions.MINIMUM_COMPATIBLE);
+        String displayString = defaultDisplayString(type, hash, date, qualifiedVersionString(version, qualifier, isSnapshot));
+
+        return new Build(flavor, type, hash, date, version, qualifier, isSnapshot, minWireCompat, minIndexCompat, displayString);
+    }
+
+    public static String minimumCompatString(IndexVersion minimumCompatible) {
+        if (minimumCompatible.before(IndexVersions.FIRST_DETACHED_INDEX_VERSION)) {
+            // use Version for compatibility
+            return Version.fromId(minimumCompatible.id()).toString();
+        } else {
+            // use the IndexVersion string
+            return minimumCompatible.toString();
+        }
+    }
+
+    public static Build current() {
+        return CurrentHolder.CURRENT;
     }
 
     public enum Type {
@@ -118,72 +190,7 @@ public class Build {
                     }
             }
         }
-
     }
-
-    static {
-        final Flavor flavor;
-        final Type type;
-        final String hash;
-        final String date;
-        final boolean isSnapshot;
-        final String version;
-
-        // these are parsed at startup, and we require that we are able to recognize the values passed in by the startup scripts
-        flavor = Flavor.fromDisplayName(System.getProperty("es.distribution.flavor", "unknown"), true);
-        type = Type.fromDisplayName(System.getProperty("es.distribution.type", "unknown"), true);
-
-        final String esPrefix = "elasticsearch-" + Version.CURRENT;
-        final URL url = getElasticsearchCodeSourceLocation();
-        final String urlStr = url == null ? "" : url.toString();
-        if (urlStr.startsWith("file:/") && (
-            urlStr.endsWith(esPrefix + ".jar") ||
-            urlStr.matches("(.*)" + esPrefix + "(-)?((alpha|beta|rc)[0-9]+)?(-SNAPSHOT)?.jar")
-        )) {
-            try (JarInputStream jar = new JarInputStream(FileSystemUtils.openFileURLStream(url))) {
-                Manifest manifest = jar.getManifest();
-                hash = manifest.getMainAttributes().getValue("Change");
-                date = manifest.getMainAttributes().getValue("Build-Date");
-                isSnapshot = "true".equals(manifest.getMainAttributes().getValue("X-Compile-Elasticsearch-Snapshot"));
-                version = manifest.getMainAttributes().getValue("X-Compile-Elasticsearch-Version");
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-        } else {
-            // not running from the official elasticsearch jar file (unit tests, IDE, uber client jar, shadiness)
-            hash = "unknown";
-            date = "unknown";
-            version = Version.CURRENT.toString();
-            final String buildSnapshot = System.getProperty("build.snapshot");
-            if (buildSnapshot != null) {
-                try {
-                    Class.forName("com.carrotsearch.randomizedtesting.RandomizedContext");
-                } catch (final ClassNotFoundException e) {
-                    // we are not in tests but build.snapshot is set, bail hard
-                    throw new IllegalStateException("build.snapshot set to [" + buildSnapshot + "] but not running tests");
-                }
-                isSnapshot = Booleans.parseBoolean(buildSnapshot);
-            } else {
-                isSnapshot = true;
-            }
-        }
-        if (hash == null) {
-            throw new IllegalStateException("Error finding the build hash. " +
-                    "Stopping Elasticsearch now so it doesn't run in subtly broken ways. This is likely a build bug.");
-        }
-        if (date == null) {
-            throw new IllegalStateException("Error finding the build date. " +
-                    "Stopping Elasticsearch now so it doesn't run in subtly broken ways. This is likely a build bug.");
-        }
-        if (version == null) {
-            throw new IllegalStateException("Error finding the build version. " +
-                "Stopping Elasticsearch now so it doesn't run in subtly broken ways. This is likely a build bug.");
-        }
-
-        CURRENT = new Build(flavor, type, hash, date, isSnapshot, version);
-    }
-
-    private final boolean isSnapshot;
 
     /**
      * The location of the code source for Elasticsearch
@@ -195,130 +202,110 @@ public class Build {
         return codeSource == null ? null : codeSource.getLocation();
     }
 
-    private final Flavor flavor;
-    private final Type type;
-    private final String hash;
-    private final String date;
-    private final String version;
-
-    public Build(
-        final Flavor flavor, final Type type, final String hash, final String date, boolean isSnapshot,
-        String version
-    ) {
-        this.flavor = flavor;
-        this.type = type;
-        this.hash = hash;
-        this.date = date;
-        this.isSnapshot = isSnapshot;
-        this.version = version;
-    }
-
-    public String hash() {
-        return hash;
-    }
-
-    public String date() {
-        return date;
-    }
-
     public static Build readBuild(StreamInput in) throws IOException {
-        final Flavor flavor;
-        final Type type;
+        final String flavor;
+        if (in.getTransportVersion().before(TransportVersions.V_8_3_0) || in.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)) {
+            flavor = in.readString();
+        } else {
+            flavor = "default";
+        }
         // be lenient when reading on the wire, the enumeration values from other versions might be different than what we know
-        flavor = Flavor.fromDisplayName(in.readString(), false);
-        // be lenient when reading on the wire, the enumeration values from other versions might be different than what we know
-        type = Type.fromDisplayName(in.readString(), false);
+        final Type type = Type.fromDisplayName(in.readString(), false);
         String hash = in.readString();
         String date = in.readString();
-        boolean snapshot = in.readBoolean();
-
         final String version;
-        version = in.readString();
-        return new Build(flavor, type, hash, date, snapshot, version);
+        final String qualifier;
+        final boolean snapshot;
+        final String minWireVersion;
+        final String minIndexVersion;
+        final String displayString;
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
+            version = in.readString();
+            qualifier = in.readOptionalString();
+            snapshot = in.readBoolean();
+        } else {
+            snapshot = in.readBoolean();
+            String rawVersion = in.readString();
+            // need to separate out qualifiers from older nodes
+            var versionMatcher = qualfiedVersionRegex.matcher(rawVersion);
+            if (versionMatcher.matches() == false) {
+                throw new IllegalStateException(String.format(Locale.ROOT, "Malformed elasticsearch compile version: %s", rawVersion));
+            }
+            version = versionMatcher.group(1);
+            qualifier = versionMatcher.group(2);
+        }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)) {
+            minWireVersion = in.readString();
+            minIndexVersion = in.readString();
+            displayString = in.readString();
+        } else {
+            // the version is qualified, so we may need to strip off -SNAPSHOT or -alpha, etc. Here we simply find the first dash
+            int dashNdx = version.indexOf('-');
+            var versionConstant = Version.fromString(dashNdx == -1 ? version : version.substring(0, dashNdx));
+            minWireVersion = versionConstant.minimumCompatibilityVersion().toString();
+            minIndexVersion = minimumCompatString(IndexVersion.getMinimumCompatibleIndexVersion(versionConstant.id()));
+            displayString = defaultDisplayString(type, hash, date, qualifiedVersionString(version, qualifier, snapshot));
+        }
+        return new Build(flavor, type, hash, date, version, qualifier, snapshot, minWireVersion, minIndexVersion, displayString);
     }
 
     public static void writeBuild(Build build, StreamOutput out) throws IOException {
-        out.writeString(build.flavor().displayName());
+        if (out.getTransportVersion().before(TransportVersions.V_8_3_0)
+            || out.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)) {
+            out.writeString(build.flavor());
+        }
         out.writeString(build.type().displayName());
         out.writeString(build.hash());
         out.writeString(build.date());
-        out.writeBoolean(build.isSnapshot());
-        out.writeString(build.getQualifiedVersion());
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
+            out.writeString(build.version());
+            out.writeOptionalString(build.qualifier());
+            out.writeBoolean(build.isSnapshot());
+        } else {
+            out.writeBoolean(build.isSnapshot());
+            out.writeString(build.qualifiedVersion());
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)) {
+            out.writeString(build.minWireCompatVersion());
+            out.writeString(build.minIndexCompatVersion());
+            out.writeString(build.displayString());
+        }
     }
 
     /**
      * Get the version as considered at build time
-     *
+     * <p>
      * Offers a way to get the fully qualified version as configured by the build.
      * This will be the same as {@link Version} for production releases, but may include on of the qualifier ( e.x alpha1 )
      * or -SNAPSHOT for others.
      *
      * @return the fully qualified build
      */
-    public String getQualifiedVersion() {
-        return version;
+    public String qualifiedVersion() {
+        return qualifiedVersionString(version, qualifier, isSnapshot);
     }
 
-    public Flavor flavor() {
-        return flavor;
+    private static String qualifiedVersionString(String version, String qualifier, boolean isSnapshot) {
+        String versionString = version;
+        if (qualifier != null) {
+            versionString += "-" + qualifier;
+        }
+        if (isSnapshot) {
+            versionString += "-SNAPSHOT";
+        }
+        return versionString;
     }
 
-    public Type type() {
-        return type;
-    }
-
-    public boolean isSnapshot() {
-        return isSnapshot;
-    }
-
-    /**
-     * Provides information about the intent of the build
-     *
-     * @return true if the build is intended for production use
-     */
     public boolean isProductionRelease() {
-        return version.matches("[0-9]+\\.[0-9]+\\.[0-9]+");
+        return isSnapshot == false && qualifier == null;
+    }
+
+    public static String defaultDisplayString(Type type, String hash, String date, String version) {
+        return "[" + type.displayName + "][" + hash + "][" + date + "][" + version + "]";
     }
 
     @Override
     public String toString() {
-        return "[" + flavor.displayName() + "][" + type.displayName + "][" + hash + "][" + date + "][" + version +"]";
+        return displayString();
     }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) {
-            return true;
-        }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-
-        Build build = (Build) o;
-
-        if (!flavor.equals(build.flavor)) {
-            return false;
-        }
-
-        if (!type.equals(build.type)) {
-            return false;
-        }
-
-        if (isSnapshot != build.isSnapshot) {
-            return false;
-        }
-        if (hash.equals(build.hash) == false) {
-            return false;
-        }
-        if (version.equals(build.version) == false) {
-            return false;
-        }
-        return date.equals(build.date);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(flavor, type, isSnapshot, hash, date, version);
-    }
-
 }

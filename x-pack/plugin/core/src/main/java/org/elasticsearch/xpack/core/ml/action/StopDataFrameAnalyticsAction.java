@@ -1,28 +1,27 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
-import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -33,17 +32,20 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 public class StopDataFrameAnalyticsAction extends ActionType<StopDataFrameAnalyticsAction.Response> {
 
     public static final StopDataFrameAnalyticsAction INSTANCE = new StopDataFrameAnalyticsAction();
     public static final String NAME = "cluster:admin/xpack/ml/data_frame/analytics/stop";
 
+    public static final TimeValue DEFAULT_TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
+
     private StopDataFrameAnalyticsAction() {
-        super(NAME, StopDataFrameAnalyticsAction.Response::new);
+        super(NAME);
     }
 
-    public static class Request extends BaseTasksRequest<Request> implements ToXContentObject {
+    public static final class Request extends BaseTasksRequest<Request> implements ToXContentObject {
 
         public static final ParseField ALLOW_NO_MATCH = new ParseField("allow_no_match");
         public static final ParseField FORCE = new ParseField("force");
@@ -62,9 +64,10 @@ public class StopDataFrameAnalyticsAction extends ActionType<StopDataFrameAnalyt
             Request request = PARSER.apply(parser, null);
             if (request.getId() == null) {
                 request.setId(id);
-            } else if (!Strings.isNullOrEmpty(id) && !id.equals(request.getId())) {
-                throw new IllegalArgumentException(Messages.getMessage(Messages.INCONSISTENT_ID, DataFrameAnalyticsConfig.ID,
-                    request.getId(), id));
+            } else if (Strings.isNullOrEmpty(id) == false && id.equals(request.getId()) == false) {
+                throw new IllegalArgumentException(
+                    Messages.getMessage(Messages.INCONSISTENT_ID, DataFrameAnalyticsConfig.ID, request.getId(), id)
+                );
             }
             return request;
         }
@@ -75,6 +78,7 @@ public class StopDataFrameAnalyticsAction extends ActionType<StopDataFrameAnalyt
         private Set<String> expandedIds = Collections.emptySet();
 
         public Request(String id) {
+            this();
             setId(id);
         }
 
@@ -86,10 +90,13 @@ public class StopDataFrameAnalyticsAction extends ActionType<StopDataFrameAnalyt
             expandedIds = new HashSet<>(Arrays.asList(in.readStringArray()));
         }
 
-        public Request() {}
+        public Request() {
+            setTimeout(DEFAULT_TIMEOUT);
+        }
 
-        public final void setId(String id) {
+        public Request setId(String id) {
             this.id = ExceptionsHelper.requireNonNull(id, DataFrameAnalyticsConfig.ID);
+            return this;
         }
 
         public String getId() {
@@ -100,16 +107,18 @@ public class StopDataFrameAnalyticsAction extends ActionType<StopDataFrameAnalyt
             return allowNoMatch;
         }
 
-        public void setAllowNoMatch(boolean allowNoMatch) {
+        public Request setAllowNoMatch(boolean allowNoMatch) {
             this.allowNoMatch = allowNoMatch;
+            return this;
         }
 
         public boolean isForce() {
             return force;
         }
 
-        public void setForce(boolean force) {
+        public Request setForce(boolean force) {
             this.force = force;
+            return this;
         }
 
         @Nullable
@@ -137,13 +146,12 @@ public class StopDataFrameAnalyticsAction extends ActionType<StopDataFrameAnalyt
             out.writeString(id);
             out.writeBoolean(allowNoMatch);
             out.writeBoolean(force);
-            out.writeStringArray(expandedIds.toArray(new String[0]));
+            out.writeStringCollection(expandedIds);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return builder
-                .startObject()
+            return builder.startObject()
                 .field(DataFrameAnalyticsConfig.ID.getPreferredName(), id)
                 .field(ALLOW_NO_MATCH.getPreferredName(), allowNoMatch)
                 .field(FORCE.getPreferredName(), force)
@@ -212,10 +220,8 @@ public class StopDataFrameAnalyticsAction extends ActionType<StopDataFrameAnalyt
 
         @Override
         public boolean equals(Object o) {
-            if (this == o)
-                return true;
-            if (o == null || getClass() != o.getClass())
-                return false;
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
             Response response = (Response) o;
             return stopped == response.stopped;
         }
@@ -223,13 +229,6 @@ public class StopDataFrameAnalyticsAction extends ActionType<StopDataFrameAnalyt
         @Override
         public int hashCode() {
             return Objects.hash(stopped);
-        }
-    }
-
-    static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
-
-        RequestBuilder(ElasticsearchClient client, StopDataFrameAnalyticsAction action) {
-            super(client, action, new Request());
         }
     }
 }

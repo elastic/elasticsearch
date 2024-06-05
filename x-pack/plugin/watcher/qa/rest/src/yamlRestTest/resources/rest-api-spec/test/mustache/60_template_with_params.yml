@@ -1,0 +1,67 @@
+---
+setup:
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+
+---
+teardown:
+  - do:
+      watcher.delete_watch:
+        id: "test_watch"
+        ignore: 404
+
+---
+"Test executing logging action using template with params":
+  - do:
+      put_script:
+        id: log-action
+        body: >
+          {
+            "script":
+            {
+              "lang": "mustache",
+              "source": "{{color}} alert"
+            }
+          }
+
+  - do:
+      watcher.put_watch:
+        id: "test_watch"
+        body:  >
+          {
+            "trigger": {
+              "schedule" : { "interval": "1m" }
+            },
+            "input": {
+              "simple": {
+              }
+            },
+            "condition": {
+              "always": {}
+            },
+            "actions": {
+              "log" : {
+                "logging" : {
+                  "text" : {
+                    "id": "log-action",
+                    "params": {
+                      "color": "yellow"
+                    }
+                  }
+                }
+              }
+            }
+          }
+  - match: { _id: "test_watch" }
+  - match: { created: true }
+
+  - do:
+      watcher.execute_watch:
+        id: "test_watch"
+
+  - match: { watch_record.watch_id: "test_watch" }
+  - match: { watch_record.result.actions.0.id: "log" }
+  - match: { watch_record.result.actions.0.type: "logging" }
+  - match: { watch_record.result.actions.0.status: "success" }
+  - match: { watch_record.result.actions.0.logging.logged_text: "yellow alert" }

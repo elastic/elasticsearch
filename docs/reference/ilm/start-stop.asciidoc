@@ -1,0 +1,139 @@
+[role="xpack"]
+[[start-stop-ilm]]
+== Start and stop {ilm}
+
+By default, the {ilm-init} service is in the `RUNNING` state and manages 
+all indices that have lifecycle policies. 
+
+You can stop {ilm} to suspend management operations for all indices.
+For example, you might stop {ilm} when performing scheduled maintenance or making
+changes to the cluster that could impact the execution of {ilm-init} actions.
+
+IMPORTANT: When you stop {ilm-init}, <<automate-snapshots-slm,{slm-init}>> 
+operations are also suspended. 
+No snapshots will be taken as scheduled until you restart {ilm-init}.
+In-progress snapshots are not affected.
+
+[discrete]
+[[get-ilm-status]]
+=== Get {ilm-init} status
+
+To see the current status of the {ilm-init} service, use the <<ilm-get-status,Get Status API>>:
+
+////
+[source,console]
+--------------------------------------------------
+PUT _ilm/policy/my_policy
+{
+  "policy": {
+    "phases": {
+      "warm": {
+        "min_age": "10d",
+        "actions": {
+          "forcemerge": {
+            "max_num_segments": 1
+          }
+        }
+      },
+      "delete": {
+        "min_age": "30d",
+        "actions": {
+          "delete": {}
+        }
+      }
+    }
+  }
+}
+
+PUT my-index-000001
+{
+  "settings": {
+    "index.lifecycle.name": "my_policy"
+  }
+}
+--------------------------------------------------
+////
+
+[source,console]
+--------------------------------------------------
+GET _ilm/status
+--------------------------------------------------
+
+Under normal operation, the response shows {ilm-init} is `RUNNING`:
+
+[source,console-result]
+--------------------------------------------------
+{
+  "operation_mode": "RUNNING"
+}
+--------------------------------------------------
+
+
+
+[discrete]
+[[stop-ilm]]
+=== Stop {ilm-init}
+
+To stop the {ilm-init} service and pause execution of all lifecycle policies, 
+use the <<ilm-stop,Stop API>>:
+
+[source,console]
+--------------------------------------------------
+POST _ilm/stop
+--------------------------------------------------
+// TEST[continued]
+
+{ilm-init} service runs all policies to a point where it is safe to stop. 
+While the {ilm-init} service is shutting down, 
+the status API shows {ilm-init} is in the `STOPPING` mode:
+
+////
+[source,console]
+--------------------------------------------------
+GET _ilm/status
+--------------------------------------------------
+// TEST[continued]
+////
+
+[source,console-result]
+--------------------------------------------------
+{
+  "operation_mode": "STOPPING"
+}
+--------------------------------------------------
+// TESTRESPONSE[s/"STOPPING"/$body.operation_mode/]
+
+Once all policies are at a safe stopping point, {ilm-init} moves into the `STOPPED` mode:
+
+////
+[source,console]
+--------------------------------------------------
+PUT trigger_ilm_cs_action
+
+GET _ilm/status
+--------------------------------------------------
+// TEST[continued]
+////
+
+[source,console-result]
+--------------------------------------------------
+{
+  "operation_mode": "STOPPED"
+}
+--------------------------------------------------
+// TESTRESPONSE[s/"STOPPED"/$body.operation_mode/]
+
+[discrete]
+=== Start {ilm-init}
+
+To restart {ilm-init} and resume executing policies, use the <<ilm-start, Start API>>.
+This puts the  {ilm-init} service in the `RUNNING` state and 
+{ilm-init} begins executing policies from where it left off.
+
+[source,console]
+--------------------------------------------------
+POST _ilm/start
+--------------------------------------------------
+// TEST[continued]
+
+

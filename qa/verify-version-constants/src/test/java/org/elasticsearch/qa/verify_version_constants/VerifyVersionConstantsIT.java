@@ -1,46 +1,53 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.qa.verify_version_constants;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.test.rest.yaml.ObjectPath;
+import org.elasticsearch.test.rest.ObjectPath;
 
 import java.io.IOException;
 import java.text.ParseException;
 
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.lessThan;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/97736")
 public class VerifyVersionConstantsIT extends ESRestTestCase {
 
     public void testLuceneVersionConstant() throws IOException, ParseException {
-        final Response response = client().performRequest(new Request("GET", "/"));
+        Response response = client().performRequest(new Request("GET", "/"));
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
-        final ObjectPath objectPath = ObjectPath.createFromResponse(response);
-        final String elasticsearchVersionString = objectPath.evaluate("version.number").toString();
-        final Version elasticsearchVersion = Version.fromString(elasticsearchVersionString.replace("-SNAPSHOT", ""));
-        final String luceneVersionString = objectPath.evaluate("version.lucene_version").toString();
-        final org.apache.lucene.util.Version luceneVersion = org.apache.lucene.util.Version.parse(luceneVersionString);
-        assertThat(elasticsearchVersion.luceneVersion, equalTo(luceneVersion));
+        ObjectPath objectPath = ObjectPath.createFromResponse(response);
+
+        String luceneVersionString = objectPath.evaluate("version.lucene_version").toString();
+        org.apache.lucene.util.Version luceneVersion = org.apache.lucene.util.Version.parse(luceneVersionString);
+
+        IndexVersion indexVersion;
+        Object indexVersionString = objectPath.evaluate("version.index_version");
+        if (indexVersionString != null) {
+            indexVersion = IndexVersion.fromId(Integer.parseInt(indexVersionString.toString()));
+        } else {
+            String elasticsearchVersionString = objectPath.evaluate("version.number").toString();
+            Version elasticsearchVersion = Version.fromString(elasticsearchVersionString.replace("-SNAPSHOT", ""));
+            assertThat(elasticsearchVersion, lessThan(Version.V_8_10_0));
+            indexVersion = IndexVersion.fromId(elasticsearchVersion.id);
+        }
+
+        assertThat(indexVersion.luceneVersion(), equalTo(luceneVersion));
     }
 
     @Override
@@ -52,5 +59,11 @@ public class VerifyVersionConstantsIT extends ESRestTestCase {
          * versions.
          */
         return true;
+    }
+
+    @Override
+    protected Settings restClientSettings() {
+        String token = basicAuthHeaderValue("admin", new SecureString("admin-password".toCharArray()));
+        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 }

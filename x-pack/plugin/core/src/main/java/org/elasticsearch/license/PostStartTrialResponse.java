@@ -1,31 +1,33 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.license;
 
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 
-class PostStartTrialResponse extends ActionResponse {
+public class PostStartTrialResponse extends ActionResponse {
 
-    enum Status {
+    public enum Status {
         UPGRADED_TO_TRIAL(true, null, RestStatus.OK),
         TRIAL_ALREADY_ACTIVATED(false, "Operation failed: Trial was already activated.", RestStatus.FORBIDDEN),
-        NEED_ACKNOWLEDGEMENT(false,"Operation failed: Needs acknowledgement.", RestStatus.OK);
+        NEED_ACKNOWLEDGEMENT(false, "Operation failed: Needs acknowledgement.", RestStatus.OK);
 
         private final boolean isTrialStarted;
 
         private final String errorMessage;
         private final RestStatus restStatus;
+
         Status(boolean isTrialStarted, String errorMessage, RestStatus restStatus) {
             this.isTrialStarted = isTrialStarted;
             this.errorMessage = errorMessage;
@@ -46,16 +48,16 @@ class PostStartTrialResponse extends ActionResponse {
 
     }
 
-    private Status status;
-    private Map<String, String[]> acknowledgeMessages;
-    private String acknowledgeMessage;
+    private final Status status;
+    private final Map<String, String[]> acknowledgeMessages;
+    private final String acknowledgeMessage;
 
     PostStartTrialResponse(StreamInput in) throws IOException {
         super(in);
         status = in.readEnum(Status.class);
         acknowledgeMessage = in.readOptionalString();
         int size = in.readVInt();
-        Map<String, String[]> acknowledgeMessages = new HashMap<>(size);
+        Map<String, String[]> acknowledgeMessages = Maps.newMapWithExpectedSize(size);
         for (int i = 0; i < size; i++) {
             String feature = in.readString();
             int nMessages = in.readVInt();
@@ -86,14 +88,7 @@ class PostStartTrialResponse extends ActionResponse {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeEnum(status);
         out.writeOptionalString(acknowledgeMessage);
-        out.writeVInt(acknowledgeMessages.size());
-        for (Map.Entry<String, String[]> entry : acknowledgeMessages.entrySet()) {
-            out.writeString(entry.getKey());
-            out.writeVInt(entry.getValue().length);
-            for (String message : entry.getValue()) {
-                out.writeString(message);
-            }
-        }
+        out.writeMap(acknowledgeMessages, StreamOutput::writeStringArray);
     }
 
     Map<String, String[]> getAcknowledgementMessages() {

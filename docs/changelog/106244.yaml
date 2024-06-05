@@ -1,0 +1,5 @@
+pr: 106244
+summary: Support ES|QL requests through the `NodeClient::execute`
+area: ES|QL
+type: feature
+issues: []

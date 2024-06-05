@@ -1,17 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job.process.normalizer;
 
-import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.ToXContentObject;
 
 import java.util.List;
 import java.util.Objects;
 
 public abstract class Normalizable implements ToXContentObject {
-    public enum ChildType {BUCKET_INFLUENCER, RECORD}
+    public enum ChildType {
+        BUCKET_INFLUENCER,
+        RECORD
+    }
 
     private final String indexName;
     private boolean hadBigNormalizedUpdate;

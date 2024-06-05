@@ -1,0 +1,202 @@
+---
+"Test common terms query with stacked tokens":
+  - do:
+      indices.create:
+          index: test
+          body:
+            settings:
+              analysis:
+                filter:
+                  syns:
+                    type: synonym
+                    synonyms: [ "quick,fast" ]
+                analyzer:
+                  syns:
+                    tokenizer: standard
+                    filter: [ "syns" ]
+            mappings:
+              properties:
+                field1:
+                  type: text
+                  analyzer: syns
+                field2:
+                  type: text
+                  analyzer: syns
+
+  - do:
+      index:
+          index: test
+          id: "3"
+          body:
+            field1: quick lazy huge brown pidgin
+            field2: the quick lazy huge brown fox jumps over the tree
+
+  - do:
+      index:
+          index: test
+          id: "1"
+          body:
+            field1: the quick brown fox
+
+  - do:
+      index:
+          index: test
+          id: "2"
+          body:
+            field1: the quick lazy huge brown fox jumps over the tree
+          refresh: true
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query:
+            match:
+              field1:
+                query: the fast brown
+                operator: and
+  - match: { hits.total: 2 }
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.1._id: "2" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query:
+            match:
+              field1:
+                query: the fast brown
+                operator: or
+  - match: { hits.total: 3 }
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.1._id: "2" }
+  - match: { hits.hits.2._id: "3" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query:
+            match:
+              field1:
+                query: the fast brown
+                minimum_should_match: 3
+  - match: { hits.total: 2 }
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.1._id: "2" }
+
+  - do:
+      warnings:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query:
+            multi_match:
+              query: the fast brown
+              fields: [ "field1", "field2" ]
+              operator: and
+  - match: { hits.total: 3 }
+  - match: { hits.hits.0._id: "3" }
+  - match: { hits.hits.1._id: "1" }
+  - match: { hits.hits.2._id: "2" }
+
+---
+"Test match query with synonyms - see #3881 for extensive description of the issue":
+  - do:
+      indices.create:
+          index: test
+          body:
+            settings:
+              analysis:
+                filter:
+                  synonym:
+                    type: synonym
+                    synonyms: [ "quick,fast" ]
+                analyzer:
+                  index:
+                    type: custom
+                    tokenizer: standard
+                    filter: lowercase
+                  search:
+                    rest_total_hits_as_int: true
+                    type: custom
+                    tokenizer: standard
+                    filter: [ lowercase, synonym ]
+            mappings:
+              properties:
+                text:
+                  type: text
+                  analyzer: index
+                  search_analyzer: search
+
+  - do:
+      index:
+          index: test
+          id: "1"
+          body:
+            text: quick brown fox
+          refresh: true
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query:
+            match:
+              text:
+                query: quick
+                operator: and
+  - match: { hits.total: 1 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query:
+            match:
+              text:
+                query: quick brown
+                operator: and
+  - match: { hits.total: 1 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query:
+            match:
+              text:
+                query: fast
+                operator: and
+  - match: { hits.total: 1 }
+
+  - do:
+      index:
+          index: test
+          id: "2"
+          body:
+            text: fast brown fox
+          refresh: true
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query:
+            match:
+              text:
+                query: quick
+                operator: and
+  - match: { hits.total: 2 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query:
+            match:
+              text:
+                query: quick brown
+                operator: and
+  - match: { hits.total: 2 }

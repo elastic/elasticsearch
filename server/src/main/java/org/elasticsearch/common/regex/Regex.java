@@ -1,32 +1,28 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.regex;
 
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Predicates;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
+import java.util.function.Predicate;
 import java.util.regex.Pattern;
 
 public class Regex {
@@ -46,6 +42,10 @@ public class Regex {
 
     public static boolean isMatchAllPattern(String str) {
         return str.equals("*");
+    }
+
+    public static boolean isSuffixMatchPattern(String str) {
+        return str.length() > 1 && str.indexOf('*') == str.length() - 1;
     }
 
     /** Return an {@link Automaton} that matches the given pattern. */
@@ -68,11 +68,79 @@ public class Regex {
         if (patterns.length < 1) {
             throw new IllegalArgumentException("There must be at least one pattern, zero given");
         }
+
+        List<BytesRef> simpleStrings = new ArrayList<>();
         List<Automaton> automata = new ArrayList<>();
         for (String pattern : patterns) {
-            automata.add(simpleMatchToAutomaton(pattern));
+            // Strings longer than 1000 characters aren't supported by makeStringUnion
+            if (isSimpleMatchPattern(pattern) || pattern.length() >= 1000) {
+                automata.add(simpleMatchToAutomaton(pattern));
+            } else {
+                simpleStrings.add(new BytesRef(pattern));
+            }
+        }
+        if (false == simpleStrings.isEmpty()) {
+            Automaton simpleStringsAutomaton;
+            if (simpleStrings.size() > 0) {
+                Collections.sort(simpleStrings);
+                simpleStringsAutomaton = Automata.makeStringUnion(simpleStrings);
+            } else {
+                simpleStringsAutomaton = Automata.makeString(simpleStrings.get(0).utf8ToString());
+            }
+            if (automata.isEmpty()) {
+                return simpleStringsAutomaton;
+            }
+            automata.add(simpleStringsAutomaton);
         }
         return Operations.union(automata);
+    }
+
+    /**
+     * Create a {@link Predicate} that matches the given patterns. Evaluating
+     * the returned predicate against a {@link String} yields the same result as
+     * running {@link #simpleMatch(String[], String)} but may run faster,
+     * especially in the case when there are multiple patterns.
+     */
+    public static Predicate<String> simpleMatcher(String... patterns) {
+        if (patterns == null || patterns.length == 0) {
+            return Predicates.never();
+        }
+        boolean hasWildcard = false;
+        for (String pattern : patterns) {
+            if (isMatchAllPattern(pattern)) {
+                return Predicates.always();
+            }
+            if (isSimpleMatchPattern(pattern)) {
+                hasWildcard = true;
+                break;
+            }
+        }
+        if (patterns.length == 1) {
+            if (hasWildcard) {
+                return str -> simpleMatch(patterns[0], str);
+            } else {
+                return patterns[0]::equals;
+            }
+        } else if (hasWildcard == false) {
+            return Set.copyOf(Arrays.asList(patterns))::contains;
+        } else {
+            Automaton automaton = simpleMatchToAutomaton(patterns);
+            return new CharacterRunAutomaton(automaton)::run;
+        }
+    }
+
+    /**
+     * Match a String against the given pattern, supporting the following simple
+     * pattern styles: "xxx*", "*xxx", "*xxx*" and "xxx*yyy" matches (with an
+     * arbitrary number of pattern parts), as well as direct equality.
+     * Matching is case sensitive.
+     *
+     * @param pattern the pattern to match against
+     * @param str     the String to match
+     * @return whether the String matches the given pattern
+     */
+    public static boolean simpleMatch(String pattern, String str) {
+        return simpleMatch(pattern, str, false);
     }
 
     /**
@@ -82,12 +150,21 @@ public class Regex {
      *
      * @param pattern the pattern to match against
      * @param str     the String to match
+     * @param caseInsensitive  true if ASCII case differences should be ignored
      * @return whether the String matches the given pattern
      */
-    public static boolean simpleMatch(String pattern, String str) {
+    public static boolean simpleMatch(String pattern, String str, boolean caseInsensitive) {
         if (pattern == null || str == null) {
             return false;
         }
+        if (caseInsensitive) {
+            pattern = Strings.toLowercaseAscii(pattern);
+            str = Strings.toLowercaseAscii(str);
+        }
+        return simpleMatchWithNormalizedStrings(pattern, str);
+    }
+
+    private static boolean simpleMatchWithNormalizedStrings(String pattern, String str) {
         final int firstIndex = pattern.indexOf('*');
         if (firstIndex == -1) {
             return pattern.equals(str);
@@ -101,13 +178,17 @@ public class Regex {
                 // str.endsWith(pattern.substring(1)), but avoiding the construction of pattern.substring(1):
                 return str.regionMatches(str.length() - pattern.length() + 1, pattern, 1, pattern.length() - 1);
             } else if (nextIndex == 1) {
-                // Double wildcard "**" - skipping the first "*"
-                return simpleMatch(pattern.substring(1), str);
+                // Double wildcard "**" detected - skipping all "*"
+                int wildcards = nextIndex + 1;
+                while (wildcards < pattern.length() && pattern.charAt(wildcards) == '*') {
+                    wildcards++;
+                }
+                return simpleMatchWithNormalizedStrings(pattern.substring(wildcards - 1), str);
             }
             final String part = pattern.substring(1, nextIndex);
             int partIndex = str.indexOf(part);
             while (partIndex != -1) {
-                if (simpleMatch(pattern.substring(nextIndex), str.substring(partIndex + part.length()))) {
+                if (simpleMatchWithNormalizedStrings(pattern.substring(nextIndex), str.substring(partIndex + part.length()))) {
                     return true;
                 }
                 partIndex = str.indexOf(part, partIndex + 1);
@@ -116,7 +197,7 @@ public class Regex {
         }
         return str.regionMatches(0, pattern, 0, firstIndex)
             && (firstIndex == pattern.length() - 1 // only wildcard in pattern is at the end, so no need to look at the rest of the string
-                || simpleMatch(pattern.substring(firstIndex), str.substring(firstIndex)));
+                || simpleMatchWithNormalizedStrings(pattern.substring(firstIndex), str.substring(firstIndex)));
     }
 
     /**
@@ -148,22 +229,27 @@ public class Regex {
         return patterns != null && simpleMatch(patterns.toArray(Strings.EMPTY_ARRAY), str);
     }
 
-    public static boolean simpleMatch(String[] patterns, String[] types) {
-        if (patterns != null && types != null) {
-            for (String type : types) {
-                for (String pattern : patterns) {
-                    if (simpleMatch(pattern, type)) {
-                        return true;
-                    }
-                }
-            }
-        }
-        return false;
-    }
-
     public static Pattern compile(String regex, String flags) {
-        int pFlags = flags == null ? 0 : flagsFromString(flags);
-        return Pattern.compile(regex, pFlags);
+        try {
+            int pFlags = flags == null ? 0 : flagsFromString(flags);
+            return Pattern.compile(regex, pFlags);
+        } catch (OutOfMemoryError e) {
+            if (e.getMessage().equals("Pattern too complex")) {
+                // Normally, we do try to handle OutOfMemoryError errors, as they typically indicate the JVM is not healthy.
+                //
+                // In the context of Pattern::compile, an OutOfMemoryError can occur if the pattern is too complex.
+                // In this case, the OutOfMemoryError is thrown by a pre-check rather than actual memory exhaustion.
+                //
+                // Because the JVM has not encountered a real memory issue, we can treat this as a recoverable exception by wrapping
+                // the original OutOfMemoryError in an IllegalArgumentException.
+                //
+                // For additional details, see:
+                // - https://bugs.openjdk.org/browse/JDK-8300207
+                // - https://github.com/openjdk/jdk/commit/030b071db1fb6197a2633a04b20aa95432a903bc
+                throw new IllegalArgumentException("Too complex regex pattern", e);
+            }
+            throw e;
+        }
     }
 
     public static int flagsFromString(String flags) {

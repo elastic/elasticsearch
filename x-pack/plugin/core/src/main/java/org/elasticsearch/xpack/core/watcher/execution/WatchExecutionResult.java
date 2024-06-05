@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.watcher.execution;
 
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.watcher.actions.ActionWrapperResult;
 import org.elasticsearch.xpack.core.watcher.condition.Condition;
 import org.elasticsearch.xpack.core.watcher.input.Input;
@@ -23,19 +24,33 @@ public class WatchExecutionResult implements ToXContentObject {
 
     private final ZonedDateTime executionTime;
     private final long executionDurationMs;
-    @Nullable private final Input.Result inputResult;
-    @Nullable private final Condition.Result conditionResult;
-    @Nullable private final Transform.Result transformResult;
+    @Nullable
+    private final Input.Result inputResult;
+    @Nullable
+    private final Condition.Result conditionResult;
+    @Nullable
+    private final Transform.Result transformResult;
     private final Map<String, ActionWrapperResult> actionsResults;
 
     public WatchExecutionResult(WatchExecutionContext context, long executionDurationMs) {
-        this(context.executionTime(), executionDurationMs, context.inputResult(), context.conditionResult(), context.transformResult(),
-                context.actionsResults());
+        this(
+            context.executionTime(),
+            executionDurationMs,
+            context.inputResult(),
+            context.conditionResult(),
+            context.transformResult(),
+            context.actionsResults()
+        );
     }
 
-    private WatchExecutionResult(ZonedDateTime executionTime, long executionDurationMs, Input.Result inputResult,
-                                 Condition.Result conditionResult, @Nullable Transform.Result transformResult,
-                                 Map<String, ActionWrapperResult> actionsResults) {
+    private WatchExecutionResult(
+        ZonedDateTime executionTime,
+        long executionDurationMs,
+        Input.Result inputResult,
+        Condition.Result conditionResult,
+        @Nullable Transform.Result transformResult,
+        Map<String, ActionWrapperResult> actionsResults
+    ) {
         this.executionTime = executionTime;
         this.inputResult = inputResult;
         this.conditionResult = conditionResult;

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ccr.index.engine;
 
@@ -12,13 +13,13 @@ import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopDocs;
-import org.elasticsearch.Assertions;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.InternalEngine;
@@ -34,8 +35,7 @@ import java.util.OptionalLong;
 /**
  * An engine implementation for following shards.
  */
-public final class FollowingEngine extends InternalEngine {
-
+public class FollowingEngine extends InternalEngine {
 
     /**
      * Construct a new following engine with the specified engine configuration.
@@ -56,11 +56,13 @@ public final class FollowingEngine extends InternalEngine {
         return engineConfig;
     }
 
-    private void preFlight(final Operation operation) {
+    private static void preFlight(final Operation operation) {
         assert FollowingEngineAssertions.preFlight(operation);
         if (operation.seqNo() == SequenceNumbers.UNASSIGNED_SEQ_NO) {
-            throw new ElasticsearchStatusException("a following engine does not accept operations without an assigned sequence number",
-                RestStatus.FORBIDDEN);
+            throw new ElasticsearchStatusException(
+                "a following engine does not accept operations without an assigned sequence number",
+                RestStatus.FORBIDDEN
+            );
         }
     }
 
@@ -77,8 +79,11 @@ public final class FollowingEngine extends InternalEngine {
              * between the primary and replicas (see TransportBulkShardOperationsAction#shardOperationOnPrimary).
              */
             final AlreadyProcessedFollowingEngineException error = new AlreadyProcessedFollowingEngineException(
-                shardId, index.seqNo(), lookupPrimaryTerm(index.seqNo()));
-            return IndexingStrategy.skipDueToVersionConflict(error, false, index.version());
+                shardId,
+                index.seqNo(),
+                lookupPrimaryTerm(index.seqNo())
+            );
+            return IndexingStrategy.skipDueToVersionConflict(error, false, index.version(), index.id());
         } else {
             return planIndexingAsNonPrimary(index);
         }
@@ -90,8 +95,11 @@ public final class FollowingEngine extends InternalEngine {
         if (delete.origin() == Operation.Origin.PRIMARY && hasBeenProcessedBefore(delete)) {
             // See the comment in #indexingStrategyForOperation for the explanation why we can safely skip this operation.
             final AlreadyProcessedFollowingEngineException error = new AlreadyProcessedFollowingEngineException(
-                shardId, delete.seqNo(), lookupPrimaryTerm(delete.seqNo()));
-            return DeletionStrategy.skipDueToVersionConflict(error, delete.version(), false);
+                shardId,
+                delete.seqNo(),
+                lookupPrimaryTerm(delete.seqNo())
+            );
+            return DeletionStrategy.skipDueToVersionConflict(error, delete.version(), false, delete.id());
         } else {
             return planDeletionAsNonPrimary(delete);
         }
@@ -117,25 +125,43 @@ public final class FollowingEngine extends InternalEngine {
     }
 
     @Override
-    protected void advanceMaxSeqNoOfUpdatesOrDeletesOnPrimary(long seqNo) {
+    protected void advanceMaxSeqNoOfDeletesOnPrimary(long seqNo) {
         if (Assertions.ENABLED) {
             final long localCheckpoint = getProcessedLocalCheckpoint();
             final long maxSeqNoOfUpdates = getMaxSeqNoOfUpdatesOrDeletes();
-            assert localCheckpoint < maxSeqNoOfUpdates || maxSeqNoOfUpdates >= seqNo :
-                "maxSeqNoOfUpdates is not advanced local_checkpoint=" + localCheckpoint + " msu=" + maxSeqNoOfUpdates + " seq_no=" + seqNo;
+            assert localCheckpoint < maxSeqNoOfUpdates || maxSeqNoOfUpdates >= seqNo
+                : "maxSeqNoOfUpdates is not advanced local_checkpoint="
+                    + localCheckpoint
+                    + " msu="
+                    + maxSeqNoOfUpdates
+                    + " seq_no="
+                    + seqNo;
         }
-        super.advanceMaxSeqNoOfUpdatesOrDeletesOnPrimary(seqNo); // extra safe in production code
+
+        super.advanceMaxSeqNoOfDeletesOnPrimary(seqNo);
     }
 
     @Override
-    public int fillSeqNoGaps(long primaryTerm) throws IOException {
+    protected void advanceMaxSeqNoOfUpdatesOnPrimary(long seqNo) {
+        // In some scenarios it is possible to advance maxSeqNoOfUpdatesOrDeletes over the leader
+        // maxSeqNoOfUpdatesOrDeletes, since in this engine (effectively it is a replica) we don't check if the previous version
+        // was a delete and it's possible to consider it as an update, advancing the max sequence number over the leader
+        // maxSeqNoOfUpdatesOrDeletes.
+        // We conservatively advance the seqno in this case, accepting a minor performance hit in this edge case.
+
+        // See FollowingEngineTests#testConcurrentUpdateOperationsWithDeletesCanAdvanceMaxSeqNoOfUpdates or #72527 for more details.
+        super.advanceMaxSeqNoOfUpdatesOnPrimary(seqNo);
+    }
+
+    @Override
+    public int fillSeqNoGaps(long primaryTerm) {
         // a noop implementation, because follow shard does not own the history but the leader shard does.
         return 0;
     }
 
     @Override
     protected boolean assertPrimaryIncomingSequenceNumber(final Operation.Origin origin, final long seqNo) {
-        assert FollowingEngineAssertions.assertPrimaryIncomingSequenceNumber(origin, seqNo);
+        assert FollowingEngineAssertions.assertPrimaryIncomingSequenceNumber(seqNo);
         return true;
     }
 
@@ -147,7 +173,7 @@ public final class FollowingEngine extends InternalEngine {
     @Override
     protected boolean assertPrimaryCanOptimizeAddDocument(final Index index) {
         assert index.version() == 1 && index.versionType() == VersionType.EXTERNAL
-                : "version [" + index.version() + "], type [" + index.versionType() + "]";
+            : "version [" + index.version() + "], type [" + index.versionType() + "]";
         return true;
     }
 
@@ -161,10 +187,12 @@ public final class FollowingEngine extends InternalEngine {
             final DirectoryReader reader = Lucene.wrapAllDocsLive(engineSearcher.getDirectoryReader());
             final IndexSearcher searcher = new IndexSearcher(reader);
             searcher.setQueryCache(null);
-            final Query query = new BooleanQuery.Builder()
-                .add(LongPoint.newExactQuery(SeqNoFieldMapper.NAME, seqNo), BooleanClause.Occur.FILTER)
+            final Query query = new BooleanQuery.Builder().add(
+                LongPoint.newExactQuery(SeqNoFieldMapper.NAME, seqNo),
+                BooleanClause.Occur.FILTER
+            )
                 // excludes the non-root nested documents which don't have primary_term.
-                .add(new DocValuesFieldExistsQuery(SeqNoFieldMapper.PRIMARY_TERM_NAME), BooleanClause.Occur.FILTER)
+                .add(new FieldExistsQuery(SeqNoFieldMapper.PRIMARY_TERM_NAME), BooleanClause.Occur.FILTER)
                 .build();
             final TopDocs topDocs = searcher.search(query, 1);
             if (topDocs.scoreDocs.length == 1) {

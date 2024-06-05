@@ -1,0 +1,46 @@
+setup:
+  - requires:
+      cluster_features: ["gte_v7.8.0"]
+      reason: "index template v2 API unavailable before 7.8"
+
+  - do:
+      indices.delete_index_template:
+        name:   '*'
+        ignore: 404
+
+---
+"Get missing template":
+  - requires:
+      cluster_features: ["gte_v7.8.0"]
+      reason: "index template v2 API unavailable before 7.8"
+
+  - do:
+      catch:  missing
+      indices.get_index_template:
+        name: nonexistent
+
+  - match: { error.reason: "index template matching [nonexistent] not found" }
+
+---
+"Get non-matching wildcard":
+  - requires:
+      cluster_features: ["gte_v7.8.0"]
+      reason: "index template v2 API unavailable before 7.8"
+
+  - do:
+      catch: missing
+      indices.get_index_template:
+        name: "non-matching-wildcard*"
+
+  - is_false: error
+  - is_true: index_templates
+
+---
+"Reject request containing comma":
+  - requires:
+      cluster_features: ["gte_v7.16.0"]
+      reason: "validation only added in 7.16.0"
+  - do:
+      catch:  bad_request
+      indices.get_index_template:
+        name: test1,test2

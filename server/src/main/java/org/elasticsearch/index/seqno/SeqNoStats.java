@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.seqno;
@@ -22,8 +11,8 @@ package org.elasticsearch.index.seqno;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -40,8 +29,7 @@ public class SeqNoStats implements ToXContentFragment, Writeable {
     private final long globalCheckpoint;
 
     public SeqNoStats(long maxSeqNo, long localCheckpoint, long globalCheckpoint) {
-        assert localCheckpoint <= maxSeqNo:
-            "local checkpoint [" + localCheckpoint + "] is above maximum seq no [" + maxSeqNo + "]";
+        assert localCheckpoint <= maxSeqNo : "local checkpoint [" + localCheckpoint + "] is above maximum seq no [" + maxSeqNo + "]";
         // note that the global checkpoint can be higher from both maxSeqNo and localCheckpoint
         // as we use this stats object to describe lucene commits as well as live statistic.
         this.maxSeqNo = maxSeqNo;
@@ -89,9 +77,7 @@ public class SeqNoStats implements ToXContentFragment, Writeable {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         final SeqNoStats that = (SeqNoStats) o;
-        return maxSeqNo == that.maxSeqNo &&
-            localCheckpoint == that.localCheckpoint &&
-            globalCheckpoint == that.globalCheckpoint;
+        return maxSeqNo == that.maxSeqNo && localCheckpoint == that.localCheckpoint && globalCheckpoint == that.globalCheckpoint;
     }
 
     @Override
@@ -101,10 +87,13 @@ public class SeqNoStats implements ToXContentFragment, Writeable {
 
     @Override
     public String toString() {
-        return "SeqNoStats{" +
-            "maxSeqNo=" + maxSeqNo +
-            ", localCheckpoint=" + localCheckpoint +
-            ", globalCheckpoint=" + globalCheckpoint +
-            '}';
+        return "SeqNoStats{"
+            + "maxSeqNo="
+            + maxSeqNo
+            + ", localCheckpoint="
+            + localCheckpoint
+            + ", globalCheckpoint="
+            + globalCheckpoint
+            + '}';
     }
 }

@@ -1,20 +1,25 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.notifications;
 
-import org.elasticsearch.client.Client;
-import org.elasticsearch.xpack.core.common.notifications.AbstractAuditor;
-import org.elasticsearch.xpack.core.ml.notifications.AuditorField;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.xpack.core.ml.notifications.AnomalyDetectionAuditMessage;
 
-import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
+public class AnomalyDetectionAuditor extends AbstractMlAuditor<AnomalyDetectionAuditMessage> {
 
-public class AnomalyDetectionAuditor extends AbstractAuditor<AnomalyDetectionAuditMessage> {
+    private final boolean includeNodeInfo;
 
-    public AnomalyDetectionAuditor(Client client, String nodeName) {
-        super(client, nodeName, AuditorField.NOTIFICATIONS_INDEX, ML_ORIGIN, AnomalyDetectionAuditMessage::new);
+    public AnomalyDetectionAuditor(Client client, ClusterService clusterService, boolean includeNodeInfo) {
+        super(client, AnomalyDetectionAuditMessage::new, clusterService);
+        this.includeNodeInfo = includeNodeInfo;
+    }
+
+    public boolean includeNodeInfo() {
+        return this.includeNodeInfo;
     }
 }

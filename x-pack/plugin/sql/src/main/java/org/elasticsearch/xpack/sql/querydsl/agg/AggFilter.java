@@ -1,10 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.querydsl.agg;
 
+import org.elasticsearch.aggregations.pipeline.BucketSelectorPipelineAggregationBuilder;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
@@ -13,8 +15,6 @@ import org.elasticsearch.xpack.sql.util.Check;
 
 import java.util.Map;
 import java.util.Objects;
-
-import static org.elasticsearch.search.aggregations.PipelineAggregatorBuilders.bucketSelector;
 
 public class AggFilter extends PipelineAgg {
 
@@ -38,7 +38,7 @@ public class AggFilter extends PipelineAgg {
     @Override
     PipelineAggregationBuilder toBuilder() {
         Script script = scriptTemplate.toPainless();
-        return bucketSelector(name(), aggPaths, script);
+        return new BucketSelectorPipelineAggregationBuilder(name(), aggPaths, script);
     }
 
     @Override
@@ -57,8 +57,7 @@ public class AggFilter extends PipelineAgg {
         }
 
         AggFilter other = (AggFilter) obj;
-        return Objects.equals(name(), other.name())
-                && Objects.equals(scriptTemplate(), other.scriptTemplate());
+        return Objects.equals(name(), other.name()) && Objects.equals(scriptTemplate(), other.scriptTemplate());
     }
 
     @Override

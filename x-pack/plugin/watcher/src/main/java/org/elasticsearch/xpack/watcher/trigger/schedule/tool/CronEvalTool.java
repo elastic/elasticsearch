@@ -1,14 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.trigger.schedule.tool;
 
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
+
+import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.ExitCodes;
-import org.elasticsearch.cli.LoggingAwareCommand;
+import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.time.DateFormatter;
@@ -22,11 +25,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 
-public class CronEvalTool extends LoggingAwareCommand {
-
-    public static void main(String[] args) throws Exception {
-        exit(new CronEvalTool().main(args, Terminal.DEFAULT));
-    }
+class CronEvalTool extends Command {
 
     private static final DateFormatter UTC_FORMATTER = DateFormatter.forPattern("EEE, d MMM yyyy HH:mm:ss")
         .withZone(ZoneOffset.UTC)
@@ -52,7 +51,7 @@ public class CronEvalTool extends LoggingAwareCommand {
     }
 
     @Override
-    protected void execute(Terminal terminal, OptionSet options) throws Exception {
+    protected void execute(Terminal terminal, OptionSet options, ProcessInfo processInfo) throws Exception {
         int count = countOption.value(options);
         List<String> args = arguments.values(options);
         if (args.size() != 1) {
@@ -62,7 +61,7 @@ public class CronEvalTool extends LoggingAwareCommand {
         execute(terminal, args.get(0), count, printDetail);
     }
 
-    private void execute(Terminal terminal, String expression, int count, boolean printDetail) throws Exception {
+    private static void execute(Terminal terminal, String expression, int count, boolean printDetail) throws Exception {
         try {
             Cron.validate(expression);
             terminal.println("Valid!");

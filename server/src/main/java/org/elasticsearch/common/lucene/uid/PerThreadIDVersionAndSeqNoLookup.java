@@ -1,33 +1,25 @@
-package org.elasticsearch.common.lucene.uid;
-
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
+package org.elasticsearch.common.lucene.uid;
+
+import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndSeqNo;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndVersion;
@@ -38,7 +30,6 @@ import java.io.IOException;
 
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
-
 
 /** Utility class to do efficient primary-key (only 1 doc contains the
  *  given term) lookups by segment, re-using the enums.  This class is
@@ -64,10 +55,15 @@ final class PerThreadIDVersionAndSeqNoLookup {
     /** used for assertions to make sure class usage meets assumptions */
     private final Object readerKey;
 
+    final boolean loadedTimestampRange;
+    final long minTimestamp;
+    final long maxTimestamp;
+
     /**
      * Initialize lookup for the provided segment
      */
-    PerThreadIDVersionAndSeqNoLookup(LeafReader reader, String uidField) throws IOException {
+    PerThreadIDVersionAndSeqNoLookup(LeafReader reader, String uidField, boolean trackReaderKey, boolean loadTimestampRange)
+        throws IOException {
         this.uidField = uidField;
         final Terms terms = reader.terms(uidField);
         if (terms == null) {
@@ -77,8 +73,14 @@ final class PerThreadIDVersionAndSeqNoLookup {
             // this is a special case when we pruned away all IDs in a segment since all docs are deleted.
             final boolean allDocsDeleted = (softDeletesDV != null && reader.numDocs() == 0);
             if ((softDeletesDV == null || tombstoneDV == null) && allDocsDeleted == false) {
-                throw new IllegalArgumentException("reader does not have _uid terms but not a no-op segment; " +
-                    "_soft_deletes [" + softDeletesDV + "], _tombstone [" + tombstoneDV + "]");
+                throw new IllegalArgumentException(
+                    "reader does not have _uid terms but not a no-op segment; "
+                        + "_soft_deletes ["
+                        + softDeletesDV
+                        + "], _tombstone ["
+                        + tombstoneDV
+                        + "]"
+                );
             }
             termsEnum = null;
         } else {
@@ -88,8 +90,25 @@ final class PerThreadIDVersionAndSeqNoLookup {
             throw new IllegalArgumentException("reader misses the [" + VersionFieldMapper.NAME + "] field; _uid terms [" + terms + "]");
         }
         Object readerKey = null;
-        assert (readerKey = reader.getCoreCacheHelper().getKey()) != null;
+        assert trackReaderKey ? (readerKey = reader.getCoreCacheHelper().getKey()) != null : readerKey == null;
         this.readerKey = readerKey;
+
+        this.loadedTimestampRange = loadTimestampRange;
+        // Also check for the existence of the timestamp field, because sometimes a segment can only contain tombstone documents,
+        // which don't have any mapped fields (also not the timestamp field) and just some meta fields like _id, _seq_no etc.
+        if (loadTimestampRange && reader.getFieldInfos().fieldInfo(DataStream.TIMESTAMP_FIELD_NAME) != null) {
+            PointValues tsPointValues = reader.getPointValues(DataStream.TIMESTAMP_FIELD_NAME);
+            assert tsPointValues != null : "no timestamp field for reader:" + reader + " and parent:" + reader.getContext().parent.reader();
+            minTimestamp = LongPoint.decodeDimension(tsPointValues.getMinPackedValue(), 0);
+            maxTimestamp = LongPoint.decodeDimension(tsPointValues.getMaxPackedValue(), 0);
+        } else {
+            minTimestamp = 0;
+            maxTimestamp = Long.MAX_VALUE;
+        }
+    }
+
+    PerThreadIDVersionAndSeqNoLookup(LeafReader reader, String uidField, boolean loadTimestampRange) throws IOException {
+        this(reader, uidField, true, loadTimestampRange);
     }
 
     /** Return null if id is not found.
@@ -98,10 +117,9 @@ final class PerThreadIDVersionAndSeqNoLookup {
      * using the same cache key. Otherwise we'd have to disable caching
      * entirely for these readers.
      */
-    public DocIdAndVersion lookupVersion(BytesRef id, boolean loadSeqNo, LeafReaderContext context)
-        throws IOException {
-        assert context.reader().getCoreCacheHelper().getKey().equals(readerKey) :
-            "context's reader is not the same as the reader class was initialized on.";
+    public DocIdAndVersion lookupVersion(BytesRef id, boolean loadSeqNo, LeafReaderContext context) throws IOException {
+        assert readerKey == null || context.reader().getCoreCacheHelper().getKey().equals(readerKey)
+            : "context's reader is not the same as the reader class was initialized on.";
         int docID = getDocID(id, context);
 
         if (docID != DocIdSetIterator.NO_MORE_DOCS) {
@@ -155,8 +173,8 @@ final class PerThreadIDVersionAndSeqNoLookup {
 
     /** Return null if id is not found. */
     DocIdAndSeqNo lookupSeqNo(BytesRef id, LeafReaderContext context) throws IOException {
-        assert context.reader().getCoreCacheHelper().getKey().equals(readerKey) :
-            "context's reader is not the same as the reader class was initialized on.";
+        assert readerKey == null || context.reader().getCoreCacheHelper().getKey().equals(readerKey)
+            : "context's reader is not the same as the reader class was initialized on.";
         final int docID = getDocID(id, context);
         if (docID != DocIdSetIterator.NO_MORE_DOCS) {
             final long seqNo = readNumericDocValues(context.reader(), SeqNoFieldMapper.NAME, docID);

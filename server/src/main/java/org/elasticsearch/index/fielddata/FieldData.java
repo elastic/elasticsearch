@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.fielddata;
@@ -22,10 +11,12 @@ package org.elasticsearch.index.fielddata;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.geo.GeoPoint;
+import org.apache.lucene.util.BytesRefBuilder;
+import org.elasticsearch.common.geo.SpatialPoint;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -69,27 +60,6 @@ public enum FieldData {
         return singleton(emptyNumericDouble());
     }
 
-    public static GeoPointValues emptyGeoPoint() {
-        return new GeoPointValues() {
-            @Override
-            public boolean advanceExact(int doc) throws IOException {
-                return false;
-            }
-
-            @Override
-            public GeoPoint geoPointValue() {
-                throw new UnsupportedOperationException();
-            }
-        };
-    }
-
-    /**
-     * Return a {@link SortedNumericDoubleValues} that doesn't contain any value.
-     */
-    public static MultiGeoPointValues emptyMultiGeoPoints() {
-        return singleton(emptyGeoPoint());
-    }
-
     /**
      * Returns a {@link DocValueBits} representing all documents from <code>values</code> that have a value.
      */
@@ -119,7 +89,7 @@ public enum FieldData {
      * Returns a {@link DocValueBits} representing all documents from <code>pointValues</code> that have
      * a value.
      */
-    public static DocValueBits docsWithValue(final MultiGeoPointValues pointValues) {
+    public static DocValueBits docsWithValue(final MultiPointValues<? extends SpatialPoint> pointValues) {
         return new DocValueBits() {
             @Override
             public boolean advanceExact(int doc) throws IOException {
@@ -246,22 +216,11 @@ public enum FieldData {
     }
 
     /**
-     * Returns a multi-valued view over the provided {@link GeoPointValues}.
-     */
-    public static MultiGeoPointValues singleton(GeoPointValues values) {
-        return new SingletonMultiGeoPointValues(values);
-    }
-
-    /**
      * Returns a single-valued view of the {@link MultiGeoPointValues},
-     * if it was previously wrapped with {@link #singleton(GeoPointValues)},
-     * or null.
+     * if the wrapped {@link SortedNumericDocValues} is a singleton.
      */
     public static GeoPointValues unwrapSingleton(MultiGeoPointValues values) {
-        if (values instanceof SingletonMultiGeoPointValues) {
-            return ((SingletonMultiGeoPointValues) values).getGeoPointValues();
-        }
-        return null;
+        return values.getPointValues();
     }
 
     /**
@@ -297,11 +256,18 @@ public enum FieldData {
      * NOTE: this is very slow!
      */
     public static SortedBinaryDocValues toString(final SortedNumericDocValues values) {
+        {
+            final NumericDocValues singleton = DocValues.unwrapSingleton(values);
+            if (singleton != null) {
+                return FieldData.singleton(toString(singleton));
+            }
+        }
         return toString(new ToStringValues() {
             @Override
             public boolean advanceExact(int doc) throws IOException {
                 return values.advanceExact(doc);
             }
+
             @Override
             public void get(List<CharSequence> list) throws IOException {
                 for (int i = 0, count = values.docValueCount(); i < count; ++i) {
@@ -316,12 +282,38 @@ public enum FieldData {
      * typically used for scripts or for the `map` execution mode of terms aggs.
      * NOTE: this is very slow!
      */
+    public static BinaryDocValues toString(final NumericDocValues values) {
+        return toString(new ToStringValue() {
+            @Override
+            public boolean advanceExact(int doc) throws IOException {
+                return values.advanceExact(doc);
+            }
+
+            @Override
+            public CharSequence get() throws IOException {
+                return Long.toString(values.longValue());
+            }
+        });
+    }
+
+    /**
+     * Return a {@link String} representation of the provided values. That is
+     * typically used for scripts or for the `map` execution mode of terms aggs.
+     * NOTE: this is very slow!
+     */
     public static SortedBinaryDocValues toString(final SortedNumericDoubleValues values) {
+        {
+            final NumericDoubleValues singleton = FieldData.unwrapSingleton(values);
+            if (singleton != null) {
+                return FieldData.singleton(toString(singleton));
+            }
+        }
         return toString(new ToStringValues() {
             @Override
             public boolean advanceExact(int doc) throws IOException {
                 return values.advanceExact(doc);
             }
+
             @Override
             public void get(List<CharSequence> list) throws IOException {
                 for (int i = 0, count = values.docValueCount(); i < count; ++i) {
@@ -334,39 +326,70 @@ public enum FieldData {
     /**
      * Return a {@link String} representation of the provided values. That is
      * typically used for scripts or for the `map` execution mode of terms aggs.
+     * NOTE: this is very slow!
+     */
+    public static BinaryDocValues toString(final NumericDoubleValues values) {
+        return toString(new ToStringValue() {
+            @Override
+            public boolean advanceExact(int doc) throws IOException {
+                return values.advanceExact(doc);
+            }
+
+            @Override
+            public CharSequence get() throws IOException {
+                return Double.toString(values.doubleValue());
+            }
+        });
+    }
+
+    /**
+     * Return a {@link String} representation of the provided values. That is
+     * typically used for scripts or for the `map` execution mode of terms aggs.
      * NOTE: this is slow!
      */
     public static SortedBinaryDocValues toString(final SortedSetDocValues values) {
+        {
+            final SortedDocValues singleton = DocValues.unwrapSingleton(values);
+            if (singleton != null) {
+                return FieldData.singleton(toString(singleton));
+            }
+        }
         return new SortedBinaryDocValues() {
-            private int count = 0;
 
             @Override
             public boolean advanceExact(int doc) throws IOException {
-                if (values.advanceExact(doc) == false) {
-                    return false;
-                }
-                for (int i = 0; ; ++i) {
-                    if (values.nextOrd() == SortedSetDocValues.NO_MORE_ORDS) {
-                        count = i;
-                        break;
-                    }
-                }
-                // reset the iterator on the current doc
-                boolean advanced = values.advanceExact(doc);
-                assert advanced;
-                return true;
+                return values.advanceExact(doc);
             }
 
             @Override
             public int docValueCount() {
-                return count;
+                return values.docValueCount();
             }
 
             @Override
             public BytesRef nextValue() throws IOException {
                 return values.lookupOrd(values.nextOrd());
             }
+        };
+    }
 
+    /**
+     * Return a {@link String} representation of the provided values. That is
+     * typically used for scripts or for the `map` execution mode of terms aggs.
+     * NOTE: this is slow!
+     */
+    public static BinaryDocValues toString(final SortedDocValues values) {
+        return new AbstractBinaryDocValues() {
+
+            @Override
+            public BytesRef binaryValue() throws IOException {
+                return values.lookupOrd(values.ordValue());
+            }
+
+            @Override
+            public boolean advanceExact(int doc) throws IOException {
+                return values.advanceExact(doc);
+            }
         };
     }
 
@@ -376,16 +399,42 @@ public enum FieldData {
      * NOTE: this is very slow!
      */
     public static SortedBinaryDocValues toString(final MultiGeoPointValues values) {
+        {
+            final GeoPointValues singleton = FieldData.unwrapSingleton(values);
+            if (singleton != null) {
+                return FieldData.singleton(toString(singleton));
+            }
+        }
         return toString(new ToStringValues() {
             @Override
             public boolean advanceExact(int doc) throws IOException {
                 return values.advanceExact(doc);
             }
+
             @Override
             public void get(List<CharSequence> list) throws IOException {
                 for (int i = 0, count = values.docValueCount(); i < count; ++i) {
                     list.add(values.nextValue().toString());
                 }
+            }
+        });
+    }
+
+    /**
+     * Return a {@link String} representation of the provided values. That is
+     * typically used for scripts or for the `map` execution mode of terms aggs.
+     * NOTE: this is very slow!
+     */
+    public static BinaryDocValues toString(final GeoPointValues values) {
+        return toString(new ToStringValue() {
+            @Override
+            public boolean advanceExact(int doc) throws IOException {
+                return values.advanceExact(doc);
+            }
+
+            @Override
+            public CharSequence get() throws IOException {
+                return values.pointValue().toString();
             }
         });
     }
@@ -415,6 +464,27 @@ public enum FieldData {
         };
     }
 
+    private static BinaryDocValues toString(final ToStringValue toStringValue) {
+        return new AbstractBinaryDocValues() {
+            private final BytesRefBuilder builder = new BytesRefBuilder();
+
+            @Override
+            public BytesRef binaryValue() {
+                return builder.toBytesRef();
+            }
+
+            @Override
+            public boolean advanceExact(int docID) throws IOException {
+                if (toStringValue.advanceExact(docID)) {
+                    builder.clear();
+                    builder.copyChars(toStringValue.get());
+                    return true;
+                }
+                return false;
+            }
+        };
+    }
+
     private interface ToStringValues {
 
         /**
@@ -423,8 +493,21 @@ public enum FieldData {
          */
         boolean advanceExact(int doc) throws IOException;
 
-        /** Fill the list of charsquences with the list of values for the current document. */
+        /** Fill the list of {@link CharSequence} with the list of values for the current document. */
         void get(List<CharSequence> values) throws IOException;
+
+    }
+
+    private interface ToStringValue {
+
+        /**
+         * Advance this instance to the given document id
+         * @return true if there is a value for this document
+         */
+        boolean advanceExact(int doc) throws IOException;
+
+        /** return the {@link CharSequence} for the current document. */
+        CharSequence get() throws IOException;
 
     }
 

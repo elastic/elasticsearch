@@ -1,66 +1,39 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.mapper.FieldMapper.CopyTo;
-import org.elasticsearch.index.mapper.FieldMapper.MultiFields;
-import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
+import org.elasticsearch.common.Explicit;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.AfterClass;
 
 import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
 
-import static java.util.Collections.emptyMap;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_VERSION_CREATED;
-import static org.hamcrest.Matchers.notNullValue;
+public final class ObjectMapperMergeTests extends ESTestCase {
 
-public class ObjectMapperMergeTests extends ESTestCase {
+    private final RootObjectMapper rootObjectMapper = createMapping(false, true, true, false);
 
-    private static FieldMapper barFieldMapper = createTextFieldMapper("bar");
-    private static FieldMapper bazFieldMapper = createTextFieldMapper("baz");
-
-    private static RootObjectMapper rootObjectMapper = createMapping(false, true, true, false);
-
-    @AfterClass
-    public static void cleanupReferences() {
-        barFieldMapper = null;
-        bazFieldMapper = null;
-        rootObjectMapper = null;
-    }
-
-    private static RootObjectMapper createMapping(boolean disabledFieldEnabled, boolean fooFieldEnabled,
-                                                  boolean includeBarField, boolean includeBazField) {
-        Map<String, Mapper> mappers = new HashMap<>();
-        mappers.put("disabled", createObjectMapper("disabled", disabledFieldEnabled, emptyMap()));
-        Map<String, Mapper> fooMappers = new HashMap<>();
+    private RootObjectMapper createMapping(
+        boolean disabledFieldEnabled,
+        boolean fooFieldEnabled,
+        boolean includeBarField,
+        boolean includeBazField
+    ) {
+        RootObjectMapper.Builder rootBuilder = new RootObjectMapper.Builder("type1", Explicit.IMPLICIT_TRUE);
+        rootBuilder.add(new ObjectMapper.Builder("disabled", Explicit.IMPLICIT_TRUE).enabled(disabledFieldEnabled));
+        ObjectMapper.Builder fooBuilder = new ObjectMapper.Builder("foo", Explicit.IMPLICIT_TRUE).enabled(fooFieldEnabled);
         if (includeBarField) {
-            fooMappers.put("bar", barFieldMapper);
+            fooBuilder.add(new TextFieldMapper.Builder("bar", createDefaultIndexAnalyzers(), false));
         }
         if (includeBazField) {
-            fooMappers.put("baz", bazFieldMapper);
+            fooBuilder.add(new TextFieldMapper.Builder("baz", createDefaultIndexAnalyzers(), false));
         }
-        mappers.put("foo", createObjectMapper("foo", fooFieldEnabled,  Collections.unmodifiableMap(fooMappers)));
-        return createRootObjectMapper("type1", true, Collections.unmodifiableMap(mappers));
+        rootBuilder.add(fooBuilder);
+        return rootBuilder.build(MapperBuilderContext.root(false, false));
     }
 
     public void testMerge() {
@@ -68,12 +41,18 @@ public class ObjectMapperMergeTests extends ESTestCase {
         ObjectMapper mergeWith = createMapping(false, true, true, true);
 
         // WHEN merging mappings
-        final ObjectMapper merged = rootObjectMapper.merge(mergeWith);
+        final ObjectMapper merged = rootObjectMapper.merge(mergeWith, MapperMergeContext.root(false, false, Long.MAX_VALUE));
 
         // THEN "baz" new field is added to merged mapping
         final ObjectMapper mergedFoo = (ObjectMapper) merged.getMapper("foo");
-        assertThat(mergedFoo.getMapper("bar"), notNullValue());
-        assertThat(mergedFoo.getMapper("baz"), notNullValue());
+        {
+            Mapper bar = mergedFoo.getMapper("bar");
+            assertEquals("bar", bar.simpleName());
+            assertEquals("foo.bar", bar.name());
+            Mapper baz = mergedFoo.getMapper("baz");
+            assertEquals("baz", baz.simpleName());
+            assertEquals("foo.baz", baz.name());
+        }
     }
 
     public void testMergeWhenDisablingField() {
@@ -82,44 +61,305 @@ public class ObjectMapperMergeTests extends ESTestCase {
 
         // WHEN merging mappings
         // THEN a MapperException is thrown with an excepted message
-        MapperException e = expectThrows(MapperException.class, () -> rootObjectMapper.merge(mergeWith));
-        assertEquals("Can't update attribute for type [type1.foo.enabled] in index mapping", e.getMessage());
+        MapperException e = expectThrows(
+            MapperException.class,
+            () -> rootObjectMapper.merge(mergeWith, MapperMergeContext.root(false, false, Long.MAX_VALUE))
+        );
+        assertEquals("the [enabled] parameter can't be updated for the object mapping [foo]", e.getMessage());
     }
 
-    public void testMergeWhenEnablingField() {
-        // GIVEN a mapping with "disabled" field enabled
+    public void testMergeDisabledField() {
+        // GIVEN a mapping with "foo" field disabled
+        // the field is disabled, and we are not trying to re-enable it, hence merge should work
+        RootObjectMapper mergeWith = new RootObjectMapper.Builder("_doc", Explicit.IMPLICIT_TRUE).add(
+            new ObjectMapper.Builder("disabled", Explicit.IMPLICIT_TRUE)
+        ).build(MapperBuilderContext.root(false, false));
+
+        RootObjectMapper merged = rootObjectMapper.merge(mergeWith, MapperMergeContext.root(false, false, Long.MAX_VALUE));
+        assertFalse(((ObjectMapper) merged.getMapper("disabled")).isEnabled());
+    }
+
+    public void testMergeEnabled() {
         ObjectMapper mergeWith = createMapping(true, true, true, false);
 
+        MapperException e = expectThrows(
+            MapperException.class,
+            () -> rootObjectMapper.merge(mergeWith, MapperMergeContext.root(false, false, Long.MAX_VALUE))
+        );
+        assertEquals("the [enabled] parameter can't be updated for the object mapping [disabled]", e.getMessage());
+
+        ObjectMapper result = rootObjectMapper.merge(
+            mergeWith,
+            MapperMergeContext.root(false, false, MapperService.MergeReason.INDEX_TEMPLATE, Long.MAX_VALUE)
+        );
+        assertTrue(result.isEnabled());
+    }
+
+    public void testMergeEnabledForRootMapper() {
+        String type = MapperService.SINGLE_MAPPING_NAME;
+        ObjectMapper firstMapper = new RootObjectMapper.Builder("_doc", Explicit.IMPLICIT_TRUE).build(
+            MapperBuilderContext.root(false, false)
+        );
+        ObjectMapper secondMapper = new RootObjectMapper.Builder("_doc", Explicit.IMPLICIT_TRUE).enabled(false)
+            .build(MapperBuilderContext.root(false, false));
+
+        MapperException e = expectThrows(
+            MapperException.class,
+            () -> firstMapper.merge(secondMapper, MapperMergeContext.root(false, false, Long.MAX_VALUE))
+        );
+        assertEquals("the [enabled] parameter can't be updated for the object mapping [" + type + "]", e.getMessage());
+
+        ObjectMapper result = firstMapper.merge(
+            secondMapper,
+            MapperMergeContext.root(false, false, MapperService.MergeReason.INDEX_TEMPLATE, Long.MAX_VALUE)
+        );
+        assertFalse(result.isEnabled());
+    }
+
+    public void testMergeDisabledRootMapper() {
+        String type = MapperService.SINGLE_MAPPING_NAME;
+        final RootObjectMapper rootObjectMapper = (RootObjectMapper) new RootObjectMapper.Builder(type, ObjectMapper.Defaults.SUBOBJECTS)
+            .enabled(false)
+            .build(MapperBuilderContext.root(false, false));
+        // the root is disabled, and we are not trying to re-enable it, but we do want to be able to add runtime fields
+        final RootObjectMapper mergeWith = new RootObjectMapper.Builder(type, ObjectMapper.Defaults.SUBOBJECTS).addRuntimeFields(
+            Collections.singletonMap("test", new TestRuntimeField("test", "long"))
+        ).build(MapperBuilderContext.root(false, false));
+
+        RootObjectMapper merged = rootObjectMapper.merge(mergeWith, MapperMergeContext.root(false, false, Long.MAX_VALUE));
+        assertFalse(merged.isEnabled());
+        assertEquals(1, merged.runtimeFields().size());
+        assertEquals("test", merged.runtimeFields().iterator().next().name());
+    }
+
+    public void testMergedFieldNamesFieldWithDotsSubobjectsFalseAtRoot() {
+        RootObjectMapper mergeInto = createRootSubobjectFalseLeafWithDots();
+        RootObjectMapper mergeWith = createRootSubobjectFalseLeafWithDots();
+
+        final ObjectMapper merged = mergeInto.merge(mergeWith, MapperMergeContext.root(false, false, Long.MAX_VALUE));
+
+        final KeywordFieldMapper keywordFieldMapper = (KeywordFieldMapper) merged.getMapper("host.name");
+        assertEquals("host.name", keywordFieldMapper.name());
+        assertEquals("host.name", keywordFieldMapper.simpleName());
+    }
+
+    public void testMergedFieldNamesFieldWithDotsSubobjectsFalse() {
+        RootObjectMapper mergeInto = new RootObjectMapper.Builder("_doc", Explicit.IMPLICIT_TRUE).add(
+            createObjectSubobjectsFalseLeafWithDots()
+        ).build(MapperBuilderContext.root(false, false));
+        RootObjectMapper mergeWith = new RootObjectMapper.Builder("_doc", Explicit.IMPLICIT_TRUE).add(
+            createObjectSubobjectsFalseLeafWithDots()
+        ).build(MapperBuilderContext.root(false, false));
+
+        final ObjectMapper merged = mergeInto.merge(mergeWith, MapperMergeContext.root(false, false, Long.MAX_VALUE));
+
+        ObjectMapper foo = (ObjectMapper) merged.getMapper("foo");
+        ObjectMapper metrics = (ObjectMapper) foo.getMapper("metrics");
+        final KeywordFieldMapper keywordFieldMapper = (KeywordFieldMapper) metrics.getMapper("host.name");
+        assertEquals("foo.metrics.host.name", keywordFieldMapper.name());
+        assertEquals("host.name", keywordFieldMapper.simpleName());
+    }
+
+    public void testMergedFieldNamesMultiFields() {
+        RootObjectMapper mergeInto = new RootObjectMapper.Builder("_doc", Explicit.IMPLICIT_TRUE).add(createTextKeywordMultiField("text"))
+            .build(MapperBuilderContext.root(false, false));
+        RootObjectMapper mergeWith = new RootObjectMapper.Builder("_doc", Explicit.IMPLICIT_TRUE).add(createTextKeywordMultiField("text"))
+            .build(MapperBuilderContext.root(false, false));
+
+        final ObjectMapper merged = mergeInto.merge(mergeWith, MapperMergeContext.root(false, false, Long.MAX_VALUE));
+
+        TextFieldMapper text = (TextFieldMapper) merged.getMapper("text");
+        assertEquals("text", text.name());
+        assertEquals("text", text.simpleName());
+        KeywordFieldMapper keyword = (KeywordFieldMapper) text.multiFields().iterator().next();
+        assertEquals("text.keyword", keyword.name());
+        assertEquals("keyword", keyword.simpleName());
+    }
+
+    public void testMergedFieldNamesMultiFieldsWithinSubobjectsFalse() {
+        RootObjectMapper mergeInto = new RootObjectMapper.Builder("_doc", Explicit.IMPLICIT_TRUE).add(
+            createObjectSubobjectsFalseLeafWithMultiField()
+        ).build(MapperBuilderContext.root(false, false));
+        RootObjectMapper mergeWith = new RootObjectMapper.Builder("_doc", Explicit.IMPLICIT_TRUE).add(
+            createObjectSubobjectsFalseLeafWithMultiField()
+        ).build(MapperBuilderContext.root(false, false));
+
+        final ObjectMapper merged = mergeInto.merge(mergeWith, MapperMergeContext.root(false, false, Long.MAX_VALUE));
+
+        ObjectMapper foo = (ObjectMapper) merged.getMapper("foo");
+        ObjectMapper metrics = (ObjectMapper) foo.getMapper("metrics");
+        final TextFieldMapper textFieldMapper = (TextFieldMapper) metrics.getMapper("host.name");
+        assertEquals("foo.metrics.host.name", textFieldMapper.name());
+        assertEquals("host.name", textFieldMapper.simpleName());
+        FieldMapper fieldMapper = textFieldMapper.multiFields.iterator().next();
+        assertEquals("foo.metrics.host.name.keyword", fieldMapper.name());
+        assertEquals("keyword", fieldMapper.simpleName());
+    }
+
+    public void testMergeWithLimit() {
+        // GIVEN an enriched mapping with "baz" new field
+        ObjectMapper mergeWith = createMapping(false, true, true, true);
+
         // WHEN merging mappings
-        // THEN a MapperException is thrown with an excepted message
-        MapperException e = expectThrows(MapperException.class, () -> rootObjectMapper.merge(mergeWith));
-        assertEquals("Can't update attribute for type [type1.disabled.enabled] in index mapping", e.getMessage());
+        final ObjectMapper mergedAdd0 = rootObjectMapper.merge(mergeWith, MapperMergeContext.root(false, false, 0));
+        final ObjectMapper mergedAdd1 = rootObjectMapper.merge(mergeWith, MapperMergeContext.root(false, false, 1));
+
+        // THEN "baz" new field is added to merged mapping
+        assertEquals(3, rootObjectMapper.getTotalFieldsCount());
+        assertEquals(4, mergeWith.getTotalFieldsCount());
+        assertEquals(3, mergedAdd0.getTotalFieldsCount());
+        assertEquals(4, mergedAdd1.getTotalFieldsCount());
     }
 
-    private static RootObjectMapper createRootObjectMapper(String name, boolean enabled, Map<String, Mapper> mappers) {
-        final Settings indexSettings = Settings.builder().put(SETTING_VERSION_CREATED, Version.CURRENT).build();
-        final Mapper.BuilderContext context = new Mapper.BuilderContext(indexSettings, new ContentPath());
-        final RootObjectMapper rootObjectMapper = new RootObjectMapper.Builder(name).enabled(enabled).build(context);
+    public void testMergeWithLimitTruncatedObjectField() {
+        RootObjectMapper root = new RootObjectMapper.Builder("_doc", Explicit.IMPLICIT_TRUE).build(MapperBuilderContext.root(false, false));
+        RootObjectMapper mergeWith = new RootObjectMapper.Builder("_doc", Explicit.IMPLICIT_TRUE).add(
+            new ObjectMapper.Builder("parent", Explicit.IMPLICIT_FALSE).add(
+                new KeywordFieldMapper.Builder("child1", IndexVersion.current())
+            ).add(new KeywordFieldMapper.Builder("child2", IndexVersion.current()))
+        ).build(MapperBuilderContext.root(false, false));
 
-        mappers.values().forEach(rootObjectMapper::putMapper);
+        ObjectMapper mergedAdd0 = root.merge(mergeWith, MapperMergeContext.root(false, false, 0));
+        ObjectMapper mergedAdd1 = root.merge(mergeWith, MapperMergeContext.root(false, false, 1));
+        ObjectMapper mergedAdd2 = root.merge(mergeWith, MapperMergeContext.root(false, false, 2));
+        ObjectMapper mergedAdd3 = root.merge(mergeWith, MapperMergeContext.root(false, false, 3));
+        assertEquals(0, root.getTotalFieldsCount());
+        assertEquals(0, mergedAdd0.getTotalFieldsCount());
+        assertEquals(1, mergedAdd1.getTotalFieldsCount());
+        assertEquals(2, mergedAdd2.getTotalFieldsCount());
+        assertEquals(3, mergedAdd3.getTotalFieldsCount());
 
-        return rootObjectMapper;
+        ObjectMapper parent1 = (ObjectMapper) mergedAdd1.getMapper("parent");
+        assertNull(parent1.getMapper("child1"));
+        assertNull(parent1.getMapper("child2"));
+
+        ObjectMapper parent2 = (ObjectMapper) mergedAdd2.getMapper("parent");
+        // the order is not deterministic, but we expect one to be null and the other to be non-null
+        assertTrue(parent2.getMapper("child1") == null ^ parent2.getMapper("child2") == null);
+
+        ObjectMapper parent3 = (ObjectMapper) mergedAdd3.getMapper("parent");
+        assertNotNull(parent3.getMapper("child1"));
+        assertNotNull(parent3.getMapper("child2"));
     }
 
-    private static ObjectMapper createObjectMapper(String name, boolean enabled, Map<String, Mapper> mappers) {
-        final Settings indexSettings = Settings.builder().put(SETTING_VERSION_CREATED, Version.CURRENT).build();
-        final Mapper.BuilderContext context = new Mapper.BuilderContext(indexSettings, new ContentPath());
-        final ObjectMapper mapper = new ObjectMapper.Builder(name).enabled(enabled).build(context);
+    public void testMergeSameObjectDifferentFields() {
+        RootObjectMapper root = new RootObjectMapper.Builder("_doc", Explicit.IMPLICIT_TRUE).add(
+            new ObjectMapper.Builder("parent", Explicit.IMPLICIT_TRUE).add(new KeywordFieldMapper.Builder("child1", IndexVersion.current()))
+        ).build(MapperBuilderContext.root(false, false));
+        RootObjectMapper mergeWith = new RootObjectMapper.Builder("_doc", Explicit.IMPLICIT_TRUE).add(
+            new ObjectMapper.Builder("parent", Explicit.IMPLICIT_TRUE).add(
+                new KeywordFieldMapper.Builder("child1", IndexVersion.current()).ignoreAbove(42)
+            ).add(new KeywordFieldMapper.Builder("child2", IndexVersion.current()))
+        ).build(MapperBuilderContext.root(false, false));
 
-        mappers.values().forEach(mapper::putMapper);
+        ObjectMapper mergedAdd0 = root.merge(mergeWith, MapperMergeContext.root(false, false, 0));
+        ObjectMapper mergedAdd1 = root.merge(mergeWith, MapperMergeContext.root(false, false, 1));
+        assertEquals(2, root.getTotalFieldsCount());
+        assertEquals(2, mergedAdd0.getTotalFieldsCount());
+        assertEquals(3, mergedAdd1.getTotalFieldsCount());
 
-        return mapper;
+        ObjectMapper parent0 = (ObjectMapper) mergedAdd0.getMapper("parent");
+        assertNotNull(parent0.getMapper("child1"));
+        assertEquals(42, ((KeywordFieldMapper) parent0.getMapper("child1")).fieldType().ignoreAbove());
+        assertNull(parent0.getMapper("child2"));
+
+        ObjectMapper parent1 = (ObjectMapper) mergedAdd1.getMapper("parent");
+        assertNotNull(parent1.getMapper("child1"));
+        assertEquals(42, ((KeywordFieldMapper) parent1.getMapper("child1")).fieldType().ignoreAbove());
+        assertNotNull(parent1.getMapper("child2"));
     }
 
-    private static TextFieldMapper createTextFieldMapper(String name) {
-        final TextFieldType fieldType = new TextFieldType();
-        final Settings indexSettings = Settings.builder().put(SETTING_VERSION_CREATED, Version.CURRENT).build();
+    public void testMergeWithLimitMultiField() {
+        RootObjectMapper mergeInto = new RootObjectMapper.Builder("_doc", Explicit.IMPLICIT_TRUE).add(
+            createTextKeywordMultiField("text", "keyword1")
+        ).build(MapperBuilderContext.root(false, false));
+        RootObjectMapper mergeWith = new RootObjectMapper.Builder("_doc", Explicit.IMPLICIT_TRUE).add(
+            createTextKeywordMultiField("text", "keyword2")
+        ).build(MapperBuilderContext.root(false, false));
 
-        return new TextFieldMapper(name, fieldType, fieldType, -1, null, indexSettings, MultiFields.empty(), CopyTo.empty());
+        assertEquals(2, mergeInto.getTotalFieldsCount());
+        assertEquals(2, mergeWith.getTotalFieldsCount());
+
+        ObjectMapper mergedAdd0 = mergeInto.merge(mergeWith, MapperMergeContext.root(false, false, 0));
+        ObjectMapper mergedAdd1 = mergeInto.merge(mergeWith, MapperMergeContext.root(false, false, 1));
+        assertEquals(2, mergedAdd0.getTotalFieldsCount());
+        assertEquals(3, mergedAdd1.getTotalFieldsCount());
+    }
+
+    public void testMergeWithLimitRuntimeField() {
+        RootObjectMapper mergeInto = new RootObjectMapper.Builder("_doc", Explicit.IMPLICIT_TRUE).addRuntimeField(
+            new TestRuntimeField("existing_runtime_field", "keyword")
+        ).add(createTextKeywordMultiField("text", "keyword1")).build(MapperBuilderContext.root(false, false));
+        RootObjectMapper mergeWith = new RootObjectMapper.Builder("_doc", Explicit.IMPLICIT_TRUE).addRuntimeField(
+            new TestRuntimeField("existing_runtime_field", "keyword")
+        ).addRuntimeField(new TestRuntimeField("new_runtime_field", "keyword")).build(MapperBuilderContext.root(false, false));
+
+        assertEquals(3, mergeInto.getTotalFieldsCount());
+        assertEquals(2, mergeWith.getTotalFieldsCount());
+
+        ObjectMapper mergedAdd0 = mergeInto.merge(mergeWith, MapperMergeContext.root(false, false, 0));
+        ObjectMapper mergedAdd1 = mergeInto.merge(mergeWith, MapperMergeContext.root(false, false, 1));
+        assertEquals(3, mergedAdd0.getTotalFieldsCount());
+        assertEquals(4, mergedAdd1.getTotalFieldsCount());
+    }
+
+    public void testMergeSubobjectsFalseWithObject() {
+        RootObjectMapper mergeInto = new RootObjectMapper.Builder("_doc", Explicit.IMPLICIT_TRUE).add(
+            new ObjectMapper.Builder("parent", Explicit.IMPLICIT_FALSE)
+        ).build(MapperBuilderContext.root(false, false));
+        RootObjectMapper mergeWith = new RootObjectMapper.Builder("_doc", Explicit.IMPLICIT_TRUE).add(
+            new ObjectMapper.Builder("parent", Explicit.IMPLICIT_TRUE).add(
+                new ObjectMapper.Builder("child", Explicit.IMPLICIT_TRUE).add(
+                    new KeywordFieldMapper.Builder("grandchild", IndexVersion.current())
+                )
+            )
+        ).build(MapperBuilderContext.root(false, false));
+
+        ObjectMapper merged = mergeInto.merge(mergeWith, MapperMergeContext.root(false, false, Long.MAX_VALUE));
+        ObjectMapper parentMapper = (ObjectMapper) merged.getMapper("parent");
+        assertNotNull(parentMapper);
+        assertNotNull(parentMapper.getMapper("child.grandchild"));
+    }
+
+    private static RootObjectMapper createRootSubobjectFalseLeafWithDots() {
+        FieldMapper.Builder fieldBuilder = new KeywordFieldMapper.Builder("host.name", IndexVersion.current());
+        FieldMapper fieldMapper = fieldBuilder.build(MapperBuilderContext.root(false, false));
+        assertEquals("host.name", fieldMapper.simpleName());
+        assertEquals("host.name", fieldMapper.name());
+        return new RootObjectMapper.Builder("_doc", Explicit.EXPLICIT_FALSE).add(fieldBuilder)
+            .build(MapperBuilderContext.root(false, false));
+    }
+
+    private static ObjectMapper.Builder createObjectSubobjectsFalseLeafWithDots() {
+        KeywordFieldMapper.Builder fieldBuilder = new KeywordFieldMapper.Builder("host.name", IndexVersion.current());
+        KeywordFieldMapper fieldMapper = fieldBuilder.build(new MapperBuilderContext("foo.metrics"));
+        assertEquals("host.name", fieldMapper.simpleName());
+        assertEquals("foo.metrics.host.name", fieldMapper.name());
+        return new ObjectMapper.Builder("foo", ObjectMapper.Defaults.SUBOBJECTS).add(
+            new ObjectMapper.Builder("metrics", Explicit.EXPLICIT_FALSE).add(fieldBuilder)
+        );
+    }
+
+    private ObjectMapper.Builder createObjectSubobjectsFalseLeafWithMultiField() {
+        TextFieldMapper.Builder fieldBuilder = createTextKeywordMultiField("host.name");
+        TextFieldMapper textKeywordMultiField = fieldBuilder.build(new MapperBuilderContext("foo.metrics"));
+        assertEquals("host.name", textKeywordMultiField.simpleName());
+        assertEquals("foo.metrics.host.name", textKeywordMultiField.name());
+        FieldMapper fieldMapper = textKeywordMultiField.multiFields.iterator().next();
+        assertEquals("keyword", fieldMapper.simpleName());
+        assertEquals("foo.metrics.host.name.keyword", fieldMapper.name());
+        return new ObjectMapper.Builder("foo", ObjectMapper.Defaults.SUBOBJECTS).add(
+            new ObjectMapper.Builder("metrics", Explicit.EXPLICIT_FALSE).add(fieldBuilder)
+        );
+    }
+
+    private TextFieldMapper.Builder createTextKeywordMultiField(String name) {
+        return createTextKeywordMultiField(name, "keyword");
+    }
+
+    private TextFieldMapper.Builder createTextKeywordMultiField(String name, String multiFieldName) {
+        TextFieldMapper.Builder builder = new TextFieldMapper.Builder(name, createDefaultIndexAnalyzers(), false);
+        builder.multiFieldsBuilder.add(new KeywordFieldMapper.Builder(multiFieldName, IndexVersion.current()));
+        return builder;
     }
 }

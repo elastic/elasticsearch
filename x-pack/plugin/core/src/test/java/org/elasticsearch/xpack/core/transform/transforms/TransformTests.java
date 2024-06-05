@@ -1,21 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.transform.transforms;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.transform.AbstractSerializingTransformTestCase;
+import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
 
 import java.io.IOException;
-
-import static org.hamcrest.Matchers.equalTo;
+import java.time.Instant;
 
 public class TransformTests extends AbstractSerializingTransformTestCase<TransformTaskParams> {
 
@@ -26,29 +25,22 @@ public class TransformTests extends AbstractSerializingTransformTestCase<Transfo
 
     @Override
     protected TransformTaskParams createTestInstance() {
-        return new TransformTaskParams(randomAlphaOfLength(10), randomBoolean() ? null : Version.CURRENT,
-            randomBoolean() ? null : TimeValue.timeValueMillis(randomIntBetween(1_000, 3_600_000)));
+        return new TransformTaskParams(
+            randomAlphaOfLength(10),
+            randomBoolean() ? null : TransformConfigVersion.CURRENT,
+            randomBoolean() ? Instant.ofEpochMilli(randomLongBetween(0, 1_000_000_000_000L)) : null,
+            randomBoolean() ? null : TimeValue.timeValueMillis(randomIntBetween(1_000, 3_600_000)),
+            randomBoolean()
+        );
+    }
+
+    @Override
+    protected TransformTaskParams mutateInstance(TransformTaskParams instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override
     protected Reader<TransformTaskParams> instanceReader() {
         return TransformTaskParams::new;
-    }
-
-    public void testBackwardsSerialization() throws IOException {
-        for (int i = 0; i < NUMBER_OF_TEST_RUNS; i++) {
-            TransformTaskParams transformTask = createTestInstance();
-            try (BytesStreamOutput output = new BytesStreamOutput()) {
-                output.setVersion(Version.V_7_2_0);
-                transformTask.writeTo(output);
-                try (StreamInput in = output.bytes().streamInput()) {
-                    in.setVersion(Version.V_7_2_0);
-                    // Since the old version does not have the version serialized, the version NOW is 7.2.0
-                    TransformTaskParams streamedTask = new TransformTaskParams(in);
-                    assertThat(streamedTask.getVersion(), equalTo(Version.V_7_2_0));
-                    assertThat(streamedTask.getId(), equalTo(transformTask.getId()));
-                }
-            }
-        }
     }
 }

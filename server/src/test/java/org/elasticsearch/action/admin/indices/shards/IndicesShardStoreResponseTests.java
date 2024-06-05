@@ -1,38 +1,30 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.indices.shards;
 
 import org.apache.lucene.util.CollectionUtil;
-import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresResponse.Failure;
+import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresResponse.StoreStatus;
+import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresResponse.StoreStatus.AllocationStatus;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.ImmutableOpenIntMap;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.NodeDisconnectedException;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -40,41 +32,27 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.equalTo;
 
 public class IndicesShardStoreResponseTests extends ESTestCase {
     public void testBasicSerialization() throws Exception {
-        ImmutableOpenMap.Builder<String, ImmutableOpenIntMap<List<IndicesShardStoresResponse.StoreStatus>>>
-            indexStoreStatuses = ImmutableOpenMap.builder();
+        DiscoveryNode node1 = DiscoveryNodeUtils.builder("node1").roles(emptySet()).build();
+        DiscoveryNode node2 = DiscoveryNodeUtils.builder("node2").roles(emptySet()).build();
+        List<StoreStatus> storeStatusList = List.of(
+            new StoreStatus(node1, null, AllocationStatus.PRIMARY, null),
+            new StoreStatus(node2, UUIDs.randomBase64UUID(), AllocationStatus.REPLICA, null),
+            new StoreStatus(node1, UUIDs.randomBase64UUID(), AllocationStatus.UNUSED, new IOException("corrupted"))
+        );
+        Map<Integer, List<StoreStatus>> storeStatuses = Map.of(0, storeStatusList, 1, storeStatusList);
+        var indexStoreStatuses = Map.of("test", storeStatuses, "test2", storeStatuses);
+        var failures = List.of(new Failure("node1", "test", 3, new NodeDisconnectedException(node1, "")));
+        var storesResponse = new IndicesShardStoresResponse(indexStoreStatuses, failures);
 
-        List<IndicesShardStoresResponse.Failure> failures = new ArrayList<>();
-        ImmutableOpenIntMap.Builder<List<IndicesShardStoresResponse.StoreStatus>> storeStatuses = ImmutableOpenIntMap.builder();
+        AbstractChunkedSerializingTestCase.assertChunkCount(storesResponse, this::getExpectedChunkCount);
 
-        DiscoveryNode node1 = new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
-        DiscoveryNode node2 = new DiscoveryNode("node2", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
-        List<IndicesShardStoresResponse.StoreStatus> storeStatusList = new ArrayList<>();
-        storeStatusList.add(new IndicesShardStoresResponse.StoreStatus(node1, null,
-            IndicesShardStoresResponse.StoreStatus.AllocationStatus.PRIMARY, null));
-        storeStatusList.add(new IndicesShardStoresResponse.StoreStatus(node2, UUIDs.randomBase64UUID(),
-            IndicesShardStoresResponse.StoreStatus.AllocationStatus.REPLICA, null));
-        storeStatusList.add(new IndicesShardStoresResponse.StoreStatus(node1, UUIDs.randomBase64UUID(),
-            IndicesShardStoresResponse.StoreStatus.AllocationStatus.UNUSED, new IOException("corrupted")));
-        storeStatuses.put(0, storeStatusList);
-        storeStatuses.put(1, storeStatusList);
-        ImmutableOpenIntMap<List<IndicesShardStoresResponse.StoreStatus>> storesMap = storeStatuses.build();
-        indexStoreStatuses.put("test", storesMap);
-        indexStoreStatuses.put("test2", storesMap);
-
-        failures.add(new IndicesShardStoresResponse.Failure("node1", "test", 3, new NodeDisconnectedException(node1, "")));
-
-        IndicesShardStoresResponse storesResponse = new IndicesShardStoresResponse(indexStoreStatuses.build(),
-            Collections.unmodifiableList(failures));
         XContentBuilder contentBuilder = XContentFactory.jsonBuilder();
-        contentBuilder.startObject();
-        storesResponse.toXContent(contentBuilder, ToXContent.EMPTY_PARAMS);
-        contentBuilder.endObject();
+        ChunkedToXContent.wrapAsToXContent(storesResponse).toXContent(contentBuilder, ToXContent.EMPTY_PARAMS);
         BytesReference bytes = BytesReference.bytes(contentBuilder);
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, bytes)) {
@@ -82,7 +60,7 @@ public class IndicesShardStoreResponseTests extends ESTestCase {
             List<?> failureList = (List<?>) map.get("failures");
             assertThat(failureList.size(), equalTo(1));
             @SuppressWarnings("unchecked")
-            Map<String, ?> failureMap =  (Map<String, ?>) failureList.get(0);
+            Map<String, ?> failureMap = (Map<String, ?>) failureList.get(0);
             assertThat(failureMap.containsKey("index"), equalTo(true));
             assertThat(((String) failureMap.get("index")), equalTo("test"));
             assertThat(failureMap.containsKey("shard"), equalTo(true));
@@ -92,7 +70,7 @@ public class IndicesShardStoreResponseTests extends ESTestCase {
 
             @SuppressWarnings("unchecked")
             Map<String, Object> indices = (Map<String, Object>) map.get("indices");
-            for (String index : new String[] {"test", "test2"}) {
+            for (String index : new String[] { "test", "test2" }) {
                 assertThat(indices.containsKey(index), equalTo(true));
                 @SuppressWarnings("unchecked")
                 Map<String, Object> shards = ((Map<String, Object>) ((Map<String, Object>) indices.get(index)).get("shards"));
@@ -106,7 +84,7 @@ public class IndicesShardStoreResponseTests extends ESTestCase {
                     for (int i = 0; i < stores.size(); i++) {
                         @SuppressWarnings("unchecked")
                         Map<String, ?> storeInfo = ((Map<String, ?>) stores.get(i));
-                        IndicesShardStoresResponse.StoreStatus storeStatus = storeStatusList.get(i);
+                        StoreStatus storeStatus = storeStatusList.get(i);
                         assertThat(((String) storeInfo.get("allocation_id")), equalTo((storeStatus.getAllocationId())));
                         assertThat(storeInfo.containsKey("allocation"), equalTo(true));
                         assertThat(((String) storeInfo.get("allocation")), equalTo(storeStatus.getAllocationStatus().value()));
@@ -120,27 +98,23 @@ public class IndicesShardStoreResponseTests extends ESTestCase {
         }
     }
 
-    public void testStoreStatusOrdering() throws Exception {
-        DiscoveryNode node1 = new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
-        List<IndicesShardStoresResponse.StoreStatus> orderedStoreStatuses = new ArrayList<>();
-        orderedStoreStatuses.add(new IndicesShardStoresResponse.StoreStatus(node1, UUIDs.randomBase64UUID(),
-            IndicesShardStoresResponse.StoreStatus.AllocationStatus.PRIMARY, null));
-        orderedStoreStatuses.add(new IndicesShardStoresResponse.StoreStatus(node1, UUIDs.randomBase64UUID(),
-            IndicesShardStoresResponse.StoreStatus.AllocationStatus.REPLICA, null));
-        orderedStoreStatuses.add(new IndicesShardStoresResponse.StoreStatus(node1, UUIDs.randomBase64UUID(),
-            IndicesShardStoresResponse.StoreStatus.AllocationStatus.UNUSED, null));
-        orderedStoreStatuses.add(new IndicesShardStoresResponse.StoreStatus(node1, null,
-            IndicesShardStoresResponse.StoreStatus.AllocationStatus.PRIMARY, null));
-        orderedStoreStatuses.add(new IndicesShardStoresResponse.StoreStatus(node1, null,
-            IndicesShardStoresResponse.StoreStatus.AllocationStatus.REPLICA, null));
-        orderedStoreStatuses.add(new IndicesShardStoresResponse.StoreStatus(node1, null,
-            IndicesShardStoresResponse.StoreStatus.AllocationStatus.UNUSED, null));
-        orderedStoreStatuses.add(new IndicesShardStoresResponse.StoreStatus(node1, UUIDs.randomBase64UUID(),
-            IndicesShardStoresResponse.StoreStatus.AllocationStatus.REPLICA, new IOException("corrupted")));
-        orderedStoreStatuses.add(new IndicesShardStoresResponse.StoreStatus(node1, null,
-            IndicesShardStoresResponse.StoreStatus.AllocationStatus.REPLICA, new IOException("corrupted")));
+    private int getExpectedChunkCount(IndicesShardStoresResponse response) {
+        return 6 + response.getFailures().size() + response.getStoreStatuses().values().stream().mapToInt(m -> 4 + m.size()).sum();
+    }
 
-        List<IndicesShardStoresResponse.StoreStatus> storeStatuses = new ArrayList<>(orderedStoreStatuses);
+    public void testStoreStatusOrdering() throws Exception {
+        DiscoveryNode node1 = DiscoveryNodeUtils.builder("node1").roles(emptySet()).build();
+        List<StoreStatus> orderedStoreStatuses = new ArrayList<>();
+        orderedStoreStatuses.add(new StoreStatus(node1, UUIDs.randomBase64UUID(), AllocationStatus.PRIMARY, null));
+        orderedStoreStatuses.add(new StoreStatus(node1, UUIDs.randomBase64UUID(), AllocationStatus.REPLICA, null));
+        orderedStoreStatuses.add(new StoreStatus(node1, UUIDs.randomBase64UUID(), AllocationStatus.UNUSED, null));
+        orderedStoreStatuses.add(new StoreStatus(node1, null, AllocationStatus.PRIMARY, null));
+        orderedStoreStatuses.add(new StoreStatus(node1, null, AllocationStatus.REPLICA, null));
+        orderedStoreStatuses.add(new StoreStatus(node1, null, AllocationStatus.UNUSED, null));
+        orderedStoreStatuses.add(new StoreStatus(node1, UUIDs.randomBase64UUID(), AllocationStatus.REPLICA, new IOException("corrupted")));
+        orderedStoreStatuses.add(new StoreStatus(node1, null, AllocationStatus.REPLICA, new IOException("corrupted")));
+
+        List<StoreStatus> storeStatuses = new ArrayList<>(orderedStoreStatuses);
         Collections.shuffle(storeStatuses, random());
         CollectionUtil.timSort(storeStatuses);
         assertThat(storeStatuses, equalTo(orderedStoreStatuses));

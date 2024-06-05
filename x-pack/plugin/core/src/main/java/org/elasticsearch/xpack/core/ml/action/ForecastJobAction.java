@@ -1,25 +1,27 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
-import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParseException;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.results.Forecast;
+import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -30,16 +32,20 @@ public class ForecastJobAction extends ActionType<ForecastJobAction.Response> {
     public static final String NAME = "cluster:admin/xpack/ml/job/forecast";
 
     private ForecastJobAction() {
-        super(NAME, ForecastJobAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends JobTaskRequest<Request> implements ToXContentObject {
 
         public static final ParseField DURATION = new ParseField("duration");
         public static final ParseField EXPIRES_IN = new ParseField("expires_in");
+        public static final ParseField MAX_MODEL_MEMORY = new ParseField("max_model_memory");
+
+        public static final ByteSizeValue FORECAST_LOCAL_STORAGE_LIMIT = ByteSizeValue.ofMb(500);
 
         // Max allowed duration: 10 years
         private static final TimeValue MAX_DURATION = TimeValue.parseTimeValue("3650d", "");
+        private static final long MIN_MODEL_MEMORY = ByteSizeValue.ofMb(1).getBytes();
 
         private static final ObjectParser<Request, Void> PARSER = new ObjectParser<>(NAME, Request::new);
 
@@ -47,6 +53,14 @@ public class ForecastJobAction extends ActionType<ForecastJobAction.Response> {
             PARSER.declareString((request, jobId) -> request.jobId = jobId, Job.ID);
             PARSER.declareString(Request::setDuration, DURATION);
             PARSER.declareString(Request::setExpiresIn, EXPIRES_IN);
+            PARSER.declareField(Request::setMaxModelMemory, (p, c) -> {
+                if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
+                    return ByteSizeValue.parseBytesSizeValue(p.text(), MAX_MODEL_MEMORY.getPreferredName()).getBytes();
+                } else if (p.currentToken() == XContentParser.Token.VALUE_NUMBER) {
+                    return p.longValue();
+                }
+                throw new XContentParseException("Unsupported token [" + p.currentToken() + "]");
+            }, MAX_MODEL_MEMORY, ObjectParser.ValueType.VALUE);
         }
 
         public static Request parseRequest(String jobId, XContentParser parser) {
@@ -59,14 +73,15 @@ public class ForecastJobAction extends ActionType<ForecastJobAction.Response> {
 
         private TimeValue duration;
         private TimeValue expiresIn;
+        private Long maxModelMemory;
 
-        public Request() {
-        }
+        public Request() {}
 
         public Request(StreamInput in) throws IOException {
             super(in);
             this.duration = in.readOptionalTimeValue();
             this.expiresIn = in.readOptionalTimeValue();
+            this.maxModelMemory = in.readOptionalVLong();
         }
 
         @Override
@@ -74,6 +89,7 @@ public class ForecastJobAction extends ActionType<ForecastJobAction.Response> {
             super.writeTo(out);
             out.writeOptionalTimeValue(duration);
             out.writeOptionalTimeValue(expiresIn);
+            out.writeOptionalVLong(maxModelMemory);
         }
 
         public Request(String jobId) {
@@ -91,12 +107,20 @@ public class ForecastJobAction extends ActionType<ForecastJobAction.Response> {
         public void setDuration(TimeValue duration) {
             this.duration = duration;
             if (this.duration.compareTo(TimeValue.ZERO) <= 0) {
-                throw new IllegalArgumentException("[" + DURATION.getPreferredName() + "] must be positive: ["
-                        + duration.getStringRep() + "]");
+                throw new IllegalArgumentException(
+                    "[" + DURATION.getPreferredName() + "] must be positive: [" + duration.getStringRep() + "]"
+                );
             }
             if (this.duration.compareTo(MAX_DURATION) > 0) {
-                throw new IllegalArgumentException("[" + DURATION.getPreferredName() + "] must be "
-                        + MAX_DURATION.getStringRep() + " or less: [" + duration.getStringRep() + "]");
+                throw new IllegalArgumentException(
+                    "["
+                        + DURATION.getPreferredName()
+                        + "] must be "
+                        + MAX_DURATION.getStringRep()
+                        + " or less: ["
+                        + duration.getStringRep()
+                        + "]"
+                );
             }
         }
 
@@ -111,14 +135,33 @@ public class ForecastJobAction extends ActionType<ForecastJobAction.Response> {
         public void setExpiresIn(TimeValue expiresIn) {
             this.expiresIn = expiresIn;
             if (this.expiresIn.compareTo(TimeValue.ZERO) < 0) {
-                throw new IllegalArgumentException("[" + EXPIRES_IN.getPreferredName() + "] must be non-negative: ["
-                        + expiresIn.getStringRep() + "]");
+                throw new IllegalArgumentException(
+                    "[" + EXPIRES_IN.getPreferredName() + "] must be non-negative: [" + expiresIn.getStringRep() + "]"
+                );
             }
+        }
+
+        public void setMaxModelMemory(long numBytes) {
+            if (numBytes < MIN_MODEL_MEMORY) {
+                throw new IllegalArgumentException("[" + MAX_MODEL_MEMORY.getPreferredName() + "] must be at least 1mb.");
+            }
+            if (numBytes >= FORECAST_LOCAL_STORAGE_LIMIT.getBytes()) {
+                throw ExceptionsHelper.badRequestException(
+                    "[{}] must be less than {}",
+                    MAX_MODEL_MEMORY.getPreferredName(),
+                    FORECAST_LOCAL_STORAGE_LIMIT.getStringRep()
+                );
+            }
+            this.maxModelMemory = numBytes;
+        }
+
+        public Long getMaxModelMemory() {
+            return maxModelMemory;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(jobId, duration, expiresIn);
+            return Objects.hash(jobId, duration, expiresIn, maxModelMemory);
         }
 
         @Override
@@ -131,8 +174,9 @@ public class ForecastJobAction extends ActionType<ForecastJobAction.Response> {
             }
             Request other = (Request) obj;
             return Objects.equals(jobId, other.jobId)
-                    && Objects.equals(duration, other.duration)
-                    && Objects.equals(expiresIn, other.expiresIn);
+                && Objects.equals(duration, other.duration)
+                && Objects.equals(expiresIn, other.expiresIn)
+                && Objects.equals(maxModelMemory, other.maxModelMemory);
         }
 
         @Override
@@ -145,22 +189,18 @@ public class ForecastJobAction extends ActionType<ForecastJobAction.Response> {
             if (expiresIn != null) {
                 builder.field(EXPIRES_IN.getPreferredName(), expiresIn.getStringRep());
             }
+            if (maxModelMemory != null) {
+                builder.field(MAX_MODEL_MEMORY.getPreferredName(), ByteSizeValue.ofBytes(maxModelMemory).getStringRep());
+            }
             builder.endObject();
             return builder;
         }
     }
 
-    static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
-
-        RequestBuilder(ElasticsearchClient client, ForecastJobAction action) {
-            super(client, action, new Request());
-        }
-    }
-
     public static class Response extends BaseTasksResponse implements Writeable, ToXContentObject {
 
-        private boolean acknowledged;
-        private String forecastId;
+        private final boolean acknowledged;
+        private final String forecastId;
 
         public Response(boolean acknowledged, String forecastId) {
             super(null, null);
@@ -216,4 +256,3 @@ public class ForecastJobAction extends ActionType<ForecastJobAction.Response> {
         }
     }
 }
-

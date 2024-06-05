@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.indexing;
 
 import org.elasticsearch.action.index.IndexRequest;
 
-import java.util.List;
+import java.util.stream.Stream;
 
 /**
  * Result object to hold the result of 1 iteration of iterative indexing.
@@ -18,18 +19,18 @@ public class IterationResult<JobPosition> {
 
     private final boolean isDone;
     private final JobPosition position;
-    private final List<IndexRequest> toIndex;
+    private final Stream<IndexRequest> toIndex;
 
     /**
      * Constructor for the result of 1 iteration.
      *
-     * @param toIndex the list of requests to be indexed
+     * @param toIndex the stream of requests to be indexed
      * @param position the extracted, persistable position of the job required for the search phase
      * @param isDone true if source is exhausted and job should go to sleep
      *
      * Note: toIndex.empty() != isDone due to possible filtering in the specific implementation
      */
-    public IterationResult(List<IndexRequest> toIndex, JobPosition position, boolean isDone) {
+    public IterationResult(Stream<IndexRequest> toIndex, JobPosition position, boolean isDone) {
         this.toIndex = toIndex;
         this.position = position;
         this.isDone = isDone;
@@ -52,11 +53,11 @@ public class IterationResult<JobPosition> {
     }
 
     /**
-     * List of requests to be passed to bulk indexing.
+     * Stream of requests to be passed to bulk indexing.
      *
-     * @return List of index requests.
+     * @return Stream of index requests.
      */
-    public List<IndexRequest> getToIndex() {
+    public Stream<IndexRequest> getToIndex() {
         return toIndex;
     }
 }

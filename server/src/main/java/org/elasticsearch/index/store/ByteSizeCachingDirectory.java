@@ -1,39 +1,24 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.store;
 
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
 import org.elasticsearch.common.lucene.store.FilterIndexOutput;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.SingleObjectCache;
+import org.elasticsearch.core.TimeValue;
 
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.nio.file.AccessDeniedException;
-import java.nio.file.NoSuchFileException;
 
-final class ByteSizeCachingDirectory extends FilterDirectory {
+final class ByteSizeCachingDirectory extends ByteSizeDirectory {
 
     private static class SizeAndModCount {
         final long size;
@@ -47,20 +32,6 @@ final class ByteSizeCachingDirectory extends FilterDirectory {
         }
     }
 
-    private static long estimateSizeInBytes(Directory directory) throws IOException {
-        long estimatedSize = 0;
-        String[] files = directory.listAll();
-        for (String file : files) {
-            try {
-                estimatedSize += directory.fileLength(file);
-            } catch (NoSuchFileException | FileNotFoundException | AccessDeniedException e) {
-                // ignore, the file is not there no more; on Windows, if one thread concurrently deletes a file while
-                // calling Files.size, you can also sometimes hit AccessDeniedException
-            }
-        }
-        return estimatedSize;
-    }
-
     private final SingleObjectCache<SizeAndModCount> size;
     // Both these variables need to be accessed under `this` lock.
     private long modCount = 0;
@@ -68,7 +39,7 @@ final class ByteSizeCachingDirectory extends FilterDirectory {
 
     ByteSizeCachingDirectory(Directory in, TimeValue refreshInterval) {
         super(in);
-        size = new SingleObjectCache<SizeAndModCount>(refreshInterval, new SizeAndModCount(0L, -1L, true)) {
+        size = new SingleObjectCache<>(refreshInterval, new SizeAndModCount(0L, -1L, true)) {
             @Override
             protected SizeAndModCount refresh() {
                 // It is ok for the size of the directory to be more recent than
@@ -79,7 +50,7 @@ final class ByteSizeCachingDirectory extends FilterDirectory {
                 // numOpenOutputs BEFORE computing the size of the directory.
                 final long modCount;
                 final boolean pendingWrite;
-                synchronized(ByteSizeCachingDirectory.this) {
+                synchronized (ByteSizeCachingDirectory.this) {
                     modCount = ByteSizeCachingDirectory.this.modCount;
                     pendingWrite = ByteSizeCachingDirectory.this.numOpenOutputs != 0;
                 }
@@ -105,7 +76,7 @@ final class ByteSizeCachingDirectory extends FilterDirectory {
                     // writes, so the size might be stale: recompute.
                     return true;
                 }
-                synchronized(ByteSizeCachingDirectory.this) {
+                synchronized (ByteSizeCachingDirectory.this) {
                     // If there are pending writes or if new files have been
                     // written/deleted since last time: recompute
                     return numOpenOutputs != 0 || cached.modCount != modCount;
@@ -114,14 +85,19 @@ final class ByteSizeCachingDirectory extends FilterDirectory {
         };
     }
 
-    /** Return the cumulative size of all files in this directory. */
-    long estimateSizeInBytes() throws IOException {
+    @Override
+    public long estimateSizeInBytes() throws IOException {
         try {
             return size.getOrRefresh().size;
         } catch (UncheckedIOException e) {
             // we wrapped in the cache and unwrap here
             throw e.getCause();
         }
+    }
+
+    @Override
+    public long estimateDataSetSizeInBytes() throws IOException {
+        return estimateSizeInBytes(); // data set size is equal to directory size for most implementations
     }
 
     @Override
@@ -139,6 +115,8 @@ final class ByteSizeCachingDirectory extends FilterDirectory {
             numOpenOutputs++;
         }
         return new FilterIndexOutput(out.toString(), out) {
+            private boolean closed;
+
             @Override
             public void writeBytes(byte[] b, int length) throws IOException {
                 // Don't write to atomicXXX here since it might be called in
@@ -154,15 +132,36 @@ final class ByteSizeCachingDirectory extends FilterDirectory {
             }
 
             @Override
+            public void writeInt(int i) throws IOException {
+                // Delegate primitive for possible performance enhancement
+                out.writeInt(i);
+            }
+
+            @Override
+            public void writeShort(short s) throws IOException {
+                // Delegate primitive for possible performance enhancement
+                out.writeShort(s);
+            }
+
+            @Override
+            public void writeLong(long l) throws IOException {
+                // Delegate primitive for possible performance enhancement
+                out.writeLong(l);
+            }
+
+            @Override
             public void close() throws IOException {
                 // Close might cause some data to be flushed from in-memory buffers, so
                 // increment the modification counter too.
                 try {
                     super.close();
                 } finally {
-                    synchronized (this) {
-                        numOpenOutputs--;
-                        modCount++;
+                    synchronized (ByteSizeCachingDirectory.this) {
+                        if (closed == false) {
+                            closed = true;
+                            numOpenOutputs--;
+                            modCount++;
+                        }
                     }
                 }
             }

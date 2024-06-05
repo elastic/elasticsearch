@@ -1,52 +1,105 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.bulk;
 
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.TransportVersions;
+import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
+import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.transport.RawIndexingDataTransportRequest;
 
 import java.io.IOException;
-import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 
-public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> {
+public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest>
+    implements
+        Accountable,
+        RawIndexingDataTransportRequest {
 
-    private BulkItemRequest[] items;
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(BulkShardRequest.class);
+
+    private final BulkItemRequest[] items;
+    private final boolean isSimulated;
+
+    private transient Map<String, InferenceFieldMetadata> inferenceFieldMap = null;
 
     public BulkShardRequest(StreamInput in) throws IOException {
         super(in);
-        items = new BulkItemRequest[in.readVInt()];
-        for (int i = 0; i < items.length; i++) {
-            if (in.readBoolean()) {
-                items[i] = new BulkItemRequest(in);
-            }
+        items = in.readArray(i -> i.readOptionalWriteable(inpt -> new BulkItemRequest(shardId, inpt)), BulkItemRequest[]::new);
+        if (in.getTransportVersion().onOrAfter(TransportVersions.SIMULATE_VALIDATES_MAPPINGS)) {
+            isSimulated = in.readBoolean();
+        } else {
+            isSimulated = false;
         }
     }
 
     public BulkShardRequest(ShardId shardId, RefreshPolicy refreshPolicy, BulkItemRequest[] items) {
+        this(shardId, refreshPolicy, items, false);
+    }
+
+    public BulkShardRequest(ShardId shardId, RefreshPolicy refreshPolicy, BulkItemRequest[] items, boolean isSimulated) {
         super(shardId);
         this.items = items;
         setRefreshPolicy(refreshPolicy);
+        this.isSimulated = isSimulated;
+    }
+
+    /**
+     * Public for test
+     * Set the transient metadata indicating that this request requires running inference before proceeding.
+     */
+    public void setInferenceFieldMap(Map<String, InferenceFieldMetadata> fieldInferenceMap) {
+        this.inferenceFieldMap = fieldInferenceMap;
+    }
+
+    /**
+     * Consumes the inference metadata to execute inference on the bulk items just once.
+     */
+    public Map<String, InferenceFieldMetadata> consumeInferenceFieldMap() {
+        Map<String, InferenceFieldMetadata> ret = inferenceFieldMap;
+        inferenceFieldMap = null;
+        return ret;
+    }
+
+    /**
+     * Public for test
+     */
+    public Map<String, InferenceFieldMetadata> getInferenceFieldMap() {
+        return inferenceFieldMap;
+    }
+
+    public long totalSizeInBytes() {
+        long totalSizeInBytes = 0;
+        for (int i = 0; i < items.length; i++) {
+            DocWriteRequest<?> request = items[i].request();
+            if (request instanceof IndexRequest) {
+                if (((IndexRequest) request).source() != null) {
+                    totalSizeInBytes += ((IndexRequest) request).source().length();
+                }
+            } else if (request instanceof UpdateRequest) {
+                IndexRequest doc = ((UpdateRequest) request).doc();
+                if (doc != null && doc.source() != null) {
+                    totalSizeInBytes += ((UpdateRequest) request).doc().source().length();
+                }
+            }
+        }
+        return totalSizeInBytes;
     }
 
     public BulkItemRequest[] items() {
@@ -61,7 +114,7 @@ public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> {
         // These alias names have to be exposed by this method because authorization works with
         // aliases too, specifically, the item's target alias can be authorized but the concrete
         // index might not be.
-        Set<String> indices = new HashSet<>(1);
+        Set<String> indices = Sets.newHashSetWithExpectedSize(1);
         for (BulkItemRequest item : items) {
             if (item != null) {
                 indices.add(item.index());
@@ -72,15 +125,21 @@ public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        if (inferenceFieldMap != null) {
+            // Inferencing metadata should have been consumed as part of the ShardBulkInferenceActionFilter processing
+            throw new IllegalStateException("Inference metadata should have been consumed before writing to the stream");
+        }
         super.writeTo(out);
-        out.writeVInt(items.length);
-        for (BulkItemRequest item : items) {
+        out.writeArray((o, item) -> {
             if (item != null) {
-                out.writeBoolean(true);
-                item.writeTo(out);
+                o.writeBoolean(true);
+                item.writeThin(o);
             } else {
-                out.writeBoolean(false);
+                o.writeBoolean(false);
             }
+        }, items);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.SIMULATE_VALIDATES_MAPPINGS)) {
+            out.writeBoolean(isSimulated);
         }
     }
 
@@ -90,20 +149,23 @@ public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> {
         StringBuilder b = new StringBuilder("BulkShardRequest [");
         b.append(shardId).append("] containing [");
         if (items.length > 1) {
-          b.append(items.length).append("] requests");
+            b.append(items.length).append("] requests");
         } else {
             b.append(items[0].request()).append("]");
         }
 
         switch (getRefreshPolicy()) {
-        case IMMEDIATE:
-            b.append(" and a refresh");
-            break;
-        case WAIT_UNTIL:
-            b.append(" blocking until refresh");
-            break;
-        case NONE:
-            break;
+            case IMMEDIATE:
+                b.append(" and a refresh");
+                break;
+            case WAIT_UNTIL:
+                b.append(" blocking until refresh");
+                break;
+            case NONE:
+                break;
+        }
+        if (isSimulated) {
+            b.append(", simulated");
         }
         return b.toString();
     }
@@ -132,5 +194,18 @@ public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> {
                 ((ReplicationRequest<?>) item.request()).onRetry();
             }
         }
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        long sum = SHALLOW_SIZE;
+        for (BulkItemRequest item : items) {
+            sum += item.ramBytesUsed();
+        }
+        return sum;
+    }
+
+    public boolean isSimulated() {
+        return isSimulated;
     }
 }

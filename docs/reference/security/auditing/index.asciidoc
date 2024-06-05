@@ -1,0 +1,9 @@
+include::enable-audit-logging.asciidoc[]
+
+include::event-types.asciidoc[]
+
+include::output-logfile.asciidoc[]
+
+include::ignore-policy.asciidoc[]
+
+include::auditing-search-queries.asciidoc[]

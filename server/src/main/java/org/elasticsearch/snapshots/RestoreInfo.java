@@ -1,36 +1,20 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.snapshots;
 
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
@@ -41,15 +25,10 @@ import java.util.Objects;
  */
 public class RestoreInfo implements ToXContentObject, Writeable {
 
-    private String name;
-
-    private List<String> indices;
-
-    private int totalShards;
-
-    private int successfulShards;
-
-    RestoreInfo() {}
+    private final String name;
+    private final List<String> indices;
+    private final int totalShards;
+    private final int successfulShards;
 
     public RestoreInfo(String name, List<String> indices, int totalShards, int successfulShards) {
         this.name = name;
@@ -60,12 +39,7 @@ public class RestoreInfo implements ToXContentObject, Writeable {
 
     public RestoreInfo(StreamInput in) throws IOException {
         name = in.readString();
-        int size = in.readVInt();
-        List<String> indicesListBuilder = new ArrayList<>();
-        for (int i = 0; i < size; i++) {
-            indicesListBuilder.add(in.readString());
-        }
-        indices = Collections.unmodifiableList(indicesListBuilder);
+        indices = in.readStringCollectionAsImmutableList();
         totalShards = in.readVInt();
         successfulShards = in.readVInt();
     }
@@ -103,7 +77,7 @@ public class RestoreInfo implements ToXContentObject, Writeable {
      * @return number of failed shards
      */
     public int failedShards() {
-        return totalShards -  successfulShards;
+        return totalShards - successfulShards;
     }
 
     /**
@@ -115,70 +89,30 @@ public class RestoreInfo implements ToXContentObject, Writeable {
         return successfulShards;
     }
 
-    static final class Fields {
-        static final String SNAPSHOT = "snapshot";
-        static final String INDICES = "indices";
-        static final String SHARDS = "shards";
-        static final String TOTAL = "total";
-        static final String FAILED = "failed";
-        static final String SUCCESSFUL = "successful";
-    }
-
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(Fields.SNAPSHOT, name);
-        builder.startArray(Fields.INDICES);
+        builder.field("snapshot", name);
+        builder.startArray("indices");
         for (String index : indices) {
             builder.value(index);
         }
         builder.endArray();
-        builder.startObject(Fields.SHARDS);
-        builder.field(Fields.TOTAL, totalShards);
-        builder.field(Fields.FAILED, failedShards());
-        builder.field(Fields.SUCCESSFUL, successfulShards);
+        builder.startObject("shards");
+        builder.field("total", totalShards);
+        builder.field("failed", failedShards());
+        builder.field("successful", successfulShards);
         builder.endObject();
         builder.endObject();
         return builder;
     }
 
-    private static final ObjectParser<RestoreInfo, Void> PARSER = new ObjectParser<>(RestoreInfo.class.getName(),
-        true, RestoreInfo::new);
-
-    static {
-        ObjectParser<RestoreInfo, Void> shardsParser = new ObjectParser<>("shards", true, null);
-        shardsParser.declareInt((r, s) -> r.totalShards = s, new ParseField(Fields.TOTAL));
-        shardsParser.declareInt((r, s) -> { /* only consume, don't set */ }, new ParseField(Fields.FAILED));
-        shardsParser.declareInt((r, s) -> r.successfulShards = s, new ParseField(Fields.SUCCESSFUL));
-
-        PARSER.declareString((r, n) -> r.name = n, new ParseField(Fields.SNAPSHOT));
-        PARSER.declareStringArray((r, i) -> r.indices = i, new ParseField(Fields.INDICES));
-        PARSER.declareField(shardsParser::parse, new ParseField(Fields.SHARDS), ObjectParser.ValueType.OBJECT);
-    }
-
-    public static RestoreInfo fromXContent(XContentParser parser) throws IOException {
-        return PARSER.parse(parser, null);
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
-        out.writeVInt(indices.size());
-        for (String index : indices) {
-            out.writeString(index);
-        }
+        out.writeStringCollection(indices);
         out.writeVInt(totalShards);
         out.writeVInt(successfulShards);
-    }
-
-    /**
-     * Reads optional restore info from {@link StreamInput}
-     *
-     * @param in stream input
-     * @return restore info
-     */
-    public static RestoreInfo readOptionalRestoreInfo(StreamInput in) throws IOException {
-        return in.readOptionalWriteable(RestoreInfo::new);
     }
 
     @Override
@@ -186,10 +120,10 @@ public class RestoreInfo implements ToXContentObject, Writeable {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         RestoreInfo that = (RestoreInfo) o;
-        return totalShards == that.totalShards &&
-            successfulShards == that.successfulShards &&
-            Objects.equals(name, that.name) &&
-            Objects.equals(indices, that.indices);
+        return totalShards == that.totalShards
+            && successfulShards == that.successfulShards
+            && Objects.equals(name, that.name)
+            && Objects.equals(indices, that.indices);
     }
 
     @Override

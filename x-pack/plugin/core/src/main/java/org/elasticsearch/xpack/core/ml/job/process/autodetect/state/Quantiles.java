@@ -1,18 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.job.process.autodetect.state;
 
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser.ValueType;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 
 import java.io.IOException;
@@ -39,8 +40,11 @@ public class Quantiles implements ToXContentObject, Writeable {
     public static final ConstructingObjectParser<Quantiles, Void> LENIENT_PARSER = createParser(true);
 
     private static ConstructingObjectParser<Quantiles, Void> createParser(boolean ignoreUnknownFields) {
-        ConstructingObjectParser<Quantiles, Void> parser = new ConstructingObjectParser<>(TYPE.getPreferredName(), ignoreUnknownFields,
-                a -> new Quantiles((String) a[0], (Date) a[1], (String) a[2]));
+        ConstructingObjectParser<Quantiles, Void> parser = new ConstructingObjectParser<>(
+            TYPE.getPreferredName(),
+            ignoreUnknownFields,
+            a -> new Quantiles((String) a[0], (Date) a[1], (String) a[2])
+        );
 
         parser.declareString(ConstructingObjectParser.constructorArg(), Job.ID);
         parser.declareField(ConstructingObjectParser.optionalConstructorArg(), p -> new Date(p.longValue()), TIMESTAMP, ValueType.LONG);
@@ -65,8 +69,13 @@ public class Quantiles implements ToXContentObject, Writeable {
      * @param docId the quantiles document id
      * @return the job id or {@code null} if the id is not valid
      */
-    public static final String extractJobId(String docId) {
+    public static String extractJobId(String docId) {
         int suffixIndex = docId.lastIndexOf("_" + TYPE);
+        return suffixIndex <= 0 ? v54extractJobId(docId) : docId.substring(0, suffixIndex);
+    }
+
+    private static String v54extractJobId(String docId) {
+        int suffixIndex = docId.lastIndexOf("-" + TYPE);
         return suffixIndex <= 0 ? null : docId.substring(0, suffixIndex);
     }
 
@@ -139,10 +148,9 @@ public class Quantiles implements ToXContentObject, Writeable {
 
         Quantiles that = (Quantiles) other;
 
-        return Objects.equals(this.jobId, that.jobId) && Objects.equals(this.timestamp, that.timestamp)
-                    && Objects.equals(this.quantileState, that.quantileState);
-
+        return Objects.equals(this.jobId, that.jobId)
+            && Objects.equals(this.timestamp, that.timestamp)
+            && Objects.equals(this.quantileState, that.quantileState);
 
     }
 }
-

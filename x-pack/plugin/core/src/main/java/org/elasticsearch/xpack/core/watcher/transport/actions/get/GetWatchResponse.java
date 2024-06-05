@@ -1,18 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.watcher.transport.actions.get;
 
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.core.watcher.watch.WatchStatus;
 
@@ -21,32 +21,13 @@ import java.util.Objects;
 
 public class GetWatchResponse extends ActionResponse implements ToXContentObject {
 
-    private String id;
-    private WatchStatus status;
-    private boolean found;
-    private XContentSource source;
-    private long version;
-    private long seqNo;
-    private long primaryTerm;
-
-    public GetWatchResponse(StreamInput in) throws IOException {
-        super(in);
-        id = in.readString();
-        found = in.readBoolean();
-        if (found) {
-            status = new WatchStatus(in);
-            source = XContentSource.readFrom(in);
-            version = in.readZLong();
-            seqNo = in.readZLong();
-            primaryTerm = in.readVLong();
-        } else {
-            status = null;
-            source = null;
-            version = Versions.NOT_FOUND;
-            seqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
-            primaryTerm = SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
-        }
-    }
+    private final String id;
+    private final WatchStatus status;
+    private final boolean found;
+    private final XContentSource source;
+    private final long version;
+    private final long seqNo;
+    private final long primaryTerm;
 
     /**
      * ctor for missing watch
@@ -124,7 +105,7 @@ public class GetWatchResponse extends ActionResponse implements ToXContentObject
             builder.field("_version", version);
             builder.field("_seq_no", seqNo);
             builder.field("_primary_term", primaryTerm);
-            builder.field("status", status,  params);
+            builder.field("status", status, params);
             builder.field("watch", source, params);
         }
         builder.endObject();
@@ -136,10 +117,12 @@ public class GetWatchResponse extends ActionResponse implements ToXContentObject
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         GetWatchResponse that = (GetWatchResponse) o;
-        return version == that.version && seqNo == that.seqNo && primaryTerm == that.primaryTerm &&
-            Objects.equals(id, that.id) &&
-            Objects.equals(status, that.status) &&
-            Objects.equals(source, that.source);
+        return version == that.version
+            && seqNo == that.seqNo
+            && primaryTerm == that.primaryTerm
+            && Objects.equals(id, that.id)
+            && Objects.equals(status, that.status)
+            && Objects.equals(source, that.source);
     }
 
     @Override

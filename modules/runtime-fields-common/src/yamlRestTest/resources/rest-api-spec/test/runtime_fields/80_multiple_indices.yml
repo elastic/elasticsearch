@@ -1,0 +1,246 @@
+---
+setup:
+  - do:
+      indices.create:
+        index: sensor1
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            runtime:
+              day_of_week:
+                type: keyword
+                script: |
+                  emit(doc['timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT));
+              tomorrow:
+                type: date
+                script:
+                  source: |
+                    for (def dt : doc['timestamp']) {
+                      emit(dt.plus(params.days, ChronoUnit.DAYS).toEpochMilli());
+                    }
+                  params:
+                    days: 1
+              voltage_times_ten:
+                type: long
+                script:
+                  source: |
+                    for (double v : doc['voltage']) {
+                      emit((long)(v * params.multiplier));
+                    }
+                  params:
+                    multiplier: 10
+              voltage_percent:
+                type: double
+                script:
+                  source: |
+                    for (double v : doc['voltage']) {
+                      emit(v / params.max);
+                    }
+                  params:
+                    max: 5.8
+              ip:
+                type: ip
+                script:
+                  source: |
+                    String m = doc["message"].value;
+                    int end = m.indexOf(" ");
+                    emit(m.substring(0, end));
+              over_v:
+                type: boolean
+                script:
+                  source: |
+                    for (def v : doc['voltage']) {
+                      emit(v >= params.min_v);
+                    }
+                  params:
+                    min_v: 5.0
+              message.keyword:
+                type: keyword
+                script:
+                  source: |
+                    emit("hello world")
+
+            properties:
+              timestamp:
+                type: date
+              message:
+                type: keyword
+              voltage:
+                type: double
+
+  - do:
+      bulk:
+        index: sensor1
+        refresh: true
+        body: |
+          {"index":{}}
+          {"timestamp": 1516729294000, "voltage": 5.2}
+          {"index":{}}
+          {"timestamp": 1516642894000, "voltage": 5.1}
+          {"index":{}}
+          {"timestamp": 1516556494000, "voltage": 5.8}
+          {"index":{}}
+          {"timestamp": 1516470094000, "voltage": 5.7}
+          {"index":{}}
+          {"timestamp": 1516383694000, "voltage": 5.6}
+          {"index":{}}
+          {"timestamp": 1516297294000, "voltage": 5.5}
+
+  - do:
+      indices.create:
+        index: sensor2
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            properties:
+              message:
+                type: keyword
+              timestamp:
+                type: date
+              day_of_week:
+                type: keyword
+              tomorrow:
+                type: date
+              voltage:
+                type: double
+              voltage_times_ten:
+                type: long
+              voltage_percent:
+                type: double
+              ip:
+                type: ip
+              over_v:
+                type: boolean
+
+  - do:
+      bulk:
+        index: sensor2
+        refresh: true
+        body: |
+          {"index":{}}
+          {"timestamp": 1516729294000, "day_of_week": "Monday", "voltage": 5.5, "voltage_times_ten": 55, "voltage_percent": 0.6}
+          {"index":{}}
+          {"timestamp": 1516642894000, "day_of_week": "Tuesday","voltage": 5.3, "voltage_times_ten": 53, "voltage_percent": 0.5}
+          {"index":{}}
+          {"timestamp": 1516556494000, "day_of_week": "Wednesday","voltage": 5.2, "voltage_times_ten": 52, "voltage_percent": 0.4}
+          {"index":{}}
+          {"timestamp": 1516470094000, "day_of_week": "Thursday","voltage": 5.1, "voltage_times_ten": 51, "voltage_percent": 0.3}
+          {"index":{}}
+          {"timestamp": 1516383694000, "day_of_week": "Friday","voltage": 5.6, "voltage_times_ten": 56, "voltage_percent": 0.7}
+          {"index":{}}
+          {"timestamp": 1516297294000, "day_of_week": "Saturday","voltage": 5.8, "voltage_times_ten": 58, "voltage_percent": 1}
+
+---
+"field capabilities":
+  - do:
+      field_caps:
+        index: sensor*
+        fields: [day_of_week, voltage_*, tomorrow, ip, over_v, message.keyword]
+
+  - match: {indices: [sensor1, sensor2]}
+  - length: {fields: 7}
+  - match: {fields.day_of_week.keyword.searchable: true}
+  - match: {fields.day_of_week.keyword.aggregatable: true}
+  - is_false: fields.day_of_week.keyword.indices
+  - match: {fields.voltage_times_ten.long.searchable: true}
+  - match: {fields.voltage_times_ten.long.aggregatable: true}
+  - is_false: fields.voltage_times_ten.long.indices
+  - match: {fields.voltage_percent.double.searchable: true}
+  - match: {fields.voltage_percent.double.aggregatable: true}
+  - is_false: fields.voltage_percent.double.indices
+  - match: {fields.tomorrow.date.searchable: true}
+  - match: {fields.tomorrow.date.aggregatable: true}
+  - is_false: fields.tomorrow.date.indices
+  - match: {fields.ip.ip.searchable: true}
+  - match: {fields.ip.ip.aggregatable: true}
+  - is_false: fields.ip.ip.indices
+  - match: {fields.over_v.boolean.searchable: true}
+  - match: {fields.over_v.boolean.aggregatable: true}
+  - is_false: fields.over_v.boolean.indices
+  - match: {fields.message\.keyword.keyword.searchable: true}
+  - match: {fields.message\.keyword.keyword.aggregatable: true}
+  - is_false: fields.message\.keyword.keyword.indices
+  - is_false: fields.message
+
+---
+"terms agg - keyword":
+  - do:
+      search:
+        index: sensor*
+        body:
+          aggs:
+            dow:
+              terms:
+                field: day_of_week
+  - match: {hits.total.value: 12}
+  - match: {aggregations.dow.buckets.0.key: Friday}
+  - match: {aggregations.dow.buckets.0.doc_count: 2}
+  - match: {aggregations.dow.buckets.1.key: Monday}
+  - match: {aggregations.dow.buckets.1.doc_count: 2}
+
+---
+"match query - keyword":
+  - do:
+      search:
+        index: sensor*
+        body:
+          query:
+            match:
+              day_of_week: Monday
+  - match: {hits.total.value: 2}
+
+---
+"terms agg - long":
+  - do:
+      search:
+        index: sensor*
+        body:
+          aggs:
+            v10:
+              terms:
+                field: voltage_times_ten
+  - match: {hits.total.value: 12}
+  - match: {aggregations.v10.buckets.0.key: 51}
+  - match: {aggregations.v10.buckets.0.doc_count: 2}
+
+---
+"range query - long":
+  - do:
+      search:
+        index: sensor*
+        body:
+          query:
+            range:
+              voltage_times_ten:
+                lt: 55
+  - match: {hits.total.value: 5}
+
+---
+"terms agg - double":
+  - do:
+      search:
+        index: sensor*
+        body:
+          aggs:
+            v10:
+              terms:
+                field: voltage_percent
+  - match: {hits.total.value: 12}
+  - match: {aggregations.v10.buckets.0.key: 1.0}
+  - match: {aggregations.v10.buckets.0.doc_count: 2}
+
+---
+"range query - double":
+  - do:
+      search:
+        index: sensor*
+        body:
+          query:
+            range:
+              voltage_percent:
+                lt: .7
+  - match: {hits.total.value: 4}

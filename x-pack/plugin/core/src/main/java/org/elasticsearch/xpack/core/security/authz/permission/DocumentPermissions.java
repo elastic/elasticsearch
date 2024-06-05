@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.security.authz.permission;
@@ -11,21 +12,32 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.join.ToChildBlockJoinQuery;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.Rewriteable;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.search.NestedHelper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.security.authz.support.DLSRoleQueryValidator;
+import org.elasticsearch.xpack.core.security.authz.support.SecurityQueryTemplateEvaluator;
+import org.elasticsearch.xpack.core.security.authz.support.SecurityQueryTemplateEvaluator.DlsQueryEvaluationContext;
+import org.elasticsearch.xpack.core.security.support.CacheKey;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.IOException;
-import java.util.Collections;
+import java.util.List;
+import java.util.Objects;
 import java.util.Set;
+import java.util.SortedSet;
+import java.util.TreeSet;
 import java.util.function.Function;
+import java.util.stream.Stream;
 
 import static org.apache.lucene.search.BooleanClause.Occur.FILTER;
 import static org.apache.lucene.search.BooleanClause.Occur.SHOULD;
@@ -35,42 +47,61 @@ import static org.apache.lucene.search.BooleanClause.Occur.SHOULD;
  * The document level permissions may be limited by another set of queries in that case the limited
  * queries are used as an additional filter.
  */
-public final class DocumentPermissions {
-    private final Set<BytesReference> queries;
-    private final Set<BytesReference> limitedByQueries;
+public final class DocumentPermissions implements CacheKey {
 
-    private static DocumentPermissions ALLOW_ALL = new DocumentPermissions();
+    @Nullable
+    private final List<Set<BytesReference>> listOfQueries;
+    @Nullable
+    private List<List<String>> listOfEvaluatedQueries;
 
-    DocumentPermissions() {
-        this.queries = null;
-        this.limitedByQueries = null;
+    private static final DocumentPermissions ALLOW_ALL = new DocumentPermissions();
+
+    private DocumentPermissions() {
+        this.listOfQueries = null;
     }
 
-    DocumentPermissions(Set<BytesReference> queries) {
-        this(queries, null);
+    private DocumentPermissions(Set<BytesReference> queries) {
+        assert queries != null && false == queries.isEmpty() : "null or empty queries not permitted";
+        this.listOfQueries = List.of(new TreeSet<>(queries));
     }
 
-    DocumentPermissions(Set<BytesReference> queries, Set<BytesReference> scopedByQueries) {
-        if (queries == null && scopedByQueries == null) {
-            throw new IllegalArgumentException("one of the queries or scoped queries must be provided");
-        }
-        this.queries = (queries != null) ? Collections.unmodifiableSet(queries) : queries;
-        this.limitedByQueries = (scopedByQueries != null) ? Collections.unmodifiableSet(scopedByQueries) : scopedByQueries;
+    private DocumentPermissions(List<Set<BytesReference>> listOfQueries) {
+        assert listOfQueries != null && false == listOfQueries.isEmpty() : "null or empty list of queries not permitted";
+        assert listOfQueries.stream().allMatch(queries -> queries != null && false == queries.isEmpty())
+            : "null or empty queries not permitted";
+        // SortedSet because orders are important when they get serialised for request cache key
+        this.listOfQueries = listOfQueries.stream()
+            .map(queries -> queries instanceof SortedSet<BytesReference> ? queries : new TreeSet<>(queries))
+            .toList();
     }
 
-    public Set<BytesReference> getQueries() {
-        return queries;
+    public List<Set<BytesReference>> getListOfQueries() {
+        return listOfQueries;
     }
 
-    public Set<BytesReference> getLimitedByQueries() {
-        return limitedByQueries;
+    public Set<BytesReference> getSingleSetOfQueries() {
+        assert listOfQueries != null && listOfQueries.size() == 1 : "the list of queries does not have a single member";
+        return listOfQueries.get(0);
     }
 
     /**
      * @return {@code true} if either queries or scoped queries are present for document level security else returns {@code false}
      */
     public boolean hasDocumentLevelPermissions() {
-        return queries != null || limitedByQueries != null;
+        return listOfQueries != null;
+    }
+
+    public boolean hasStoredScript() throws IOException {
+        if (listOfQueries != null) {
+            for (Set<BytesReference> queries : listOfQueries) {
+                for (BytesReference q : queries) {
+                    if (DLSRoleQueryValidator.hasStoredScript(q, NamedXContentRegistry.EMPTY)) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
     }
 
     /**
@@ -82,55 +113,63 @@ public final class DocumentPermissions {
      * @param user authenticated {@link User}
      * @param scriptService {@link ScriptService} for evaluating query templates
      * @param shardId {@link ShardId}
-     * @param queryShardContextProvider {@link QueryShardContext}
+     * @param searchExecutionContextProvider {@link SearchExecutionContext}
      * @return {@link BooleanQuery} for the filter
      * @throws IOException thrown if there is an exception during parsing
      */
-    public BooleanQuery filter(User user, ScriptService scriptService, ShardId shardId,
-                                      Function<ShardId, QueryShardContext> queryShardContextProvider) throws IOException {
+    public BooleanQuery filter(
+        User user,
+        ScriptService scriptService,
+        ShardId shardId,
+        Function<ShardId, SearchExecutionContext> searchExecutionContextProvider
+    ) throws IOException {
         if (hasDocumentLevelPermissions()) {
-            BooleanQuery.Builder filter;
-            if (queries != null && limitedByQueries != null) {
-                filter = new BooleanQuery.Builder();
-                BooleanQuery.Builder scopedFilter = new BooleanQuery.Builder();
-                buildRoleQuery(user, scriptService, shardId, queryShardContextProvider, limitedByQueries, scopedFilter);
-                filter.add(scopedFilter.build(), FILTER);
+            evaluateQueries(SecurityQueryTemplateEvaluator.wrap(user, scriptService));
+            assert listOfEvaluatedQueries != null : "evaluated queries must not be null";
+            assert false == listOfEvaluatedQueries.isEmpty() : "evaluated queries must not be empty";
 
-                buildRoleQuery(user, scriptService, shardId, queryShardContextProvider, queries, filter);
-            } else if (queries != null) {
-                filter = new BooleanQuery.Builder();
-                buildRoleQuery(user, scriptService, shardId, queryShardContextProvider, queries, filter);
-            } else if (limitedByQueries != null) {
-                filter = new BooleanQuery.Builder();
-                buildRoleQuery(user, scriptService, shardId, queryShardContextProvider, limitedByQueries, filter);
-            } else {
-                return null;
+            BooleanQuery.Builder filter = new BooleanQuery.Builder();
+            for (int i = listOfEvaluatedQueries.size() - 1; i > 0; i--) {
+                final BooleanQuery.Builder scopedFilter = new BooleanQuery.Builder();
+                buildRoleQuery(shardId, searchExecutionContextProvider, listOfEvaluatedQueries.get(i), scopedFilter);
+                filter.add(scopedFilter.build(), FILTER);
             }
+            // TODO: All role queries can be filters
+            buildRoleQuery(shardId, searchExecutionContextProvider, listOfEvaluatedQueries.get(0), filter);
             return filter.build();
         }
         return null;
     }
 
-    private static void buildRoleQuery(User user, ScriptService scriptService, ShardId shardId,
-                                       Function<ShardId, QueryShardContext> queryShardContextProvider, Set<BytesReference> queries,
-                                       BooleanQuery.Builder filter) throws IOException {
-        for (BytesReference bytesReference : queries) {
-            QueryShardContext queryShardContext = queryShardContextProvider.apply(shardId);
-            QueryBuilder queryBuilder = DLSRoleQueryValidator.evaluateAndVerifyRoleQuery(bytesReference, scriptService,
-                queryShardContext.getXContentRegistry(), user);
+    private void evaluateQueries(DlsQueryEvaluationContext context) {
+        if (listOfQueries != null && listOfEvaluatedQueries == null) {
+            listOfEvaluatedQueries = listOfQueries.stream().map(queries -> queries.stream().map(context::evaluate).toList()).toList();
+        }
+    }
+
+    private static void buildRoleQuery(
+        ShardId shardId,
+        Function<ShardId, SearchExecutionContext> searchExecutionContextProvider,
+        List<String> queries,
+        BooleanQuery.Builder filter
+    ) throws IOException {
+        for (String query : queries) {
+            SearchExecutionContext context = searchExecutionContextProvider.apply(shardId);
+            QueryBuilder queryBuilder = DLSRoleQueryValidator.evaluateAndVerifyRoleQuery(query, context.getParserConfig().registry());
             if (queryBuilder != null) {
-                failIfQueryUsesClient(queryBuilder, queryShardContext);
-                Query roleQuery = queryShardContext.toQuery(queryBuilder).query();
+                failIfQueryUsesClient(queryBuilder, context);
+                Query roleQuery = context.toQuery(queryBuilder).query();
                 filter.add(roleQuery, SHOULD);
-                if (queryShardContext.getMapperService().hasNested()) {
-                    NestedHelper nestedHelper = new NestedHelper(queryShardContext.getMapperService());
+                NestedLookup nestedLookup = context.nestedLookup();
+                if (nestedLookup != NestedLookup.EMPTY) {
+                    NestedHelper nestedHelper = new NestedHelper(nestedLookup, context::isFieldMapped);
                     if (nestedHelper.mightMatchNestedDocs(roleQuery)) {
                         roleQuery = new BooleanQuery.Builder().add(roleQuery, FILTER)
-                            .add(Queries.newNonNestedFilter(), FILTER).build();
+                            .add(Queries.newNonNestedFilter(context.indexVersionCreated()), FILTER)
+                            .build();
                     }
                     // If access is allowed on root doc then also access is allowed on all nested docs of that root document:
-                    BitSetProducer rootDocs = queryShardContext
-                        .bitsetFilter(Queries.newNonNestedFilter());
+                    BitSetProducer rootDocs = context.bitsetFilter(Queries.newNonNestedFilter(context.indexVersionCreated()));
                     ToChildBlockJoinQuery includeNestedDocs = new ToChildBlockJoinQuery(roleQuery, rootDocs);
                     filter.add(includeNestedDocs, SHOULD);
                 }
@@ -148,10 +187,8 @@ public final class DocumentPermissions {
      * the DLS query until the get thread pool has been exhausted:
      * https://github.com/elastic/x-plugins/issues/3145
      */
-    static void failIfQueryUsesClient(QueryBuilder queryBuilder, QueryRewriteContext original)
-            throws IOException {
-        QueryRewriteContext copy = new QueryRewriteContext(
-                original.getXContentRegistry(), original.getWriteableRegistry(), null, original::nowInMillis);
+    static void failIfQueryUsesClient(QueryBuilder queryBuilder, QueryRewriteContext original) throws IOException {
+        QueryRewriteContext copy = new QueryRewriteContext(original.getParserConfig(), null, original::nowInMillis);
         Rewriteable.rewrite(queryBuilder, copy);
         if (copy.hasAsyncActions()) {
             throw new IllegalStateException("role queries are not allowed to execute additional requests");
@@ -164,18 +201,9 @@ public final class DocumentPermissions {
      * @return {@link DocumentPermissions}
      */
     public static DocumentPermissions filteredBy(Set<BytesReference> queries) {
-        if (queries == null || queries.isEmpty()) {
-            throw new IllegalArgumentException("null or empty queries not permitted");
-        }
         return new DocumentPermissions(queries);
     }
 
-    /**
-     * Create {@link DocumentPermissions} with no restriction. The {@link #getQueries()}
-     * will return {@code null} in this case and {@link #hasDocumentLevelPermissions()}
-     * will be {@code false}
-     * @return {@link DocumentPermissions}
-     */
     public static DocumentPermissions allowAll() {
         return ALLOW_ALL;
     }
@@ -187,19 +215,42 @@ public final class DocumentPermissions {
      * @param limitedByDocumentPermissions {@link DocumentPermissions} used to limit the document level access
      * @return instance of {@link DocumentPermissions}
      */
-    public DocumentPermissions limitDocumentPermissions(
-            DocumentPermissions limitedByDocumentPermissions) {
-        assert limitedByQueries == null
-                && limitedByDocumentPermissions.limitedByQueries == null : "nested scoping for document permissions is not permitted";
-        if (queries == null && limitedByDocumentPermissions.queries == null) {
+    public DocumentPermissions limitDocumentPermissions(DocumentPermissions limitedByDocumentPermissions) {
+        if (hasDocumentLevelPermissions() && limitedByDocumentPermissions.hasDocumentLevelPermissions()) {
+            return new DocumentPermissions(
+                Stream.concat(getListOfQueries().stream(), limitedByDocumentPermissions.getListOfQueries().stream()).toList()
+            );
+        } else if (hasDocumentLevelPermissions()) {
+            return new DocumentPermissions(getListOfQueries());
+        } else if (limitedByDocumentPermissions.hasDocumentLevelPermissions()) {
+            return new DocumentPermissions(limitedByDocumentPermissions.getListOfQueries());
+        } else {
             return DocumentPermissions.allowAll();
         }
-        return new DocumentPermissions(queries, limitedByDocumentPermissions.queries);
     }
 
     @Override
     public String toString() {
-        return "DocumentPermissions [queries=" + queries + ", scopedByQueries=" + limitedByQueries + "]";
+        return "DocumentPermissions [listOfQueries=" + listOfQueries + "]";
     }
 
+    @Override
+    public void buildCacheKey(StreamOutput out, DlsQueryEvaluationContext context) throws IOException {
+        assert hasDocumentLevelPermissions() : "document permissions should not contribute to cache key when there is no DLS query";
+        evaluateQueries(context);
+        out.writeCollection(listOfEvaluatedQueries, StreamOutput::writeStringCollection);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        DocumentPermissions that = (DocumentPermissions) o;
+        return Objects.equals(listOfQueries, that.listOfQueries);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(listOfQueries);
+    }
 }

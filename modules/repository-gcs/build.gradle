@@ -1,0 +1,254 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+
+
+import org.apache.tools.ant.filters.ReplaceTokens
+import org.elasticsearch.gradle.internal.info.BuildParams
+import org.elasticsearch.gradle.internal.test.InternalClusterTestPlugin
+
+import java.nio.file.Files
+
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.internal-cluster-test'
+
+esplugin {
+  description 'The GCS repository plugin adds Google Cloud Storage support for repositories.'
+  classname 'org.elasticsearch.repositories.gcs.GoogleCloudStoragePlugin'
+}
+
+dependencies {
+  api 'com.google.cloud:google-cloud-storage:2.13.1'
+  api 'com.google.cloud:google-cloud-core:2.8.28'
+  api 'com.google.cloud:google-cloud-core-http:2.8.28'
+  runtimeOnly 'com.google.guava:guava:32.0.1-jre'
+  runtimeOnly 'com.google.guava:failureaccess:1.0.1'
+  api "commons-logging:commons-logging:${versions.commonslogging}"
+  api "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
+  api "commons-codec:commons-codec:${versions.commonscodec}"
+  api 'com.google.api:api-common:2.3.1'
+  api 'com.google.api:gax:2.20.1'
+  api 'org.threeten:threetenbp:1.6.5'
+  api "com.google.protobuf:protobuf-java-util:${versions.protobuf}"
+  api "com.google.protobuf:protobuf-java:${versions.protobuf}"
+  api 'com.google.code.gson:gson:2.10'
+  api 'com.google.api.grpc:proto-google-common-protos:2.9.6'
+  api 'com.google.api.grpc:proto-google-iam-v1:1.6.2'
+  api 'com.google.auth:google-auth-library-credentials:1.11.0'
+  api 'com.google.auth:google-auth-library-oauth2-http:1.11.0'
+  api "com.google.oauth-client:google-oauth-client:${versions.google_oauth_client}"
+  api 'com.google.api-client:google-api-client:2.1.1'
+  api 'com.google.http-client:google-http-client:1.42.3'
+  api 'com.google.http-client:google-http-client-gson:1.42.3'
+  api 'com.google.http-client:google-http-client-appengine:1.42.3'
+  api 'com.google.http-client:google-http-client-jackson2:1.42.3'
+  api "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
+  api 'com.google.api:gax-httpjson:0.105.1'
+  api 'io.grpc:grpc-context:1.49.2'
+  api 'io.opencensus:opencensus-api:0.31.1'
+  api 'io.opencensus:opencensus-contrib-http-util:0.31.1'
+  api 'com.google.apis:google-api-services-storage:v1-rev20220705-2.0.0'
+
+  testImplementation "org.apache.httpcomponents:httpclient:${versions.httpclient}"
+  testImplementation "org.apache.httpcomponents:httpcore:${versions.httpcore}"
+
+  testImplementation project(':test:fixtures:gcs-fixture')
+  yamlRestTestImplementation project(':test:fixtures:gcs-fixture')
+}
+
+restResources {
+  restApi {
+    include '_common', 'cluster', 'nodes', 'snapshot','indices', 'index', 'bulk', 'count'
+  }
+}
+
+tasks.named("dependencyLicenses").configure {
+  mapping from: /google-cloud-.*/, to: 'google-cloud'
+  mapping from: /google-auth-.*/, to: 'google-auth'
+  mapping from: /google-http-.*/, to: 'google-http'
+  mapping from: /opencensus.*/, to: 'opencensus'
+  mapping from: /protobuf.*/, to: 'protobuf'
+  mapping from: /proto-google.*/, to: 'proto-google'
+  mapping from: /jackson.*/, to: 'jackson'
+}
+
+tasks.named("thirdPartyAudit").configure {
+  ignoreViolations(
+    // uses internal java api: sun.misc.Unsafe
+    'com.google.protobuf.UnsafeUtil',
+    'com.google.protobuf.UnsafeUtil$1',
+    'com.google.protobuf.UnsafeUtil$JvmMemoryAccessor',
+    'com.google.protobuf.UnsafeUtil$MemoryAccessor',
+    'com.google.protobuf.MessageSchema',
+    'com.google.protobuf.UnsafeUtil$Android32MemoryAccessor',
+    'com.google.protobuf.UnsafeUtil$Android64MemoryAccessor',
+    'com.google.common.cache.Striped64',
+    'com.google.common.cache.Striped64$1',
+    'com.google.common.cache.Striped64$Cell',
+    'com.google.common.hash.Striped64',
+    'com.google.common.hash.Striped64$1',
+    'com.google.common.hash.Striped64$Cell',
+    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
+    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$1',
+    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$2',
+    'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper',
+    'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1',
+    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
+    'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
+    'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
+  )
+
+  ignoreMissingClasses(
+    'com.google.api.client.http.apache.v2.ApacheHttpTransport',
+    'com.google.appengine.api.datastore.Blob',
+    'com.google.appengine.api.datastore.DatastoreService',
+    'com.google.appengine.api.datastore.DatastoreServiceFactory',
+    'com.google.appengine.api.datastore.Entity',
+    'com.google.appengine.api.datastore.Key',
+    'com.google.appengine.api.datastore.KeyFactory',
+    'com.google.appengine.api.datastore.PreparedQuery',
+    'com.google.appengine.api.datastore.Query',
+    'com.google.appengine.api.memcache.Expiration',
+    'com.google.appengine.api.memcache.MemcacheService',
+    'com.google.appengine.api.memcache.MemcacheServiceFactory',
+    'com.google.appengine.api.urlfetch.FetchOptions$Builder',
+    'com.google.appengine.api.urlfetch.FetchOptions',
+    'com.google.appengine.api.urlfetch.HTTPHeader',
+    'com.google.appengine.api.urlfetch.HTTPMethod',
+    'com.google.appengine.api.urlfetch.HTTPRequest',
+    'com.google.appengine.api.urlfetch.HTTPResponse',
+    'com.google.appengine.api.urlfetch.URLFetchService',
+    'com.google.appengine.api.urlfetch.URLFetchServiceFactory',
+    // commons-logging optional dependencies
+    'org.apache.avalon.framework.logger.Logger',
+    'org.apache.log.Hierarchy',
+    'org.apache.log.Logger',
+    'javax.jms.Message',
+
+    // optional apache http client dependencies
+    'org.apache.http.ConnectionReuseStrategy',
+    'org.apache.http.Header',
+    'org.apache.http.HttpEntity',
+    'org.apache.http.HttpEntityEnclosingRequest',
+    'org.apache.http.HttpHost',
+    'org.apache.http.HttpRequest',
+    'org.apache.http.HttpResponse',
+    'org.apache.http.HttpVersion',
+    'org.apache.http.RequestLine',
+    'org.apache.http.StatusLine',
+    'org.apache.http.client.AuthenticationHandler',
+    'org.apache.http.client.HttpClient',
+    'org.apache.http.client.HttpRequestRetryHandler',
+    'org.apache.http.client.RedirectHandler',
+    'org.apache.http.client.RequestDirector',
+    'org.apache.http.client.UserTokenHandler',
+    'org.apache.http.client.methods.HttpEntityEnclosingRequestBase',
+    'org.apache.http.client.methods.HttpRequestBase',
+    'org.apache.http.config.Registry',
+    'org.apache.http.config.RegistryBuilder',
+    'org.apache.http.conn.ClientConnectionManager',
+    'org.apache.http.conn.ConnectionKeepAliveStrategy',
+    'org.apache.http.conn.params.ConnManagerParams',
+    'org.apache.http.conn.params.ConnRouteParams',
+    'org.apache.http.conn.routing.HttpRoutePlanner',
+    'org.apache.http.conn.scheme.PlainSocketFactory',
+    'org.apache.http.conn.scheme.SchemeRegistry',
+    'org.apache.http.conn.socket.PlainConnectionSocketFactory',
+    'org.apache.http.conn.ssl.SSLSocketFactory',
+    'org.apache.http.conn.ssl.X509HostnameVerifier',
+    'org.apache.http.entity.AbstractHttpEntity',
+    'org.apache.http.impl.client.DefaultHttpClient',
+    'org.apache.http.impl.client.HttpClientBuilder',
+    'org.apache.http.impl.conn.PoolingHttpClientConnectionManager',
+    'org.apache.http.params.HttpConnectionParams',
+    'org.apache.http.params.HttpParams',
+    'org.apache.http.params.HttpProtocolParams',
+    'org.apache.http.protocol.HttpContext',
+    'org.apache.http.protocol.HttpProcessor',
+    'org.apache.http.protocol.HttpRequestExecutor',
+
+    // commons-logging provided dependencies
+    'javax.servlet.ServletContextEvent',
+    'javax.servlet.ServletContextListener'
+  )
+
+
+  if(BuildParams.graalVmRuntime == false) {
+    ignoreMissingClasses(
+        'org.graalvm.nativeimage.hosted.Feature',
+        'org.graalvm.nativeimage.hosted.Feature$BeforeAnalysisAccess',
+        'org.graalvm.nativeimage.hosted.Feature$DuringAnalysisAccess',
+        'org.graalvm.nativeimage.hosted.Feature$FeatureAccess',
+        'org.graalvm.nativeimage.hosted.RuntimeReflection'
+    )
+  }
+}
+
+boolean useFixture = false
+String gcsServiceAccount = System.getenv("google_storage_service_account")
+String gcsBucket = System.getenv("google_storage_bucket")
+String gcsBasePath = System.getenv("google_storage_base_path")
+File serviceAccountFile = gcsServiceAccount != null ? new File(gcsServiceAccount) : null
+
+if (!gcsServiceAccount && !gcsBucket && !gcsBasePath) {
+  gcsBucket = 'bucket'
+  gcsBasePath = 'integration_test'
+  useFixture = true
+} else if (!gcsServiceAccount || !gcsBucket || !gcsBasePath) {
+  throw new IllegalArgumentException("not all options specified to run tests against external GCS service are present")
+}
+
+def encodedCredentials = {
+  Base64.encoder.encodeToString(Files.readAllBytes(serviceAccountFile.toPath()))
+}
+
+Map<String, Object> expansions = [
+  'bucket'   : gcsBucket,
+  'base_path': gcsBasePath + "_integration_tests"
+]
+
+tasks.named("processYamlRestTestResources").configure {
+  inputs.properties(expansions)
+  filter("tokens" : expansions, ReplaceTokens.class)
+}
+
+tasks.named("internalClusterTest").configure {
+  // this is tested explicitly in a separate test task
+  exclude '**/GoogleCloudStorageThirdPartyTests.class'
+}
+
+tasks.named("yamlRestTest") {
+  systemProperty 'test.google.fixture', Boolean.toString(useFixture)
+  if (useFixture == false) {
+    systemProperty 'test.google.account', serviceAccountFile
+    // We can't run these test in parallel against a real bucket since the tests will step on each other
+    maxParallelForks = 1
+  }
+}
+
+def gcsThirdPartyTest = tasks.register("gcsThirdPartyUnitTest", Test) {
+  SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class)
+  SourceSet internalTestSourceSet = sourceSets.getByName(InternalClusterTestPlugin.SOURCE_SET_NAME)
+  setTestClassesDirs(internalTestSourceSet.getOutput().getClassesDirs())
+  setClasspath(internalTestSourceSet.getRuntimeClasspath())
+  include '**/GoogleCloudStorageThirdPartyTests.class'
+  systemProperty 'tests.security.manager', false
+  systemProperty 'test.google.bucket', gcsBucket
+  systemProperty 'test.google.fixture', Boolean.toString(useFixture)
+  nonInputProperties.systemProperty 'test.google.base', gcsBasePath + "_third_party_tests_" + BuildParams.testSeed
+  if (useFixture == false) {
+    nonInputProperties.systemProperty 'test.google.account', "${-> encodedCredentials.call()}"
+  }
+}
+
+tasks.register('gcsThirdPartyTest') {
+  dependsOn 'yamlRestTest', gcsThirdPartyTest
+}
+
+tasks.named('check') {
+  dependsOn gcsThirdPartyTest
+}

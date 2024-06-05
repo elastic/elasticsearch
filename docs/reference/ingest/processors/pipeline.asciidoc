@@ -1,13 +1,18 @@
 [[pipeline-processor]]
-=== Pipeline Processor
+=== Pipeline processor
+++++
+<titleabbrev>Pipeline</titleabbrev>
+++++
+
 Executes another pipeline.
 
 [[pipeline-options]]
 .Pipeline Options
 [options="header"]
 |======
-| Name             | Required  | Default  | Description
-| `name`           | yes       | -        | The name of the pipeline to execute. Supports <<accessing-template-fields,template snippets>>.
+| Name                      | Required  | Default  | Description
+| `name`                    | yes       | -        | The name of the pipeline to execute. Supports <<template-snippets,template snippets>>.
+| `ignore_missing_pipeline` | no        | false    | Whether to ignore missing pipelines instead of failing.
 include::common-options.asciidoc[]
 |======
 
@@ -72,7 +77,7 @@ from the outer pipeline:
 
 [source,console]
 --------------------------------------------------
-PUT /myindex/_doc/1?pipeline=pipelineB
+PUT /my-index-000001/_doc/1?pipeline=pipelineB
 {
   "field": "value"
 }
@@ -84,7 +89,7 @@ Response from the index request:
 [source,console-result]
 --------------------------------------------------
 {
-  "_index": "myindex",
+  "_index": "my-index-000001",
   "_id": "1",
   "_version": 1,
   "result": "created",
@@ -94,7 +99,7 @@ Response from the index request:
     "failed": 0
   },
   "_seq_no": 66,
-  "_primary_term": 1,
+  "_primary_term": 1
 }
 --------------------------------------------------
 // TESTRESPONSE[s/"_seq_no": \d+/"_seq_no" : $body._seq_no/ s/"_primary_term" : 1/"_primary_term" : $body._primary_term/]

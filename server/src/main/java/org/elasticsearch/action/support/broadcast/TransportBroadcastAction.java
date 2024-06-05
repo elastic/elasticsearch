@@ -1,29 +1,19 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.support.broadcast;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.ClusterState;
@@ -35,55 +25,77 @@ import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportChannel;
-import org.elasticsearch.transport.TransportException;
-import org.elasticsearch.transport.TransportRequestHandler;
-import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.Transports;
 
 import java.io.IOException;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
+import static org.elasticsearch.core.Strings.format;
+
 public abstract class TransportBroadcastAction<
-            Request extends BroadcastRequest<Request>,
-            Response extends BroadcastResponse,
-            ShardRequest extends BroadcastShardRequest,
-            ShardResponse extends BroadcastShardResponse
-        > extends HandledTransportAction<Request, Response> {
+    Request extends BroadcastRequest<Request>,
+    Response extends BaseBroadcastResponse,
+    ShardRequest extends BroadcastShardRequest,
+    ShardResponse extends BroadcastShardResponse> extends HandledTransportAction<Request, Response> {
 
     protected final ClusterService clusterService;
     protected final TransportService transportService;
     protected final IndexNameExpressionResolver indexNameExpressionResolver;
 
-    final String transportShardAction;
-    private final String shardExecutor;
+    private final String transportShardAction;
+    private final Executor executor;
 
-    protected TransportBroadcastAction(String actionName, ClusterService clusterService,
-                                       TransportService transportService, ActionFilters actionFilters,
-                                       IndexNameExpressionResolver indexNameExpressionResolver, Writeable.Reader<Request> request,
-                                       Writeable.Reader<ShardRequest> shardRequest, String shardExecutor) {
-        super(actionName, transportService, actionFilters, request);
+    @SuppressWarnings("this-escape")
+    protected TransportBroadcastAction(
+        String actionName,
+        ClusterService clusterService,
+        TransportService transportService,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Writeable.Reader<Request> requestReader,
+        Writeable.Reader<ShardRequest> shardRequestReader,
+        Executor executor
+    ) {
+        // TODO replace SAME when removing workaround for https://github.com/elastic/elasticsearch/issues/97916
+        super(actionName, transportService, actionFilters, requestReader, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.clusterService = clusterService;
         this.transportService = transportService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.transportShardAction = actionName + "[s]";
-        this.shardExecutor = shardExecutor;
+        this.executor = executor;
+        assert this.executor != EsExecutors.DIRECT_EXECUTOR_SERVICE : "O(#shards) work must always fork to an appropriate executor";
 
-        transportService.registerRequestHandler(transportShardAction, ThreadPool.Names.SAME, shardRequest, new ShardTransportHandler());
+        transportService.registerRequestHandler(
+            transportShardAction,
+            this.executor,
+            shardRequestReader,
+            (request, channel, task) -> ActionListener.completeWith(
+                new ChannelActionListener<>(channel),
+                () -> shardOperation(request, task)
+            )
+        );
     }
 
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
+        // workaround for https://github.com/elastic/elasticsearch/issues/97916 - TODO remove this when we can
+        executor.execute(ActionRunnable.wrap(listener, l -> doExecuteForked(task, request, listener)));
+    }
+
+    protected void doExecuteForked(Task task, Request request, ActionListener<Response> listener) {
+        assert Transports.assertNotTransportThread("O(#shards) work must always fork to an appropriate executor");
         new AsyncBroadcastAction(task, request, listener).start();
     }
 
-    protected abstract Response newResponse(Request request, AtomicReferenceArray shardsResponses, ClusterState clusterState);
+    protected abstract Response newResponse(Request request, AtomicReferenceArray<?> shardsResponses, ClusterState clusterState);
 
     protected abstract ShardRequest newShardRequest(int numShards, ShardRouting shard, Request request);
 
@@ -103,15 +115,16 @@ public abstract class TransportBroadcastAction<
 
     protected class AsyncBroadcastAction {
 
-        private final Task task;
-        private final Request request;
-        private final ActionListener<Response> listener;
-        private final ClusterState clusterState;
-        private final DiscoveryNodes nodes;
-        private final GroupShardsIterator<ShardIterator> shardsIts;
-        private final int expectedOps;
-        private final AtomicInteger counterOps = new AtomicInteger();
-        private final AtomicReferenceArray shardsResponses;
+        final Task task;
+        final Request request;
+        final ActionListener<Response> listener;
+        final ClusterState clusterState;
+        final DiscoveryNodes nodes;
+        final GroupShardsIterator<ShardIterator> shardsIts;
+        final int expectedOps;
+        final AtomicInteger counterOps = new AtomicInteger();
+        // ShardResponse or Exception
+        protected final AtomicReferenceArray<Object> shardsResponses;
 
         protected AsyncBroadcastAction(Task task, Request request, ActionListener<Response> listener) {
             this.task = task;
@@ -142,11 +155,7 @@ public abstract class TransportBroadcastAction<
         public void start() {
             if (shardsIts.size() == 0) {
                 // no shards
-                try {
-                    listener.onResponse(newResponse(request, new AtomicReferenceArray(0), clusterState));
-                } catch (Exception e) {
-                    listener.onFailure(e);
-                }
+                ActionListener.completeWith(listener, () -> newResponse(request, new AtomicReferenceArray<ShardResponse>(0), clusterState));
                 return;
             }
             // count the local operations, and perform the non local ones
@@ -176,28 +185,11 @@ public abstract class TransportBroadcastAction<
                         // no node connected, act as failure
                         onOperation(shard, shardIt, shardIndex, new NoShardAvailableActionException(shardIt.shardId()));
                     } else {
-                        transportService.sendRequest(node, transportShardAction, shardRequest,
-                            new TransportResponseHandler<ShardResponse>() {
-                                @Override
-                                public ShardResponse read(StreamInput in) throws IOException {
-                                    return readShardResponse(in);
-                                }
-
-                                @Override
-                                public String executor() {
-                                    return ThreadPool.Names.SAME;
-                                }
-
-                                @Override
-                                public void handleResponse(ShardResponse response) {
-                                    onOperation(shard, shardIndex, response);
-                                }
-
-                                @Override
-                                public void handleException(TransportException e) {
-                                    onOperation(shard, shardIt, shardIndex, e);
-                                }
-                        });
+                        sendShardRequest(
+                            node,
+                            shardRequest,
+                            ActionListener.wrap(r -> onOperation(shard, shardIndex, r), e -> onOperation(shard, shardIt, shardIndex, e))
+                        );
                     }
                 } catch (Exception e) {
                     onOperation(shard, shardIt, shardIndex, e);
@@ -205,7 +197,15 @@ public abstract class TransportBroadcastAction<
             }
         }
 
-        @SuppressWarnings({"unchecked"})
+        protected void sendShardRequest(DiscoveryNode node, ShardRequest shardRequest, ActionListener<ShardResponse> listener) {
+            transportService.sendRequest(
+                node,
+                transportShardAction,
+                shardRequest,
+                new ActionListenerResponseHandler<>(listener, TransportBroadcastAction.this::readShardResponse, executor)
+            );
+        }
+
         protected void onOperation(ShardRouting shard, int shardIndex, ShardResponse response) {
             logger.trace("received response for {}", shard);
             shardsResponses.set(shardIndex, response);
@@ -222,9 +222,15 @@ public abstract class TransportBroadcastAction<
             if (nextShard != null) {
                 if (e != null) {
                     if (logger.isTraceEnabled()) {
-                        if (!TransportActions.isShardNotAvailableException(e)) {
-                            logger.trace(new ParameterizedMessage(
-                                "{}: failed to execute [{}]", shard != null ? shard.shortSummary() : shardIt.shardId(), request), e);
+                        if (TransportActions.isShardNotAvailableException(e) == false) {
+                            logger.trace(
+                                () -> format(
+                                    "%s: failed to execute [%s]",
+                                    shard != null ? shard.shortSummary() : shardIt.shardId(),
+                                    request
+                                ),
+                                e
+                            );
                         }
                     }
                 }
@@ -232,9 +238,15 @@ public abstract class TransportBroadcastAction<
             } else {
                 if (logger.isDebugEnabled()) {
                     if (e != null) {
-                        if (!TransportActions.isShardNotAvailableException(e)) {
-                            logger.debug(new ParameterizedMessage(
-                                "{}: failed to execute [{}]", shard != null ? shard.shortSummary() : shardIt.shardId(), request), e);
+                        if (TransportActions.isShardNotAvailableException(e) == false) {
+                            logger.debug(
+                                () -> format(
+                                    "%s: failed to execute [%s]",
+                                    shard != null ? shard.shortSummary() : shardIt.shardId(),
+                                    request
+                                ),
+                                e
+                            );
                         }
                     }
                 }
@@ -245,20 +257,12 @@ public abstract class TransportBroadcastAction<
         }
 
         protected void finishHim() {
-            try {
-                listener.onResponse(newResponse(request, shardsResponses, clusterState));
-            } catch (Exception e) {
-                listener.onFailure(e);
-            }
+            assert Transports.assertNotTransportThread("O(#shards) work must always fork to an appropriate executor");
+            ActionListener.completeWith(listener, () -> newResponse(request, shardsResponses, clusterState));
         }
 
         void setFailure(ShardIterator shardIt, int shardIndex, Exception e) {
-            // we don't aggregate shard failures on non active shards (but do keep the header counts right)
-            if (TransportActions.isShardNotAvailableException(e)) {
-                return;
-            }
-
-            if (!(e instanceof BroadcastShardOperationFailedException)) {
+            if ((e instanceof BroadcastShardOperationFailedException) == false) {
                 e = new BroadcastShardOperationFailedException(shardIt.shardId(), e);
             }
 
@@ -268,7 +272,7 @@ public abstract class TransportBroadcastAction<
                 shardsResponses.set(shardIndex, e);
             }
 
-            if (!(response instanceof Throwable)) {
+            if ((response instanceof Throwable) == false) {
                 // we should never really get here...
                 return;
             }
@@ -279,27 +283,5 @@ public abstract class TransportBroadcastAction<
                 shardsResponses.set(shardIndex, e);
             }
         }
-    }
-
-    class ShardTransportHandler implements TransportRequestHandler<ShardRequest> {
-
-        @Override
-        public void messageReceived(ShardRequest request, TransportChannel channel, Task task) throws Exception {
-            asyncShardOperation(request, task,
-                ActionListener.wrap(channel::sendResponse, e -> {
-                        try {
-                            channel.sendResponse(e);
-                        } catch (Exception e1) {
-                            logger.warn(() -> new ParameterizedMessage(
-                                "Failed to send error response for action [{}] and request [{}]", actionName, request), e1);
-                        }
-                    }
-                ));
-        }
-    }
-
-    private void asyncShardOperation(ShardRequest request, Task task, ActionListener<ShardResponse> listener) {
-        transportService.getThreadPool().executor(shardExecutor)
-            .execute(ActionRunnable.supply(listener, () -> shardOperation(request, task)));
     }
 }

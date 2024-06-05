@@ -1,25 +1,14 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.script;
 
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -27,19 +16,20 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.AbstractObjectParser;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentParser.Token;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.xcontent.AbstractObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ObjectParser.ValueType;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser.Token;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -161,7 +151,7 @@ public final class Script implements ToXContentObject, Writeable {
                 type = ScriptType.INLINE;
 
                 if (parser.currentToken() == Token.START_OBJECT) {
-                    //this is really for search templates, that need to be converted to json format
+                    // this is really for search templates, that need to be converted to json format
                     XContentBuilder builder = XContentFactory.jsonBuilder();
                     idOrCode = Strings.toString(builder.copyCurrentStructure(parser));
                     options.put(CONTENT_TYPE_OPTION, XContentType.JSON.mediaType());
@@ -188,11 +178,15 @@ public final class Script implements ToXContentObject, Writeable {
         /**
          * Helper method to throw an exception if more than one type of {@link Script} is specified.
          */
-        private void throwOnlyOneOfType() {
-            throw new IllegalArgumentException("must only use one of [" +
-                ScriptType.INLINE.getParseField().getPreferredName() + ", " +
-                ScriptType.STORED.getParseField().getPreferredName() + "]" +
-                " when specifying a script");
+        private static void throwOnlyOneOfType() {
+            throw new IllegalArgumentException(
+                "must only use one of ["
+                    + ScriptType.INLINE.getParseField().getPreferredName()
+                    + ", "
+                    + ScriptType.STORED.getParseField().getPreferredName()
+                    + "]"
+                    + " when specifying a script"
+            );
         }
 
         private void setLang(String lang) {
@@ -228,8 +222,7 @@ public final class Script implements ToXContentObject, Writeable {
                 }
 
                 if (idOrCode == null) {
-                    throw new IllegalArgumentException(
-                        "must specify <id> for an inline script");
+                    throw new IllegalArgumentException("must specify <id> for an inline script");
                 }
 
                 if (options.size() > 1 || options.size() == 1 && options.get(CONTENT_TYPE_OPTION) == null) {
@@ -239,20 +232,19 @@ public final class Script implements ToXContentObject, Writeable {
                 }
             } else if (type == ScriptType.STORED) {
                 if (lang != null) {
-                    throw new IllegalArgumentException(
-                        "illegally specified <lang> for a stored script");
+                    throw new IllegalArgumentException("illegally specified <lang> for a stored script");
                 }
 
                 if (idOrCode == null) {
-                    throw new IllegalArgumentException(
-                        "must specify <code> for a stored script");
+                    throw new IllegalArgumentException("must specify <code> for a stored script");
                 }
 
                 if (options.isEmpty()) {
                     options = null;
                 } else {
-                    throw new IllegalArgumentException("field [" + OPTIONS_PARSE_FIELD.getPreferredName() + "] " +
-                        "cannot be specified using a stored script");
+                    throw new IllegalArgumentException(
+                        "field [" + OPTIONS_PARSE_FIELD.getPreferredName() + "] " + "cannot be specified using a stored script"
+                    );
                 }
             }
 
@@ -304,13 +296,17 @@ public final class Script implements ToXContentObject, Writeable {
      * Parse the script configured in the given settings.
      */
     public static Script parse(Settings settings) {
-        try (XContentBuilder builder = JsonXContent.contentBuilder()){
+        try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             builder.startObject();
             settings.toXContent(builder, ToXContent.EMPTY_PARAMS);
             builder.endObject();
-            try (InputStream stream = BytesReference.bytes(builder).streamInput();
-                 XContentParser parser = JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY,
-                     LoggingDeprecationHandler.INSTANCE, stream)) {
+            try (
+                XContentParser parser = XContentHelper.createParserNotCompressed(
+                    LoggingDeprecationHandler.XCONTENT_PARSER_CONFIG,
+                    BytesReference.bytes(builder),
+                    XContentType.JSON
+                )
+            ) {
                 return parse(parser);
             }
         } catch (IOException e) {
@@ -405,6 +401,88 @@ public final class Script implements ToXContentObject, Writeable {
         return PARSER.apply(parser, null).build(defaultLang);
     }
 
+    /**
+     * Parse a {@link Script} from an {@link Object}, that can either be a {@link String} or a {@link Map}.
+     * @see #parse(XContentParser, String)
+     * @param config  The object to parse the script from.
+     * @return        The parsed {@link Script}.
+     */
+    @SuppressWarnings("unchecked")
+    public static Script parse(Object config) {
+        Objects.requireNonNull(config, "Script must not be null");
+        if (config instanceof String) {
+            return new Script((String) config);
+        } else if (config instanceof Map) {
+            Map<String, Object> configMap = (Map<String, Object>) config;
+            String script = null;
+            ScriptType type = null;
+            String lang = null;
+            Map<String, Object> params = Collections.emptyMap();
+            Map<String, String> options = Collections.emptyMap();
+            for (Map.Entry<String, Object> entry : configMap.entrySet()) {
+                String parameterName = entry.getKey();
+                Object parameterValue = entry.getValue();
+                if (Script.LANG_PARSE_FIELD.match(parameterName, LoggingDeprecationHandler.INSTANCE)) {
+                    if (parameterValue instanceof String || parameterValue == null) {
+                        lang = (String) parameterValue;
+                    } else {
+                        throw new ElasticsearchParseException("Value must be of type String: [" + parameterName + "]");
+                    }
+                } else if (Script.PARAMS_PARSE_FIELD.match(parameterName, LoggingDeprecationHandler.INSTANCE)) {
+                    if (parameterValue instanceof Map || parameterValue == null) {
+                        params = (Map<String, Object>) parameterValue;
+                    } else {
+                        throw new ElasticsearchParseException("Value must be of type Map: [" + parameterName + "]");
+                    }
+                } else if (Script.OPTIONS_PARSE_FIELD.match(parameterName, LoggingDeprecationHandler.INSTANCE)) {
+                    if (parameterValue instanceof Map || parameterValue == null) {
+                        options = (Map<String, String>) parameterValue;
+                    } else {
+                        throw new ElasticsearchParseException("Value must be of type Map: [" + parameterName + "]");
+                    }
+                } else if (ScriptType.INLINE.getParseField().match(parameterName, LoggingDeprecationHandler.INSTANCE)) {
+                    if (parameterValue instanceof String || parameterValue == null) {
+                        script = (String) parameterValue;
+                        type = ScriptType.INLINE;
+                    } else {
+                        throw new ElasticsearchParseException("Value must be of type String: [" + parameterName + "]");
+                    }
+                } else if (ScriptType.STORED.getParseField().match(parameterName, LoggingDeprecationHandler.INSTANCE)) {
+                    if (parameterValue instanceof String || parameterValue == null) {
+                        script = (String) parameterValue;
+                        type = ScriptType.STORED;
+                    } else {
+                        throw new ElasticsearchParseException("Value must be of type String: [" + parameterName + "]");
+                    }
+                } else {
+                    throw new ElasticsearchParseException("Unsupported field [" + parameterName + "]");
+                }
+            }
+            if (script == null) {
+                throw new ElasticsearchParseException(
+                    "Expected one of [{}] or [{}] fields, but found none",
+                    ScriptType.INLINE.getParseField().getPreferredName(),
+                    ScriptType.STORED.getParseField().getPreferredName()
+                );
+            }
+            assert type != null : "if script is not null, type should definitely not be null";
+
+            if (type == ScriptType.STORED) {
+                if (lang != null) {
+                    throw new IllegalArgumentException(
+                        "[" + Script.LANG_PARSE_FIELD.getPreferredName() + "] cannot be specified for stored scripts"
+                    );
+                }
+
+                return new Script(type, null, script, null, params);
+            } else {
+                return new Script(type, lang == null ? DEFAULT_SCRIPT_LANG : lang, script, options, params);
+            }
+        } else {
+            throw new IllegalArgumentException("Script value should be a String or a Map");
+        }
+    }
+
     private final ScriptType type;
     private final String lang;
     private final String idOrCode;
@@ -478,9 +556,9 @@ public final class Script implements ToXContentObject, Writeable {
         this.lang = in.readOptionalString();
         this.idOrCode = in.readString();
         @SuppressWarnings("unchecked")
-        Map<String, String> options = (Map<String, String>)(Map)in.readMap();
+        Map<String, String> options = (Map<String, String>) (Map) in.readGenericMap();
         this.options = options;
-        this.params = in.readMap();
+        this.params = in.readGenericMap();
     }
 
     @Override
@@ -490,8 +568,8 @@ public final class Script implements ToXContentObject, Writeable {
         out.writeString(idOrCode);
         @SuppressWarnings("unchecked")
         Map<String, Object> options = (Map<String, Object>) (Map) this.options;
-        out.writeMap(options);
-        out.writeMap(params);
+        out.writeMapWithConsistentOrder(options);
+        out.writeMapWithConsistentOrder(params);
     }
 
     /**
@@ -569,11 +647,11 @@ public final class Script implements ToXContentObject, Writeable {
             builder.field(LANG_PARSE_FIELD.getPreferredName(), lang);
         }
 
-        if (options != null && !options.isEmpty()) {
+        if (options != null && options.isEmpty() == false) {
             builder.field(OPTIONS_PARSE_FIELD.getPreferredName(), options);
         }
 
-        if (!params.isEmpty()) {
+        if (params.isEmpty() == false) {
             builder.field(PARAMS_PARSE_FIELD.getPreferredName(), params);
         }
 
@@ -623,17 +701,18 @@ public final class Script implements ToXContentObject, Writeable {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
-        Script script = (Script)o;
-
-        if (type != script.type) return false;
-        if (lang != null ? !lang.equals(script.lang) : script.lang != null) return false;
-        if (!idOrCode.equals(script.idOrCode)) return false;
-        if (options != null ? !options.equals(script.options) : script.options != null) return false;
-        return params.equals(script.params);
-
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        Script script = (Script) o;
+        return type == script.type
+            && Objects.equals(lang, script.lang)
+            && Objects.equals(idOrCode, script.idOrCode)
+            && Objects.equals(options, script.options)
+            && Objects.equals(params, script.params);
     }
 
     @Override
@@ -648,12 +727,19 @@ public final class Script implements ToXContentObject, Writeable {
 
     @Override
     public String toString() {
-        return "Script{" +
-            "type=" + type +
-            ", lang='" + lang + '\'' +
-            ", idOrCode='" + idOrCode + '\'' +
-            ", options=" + options +
-            ", params=" + params +
-            '}';
+        return "Script{"
+            + "type="
+            + type
+            + ", lang='"
+            + lang
+            + '\''
+            + ", idOrCode='"
+            + idOrCode
+            + '\''
+            + ", options="
+            + options
+            + ", params="
+            + params
+            + '}';
     }
 }

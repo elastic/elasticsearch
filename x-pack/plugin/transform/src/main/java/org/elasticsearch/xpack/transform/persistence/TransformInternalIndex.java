@@ -1,34 +1,39 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.transform.persistence;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
+import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
+import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.AliasMetaData;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
+import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Template;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.common.notifications.AbstractAuditMessage;
+import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.transforms.DestConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
+import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
 import org.elasticsearch.xpack.core.transform.transforms.TransformState;
@@ -38,8 +43,8 @@ import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformIn
 import java.io.IOException;
 import java.util.Collections;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ClientHelper.TRANSFORM_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.core.transform.TransformField.TRANSFORM_ID;
@@ -58,7 +63,26 @@ public final class TransformInternalIndex {
      * version 3 (7.5): rename to .transform-internal-xxx
      * version 4 (7.6): state::should_stop_at_checkpoint
      *                  checkpoint::checkpoint
+     * version 5 (7.7): stats::processing_time_in_ms, stats::processing_total
+     * version 6 (7.12):stats::delete_time_in_ms, stats::documents_deleted
+     * version 7 (7.13):add mapping for config::pivot, config::latest, config::retention_policy and config::sync
      */
+
+    /**
+     * The new system index mappings version used in preference to <code>version</code>
+     * since 8.10. A value of 1 for this constant corresponds to version 7 in the table
+     * of changes above. Increment this constant by one at the same time as adding a new
+     * entry to the table of changes above.
+     */
+    public static final int TRANSFORM_INDEX_MAPPINGS_VERSION = 1;
+    /**
+     * No longer used for determining the age of mappings, but system index descriptor
+     * code requires <em>something</em> be set. We use a value that can be parsed by
+     * old nodes in mixed-version clusters, just in case any old code exists that
+     * tries to parse <code>version</code> from index metadata, and that will indicate
+     * to these old nodes that the mappings are newer than they are.
+     */
+    private static final String LEGACY_VERSION_FIELD_VALUE = "8.11.0";
 
     // constants for mappings
     public static final String DYNAMIC = "dynamic";
@@ -69,6 +93,7 @@ public final class TransformInternalIndex {
     public static final String TEXT = "text";
     public static final String FIELDS = "fields";
     public static final String RAW = "raw";
+    public static final String IGNORE_ABOVE = "ignore_above";
 
     // data types
     public static final String FLOAT = "float";
@@ -76,36 +101,33 @@ public final class TransformInternalIndex {
     public static final String LONG = "long";
     public static final String KEYWORD = "keyword";
     public static final String BOOLEAN = "boolean";
+    public static final String FLATTENED = "flattened";
 
-    public static IndexTemplateMetaData getIndexTemplateMetaData() throws IOException {
-        IndexTemplateMetaData transformTemplate = IndexTemplateMetaData.builder(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME)
-            .patterns(Collections.singletonList(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME))
-            .version(Version.CURRENT.id)
-            .settings(
-                Settings.builder()
-                    // the configurations are expected to be small
-                    .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
-            )
-            .putMapping(MapperService.SINGLE_MAPPING_NAME, Strings.toString(mappings()))
+    public static SystemIndexDescriptor getSystemIndexDescriptor(Settings transformInternalIndexAdditionalSettings) throws IOException {
+        return SystemIndexDescriptor.builder()
+            .setIndexPattern(TransformInternalIndexConstants.INDEX_NAME_PATTERN)
+            .setPrimaryIndex(TransformInternalIndexConstants.LATEST_INDEX_NAME)
+            .setDescription("Contains Transform configuration data")
+            .setMappings(mappings())
+            .setSettings(settings(transformInternalIndexAdditionalSettings))
+            .setVersionMetaKey("version")
+            .setOrigin(TRANSFORM_ORIGIN)
             .build();
-        return transformTemplate;
     }
 
-    public static IndexTemplateMetaData getAuditIndexTemplateMetaData() throws IOException {
-        IndexTemplateMetaData transformTemplate = IndexTemplateMetaData.builder(TransformInternalIndexConstants.AUDIT_INDEX)
-            .patterns(Collections.singletonList(TransformInternalIndexConstants.AUDIT_INDEX_PREFIX + "*"))
-            .version(Version.CURRENT.id)
-            .settings(
-                Settings.builder()
-                    // the audits are expected to be small
-                    .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
-            )
-            .putMapping(MapperService.SINGLE_MAPPING_NAME, Strings.toString(auditMappings()))
-            .putAlias(AliasMetaData.builder(TransformInternalIndexConstants.AUDIT_INDEX_READ_ALIAS))
-            .build();
-        return transformTemplate;
+    public static Template getAuditIndexTemplate() throws IOException {
+        AliasMetadata alias = AliasMetadata.builder(TransformInternalIndexConstants.AUDIT_INDEX_READ_ALIAS).isHidden(true).build();
+
+        return new Template(
+            Settings.builder()
+                // the audits are expected to be small
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
+                .put(IndexMetadata.SETTING_INDEX_HIDDEN, true)
+                .build(),
+            new CompressedXContent(Strings.toString(auditMappings())),
+            Collections.singletonMap(alias.alias(), alias)
+        );
     }
 
     private static XContentBuilder auditMappings() throws IOException {
@@ -113,33 +135,43 @@ public final class TransformInternalIndex {
         builder.startObject(SINGLE_MAPPING_NAME);
         addMetaInformation(builder);
         builder.field(DYNAMIC, "false");
-        builder
-            .startObject(PROPERTIES)
-                .startObject(TRANSFORM_ID)
-                    .field(TYPE, KEYWORD)
-                .endObject()
-                .startObject(AbstractAuditMessage.LEVEL.getPreferredName())
-                    .field(TYPE, KEYWORD)
-                .endObject()
-                .startObject(AbstractAuditMessage.MESSAGE.getPreferredName())
-                    .field(TYPE, TEXT)
-                .startObject(FIELDS)
-                    .startObject(RAW)
-                        .field(TYPE, KEYWORD)
-                    .endObject()
-                .endObject()
+        builder.startObject(PROPERTIES)
+            .startObject(TRANSFORM_ID)
+            .field(TYPE, KEYWORD)
+            .endObject()
+            .startObject(AbstractAuditMessage.LEVEL.getPreferredName())
+            .field(TYPE, KEYWORD)
+            .endObject()
+            .startObject(AbstractAuditMessage.MESSAGE.getPreferredName())
+            .field(TYPE, TEXT)
+            .startObject(FIELDS)
+            .startObject(RAW)
+            .field(TYPE, KEYWORD)
+            .field(IGNORE_ABOVE, 1024)
+            .endObject()
+            .endObject()
             .endObject()
             .startObject(AbstractAuditMessage.TIMESTAMP.getPreferredName())
-                .field(TYPE, DATE)
+            .field(TYPE, DATE)
             .endObject()
             .startObject(AbstractAuditMessage.NODE_NAME.getPreferredName())
-                .field(TYPE, KEYWORD)
+            .field(TYPE, KEYWORD)
             .endObject()
             .endObject()
             .endObject()
             .endObject();
 
         return builder;
+    }
+
+    public static Settings settings(Settings additionalSettings) {
+        assert additionalSettings != null;
+        return Settings.builder()
+            // the configurations are expected to be small
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
+            .put(additionalSettings)
+            .build();
     }
 
     public static XContentBuilder mappings() throws IOException {
@@ -175,136 +207,160 @@ public final class TransformInternalIndex {
     }
 
     private static XContentBuilder addTransformStoredDocMappings(XContentBuilder builder) throws IOException {
-        return builder
-            .startObject(TransformStoredDoc.STATE_FIELD.getPreferredName())
-                .startObject(PROPERTIES)
-                    .startObject(TransformState.TASK_STATE.getPreferredName())
-                        .field(TYPE, KEYWORD)
-                    .endObject()
-                    .startObject(TransformState.INDEXER_STATE.getPreferredName())
-                        .field(TYPE, KEYWORD)
-                    .endObject()
-                    .startObject(TransformState.SHOULD_STOP_AT_NEXT_CHECKPOINT.getPreferredName())
-                        .field(TYPE, BOOLEAN)
-                    .endObject()
-                    .startObject(TransformState.CURRENT_POSITION.getPreferredName())
-                        .field(ENABLED, false)
-                    .endObject()
-                    .startObject(TransformState.CHECKPOINT.getPreferredName())
-                        .field(TYPE, LONG)
-                    .endObject()
-                    .startObject(TransformState.REASON.getPreferredName())
-                        .field(TYPE, KEYWORD)
-                    .endObject()
-                    .startObject(TransformState.PROGRESS.getPreferredName())
-                        .startObject(PROPERTIES)
-                            .startObject(TransformProgress.TOTAL_DOCS.getPreferredName())
-                                .field(TYPE, LONG)
-                            .endObject()
-                            .startObject(TransformProgress.DOCS_REMAINING.getPreferredName())
-                                .field(TYPE, LONG)
-                            .endObject()
-                            .startObject(TransformProgress.PERCENT_COMPLETE)
-                                .field(TYPE, FLOAT)
-                            .endObject()
-                            .startObject(TransformProgress.DOCS_INDEXED.getPreferredName())
-                                .field(TYPE, LONG)
-                            .endObject()
-                            .startObject(TransformProgress.DOCS_PROCESSED.getPreferredName())
-                                .field(TYPE, LONG)
-                            .endObject()
-                        .endObject()
-                    .endObject()
-                .endObject()
+        return builder.startObject(TransformStoredDoc.STATE_FIELD.getPreferredName())
+            .startObject(PROPERTIES)
+            .startObject(TransformState.TASK_STATE.getPreferredName())
+            .field(TYPE, KEYWORD)
+            .endObject()
+            .startObject(TransformState.INDEXER_STATE.getPreferredName())
+            .field(TYPE, KEYWORD)
+            .endObject()
+            .startObject(TransformState.SHOULD_STOP_AT_NEXT_CHECKPOINT.getPreferredName())
+            .field(TYPE, BOOLEAN)
+            .endObject()
+            .startObject(TransformState.CURRENT_POSITION.getPreferredName())
+            .field(ENABLED, false)
+            .endObject()
+            .startObject(TransformState.CHECKPOINT.getPreferredName())
+            .field(TYPE, LONG)
+            .endObject()
+            .startObject(TransformState.REASON.getPreferredName())
+            .field(TYPE, KEYWORD)
+            .endObject()
+            .startObject(TransformState.PROGRESS.getPreferredName())
+            .startObject(PROPERTIES)
+            .startObject(TransformProgress.TOTAL_DOCS.getPreferredName())
+            .field(TYPE, LONG)
+            .endObject()
+            .startObject(TransformProgress.DOCS_REMAINING.getPreferredName())
+            .field(TYPE, LONG)
+            .endObject()
+            .startObject(TransformProgress.PERCENT_COMPLETE)
+            .field(TYPE, FLOAT)
+            .endObject()
+            .startObject(TransformProgress.DOCS_INDEXED.getPreferredName())
+            .field(TYPE, LONG)
+            .endObject()
+            .startObject(TransformProgress.DOCS_PROCESSED.getPreferredName())
+            .field(TYPE, LONG)
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
             .endObject()
             .startObject(TransformField.STATS_FIELD.getPreferredName())
-                .startObject(PROPERTIES)
-                    .startObject(TransformIndexerStats.NUM_PAGES.getPreferredName())
-                        .field(TYPE, LONG)
-                    .endObject()
-                    .startObject(TransformIndexerStats.NUM_INPUT_DOCUMENTS.getPreferredName())
-                        .field(TYPE, LONG)
-                    .endObject()
-                     .startObject(TransformIndexerStats.NUM_OUTPUT_DOCUMENTS.getPreferredName())
-                        .field(TYPE, LONG)
-                    .endObject()
-                     .startObject(TransformIndexerStats.NUM_INVOCATIONS.getPreferredName())
-                        .field(TYPE, LONG)
-                    .endObject()
-                     .startObject(TransformIndexerStats.INDEX_TIME_IN_MS.getPreferredName())
-                        .field(TYPE, LONG)
-                    .endObject()
-                     .startObject(TransformIndexerStats.SEARCH_TIME_IN_MS.getPreferredName())
-                        .field(TYPE, LONG)
-                    .endObject()
-                     .startObject(TransformIndexerStats.INDEX_TOTAL.getPreferredName())
-                        .field(TYPE, LONG)
-                    .endObject()
-                     .startObject(TransformIndexerStats.SEARCH_TOTAL.getPreferredName())
-                        .field(TYPE, LONG)
-                    .endObject()
-                     .startObject(TransformIndexerStats.SEARCH_FAILURES.getPreferredName())
-                        .field(TYPE, LONG)
-                    .endObject()
-                     .startObject(TransformIndexerStats.INDEX_FAILURES.getPreferredName())
-                        .field(TYPE, LONG)
-                    .endObject()
-                    .startObject(TransformIndexerStats.EXPONENTIAL_AVG_CHECKPOINT_DURATION_MS.getPreferredName())
-                        .field(TYPE, DOUBLE)
-                    .endObject()
-                    .startObject(TransformIndexerStats.EXPONENTIAL_AVG_DOCUMENTS_INDEXED.getPreferredName())
-                        .field(TYPE, DOUBLE)
-                    .endObject()
-                    .startObject(TransformIndexerStats.EXPONENTIAL_AVG_DOCUMENTS_PROCESSED.getPreferredName())
-                        .field(TYPE, DOUBLE)
-                    .endObject()
-                .endObject()
+            .startObject(PROPERTIES)
+            .startObject(TransformIndexerStats.NUM_PAGES.getPreferredName())
+            .field(TYPE, LONG)
+            .endObject()
+            .startObject(TransformIndexerStats.NUM_INPUT_DOCUMENTS.getPreferredName())
+            .field(TYPE, LONG)
+            .endObject()
+            .startObject(TransformIndexerStats.NUM_OUTPUT_DOCUMENTS.getPreferredName())
+            .field(TYPE, LONG)
+            .endObject()
+            .startObject(TransformIndexerStats.NUM_DELETED_DOCUMENTS.getPreferredName())
+            .field(TYPE, LONG)
+            .endObject()
+            .startObject(TransformIndexerStats.NUM_INVOCATIONS.getPreferredName())
+            .field(TYPE, LONG)
+            .endObject()
+            .startObject(TransformIndexerStats.INDEX_TIME_IN_MS.getPreferredName())
+            .field(TYPE, LONG)
+            .endObject()
+            .startObject(TransformIndexerStats.SEARCH_TIME_IN_MS.getPreferredName())
+            .field(TYPE, LONG)
+            .endObject()
+            .startObject(TransformIndexerStats.PROCESSING_TIME_IN_MS.getPreferredName())
+            .field(TYPE, LONG)
+            .endObject()
+            .startObject(TransformIndexerStats.DELETE_TIME_IN_MS.getPreferredName())
+            .field(TYPE, LONG)
+            .endObject()
+            .startObject(TransformIndexerStats.INDEX_TOTAL.getPreferredName())
+            .field(TYPE, LONG)
+            .endObject()
+            .startObject(TransformIndexerStats.SEARCH_TOTAL.getPreferredName())
+            .field(TYPE, LONG)
+            .endObject()
+            .startObject(TransformIndexerStats.PROCESSING_TOTAL.getPreferredName())
+            .field(TYPE, LONG)
+            .endObject()
+            .startObject(TransformIndexerStats.SEARCH_FAILURES.getPreferredName())
+            .field(TYPE, LONG)
+            .endObject()
+            .startObject(TransformIndexerStats.INDEX_FAILURES.getPreferredName())
+            .field(TYPE, LONG)
+            .endObject()
+            .startObject(TransformIndexerStats.EXPONENTIAL_AVG_CHECKPOINT_DURATION_MS.getPreferredName())
+            .field(TYPE, DOUBLE)
+            .endObject()
+            .startObject(TransformIndexerStats.EXPONENTIAL_AVG_DOCUMENTS_INDEXED.getPreferredName())
+            .field(TYPE, DOUBLE)
+            .endObject()
+            .startObject(TransformIndexerStats.EXPONENTIAL_AVG_DOCUMENTS_PROCESSED.getPreferredName())
+            .field(TYPE, DOUBLE)
+            .endObject()
+            .endObject()
             .endObject();
     }
 
     public static XContentBuilder addTransformsConfigMappings(XContentBuilder builder) throws IOException {
-        return builder
-            .startObject(TransformField.ID.getPreferredName())
-                .field(TYPE, KEYWORD)
+        return builder.startObject(TransformField.ID.getPreferredName())
+            .field(TYPE, KEYWORD)
             .endObject()
             .startObject(TransformField.SOURCE.getPreferredName())
-                .startObject(PROPERTIES)
-                    .startObject(SourceConfig.INDEX.getPreferredName())
-                        .field(TYPE, KEYWORD)
-                    .endObject()
-                    .startObject(SourceConfig.QUERY.getPreferredName())
-                        .field(ENABLED, "false")
-                    .endObject()
-                .endObject()
+            .startObject(PROPERTIES)
+            .startObject(SourceConfig.INDEX.getPreferredName())
+            .field(TYPE, KEYWORD)
+            .endObject()
+            .startObject(SourceConfig.QUERY.getPreferredName())
+            .field(ENABLED, false)
+            .endObject()
+            .endObject()
             .endObject()
             .startObject(TransformField.DESTINATION.getPreferredName())
-                .startObject(PROPERTIES)
-                    .startObject(DestConfig.INDEX.getPreferredName())
-                        .field(TYPE, KEYWORD)
-                    .endObject()
-                .endObject()
+            .startObject(PROPERTIES)
+            .startObject(DestConfig.INDEX.getPreferredName())
+            .field(TYPE, KEYWORD)
+            .endObject()
+            .endObject()
             .endObject()
             .startObject(TransformField.DESCRIPTION.getPreferredName())
-                .field(TYPE, TEXT)
+            .field(TYPE, TEXT)
             .endObject()
             .startObject(TransformField.VERSION.getPreferredName())
-                .field(TYPE, KEYWORD)
+            .field(TYPE, KEYWORD)
             .endObject()
             .startObject(TransformField.CREATE_TIME.getPreferredName())
-                .field(TYPE, DATE)
+            .field(TYPE, DATE)
+            .endObject()
+            .startObject(TransformConfig.Function.PIVOT.getParseField().getPreferredName())
+            .field(TYPE, FLATTENED)
+            .endObject()
+            .startObject(TransformConfig.Function.LATEST.getParseField().getPreferredName())
+            .field(TYPE, FLATTENED)
+            .endObject()
+            .startObject(TransformField.METADATA.getPreferredName())
+            .field(TYPE, FLATTENED)
+            .endObject()
+            .startObject(TransformField.RETENTION_POLICY.getPreferredName())
+            .field(TYPE, FLATTENED)
+            .endObject()
+            .startObject(TransformField.SYNC.getPreferredName())
+            .field(TYPE, FLATTENED)
             .endObject();
     }
 
     private static XContentBuilder addTransformCheckpointMappings(XContentBuilder builder) throws IOException {
-        return builder
-            .startObject(TransformField.TIMESTAMP_MILLIS.getPreferredName())
-                .field(TYPE, DATE)
+        return builder.startObject(TransformField.TIMESTAMP_MILLIS.getPreferredName())
+            .field(TYPE, DATE)
             .endObject()
             .startObject(TransformField.TIME_UPPER_BOUND_MILLIS.getPreferredName())
-                .field(TYPE, DATE)
+            .field(TYPE, DATE)
             .endObject()
             .startObject(TransformCheckpoint.CHECKPOINT.getPreferredName())
-                .field(TYPE, LONG)
+            .field(TYPE, LONG)
             .endObject();
     }
 
@@ -316,100 +372,91 @@ public final class TransformInternalIndex {
      * @throws IOException On write error
      */
     private static XContentBuilder addMetaInformation(XContentBuilder builder) throws IOException {
-        return builder.startObject("_meta").field("version", Version.CURRENT).endObject();
+        return builder.startObject("_meta")
+            .field("version", LEGACY_VERSION_FIELD_VALUE)
+            .field(SystemIndexDescriptor.VERSION_META_KEY, TRANSFORM_INDEX_MAPPINGS_VERSION)
+            .endObject();
+    }
+
+    protected static boolean hasLatestVersionedIndex(ClusterState state) {
+        return state.getMetadata().hasIndexAbstraction(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME);
+    }
+
+    protected static boolean allPrimaryShardsActiveForLatestVersionedIndex(ClusterState state) {
+        IndexRoutingTable indexRouting = state.routingTable().index(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME);
+
+        return indexRouting != null && indexRouting.allPrimaryShardsActive() && indexRouting.readyForSearch(state);
+    }
+
+    private static void waitForLatestVersionedIndexShardsActive(Client client, ActionListener<Void> listener) {
+        ClusterHealthRequest request = new ClusterHealthRequest(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME)
+            // cluster health does not wait for active shards per default
+            .waitForActiveShards(ActiveShardCount.ONE);
+        ActionListener<ClusterHealthResponse> innerListener = ActionListener.wrap(r -> listener.onResponse(null), listener::onFailure);
+        executeAsyncWithOrigin(
+            client.threadPool().getThreadContext(),
+            TRANSFORM_ORIGIN,
+            request,
+            innerListener,
+            client.admin().cluster()::health
+        );
     }
 
     /**
      * This method should be called before any document is indexed that relies on the
-     * existence of the latest index templates to create the internal and audit index.
-     * The reason is that the standard template upgrader only runs when the master node
-     * is upgraded to the newer version.  If data nodes are upgraded before master
-     * nodes and transforms get assigned to those data nodes then without this check
-     * the data nodes will index documents into the internal index before the necessary
-     * index template is present and this will result in an index with completely
-     * dynamic mappings being created (which is very bad).
+     * existence of the latest internal index.
+     *
+     * Without this check the data nodes will create an internal index with dynamic
+     * mappings when indexing a document, but we want our own well defined mappings.
      */
-    public static void installLatestIndexTemplatesIfRequired(ClusterService clusterService, Client client, ActionListener<Void> listener) {
-
-        installLatestVersionedIndexTemplateIfRequired(
-            clusterService,
-            client,
-            ActionListener.wrap(r -> { installLatestAuditIndexTemplateIfRequired(clusterService, client, listener); }, listener::onFailure)
-        );
-
-    }
-
-    protected static boolean haveLatestVersionedIndexTemplate(ClusterState state) {
-        return state.getMetaData().getTemplates().containsKey(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME);
-    }
-
-    protected static boolean haveLatestAuditIndexTemplate(ClusterState state) {
-        return state.getMetaData().getTemplates().containsKey(TransformInternalIndexConstants.AUDIT_INDEX);
-    }
-
-    protected static void installLatestVersionedIndexTemplateIfRequired(
+    public static void createLatestVersionedIndexIfRequired(
         ClusterService clusterService,
         Client client,
+        Settings transformInternalIndexAdditionalSettings,
         ActionListener<Void> listener
     ) {
-
-        // The check for existence of the template is against local cluster state, so very cheap
-        if (haveLatestVersionedIndexTemplate(clusterService.state())) {
-            listener.onResponse(null);
+        ClusterState state = clusterService.state();
+        // The check for existence is against local cluster state, so very cheap
+        if (hasLatestVersionedIndex(state)) {
+            if (allPrimaryShardsActiveForLatestVersionedIndex(state)) {
+                listener.onResponse(null);
+                return;
+            }
+            // the index exists but is not ready yet
+            waitForLatestVersionedIndexShardsActive(client, listener);
             return;
         }
 
-        // Installing the template involves communication with the master node, so it's more expensive but much rarer
+        // Creating the index involves communication with the master node, so it's more expensive but much rarer
         try {
-            IndexTemplateMetaData indexTemplateMetaData = getIndexTemplateMetaData();
-            BytesReference jsonMappings = new BytesArray(indexTemplateMetaData.mappings().get(SINGLE_MAPPING_NAME).uncompressed());
-            PutIndexTemplateRequest request = new PutIndexTemplateRequest(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME)
-                .patterns(indexTemplateMetaData.patterns())
-                .version(indexTemplateMetaData.version())
-                .settings(indexTemplateMetaData.settings())
-                .mapping(XContentHelper.convertToMap(jsonMappings, true, XContentType.JSON).v2());
-            ActionListener<AcknowledgedResponse> innerListener = ActionListener.wrap(r -> listener.onResponse(null), listener::onFailure);
-            executeAsyncWithOrigin(
-                client.threadPool().getThreadContext(),
-                TRANSFORM_ORIGIN,
-                request,
-                innerListener,
-                client.admin().indices()::putTemplate
-            );
-        } catch (IOException e) {
-            listener.onFailure(e);
-        }
-    }
-
-    protected static void installLatestAuditIndexTemplateIfRequired(
-        ClusterService clusterService,
-        Client client,
-        ActionListener<Void> listener
-    ) {
-
-        // The check for existence of the template is against local cluster state, so very cheap
-        if (haveLatestAuditIndexTemplate(clusterService.state())) {
-            listener.onResponse(null);
-            return;
-        }
-
-        // Installing the template involves communication with the master node, so it's more expensive but much rarer
-        try {
-            IndexTemplateMetaData indexTemplateMetaData = getAuditIndexTemplateMetaData();
-            BytesReference jsonMappings = new BytesArray(indexTemplateMetaData.mappings().get(SINGLE_MAPPING_NAME).uncompressed());
-            PutIndexTemplateRequest request = new PutIndexTemplateRequest(TransformInternalIndexConstants.AUDIT_INDEX).patterns(
-                indexTemplateMetaData.patterns()
+            CreateIndexRequest request = new CreateIndexRequest(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME).settings(
+                settings(transformInternalIndexAdditionalSettings)
             )
-                .version(indexTemplateMetaData.version())
-                .settings(indexTemplateMetaData.settings())
-                .mapping(XContentHelper.convertToMap(jsonMappings, true, XContentType.JSON).v2());
-            ActionListener<AcknowledgedResponse> innerListener = ActionListener.wrap(r -> listener.onResponse(null), listener::onFailure);
+                .mapping(mappings())
+                .origin(TRANSFORM_ORIGIN)
+                // explicitly wait for the primary shard (although this might be default)
+                .waitForActiveShards(ActiveShardCount.ONE);
+            ActionListener<CreateIndexResponse> innerListener = ActionListener.wrap(r -> listener.onResponse(null), e -> {
+                // It's not a problem if the index already exists - another node could be running
+                // this method at the same time as this one, and also have created the index
+                // check if shards are active
+                if (ExceptionsHelper.unwrapCause(e) instanceof ResourceAlreadyExistsException) {
+                    if (allPrimaryShardsActiveForLatestVersionedIndex(clusterService.state())) {
+                        listener.onResponse(null);
+                        return;
+                    }
+                    // the index exists but is not ready yet
+                    waitForLatestVersionedIndexShardsActive(client, listener);
+                } else {
+                    listener.onFailure(e);
+                }
+            });
             executeAsyncWithOrigin(
                 client.threadPool().getThreadContext(),
                 TRANSFORM_ORIGIN,
                 request,
                 innerListener,
-                client.admin().indices()::putTemplate
+                client.admin().indices()::create
             );
         } catch (IOException e) {
             listener.onFailure(e);

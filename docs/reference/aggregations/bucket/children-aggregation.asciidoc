@@ -1,5 +1,8 @@
 [[search-aggregations-bucket-children-aggregation]]
-=== Children Aggregation
+=== Children aggregation
+++++
+<titleabbrev>Children</titleabbrev>
+++++
 
 A special single bucket aggregation that selects child documents that have the specified type, as defined in a <<parent-join,`join` field>>.
 

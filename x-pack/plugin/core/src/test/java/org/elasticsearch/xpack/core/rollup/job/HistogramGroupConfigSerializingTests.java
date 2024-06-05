@@ -1,15 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.rollup.job;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.rollup.RollupField;
 
 import java.io.IOException;
@@ -22,7 +23,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class HistogramGroupConfigSerializingTests extends AbstractSerializingTestCase<HistogramGroupConfig> {
+public class HistogramGroupConfigSerializingTests extends AbstractXContentSerializingTestCase<HistogramGroupConfig> {
 
     @Override
     protected HistogramGroupConfig doParseInstance(XContentParser parser) throws IOException {
@@ -39,14 +40,21 @@ public class HistogramGroupConfigSerializingTests extends AbstractSerializingTes
         return randomHistogramGroupConfig(random());
     }
 
+    @Override
+    protected HistogramGroupConfig mutateInstance(HistogramGroupConfig instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public void testValidateNoMapping() throws IOException {
         ActionRequestValidationException e = new ActionRequestValidationException();
         Map<String, Map<String, FieldCapabilities>> responseMap = new HashMap<>();
 
         HistogramGroupConfig config = new HistogramGroupConfig(132, "my_field");
         config.validateMappings(responseMap, e);
-        assertThat(e.validationErrors().get(0), equalTo("Could not find a [numeric] field with name [my_field] in any of the " +
-                "indices matching the index pattern."));
+        assertThat(
+            e.validationErrors().get(0),
+            equalTo("Could not find a [numeric] field with name [my_field] in any of the " + "indices matching the index pattern.")
+        );
     }
 
     public void testValidateNomatchingField() throws IOException {
@@ -60,8 +68,10 @@ public class HistogramGroupConfigSerializingTests extends AbstractSerializingTes
 
         HistogramGroupConfig config = new HistogramGroupConfig(132, "my_field");
         config.validateMappings(responseMap, e);
-        assertThat(e.validationErrors().get(0), equalTo("Could not find a [numeric] field with name [my_field] in any of the " +
-                "indices matching the index pattern."));
+        assertThat(
+            e.validationErrors().get(0),
+            equalTo("Could not find a [numeric] field with name [my_field] in any of the " + "indices matching the index pattern.")
+        );
     }
 
     public void testValidateFieldWrongType() throws IOException {
@@ -75,8 +85,10 @@ public class HistogramGroupConfigSerializingTests extends AbstractSerializingTes
 
         HistogramGroupConfig config = new HistogramGroupConfig(132, "my_field");
         config.validateMappings(responseMap, e);
-        assertThat(e.validationErrors().get(0), equalTo("The field referenced by a histo group must be a [numeric] type, but " +
-                "found [keyword] for field [my_field]"));
+        assertThat(
+            e.validationErrors().get(0),
+            equalTo("The field referenced by a histo group must be a [numeric] type, but " + "found [keyword] for field [my_field]")
+        );
     }
 
     public void testValidateFieldMatchingNotAggregatable() throws IOException {

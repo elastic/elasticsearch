@@ -1,53 +1,49 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.rest.action.search;
 
 import org.elasticsearch.action.search.SearchScrollRequest;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.RestStatusToXContentListener;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
+import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
 import org.elasticsearch.search.Scroll;
+import org.elasticsearch.xcontent.XContentParseException;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.List;
 import java.util.Set;
 
-import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
+import static org.elasticsearch.core.TimeValue.parseTimeValue;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
+@ServerlessScope(Scope.PUBLIC)
 public class RestSearchScrollAction extends BaseRestHandler {
     private static final Set<String> RESPONSE_PARAMS = Collections.singleton(RestSearchAction.TOTAL_HITS_AS_INT_PARAM);
-
-    public RestSearchScrollAction(RestController controller) {
-        controller.registerHandler(GET, "/_search/scroll", this);
-        controller.registerHandler(POST, "/_search/scroll", this);
-        controller.registerHandler(GET, "/_search/scroll/{scroll_id}", this);
-        controller.registerHandler(POST, "/_search/scroll/{scroll_id}", this);
-    }
 
     @Override
     public String getName() {
         return "search_scroll_action";
+    }
+
+    @Override
+    public List<Route> routes() {
+        return List.of(
+            new Route(GET, "/_search/scroll"),
+            new Route(POST, "/_search/scroll"),
+            new Route(GET, "/_search/scroll/{scroll_id}"),
+            new Route(POST, "/_search/scroll/{scroll_id}")
+        );
     }
 
     @Override
@@ -65,11 +61,12 @@ public class RestSearchScrollAction extends BaseRestHandler {
                 // NOTE: if rest request with xcontent body has request parameters, values parsed from request body have the precedence
                 try {
                     searchScrollRequest.fromXContent(xContentParser);
-                } catch (IOException e) {
+                } catch (IOException | XContentParseException e) {
                     throw new IllegalArgumentException("Failed to parse request body", e);
                 }
-            }});
-        return channel -> client.searchScroll(searchScrollRequest, new RestStatusToXContentListener<>(channel));
+            }
+        });
+        return channel -> client.searchScroll(searchScrollRequest, new RestRefCountedChunkedToXContentListener<>(channel));
     }
 
     @Override

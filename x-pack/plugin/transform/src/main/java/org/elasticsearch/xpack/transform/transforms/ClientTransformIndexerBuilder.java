@@ -1,34 +1,35 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.transform.transforms;
 
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.ParentTaskAssigningClient;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerPosition;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
+import org.elasticsearch.xpack.transform.TransformExtension;
+import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.checkpoint.CheckpointProvider;
-import org.elasticsearch.xpack.transform.checkpoint.TransformCheckpointService;
-import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.SeqNoPrimaryTermAndIndex;
-import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 
-import java.util.Map;
-import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 
 class ClientTransformIndexerBuilder {
-    private Client client;
-    private TransformConfigManager transformsConfigManager;
-    private TransformCheckpointService transformsCheckpointService;
-    private TransformAuditor auditor;
-    private Map<String, String> fieldMappings;
+    private ParentTaskAssigningClient parentTaskClient;
+    private ClusterService clusterService;
+    private IndexNameExpressionResolver indexNameExpressionResolver;
+    private TransformExtension transformExtension;
+    private TransformServices transformServices;
     private TransformConfig transformConfig;
     private TransformIndexerStats initialStats;
     private IndexerState indexerState = IndexerState.STOPPED;
@@ -43,23 +44,27 @@ class ClientTransformIndexerBuilder {
         this.initialStats = new TransformIndexerStats();
     }
 
-    ClientTransformIndexer build(Executor executor, TransformContext context) {
-        CheckpointProvider checkpointProvider = transformsCheckpointService.getCheckpointProvider(transformConfig);
+    ClientTransformIndexer build(ThreadPool threadPool, TransformContext context) {
+        CheckpointProvider checkpointProvider = transformServices.checkpointService()
+            .getCheckpointProvider(parentTaskClient, transformConfig);
 
         return new ClientTransformIndexer(
-            executor,
-            transformsConfigManager,
+            threadPool,
+            clusterService,
+            indexNameExpressionResolver,
+            transformExtension,
+            transformServices,
             checkpointProvider,
-            new TransformProgressGatherer(client),
             new AtomicReference<>(this.indexerState),
             initialPosition,
-            client,
-            auditor,
+            parentTaskClient,
             initialStats,
             transformConfig,
-            fieldMappings,
             progress,
-            TransformCheckpoint.isNullOrEmpty(lastCheckpoint) ? TransformCheckpoint.EMPTY : lastCheckpoint,
+            // If there already exists at least one checkpoint, the "from" setting is effectively ignored.
+            TransformCheckpoint.isNullOrEmpty(lastCheckpoint)
+                ? (context.from() != null ? TransformCheckpoint.createEmpty(context.from().toEpochMilli()) : TransformCheckpoint.EMPTY)
+                : lastCheckpoint,
             TransformCheckpoint.isNullOrEmpty(nextCheckpoint) ? TransformCheckpoint.EMPTY : nextCheckpoint,
             seqNoPrimaryTermAndIndex,
             context,
@@ -72,28 +77,28 @@ class ClientTransformIndexerBuilder {
         return this;
     }
 
-    ClientTransformIndexerBuilder setClient(Client client) {
-        this.client = client;
+    ClientTransformIndexerBuilder setClient(ParentTaskAssigningClient parentTaskClient) {
+        this.parentTaskClient = parentTaskClient;
         return this;
     }
 
-    ClientTransformIndexerBuilder setTransformsConfigManager(TransformConfigManager transformsConfigManager) {
-        this.transformsConfigManager = transformsConfigManager;
+    ClientTransformIndexerBuilder setIndexNameExpressionResolver(IndexNameExpressionResolver indexNameExpressionResolver) {
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
         return this;
     }
 
-    ClientTransformIndexerBuilder setTransformsCheckpointService(TransformCheckpointService transformsCheckpointService) {
-        this.transformsCheckpointService = transformsCheckpointService;
+    ClientTransformIndexerBuilder setClusterService(ClusterService clusterService) {
+        this.clusterService = clusterService;
         return this;
     }
 
-    ClientTransformIndexerBuilder setAuditor(TransformAuditor auditor) {
-        this.auditor = auditor;
+    ClientTransformIndexerBuilder setTransformExtension(TransformExtension transformExtension) {
+        this.transformExtension = transformExtension;
         return this;
     }
 
-    ClientTransformIndexerBuilder setFieldMappings(Map<String, String> fieldMappings) {
-        this.fieldMappings = fieldMappings;
+    ClientTransformIndexerBuilder setTransformServices(TransformServices transformServices) {
+        this.transformServices = transformServices;
         return this;
     }
 

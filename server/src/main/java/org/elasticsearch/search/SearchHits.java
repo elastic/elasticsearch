@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search;
@@ -22,36 +11,31 @@ package org.elasticsearch.search;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.TotalHits.Relation;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.RefCounted;
+import org.elasticsearch.core.SimpleRefCounted;
 import org.elasticsearch.rest.action.search.RestSearchAction;
+import org.elasticsearch.transport.LeakTracker;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
-
-public final class SearchHits implements Writeable, ToXContentFragment, Iterable<SearchHit> {
-    public static SearchHits empty() {
-        return empty(true);
-    }
-
-    public static SearchHits empty(boolean withTotalHits) {
-        // TODO: consider using static final instance
-        return new SearchHits(EMPTY, withTotalHits ? new TotalHits(0, Relation.EQUAL_TO) : null, 0);
-    }
+public final class SearchHits implements Writeable, ChunkedToXContent, RefCounted, Iterable<SearchHit> {
 
     public static final SearchHit[] EMPTY = new SearchHit[0];
+    public static final SearchHits EMPTY_WITH_TOTAL_HITS = SearchHits.empty(new TotalHits(0, Relation.EQUAL_TO), 0);
+    public static final SearchHits EMPTY_WITHOUT_TOTAL_HITS = SearchHits.empty(null, 0);
 
     private final SearchHit[] hits;
     private final TotalHits totalHits;
@@ -63,56 +47,122 @@ public final class SearchHits implements Writeable, ToXContentFragment, Iterable
     @Nullable
     private final Object[] collapseValues;
 
+    private final RefCounted refCounted;
+
+    public static SearchHits empty(@Nullable TotalHits totalHits, float maxScore) {
+        return new SearchHits(EMPTY, totalHits, maxScore);
+    }
+
     public SearchHits(SearchHit[] hits, @Nullable TotalHits totalHits, float maxScore) {
         this(hits, totalHits, maxScore, null, null, null);
     }
 
-    public SearchHits(SearchHit[] hits, @Nullable TotalHits totalHits, float maxScore, @Nullable SortField[] sortFields,
-                      @Nullable String collapseField, @Nullable Object[] collapseValues) {
+    public SearchHits(
+        SearchHit[] hits,
+        @Nullable TotalHits totalHits,
+        float maxScore,
+        @Nullable SortField[] sortFields,
+        @Nullable String collapseField,
+        @Nullable Object[] collapseValues
+    ) {
+        this(
+            hits,
+            totalHits,
+            maxScore,
+            sortFields,
+            collapseField,
+            collapseValues,
+            hits.length == 0 ? ALWAYS_REFERENCED : LeakTracker.wrap(new SimpleRefCounted())
+        );
+    }
+
+    private SearchHits(
+        SearchHit[] hits,
+        @Nullable TotalHits totalHits,
+        float maxScore,
+        @Nullable SortField[] sortFields,
+        @Nullable String collapseField,
+        @Nullable Object[] collapseValues,
+        RefCounted refCounted
+    ) {
         this.hits = hits;
         this.totalHits = totalHits;
         this.maxScore = maxScore;
         this.sortFields = sortFields;
         this.collapseField = collapseField;
         this.collapseValues = collapseValues;
+        this.refCounted = refCounted;
     }
 
-    public SearchHits(StreamInput in) throws IOException {
+    public static SearchHits unpooled(SearchHit[] hits, @Nullable TotalHits totalHits, float maxScore) {
+        return unpooled(hits, totalHits, maxScore, null, null, null);
+    }
+
+    public static SearchHits unpooled(
+        SearchHit[] hits,
+        @Nullable TotalHits totalHits,
+        float maxScore,
+        @Nullable SortField[] sortFields,
+        @Nullable String collapseField,
+        @Nullable Object[] collapseValues
+    ) {
+        assert assertUnpooled(hits);
+        return new SearchHits(hits, totalHits, maxScore, sortFields, collapseField, collapseValues, ALWAYS_REFERENCED);
+    }
+
+    private static boolean assertUnpooled(SearchHit[] searchHits) {
+        for (SearchHit searchHit : searchHits) {
+            assert searchHit.isPooled() == false : "hit was pooled [" + searchHit + "]";
+        }
+        return true;
+    }
+
+    public static SearchHits readFrom(StreamInput in, boolean pooled) throws IOException {
+        final TotalHits totalHits;
         if (in.readBoolean()) {
             totalHits = Lucene.readTotalHits(in);
         } else {
             // track_total_hits is false
             totalHits = null;
         }
-        maxScore = in.readFloat();
+        final float maxScore = in.readFloat();
         int size = in.readVInt();
+        final SearchHit[] hits;
+        boolean isPooled = false;
         if (size == 0) {
             hits = EMPTY;
         } else {
             hits = new SearchHit[size];
             for (int i = 0; i < hits.length; i++) {
-                hits[i] = new SearchHit(in);
+                var hit = SearchHit.readFrom(in, pooled);
+                hits[i] = hit;
+                isPooled = isPooled || hit.isPooled();
             }
         }
-        sortFields = in.readOptionalArray(Lucene::readSortField, SortField[]::new);
-        collapseField = in.readOptionalString();
-        collapseValues = in.readOptionalArray(Lucene::readSortValue, Object[]::new);
+        var sortFields = in.readOptionalArray(Lucene::readSortField, SortField[]::new);
+        var collapseField = in.readOptionalString();
+        var collapseValues = in.readOptionalArray(Lucene::readSortValue, Object[]::new);
+        if (isPooled) {
+            return new SearchHits(hits, totalHits, maxScore, sortFields, collapseField, collapseValues);
+        } else {
+            return unpooled(hits, totalHits, maxScore, sortFields, collapseField, collapseValues);
+        }
+    }
+
+    public boolean isPooled() {
+        return refCounted != ALWAYS_REFERENCED;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        assert hasReferences();
         final boolean hasTotalHits = totalHits != null;
         out.writeBoolean(hasTotalHits);
         if (hasTotalHits) {
             Lucene.writeTotalHits(out, totalHits);
         }
         out.writeFloat(maxScore);
-        out.writeVInt(hits.length);
-        if (hits.length > 0) {
-            for (SearchHit hit : hits) {
-                hit.writeTo(out);
-            }
-        }
+        out.writeArray(hits);
         out.writeOptionalArray(Lucene::writeSortField, sortFields);
         out.writeOptionalString(collapseField);
         out.writeOptionalArray(Lucene::writeSortValue, collapseValues);
@@ -138,6 +188,7 @@ public final class SearchHits implements Writeable, ToXContentFragment, Iterable
      * The hits of the search request (based on the search type, and from / size provided).
      */
     public SearchHit[] getHits() {
+        assert hasReferences();
         return this.hits;
     }
 
@@ -145,6 +196,7 @@ public final class SearchHits implements Writeable, ToXContentFragment, Iterable
      * Return the hit as the provided position.
      */
     public SearchHit getAt(int position) {
+        assert hasReferences();
         return hits[position];
     }
 
@@ -175,7 +227,52 @@ public final class SearchHits implements Writeable, ToXContentFragment, Iterable
 
     @Override
     public Iterator<SearchHit> iterator() {
-        return Arrays.stream(getHits()).iterator();
+        assert hasReferences();
+        return Iterators.forArray(getHits());
+    }
+
+    @Override
+    public void incRef() {
+        refCounted.incRef();
+    }
+
+    @Override
+    public boolean tryIncRef() {
+        return refCounted.tryIncRef();
+    }
+
+    @Override
+    public boolean decRef() {
+        if (refCounted.decRef()) {
+            deallocate();
+            return true;
+        }
+        return false;
+    }
+
+    private void deallocate() {
+        for (int i = 0; i < hits.length; i++) {
+            assert hits[i] != null;
+            hits[i].decRef();
+            hits[i] = null;
+        }
+    }
+
+    @Override
+    public boolean hasReferences() {
+        return refCounted.hasReferences();
+    }
+
+    public SearchHits asUnpooled() {
+        assert hasReferences();
+        if (refCounted == ALWAYS_REFERENCED) {
+            return this;
+        }
+        final SearchHit[] unpooledHits = new SearchHit[hits.length];
+        for (int i = 0; i < hits.length; i++) {
+            unpooledHits[i] = hits[i].asUnpooled();
+        }
+        return unpooled(unpooledHits, totalHits, maxScore, sortFields, collapseField, collapseValues);
     }
 
     public static final class Fields {
@@ -185,75 +282,28 @@ public final class SearchHits implements Writeable, ToXContentFragment, Iterable
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(Fields.HITS);
-        boolean totalHitAsInt = params.paramAsBoolean(RestSearchAction.TOTAL_HITS_AS_INT_PARAM, false);
-        if (totalHitAsInt) {
-            long total = totalHits == null ? -1 : totalHits.value;
-            builder.field(Fields.TOTAL, total);
-        } else if (totalHits != null) {
-            builder.startObject(Fields.TOTAL);
-            builder.field("value", totalHits.value);
-            builder.field("relation", totalHits.relation == Relation.EQUAL_TO ? "eq" : "gte");
-            builder.endObject();
-        }
-        if (Float.isNaN(maxScore)) {
-            builder.nullField(Fields.MAX_SCORE);
-        } else {
-            builder.field(Fields.MAX_SCORE, maxScore);
-        }
-        builder.field(Fields.HITS);
-        builder.startArray();
-        for (SearchHit hit : hits) {
-            hit.toXContent(builder, params);
-        }
-        builder.endArray();
-        builder.endObject();
-        return builder;
-    }
-
-    public static SearchHits fromXContent(XContentParser parser) throws IOException {
-        if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
-            parser.nextToken();
-            ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser::getTokenLocation);
-        }
-        XContentParser.Token token = parser.currentToken();
-        String currentFieldName = null;
-        List<SearchHit> hits = new ArrayList<>();
-        TotalHits totalHits = null;
-        float maxScore = 0f;
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            if (token == XContentParser.Token.FIELD_NAME) {
-                currentFieldName = parser.currentName();
-            } else if (token.isValue()) {
-                if (Fields.TOTAL.equals(currentFieldName)) {
-                    // For BWC with nodes pre 7.0
-                    long value = parser.longValue();
-                    totalHits = value == -1 ? null : new TotalHits(value, Relation.EQUAL_TO);
-                } else if (Fields.MAX_SCORE.equals(currentFieldName)) {
-                    maxScore = parser.floatValue();
-                }
-            } else if (token == XContentParser.Token.VALUE_NULL) {
-                if (Fields.MAX_SCORE.equals(currentFieldName)) {
-                    maxScore = Float.NaN; // NaN gets rendered as null-field
-                }
-            } else if (token == XContentParser.Token.START_ARRAY) {
-                if (Fields.HITS.equals(currentFieldName)) {
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        hits.add(SearchHit.fromXContent(parser));
-                    }
-                } else {
-                    parser.skipChildren();
-                }
-            } else if (token == XContentParser.Token.START_OBJECT) {
-                if (Fields.TOTAL.equals(currentFieldName)) {
-                    totalHits = parseTotalHitsFragment(parser);
-                } else {
-                    parser.skipChildren();
-                }
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+        assert hasReferences();
+        return Iterators.concat(Iterators.single((b, p) -> b.startObject(Fields.HITS)), Iterators.single((b, p) -> {
+            boolean totalHitAsInt = params.paramAsBoolean(RestSearchAction.TOTAL_HITS_AS_INT_PARAM, false);
+            if (totalHitAsInt) {
+                long total = totalHits == null ? -1 : totalHits.value;
+                b.field(Fields.TOTAL, total);
+            } else if (totalHits != null) {
+                b.startObject(Fields.TOTAL);
+                b.field("value", totalHits.value);
+                b.field("relation", totalHits.relation == Relation.EQUAL_TO ? "eq" : "gte");
+                b.endObject();
             }
-        }
-        return new SearchHits(hits.toArray(new SearchHit[0]), totalHits, maxScore);
+            return b;
+        }), Iterators.single((b, p) -> {
+            if (Float.isNaN(maxScore)) {
+                b.nullField(Fields.MAX_SCORE);
+            } else {
+                b.field(Fields.MAX_SCORE, maxScore);
+            }
+            return b;
+        }), ChunkedToXContentHelper.array(Fields.HITS, Iterators.forArray(hits)), ChunkedToXContentHelper.endObject());
     }
 
     @Override
@@ -263,17 +313,23 @@ public final class SearchHits implements Writeable, ToXContentFragment, Iterable
         }
         SearchHits other = (SearchHits) obj;
         return Objects.equals(totalHits, other.totalHits)
-                && Objects.equals(maxScore, other.maxScore)
-                && Arrays.equals(hits, other.hits)
-                && Arrays.equals(sortFields, other.sortFields)
-                && Objects.equals(collapseField, other.collapseField)
-                && Arrays.equals(collapseValues, other.collapseValues);
+            && Objects.equals(maxScore, other.maxScore)
+            && Arrays.equals(hits, other.hits)
+            && Arrays.equals(sortFields, other.sortFields)
+            && Objects.equals(collapseField, other.collapseField)
+            && Arrays.equals(collapseValues, other.collapseValues);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(totalHits, maxScore, Arrays.hashCode(hits),
-            Arrays.hashCode(sortFields), collapseField, Arrays.hashCode(collapseValues));
+        return Objects.hash(
+            totalHits,
+            maxScore,
+            Arrays.hashCode(hits),
+            Arrays.hashCode(sortFields),
+            collapseField,
+            Arrays.hashCode(collapseValues)
+        );
     }
 
     public static TotalHits parseTotalHitsFragment(XContentParser parser) throws IOException {

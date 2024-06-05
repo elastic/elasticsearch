@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.internal;
@@ -41,14 +30,22 @@ public final class AliasFilter implements Writeable, Rewriteable<AliasFilter> {
 
     public static final AliasFilter EMPTY = new AliasFilter(null, Strings.EMPTY_ARRAY);
 
-    public AliasFilter(QueryBuilder filter, String... aliases) {
+    private AliasFilter(QueryBuilder filter, String... aliases) {
         this.aliases = aliases == null ? Strings.EMPTY_ARRAY : aliases;
         this.filter = filter;
     }
 
-    public AliasFilter(StreamInput input) throws IOException {
-        aliases = input.readStringArray();
-        filter = input.readOptionalNamedWriteable(QueryBuilder.class);
+    public static AliasFilter of(QueryBuilder filter, String... aliases) {
+        if (filter == null && (aliases == null || aliases.length == 0)) {
+            return EMPTY;
+        }
+        return new AliasFilter(filter, aliases);
+    }
+
+    public static AliasFilter readFrom(StreamInput in) throws IOException {
+        final String[] aliases = in.readStringArray();
+        final QueryBuilder filter = in.readOptionalNamedWriteable(QueryBuilder.class);
+        return of(filter, aliases);
     }
 
     @Override
@@ -89,8 +86,7 @@ public final class AliasFilter implements Writeable, Rewriteable<AliasFilter> {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         AliasFilter that = (AliasFilter) o;
-        return Arrays.equals(aliases, that.aliases) &&
-            Objects.equals(filter, that.filter);
+        return Arrays.equals(aliases, that.aliases) && Objects.equals(filter, that.filter);
     }
 
     @Override
@@ -100,9 +96,6 @@ public final class AliasFilter implements Writeable, Rewriteable<AliasFilter> {
 
     @Override
     public String toString() {
-        return "AliasFilter{" +
-            "aliases=" + Arrays.toString(aliases) +
-            ", filter=" + filter +
-            '}';
+        return "AliasFilter{" + "aliases=" + Arrays.toString(aliases) + ", filter=" + filter + '}';
     }
 }

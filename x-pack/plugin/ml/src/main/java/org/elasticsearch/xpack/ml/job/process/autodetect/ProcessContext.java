@@ -1,16 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
-import org.elasticsearch.xpack.ml.action.TransportOpenJobAction.JobTask;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.ml.job.task.JobTask;
 
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
@@ -60,7 +62,7 @@ final class ProcessContext {
                 throw ExceptionsHelper.serverError("Failed to acquire process lock for job [" + jobTask.getJobId() + "]");
             }
         } catch (InterruptedException e) {
-            throw new ElasticsearchException(e);
+            throw new ElasticsearchStatusException(e.getMessage(), RestStatus.TOO_MANY_REQUESTS, e);
         }
     }
 
@@ -68,9 +70,9 @@ final class ProcessContext {
         lock.unlock();
     }
 
-    void setRunning(AutodetectCommunicator autodetectCommunicator) {
+    void setRunning(AutodetectCommunicator communicator) {
         assert lock.isHeldByCurrentThread();
-        state.setRunning(this, autodetectCommunicator);
+        state.setRunning(this, communicator);
     }
 
     boolean setDying() {
@@ -116,6 +118,12 @@ final class ProcessContext {
 
         void kill() {
             if (autodetectCommunicator == null) {
+                // Killing a connected process would also complete the persistent task if `finish` was true,
+                // so we should do the same here even though the process wasn't yet connected at the time of
+                // the kill
+                if (finish) {
+                    jobTask.markAsCompleted();
+                }
                 return;
             }
             String jobId = jobTask.getJobId();
@@ -137,7 +145,9 @@ final class ProcessContext {
     }
 
     enum ProcessStateName {
-        NOT_RUNNING, RUNNING, DYING
+        NOT_RUNNING,
+        RUNNING,
+        DYING
     }
 
     private interface ProcessState {
@@ -145,10 +155,12 @@ final class ProcessContext {
          * @return was a state change made?
          * */
         boolean setRunning(ProcessContext processContext, AutodetectCommunicator autodetectCommunicator);
+
         /**
          * @return was a state change made?
          */
         boolean setDying(ProcessContext processContext);
+
         ProcessStateName getName();
     }
 

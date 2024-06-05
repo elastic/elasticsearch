@@ -1,0 +1,2 @@
+trust.subject_name:
+  - "*.elasticsearch"

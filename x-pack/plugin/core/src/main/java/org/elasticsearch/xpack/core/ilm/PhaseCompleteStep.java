@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ilm;
 
@@ -18,5 +19,15 @@ public class PhaseCompleteStep extends Step {
 
     public static PhaseCompleteStep finalStep(String phase) {
         return new PhaseCompleteStep(new StepKey(phase, NAME, NAME), null);
+    }
+
+    public static StepKey stepKey(String phase) {
+        return new StepKey(phase, NAME, NAME);
+    }
+
+    @Override
+    public boolean isRetryable() {
+        // this is marker step so it doesn't make sense to be retryable
+        return false;
     }
 }

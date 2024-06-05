@@ -1,0 +1,57 @@
+{
+  "ml.delete_forecast":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-delete-forecast.html",
+      "description":"Deletes forecasts from a machine learning job."
+    },
+    "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_ml/anomaly_detectors/{job_id}/_forecast",
+          "methods":[
+            "DELETE"
+          ],
+          "parts":{
+            "job_id":{
+              "type":"string",
+              "description":"The ID of the job from which to delete forecasts"
+            }
+          }
+        },
+        {
+          "path":"/_ml/anomaly_detectors/{job_id}/_forecast/{forecast_id}",
+          "methods":[
+            "DELETE"
+          ],
+          "parts":{
+            "job_id":{
+              "type":"string",
+              "description":"The ID of the job from which to delete forecasts"
+            },
+            "forecast_id":{
+              "type":"string",
+              "description":"The ID of the forecast to delete, can be comma delimited list. Leaving blank implies `_all`"
+            }
+          }
+        }
+      ]
+    },
+    "params":{
+      "allow_no_forecasts":{
+        "type":"boolean",
+        "required":false,
+        "description":"Whether to ignore if `_all` matches no forecasts"
+      },
+      "timeout":{
+        "type":"time",
+        "required":false,
+        "description":"Controls the time to wait until the forecast(s) are deleted. Default to 30 seconds"
+      }
+    }
+  }
+}

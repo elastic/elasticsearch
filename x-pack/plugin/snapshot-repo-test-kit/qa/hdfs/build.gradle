@@ -1,0 +1,40 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+import org.elasticsearch.gradle.internal.info.BuildParams
+
+apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: 'elasticsearch.rest-resources'
+
+dependencies {
+  javaRestTestImplementation testArtifact(project(xpackModule('snapshot-repo-test-kit')))
+  javaRestTestImplementation project(path: ':test:fixtures:hdfs-fixture', configuration:"shadow")
+  javaRestTestImplementation project(':test:fixtures:krb5kdc-fixture')
+  javaRestTestImplementation "org.slf4j:slf4j-api:${versions.slf4j}"
+  javaRestTestImplementation "org.slf4j:slf4j-simple:${versions.slf4j}"
+  javaRestTestRuntimeOnly "com.google.guava:guava:16.0.1"
+  javaRestTestRuntimeOnly "commons-cli:commons-cli:1.2"
+}
+
+restResources {
+  restApi {
+    include 'indices', 'search', 'bulk', 'snapshot', 'nodes', '_common', 'snapshot_repo_test_kit'
+  }
+}
+
+dependencies {
+  clusterPlugins project(':plugins:repository-hdfs')
+}
+
+// Disable integration test if Fips mode
+tasks.named("javaRestTest").configure {
+  usesDefaultDistribution()
+  description = "Runs rest tests against an elasticsearch cluster with HDFS."
+  BuildParams.withFipsEnabledOnly(it)
+  // required for krb5kdc-fixture to work
+  jvmArgs '--add-exports', 'java.security.jgss/sun.security.krb5=ALL-UNNAMED'
+}

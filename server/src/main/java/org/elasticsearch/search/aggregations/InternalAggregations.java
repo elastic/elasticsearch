@@ -1,100 +1,225 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.aggregations;
 
+import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.SiblingPipelineAggregator;
+import org.elasticsearch.search.aggregations.support.AggregationPath;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
+import org.elasticsearch.search.sort.SortValue;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.AbstractList;
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
+import static java.util.Collections.unmodifiableList;
+import static java.util.Collections.unmodifiableMap;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.parseTypedKeysObject;
+
 /**
- * An internal implementation of {@link Aggregations}.
+ * Represents a set of {@link InternalAggregation}s
  */
-public final class InternalAggregations extends Aggregations implements Writeable {
+public final class InternalAggregations implements Iterable<InternalAggregation>, ToXContentFragment, Writeable {
 
-    public static final InternalAggregations EMPTY = new InternalAggregations(Collections.emptyList());
+    public static final String AGGREGATIONS_FIELD = "aggregations";
 
-    private static final Comparator<InternalAggregation> INTERNAL_AGG_COMPARATOR = (agg1, agg2) -> {
-        if (agg1.isMapped() == agg2.isMapped()) {
-            return 0;
-        } else if (agg1.isMapped() && agg2.isMapped() == false) {
-            return -1;
-        } else {
-            return 1;
-        }
-    };
-
-    private final List<SiblingPipelineAggregator> topLevelPipelineAggregators;
+    public static final InternalAggregations EMPTY = new InternalAggregations(List.of());
+    private final List<InternalAggregation> aggregations;
+    private Map<String, InternalAggregation> aggregationsAsMap;
 
     /**
      * Constructs a new aggregation.
      */
-    public InternalAggregations(List<InternalAggregation> aggregations) {
-        super(aggregations);
-        this.topLevelPipelineAggregators = Collections.emptyList();
+    private InternalAggregations(List<InternalAggregation> aggregations) {
+        this.aggregations = aggregations;
+        if (aggregations.isEmpty()) {
+            aggregationsAsMap = Map.of();
+        }
     }
 
     /**
-     * Constructs a new aggregation providing its {@link InternalAggregation}s and {@link SiblingPipelineAggregator}s
+     * Iterates over the {@link InternalAggregation}s.
      */
-    public InternalAggregations(List<InternalAggregation> aggregations, List<SiblingPipelineAggregator> topLevelPipelineAggregators) {
-        super(aggregations);
-        this.topLevelPipelineAggregators = Objects.requireNonNull(topLevelPipelineAggregators);
+    @Override
+    public Iterator<InternalAggregation> iterator() {
+        return aggregations.iterator();
     }
 
-    public InternalAggregations(StreamInput in) throws IOException {
-        super(in.readList(stream -> in.readNamedWriteable(InternalAggregation.class)));
-        this.topLevelPipelineAggregators = in.readList(
-            stream -> (SiblingPipelineAggregator)in.readNamedWriteable(PipelineAggregator.class));
+    /**
+     * The list of {@link InternalAggregation}s.
+     */
+    public List<InternalAggregation> asList() {
+        return unmodifiableList(aggregations);
+    }
+
+    /**
+     * Returns the {@link InternalAggregation}s keyed by aggregation name.
+     */
+    public Map<String, InternalAggregation> asMap() {
+        return getAsMap();
+    }
+
+    /**
+     * Returns the {@link InternalAggregation}s keyed by aggregation name.
+     */
+    public Map<String, InternalAggregation> getAsMap() {
+        if (aggregationsAsMap == null) {
+            Map<String, InternalAggregation> newAggregationsAsMap = Maps.newMapWithExpectedSize(aggregations.size());
+            for (InternalAggregation aggregation : aggregations) {
+                newAggregationsAsMap.put(aggregation.getName(), aggregation);
+            }
+            this.aggregationsAsMap = unmodifiableMap(newAggregationsAsMap);
+        }
+        return aggregationsAsMap;
+    }
+
+    /**
+     * Returns the aggregation that is associated with the specified name.
+     */
+    @SuppressWarnings("unchecked")
+    public <A extends InternalAggregation> A get(String name) {
+        return (A) asMap().get(name);
     }
 
     @Override
-    @SuppressWarnings("unchecked")
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeNamedWriteableList((List<InternalAggregation>)aggregations);
-        out.writeNamedWriteableList(topLevelPipelineAggregators);
+    public boolean equals(Object obj) {
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        return aggregations.equals(((InternalAggregations) obj).aggregations);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(getClass(), aggregations);
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        if (aggregations.isEmpty()) {
+            return builder;
+        }
+        builder.startObject(AGGREGATIONS_FIELD);
+        toXContentInternal(builder, params);
+        return builder.endObject();
     }
 
     /**
-     * Returns the top-level pipeline aggregators.
-     * Note that top-level pipeline aggregators become normal aggregation once the final reduction has been performed, after which they
-     * become part of the list of {@link InternalAggregation}s.
+     * Directly write all the aggregations without their bounding object. Used by sub-aggregations (non top level aggs)
      */
-    public List<SiblingPipelineAggregator> getTopLevelPipelineAggregators() {
-        return topLevelPipelineAggregators;
+    public XContentBuilder toXContentInternal(XContentBuilder builder, Params params) throws IOException {
+        for (InternalAggregation aggregation : aggregations) {
+            aggregation.toXContent(builder, params);
+        }
+        return builder;
     }
 
-    @SuppressWarnings("unchecked")
+    public static InternalAggregations fromXContent(XContentParser parser) throws IOException {
+        final List<InternalAggregation> aggregations = new ArrayList<>();
+        XContentParser.Token token;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.START_OBJECT) {
+                SetOnce<InternalAggregation> typedAgg = new SetOnce<>();
+                String currentField = parser.currentName();
+                parseTypedKeysObject(parser, Aggregation.TYPED_KEYS_DELIMITER, InternalAggregation.class, typedAgg::set);
+                if (typedAgg.get() != null) {
+                    aggregations.add(typedAgg.get());
+                } else {
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        String.format(Locale.ROOT, "Could not parse aggregation keyed as [%s]", currentField)
+                    );
+                }
+            }
+        }
+        return new InternalAggregations(aggregations);
+    }
+
+    public static InternalAggregations from(List<InternalAggregation> aggregations) {
+        if (aggregations.isEmpty()) {
+            return EMPTY;
+        }
+        return new InternalAggregations(aggregations);
+    }
+
+    public static InternalAggregations readFrom(StreamInput in) throws IOException {
+        return from(in.readNamedWriteableCollectionAsList(InternalAggregation.class));
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeNamedWriteableCollection(getInternalAggregations());
+    }
+
+    /**
+     * Make a mutable copy of the aggregation results.
+     */
+    public List<InternalAggregation> copyResults() {
+        return new ArrayList<>(getInternalAggregations());
+    }
+
     private List<InternalAggregation> getInternalAggregations() {
-        return (List<InternalAggregation>) aggregations;
+        return aggregations;
+    }
+
+    /**
+     * Get value to use when sorting by a descendant of the aggregation containing this.
+     */
+    public SortValue sortValue(AggregationPath.PathElement head, Iterator<AggregationPath.PathElement> tail) {
+        InternalAggregation aggregation = get(head.name());
+        if (aggregation == null) {
+            throw new IllegalArgumentException("Cannot find aggregation named [" + head.name() + "]");
+        }
+        if (tail.hasNext()) {
+            return aggregation.sortValue(tail.next(), tail);
+        }
+        // We can sort by either the `[value]` or `.value`
+        return aggregation.sortValue(Optional.ofNullable(head.key()).orElse(head.metric()));
+    }
+
+    /**
+     * Equivalent to {@link #topLevelReduce(List, AggregationReduceContext)} but it takes a list of
+     * {@link DelayableWriteable}. The object will be expanded once via {@link DelayableWriteable#expand()}
+     * but it is the responsibility of the caller to release those releasables.
+     */
+    public static InternalAggregations topLevelReduceDelayable(
+        List<DelayableWriteable<InternalAggregations>> delayableAggregations,
+        AggregationReduceContext context
+    ) {
+        final List<InternalAggregations> aggregations = new AbstractList<>() {
+            @Override
+            public InternalAggregations get(int index) {
+                return delayableAggregations.get(index).expand();
+            }
+
+            @Override
+            public int size() {
+                return delayableAggregations.size();
+            }
+        };
+        return topLevelReduce(aggregations, context);
     }
 
     /**
@@ -105,25 +230,23 @@ public final class InternalAggregations extends Aggregations implements Writeabl
      * This method first reduces the aggregations, and if it is the final reduce, then reduce the pipeline
      * aggregations (both embedded parent/sibling as well as top-level sibling pipelines)
      */
-    public static InternalAggregations topLevelReduce(List<InternalAggregations> aggregationsList, ReduceContext context) {
+    public static InternalAggregations topLevelReduce(List<InternalAggregations> aggregationsList, AggregationReduceContext context) {
         InternalAggregations reduced = reduce(aggregationsList, context);
         if (reduced == null) {
             return null;
         }
-
         if (context.isFinalReduce()) {
             List<InternalAggregation> reducedInternalAggs = reduced.getInternalAggregations();
             reducedInternalAggs = reducedInternalAggs.stream()
-                .map(agg -> agg.reducePipelines(agg, context))
-                .collect(Collectors.toList());
+                .map(agg -> agg.reducePipelines(agg, context, context.pipelineTreeRoot().subTree(agg.getName())))
+                .collect(Collectors.toCollection(ArrayList::new));
 
-            List<SiblingPipelineAggregator> topLevelPipelineAggregators = aggregationsList.get(0).getTopLevelPipelineAggregators();
-            for (SiblingPipelineAggregator pipelineAggregator : topLevelPipelineAggregators) {
-                InternalAggregation newAgg
-                    = pipelineAggregator.doReduce(new InternalAggregations(reducedInternalAggs), context);
+            for (PipelineAggregator pipelineAggregator : context.pipelineTreeRoot().aggregators()) {
+                SiblingPipelineAggregator sib = (SiblingPipelineAggregator) pipelineAggregator;
+                InternalAggregation newAgg = sib.doReduce(from(reducedInternalAggs), context);
                 reducedInternalAggs.add(newAgg);
             }
-            return new InternalAggregations(reducedInternalAggs);
+            return from(reducedInternalAggs);
         }
         return reduced;
     }
@@ -132,35 +255,45 @@ public final class InternalAggregations extends Aggregations implements Writeabl
      * Reduces the given list of aggregations as well as the top-level pipeline aggregators extracted from the first
      * {@link InternalAggregations} object found in the list.
      * Note that pipeline aggregations _are not_ reduced by this method.  Pipelines are handled
-     * separately by {@link InternalAggregations#topLevelReduce(List, ReduceContext)}
+     * separately by {@link InternalAggregations#topLevelReduce(List, AggregationReduceContext)}
      */
-    public static InternalAggregations reduce(List<InternalAggregations> aggregationsList, ReduceContext context) {
+    public static InternalAggregations reduce(List<InternalAggregations> aggregationsList, AggregationReduceContext context) {
         if (aggregationsList.isEmpty()) {
             return null;
         }
-        List<SiblingPipelineAggregator> topLevelPipelineAggregators = aggregationsList.get(0).getTopLevelPipelineAggregators();
-
-        // first we collect all aggregations of the same type and list them together
-        Map<String, List<InternalAggregation>> aggByName = new HashMap<>();
-        for (InternalAggregations aggregations : aggregationsList) {
-            for (Aggregation aggregation : aggregations.aggregations) {
-                List<InternalAggregation> aggs = aggByName.computeIfAbsent(
-                        aggregation.getName(), k -> new ArrayList<>(aggregationsList.size()));
-                aggs.add((InternalAggregation)aggregation);
+        // handle special case when there is just one aggregation
+        if (aggregationsList.size() == 1) {
+            final List<InternalAggregation> internalAggregations = aggregationsList.iterator().next().asList();
+            final List<InternalAggregation> reduced = new ArrayList<>(internalAggregations.size());
+            for (InternalAggregation aggregation : internalAggregations) {
+                if (aggregation.mustReduceOnSingleInternalAgg()) {
+                    try (AggregatorReducer aggregatorReducer = aggregation.getReducer(context.forAgg(aggregation.getName()), 1)) {
+                        aggregatorReducer.accept(aggregation);
+                        reduced.add(aggregatorReducer.get());
+                    }
+                } else {
+                    reduced.add(aggregation);
+                }
             }
+            return from(reduced);
         }
-
-        // now we can use the first aggregation of each list to handle the reduce of its list
-        List<InternalAggregation> reducedAggregations = new ArrayList<>();
-        for (Map.Entry<String, List<InternalAggregation>> entry : aggByName.entrySet()) {
-            List<InternalAggregation> aggregations = entry.getValue();
-            // Sort aggregations so that unmapped aggs come last in the list
-            // If all aggs are unmapped, the agg that leads the reduction will just return itself
-            aggregations.sort(INTERNAL_AGG_COMPARATOR);
-            InternalAggregation first = aggregations.get(0); // the list can't be empty as it's created on demand
-            reducedAggregations.add(first.reduce(aggregations, context));
+        // general case
+        try (AggregatorsReducer reducer = new AggregatorsReducer(context, aggregationsList.size())) {
+            for (InternalAggregations aggregations : aggregationsList) {
+                reducer.accept(aggregations);
+            }
+            return reducer.get();
         }
+    }
 
-        return new InternalAggregations(reducedAggregations, topLevelPipelineAggregators);
+    /**
+     * Finalizes the sampling for all the internal aggregations
+     * @param samplingContext the sampling context
+     * @return the finalized aggregations
+     */
+    public static InternalAggregations finalizeSampling(InternalAggregations internalAggregations, SamplingContext samplingContext) {
+        return from(
+            internalAggregations.aggregations.stream().map(agg -> agg.finalizeSampling(samplingContext)).collect(Collectors.toList())
+        );
     }
 }

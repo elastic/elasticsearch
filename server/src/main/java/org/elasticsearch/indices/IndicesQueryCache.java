@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.indices;
@@ -22,7 +11,6 @@ package org.elasticsearch.indices;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.LRUQueryCache;
@@ -37,13 +25,14 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.Map;
 import java.util.Set;
@@ -54,15 +43,25 @@ public class IndicesQueryCache implements QueryCache, Closeable {
 
     private static final Logger logger = LogManager.getLogger(IndicesQueryCache.class);
 
-    public static final Setting<ByteSizeValue> INDICES_CACHE_QUERY_SIZE_SETTING = 
-            Setting.memorySizeSetting("indices.queries.cache.size", "10%", Property.NodeScope);
+    public static final Setting<ByteSizeValue> INDICES_CACHE_QUERY_SIZE_SETTING = Setting.memorySizeSetting(
+        "indices.queries.cache.size",
+        "10%",
+        Property.NodeScope
+    );
     // mostly a way to prevent queries from being the main source of memory usage
     // of the cache
-    public static final Setting<Integer> INDICES_CACHE_QUERY_COUNT_SETTING = 
-            Setting.intSetting("indices.queries.cache.count", 10_000, 1, Property.NodeScope);
+    public static final Setting<Integer> INDICES_CACHE_QUERY_COUNT_SETTING = Setting.intSetting(
+        "indices.queries.cache.count",
+        10_000,
+        1,
+        Property.NodeScope
+    );
     // enables caching on all segments instead of only the larger ones, for testing only
-    public static final Setting<Boolean> INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING = 
-            Setting.boolSetting("indices.queries.cache.all_segments", false, Property.NodeScope);
+    public static final Setting<Boolean> INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING = Setting.boolSetting(
+        "indices.queries.cache.all_segments",
+        false,
+        Property.NodeScope
+    );
 
     private final LRUQueryCache cache;
     private final ShardCoreKeyMap shardKeyMap = new ShardCoreKeyMap();
@@ -77,41 +76,68 @@ public class IndicesQueryCache implements QueryCache, Closeable {
     public IndicesQueryCache(Settings settings) {
         final ByteSizeValue size = INDICES_CACHE_QUERY_SIZE_SETTING.get(settings);
         final int count = INDICES_CACHE_QUERY_COUNT_SETTING.get(settings);
-        logger.debug("using [node] query cache with size [{}] max filter count [{}]",
-                size, count);
+        logger.debug("using [node] query cache with size [{}] max filter count [{}]", size, count);
         if (INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING.get(settings)) {
-            cache = new ElasticsearchLRUQueryCache(count, size.getBytes(), context -> true, 1f);
+            // Use the default skip_caching_factor (i.e., 10f) in Lucene
+            cache = new ElasticsearchLRUQueryCache(count, size.getBytes(), Predicates.always(), 10f);
         } else {
             cache = new ElasticsearchLRUQueryCache(count, size.getBytes());
         }
         sharedRamBytesUsed = 0;
     }
 
+    private static QueryCacheStats toQueryCacheStatsSafe(@Nullable Stats stats) {
+        return stats == null ? new QueryCacheStats() : stats.toQueryCacheStats();
+    }
+
+    private long getShareOfAdditionalRamBytesUsed(long cacheSize) {
+        if (sharedRamBytesUsed == 0L) {
+            return 0L;
+        }
+
+        // We also have some shared ram usage that we try to distribute proportionally to the cache footprint of each shard.
+        // TODO avoid looping over all local shards here - see https://github.com/elastic/elasticsearch/issues/97222
+        long totalSize = 0L;
+        int shardCount = 0;
+        if (cacheSize == 0L) {
+            for (final var stats : shardStats.values()) {
+                shardCount += 1;
+                if (stats.cacheSize > 0L) {
+                    // some shard has nonzero cache footprint, so we apportion the shared size by cache footprint, and this shard has none
+                    return 0L;
+                }
+            }
+        } else {
+            // branchless loop for the common case
+            for (final var stats : shardStats.values()) {
+                shardCount += 1;
+                totalSize += stats.cacheSize;
+            }
+        }
+
+        if (shardCount == 0) {
+            // Sometimes it's not possible to do this when there are no shard entries at all, which can happen as the shared ram usage can
+            // extend beyond the closing of all shards.
+            return 0L;
+        }
+
+        final long additionalRamBytesUsed;
+        if (totalSize == 0) {
+            // all shards have zero cache footprint, so we apportion the size of the shared bytes equally across all shards
+            additionalRamBytesUsed = Math.round((double) sharedRamBytesUsed / shardCount);
+        } else {
+            // some shards have nonzero cache footprint, so we apportion the size of the shared bytes proportionally to cache footprint
+            additionalRamBytesUsed = Math.round((double) sharedRamBytesUsed * cacheSize / totalSize);
+        }
+        assert additionalRamBytesUsed >= 0L : additionalRamBytesUsed;
+        return additionalRamBytesUsed;
+    }
+
     /** Get usage statistics for the given shard. */
     public QueryCacheStats getStats(ShardId shard) {
-        final Map<ShardId, QueryCacheStats> stats = new HashMap<>();
-        for (Map.Entry<ShardId, Stats> entry : shardStats.entrySet()) {
-            stats.put(entry.getKey(), entry.getValue().toQueryCacheStats());
-        }
-        QueryCacheStats shardStats = new QueryCacheStats();
-        QueryCacheStats info = stats.get(shard);
-        if (info == null) {
-            info = new QueryCacheStats();
-        }
-        shardStats.add(info);
-
-        // We also have some shared ram usage that we try to distribute to
-        // proportionally to their number of cache entries of each shard
-        long totalSize = 0;
-        for (QueryCacheStats s : stats.values()) {
-            totalSize += s.getCacheSize();
-        }
-        final double weight = totalSize == 0
-                ? 1d / stats.size()
-                : ((double) shardStats.getCacheSize()) / totalSize;
-        final long additionalRamBytesUsed = Math.round(weight * sharedRamBytesUsed);
-        shardStats.add(new QueryCacheStats(additionalRamBytesUsed, 0, 0, 0, 0));
-        return shardStats;
+        final QueryCacheStats queryCacheStats = toQueryCacheStatsSafe(shardStats.get(shard));
+        queryCacheStats.addRamBytesUsed(getShareOfAdditionalRamBytesUsed(queryCacheStats.getCacheSize()));
+        return queryCacheStats;
     }
 
     @Override
@@ -135,14 +161,15 @@ public class IndicesQueryCache implements QueryCache, Closeable {
         }
 
         @Override
-        public void extractTerms(Set<Term> terms) {
-            in.extractTerms(terms);
-        }
-
-        @Override
         public Explanation explain(LeafReaderContext context, int doc) throws IOException {
             shardKeyMap.add(context.reader());
             return in.explain(context, doc);
+        }
+
+        @Override
+        public int count(LeafReaderContext context) throws IOException {
+            shardKeyMap.add(context.reader());
+            return in.count(context);
         }
 
         @Override
@@ -216,8 +243,19 @@ public class IndicesQueryCache implements QueryCache, Closeable {
 
         @Override
         public String toString() {
-            return "{shardId=" + shardId + ", ramBytedUsed=" + ramBytesUsed + ", hitCount=" + hitCount + ", missCount=" + missCount +
-                    ", cacheCount=" + cacheCount + ", cacheSize=" + cacheSize + "}";
+            return "{shardId="
+                + shardId
+                + ", ramBytedUsed="
+                + ramBytesUsed
+                + ", hitCount="
+                + hitCount
+                + ", missCount="
+                + missCount
+                + ", cacheCount="
+                + cacheCount
+                + ", cacheSize="
+                + cacheSize
+                + "}";
         }
     }
 
@@ -236,7 +274,7 @@ public class IndicesQueryCache implements QueryCache, Closeable {
         }
     }
 
-    private boolean empty(Stats stats) {
+    private static boolean empty(Stats stats) {
         if (stats == null) {
             return true;
         }
@@ -267,13 +305,7 @@ public class IndicesQueryCache implements QueryCache, Closeable {
         }
 
         private Stats getOrCreateStats(Object coreKey) {
-            final ShardId shardId = shardKeyMap.getShardId(coreKey);
-            Stats stats = shardStats.get(shardId);
-            if (stats == null) {
-                stats = new Stats(shardId);
-                shardStats.put(shardId, stats);
-            }
-            return stats;
+            return shardStats.computeIfAbsent(shardKeyMap.getShardId(coreKey), Stats::new);
         }
 
         // It's ok to not protect these callbacks by a lock since it is

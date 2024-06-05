@@ -1,59 +1,53 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.rest.action.admin.cluster;
 
 import org.elasticsearch.action.admin.cluster.node.reload.NodesReloadSecureSettingsRequest;
-import org.elasticsearch.action.admin.cluster.node.reload.NodesReloadSecureSettingsRequestBuilder;
 import org.elasticsearch.action.admin.cluster.node.reload.NodesReloadSecureSettingsResponse;
-import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.action.admin.cluster.node.reload.TransportNodesReloadSecureSettingsAction;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequestFilter;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.rest.RestUtils.getTimeout;
 
-public final class RestReloadSecureSettingsAction extends BaseRestHandler {
+public final class RestReloadSecureSettingsAction extends BaseRestHandler implements RestRequestFilter {
 
-    static final ObjectParser<NodesReloadSecureSettingsRequest, String> PARSER =
-        new ObjectParser<>("reload_secure_settings", NodesReloadSecureSettingsRequest::new);
-
-    static {
-        PARSER.declareString((request, value) -> request.setSecureStorePassword(new SecureString(value.toCharArray())),
-            new ParseField("secure_settings_password"));
+    static final class ParsedRequestBody {
+        @Nullable
+        SecureString secureSettingsPassword;
     }
 
-    public RestReloadSecureSettingsAction(RestController controller) {
-        controller.registerHandler(POST, "/_nodes/reload_secure_settings", this);
-        controller.registerHandler(POST, "/_nodes/{nodeId}/reload_secure_settings", this);
+    static final ObjectParser<ParsedRequestBody, String> PARSER = new ObjectParser<>("reload_secure_settings", ParsedRequestBody::new);
+
+    static {
+        PARSER.declareString(
+            (parsedRequestBody, value) -> parsedRequestBody.secureSettingsPassword = new SecureString(value.toCharArray()),
+            new ParseField("secure_settings_password")
+        );
     }
 
     @Override
@@ -62,34 +56,48 @@ public final class RestReloadSecureSettingsAction extends BaseRestHandler {
     }
 
     @Override
+    public List<Route> routes() {
+        return List.of(new Route(POST, "/_nodes/reload_secure_settings"), new Route(POST, "/_nodes/{nodeId}/reload_secure_settings"));
+    }
+
+    @Override
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        final String[] nodesIds = Strings.splitStringByCommaToArray(request.param("nodeId"));
-        final NodesReloadSecureSettingsRequestBuilder nodesRequestBuilder = client.admin()
-            .cluster()
-            .prepareReloadSecureSettings()
-            .setTimeout(request.param("timeout"))
-            .setNodesIds(nodesIds);
+        final NodesReloadSecureSettingsRequest reloadSecureSettingsRequest = new NodesReloadSecureSettingsRequest();
+        reloadSecureSettingsRequest.nodesIds(Strings.splitStringByCommaToArray(request.param("nodeId")));
+        reloadSecureSettingsRequest.timeout(getTimeout(request));
         request.withContentOrSourceParamParserOrNull(parser -> {
             if (parser != null) {
-                final NodesReloadSecureSettingsRequest nodesRequest = nodesRequestBuilder.request();
-                nodesRequestBuilder.setSecureStorePassword(nodesRequest.getSecureSettingsPassword());
+                final ParsedRequestBody parsedRequestBody = PARSER.parse(parser, null);
+                reloadSecureSettingsRequest.setSecureStorePassword(parsedRequestBody.secureSettingsPassword);
             }
         });
 
-        return channel -> nodesRequestBuilder
-                .execute(new RestBuilderListener<NodesReloadSecureSettingsResponse>(channel) {
-                    @Override
-                    public RestResponse buildResponse(NodesReloadSecureSettingsResponse response, XContentBuilder builder)
-                        throws Exception {
-                        builder.startObject();
-                        RestActions.buildNodesHeader(builder, channel.request(), response);
-                        builder.field("cluster_name", response.getClusterName().value());
-                        response.toXContent(builder, channel.request());
-                        builder.endObject();
-                        nodesRequestBuilder.request().closePassword();
-                        return new BytesRestResponse(RestStatus.OK, builder);
+        return new RestChannelConsumer() {
+            @Override
+            public void accept(RestChannel channel) {
+                client.execute(
+                    TransportNodesReloadSecureSettingsAction.TYPE,
+                    reloadSecureSettingsRequest,
+                    new RestBuilderListener<>(channel) {
+                        @Override
+                        public RestResponse buildResponse(NodesReloadSecureSettingsResponse response, XContentBuilder builder)
+                            throws Exception {
+                            builder.startObject();
+                            RestActions.buildNodesHeader(builder, channel.request(), response);
+                            builder.field("cluster_name", response.getClusterName().value());
+                            response.toXContent(builder, channel.request());
+                            builder.endObject();
+                            return new RestResponse(RestStatus.OK, builder);
+                        }
                     }
-                });
+                );
+            }
+
+            @Override
+            public void close() {
+                reloadSecureSettingsRequest.decRef();
+            }
+        };
     }
 
     @Override
@@ -97,4 +105,10 @@ public final class RestReloadSecureSettingsAction extends BaseRestHandler {
         return false;
     }
 
+    private static final Set<String> FILTERED_FIELDS = Set.of("secure_settings_password");
+
+    @Override
+    public Set<String> getFilteredFields() {
+        return FILTERED_FIELDS;
+    }
 }

@@ -1,31 +1,24 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.fetch;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.RefCounted;
+import org.elasticsearch.core.SimpleRefCounted;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.search.query.QuerySearchResult;
+import org.elasticsearch.search.internal.ShardSearchContextId;
+import org.elasticsearch.search.profile.ProfileResult;
+import org.elasticsearch.transport.LeakTracker;
 
 import java.io.IOException;
 
@@ -35,23 +28,30 @@ public final class FetchSearchResult extends SearchPhaseResult {
     // client side counter
     private transient int counter;
 
-    public FetchSearchResult() {
+    private ProfileResult profileResult;
+
+    private final RefCounted refCounted = LeakTracker.wrap(new SimpleRefCounted());
+
+    public FetchSearchResult() {}
+
+    public FetchSearchResult(ShardSearchContextId id, SearchShardTarget shardTarget) {
+        this.contextId = id;
+        setSearchShardTarget(shardTarget);
     }
 
     public FetchSearchResult(StreamInput in) throws IOException {
         super(in);
-        requestId = in.readLong();
-        hits = new SearchHits(in);
-    }
-
-    public FetchSearchResult(long id, SearchShardTarget shardTarget) {
-        this.requestId = id;
-        setSearchShardTarget(shardTarget);
+        contextId = new ShardSearchContextId(in);
+        hits = SearchHits.readFrom(in, true);
+        profileResult = in.readOptionalWriteable(ProfileResult::new);
     }
 
     @Override
-    public QuerySearchResult queryResult() {
-        return null;
+    public void writeTo(StreamOutput out) throws IOException {
+        assert hasReferences();
+        contextId.writeTo(out);
+        hits.writeTo(out);
+        out.writeOptionalWriteable(profileResult);
     }
 
     @Override
@@ -59,12 +59,20 @@ public final class FetchSearchResult extends SearchPhaseResult {
         return this;
     }
 
-    public void hits(SearchHits hits) {
+    public void shardResult(SearchHits hits, ProfileResult profileResult) {
         assert assertNoSearchTarget(hits);
+        assert hasReferences();
+        var existing = this.hits;
+        if (existing != null) {
+            existing.decRef();
+        }
         this.hits = hits;
+        hits.mustIncRef();
+        assert this.profileResult == null;
+        this.profileResult = profileResult;
     }
 
-    private boolean assertNoSearchTarget(SearchHits hits) {
+    private static boolean assertNoSearchTarget(SearchHits hits) {
         for (SearchHit hit : hits.getHits()) {
             assert hit.getShard() == null : "expected null but got: " + hit.getShard();
         }
@@ -72,6 +80,7 @@ public final class FetchSearchResult extends SearchPhaseResult {
     }
 
     public SearchHits hits() {
+        assert hasReferences();
         return hits;
     }
 
@@ -84,9 +93,38 @@ public final class FetchSearchResult extends SearchPhaseResult {
         return counter++;
     }
 
+    public ProfileResult profileResult() {
+        return profileResult;
+    }
+
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeLong(requestId);
-        hits.writeTo(out);
+    public void incRef() {
+        refCounted.incRef();
+    }
+
+    @Override
+    public boolean tryIncRef() {
+        return refCounted.tryIncRef();
+    }
+
+    @Override
+    public boolean decRef() {
+        if (refCounted.decRef()) {
+            deallocate();
+            return true;
+        }
+        return false;
+    }
+
+    private void deallocate() {
+        if (hits != null) {
+            hits.decRef();
+            hits = null;
+        }
+    }
+
+    @Override
+    public boolean hasReferences() {
+        return refCounted.hasReferences();
     }
 }

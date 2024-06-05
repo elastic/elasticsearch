@@ -1,31 +1,55 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.action.admin.indices.delete;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.cluster.ClusterStateAckListener;
+import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.ack.IndicesClusterStateUpdateRequest;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 
 /**
  * Cluster state update request that allows to close one or more indices
  */
-public class DeleteIndexClusterStateUpdateRequest extends IndicesClusterStateUpdateRequest<DeleteIndexClusterStateUpdateRequest> {
+public class DeleteIndexClusterStateUpdateRequest extends IndicesClusterStateUpdateRequest<DeleteIndexClusterStateUpdateRequest>
+    implements
+        ClusterStateAckListener,
+        ClusterStateTaskListener {
 
-    DeleteIndexClusterStateUpdateRequest() {
+    private final ActionListener<AcknowledgedResponse> listener;
 
+    public DeleteIndexClusterStateUpdateRequest(ActionListener<AcknowledgedResponse> listener) {
+        this.listener = listener;
+    }
+
+    @Override
+    public void onFailure(Exception e) {
+        listener.onFailure(e);
+    }
+
+    @Override
+    public boolean mustAck(DiscoveryNode discoveryNode) {
+        return true;
+    }
+
+    @Override
+    public void onAllNodesAcked() {
+        listener.onResponse(AcknowledgedResponse.TRUE);
+    }
+
+    @Override
+    public void onAckFailure(Exception e) {
+        listener.onResponse(AcknowledgedResponse.FALSE);
+    }
+
+    @Override
+    public void onAckTimeout() {
+        listener.onResponse(AcknowledgedResponse.FALSE);
     }
 }

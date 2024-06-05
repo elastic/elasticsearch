@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.reindex;
@@ -23,35 +12,40 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Predicate;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Objects.requireNonNull;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
+import static org.elasticsearch.core.TimeValue.parseTimeValue;
 import static org.elasticsearch.index.VersionType.INTERNAL;
 
 /**
@@ -60,12 +54,11 @@ import static org.elasticsearch.index.VersionType.INTERNAL;
  * of reasons, not least of which that scripts are allowed to change the destination request in drastic ways, including changing the index
  * to which documents are written.
  */
-public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequest>
-                            implements CompositeIndicesRequest, ToXContentObject {
+public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequest> implements CompositeIndicesRequest, ToXContentObject {
     /**
      * Prototype for index requests.
      */
-    private IndexRequest destination;
+    private final IndexRequest destination;
 
     private RemoteInfo remoteInfo;
 
@@ -73,11 +66,7 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
         this(new SearchRequest(), new IndexRequest(), true);
     }
 
-    ReindexRequest(SearchRequest search, IndexRequest destination) {
-        this(search, destination, true);
-    }
-
-    private ReindexRequest(SearchRequest search, IndexRequest destination, boolean setDefaults) {
+    ReindexRequest(SearchRequest search, IndexRequest destination, boolean setDefaults) {
         super(search, setDefaults);
         this.destination = destination;
     }
@@ -134,13 +123,10 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
         if (destination.routing() == null || destination.routing().startsWith("=")) {
             return true;
         }
-        switch (destination.routing()) {
-        case "keep":
-        case "discard":
-            return true;
-        default:
-            return false;
-        }
+        return switch (destination.routing()) {
+            case "keep", "discard" -> true;
+            default -> false;
+        };
     }
 
     /**
@@ -237,6 +223,14 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
     }
 
     /**
+     * Sets the require_alias request flag on the destination index
+     */
+    public ReindexRequest setRequireAlias(boolean requireAlias) {
+        this.getDestination().setRequireAlias(requireAlias);
+        return this;
+    }
+
+    /**
      * Gets the target for this reindex request in the for of an {@link IndexRequest}
      */
     public IndexRequest getDestination() {
@@ -320,10 +314,10 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
         return builder;
     }
 
-    static final ObjectParser<ReindexRequest, Void> PARSER = new ObjectParser<>("reindex");
+    static final ObjectParser<ReindexRequest, Predicate<NodeFeature>> PARSER = new ObjectParser<>("reindex");
 
     static {
-        ObjectParser.Parser<ReindexRequest, Void> sourceParser = (parser, request, context) -> {
+        ObjectParser.Parser<ReindexRequest, Predicate<NodeFeature>> sourceParser = (parser, request, context) -> {
             // Funky hack to work around Search not having a proper ObjectParser and us wanting to extract query if using remote.
             Map<String, Object> source = parser.map();
             String[] indices = extractStringArray(source, "index");
@@ -333,10 +327,15 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
             request.setRemoteInfo(buildRemoteInfo(source));
             XContentBuilder builder = XContentFactory.contentBuilder(parser.contentType());
             builder.map(source);
-            try (InputStream stream = BytesReference.bytes(builder).streamInput();
-                 XContentParser innerParser = parser.contentType().xContent()
-                     .createParser(parser.getXContentRegistry(), parser.getDeprecationHandler(), stream)) {
-                request.getSearchRequest().source().parseXContent(innerParser, false);
+            try (
+                XContentParser innerParser = XContentHelper.createParserNotCompressed(
+                    XContentParserConfiguration.EMPTY.withRegistry(parser.getXContentRegistry())
+                        .withDeprecationHandler(parser.getDeprecationHandler()),
+                    BytesReference.bytes(builder),
+                    parser.contentType()
+                )
+            ) {
+                request.getSearchRequest().source().parseXContent(innerParser, false, context);
             }
         };
 
@@ -347,25 +346,41 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
         destParser.declareString(IndexRequest::setPipeline, new ParseField("pipeline"));
         destParser.declareString((s, i) -> s.versionType(VersionType.fromString(i)), new ParseField("version_type"));
 
-        PARSER.declareField(sourceParser::parse, new ParseField("source"), ObjectParser.ValueType.OBJECT);
-        PARSER.declareField((p, v, c) -> destParser.parse(p, v.getDestination(), c), new ParseField("dest"), ObjectParser.ValueType.OBJECT);
-        PARSER.declareInt(ReindexRequest::setMaxDocsValidateIdentical, new ParseField("max_docs"));
+        PARSER.declareField(sourceParser, new ParseField("source"), ObjectParser.ValueType.OBJECT);
+        PARSER.declareField(
+            (p, v, c) -> destParser.parse(p, v.getDestination(), null),
+            new ParseField("dest"),
+            ObjectParser.ValueType.OBJECT
+        );
+
+        PARSER.declareInt(
+            ReindexRequest::setMaxDocsValidateIdentical,
+            new ParseField("max_docs", "size").forRestApiVersion(RestApiVersion.equalTo(RestApiVersion.V_7))
+        );
+
+        PARSER.declareInt(
+            ReindexRequest::setMaxDocsValidateIdentical,
+            new ParseField("max_docs").forRestApiVersion(RestApiVersion.onOrAfter(RestApiVersion.V_8))
+        );
         // avoid silently accepting an ignored size.
-        PARSER.declareInt((r,s) -> failOnSizeSpecified(), new ParseField("size"));
-        PARSER.declareField((p, v, c) -> v.setScript(Script.parse(p)), new ParseField("script"),
-            ObjectParser.ValueType.OBJECT);
+        PARSER.declareInt(
+            (r, s) -> failOnSizeSpecified(),
+            new ParseField("size").forRestApiVersion(RestApiVersion.onOrAfter(RestApiVersion.V_8))
+        );
+
+        PARSER.declareField((p, v, c) -> v.setScript(Script.parse(p)), new ParseField("script"), ObjectParser.ValueType.OBJECT);
         PARSER.declareString(ReindexRequest::setConflicts, new ParseField("conflicts"));
     }
 
-    public static ReindexRequest fromXContent(XContentParser parser) throws IOException {
+    public static ReindexRequest fromXContent(XContentParser parser, Predicate<NodeFeature> clusterSupportsFeature) throws IOException {
         ReindexRequest reindexRequest = new ReindexRequest();
-        PARSER.parse(parser, reindexRequest, null);
+        PARSER.parse(parser, reindexRequest, clusterSupportsFeature);
         return reindexRequest;
     }
 
     /**
      * Yank a string array from a map. Emulates XContent's permissive String to
-     * String array conversions.
+     * String array conversions and allow comma separated String.
      */
     private static String[] extractStringArray(Map<String, Object> source, String name) {
         Object value = source.remove(name);
@@ -377,9 +392,9 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
             List<String> list = (List<String>) value;
             return list.toArray(new String[list.size()]);
         } else if (value instanceof String) {
-            return new String[] {(String) value};
+            return Strings.splitStringByCommaToArray((String) value);
         } else {
-            throw new IllegalArgumentException("Expected [" + name + "] to be a list of a string but was [" + value + ']');
+            throw new IllegalArgumentException("Expected [" + name + "] to be a list or a string but was [" + value + ']');
         }
     }
 
@@ -390,7 +405,7 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
             return null;
         }
         String username = extractString(remote, "username");
-        String password = extractString(remote, "password");
+        SecureString password = extractSecureString(remote, "password");
         String hostInRequest = requireNonNull(extractString(remote, "host"), "[host] must be specified to reindex from a remote cluster");
         URI uri;
         try {
@@ -400,8 +415,10 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
                 throw new URISyntaxException(hostInRequest, "The port was not defined in the [host]");
             }
         } catch (URISyntaxException ex) {
-            throw new IllegalArgumentException("[host] must be of the form [scheme]://[host]:[port](/[pathPrefix])? but was ["
-                + hostInRequest + "]", ex);
+            throw new IllegalArgumentException(
+                "[host] must be of the form [scheme]://[host]:[port](/[pathPrefix])? but was [" + hostInRequest + "]",
+                ex
+            );
         }
 
         String scheme = uri.getScheme();
@@ -418,10 +435,21 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
         TimeValue connectTimeout = extractTimeValue(remote, "connect_timeout", RemoteInfo.DEFAULT_CONNECT_TIMEOUT);
         if (false == remote.isEmpty()) {
             throw new IllegalArgumentException(
-                "Unsupported fields in [remote]: [" + Strings.collectionToCommaDelimitedString(remote.keySet()) + "]");
+                "Unsupported fields in [remote]: [" + Strings.collectionToCommaDelimitedString(remote.keySet()) + "]"
+            );
         }
-        return new RemoteInfo(scheme, host, port, pathPrefix, RemoteInfo.queryForRemote(source),
-            username, password, headers, socketTimeout, connectTimeout);
+        return new RemoteInfo(
+            scheme,
+            host,
+            port,
+            pathPrefix,
+            RemoteInfo.queryForRemote(source),
+            username,
+            password,
+            headers,
+            socketTimeout,
+            connectTimeout
+        );
     }
 
     private static String extractString(Map<String, Object> source, String name) {
@@ -429,8 +457,19 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
         if (value == null) {
             return null;
         }
-        if (value instanceof String) {
-            return (String) value;
+        if (value instanceof String str) {
+            return str;
+        }
+        throw new IllegalArgumentException("Expected [" + name + "] to be a string but was [" + value + "]");
+    }
+
+    private static SecureString extractSecureString(Map<String, Object> source, String name) {
+        Object value = source.remove(name);
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof String str) {
+            return new SecureString(str.toCharArray());
         }
         throw new IllegalArgumentException("Expected [" + name + "] to be a string but was [" + value + "]");
     }
@@ -450,7 +489,7 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
             }
         }
         @SuppressWarnings("unchecked") // We just checked....
-            Map<String, String> safe = (Map<String, String>) map;
+        Map<String, String> safe = (Map<String, String>) map;
         return safe;
     }
 
@@ -461,8 +500,9 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
 
     static void setMaxDocsValidateIdentical(AbstractBulkByScrollRequest<?> request, int maxDocs) {
         if (request.getMaxDocs() != AbstractBulkByScrollRequest.MAX_DOCS_ALL_MATCHES && request.getMaxDocs() != maxDocs) {
-            throw new IllegalArgumentException("[max_docs] set to two different values [" + request.getMaxDocs() + "]" +
-                " and [" + maxDocs + "]");
+            throw new IllegalArgumentException(
+                "[max_docs] set to two different values [" + request.getMaxDocs() + "]" + " and [" + maxDocs + "]"
+            );
         } else {
             request.setMaxDocs(maxDocs);
         }

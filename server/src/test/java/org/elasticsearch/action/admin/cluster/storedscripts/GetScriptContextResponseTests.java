@@ -1,31 +1,44 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.action.admin.cluster.storedscripts;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.script.ScriptContextInfo;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
-public class GetScriptContextResponseTests extends AbstractSerializingTestCase<GetScriptContextResponse> {
+public class GetScriptContextResponseTests extends AbstractXContentSerializingTestCase<GetScriptContextResponse> {
+
+    @SuppressWarnings("unchecked")
+    private static final ConstructingObjectParser<GetScriptContextResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "get_script_context",
+        true,
+        (a) -> {
+            Map<String, ScriptContextInfo> contexts = ((List<ScriptContextInfo>) a[0]).stream()
+                .collect(Collectors.toMap(ScriptContextInfo::getName, c -> c));
+            return new GetScriptContextResponse(contexts);
+        }
+    );
+
+    static {
+        PARSER.declareObjectArray(
+            ConstructingObjectParser.constructorArg(),
+            ScriptContextInfo.PARSER::apply,
+            GetScriptContextResponse.CONTEXTS
+        );
+    }
 
     @Override
     protected GetScriptContextResponse createTestInstance() {
@@ -42,11 +55,11 @@ public class GetScriptContextResponseTests extends AbstractSerializingTestCase<G
 
     @Override
     protected GetScriptContextResponse doParseInstance(XContentParser parser) throws IOException {
-        return GetScriptContextResponse.fromXContent(parser);
+        return PARSER.apply(parser, null);
     }
 
     @Override
-    protected GetScriptContextResponse mutateInstance(GetScriptContextResponse instance) throws IOException {
+    protected GetScriptContextResponse mutateInstance(GetScriptContextResponse instance) {
         return new GetScriptContextResponse(ScriptContextInfoSerializingTests.mutateOne(instance.contexts.values()));
     }
 }

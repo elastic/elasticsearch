@@ -1,18 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.action.util;
 
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
@@ -42,7 +43,7 @@ public final class QueryPage<T extends ToXContent & Writeable> implements ToXCon
 
     public QueryPage(StreamInput in, Reader<T> hitReader) throws IOException {
         resultsField = new ParseField(in.readString());
-        results = in.readList(hitReader);
+        results = in.readCollectionAsList(hitReader);
         count = in.readLong();
     }
 
@@ -53,7 +54,7 @@ public final class QueryPage<T extends ToXContent & Writeable> implements ToXCon
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(resultsField.getPreferredName());
-        out.writeList(results);
+        out.writeCollection(results);
         out.writeLong(count);
     }
 
@@ -106,7 +107,6 @@ public final class QueryPage<T extends ToXContent & Writeable> implements ToXCon
 
         @SuppressWarnings("unchecked")
         QueryPage<T> other = (QueryPage<T>) obj;
-        return Objects.equals(results, other.results) &&
-                Objects.equals(count, other.count);
+        return Objects.equals(results, other.results) && Objects.equals(count, other.count);
     }
 }

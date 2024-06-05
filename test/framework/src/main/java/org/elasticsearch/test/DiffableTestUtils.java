@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.test;
@@ -61,8 +50,8 @@ public final class DiffableTestUtils {
     /**
      * Simulates sending diffs over the wire
      */
-    public static <T extends Writeable> T copyInstance(T diffs, NamedWriteableRegistry namedWriteableRegistry,
-                                                                  Reader<T> reader) throws IOException {
+    public static <T extends Writeable> T copyInstance(T diffs, NamedWriteableRegistry namedWriteableRegistry, Reader<T> reader)
+        throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             diffs.writeTo(output);
             try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
@@ -75,11 +64,13 @@ public final class DiffableTestUtils {
      * Tests making random changes to an object, calculating diffs for these changes, sending this
      * diffs over the wire and appling these diffs on the other side.
      */
-    public static <T extends Diffable<T>> void testDiffableSerialization(Supplier<T> testInstance,
-                                                                         Function<T, T> modifier,
-                                                                         NamedWriteableRegistry namedWriteableRegistry,
-                                                                         Reader<T> reader,
-                                                                         Reader<Diff<T>> diffReader) throws IOException {
+    public static <T extends Diffable<T>> void testDiffableSerialization(
+        Supplier<T> testInstance,
+        Function<T, T> modifier,
+        NamedWriteableRegistry namedWriteableRegistry,
+        Reader<T> reader,
+        Reader<Diff<T>> diffReader
+    ) throws IOException {
         T remoteInstance = testInstance.get();
         T localInstance = assertSerialization(remoteInstance, namedWriteableRegistry, reader);
         for (int runs = 0; runs < NUMBER_OF_DIFF_TEST_RUNS; runs++) {
@@ -94,8 +85,11 @@ public final class DiffableTestUtils {
     /**
      * Asserts that testInstance can be correctly.
      */
-    public static  <T extends Writeable> T assertSerialization(T testInstance, NamedWriteableRegistry namedWriteableRegistry,
-                                                          Reader<T> reader) throws IOException {
+    public static <T extends Writeable> T assertSerialization(
+        T testInstance,
+        NamedWriteableRegistry namedWriteableRegistry,
+        Reader<T> reader
+    ) throws IOException {
         T deserializedInstance = copyInstance(testInstance, namedWriteableRegistry, reader);
         assertEquals(testInstance, deserializedInstance);
         assertEquals(testInstance.hashCode(), deserializedInstance.hashCode());

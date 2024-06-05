@@ -1,0 +1,27 @@
+# Integration tests for HDFS Repository plugin
+#
+# Tests creating a repository
+#
+"HDFS Repository Creation":
+    # Create repository
+    - do:
+        snapshot.create_repository:
+          repository: test_repository_create
+          body:
+            type: hdfs
+            settings:
+              uri: "hdfs://localhost:@hdfs_port@"
+              path: "test/repository_create"
+
+    # Get repository
+    - do:
+        snapshot.get_repository:
+          repository: test_repository_create
+
+    - is_true: test_repository_create
+    - match: {test_repository_create.settings.path : "test/repository_create"}
+
+    # Remove our repository
+    - do:
+       snapshot.delete_repository:
+         repository: test_repository_create

@@ -1,48 +1,38 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.suggest.phrase;
 
-
 import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.BytesRefs;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.analysis.AnalyzerComponentsProvider;
+import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.ShingleTokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.search.suggest.SuggestionBuilder;
 import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestionContext.DirectCandidateGenerator;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser.Token;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -137,7 +127,7 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
         if (in.readBoolean()) {
             collateQuery = new Script(in);
         }
-        collateParams = in.readMap();
+        collateParams = in.readGenericMap();
         collatePrune = in.readOptionalBoolean();
         int generatorsEntries = in.readVInt();
         for (int i = 0; i < generatorsEntries; i++) {
@@ -172,15 +162,7 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
         }
         out.writeMapWithConsistentOrder(collateParams);
         out.writeOptionalBoolean(collatePrune);
-        out.writeVInt(this.generators.size());
-        for (Entry<String, List<CandidateGenerator>> entry : this.generators.entrySet()) {
-            out.writeString(entry.getKey());
-            List<CandidateGenerator> generatorsList = entry.getValue();
-            out.writeVInt(generatorsList.size());
-            for (CandidateGenerator generator : generatorsList) {
-                generator.writeTo(out);
-            }
-        }
+        out.writeMap(this.generators, StreamOutput::writeCollection);
     }
 
     /**
@@ -294,12 +276,7 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
      * phrase term before the candidates are scored.
      */
     public PhraseSuggestionBuilder addCandidateGenerator(CandidateGenerator generator) {
-        List<CandidateGenerator> list = this.generators.get(generator.getType());
-        if (list == null) {
-            list = new ArrayList<>();
-            this.generators.put(generator.getType(), list);
-        }
-        list.add(generator);
+        this.generators.computeIfAbsent(generator.getType(), k -> new ArrayList<>()).add(generator);
         return this;
     }
 
@@ -458,7 +435,7 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
         }
         builder.field(FORCE_UNIGRAM_FIELD.getPreferredName(), forceUnigrams);
         builder.field(TOKEN_LIMIT_FIELD.getPreferredName(), tokenLimit);
-        if (!generators.isEmpty()) {
+        if (generators.isEmpty() == false) {
             Set<Entry<String, List<CandidateGenerator>>> entrySet = generators.entrySet();
             for (Entry<String, List<CandidateGenerator>> entry : entrySet) {
                 builder.startArray(entry.getKey());
@@ -523,18 +500,22 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
                 } else if (PhraseSuggestionBuilder.TOKEN_LIMIT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     tmpSuggestion.tokenLimit(parser.intValue());
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(),
-                            "suggester[phrase] doesn't support field [" + currentFieldName + "]");
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        "suggester[phrase] doesn't support field [" + currentFieldName + "]"
+                    );
                 }
             } else if (token == Token.START_ARRAY) {
                 if (DirectCandidateGeneratorBuilder.DIRECT_GENERATOR_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     // for now we only have a single type of generators
-                    while ((token = parser.nextToken()) == Token.START_OBJECT) {
+                    while (parser.nextToken() == Token.START_OBJECT) {
                         tmpSuggestion.addCandidateGenerator(DirectCandidateGeneratorBuilder.PARSER.apply(parser, null));
                     }
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(),
-                            "suggester[phrase]  doesn't support array field [" + currentFieldName + "]");
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        "suggester[phrase]  doesn't support array field [" + currentFieldName + "]"
+                    );
                 }
             } else if (token == Token.START_OBJECT) {
                 if (PhraseSuggestionBuilder.SMOOTHING_MODEL_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -552,8 +533,10 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
                             } else if (PhraseSuggestionBuilder.POST_TAG_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                                 postTag = parser.text();
                             } else {
-                                throw new ParsingException(parser.getTokenLocation(),
-                                    "suggester[phrase][highlight] doesn't support field [" + currentFieldName + "]");
+                                throw new ParsingException(
+                                    parser.getTokenLocation(),
+                                    "suggester[phrase][highlight] doesn't support field [" + currentFieldName + "]"
+                                );
                             }
                         }
                     }
@@ -564,9 +547,10 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
                             currentFieldName = parser.currentName();
                         } else if (PhraseSuggestionBuilder.COLLATE_QUERY_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                             if (tmpSuggestion.collateQuery() != null) {
-                                throw new ParsingException(parser.getTokenLocation(),
-                                        "suggester[phrase][collate] query already set, doesn't support additional ["
-                                        + currentFieldName + "]");
+                                throw new ParsingException(
+                                    parser.getTokenLocation(),
+                                    "suggester[phrase][collate] query already set, doesn't support additional [" + currentFieldName + "]"
+                                );
                             }
                             Script template = Script.parse(parser, Script.DEFAULT_TEMPLATE_LANG);
                             tmpSuggestion.collateQuery(template);
@@ -576,40 +560,41 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
                             if (parser.isBooleanValue()) {
                                 tmpSuggestion.collatePrune(parser.booleanValue());
                             } else {
-                                throw new ParsingException(parser.getTokenLocation(),
-                                        "suggester[phrase][collate] prune must be either 'true' or 'false'");
+                                throw new ParsingException(
+                                    parser.getTokenLocation(),
+                                    "suggester[phrase][collate] prune must be either 'true' or 'false'"
+                                );
                             }
                         } else {
-                            throw new ParsingException(parser.getTokenLocation(),
-                                    "suggester[phrase][collate] doesn't support field [" + currentFieldName + "]");
+                            throw new ParsingException(
+                                parser.getTokenLocation(),
+                                "suggester[phrase][collate] doesn't support field [" + currentFieldName + "]"
+                            );
                         }
                     }
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(),
-                            "suggester[phrase]  doesn't support array field [" + currentFieldName + "]");
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        "suggester[phrase]  doesn't support array field [" + currentFieldName + "]"
+                    );
                 }
             } else {
-                throw new ParsingException(parser.getTokenLocation(),
-                        "suggester[phrase] doesn't support field [" + currentFieldName + "]");
+                throw new ParsingException(parser.getTokenLocation(), "suggester[phrase] doesn't support field [" + currentFieldName + "]");
             }
         }
 
         // now we should have field name, check and copy fields over to the suggestion builder we return
         if (fieldname == null) {
-            throw new ElasticsearchParseException(
-                "the required field option [" + FIELDNAME_FIELD.getPreferredName() + "] is missing");
+            throw new ElasticsearchParseException("the required field option [" + FIELDNAME_FIELD.getPreferredName() + "] is missing");
         }
         return new PhraseSuggestionBuilder(fieldname, tmpSuggestion);
     }
 
-
     @Override
-    public SuggestionContext build(QueryShardContext context) throws IOException {
+    public SuggestionContext build(SearchExecutionContext context) throws IOException {
         PhraseSuggestionContext suggestionContext = new PhraseSuggestionContext(context);
-        MapperService mapperService = context.getMapperService();
         // copy over common settings to each suggestion builder
-        populateCommonFields(mapperService, suggestionContext);
-
+        populateCommonFields(context, suggestionContext);
         suggestionContext.setSeparator(BytesRefs.toBytesRef(this.separator));
         suggestionContext.setRealWordErrorLikelihood(this.realWordErrorLikelihood);
         suggestionContext.setConfidence(this.confidence);
@@ -625,7 +610,7 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
 
         for (List<CandidateGenerator> candidateGenerators : this.generators.values()) {
             for (CandidateGenerator candidateGenerator : candidateGenerators) {
-                suggestionContext.addGenerator(candidateGenerator.build(mapperService));
+                suggestionContext.addGenerator(candidateGenerator.build(context.getIndexAnalyzers()));
             }
         }
 
@@ -648,19 +633,28 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
                 // try to detect the shingle size
                 if (shingleFilterFactory != null) {
                     suggestionContext.setGramSize(shingleFilterFactory.getMaxShingleSize());
-                    if (suggestionContext.getAnalyzer() == null && shingleFilterFactory.getMinShingleSize() > 1
-                            && !shingleFilterFactory.getOutputUnigrams()) {
-                        throw new IllegalArgumentException("The default analyzer for field: [" + suggestionContext.getField()
-                                + "] doesn't emit unigrams. If this is intentional try to set the analyzer explicitly");
+                    if (suggestionContext.getAnalyzer() == null
+                        && shingleFilterFactory.getMinShingleSize() > 1
+                        && shingleFilterFactory.getOutputUnigrams() == false) {
+                        throw new IllegalArgumentException(
+                            "The default analyzer for field: ["
+                                + suggestionContext.getField()
+                                + "] doesn't emit unigrams. If this is intentional try to set the analyzer explicitly"
+                        );
                     }
                 }
             }
             if (suggestionContext.generators().isEmpty()) {
-                if (shingleFilterFactory != null && shingleFilterFactory.getMinShingleSize() > 1
-                        && !shingleFilterFactory.getOutputUnigrams() && suggestionContext.getRequireUnigram()) {
-                    throw new IllegalArgumentException("The default candidate generator for phrase suggest can't operate on field: ["
-                            + suggestionContext.getField() + "] since it doesn't emit unigrams. "
-                            + "If this is intentional try to set the candidate generator field explicitly");
+                if (shingleFilterFactory != null
+                    && shingleFilterFactory.getMinShingleSize() > 1
+                    && shingleFilterFactory.getOutputUnigrams() == false
+                    && suggestionContext.getRequireUnigram()) {
+                    throw new IllegalArgumentException(
+                        "The default candidate generator for phrase suggest can't operate on field: ["
+                            + suggestionContext.getField()
+                            + "] since it doesn't emit unigrams. "
+                            + "If this is intentional try to set the candidate generator field explicitly"
+                    );
                 }
                 // use a default generator on the same field
                 DirectCandidateGenerator generator = new DirectCandidateGenerator();
@@ -673,13 +667,13 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
 
     private static ShingleTokenFilterFactory.Factory getShingleFilterFactory(Analyzer analyzer) {
         if (analyzer instanceof NamedAnalyzer) {
-            analyzer = ((NamedAnalyzer)analyzer).analyzer();
+            analyzer = ((NamedAnalyzer) analyzer).analyzer();
         }
         if (analyzer instanceof AnalyzerComponentsProvider) {
             final TokenFilterFactory[] tokenFilters = ((AnalyzerComponentsProvider) analyzer).getComponents().getTokenFilters();
             for (TokenFilterFactory tokenFilterFactory : tokenFilters) {
                 if (tokenFilterFactory instanceof ShingleTokenFilterFactory) {
-                    return ((ShingleTokenFilterFactory)tokenFilterFactory).getInnerFactory();
+                    return ((ShingleTokenFilterFactory) tokenFilterFactory).getInnerFactory();
                 } else if (tokenFilterFactory instanceof ShingleTokenFilterFactory.Factory) {
                     return (ShingleTokenFilterFactory.Factory) tokenFilterFactory;
                 }
@@ -700,28 +694,46 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
     }
 
     @Override
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.ZERO;
+    }
+
+    @Override
     protected boolean doEquals(PhraseSuggestionBuilder other) {
-        return Objects.equals(maxErrors, other.maxErrors) &&
-                Objects.equals(separator, other.separator) &&
-                Objects.equals(realWordErrorLikelihood, other.realWordErrorLikelihood) &&
-                Objects.equals(confidence, other.confidence) &&
-                Objects.equals(generators, other.generators) &&
-                Objects.equals(gramSize, other.gramSize) &&
-                Objects.equals(model, other.model) &&
-                Objects.equals(forceUnigrams, other.forceUnigrams) &&
-                Objects.equals(tokenLimit, other.tokenLimit) &&
-                Objects.equals(preTag, other.preTag) &&
-                Objects.equals(postTag, other.postTag) &&
-                Objects.equals(collateQuery, other.collateQuery) &&
-                Objects.equals(collateParams, other.collateParams) &&
-                Objects.equals(collatePrune, other.collatePrune);
+        return Objects.equals(maxErrors, other.maxErrors)
+            && Objects.equals(separator, other.separator)
+            && Objects.equals(realWordErrorLikelihood, other.realWordErrorLikelihood)
+            && Objects.equals(confidence, other.confidence)
+            && Objects.equals(generators, other.generators)
+            && Objects.equals(gramSize, other.gramSize)
+            && Objects.equals(model, other.model)
+            && Objects.equals(forceUnigrams, other.forceUnigrams)
+            && Objects.equals(tokenLimit, other.tokenLimit)
+            && Objects.equals(preTag, other.preTag)
+            && Objects.equals(postTag, other.postTag)
+            && Objects.equals(collateQuery, other.collateQuery)
+            && Objects.equals(collateParams, other.collateParams)
+            && Objects.equals(collatePrune, other.collatePrune);
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(maxErrors, separator, realWordErrorLikelihood, confidence,
-                generators, gramSize, model, forceUnigrams, tokenLimit, preTag, postTag,
-                collateQuery, collateParams, collatePrune);
+        return Objects.hash(
+            maxErrors,
+            separator,
+            realWordErrorLikelihood,
+            confidence,
+            generators,
+            gramSize,
+            model,
+            forceUnigrams,
+            tokenLimit,
+            preTag,
+            postTag,
+            collateQuery,
+            collateParams,
+            collatePrune
+        );
     }
 
     /**
@@ -730,6 +742,6 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
     public interface CandidateGenerator extends Writeable, ToXContentObject {
         String getType();
 
-        PhraseSuggestionContext.DirectCandidateGenerator build(MapperService mapperService) throws IOException;
+        PhraseSuggestionContext.DirectCandidateGenerator build(IndexAnalyzers indexAnalyzers) throws IOException;
     }
 }

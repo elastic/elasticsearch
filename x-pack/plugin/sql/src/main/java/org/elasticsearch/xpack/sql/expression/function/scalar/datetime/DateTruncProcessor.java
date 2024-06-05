@@ -1,19 +1,24 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.xpack.ql.InvalidArgumentException;
 import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
-import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTrunc.Part;
+import org.elasticsearch.xpack.sql.expression.literal.interval.IntervalDayTime;
+import org.elasticsearch.xpack.sql.expression.literal.interval.IntervalYearMonth;
 
 import java.io.IOException;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.List;
+
+import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTrunc.Part;
 
 public class DateTruncProcessor extends BinaryDateTimeProcessor {
 
@@ -51,18 +56,32 @@ public class DateTruncProcessor extends BinaryDateTimeProcessor {
         if (truncateDateField == null) {
             List<String> similar = Part.findSimilar((String) truncateTo);
             if (similar.isEmpty()) {
-                throw new SqlIllegalArgumentException("A value of {} or their aliases is required; received [{}]",
-                    Part.values(), truncateTo);
+                throw new InvalidArgumentException("A value of {} or their aliases is required; received [{}]", Part.values(), truncateTo);
             } else {
-                throw new SqlIllegalArgumentException("Received value [{}] is not valid date part for truncation; " +
-                    "did you mean {}?", truncateTo, similar);
+                throw new InvalidArgumentException(
+                    "Received value [{}] is not valid date part for truncation; " + "did you mean {}?",
+                    truncateTo,
+                    similar
+                );
             }
         }
 
-        if (timestamp instanceof ZonedDateTime == false) {
-            throw new SqlIllegalArgumentException("A date/datetime is required; received [{}]", timestamp);
+        if (timestamp instanceof ZonedDateTime == false
+            && timestamp instanceof IntervalYearMonth == false
+            && timestamp instanceof IntervalDayTime == false) {
+            throw new SqlIllegalArgumentException("A date/datetime/interval is required; received [{}]", timestamp); // verifier checked
+        }
+        if (truncateDateField == Part.WEEK && (timestamp instanceof IntervalDayTime || timestamp instanceof IntervalYearMonth)) {
+            throw new InvalidArgumentException("Truncating intervals is not supported for {} units", truncateTo);
         }
 
-        return truncateDateField.truncate(((ZonedDateTime) timestamp).withZoneSameInstant(zoneId));
+        if (timestamp instanceof ZonedDateTime) {
+            return truncateDateField.truncate(((ZonedDateTime) timestamp).withZoneSameInstant(zoneId));
+        } else if (timestamp instanceof IntervalYearMonth) {
+            return truncateDateField.truncate((IntervalYearMonth) timestamp);
+        } else {
+            return truncateDateField.truncate((IntervalDayTime) timestamp);
+        }
+
     }
 }

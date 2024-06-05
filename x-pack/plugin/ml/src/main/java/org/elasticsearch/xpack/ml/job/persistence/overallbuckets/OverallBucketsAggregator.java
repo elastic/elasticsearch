@@ -1,11 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job.persistence.overallbuckets;
 
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.ml.job.results.OverallBucket;
 import org.elasticsearch.xpack.core.ml.utils.Intervals;
 
@@ -51,8 +52,7 @@ public class OverallBucketsAggregator implements OverallBucketsProcessor {
 
     private OverallBucket outputBucket() {
         List<OverallBucket.JobInfo> jobs = new ArrayList<>(maxScoreByJob.size());
-        maxScoreByJob.entrySet().stream().forEach(entry -> jobs.add(
-                new OverallBucket.JobInfo(entry.getKey(), entry.getValue())));
+        maxScoreByJob.forEach((key, value) -> jobs.add(new OverallBucket.JobInfo(key, value)));
         return new OverallBucket(new Date(startTime), bucketSpanSeconds, maxOverallScore, jobs, isInterim);
     }
 
@@ -65,7 +65,7 @@ public class OverallBucketsAggregator implements OverallBucketsProcessor {
 
     private void processBucket(OverallBucket bucket) {
         maxOverallScore = Math.max(maxOverallScore, bucket.getOverallScore());
-        bucket.getJobs().stream().forEach(j -> {
+        bucket.getJobs().forEach(j -> {
             double currentMax = maxScoreByJob.computeIfAbsent(j.getJobId(), k -> 0.0);
             if (j.getMaxAnomalyScore() > currentMax) {
                 maxScoreByJob.put(j.getJobId(), j.getMaxAnomalyScore());

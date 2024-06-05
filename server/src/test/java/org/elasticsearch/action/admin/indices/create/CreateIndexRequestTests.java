@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.indices.create;
@@ -24,24 +13,23 @@ import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.index.RandomCreateIndexGenerator;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
-import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.containsString;
 
-public class CreateIndexRequestTests extends ESTestCase {
+public class CreateIndexRequestTests extends AbstractWireSerializingTestCase<CreateIndexRequest> {
 
-    public void testSerialization() throws IOException {
+    public void testSimpleSerialization() throws IOException {
         CreateIndexRequest request = new CreateIndexRequest("foo");
         String mapping = Strings.toString(JsonXContent.contentBuilder().startObject().startObject("_doc").endObject().endObject());
         request.mapping(mapping);
@@ -58,25 +46,27 @@ public class CreateIndexRequestTests extends ESTestCase {
     }
 
     public void testTopLevelKeys() {
-        String createIndex =
-                "{\n"
-                + "  \"FOO_SHOULD_BE_ILLEGAL_HERE\": {\n"
-                + "    \"BAR_IS_THE_SAME\": 42\n"
-                + "  },\n"
-                + "  \"mappings\": {\n"
-                + "    \"test\": {\n"
-                + "      \"properties\": {\n"
-                + "        \"field1\": {\n"
-                + "          \"type\": \"text\"\n"
-                + "       }\n"
-                + "     }\n"
-                + "    }\n"
-                + "  }\n"
-                + "}";
+        String createIndex = """
+            {
+              "FOO_SHOULD_BE_ILLEGAL_HERE": {
+                "BAR_IS_THE_SAME": 42
+              },
+              "mappings": {
+                "test": {
+                  "properties": {
+                    "field1": {
+                      "type": "text"
+                   }
+                 }
+                }
+              }
+            }""";
 
         CreateIndexRequest request = new CreateIndexRequest();
-        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class,
-                () -> {request.source(createIndex, XContentType.JSON);});
+        ElasticsearchParseException e = expectThrows(
+            ElasticsearchParseException.class,
+            () -> { request.source(createIndex, XContentType.JSON); }
+        );
         assertEquals("unknown key [FOO_SHOULD_BE_ILLEGAL_HERE] for create index", e.getMessage());
     }
 
@@ -85,34 +75,38 @@ public class CreateIndexRequestTests extends ESTestCase {
         CreateIndexRequest request2 = new CreateIndexRequest("bar");
         {
             XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
-            builder.startObject().startObject("properties")
+            builder.startObject()
+                .startObject("properties")
                 .startObject("field1")
-                    .field("type", "text")
+                .field("type", "text")
                 .endObject()
                 .startObject("field2")
-                    .startObject("properties")
-                        .startObject("field21")
-                            .field("type", "keyword")
-                        .endObject()
-                    .endObject()
+                .startObject("properties")
+                .startObject("field21")
+                .field("type", "keyword")
                 .endObject()
-            .endObject().endObject();
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject();
             request1.mapping(builder);
             builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
-            builder.startObject().startObject("_doc")
+            builder.startObject()
+                .startObject("_doc")
                 .startObject("properties")
-                    .startObject("field1")
-                        .field("type", "text")
-                    .endObject()
-                    .startObject("field2")
-                        .startObject("properties")
-                            .startObject("field21")
-                                .field("type", "keyword")
-                            .endObject()
-                        .endObject()
-                    .endObject()
+                .startObject("field1")
+                .field("type", "text")
                 .endObject()
-            .endObject().endObject();
+                .startObject("field2")
+                .startObject("properties")
+                .startObject("field21")
+                .field("type", "keyword")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject();
             request2.mapping(builder);
             assertEquals(request1.mappings(), request2.mappings());
         }
@@ -127,19 +121,40 @@ public class CreateIndexRequestTests extends ESTestCase {
         assertThat(e.getMessage(), equalTo("key [settings] must be an object"));
     }
 
-    public static void assertMappingsEqual(Map<String, String> expected, Map<String, String> actual) throws IOException {
-        assertEquals(expected.keySet(), actual.keySet());
+    public void testAlias() throws IOException {
+        XContentBuilder aliases1 = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("aliases")
+            .startObject("filtered-data")
+            .startObject("bool")
+            .startObject("filter")
+            .startObject("term")
+            .field("a", "b")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new CreateIndexRequest().source(aliases1));
+        assertThat(e.getMessage(), containsString("Unknown field [bool] in alias [filtered-data]"));
 
-        for (Map.Entry<String, String> expectedEntry : expected.entrySet()) {
-            String expectedValue = expectedEntry.getValue();
-            String actualValue = actual.get(expectedEntry.getKey());
-            try (XContentParser expectedJson = JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY,
-                    LoggingDeprecationHandler.INSTANCE, expectedValue);
-                 XContentParser actualJson = JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY,
-                    LoggingDeprecationHandler.INSTANCE, actualValue)){
-                assertEquals(expectedJson.map(), actualJson.map());
-            }
-        }
+        XContentBuilder aliases2 = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("aliases")
+            .startObject("filtered-data")
+            .startArray("filter")
+            .startObject()
+            .startObject("term")
+            .field("a", "b")
+            .endObject()
+            .endObject()
+            .endArray()
+            .endObject()
+            .endObject()
+            .endObject();
+        e = expectThrows(IllegalArgumentException.class, () -> new CreateIndexRequest().source(aliases2));
+        assertThat(e.getMessage(), containsString("Unknown token [START_ARRAY] in alias [filtered-data]"));
     }
 
     public static void assertAliasesEqual(Set<Alias> expected, Set<Alias> actual) throws IOException {
@@ -155,5 +170,20 @@ public class CreateIndexRequestTests extends ESTestCase {
                 }
             }
         }
+    }
+
+    @Override
+    protected Writeable.Reader<CreateIndexRequest> instanceReader() {
+        return CreateIndexRequest::new;
+    }
+
+    @Override
+    protected CreateIndexRequest createTestInstance() {
+        return RandomCreateIndexGenerator.randomCreateIndexRequest();
+    }
+
+    @Override
+    protected CreateIndexRequest mutateInstance(CreateIndexRequest instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 }

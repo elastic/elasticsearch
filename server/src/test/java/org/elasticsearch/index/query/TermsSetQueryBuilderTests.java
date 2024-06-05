@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.index.query;
 
@@ -29,7 +18,7 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.CoveringQuery;
+import org.apache.lucene.sandbox.search.CoveringQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
@@ -49,7 +38,7 @@ import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.AbstractQueryTestCase;
-import org.elasticsearch.test.rest.yaml.ObjectPath;
+import org.elasticsearch.test.rest.ObjectPath;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -71,35 +60,34 @@ public class TermsSetQueryBuilderTests extends AbstractQueryTestCase<TermsSetQue
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Collections.singleton(CustomScriptPlugin.class);
+        return Arrays.asList(CustomScriptPlugin.class);
     }
 
     @Override
     protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
         String docType = "_doc";
-        mapperService.merge(docType, new CompressedXContent(Strings.toString(PutMappingRequest.simpleMapping(
-                "m_s_m", "type=long"
-        ))), MapperService.MergeReason.MAPPING_UPDATE);
+        mapperService.merge(
+            docType,
+            new CompressedXContent(Strings.toString(PutMappingRequest.simpleMapping("m_s_m", "type=long"))),
+            MapperService.MergeReason.MAPPING_UPDATE
+        );
     }
 
     @Override
     protected TermsSetQueryBuilder doCreateTestQueryBuilder() {
-        String fieldName = randomValueOtherThanMany(
-            value -> value.equals(GEO_POINT_FIELD_NAME) || value.equals(GEO_SHAPE_FIELD_NAME),
-            () -> randomFrom(MAPPED_FIELD_NAMES));
+        String fieldName = randomValueOtherThanMany(value -> value.equals(GEO_POINT_FIELD_NAME), () -> randomFrom(MAPPED_FIELD_NAMES));
         List<?> randomTerms = randomValues(fieldName);
-        TermsSetQueryBuilder queryBuilder = new TermsSetQueryBuilder(STRING_FIELD_NAME, randomTerms);
-        if (randomBoolean()) {
-            queryBuilder.setMinimumShouldMatchField("m_s_m");
-        } else {
-            queryBuilder.setMinimumShouldMatchScript(
-                    new Script(ScriptType.INLINE, MockScriptEngine.NAME, "_script", emptyMap()));
+        TermsSetQueryBuilder queryBuilder = new TermsSetQueryBuilder(TEXT_FIELD_NAME, randomTerms);
+        switch (randomIntBetween(0, 2)) {
+            case 0 -> queryBuilder.setMinimumShouldMatchField("m_s_m");
+            case 1 -> queryBuilder.setMinimumShouldMatchScript(new Script(ScriptType.INLINE, MockScriptEngine.NAME, "_script", emptyMap()));
+            case 2 -> queryBuilder.setMinimumShouldMatch("2");
         }
         return queryBuilder;
     }
 
     @Override
-    protected void doAssertLuceneQuery(TermsSetQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
+    protected void doAssertLuceneQuery(TermsSetQueryBuilder queryBuilder, Query query, SearchExecutionContext context) throws IOException {
         if (queryBuilder.getValues().isEmpty()) {
             assertThat(query, instanceOf(MatchNoDocsQuery.class));
             MatchNoDocsQuery matchNoDocsQuery = (MatchNoDocsQuery) query;
@@ -115,41 +103,40 @@ public class TermsSetQueryBuilderTests extends AbstractQueryTestCase<TermsSetQue
     @Override
     public void testCacheability() throws IOException {
         TermsSetQueryBuilder queryBuilder = createTestQueryBuilder();
-        boolean isCacheable = queryBuilder.getMinimumShouldMatchField() != null ||
-                (queryBuilder.getMinimumShouldMatchScript() != null && queryBuilder.getValues().isEmpty());
-        QueryShardContext context = createShardContext();
-        rewriteQuery(queryBuilder, new QueryShardContext(context));
+        boolean isCacheable = queryBuilder.getMinimumShouldMatchField() != null
+            || (queryBuilder.getMinimumShouldMatchScript() != null && queryBuilder.getValues().isEmpty())
+            || queryBuilder.getMinimumShouldMatch() != null;
+        SearchExecutionContext context = createSearchExecutionContext();
+        rewriteQuery(queryBuilder, new SearchExecutionContext(context));
         assertNotNull(queryBuilder.doToQuery(context));
-        assertEquals("query should " + (isCacheable ? "" : "not") + " be cacheable: " + queryBuilder.toString(), isCacheable,
-                context.isCacheable());
+        assertEquals(
+            "query should " + (isCacheable ? "" : "not") + " be cacheable: " + queryBuilder.toString(),
+            isCacheable,
+            context.isCacheable()
+        );
 
         // specifically trigger the two cases where query is cacheable
-        queryBuilder = new TermsSetQueryBuilder(STRING_FIELD_NAME, Collections.singletonList("foo"));
+        queryBuilder = new TermsSetQueryBuilder(TEXT_FIELD_NAME, Collections.singletonList("foo"));
         queryBuilder.setMinimumShouldMatchField("m_s_m");
-        context = createShardContext();
-        rewriteQuery(queryBuilder, new QueryShardContext(context));
+        context = createSearchExecutionContext();
+        rewriteQuery(queryBuilder, new SearchExecutionContext(context));
         assertNotNull(queryBuilder.doToQuery(context));
         assertTrue("query should be cacheable: " + queryBuilder.toString(), context.isCacheable());
 
-        queryBuilder = new TermsSetQueryBuilder(STRING_FIELD_NAME, Collections.emptyList());
+        queryBuilder = new TermsSetQueryBuilder(TEXT_FIELD_NAME, Collections.emptyList());
         queryBuilder.setMinimumShouldMatchScript(new Script(ScriptType.INLINE, MockScriptEngine.NAME, "_script", emptyMap()));
-        context = createShardContext();
-        rewriteQuery(queryBuilder, new QueryShardContext(context));
+        context = createSearchExecutionContext();
+        rewriteQuery(queryBuilder, new SearchExecutionContext(context));
         assertNotNull(queryBuilder.doToQuery(context));
         assertTrue("query should be cacheable: " + queryBuilder.toString(), context.isCacheable());
 
         // also test one case where query is not cacheable
-        queryBuilder = new TermsSetQueryBuilder(STRING_FIELD_NAME, Collections.singletonList("foo"));
+        queryBuilder = new TermsSetQueryBuilder(TEXT_FIELD_NAME, Collections.singletonList("foo"));
         queryBuilder.setMinimumShouldMatchScript(new Script(ScriptType.INLINE, MockScriptEngine.NAME, "_script", emptyMap()));
-        context = createShardContext();
-        rewriteQuery(queryBuilder, new QueryShardContext(context));
+        context = createSearchExecutionContext();
+        rewriteQuery(queryBuilder, new SearchExecutionContext(context));
         assertNotNull(queryBuilder.doToQuery(context));
         assertFalse("query should be cacheable: " + queryBuilder.toString(), context.isCacheable());
-    }
-
-    @Override
-    protected boolean builderGeneratesCacheableQueries() {
-        return false;
     }
 
     @Override
@@ -158,23 +145,18 @@ public class TermsSetQueryBuilderTests extends AbstractQueryTestCase<TermsSetQue
         List<?> values = instance.getValues();
         String minimumShouldMatchField = null;
         Script minimumShouldMatchScript = null;
+        String minimumShouldMatch = null;
 
-        switch (randomIntBetween(0, 3)) {
-            case 0:
-                Predicate<String> predicate = s -> s.equals(instance.getFieldName()) == false && s.equals(GEO_POINT_FIELD_NAME) == false
-                    && s.equals(GEO_SHAPE_FIELD_NAME) == false;
+        switch (randomIntBetween(0, 4)) {
+            case 0 -> {
+                Predicate<String> predicate = s -> s.equals(instance.getFieldName()) == false && s.equals(GEO_POINT_FIELD_NAME) == false;
                 fieldName = randomValueOtherThanMany(predicate, () -> randomFrom(MAPPED_FIELD_NAMES));
                 values = randomValues(fieldName);
-                break;
-            case 1:
-                values = randomValues(fieldName);
-                break;
-            case 2:
-                minimumShouldMatchField = randomAlphaOfLengthBetween(1, 10);
-                break;
-            case 3:
-                minimumShouldMatchScript = new Script(ScriptType.INLINE, MockScriptEngine.NAME, randomAlphaOfLength(10), emptyMap());
-                break;
+            }
+            case 1 -> values = randomValues(fieldName);
+            case 2 -> minimumShouldMatchField = randomAlphaOfLengthBetween(1, 10);
+            case 3 -> minimumShouldMatchScript = new Script(ScriptType.INLINE, MockScriptEngine.NAME, randomAlphaOfLength(10), emptyMap());
+            case 4 -> minimumShouldMatch = "3";
         }
 
         TermsSetQueryBuilder newInstance = new TermsSetQueryBuilder(fieldName, values);
@@ -184,6 +166,9 @@ public class TermsSetQueryBuilderTests extends AbstractQueryTestCase<TermsSetQue
         if (minimumShouldMatchScript != null) {
             newInstance.setMinimumShouldMatchScript(minimumShouldMatchScript);
         }
+        if (minimumShouldMatch != null) {
+            newInstance.setMinimumShouldMatch(minimumShouldMatch);
+        }
         return newInstance;
     }
 
@@ -191,10 +176,18 @@ public class TermsSetQueryBuilderTests extends AbstractQueryTestCase<TermsSetQue
         TermsSetQueryBuilder queryBuilder = new TermsSetQueryBuilder("_field", Collections.emptyList());
         queryBuilder.setMinimumShouldMatchScript(new Script(""));
         expectThrows(IllegalArgumentException.class, () -> queryBuilder.setMinimumShouldMatchField("_field"));
+        expectThrows(IllegalArgumentException.class, () -> queryBuilder.setMinimumShouldMatch("2"));
 
         queryBuilder.setMinimumShouldMatchScript(null);
         queryBuilder.setMinimumShouldMatchField("_field");
         expectThrows(IllegalArgumentException.class, () -> queryBuilder.setMinimumShouldMatchScript(new Script("")));
+        expectThrows(IllegalArgumentException.class, () -> queryBuilder.setMinimumShouldMatch("2"));
+
+        queryBuilder.setMinimumShouldMatchField(null);
+        queryBuilder.setMinimumShouldMatch("2");
+        expectThrows(IllegalArgumentException.class, () -> queryBuilder.setMinimumShouldMatchField("_field"));
+        expectThrows(IllegalArgumentException.class, () -> queryBuilder.setMinimumShouldMatchScript(new Script("")));
+
     }
 
     public void testDoToQuery() throws Exception {
@@ -228,21 +221,52 @@ public class TermsSetQueryBuilderTests extends AbstractQueryTestCase<TermsSetQue
                 iw.addDocument(document);
 
                 document = new Document();
-                document.add(new TextField("message", "a b c d", Field.Store.NO));
+                document.add(new TextField("message", "a b c d f g", Field.Store.NO));
                 document.add(new SortedNumericDocValuesField("m_s_m", 3));
                 iw.addDocument(document);
             }
 
             try (IndexReader ir = DirectoryReader.open(directory)) {
-                QueryShardContext context = createShardContext();
-                Query query = new TermsSetQueryBuilder("message", Arrays.asList("c", "d"))
-                        .setMinimumShouldMatchField("m_s_m").doToQuery(context);
-                IndexSearcher searcher = new IndexSearcher(ir);
-                TopDocs topDocs = searcher.search(query, 10, new Sort(SortField.FIELD_DOC));
-                assertThat(topDocs.totalHits.value, equalTo(3L));
-                assertThat(topDocs.scoreDocs[0].doc, equalTo(1));
-                assertThat(topDocs.scoreDocs[1].doc, equalTo(3));
-                assertThat(topDocs.scoreDocs[2].doc, equalTo(4));
+                SearchExecutionContext context = createSearchExecutionContext();
+                Query queryWithMinimumShouldMatchField = new TermsSetQueryBuilder("message", Arrays.asList("c", "d"))
+                    .setMinimumShouldMatchField("m_s_m")
+                    .doToQuery(context);
+                IndexSearcher searcher = newSearcher(ir);
+                TopDocs topDocsWithMinimumShouldMatchField = searcher.search(
+                    queryWithMinimumShouldMatchField,
+                    10,
+                    new Sort(SortField.FIELD_DOC)
+                );
+                assertThat(topDocsWithMinimumShouldMatchField.totalHits.value, equalTo(3L));
+                assertThat(topDocsWithMinimumShouldMatchField.scoreDocs[0].doc, equalTo(1));
+                assertThat(topDocsWithMinimumShouldMatchField.scoreDocs[1].doc, equalTo(3));
+                assertThat(topDocsWithMinimumShouldMatchField.scoreDocs[2].doc, equalTo(4));
+
+                context = createSearchExecutionContext();
+                Query queryWithMinimumShouldMatch = new TermsSetQueryBuilder("message", Arrays.asList("c", "d", "a")).setMinimumShouldMatch(
+                    "2"
+                ).doToQuery(context);
+                searcher = newSearcher(ir);
+                TopDocs topDocsWithMinimumShouldMatch = searcher.search(queryWithMinimumShouldMatch, 10, new Sort(SortField.FIELD_DOC));
+                assertThat(topDocsWithMinimumShouldMatch.totalHits.value, equalTo(5L));
+                assertThat(topDocsWithMinimumShouldMatch.scoreDocs[0].doc, equalTo(1));
+                assertThat(topDocsWithMinimumShouldMatch.scoreDocs[1].doc, equalTo(2));
+                assertThat(topDocsWithMinimumShouldMatch.scoreDocs[2].doc, equalTo(3));
+                assertThat(topDocsWithMinimumShouldMatch.scoreDocs[3].doc, equalTo(4));
+                assertThat(topDocsWithMinimumShouldMatch.scoreDocs[4].doc, equalTo(5));
+
+                context = createSearchExecutionContext();
+                Query queryWithMinimumShouldMatchNegative = new TermsSetQueryBuilder("message", Arrays.asList("c", "g", "f"))
+                    .setMinimumShouldMatch("-1")
+                    .doToQuery(context);
+                searcher = newSearcher(ir);
+                TopDocs topDocsWithMinimumShouldMatchNegative = searcher.search(
+                    queryWithMinimumShouldMatchNegative,
+                    10,
+                    new Sort(SortField.FIELD_DOC)
+                );
+                assertThat(topDocsWithMinimumShouldMatchNegative.totalHits.value, equalTo(1L));
+                assertThat(topDocsWithMinimumShouldMatchNegative.scoreDocs[0].doc, equalTo(5));
             }
         }
     }
@@ -279,11 +303,11 @@ public class TermsSetQueryBuilderTests extends AbstractQueryTestCase<TermsSetQue
             }
 
             try (IndexReader ir = DirectoryReader.open(directory)) {
-                QueryShardContext context = createShardContext();
+                SearchExecutionContext context = createSearchExecutionContext();
                 Script script = new Script(ScriptType.INLINE, MockScriptEngine.NAME, "_script", emptyMap());
-                Query query = new TermsSetQueryBuilder("message", Arrays.asList("a", "b", "c", "d"))
-                        .setMinimumShouldMatchScript(script).doToQuery(context);
-                IndexSearcher searcher = new IndexSearcher(ir);
+                Query query = new TermsSetQueryBuilder("message", Arrays.asList("a", "b", "c", "d")).setMinimumShouldMatchScript(script)
+                    .doToQuery(context);
+                IndexSearcher searcher = newSearcher(ir);
                 TopDocs topDocs = searcher.search(query, 10, new Sort(SortField.FIELD_DOC));
                 assertThat(topDocs.totalHits.value, equalTo(3L));
                 assertThat(topDocs.scoreDocs[0].doc, equalTo(0));
@@ -295,10 +319,11 @@ public class TermsSetQueryBuilderTests extends AbstractQueryTestCase<TermsSetQue
 
     public void testFieldAlias() {
         List<String> randomTerms = Arrays.asList(generateRandomStringArray(5, 10, false, false));
-        TermsSetQueryBuilder queryBuilder = new TermsSetQueryBuilder(STRING_ALIAS_FIELD_NAME, randomTerms)
-            .setMinimumShouldMatchField("m_s_m");
+        TermsSetQueryBuilder queryBuilder = new TermsSetQueryBuilder(TEXT_ALIAS_FIELD_NAME, randomTerms).setMinimumShouldMatchField(
+            "m_s_m"
+        );
 
-        QueryShardContext context = createShardContext();
+        SearchExecutionContext context = createSearchExecutionContext();
         List<Query> termQueries = queryBuilder.createTermQueries(context);
         assertEquals(randomTerms.size(), termQueries.size());
 
@@ -336,4 +361,3 @@ public class TermsSetQueryBuilderTests extends AbstractQueryTestCase<TermsSetQue
     }
 
 }
-

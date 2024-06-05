@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ql.expression;
 
@@ -12,9 +13,9 @@ import org.elasticsearch.xpack.ql.type.DataType;
 
 import java.util.List;
 
-abstract class UnresolvedNamedExpression extends NamedExpression implements Unresolvable {
+public abstract class UnresolvedNamedExpression extends NamedExpression implements Unresolvable {
 
-    UnresolvedNamedExpression(Source source, List<Expression> children) {
+    public UnresolvedNamedExpression(Source source, List<Expression> children) {
         super(source, "<unresolved>", children, new NameId());
     }
 

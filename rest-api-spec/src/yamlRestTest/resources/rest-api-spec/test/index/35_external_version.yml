@@ -1,0 +1,52 @@
+---
+"External version":
+
+
+
+ - do:
+      index:
+          index:          test_1
+          id:             "1"
+          body:           { foo: bar }
+          version_type:   external
+          version:        0
+
+ - match:   { _version: 0 }
+
+ - do:
+      index:
+          index:          test_1
+          id:             "1"
+          body:           { foo: bar }
+          version_type:   external
+          version:        5
+
+ - match:   { _version: 5 }
+
+ - do:
+      catch:             conflict
+      index:
+          index:          test_1
+          id:             "1"
+          body:           { foo: bar }
+          version_type:   external
+          version:        5
+
+ - do:
+      catch:             conflict
+      index:
+          index:          test_1
+          id:             "1"
+          body:           { foo: bar }
+          version_type:   external
+          version:        0
+
+ - do:
+      index:
+          index:          test_1
+          id:             "1"
+          body:           { foo: bar }
+          version_type:   external
+          version:        6
+
+ - match:   { _version: 6}

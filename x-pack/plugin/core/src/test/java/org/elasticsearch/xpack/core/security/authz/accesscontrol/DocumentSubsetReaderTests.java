@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.authz.accesscontrol;
 
@@ -13,6 +14,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
@@ -21,13 +23,15 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.Bits;
-import org.elasticsearch.core.internal.io.IOUtils;
-import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
+import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
+import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
 
@@ -48,8 +52,7 @@ public class DocumentSubsetReaderTests extends ESTestCase {
         // We check it is empty at the end of the test, so make sure it is empty in the
         // beginning as well so that we can easily distinguish from garbage added by
         // this test and garbage not cleaned up by other tests.
-        assertTrue(DocumentSubsetReader.NUM_DOCS_CACHE.toString(),
-                DocumentSubsetReader.NUM_DOCS_CACHE.isEmpty());
+        assertTrue(DocumentSubsetReader.NUM_DOCS_CACHE.toString(), DocumentSubsetReader.NUM_DOCS_CACHE.isEmpty());
         directory = newDirectory();
         bitsetCache = new DocumentSubsetBitsetCache(Settings.EMPTY, Executors.newSingleThreadExecutor());
     }
@@ -59,8 +62,7 @@ public class DocumentSubsetReaderTests extends ESTestCase {
         if (directoryReader != null) {
             directoryReader.close();
         }
-        assertTrue(DocumentSubsetReader.NUM_DOCS_CACHE.toString(),
-                DocumentSubsetReader.NUM_DOCS_CACHE.isEmpty());
+        assertTrue(DocumentSubsetReader.NUM_DOCS_CACHE.toString(), DocumentSubsetReader.NUM_DOCS_CACHE.isEmpty());
         directory.close();
         bitsetCache.close();
     }
@@ -89,29 +91,27 @@ public class DocumentSubsetReaderTests extends ESTestCase {
         iw.close();
         openDirectoryReader();
 
-        IndexSearcher indexSearcher = new IndexSearcher(DocumentSubsetReader.wrap(directoryReader, bitsetCache,
-                new TermQuery(new Term("field", "value1"))));
+        IndexSearcher indexSearcher = newSearcher(
+            DocumentSubsetReader.wrap(directoryReader, bitsetCache, new TermQuery(new Term("field", "value1")))
+        );
         assertThat(indexSearcher.getIndexReader().numDocs(), equalTo(1));
         TopDocs result = indexSearcher.search(new MatchAllDocsQuery(), 1);
         assertThat(result.totalHits.value, equalTo(1L));
         assertThat(result.scoreDocs[0].doc, equalTo(0));
 
-        indexSearcher = new IndexSearcher(DocumentSubsetReader.wrap(directoryReader, bitsetCache,
-                new TermQuery(new Term("field", "value2"))));
+        indexSearcher = newSearcher(DocumentSubsetReader.wrap(directoryReader, bitsetCache, new TermQuery(new Term("field", "value2"))));
         assertThat(indexSearcher.getIndexReader().numDocs(), equalTo(1));
         result = indexSearcher.search(new MatchAllDocsQuery(), 1);
         assertThat(result.totalHits.value, equalTo(1L));
         assertThat(result.scoreDocs[0].doc, equalTo(1));
 
         // this doc has been marked as deleted:
-        indexSearcher = new IndexSearcher(DocumentSubsetReader.wrap(directoryReader, bitsetCache,
-                new TermQuery(new Term("field", "value3"))));
+        indexSearcher = newSearcher(DocumentSubsetReader.wrap(directoryReader, bitsetCache, new TermQuery(new Term("field", "value3"))));
         assertThat(indexSearcher.getIndexReader().numDocs(), equalTo(0));
         result = indexSearcher.search(new MatchAllDocsQuery(), 1);
         assertThat(result.totalHits.value, equalTo(0L));
 
-        indexSearcher = new IndexSearcher(DocumentSubsetReader.wrap(directoryReader, bitsetCache,
-                new TermQuery(new Term("field", "value4"))));
+        indexSearcher = newSearcher(DocumentSubsetReader.wrap(directoryReader, bitsetCache, new TermQuery(new Term("field", "value4"))));
         assertThat(indexSearcher.getIndexReader().numDocs(), equalTo(1));
         result = indexSearcher.search(new MatchAllDocsQuery(), 1);
         assertThat(result.totalHits.value, equalTo(1L));
@@ -120,10 +120,7 @@ public class DocumentSubsetReaderTests extends ESTestCase {
 
     public void testLiveDocs() throws Exception {
         int numDocs = scaledRandomIntBetween(16, 128);
-        IndexWriter iw = new IndexWriter(
-                directory,
-                new IndexWriterConfig(new StandardAnalyzer()).setMergePolicy(NoMergePolicy.INSTANCE)
-        );
+        IndexWriter iw = new IndexWriter(directory, new IndexWriterConfig(new StandardAnalyzer()).setMergePolicy(NoMergePolicy.INSTANCE));
 
         for (int i = 0; i < numDocs; i++) {
             Document document = new Document();
@@ -148,9 +145,9 @@ public class DocumentSubsetReaderTests extends ESTestCase {
             assertThat(liveDocs.length(), equalTo(numDocs));
             for (int docId = 0; docId < numDocs; docId++) {
                 if (docId == i) {
-                    assertThat("docId [" + docId +"] should match", liveDocs.get(docId), is(true));
+                    assertThat("docId [" + docId + "] should match", liveDocs.get(docId), is(true));
                 } else {
-                    assertThat("docId [" + docId +"] should not match", liveDocs.get(docId), is(false));
+                    assertThat("docId [" + docId + "] should not match", liveDocs.get(docId), is(false));
                 }
             }
         }
@@ -161,17 +158,22 @@ public class DocumentSubsetReaderTests extends ESTestCase {
         IndexWriterConfig iwc = new IndexWriterConfig(null);
         IndexWriter iw = new IndexWriter(dir, iwc);
         iw.close();
-        DirectoryReader directoryReader = DocumentSubsetReader.wrap(DirectoryReader.open(dir), bitsetCache, new MatchAllDocsQuery());
+        DirectoryReader dirReader = DocumentSubsetReader.wrap(DirectoryReader.open(dir), bitsetCache, new MatchAllDocsQuery());
         try {
-            DocumentSubsetReader.wrap(directoryReader, bitsetCache, new MatchAllDocsQuery());
+            DocumentSubsetReader.wrap(dirReader, bitsetCache, new MatchAllDocsQuery());
             fail("shouldn't be able to wrap DocumentSubsetDirectoryReader twice");
         } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("Can't wrap [class org.elasticsearch.xpack.core.security.authz.accesscontrol" +
-                    ".DocumentSubsetReader$DocumentSubsetDirectoryReader] twice"));
+            assertThat(
+                e.getMessage(),
+                equalTo(
+                    "Can't wrap [class org.elasticsearch.xpack.core.security.authz.accesscontrol"
+                        + ".DocumentSubsetReader$DocumentSubsetDirectoryReader] twice"
+                )
+            );
         }
 
         bitsetCache.close();
-        directoryReader.close();
+        dirReader.close();
         dir.close();
     }
 
@@ -205,14 +207,48 @@ public class DocumentSubsetReaderTests extends ESTestCase {
         // we should have the same cache key as before
         assertEquals(1, ir2.numDocs());
         assertEquals(1, ir2.leaves().size());
-        assertSame(ir.leaves().get(0).reader().getCoreCacheHelper().getKey(),
-                ir2.leaves().get(0).reader().getCoreCacheHelper().getKey());
+        assertSame(ir.leaves().get(0).reader().getCoreCacheHelper().getKey(), ir2.leaves().get(0).reader().getCoreCacheHelper().getKey());
         // However we don't support caching on the reader cache key since we override deletes
         assertNull(ir.leaves().get(0).reader().getReaderCacheHelper());
         assertNull(ir2.leaves().get(0).reader().getReaderCacheHelper());
 
         TestUtil.checkReader(ir);
         IOUtils.close(ir, ir2, iw, dir);
+    }
+
+    public void testProducesStoredFieldsReader() throws Exception {
+        Directory dir = newDirectory();
+        IndexWriterConfig iwc = new IndexWriterConfig(null);
+        iwc.setMaxBufferedDocs(100);
+        iwc.setMergePolicy(NoMergePolicy.INSTANCE);
+        IndexWriter iw = new IndexWriter(dir, iwc);
+
+        // add two docs, id:0 and id:1
+        Document doc = new Document();
+        Field idField = new StringField("id", "", Field.Store.NO);
+        doc.add(idField);
+        idField.setStringValue("0");
+        iw.addDocument(doc);
+        iw.commit();
+
+        idField.setStringValue("1");
+        iw.addDocument(doc);
+        iw.commit();
+
+        // open reader
+        DirectoryReader reader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(iw), new ShardId("_index", "_na_", 0));
+        reader = DocumentSubsetReader.wrap(reader, bitsetCache, new MatchAllDocsQuery());
+        assertEquals(2, reader.numDocs());
+        assertEquals(2, reader.leaves().size());
+
+        TestUtil.checkReader(reader);
+        assertThat(reader.leaves().size(), Matchers.greaterThanOrEqualTo(1));
+        for (LeafReaderContext context : reader.leaves()) {
+            assertThat(context.reader(), Matchers.instanceOf(SequentialStoredFieldsLeafReader.class));
+            SequentialStoredFieldsLeafReader lf = (SequentialStoredFieldsLeafReader) context.reader();
+            assertNotNull(lf.getSequentialStoredFieldsReader());
+        }
+        IOUtils.close(reader, iw, dir);
     }
 
     private void openDirectoryReader() throws IOException {

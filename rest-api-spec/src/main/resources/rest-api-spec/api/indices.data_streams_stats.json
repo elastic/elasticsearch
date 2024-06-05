@@ -1,0 +1,35 @@
+{
+  "indices.data_streams_stats":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/data-streams.html",
+      "description":"Provides statistics on operations happening in a data stream."
+    },
+    "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_data_stream/_stats",
+          "methods":[
+            "GET"
+          ]
+        },
+        {
+          "path":"/_data_stream/{name}/_stats",
+          "methods":[
+            "GET"
+          ],
+          "parts":{
+            "name":{
+              "type":"list",
+              "description":"A comma-separated list of data stream names; use `_all` or empty string to perform the operation on all data streams"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

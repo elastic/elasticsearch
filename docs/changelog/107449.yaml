@@ -1,0 +1,5 @@
+pr: 107449
+summary: Leverage ordinals in enrich lookup
+area: ES|QL
+type: enhancement
+issues: []

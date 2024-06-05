@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.client.benchmark;
 
@@ -22,7 +11,7 @@ import org.elasticsearch.client.benchmark.metrics.Metrics;
 import org.elasticsearch.client.benchmark.metrics.MetricsCalculator;
 import org.elasticsearch.client.benchmark.metrics.Sample;
 import org.elasticsearch.client.benchmark.metrics.SampleRecorder;
-import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.core.SuppressForbidden;
 
 import java.util.Arrays;
 import java.util.List;
@@ -42,8 +31,12 @@ public final class BenchmarkRunner {
     @SuppressForbidden(reason = "system out is ok for a command line tool")
     public void run() {
         SampleRecorder recorder = new SampleRecorder(iterations);
-        System.out.printf("Running %s with %d warmup iterations and %d iterations.%n",
-            task.getClass().getSimpleName(), warmupIterations, iterations);
+        System.out.printf(
+            "Running %s with %d warmup iterations and %d iterations.%n",
+            task.getClass().getSimpleName(),
+            warmupIterations,
+            iterations
+        );
 
         try {
             task.setUp(recorder);
@@ -64,15 +57,27 @@ public final class BenchmarkRunner {
         }
 
         for (Metrics metrics : summaryMetrics) {
-            String throughput = String.format(Locale.ROOT, "Throughput [ops/s]: %f", metrics.throughput);
-            String serviceTimes = String.format(Locale.ROOT,
+            String throughput = String.format(Locale.ROOT, "Throughput [ops/s]: %f", metrics.throughput());
+            String serviceTimes = String.format(
+                Locale.ROOT,
                 "Service time [ms]: p50 = %f, p90 = %f, p95 = %f, p99 = %f, p99.9 = %f, p99.99 = %f",
-                metrics.serviceTimeP50, metrics.serviceTimeP90, metrics.serviceTimeP95,
-                metrics.serviceTimeP99, metrics.serviceTimeP999, metrics.serviceTimeP9999);
-            String latencies = String.format(Locale.ROOT,
+                metrics.serviceTimeP50(),
+                metrics.serviceTimeP90(),
+                metrics.serviceTimeP95(),
+                metrics.serviceTimeP99(),
+                metrics.serviceTimeP999(),
+                metrics.serviceTimeP9999()
+            );
+            String latencies = String.format(
+                Locale.ROOT,
                 "Latency [ms]:      p50 = %f, p90 = %f, p95 = %f, p99 = %f, p99.9 = %f, p99.99 = %f",
-                metrics.latencyP50, metrics.latencyP90, metrics.latencyP95,
-                metrics.latencyP99, metrics.latencyP999, metrics.latencyP9999);
+                metrics.latencyP50(),
+                metrics.latencyP90(),
+                metrics.latencyP95(),
+                metrics.latencyP99(),
+                metrics.latencyP999(),
+                metrics.latencyP9999()
+            );
 
             int lineLength = Math.max(serviceTimes.length(), latencies.length());
 
@@ -80,7 +85,7 @@ public final class BenchmarkRunner {
             System.out.println(throughput);
             System.out.println(serviceTimes);
             System.out.println(latencies);
-            System.out.printf("success count = %d, error count = %d%n", metrics.successCount, metrics.errorCount);
+            System.out.printf("success count = %d, error count = %d%n", metrics.successCount(), metrics.errorCount());
             System.out.println(repeat(lineLength, '-'));
         }
     }

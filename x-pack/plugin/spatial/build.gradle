@@ -1,25 +1,39 @@
-evaluationDependsOn(xpackModule('core'))
+import org.elasticsearch.gradle.internal.info.BuildParams
 
-apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
   name 'spatial'
   description 'A plugin for Basic Spatial features'
   classname 'org.elasticsearch.xpack.spatial.SpatialPlugin'
-  extendedPlugins = ['x-pack-core']
+  extendedPlugins = ['x-pack-core', 'legacy-geo', 'lang-painless']
 }
 
 dependencies {
-  compileOnly project(path: xpackModule('core'), configuration: 'default')
-  testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+  compileOnly project(path: ':modules:legacy-geo')
+  compileOnly project(':modules:lang-painless:spi')
+  compileOnly project(path: xpackModule('core'))
+  api "org.apache.lucene:lucene-spatial3d:${versions.lucene}"
+  api project(":libs:elasticsearch-h3")
+  testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation project(path: ':modules:percolator')
+  testImplementation project(path: xpackModule('vector-tile'))
+  testImplementation project(path: ':modules:aggregations')
 }
 
-licenseHeaders {
-  // This class was sourced from apache lucene's sandbox module tests
-  excludes << 'org/apache/lucene/geo/XShapeTestUtil.java'
+testClusters.configureEach {
+  setting 'xpack.license.self_generated.type', 'trial'
+  testDistribution = 'DEFAULT'
+  setting 'xpack.security.enabled', 'false'
 }
 
-// xpack modules are installed in real clusters as the meta plugin, so
-// installing them as individual plugins for integ tests doesn't make sense,
-// so we disable integ tests
-integTest.enabled = false
+if (BuildParams.isSnapshotBuild() == false) {
+  tasks.named("test").configure {
+    systemProperty 'es.index_mode_feature_flag_registered', 'true'
+  }
+}
+
+tasks.named("dependencyLicenses").configure {
+  mapping from: /lucene-.*/, to: 'lucene'
+}

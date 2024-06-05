@@ -1,0 +1,6 @@
+pr: 107494
+summary: Handle infinity during synthetic source construction for scaled float field
+area: Mapping
+type: bug
+issues:
+ - 107101

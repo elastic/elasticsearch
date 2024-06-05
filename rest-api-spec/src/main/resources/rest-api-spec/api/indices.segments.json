@@ -5,6 +5,10 @@
       "description":"Provides low-level information about segments in a Lucene index."
     },
     "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"]
+    },
     "url":{
       "paths":[
         {
@@ -41,6 +45,7 @@
         "options":[
           "open",
           "closed",
+          "hidden",
           "none",
           "all"
         ],
@@ -50,7 +55,11 @@
       "verbose":{
         "type":"boolean",
         "description":"Includes detailed memory usage by Lucene.",
-        "default":false
+        "default":false,
+        "deprecated" : {
+          "version" : "8.0.0",
+          "description" : "lucene no longer keeps track of segment memory overhead as it is largely off-heap"
+        }
       }
     }
   }

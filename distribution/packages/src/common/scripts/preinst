@@ -10,17 +10,19 @@
 #       $1=1       : indicates an new install
 #       $1=2       : indicates an upgrade
 
+set -e
+
 err_exit() {
     echo "$@" >&2
     exit 1
 }
 
 # source the default env file
-if [ -f "${path.env}" ]; then
-    . "${path.env}"
-else
-  ES_PATH_CONF="${path.conf}"
+if [ -f "@path.env@" ]; then
+    . "@path.env@"
 fi
+
+export ES_PATH_CONF=${ES_PATH_CONF:-@path.conf@}
 
 case "$1" in
 
@@ -80,4 +82,4 @@ case "$1" in
     ;;
 esac
 
-${scripts.footer}
+@scripts.footer@

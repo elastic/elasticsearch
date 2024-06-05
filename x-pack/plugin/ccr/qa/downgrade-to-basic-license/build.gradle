@@ -1,27 +1,39 @@
-import org.elasticsearch.gradle.test.RestIntegTestTask
+import org.elasticsearch.gradle.internal.info.BuildParams
+import org.elasticsearch.gradle.internal.test.RestIntegTestTask
+import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
 
-apply plugin: 'elasticsearch.testclusters'
-apply plugin: 'elasticsearch.standalone-test'
+apply plugin: 'elasticsearch.internal-testclusters'
+apply plugin: 'elasticsearch.standalone-rest-test'
 
 dependencies {
-  testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
-  testCompile project(path: xpackModule('ccr'), configuration: 'runtime')
-  testCompile project(':x-pack:plugin:ccr:qa')
+  testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation project(xpackModule('ccr'))
+  testImplementation project(':x-pack:plugin:ccr:qa')
 }
 
-task "leader-cluster"(type: RestIntegTestTask) {
-  mustRunAfter(precommit)
-  runner {
-    systemProperty 'tests.target_cluster', 'leader'
-  }
-}
-testClusters."leader-cluster" {
+def leaderCluster = testClusters.register("leader-cluster") {
   testDistribution = 'DEFAULT'
   setting 'xpack.license.self_generated.type', 'trial'
+  setting 'xpack.security.enabled', 'true'
+  user username: 'admin', password: 'admin-password', role: 'superuser'
+}
+
+def followCluster = testClusters.register("follow-cluster") {
+  testDistribution = 'DEFAULT'
+  setting 'xpack.monitoring.collection.enabled', 'true'
+  setting 'xpack.license.self_generated.type', 'trial'
+  setting 'xpack.security.enabled', 'true'
+  user username: 'admin', password: 'admin-password', role: 'superuser'
+  setting 'cluster.remote.leader_cluster.seeds', { "\"${leaderCluster.get().getAllTransportPortURI().join(",")}\"" }, IGNORE_VALUE
+}
+
+tasks.register("leader-cluster", RestIntegTestTask) {
+  mustRunAfter("precommit")
+  systemProperty 'tests.target_cluster', 'leader'
 }
 
 File policyFile = file("${buildDir}/tmp/java.policy")
-task writeJavaPolicy {
+tasks.register("writeJavaPolicy") {
   doLast {
     if (policyFile.parentFile.exists() == false && policyFile.parentFile.mkdirs() == false) {
       throw new GradleException("failed to create temporary directory [${tmp}]")
@@ -36,24 +48,13 @@ task writeJavaPolicy {
   }
 }
 
-task "follow-cluster"(type: RestIntegTestTask) {
+tasks.register("follow-cluster", RestIntegTestTask) {
   dependsOn 'writeJavaPolicy', "leader-cluster"
-  runner {
-    useCluster testClusters."leader-cluster"
-    systemProperty 'java.security.policy', "file://${policyFile}"
+    useCluster leaderCluster
     systemProperty 'tests.target_cluster', 'follow'
-    nonInputProperties.systemProperty 'tests.leader_host', "${-> testClusters."leader-cluster".getAllHttpSocketURI().get(0)}"
-    nonInputProperties.systemProperty 'log', "${-> testClusters."follow-cluster".getFirstNode().getServerLog()}"
-  }
+    nonInputProperties.systemProperty 'java.security.policy', "file://${policyFile}"
+    nonInputProperties.systemProperty 'tests.leader_host', leaderCluster.map(c -> c.allHttpSocketURI.get(0))
+    nonInputProperties.systemProperty 'log', followCluster.map(c -> c.getFirstNode().getServerLog())
 }
 
-testClusters."follow-cluster" {
-  testDistribution = 'DEFAULT'
-  setting 'xpack.monitoring.collection.enabled', 'true'
-  setting 'xpack.license.self_generated.type', 'trial'
-  setting 'cluster.remote.leader_cluster.seeds', { "\"${testClusters."leader-cluster".getAllTransportPortURI().join(",")}\"" }
-}
-
-
-check.dependsOn "follow-cluster"
-test.enabled = false // no unit tests for multi-cluster-search, only the rest integration test
+tasks.named("check").configure { dependsOn "follow-cluster" }

@@ -1,0 +1,51 @@
+---
+"Nodes hot threads - CPU":
+  - do:
+      nodes.hot_threads:
+        type: "cpu"
+  - match:
+      $body: |
+        /Hot\ threads\ at/
+---
+"Nodes hot threads - CPU sort":
+  - do:
+      nodes.hot_threads:
+        type: "cpu"
+        sort: "cpu"
+  - match:
+      $body: |
+        /Hot\ threads\ at/
+---
+"Nodes hot threads - WAIT":
+  - do:
+      nodes.hot_threads:
+        type: "wait"
+  - match:
+      $body: |
+        /Hot\ threads\ at/
+---
+"Nodes hot threads - BLOCK":
+  - do:
+      nodes.hot_threads:
+        type: "block"
+  - match:
+      $body: |
+        /Hot\ threads\ at/
+---
+"Nodes hot threads - MEM":
+  - do:
+      nodes.hot_threads:
+        type: "mem"
+  - match:
+      $body: |
+        /Hot\ threads\ at/
+---
+"Nodes hot threads - BAD":
+  - do:
+      catch: bad_request
+      nodes.hot_threads:
+        type: "gpu"
+  - match: { status: 400 }
+  - match: { error.type: illegal_argument_exception }
+  - match: { error.reason: "type not supported [gpu]" }
+

@@ -1,15 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.action.role;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
 
@@ -18,28 +20,26 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * A request delete a role from the security index
  */
-public class DeleteRoleRequest extends ActionRequest implements WriteRequest<DeleteRoleRequest> {
+public class DeleteRoleRequest extends ActionRequest {
 
     private String name;
-    private RefreshPolicy refreshPolicy = RefreshPolicy.IMMEDIATE;
+    private WriteRequest.RefreshPolicy refreshPolicy = WriteRequest.RefreshPolicy.IMMEDIATE;
 
-    public DeleteRoleRequest(StreamInput in) throws IOException {
-        super(in);
-        name = in.readString();
-        refreshPolicy = RefreshPolicy.readFrom(in);
+    public DeleteRoleRequest() {}
+
+    public DeleteRoleRequest setRefreshPolicy(@Nullable String refreshPolicy) {
+        if (refreshPolicy != null) {
+            setRefreshPolicy(WriteRequest.RefreshPolicy.parse(refreshPolicy));
+        }
+        return this;
     }
 
-    public DeleteRoleRequest() {
-    }
-
-    @Override
-    public DeleteRoleRequest setRefreshPolicy(RefreshPolicy refreshPolicy) {
+    public DeleteRoleRequest setRefreshPolicy(WriteRequest.RefreshPolicy refreshPolicy) {
         this.refreshPolicy = refreshPolicy;
         return this;
     }
 
-    @Override
-    public RefreshPolicy getRefreshPolicy() {
+    public WriteRequest.RefreshPolicy getRefreshPolicy() {
         return refreshPolicy;
     }
 
@@ -62,8 +62,6 @@ public class DeleteRoleRequest extends ActionRequest implements WriteRequest<Del
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeString(name);
-        refreshPolicy.writeTo(out);
+        TransportAction.localOnly();
     }
 }

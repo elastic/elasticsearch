@@ -1,0 +1,72 @@
+[role="xpack"]
+[[security-api-get-user-privileges]]
+=== Get user privileges API
+++++
+<titleabbrev>Get user privileges</titleabbrev>
+++++
+
+Retrieves the <<security-privileges,security privileges>> for the logged in 
+user.
+
+[[security-api-get-user-privileges-request]]
+==== {api-request-title}
+
+`GET /_security/user/_privileges`
+
+[[security-api-get-user-privileges-prereqs]]
+==== {api-prereq-title}
+
+* All users can use this API, but only to determine their own privileges. To 
+check the privileges of other users, you must use the run as feature. For
+more information, see <<run-as-privilege>>.
+
+[[security-api-get-user-privileges-desc]]
+==== {api-description-title}
+
+To check whether a user has a specific list of privileges, use the
+<<security-api-has-privileges,has privileges API>>.
+
+
+[[security-api-get-user-privileges-example]]
+==== {api-examples-title}
+
+[source,console]
+--------------------------------------------------
+GET /_security/user/_privileges
+--------------------------------------------------
+
+[source,console-result]
+--------------------------------------------------
+{
+  "cluster" : [
+    "all"
+  ],
+  "global" : [ ],
+  "indices" : [
+    {
+      "names" : [
+        "*"
+      ],
+      "privileges" : [
+        "all"
+      ],
+      "allow_restricted_indices" : true
+    }
+  ],
+  "applications" : [
+    {
+      "application" : "*",
+      "privileges" : [
+        "*"
+      ],
+      "resources" : [
+        "*"
+      ]
+    }
+  ],
+  "run_as" : [
+    "*"
+  ]
+}
+--------------------------------------------------
+// TESTRESPONSE[s/: false/: true/]

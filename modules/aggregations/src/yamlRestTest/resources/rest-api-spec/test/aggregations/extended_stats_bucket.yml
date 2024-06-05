@@ -1,0 +1,250 @@
+setup:
+  - do:
+      bulk:
+        index: no_gaps
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "@timestamp": "2022-01-01T00:00:00", "v": 1 }
+          - { "index": { } }
+          - { "@timestamp": "2022-01-01T01:00:00", "v": 2 }
+          - { "index": { } }
+          - { "@timestamp": "2022-01-01T02:00:00", "v": 1 }
+
+  - do:
+      bulk:
+        index: gaps
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "@timestamp": "2022-01-01T00:00:00", "v": 1 }
+          - { "index": { } }
+          - { "@timestamp": "2022-01-01T02:00:00", "v": 2 }
+          - { "index": { } }
+          - { "@timestamp": "2022-01-01T03:00:00", "v": 1 }
+
+---
+basic:
+  - skip:
+      features: close_to
+
+  - do:
+      search:
+        index: no_gaps
+        body:
+          size: 0
+          aggs:
+            "@timestamp":
+              date_histogram:
+                field: "@timestamp"
+                fixed_interval: 1h
+              aggs:
+                v: {avg: {field: v}}
+            d:
+              extended_stats_bucket:
+                buckets_path: "@timestamp>v"
+  - match: { hits.total.value: 3 }
+  - length: { aggregations.@timestamp.buckets: 3 }
+  - match: { aggregations.d.count: 3 }
+  - match: { aggregations.d.min: 1 }
+  - match: { aggregations.d.max: 2 }
+  - close_to: { aggregations.d.avg: {value: 1.333, error: 0.0005 }}
+  - match: { aggregations.d.sum: 4.0 }
+  - match: { aggregations.d.sum_of_squares: 6.0 }
+  - close_to: { aggregations.d.variance: {value: 0.222, error: 0.0005 }}
+  - close_to: { aggregations.d.variance_population: {value: 0.222, error: 0.0005 }}
+  - close_to: { aggregations.d.variance_sampling: {value: 0.333, error: 0.0005 }}
+  - close_to: { aggregations.d.std_deviation: {value: 0.471, error: 0.0005 }}
+  - close_to: { aggregations.d.std_deviation_population: {value: 0.471, error: 0.0005 }}
+  - close_to: { aggregations.d.std_deviation_sampling: {value: 0.577, error: 0.0005 }}
+  - close_to: { aggregations.d.std_deviation_bounds.upper: {value: 2.276, error: 0.0005 }}
+  - close_to: { aggregations.d.std_deviation_bounds.lower: {value: 0.391, error: 0.0005 }}
+  - close_to: { aggregations.d.std_deviation_bounds.upper_population: {value: 2.276, error: 0.0005 }}
+  - close_to: { aggregations.d.std_deviation_bounds.lower_population: {value: 0.391, error: 0.0005 }}
+  - close_to: { aggregations.d.std_deviation_bounds.upper_sampling: {value: 2.488, error: 0.0005 }}
+  - close_to: { aggregations.d.std_deviation_bounds.lower_sampling: {value: 0.179, error: 0.0005 }}
+
+---
+format:
+  - skip:
+      features: close_to
+
+  - do:
+      search:
+        index: no_gaps
+        body:
+          size: 0
+          aggs:
+            "@timestamp":
+              date_histogram:
+                field: "@timestamp"
+                fixed_interval: 1h
+              aggs:
+                v: {avg: {field: v}}
+            d:
+              extended_stats_bucket:
+                buckets_path: "@timestamp>v"
+                format: "0.00"
+  - match: { hits.total.value: 3 }
+  - length: { aggregations.@timestamp.buckets: 3 }
+  - match: { aggregations.d.count: 3 }
+  - match: { aggregations.d.min: 1 }
+  - match: { aggregations.d.max: 2 }
+  - close_to: { aggregations.d.avg: {value: 1.333, error: 0.0005 }}
+  - match: { aggregations.d.sum: 4.0 }
+  - match: { aggregations.d.sum_of_squares: 6.0 }
+  - close_to: { aggregations.d.variance: {value: 0.222, error: 0.0005 }}
+  - close_to: { aggregations.d.variance_population: {value: 0.222, error: 0.0005 }}
+  - close_to: { aggregations.d.variance_sampling: {value: 0.333, error: 0.0005 }}
+  - close_to: { aggregations.d.std_deviation: {value: 0.471, error: 0.0005 }}
+  - close_to: { aggregations.d.std_deviation_population: {value: 0.471, error: 0.0005 }}
+  - close_to: { aggregations.d.std_deviation_sampling: {value: 0.577, error: 0.0005 }}
+  - close_to: { aggregations.d.std_deviation_bounds.upper: {value: 2.276, error: 0.0005 }}
+  - close_to: { aggregations.d.std_deviation_bounds.lower: {value: 0.391, error: 0.0005 }}
+  - close_to: { aggregations.d.std_deviation_bounds.upper_population: {value: 2.276, error: 0.0005 }}
+  - close_to: { aggregations.d.std_deviation_bounds.lower_population: {value: 0.391, error: 0.0005 }}
+  - close_to: { aggregations.d.std_deviation_bounds.upper_sampling: {value: 2.488, error: 0.0005 }}
+  - close_to: { aggregations.d.std_deviation_bounds.lower_sampling: {value: 0.179, error: 0.0005 }}
+  - match: { aggregations.d.min_as_string: "1.00" }
+  - match: { aggregations.d.max_as_string: "2.00" }
+  - match: { aggregations.d.avg_as_string: "1.33" }
+  - match: { aggregations.d.sum_as_string: "4.00" }
+  - match: { aggregations.d.sum_of_squares_as_string: "6.00" }
+  - match: { aggregations.d.variance_as_string: "0.22" }
+  - match: { aggregations.d.variance_population_as_string: "0.22" }
+  - match: { aggregations.d.variance_sampling_as_string: "0.33" }
+  - match: { aggregations.d.std_deviation_as_string: "0.47" }
+  - match: { aggregations.d.std_deviation_population_as_string: "0.47" }
+  - match: { aggregations.d.std_deviation_sampling_as_string: "0.58" }
+  - match: { aggregations.d.std_deviation_bounds_as_string.upper: "2.28" }
+  - match: { aggregations.d.std_deviation_bounds_as_string.lower: "0.39" }
+  - match: { aggregations.d.std_deviation_bounds_as_string.upper_population: "2.28" }
+  - match: { aggregations.d.std_deviation_bounds_as_string.lower_population: "0.39" }
+  - match: { aggregations.d.std_deviation_bounds_as_string.upper_sampling: "2.49" }
+  - match: { aggregations.d.std_deviation_bounds_as_string.lower_sampling: "0.18" }
+
+---
+gap_policy=skip:
+  - skip:
+      features: close_to
+
+  - do:
+      search:
+        index: gaps
+        body:
+          size: 0
+          aggs:
+            "@timestamp":
+              date_histogram:
+                field: "@timestamp"
+                fixed_interval: 1h
+              aggs:
+                v: {avg: {field: v}}
+            d:
+              extended_stats_bucket:
+                buckets_path: "@timestamp>v"
+                gap_policy: skip
+  - match: { hits.total.value: 3 }
+  - length: { aggregations.@timestamp.buckets: 4 }
+  - match: { aggregations.d.count: 3 }
+  - match: { aggregations.d.min: 1 }
+  - match: { aggregations.d.max: 2 }
+  - close_to: { aggregations.d.avg: {value: 1.333, error: 0.0005 }}
+  - match: { aggregations.d.sum: 4.0 }
+  - match: { aggregations.d.sum_of_squares: 6.0 }
+  - close_to: { aggregations.d.variance: {value: 0.222, error: 0.0005 }}
+  - close_to: { aggregations.d.variance_population: {value: 0.222, error: 0.0005 }}
+  - close_to: { aggregations.d.variance_sampling: {value: 0.333, error: 0.0005 }}
+  - close_to: { aggregations.d.std_deviation: {value: 0.471, error: 0.0005 }}
+  - close_to: { aggregations.d.std_deviation_population: {value: 0.471, error: 0.0005 }}
+  - close_to: { aggregations.d.std_deviation_sampling: {value: 0.577, error: 0.0005 }}
+  - close_to: { aggregations.d.std_deviation_bounds.upper: {value: 2.276, error: 0.0005 }}
+  - close_to: { aggregations.d.std_deviation_bounds.lower: {value: 0.391, error: 0.0005 }}
+  - close_to: { aggregations.d.std_deviation_bounds.upper_population: {value: 2.276, error: 0.0005 }}
+  - close_to: { aggregations.d.std_deviation_bounds.lower_population: {value: 0.391, error: 0.0005 }}
+  - close_to: { aggregations.d.std_deviation_bounds.upper_sampling: {value: 2.488, error: 0.0005 }}
+  - close_to: { aggregations.d.std_deviation_bounds.lower_sampling: {value: 0.179, error: 0.0005 }}
+
+---
+gap_policy=insert_zeros:
+  - skip:
+      features: close_to
+
+  - do:
+      search:
+        index: gaps
+        body:
+          size: 0
+          aggs:
+            "@timestamp":
+              date_histogram:
+                field: "@timestamp"
+                fixed_interval: 1h
+              aggs:
+                v: {avg: {field: v}}
+            d:
+              extended_stats_bucket:
+                buckets_path: "@timestamp>v"
+                gap_policy: insert_zeros
+  - match: { hits.total.value: 3 }
+  - length: { aggregations.@timestamp.buckets: 4 }
+  - match: { aggregations.d.count: 4 }
+  - match: { aggregations.d.min: 0 }
+  - match: { aggregations.d.max: 2 }
+  - match: { aggregations.d.avg: 1 }
+  - match: { aggregations.d.sum: 4.0 }
+  - match: { aggregations.d.sum_of_squares: 6.0 }
+  - close_to: { aggregations.d.variance: {value: 0.500, error: 0.0005 }}
+  - close_to: { aggregations.d.variance_population: {value: 0.500, error: 0.0005 }}
+  - close_to: { aggregations.d.variance_sampling: {value: 0.667, error: 0.0005 }}
+  - close_to: { aggregations.d.std_deviation: {value: 0.707, error: 0.0005 }}
+  - close_to: { aggregations.d.std_deviation_population: {value: 0.707, error: 0.0005 }}
+  - close_to: { aggregations.d.std_deviation_sampling: {value: 0.816, error: 0.0005 }}
+  - close_to: { aggregations.d.std_deviation_bounds.upper: {value:  2.414, error: 0.0005 }}
+  - close_to: { aggregations.d.std_deviation_bounds.lower: {value: -0.414, error: 0.0005 }}
+  - close_to: { aggregations.d.std_deviation_bounds.upper_population: {value:  2.414, error: 0.0005 }}
+  - close_to: { aggregations.d.std_deviation_bounds.lower_population: {value: -0.414, error: 0.0005 }}
+  - close_to: { aggregations.d.std_deviation_bounds.upper_sampling: {value:  2.633, error: 0.0005 }}
+  - close_to: { aggregations.d.std_deviation_bounds.lower_sampling: {value: -0.633, error: 0.0005 }}
+
+---
+gap_policy=keep_value:
+  - skip:
+      features: close_to
+
+  - do:
+      search:
+        index: gaps
+        body:
+          size: 0
+          aggs:
+            "@timestamp":
+              date_histogram:
+                field: "@timestamp"
+                fixed_interval: 1h
+              aggs:
+                v: {avg: {field: v}}
+            d:
+              extended_stats_bucket:
+                buckets_path: "@timestamp>v"
+                gap_policy: keep_values
+  - match: { hits.total.value: 3 }
+  - length: { aggregations.@timestamp.buckets: 4 }
+  - match: { aggregations.d.count: 3 }
+  - match: { aggregations.d.min: 1 }
+  - match: { aggregations.d.max: 2 }
+  - close_to: { aggregations.d.avg: {value: 1.333, error: 0.0005 }}
+  - match: { aggregations.d.sum: 4.0 }
+  - match: { aggregations.d.sum_of_squares: 6.0 }
+  - close_to: { aggregations.d.variance: {value: 0.222, error: 0.0005 }}
+  - close_to: { aggregations.d.variance_population: {value: 0.222, error: 0.0005 }}
+  - close_to: { aggregations.d.variance_sampling: {value: 0.333, error: 0.0005 }}
+  - close_to: { aggregations.d.std_deviation: {value: 0.471, error: 0.0005 }}
+  - close_to: { aggregations.d.std_deviation_population: {value: 0.471, error: 0.0005 }}
+  - close_to: { aggregations.d.std_deviation_sampling: {value: 0.577, error: 0.0005 }}
+  - close_to: { aggregations.d.std_deviation_bounds.upper: {value: 2.276, error: 0.0005 }}
+  - close_to: { aggregations.d.std_deviation_bounds.lower: {value: 0.391, error: 0.0005 }}
+  - close_to: { aggregations.d.std_deviation_bounds.upper_population: {value: 2.276, error: 0.0005 }}
+  - close_to: { aggregations.d.std_deviation_bounds.lower_population: {value: 0.391, error: 0.0005 }}
+  - close_to: { aggregations.d.std_deviation_bounds.upper_sampling: {value: 2.488, error: 0.0005 }}
+  - close_to: { aggregations.d.std_deviation_bounds.lower_sampling: {value: 0.179, error: 0.0005 }}

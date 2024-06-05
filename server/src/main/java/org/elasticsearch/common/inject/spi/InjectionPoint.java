@@ -29,7 +29,7 @@ import org.elasticsearch.common.inject.internal.Nullability;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.AnnotatedElement;
 import java.lang.reflect.Constructor;
-import java.lang.reflect.Field;
+import java.lang.reflect.Executable;
 import java.lang.reflect.Member;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
@@ -53,18 +53,12 @@ import static org.elasticsearch.common.inject.internal.MoreTypes.getRawType;
  * @author crazybob@google.com (Bob Lee)
  * @since 2.0
  */
+@SuppressWarnings("rawtypes")
 public final class InjectionPoint {
 
     private final boolean optional;
-    private final Member member;
+    private final Executable member;
     private final List<Dependency<?>> dependencies;
-
-    private InjectionPoint(Member member,
-                           List<Dependency<?>> dependencies, boolean optional) {
-        this.member = member;
-        this.dependencies = dependencies;
-        this.optional = optional;
-    }
 
     InjectionPoint(TypeLiteral<?> type, Method method) {
         this.member = method;
@@ -81,29 +75,7 @@ public final class InjectionPoint {
         this.dependencies = forMember(constructor, type, constructor.getParameterAnnotations());
     }
 
-    InjectionPoint(TypeLiteral<?> type, Field field) {
-        this.member = field;
-
-        Inject inject = field.getAnnotation(Inject.class);
-        this.optional = inject.optional();
-
-        Annotation[] annotations = field.getAnnotations();
-
-        Errors errors = new Errors(field);
-        Key<?> key = null;
-        try {
-            key = Annotations.getKey(type.getFieldType(field), field, annotations, errors);
-        } catch (ErrorsException e) {
-            errors.merge(e.getErrors());
-        }
-        errors.throwConfigurationExceptionIfErrorsExist();
-
-        this.dependencies = Collections.<Dependency<?>>singletonList(
-            newDependency(key, Nullability.allowsNull(annotations), -1));
-    }
-
-    private List<Dependency<?>> forMember(Member member, TypeLiteral<?> type,
-                                                   Annotation[][] parameterAnnotations) {
+    private List<Dependency<?>> forMember(Member member, TypeLiteral<?> type, Annotation[][] parameterAnnotations) {
         Errors errors = new Errors(member);
         Iterator<Annotation[]> annotationsIterator = Arrays.asList(parameterAnnotations).iterator();
 
@@ -133,7 +105,7 @@ public final class InjectionPoint {
     /**
      * Returns the injected constructor, field, or method.
      */
-    public Member getMember() {
+    public Executable getMember() {
         return member;
     }
 
@@ -151,8 +123,7 @@ public final class InjectionPoint {
     /**
      * Returns true if this injection point shall be skipped if the injector cannot resolve bindings
      * for all required dependencies. Both explicit bindings (as specified in a module), and implicit
-     * bindings ({@literal @}{@link org.elasticsearch.common.inject.ImplementedBy ImplementedBy}, default
-     * constructors etc.) may be used to satisfy optional injection points.
+     * bindings by default constructors etc.) may be used to satisfy optional injection points.
      */
     public boolean isOptional() {
         return optional;
@@ -160,8 +131,7 @@ public final class InjectionPoint {
 
     @Override
     public boolean equals(Object o) {
-        return o instanceof InjectionPoint
-                && member.equals(((InjectionPoint) o).member);
+        return o instanceof InjectionPoint && member.equals(((InjectionPoint) o).member);
     }
 
     @Override
@@ -215,8 +185,7 @@ public final class InjectionPoint {
             Constructor<?> noArgConstructor = rawType.getConstructor();
 
             // Disallow private constructors on non-private classes (unless they have @Inject)
-            if (Modifier.isPrivate(noArgConstructor.getModifiers())
-                    && !Modifier.isPrivate(rawType.getModifiers())) {
+            if (Modifier.isPrivate(noArgConstructor.getModifiers()) && Modifier.isPrivate(rawType.getModifiers()) == false) {
                 errors.missingConstructor(rawType);
                 throw new ConfigurationException(errors.getMessages());
             }
@@ -230,59 +199,6 @@ public final class InjectionPoint {
     }
 
     /**
-     * Returns a new injection point for the injectable constructor of {@code type}.
-     *
-     * @param type a concrete type with exactly one constructor annotated {@literal @}{@link Inject},
-     *             or a no-arguments constructor that is not private.
-     * @throws ConfigurationException if there is no injectable constructor, more than one injectable
-     *                                constructor, or if parameters of the injectable constructor are malformed, such as a
-     *                                parameter with multiple binding annotations.
-     */
-    public static InjectionPoint forConstructorOf(Class<?> type) {
-        return forConstructorOf(TypeLiteral.get(type));
-    }
-
-    /**
-     * Returns all static method and field injection points on {@code type}.
-     *
-     * @return a possibly empty set of injection points. The set has a specified iteration order. All
-     *         fields are returned and then all methods. Within the fields, supertype fields are returned
-     *         before subtype fields. Similarly, supertype methods are returned before subtype methods.
-     * @throws ConfigurationException if there is a malformed injection point on {@code type}, such as
-     *                                a field with multiple binding annotations. The exception's {@link
-     *                                ConfigurationException#getPartialValue() partial value} is a {@code Set<InjectionPoint>}
-     *                                of the valid injection points.
-     */
-    public static Set<InjectionPoint> forStaticMethodsAndFields(TypeLiteral type) {
-        Set<InjectionPoint> result = new HashSet<>();
-        Errors errors = new Errors();
-
-        addInjectionPoints(type, Factory.FIELDS, true, result, errors);
-        addInjectionPoints(type, Factory.METHODS, true, result, errors);
-
-        result = unmodifiableSet(result);
-        if (errors.hasErrors()) {
-            throw new ConfigurationException(errors.getMessages()).withPartialValue(result);
-        }
-        return result;
-    }
-
-    /**
-     * Returns all static method and field injection points on {@code type}.
-     *
-     * @return a possibly empty set of injection points. The set has a specified iteration order. All
-     *         fields are returned and then all methods. Within the fields, supertype fields are returned
-     *         before subtype fields. Similarly, supertype methods are returned before subtype methods.
-     * @throws ConfigurationException if there is a malformed injection point on {@code type}, such as
-     *                                a field with multiple binding annotations. The exception's {@link
-     *                                ConfigurationException#getPartialValue() partial value} is a {@code Set<InjectionPoint>}
-     *                                of the valid injection points.
-     */
-    public static Set<InjectionPoint> forStaticMethodsAndFields(Class<?> type) {
-        return forStaticMethodsAndFields(TypeLiteral.get(type));
-    }
-
-    /**
      * Returns all instance method and field injection points on {@code type}.
      *
      * @return a possibly empty set of injection points. The set has a specified iteration order. All
@@ -293,13 +209,12 @@ public final class InjectionPoint {
      *                                ConfigurationException#getPartialValue() partial value} is a {@code Set<InjectionPoint>}
      *                                of the valid injection points.
      */
-    public static Set<InjectionPoint> forInstanceMethodsAndFields(TypeLiteral<?> type) {
+    public static Set<InjectionPoint> forInstanceMethods(TypeLiteral<?> type) {
         Set<InjectionPoint> result = new HashSet<>();
         Errors errors = new Errors();
 
         // TODO (crazybob): Filter out overridden members.
-        addInjectionPoints(type, Factory.FIELDS, false, result, errors);
-        addInjectionPoints(type, Factory.METHODS, false, result, errors);
+        addInjectionPoints(type, false, result, errors);
 
         result = unmodifiableSet(result);
         if (errors.hasErrors()) {
@@ -309,7 +224,7 @@ public final class InjectionPoint {
     }
 
     /**
-     * Returns all instance method and field injection points on {@code type}.
+     * Returns all instance method injection points on {@code type}.
      *
      * @return a possibly empty set of injection points. The set has a specified iteration order. All
      *         fields are returned and then all methods. Within the fields, supertype fields are returned
@@ -319,13 +234,16 @@ public final class InjectionPoint {
      *                                ConfigurationException#getPartialValue() partial value} is a {@code Set<InjectionPoint>}
      *                                of the valid injection points.
      */
-    public static Set<InjectionPoint> forInstanceMethodsAndFields(Class<?> type) {
-        return forInstanceMethodsAndFields(TypeLiteral.get(type));
+    public static Set<InjectionPoint> forInstanceMethods(Class<?> type) {
+        return forInstanceMethods(TypeLiteral.get(type));
     }
 
     private static void checkForMisplacedBindingAnnotations(Member member, Errors errors) {
         Annotation misplacedBindingAnnotation = Annotations.findBindingAnnotation(
-                errors, member, ((AnnotatedElement) member).getAnnotations());
+            errors,
+            member,
+            ((AnnotatedElement) member).getAnnotations()
+        );
         if (misplacedBindingAnnotation == null) {
             return;
         }
@@ -334,36 +252,39 @@ public final class InjectionPoint {
         // name. In Scala, fields always get accessor methods (that we need to ignore). See bug 242.
         if (member instanceof Method) {
             try {
-                if (member.getDeclaringClass().getField(member.getName()) != null) {
-                    return;
-                }
-            } catch (NoSuchFieldException ignore) {
-            }
+                member.getDeclaringClass().getField(member.getName());
+                return;
+            } catch (NoSuchFieldException ignore) {}
         }
 
         errors.misplacedBindingAnnotation(member, misplacedBindingAnnotation);
     }
 
-    private static <M extends Member & AnnotatedElement> void addInjectionPoints(TypeLiteral<?> type,
-                                                                                 Factory<M> factory, boolean statics,
-                                                                                 Collection<InjectionPoint> injectionPoints,
-                                                                                 Errors errors) {
+    private static void addInjectionPoints(
+        TypeLiteral<?> type,
+        boolean statics,
+        Collection<InjectionPoint> injectionPoints,
+        Errors errors
+    ) {
         if (type.getType() == Object.class) {
             return;
         }
 
         // Add injectors for superclass first.
         TypeLiteral<?> superType = type.getSupertype(type.getRawType().getSuperclass());
-        addInjectionPoints(superType, factory, statics, injectionPoints, errors);
+        addInjectionPoints(superType, statics, injectionPoints, errors);
 
         // Add injectors for all members next
-        addInjectorsForMembers(type, factory, statics, injectionPoints, errors);
+        addInjectorsForMembers(type, statics, injectionPoints, errors);
     }
 
-    private static <M extends Member & AnnotatedElement> void addInjectorsForMembers(
-            TypeLiteral<?> typeLiteral, Factory<M> factory, boolean statics,
-            Collection<InjectionPoint> injectionPoints, Errors errors) {
-        for (M member : factory.getMembers(getRawType(typeLiteral.getType()))) {
+    private static void addInjectorsForMembers(
+        TypeLiteral<?> typeLiteral,
+        boolean statics,
+        Collection<InjectionPoint> injectionPoints,
+        Errors errors
+    ) {
+        for (Method member : getRawType(typeLiteral.getType()).getMethods()) {
             if (isStatic(member) != statics) {
                 continue;
             }
@@ -374,9 +295,10 @@ public final class InjectionPoint {
             }
 
             try {
-                injectionPoints.add(factory.create(typeLiteral, member, errors));
+                checkForMisplacedBindingAnnotations(member, errors);
+                injectionPoints.add(new InjectionPoint(typeLiteral, member));
             } catch (ConfigurationException ignorable) {
-                if (!inject.optional()) {
+                if (inject.optional() == false) {
                     errors.merge(ignorable.getErrorMessages());
                 }
             }
@@ -387,34 +309,4 @@ public final class InjectionPoint {
         return Modifier.isStatic(member.getModifiers());
     }
 
-    private interface Factory<M extends Member & AnnotatedElement> {
-        Factory<Field> FIELDS = new Factory<Field>() {
-            @Override
-            public Field[] getMembers(Class<?> type) {
-                return type.getFields();
-            }
-
-            @Override
-            public InjectionPoint create(TypeLiteral<?> typeLiteral, Field member, Errors errors) {
-                return new InjectionPoint(typeLiteral, member);
-            }
-        };
-
-        Factory<Method> METHODS = new Factory<Method>() {
-            @Override
-            public Method[] getMembers(Class<?> type) {
-                return type.getMethods();
-            }
-
-            @Override
-            public InjectionPoint create(TypeLiteral<?> typeLiteral, Method member, Errors errors) {
-                checkForMisplacedBindingAnnotations(member, errors);
-                return new InjectionPoint(typeLiteral, member);
-            }
-        };
-
-        M[] getMembers(Class<?> type);
-
-        InjectionPoint create(TypeLiteral<?> typeLiteral, M member, Errors errors);
-    }
 }

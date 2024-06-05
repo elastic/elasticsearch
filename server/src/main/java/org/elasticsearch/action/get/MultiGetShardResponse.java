@@ -1,25 +1,13 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.get;
 
-import com.carrotsearch.hppc.IntArrayList;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -27,15 +15,16 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 public class MultiGetShardResponse extends ActionResponse {
 
-    final IntArrayList locations;
+    final List<Integer> locations;
     final List<GetResponse> responses;
     final List<MultiGetResponse.Failure> failures;
 
     MultiGetShardResponse() {
-        locations = new IntArrayList();
+        locations = new ArrayList<>();
         responses = new ArrayList<>();
         failures = new ArrayList<>();
     }
@@ -43,7 +32,7 @@ public class MultiGetShardResponse extends ActionResponse {
     MultiGetShardResponse(StreamInput in) throws IOException {
         super(in);
         int size = in.readVInt();
-        locations = new IntArrayList(size);
+        locations = new ArrayList<>(size);
         responses = new ArrayList<>(size);
         failures = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
@@ -91,5 +80,18 @@ public class MultiGetShardResponse extends ActionResponse {
                 failures.get(i).writeTo(out);
             }
         }
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o instanceof MultiGetShardResponse == false) return false;
+        MultiGetShardResponse other = (MultiGetShardResponse) o;
+        return Objects.equals(locations, other.locations) && Objects.equals(responses, other.responses);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(locations, responses);
     }
 }

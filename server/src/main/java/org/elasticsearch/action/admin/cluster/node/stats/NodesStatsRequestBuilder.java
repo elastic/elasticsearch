@@ -1,33 +1,24 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.cluster.node.stats;
 
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.support.nodes.NodesOperationRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 
-public class NodesStatsRequestBuilder
-        extends NodesOperationRequestBuilder<NodesStatsRequest, NodesStatsResponse, NodesStatsRequestBuilder> {
+public class NodesStatsRequestBuilder extends NodesOperationRequestBuilder<
+    NodesStatsRequest,
+    NodesStatsResponse,
+    NodesStatsRequestBuilder> {
 
-    public NodesStatsRequestBuilder(ElasticsearchClient client, NodesStatsAction action) {
-        super(client, action, new NodesStatsRequest());
+    public NodesStatsRequestBuilder(ElasticsearchClient client) {
+        super(client, TransportNodesStatsAction.TYPE, new NodesStatsRequest());
     }
 
     /**
@@ -55,12 +46,12 @@ public class NodesStatsRequestBuilder
     }
 
     public NodesStatsRequestBuilder setBreaker(boolean breaker) {
-        request.breaker(breaker);
+        addOrRemoveMetric(breaker, NodesStatsRequestParameters.Metric.BREAKER);
         return this;
     }
 
     public NodesStatsRequestBuilder setScript(boolean script) {
-        request.script(script);
+        addOrRemoveMetric(script, NodesStatsRequestParameters.Metric.SCRIPT);
         return this;
     }
 
@@ -76,7 +67,7 @@ public class NodesStatsRequestBuilder
      * Should the node OS stats be returned.
      */
     public NodesStatsRequestBuilder setOs(boolean os) {
-        request.os(os);
+        addOrRemoveMetric(os, NodesStatsRequestParameters.Metric.OS);
         return this;
     }
 
@@ -84,7 +75,7 @@ public class NodesStatsRequestBuilder
      * Should the node OS stats be returned.
      */
     public NodesStatsRequestBuilder setProcess(boolean process) {
-        request.process(process);
+        addOrRemoveMetric(process, NodesStatsRequestParameters.Metric.PROCESS);
         return this;
     }
 
@@ -92,7 +83,7 @@ public class NodesStatsRequestBuilder
      * Should the node JVM stats be returned.
      */
     public NodesStatsRequestBuilder setJvm(boolean jvm) {
-        request.jvm(jvm);
+        addOrRemoveMetric(jvm, NodesStatsRequestParameters.Metric.JVM);
         return this;
     }
 
@@ -100,7 +91,7 @@ public class NodesStatsRequestBuilder
      * Should the node thread pool stats be returned.
      */
     public NodesStatsRequestBuilder setThreadPool(boolean threadPool) {
-        request.threadPool(threadPool);
+        addOrRemoveMetric(threadPool, NodesStatsRequestParameters.Metric.THREAD_POOL);
         return this;
     }
 
@@ -108,7 +99,7 @@ public class NodesStatsRequestBuilder
      * Should the node file system stats be returned.
      */
     public NodesStatsRequestBuilder setFs(boolean fs) {
-        request.fs(fs);
+        addOrRemoveMetric(fs, NodesStatsRequestParameters.Metric.FS);
         return this;
     }
 
@@ -116,7 +107,7 @@ public class NodesStatsRequestBuilder
      * Should the node Transport stats be returned.
      */
     public NodesStatsRequestBuilder setTransport(boolean transport) {
-        request.transport(transport);
+        addOrRemoveMetric(transport, NodesStatsRequestParameters.Metric.TRANSPORT);
         return this;
     }
 
@@ -124,7 +115,7 @@ public class NodesStatsRequestBuilder
      * Should the node HTTP stats be returned.
      */
     public NodesStatsRequestBuilder setHttp(boolean http) {
-        request.http(http);
+        addOrRemoveMetric(http, NodesStatsRequestParameters.Metric.HTTP);
         return this;
     }
 
@@ -132,7 +123,7 @@ public class NodesStatsRequestBuilder
      * Should the discovery stats be returned.
      */
     public NodesStatsRequestBuilder setDiscovery(boolean discovery) {
-        request.discovery(discovery);
+        addOrRemoveMetric(discovery, NodesStatsRequestParameters.Metric.DISCOVERY);
         return this;
     }
 
@@ -140,13 +131,47 @@ public class NodesStatsRequestBuilder
      * Should ingest statistics be returned.
      */
     public NodesStatsRequestBuilder setIngest(boolean ingest) {
-        request.ingest(ingest);
+        addOrRemoveMetric(ingest, NodesStatsRequestParameters.Metric.INGEST);
         return this;
     }
 
     public NodesStatsRequestBuilder setAdaptiveSelection(boolean adaptiveSelection) {
-        request.adaptiveSelection(adaptiveSelection);
+        addOrRemoveMetric(adaptiveSelection, NodesStatsRequestParameters.Metric.ADAPTIVE_SELECTION);
         return this;
+    }
+
+    /**
+     * Should script context cache statistics be returned
+     */
+    public NodesStatsRequestBuilder setScriptCache(boolean scriptCache) {
+        addOrRemoveMetric(scriptCache, NodesStatsRequestParameters.Metric.SCRIPT_CACHE);
+        return this;
+    }
+
+    public NodesStatsRequestBuilder setIndexingPressure(boolean indexingPressure) {
+        addOrRemoveMetric(indexingPressure, NodesStatsRequestParameters.Metric.INDEXING_PRESSURE);
+        return this;
+    }
+
+    public NodesStatsRequestBuilder setRepositoryStats(boolean repositoryStats) {
+        addOrRemoveMetric(repositoryStats, NodesStatsRequestParameters.Metric.REPOSITORIES);
+        return this;
+    }
+
+    public NodesStatsRequestBuilder setAllocationStats(boolean allocationStats) {
+        addOrRemoveMetric(allocationStats, NodesStatsRequestParameters.Metric.ALLOCATIONS);
+        return this;
+    }
+
+    /**
+     * Helper method for adding metrics to a request
+     */
+    private void addOrRemoveMetric(boolean includeMetric, NodesStatsRequestParameters.Metric metric) {
+        if (includeMetric) {
+            request.addMetric(metric.metricName());
+        } else {
+            request.removeMetric(metric.metricName());
+        }
     }
 
 }

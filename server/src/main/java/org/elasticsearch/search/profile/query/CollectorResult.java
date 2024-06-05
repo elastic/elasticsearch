@@ -1,37 +1,29 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.profile.query;
 
-import org.elasticsearch.common.ParseField;
+import org.apache.lucene.sandbox.search.ProfilerCollectorResult;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
@@ -41,14 +33,12 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
  * Collectors used in the search.  Children CollectorResult's may be
  * embedded inside of a parent CollectorResult
  */
-public class CollectorResult implements ToXContentObject, Writeable {
+public class CollectorResult extends ProfilerCollectorResult implements ToXContentObject, Writeable {
 
     public static final String REASON_SEARCH_COUNT = "search_count";
     public static final String REASON_SEARCH_TOP_HITS = "search_top_hits";
-    public static final String REASON_SEARCH_TERMINATE_AFTER_COUNT = "search_terminate_after_count";
-    public static final String REASON_SEARCH_POST_FILTER = "search_post_filter";
-    public static final String REASON_SEARCH_MIN_SCORE = "search_min_score";
     public static final String REASON_SEARCH_MULTI = "search_multi";
+    public static final String REASON_SEARCH_QUERY_PHASE = "search_query_phase";
     public static final String REASON_AGGREGATION = "aggregation";
     public static final String REASON_AGGREGATION_GLOBAL = "aggregation_global";
 
@@ -58,85 +48,53 @@ public class CollectorResult implements ToXContentObject, Writeable {
     private static final ParseField TIME_NANOS = new ParseField("time_in_nanos");
     private static final ParseField CHILDREN = new ParseField("children");
 
-    /**
-     * A more friendly representation of the Collector's class name
-     */
-    private final String collectorName;
-
-    /**
-     * A "hint" to help provide some context about this Collector
-     */
-    private final String reason;
-
-    /**
-     * The total elapsed time for this Collector
-     */
-    private final Long time;
-
-    /**
-     * A list of children collectors "embedded" inside this collector
-     */
-    private List<CollectorResult> children;
-
-    public CollectorResult(String collectorName, String reason, Long time, List<CollectorResult> children) {
-        this.collectorName = collectorName;
-        this.reason = reason;
-        this.time = time;
-        this.children = children;
+    public CollectorResult(String collectorName, String reason, long time, List<CollectorResult> children) {
+        super(collectorName, reason, time, new ArrayList<>(children));
     }
 
     /**
      * Read from a stream.
      */
     public CollectorResult(StreamInput in) throws IOException {
-        this.collectorName = in.readString();
-        this.reason = in.readString();
-        this.time = in.readLong();
-        int size = in.readVInt();
-        this.children = new ArrayList<>(size);
-        for (int i = 0; i < size; i++) {
-            CollectorResult child = new CollectorResult(in);
-            this.children.add(child);
-        }
+        super(in.readString(), in.readString(), in.readLong(), in.readCollectionAsList(CollectorResult::new));
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(collectorName);
-        out.writeString(reason);
-        out.writeLong(time);
-        out.writeVInt(children.size());
-        for (CollectorResult child : children) {
-            child.writeTo(out);
+        out.writeString(getName());
+        out.writeString(getReason());
+        out.writeLong(getTime());
+        out.writeCollection(getChildrenResults());
+    }
+
+    /**
+     * Exposes a list of children collector results. Same as {@link ProfilerCollectorResult#getProfiledChildren()} with each
+     * item in the list being cast to a {@link CollectorResult}
+     */
+    public List<CollectorResult> getChildrenResults() {
+        return super.getProfiledChildren().stream().map(profilerCollectorResult -> (CollectorResult) profilerCollectorResult).toList();
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
         }
+        CollectorResult other = (CollectorResult) obj;
+        return getName().equals(other.getName())
+            && getReason().equals(other.getReason())
+            && getTime() == other.getTime()
+            && getChildrenResults().equals(other.getChildrenResults());
     }
 
-    /**
-     * @return the profiled time for this collector (inclusive of children)
-     */
-    public long getTime() {
-        return this.time;
+    @Override
+    public int hashCode() {
+        return Objects.hash(getName(), getReason(), getTime(), getChildrenResults());
     }
 
-    /**
-     * @return a human readable "hint" about what this collector was used for
-     */
-    public String getReason() {
-        return this.reason;
-    }
-
-    /**
-     * @return the lucene class name of the collector
-     */
-    public String getName() {
-        return this.collectorName;
-    }
-
-    /**
-     * @return a list of children collectors
-     */
-    public List<CollectorResult> getProfiledChildren() {
-        return children;
+    @Override
+    public String toString() {
+        return Strings.toString(this);
     }
 
     @Override
@@ -149,9 +107,9 @@ public class CollectorResult implements ToXContentObject, Writeable {
         }
         builder.field(TIME_NANOS.getPreferredName(), getTime());
 
-        if (!children.isEmpty()) {
+        if (getProfiledChildren().isEmpty() == false) {
             builder = builder.startArray(CHILDREN.getPreferredName());
-            for (CollectorResult child : children) {
+            for (CollectorResult child : getChildrenResults()) {
                 builder = child.toXContent(builder, params);
             }
             builder = builder.endArray();
@@ -162,12 +120,12 @@ public class CollectorResult implements ToXContentObject, Writeable {
 
     public static CollectorResult fromXContent(XContentParser parser) throws IOException {
         XContentParser.Token token = parser.currentToken();
-        ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
         String currentFieldName = null;
         String name = null, reason = null;
         long time = -1;
         List<CollectorResult> children = new ArrayList<>();
-        while((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token.isValue()) {

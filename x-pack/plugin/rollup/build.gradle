@@ -1,23 +1,18 @@
-evaluationDependsOn(xpackModule('core'))
-
-apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'elasticsearch.internal-es-plugin'
 esplugin {
   name 'x-pack-rollup'
   description 'Elasticsearch Expanded Pack Plugin - Rollup'
   classname 'org.elasticsearch.xpack.rollup.Rollup'
   extendedPlugins = ['x-pack-core']
 }
-archivesBaseName = 'x-pack-rollup'
 
-compileJava.options.compilerArgs << "-Xlint:-rawtypes"
-compileTestJava.options.compilerArgs << "-Xlint:-rawtypes"
-
-
-dependencies {
-  compileOnly project(":server")
-
-  compileOnly project(path: xpackModule('core'), configuration: 'default')
-  testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+base {
+  archivesName = 'x-pack-rollup'
 }
 
-integTest.enabled = false
+dependencies {
+  compileOnly project(path: xpackModule('core'))
+  testImplementation(testArtifact(project(xpackModule('core'))))
+}
+
+addQaCheckDependencies(project)

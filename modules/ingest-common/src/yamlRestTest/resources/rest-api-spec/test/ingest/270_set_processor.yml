@@ -1,0 +1,297 @@
+---
+teardown:
+  - do:
+      ingest.delete_pipeline:
+        id: "1"
+        ignore: 404
+
+---
+"Test set processor with template value":
+  - do:
+      ingest.put_pipeline:
+        id: "1"
+        body:  >
+          {
+            "processors": [
+              {
+                "set" : {
+                  "field" : "foo",
+                  "value" : "{{bar}}",
+                  "ignore_empty_value" : true
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        pipeline: "1"
+        body: {
+          foo: "hello"
+        }
+  - do:
+      index:
+        index: test
+        id: "2"
+        pipeline: "1"
+        body: {
+          foo: "hello",
+          bar: ""
+        }
+
+  - do:
+      get:
+        index: test
+        id: "1"
+  - match: { _source.foo: "hello" }
+
+  - do:
+      get:
+        index: test
+        id: "2"
+  - match: { _source.foo: "hello" }
+---
+"Test set processor with index change and require_alias":
+  - do:
+      ingest.put_pipeline:
+        id: "1"
+        body:  >
+          {
+            "processors": [
+              {
+                "set" : {
+                  "field" : "_index",
+                  "value" : "new_require_alias_index"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+  - do:
+      catch: missing
+      index:
+        index:   test_require_alias
+        pipeline: 1
+        require_alias: true
+        body:    { foo: bar }
+
+  - do:
+      catch: missing
+      indices.get:
+        index: test_require_alias
+  - do:
+      catch: missing
+      indices.get:
+        index: new_require_alias_index
+
+  - do:
+      indices.create:
+        index: backing_index
+        body:
+          mappings: {}
+          aliases:
+            new_require_alias_index: {}
+
+  - do:
+      index:
+        index:   test_require_alias
+        pipeline: 1
+        require_alias: true
+        body:    { foo: bar }
+
+---
+"Test set processor with copy_from":
+  - do:
+      ingest.put_pipeline:
+        id: "1"
+        body:  >
+          {
+            "processors": [
+              {
+                "set" : {
+                  "field" : "copied_foo_object",
+                  "copy_from" : "foo_object"
+                }
+              },
+              {
+                "set" : {
+                  "field": "copied_foo_array",
+                  "copy_from" : "foo_array"
+                }
+              },
+              {
+                "set" : {
+                  "field": "copied_foo_string",
+                  "copy_from" : "foo_string"
+                }
+              },
+              {
+                "set" : {
+                  "field": "copied_foo_number",
+                  "copy_from" : "foo_number"
+                }
+              },
+              {
+                "set" : {
+                  "field": "copied_foo_boolean",
+                  "copy_from" : "foo_boolean"
+                }
+              },
+              {
+                "set" : {
+                  "field": "foo_nochange",
+                  "copy_from" : "foo_none",
+                  "ignore_empty_value" : true
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        pipeline: "1"
+        body: {
+          foo_object: {
+            "hello": "world"
+          },
+          foo_array: [1, 2, 3],
+          foo_string: "bla bla",
+          foo_number: 3,
+          foo_boolean: true,
+          foo_nochange: "no change"
+        }
+
+  - do:
+      get:
+        index: test
+        id: "1"
+  - match: { _source.copied_foo_object.hello: "world" }
+  - match: { _source.copied_foo_array.0: 1 }
+  - match: { _source.copied_foo_string: "bla bla" }
+  - match: { _source.copied_foo_number: 3 }
+  - is_true:  _source.copied_foo_boolean
+  - match: { _source.foo_nochange: "no change" }
+
+---
+"Test set processor with reflection attempts":
+  - do:
+      ingest.put_pipeline:
+        id: "1"
+        body:  >
+          {
+            "processors" : [
+              {
+                "script": {
+                  "description": "Set a reference to a proper java object so we can attempt reflection",
+                  "lang": "painless",
+                  "source": "ctx.t = metadata().now"
+                }
+              },
+              {
+                "set": {
+                  "description": "Attempting to call a method (ZonedDateTime#getHour()) is ignored",
+                  "field": "method_call_is_ignored",
+                  "value": "{{t.hour}}"
+                }
+              },
+              {
+                "set": {
+                  "description": "Attempting to call a method that doesn't exist is ignored",
+                  "field": "missing_method_is_ignored",
+                  "value": "{{t.nothing}}"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        pipeline: "1"
+        body: {
+          foo: "hello"
+        }
+
+  - do:
+      get:
+        index: test
+        id: "1"
+  - match: { _source.foo: "hello" }
+  - match: { _source.method_call_is_ignored: "" }
+  - match: { _source.missing_method_is_ignored: "" }
+
+---
+"Test set processor with mustache edge cases":
+  - do:
+      ingest.put_pipeline:
+        id: "1"
+        body:  >
+          {
+            "processors" : [
+              {
+                "script": {
+                  "description": "Set a field 'foo' with a value of '{{bar}}' -- no mustache here, just strings",
+                  "lang": "painless",
+                  "source": "ctx.foo = '{{bar}}'"
+                }
+              },
+              {
+                "set": {
+                  "description": "Dereference the foo field via actual mustache",
+                  "field": "result_1",
+                  "value": "{{foo}}"
+                }
+              },
+              {
+                "set": {
+                  "description": "Dereference the foo field via copy_from",
+                  "field": "result_2",
+                  "copy_from": "foo"
+                }
+              },
+              {
+                "set": {
+                  "description": "Copy the original bar value into old_bar",
+                  "field": "old_bar",
+                  "copy_from": "bar"
+                }
+              },
+              {
+                "set": {
+                  "description": "Set whatever field value_bar refers to (it's bar) to 3",
+                  "field": "{{value_bar}}",
+                  "value": 3
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        pipeline: "1"
+        body: {
+          foo: 1,
+          bar: 2,
+          value_bar: "bar"
+        }
+
+  - do:
+      get:
+        index: test
+        id: "1"
+  - match: { _source.foo: "{{bar}}" }
+  - match: { _source.result_1: "{{bar}}" }
+  - match: { _source.result_2: "{{bar}}" }
+  - match: { _source.old_bar: 2 }
+  - match: { _source.bar: 3 }

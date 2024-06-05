@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.suggest.phrase;
@@ -27,16 +16,15 @@ import org.apache.lucene.search.spell.NGramDistance;
 import org.apache.lucene.search.spell.StringDistance;
 import org.apache.lucene.search.spell.SuggestMode;
 import org.apache.lucene.util.automaton.LevenshteinAutomata;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.search.suggest.SortBy;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder.CandidateGenerator;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -387,7 +375,9 @@ public final class DirectCandidateGeneratorBuilder implements CandidateGenerator
     }
 
     public static final ConstructingObjectParser<DirectCandidateGeneratorBuilder, Void> PARSER = new ConstructingObjectParser<>(
-            TYPE, args -> new DirectCandidateGeneratorBuilder((String) args[0]));
+        TYPE,
+        args -> new DirectCandidateGeneratorBuilder((String) args[0])
+    );
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), FIELDNAME_FIELD);
@@ -407,18 +397,18 @@ public final class DirectCandidateGeneratorBuilder implements CandidateGenerator
     }
 
     @Override
-    public PhraseSuggestionContext.DirectCandidateGenerator build(MapperService mapperService) throws IOException {
+    public PhraseSuggestionContext.DirectCandidateGenerator build(IndexAnalyzers indexAnalyzers) {
         PhraseSuggestionContext.DirectCandidateGenerator generator = new PhraseSuggestionContext.DirectCandidateGenerator();
         generator.setField(this.field);
         transferIfNotNull(this.size, generator::size);
         if (this.preFilter != null) {
-            generator.preFilter(mapperService.getNamedAnalyzer(this.preFilter));
+            generator.preFilter(indexAnalyzers.get(this.preFilter));
             if (generator.preFilter() == null) {
                 throw new IllegalArgumentException("Analyzer [" + this.preFilter + "] doesn't exists");
             }
         }
         if (this.postFilter != null) {
-            generator.postFilter(mapperService.getNamedAnalyzer(this.postFilter));
+            generator.postFilter(indexAnalyzers.get(this.postFilter));
             if (generator.postFilter() == null) {
                 throw new IllegalArgumentException("Analyzer [" + this.postFilter + "] doesn't exists");
             }
@@ -447,32 +437,24 @@ public final class DirectCandidateGeneratorBuilder implements CandidateGenerator
 
     private static SuggestMode resolveSuggestMode(String suggestMode) {
         suggestMode = suggestMode.toLowerCase(Locale.US);
-        if ("missing".equals(suggestMode)) {
-            return SuggestMode.SUGGEST_WHEN_NOT_IN_INDEX;
-        } else if ("popular".equals(suggestMode)) {
-            return SuggestMode.SUGGEST_MORE_POPULAR;
-        } else if ("always".equals(suggestMode)) {
-            return SuggestMode.SUGGEST_ALWAYS;
-        } else {
-            throw new IllegalArgumentException("Illegal suggest mode " + suggestMode);
-        }
+        return switch (suggestMode) {
+            case "missing" -> SuggestMode.SUGGEST_WHEN_NOT_IN_INDEX;
+            case "popular" -> SuggestMode.SUGGEST_MORE_POPULAR;
+            case "always" -> SuggestMode.SUGGEST_ALWAYS;
+            default -> throw new IllegalArgumentException("Illegal suggest mode " + suggestMode);
+        };
     }
 
     static StringDistance resolveDistance(String distanceVal) {
         distanceVal = distanceVal.toLowerCase(Locale.ROOT);
-        if ("internal".equals(distanceVal)) {
-            return DirectSpellChecker.INTERNAL_LEVENSHTEIN;
-        } else if ("damerau_levenshtein".equals(distanceVal)) {
-            return new LuceneLevenshteinDistance();
-        } else if ("levenshtein".equals(distanceVal)) {
-            return new LevenshteinDistance();
-        } else if ("jaro_winkler".equals(distanceVal)) {
-            return new JaroWinklerDistance();
-        } else if ("ngram".equals(distanceVal)) {
-            return new NGramDistance();
-        } else {
-            throw new IllegalArgumentException("Illegal distance option " + distanceVal);
-        }
+        return switch (distanceVal) {
+            case "internal" -> DirectSpellChecker.INTERNAL_LEVENSHTEIN;
+            case "damerau_levenshtein" -> new LuceneLevenshteinDistance();
+            case "levenshtein" -> new LevenshteinDistance();
+            case "jaro_winkler" -> new JaroWinklerDistance();
+            case "ngram" -> new NGramDistance();
+            default -> throw new IllegalArgumentException("Illegal distance option " + distanceVal);
+        };
     }
 
     private static <T> void transferIfNotNull(T value, Consumer<T> consumer) {
@@ -483,21 +465,27 @@ public final class DirectCandidateGeneratorBuilder implements CandidateGenerator
 
     @Override
     public String toString() {
-        try {
-            XContentBuilder builder = XContentFactory.jsonBuilder();
-            builder.prettyPrint();
-            toXContent(builder, EMPTY_PARAMS);
-            return Strings.toString(builder);
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
+        return Strings.toString(this, true, true);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(field, preFilter, postFilter, suggestMode, accuracy,
-                size, sort, stringDistance, maxEdits, maxInspections,
-                maxTermFreq, prefixLength, minWordLength, minDocFreq);
+        return Objects.hash(
+            field,
+            preFilter,
+            postFilter,
+            suggestMode,
+            accuracy,
+            size,
+            sort,
+            stringDistance,
+            maxEdits,
+            maxInspections,
+            maxTermFreq,
+            prefixLength,
+            minWordLength,
+            minDocFreq
+        );
     }
 
     @Override
@@ -509,19 +497,19 @@ public final class DirectCandidateGeneratorBuilder implements CandidateGenerator
             return false;
         }
         DirectCandidateGeneratorBuilder other = (DirectCandidateGeneratorBuilder) obj;
-        return Objects.equals(field, other.field) &&
-                Objects.equals(preFilter, other.preFilter) &&
-                Objects.equals(postFilter, other.postFilter) &&
-                Objects.equals(suggestMode, other.suggestMode) &&
-                Objects.equals(accuracy, other.accuracy) &&
-                Objects.equals(size, other.size) &&
-                Objects.equals(sort, other.sort) &&
-                Objects.equals(stringDistance, other.stringDistance) &&
-                Objects.equals(maxEdits, other.maxEdits) &&
-                Objects.equals(maxInspections, other.maxInspections) &&
-                Objects.equals(maxTermFreq, other.maxTermFreq) &&
-                Objects.equals(prefixLength, other.prefixLength) &&
-                Objects.equals(minWordLength, other.minWordLength) &&
-                Objects.equals(minDocFreq, other.minDocFreq);
+        return Objects.equals(field, other.field)
+            && Objects.equals(preFilter, other.preFilter)
+            && Objects.equals(postFilter, other.postFilter)
+            && Objects.equals(suggestMode, other.suggestMode)
+            && Objects.equals(accuracy, other.accuracy)
+            && Objects.equals(size, other.size)
+            && Objects.equals(sort, other.sort)
+            && Objects.equals(stringDistance, other.stringDistance)
+            && Objects.equals(maxEdits, other.maxEdits)
+            && Objects.equals(maxInspections, other.maxInspections)
+            && Objects.equals(maxTermFreq, other.maxTermFreq)
+            && Objects.equals(prefixLength, other.prefixLength)
+            && Objects.equals(minWordLength, other.minWordLength)
+            && Objects.equals(minDocFreq, other.minDocFreq);
     }
 }

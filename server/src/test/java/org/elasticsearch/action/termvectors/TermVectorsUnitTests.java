@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.termvectors;
@@ -36,24 +25,21 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.termvectors.TermVectorsRequest.Flag;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.TextFieldMapper;
-import org.elasticsearch.index.mapper.TypeParsers;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.action.document.RestTermVectorsAction;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.StreamsUtils;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.hamcrest.Matchers;
 
 import java.io.ByteArrayInputStream;
@@ -119,11 +105,11 @@ public class TermVectorsUnitTests extends ESTestCase {
         writer.commit();
         writer.close();
         DirectoryReader dr = DirectoryReader.open(dir);
-        IndexSearcher s = new IndexSearcher(dr);
+        IndexSearcher s = newSearcher(dr);
         TopDocs search = s.search(new TermQuery(new Term("id", "abc")), 1);
         ScoreDoc[] scoreDocs = search.scoreDocs;
         int doc = scoreDocs[0].doc;
-        Fields fields = dr.getTermVectors(doc);
+        Fields fields = s.getIndexReader().termVectors().get(doc);
         EnumSet<Flag> flags = EnumSet.of(Flag.Positions, Flag.Offsets);
         outResponse.setFields(fields, null, flags, fields);
         outResponse.setExists(true);
@@ -154,11 +140,11 @@ public class TermVectorsUnitTests extends ESTestCase {
         writer.commit();
         writer.close();
         DirectoryReader dr = DirectoryReader.open(dir);
-        IndexSearcher s = new IndexSearcher(dr);
+        IndexSearcher s = newSearcher(dr);
         TopDocs search = s.search(new TermQuery(new Term("id", "abc")), 1);
         ScoreDoc[] scoreDocs = search.scoreDocs;
         int doc = scoreDocs[0].doc;
-        Fields termVectors = dr.getTermVectors(doc);
+        Fields termVectors = s.getIndexReader().termVectors().get(doc);
         EnumSet<Flag> flags = EnumSet.of(Flag.Positions, Flag.Offsets);
         outResponse.setFields(termVectors, null, flags, termVectors);
         dr.close();
@@ -175,12 +161,12 @@ public class TermVectorsUnitTests extends ESTestCase {
     }
 
     public void testRestRequestParsing() throws Exception {
-        BytesReference inputBytes = new BytesArray(
-                " {\"fields\" : [\"a\",  \"b\",\"c\"], \"offsets\":false, \"positions\":false, \"payloads\":true}");
+        BytesReference inputBytes = new BytesArray("""
+            {"fields" : ["a",  "b","c"], "offsets":false, "positions":false, "payloads":true}""");
 
         TermVectorsRequest tvr = new TermVectorsRequest(null, null);
         XContentParser parser = createParser(JsonXContent.jsonXContent, inputBytes);
-        TermVectorsRequest.parseRequest(tvr, parser);
+        TermVectorsRequest.parseRequest(tvr, parser, RestApiVersion.current());
 
         Set<String> fields = tvr.selectedFields();
         assertThat(fields.contains("a"), equalTo(true));
@@ -201,7 +187,7 @@ public class TermVectorsUnitTests extends ESTestCase {
         inputBytes = new BytesArray(" {\"offsets\":false, \"positions\":false, \"payloads\":true}");
         tvr = new TermVectorsRequest(null, null);
         parser = createParser(JsonXContent.jsonXContent, inputBytes);
-        TermVectorsRequest.parseRequest(tvr, parser);
+        TermVectorsRequest.parseRequest(tvr, parser, RestApiVersion.current());
         additionalFields = "";
         RestTermVectorsAction.addFieldStringsFromParameter(tvr, additionalFields);
         assertThat(tvr.selectedFields(), equalTo(null));
@@ -212,13 +198,13 @@ public class TermVectorsUnitTests extends ESTestCase {
     }
 
     public void testRequestParsingThrowsException() throws Exception {
-        BytesReference inputBytes = new BytesArray(
-                " {\"fields\" : \"a,  b,c   \", \"offsets\":false, \"positions\":false, \"payloads\":true, \"meaningless_term\":2}");
+        BytesReference inputBytes = new BytesArray("""
+            {"fields" : "a,  b,c   ", "offsets":false, "positions":false, "payloads":true, "meaningless_term":2}""");
         TermVectorsRequest tvr = new TermVectorsRequest(null, null);
         boolean threwException = false;
         try {
             XContentParser parser = createParser(JsonXContent.jsonXContent, inputBytes);
-            TermVectorsRequest.parseRequest(tvr, parser);
+            TermVectorsRequest.parseRequest(tvr, parser, RestApiVersion.current());
         } catch (Exception e) {
             threwException = true;
         }
@@ -275,7 +261,7 @@ public class TermVectorsUnitTests extends ESTestCase {
             // write using older version which contains types
             ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
             OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
-            out.setVersion(Version.V_7_2_0);
+            out.setTransportVersion(TransportVersions.V_7_2_0);
             request.writeTo(out);
 
             // First check the type on the stream was written as "_doc" by manually parsing the stream until the type
@@ -291,7 +277,7 @@ public class TermVectorsUnitTests extends ESTestCase {
             // now read the stream as normal to check it is parsed correct if received from an older node
             esInBuffer = new ByteArrayInputStream(outBuffer.toByteArray());
             esBuffer = new InputStreamStreamInput(esInBuffer);
-            esBuffer.setVersion(Version.V_7_2_0);
+            esBuffer.setTransportVersion(TransportVersions.V_7_2_0);
             TermVectorsRequest req2 = new TermVectorsRequest(esBuffer);
 
             assertThat(request.offsets(), equalTo(req2.offsets()));
@@ -306,48 +292,20 @@ public class TermVectorsUnitTests extends ESTestCase {
         }
     }
 
-    public void testFieldTypeToTermVectorString() throws Exception {
-        FieldType ft = new FieldType();
-        ft.setStoreTermVectorOffsets(false);
-        ft.setStoreTermVectorPayloads(true);
-        ft.setStoreTermVectors(true);
-        ft.setStoreTermVectorPositions(true);
-        String ftOpts = FieldMapper.termVectorOptionsToString(ft);
-        assertThat("with_positions_payloads", equalTo(ftOpts));
-        TextFieldMapper.Builder builder = new TextFieldMapper.Builder(null);
-        boolean exceptionThrown = false;
-        try {
-            TypeParsers.parseTermVector("", ftOpts, builder);
-        } catch (MapperParsingException e) {
-            exceptionThrown = true;
-        }
-        assertThat("TypeParsers.parseTermVector should accept string with_positions_payloads but does not.",
-            exceptionThrown, equalTo(false));
-    }
-
-    public void testTermVectorStringGenerationWithoutPositions() throws Exception {
-        FieldType ft = new FieldType();
-        ft.setStoreTermVectorOffsets(true);
-        ft.setStoreTermVectorPayloads(true);
-        ft.setStoreTermVectors(true);
-        ft.setStoreTermVectorPositions(false);
-        String ftOpts = FieldMapper.termVectorOptionsToString(ft);
-        assertThat(ftOpts, equalTo("with_offsets"));
-    }
-
     public void testMultiParser() throws Exception {
         byte[] bytes = StreamsUtils.copyToBytesFromClasspath("/org/elasticsearch/action/termvectors/multiRequest1.json");
-        XContentParser data = createParser(JsonXContent.jsonXContent, bytes);
-        MultiTermVectorsRequest request = new MultiTermVectorsRequest();
-        request.add(new TermVectorsRequest(), data);
-        checkParsedParameters(request);
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, bytes)) {
+            MultiTermVectorsRequest request = new MultiTermVectorsRequest();
+            request.add(new TermVectorsRequest(), parser);
+            checkParsedParameters(request);
+        }
 
         bytes = StreamsUtils.copyToBytesFromClasspath("/org/elasticsearch/action/termvectors/multiRequest2.json");
-        data = createParser(JsonXContent.jsonXContent, new BytesArray(bytes));
-        request = new MultiTermVectorsRequest();
-        request.add(new TermVectorsRequest(), data);
-
-        checkParsedParameters(request);
+        try (var parser = createParser(JsonXContent.jsonXContent, new BytesArray(bytes))) {
+            MultiTermVectorsRequest request = new MultiTermVectorsRequest();
+            request.add(new TermVectorsRequest(), parser);
+            checkParsedParameters(request);
+        }
     }
 
     void checkParsedParameters(MultiTermVectorsRequest request) {
@@ -365,7 +323,7 @@ public class TermVectorsUnitTests extends ESTestCase {
             assertThat(singleRequest.offsets(), equalTo(false));
             assertThat(singleRequest.termStatistics(), equalTo(true));
             assertThat(singleRequest.fieldStatistics(), equalTo(false));
-            assertThat(singleRequest.id(),Matchers.anyOf(Matchers.equalTo("1"), Matchers.equalTo("2")));
+            assertThat(singleRequest.id(), Matchers.anyOf(Matchers.equalTo("1"), Matchers.equalTo("2")));
             assertThat(singleRequest.selectedFields(), equalTo(fields));
         }
     }

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cli;
@@ -23,13 +12,15 @@ import joptsimple.NonOptionArgumentSpec;
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 import joptsimple.util.KeyValuePair;
-import org.elasticsearch.core.internal.io.IOUtils;
+
+import org.elasticsearch.core.IOUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 
 /**
  * A cli tool which is made up of multiple subcommands.
@@ -43,31 +34,43 @@ public class MultiCommand extends Command {
 
     /**
      * Construct the multi-command with the specified command description and runnable to execute before main is invoked.
+     *  @param description the multi-command description
      *
-     * @param description the multi-command description
-     * @param beforeMain the before-main runnable
      */
-    public MultiCommand(final String description, final Runnable beforeMain) {
-        super(description, beforeMain);
+    public MultiCommand(final String description) {
+        super(description);
         this.settingOption = parser.accepts("E", "Configure a setting").withRequiredArg().ofType(KeyValuePair.class);
         parser.posixlyCorrect(true);
     }
 
     @Override
     protected void printAdditionalHelp(Terminal terminal) {
-        if (subcommands.isEmpty()) {
-            throw new IllegalStateException("No subcommands configured");
-        }
-        terminal.println("Commands");
-        terminal.println("--------");
-        for (Map.Entry<String, Command> subcommand : subcommands.entrySet()) {
-            terminal.println(subcommand.getKey() + " - " + subcommand.getValue().description);
-        }
-        terminal.println("");
+        printSubCommandList(terminal::println);
     }
 
     @Override
-    protected void execute(Terminal terminal, OptionSet options) throws Exception {
+    protected void printUserException(Terminal terminal, UserException e) {
+        super.printUserException(terminal, e);
+        if (e instanceof MissingCommandException) {
+            terminal.errorPrintln("");
+            printSubCommandList(terminal::errorPrintln);
+        }
+    }
+
+    private void printSubCommandList(Consumer<String> println) {
+        if (subcommands.isEmpty()) {
+            throw new IllegalStateException("No subcommands configured");
+        }
+        println.accept("Commands");
+        println.accept("--------");
+        for (Map.Entry<String, Command> subcommand : subcommands.entrySet()) {
+            println.accept(subcommand.getKey() + " - " + subcommand.getValue().description);
+        }
+        println.accept("");
+    }
+
+    @Override
+    protected void execute(Terminal terminal, OptionSet options, ProcessInfo processInfo) throws Exception {
         if (subcommands.isEmpty()) {
             throw new IllegalStateException("No subcommands configured");
         }
@@ -75,7 +78,7 @@ public class MultiCommand extends Command {
         // .values(...) returns an unmodifiable list
         final List<String> args = new ArrayList<>(arguments.values(options));
         if (args.isEmpty()) {
-            throw new UserException(ExitCodes.USAGE, "Missing command");
+            throw new MissingCommandException();
         }
 
         String subcommandName = args.remove(0);
@@ -88,7 +91,7 @@ public class MultiCommand extends Command {
             args.add("-E" + pair);
         }
 
-        subcommand.mainWithoutErrorHandling(args.toArray(new String[0]), terminal);
+        subcommand.mainWithoutErrorHandling(args.toArray(new String[0]), terminal, processInfo);
     }
 
     @Override
@@ -96,4 +99,9 @@ public class MultiCommand extends Command {
         IOUtils.close(subcommands.values());
     }
 
+    static final class MissingCommandException extends UserException {
+        MissingCommandException() {
+            super(ExitCodes.USAGE, "Missing required command");
+        }
+    }
 }

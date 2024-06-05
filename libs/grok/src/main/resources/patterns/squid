@@ -1,4 +1,0 @@
-# Pattern squid3
-# Documentation of squid3 logs formats can be found at the following link:
-# http://wiki.squid-cache.org/Features/LogFormat
-SQUID3 %{NUMBER:timestamp}\s+%{NUMBER:duration}\s%{IP:client_address}\s%{WORD:cache_result}/%{POSINT:status_code}\s%{NUMBER:bytes}\s%{WORD:request_method}\s%{NOTSPACE:url}\s(%{NOTSPACE:user}|-)\s%{WORD:hierarchy_code}/%{IPORHOST:server}\s%{NOTSPACE:content_type}

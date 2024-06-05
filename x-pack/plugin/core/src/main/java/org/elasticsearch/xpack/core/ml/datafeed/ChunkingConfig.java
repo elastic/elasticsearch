@@ -1,21 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.datafeed;
 
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
@@ -36,20 +35,17 @@ public class ChunkingConfig implements ToXContentObject, Writeable {
 
     private static ConstructingObjectParser<ChunkingConfig, Void> createParser(boolean ignoreUnknownFields) {
         ConstructingObjectParser<ChunkingConfig, Void> parser = new ConstructingObjectParser<>(
-            "chunking_config", ignoreUnknownFields, a -> new ChunkingConfig((Mode) a[0], (TimeValue) a[1]));
+            "chunking_config",
+            ignoreUnknownFields,
+            a -> new ChunkingConfig((Mode) a[0], (TimeValue) a[1])
+        );
 
-        parser.declareField(ConstructingObjectParser.constructorArg(), p -> {
-            if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
-                return Mode.fromString(p.text());
-            }
-            throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
-        }, MODE_FIELD, ValueType.STRING);
-        parser.declareField(ConstructingObjectParser.optionalConstructorArg(), p -> {
-            if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
-                return TimeValue.parseTimeValue(p.text(), TIME_SPAN_FIELD.getPreferredName());
-            }
-            throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
-        }, TIME_SPAN_FIELD, ValueType.STRING);
+        parser.declareString(ConstructingObjectParser.constructorArg(), Mode::fromString, MODE_FIELD);
+        parser.declareString(
+            ConstructingObjectParser.optionalConstructorArg(),
+            text -> TimeValue.parseTimeValue(text, TIME_SPAN_FIELD.getPreferredName()),
+            TIME_SPAN_FIELD
+        );
 
         return parser;
     }
@@ -94,6 +90,10 @@ public class ChunkingConfig implements ToXContentObject, Writeable {
         return mode != Mode.OFF;
     }
 
+    public boolean isManual() {
+        return mode == Mode.MANUAL;
+    }
+
     Mode getMode() {
         return mode;
     }
@@ -128,8 +128,7 @@ public class ChunkingConfig implements ToXContentObject, Writeable {
         }
 
         ChunkingConfig other = (ChunkingConfig) obj;
-        return Objects.equals(this.mode, other.mode) &&
-                Objects.equals(this.timeSpan, other.timeSpan);
+        return Objects.equals(this.mode, other.mode) && Objects.equals(this.timeSpan, other.timeSpan);
     }
 
     public static ChunkingConfig newAuto() {
@@ -144,8 +143,10 @@ public class ChunkingConfig implements ToXContentObject, Writeable {
         return new ChunkingConfig(Mode.MANUAL, timeSpan);
     }
 
-    public enum Mode implements Writeable  {
-        AUTO, MANUAL, OFF;
+    public enum Mode implements Writeable {
+        AUTO,
+        MANUAL,
+        OFF;
 
         public static Mode fromString(String value) {
             return Mode.valueOf(value.toUpperCase(Locale.ROOT));

@@ -1,0 +1,5 @@
+pr: 106889
+summary: Slightly better geoip `databaseType` validation
+area: Ingest Node
+type: bug
+issues: []

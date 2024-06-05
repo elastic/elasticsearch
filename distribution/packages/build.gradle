@@ -1,24 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
+import org.apache.tools.ant.filters.ReplaceTokens
 import org.elasticsearch.gradle.LoggedExec
-import org.elasticsearch.gradle.MavenFilteringHack
 import org.elasticsearch.gradle.OS
-import org.elasticsearch.gradle.info.BuildParams
+import org.elasticsearch.gradle.internal.info.BuildParams
 import org.redline_rpm.header.Flags
 
 import java.nio.file.Files
@@ -42,7 +33,7 @@ import java.util.regex.Pattern
  *    empty directory requires more wits than I have.
  * 3. ospackage really wants to suck up some of the debian control scripts
  *    directly from the filesystem. It doesn't want to process them through
- *    MavenFilteringHack or any other copy-style action.
+ *    any copy-style action.
  *
  * The following commands are useful when it comes to check the user/group
  * and files permissions set within the RPM and DEB packages:
@@ -52,26 +43,27 @@ import java.util.regex.Pattern
  */
 
 plugins {
-  id "nebula.ospackage-base" version "8.0.3"
+  id "com.netflix.nebula.ospackage-base" version "11.9.1"
 }
 
-void addProcessFilesTask(String type, boolean oss, boolean jdk) {
-  String packagingFiles = "build/packaging/${oss ? 'oss-' : ''}${jdk ? '' : 'no-jdk-'}${type}"
+['deb', 'rpm'].each { type ->
+  String packagingFiles = "build/packaging/${type}"
 
-  String taskName = "process${oss ? 'Oss' : ''}${jdk ? '' : 'NoJdk'}${type.capitalize()}Files"
-  task(taskName, type: Copy) {
+  String taskName = "process${type.capitalize()}Files"
+  tasks.register(taskName, Copy) {
     into packagingFiles
 
     with copySpec {
       from 'src/common'
       from "src/${type}"
-      MavenFilteringHack.filter(it, expansionsForDistribution(type, oss, jdk))
+      filter("tokens": expansionsForDistribution(type, false), ReplaceTokens.class)
     }
 
     into('etc/elasticsearch') {
-      with configFiles(type, oss, jdk)
+      with configFiles(type, false)
     }
-    MavenFilteringHack.filter(it, expansionsForDistribution(type, oss, jdk))
+
+    filter("tokens": expansionsForDistribution(type, false), ReplaceTokens.class)
 
     doLast {
       // create empty dirs, we set the permissions when configuring the packages
@@ -79,41 +71,44 @@ void addProcessFilesTask(String type, boolean oss, boolean jdk) {
       mkdir "${packagingFiles}/var/lib/elasticsearch"
       mkdir "${packagingFiles}/usr/share/elasticsearch/plugins"
 
-      // bare empty dir for /etc/elasticsearch
+      // bare empty dir for /etc/elasticsearch and /etc/elasticsearch/jvm.options.d
       mkdir "${packagingFiles}/elasticsearch"
+      mkdir "${packagingFiles}/elasticsearch/jvm.options.d"
     }
   }
 }
 
-addProcessFilesTask('deb', true, true)
-addProcessFilesTask('deb', true, false)
-addProcessFilesTask('deb', false, true)
-addProcessFilesTask('deb', false, false)
-addProcessFilesTask('rpm', true, true)
-addProcessFilesTask('rpm', true, false)
-addProcessFilesTask('rpm', false, true)
-addProcessFilesTask('rpm', false, false)
-
 // Common configuration that is package dependent. This can't go in ospackage
 // since we have different templated files that need to be consumed, but the structure
 // is the same
-Closure commonPackageConfig(String type, boolean oss, boolean jdk) {
+def commonPackageConfig(String type, String architecture) {
   return {
-    onlyIf {
+    onlyIf("not running on windows") {
       OS.current().equals(OS.WINDOWS) == false
     }
-    dependsOn "process${oss ? 'Oss' : ''}${jdk ? '' : 'NoJdk'}${type.capitalize()}Files"
-    packageName "elasticsearch${oss ? '-oss' : ''}"
-    arch(type == 'deb' ? 'amd64' : 'X86_64')
+    dependsOn "process${type.capitalize()}Files"
+    packageName "elasticsearch"
+    if (type == 'deb') {
+      if (architecture == 'x64') {
+        arch('amd64')
+      } else {
+        assert architecture == 'aarch64': architecture
+        arch('arm64')
+      }
+    } else {
+      assert type == 'rpm': type
+      if (architecture == 'x64') {
+        arch('X86_64')
+      } else {
+        assert architecture == 'aarch64': architecture
+        arch('aarch64')
+      }
+    }
     // Follow elasticsearch's file naming convention
-    String jdkString = jdk ? "" : "no-jdk-"
-    String prefix = "${oss ? 'oss-' : ''}${jdk ? '' : 'no-jdk-'}${type}"
-    destinationDir = file("${prefix}/build/distributions")
-
-    // SystemPackagingTask overrides default archive task convention mappings, but doesn't provide a setter so we have to override the convention mapping itself
-    conventionMapping.archiveFile = { objects.fileProperty().fileValue(file("${destinationDir}/${packageName}-${project.version}-${jdkString}${archString}.${type}")) }
-
-    String packagingFiles = "build/packaging/${oss ? 'oss-' : ''}${jdk ? '' : 'no-jdk-'}${type}"
+    String prefix = "${architecture == 'aarch64' ? 'aarch64-' : ''}${type}"
+    destinationDirectory = file("${prefix}/build/distributions")
+    archiveFileName.value(project.provider({ "${packageName}-${project.version}-${archString}.${type}" }))
+    String packagingFiles = "build/packaging/${type}"
 
     String scripts = "${packagingFiles}/scripts"
     preInstall file("${scripts}/preinst")
@@ -126,24 +121,25 @@ Closure commonPackageConfig(String type, boolean oss, boolean jdk) {
 
     // top level "into" directive is not inherited from ospackage for some reason, so we must
     // specify it again explicitly for copying common files
+    String platform = 'linux-' + ((architecture == 'x64') ? 'x86_64' : architecture)
     into('/usr/share/elasticsearch') {
       into('bin') {
-        with binFiles(type, oss, jdk)
+        with binFiles(type, false)
       }
       from(rootProject.projectDir) {
         include 'README.asciidoc'
-        fileMode 0644
+        filePermissions {
+          unix 0644
+        }
       }
       into('lib') {
-        with libFiles(oss)
+        with libFiles('linux', architecture)
       }
       into('modules') {
-        with modulesFiles(oss, 'linux')
+        with modulesFiles('linux', architecture)
       }
-      if (jdk) {
-        into('jdk') {
-          with jdkFiles(project, 'linux')
-        }
+      into('jdk') {
+        with jdkFiles(project, 'linux', architecture)
       }
       // we need to specify every intermediate directory in these paths so the package managers know they are explicitly
       // intended to manage them; otherwise they may be left behind on uninstallation. duplicate calls of the same
@@ -155,9 +151,13 @@ Closure commonPackageConfig(String type, boolean oss, boolean jdk) {
             directory('/' + segments[0..i].join('/'), 0755)
           }
           if (segments[-2] == 'bin' || segments[-1] == 'jspawnhelper') {
-            fcp.mode = 0755
+            fcp.permissions {
+              unix(0755)
+            }
           } else {
-            fcp.mode = 0644
+            fcp.permissions {
+              unix(0644)
+            }
           }
         }
       }
@@ -167,81 +167,95 @@ Closure commonPackageConfig(String type, boolean oss, boolean jdk) {
     if (type == 'deb') {
       into("/usr/share/doc/${packageName}") {
         from "${packagingFiles}/copyright"
-        fileMode 0644
+        filePermissions {
+          unix(0644)
+        }
       }
     } else {
       assert type == 'rpm'
       into('/usr/share/elasticsearch') {
         from(rootProject.file('licenses')) {
-          include oss ? 'APACHE-LICENSE-2.0.txt' : 'ELASTIC-LICENSE.txt'
+          include 'ELASTIC-LICENSE-2.0.txt'
           rename { 'LICENSE.txt' }
         }
-        fileMode 0644
+        filePermissions {
+          unix(0644)
+        }
       }
     }
 
     // ========= config files =========
     configurationFile '/etc/elasticsearch/elasticsearch.yml'
+    configurationFile '/etc/elasticsearch/elasticsearch-plugins.example.yml'
     configurationFile '/etc/elasticsearch/jvm.options'
     configurationFile '/etc/elasticsearch/log4j2.properties'
-    if (oss == false) {
-      configurationFile '/etc/elasticsearch/role_mapping.yml'
-      configurationFile '/etc/elasticsearch/roles.yml'
-      configurationFile '/etc/elasticsearch/users'
-      configurationFile '/etc/elasticsearch/users_roles'
-    }
+    configurationFile '/etc/elasticsearch/role_mapping.yml'
+    configurationFile '/etc/elasticsearch/roles.yml'
+    configurationFile '/etc/elasticsearch/users'
+    configurationFile '/etc/elasticsearch/users_roles'
     from("${packagingFiles}") {
-      dirMode 02750
+      dirPermissions {
+        unix(02750)
+      }
       into('/etc')
       permissionGroup 'elasticsearch'
+      setgid true
       includeEmptyDirs true
       createDirectoryEntry true
       include("elasticsearch") // empty dir, just to add directory entry
+      include("elasticsearch/jvm.options.d") // empty dir, just to add directory entry
     }
     from("${packagingFiles}/etc/elasticsearch") {
       into('/etc/elasticsearch')
-      dirMode 02750
-      fileMode 0660
+      dirPermissions {
+        unix(02750)
+      }
+      setgid = true
+      filePermissions {
+        unix(0660)
+      }
       permissionGroup 'elasticsearch'
       includeEmptyDirs true
       createDirectoryEntry true
       fileType CONFIG | NOREPLACE
     }
-    String envFile = expansionsForDistribution(type, oss, jdk)['path.env']
+    String envFile = expansionsForDistribution(type, false)['path.env']
     configurationFile envFile
     into(new File(envFile).getParent()) {
       fileType CONFIG | NOREPLACE
       permissionGroup 'elasticsearch'
-      fileMode 0660
+      filePermissions {
+        unix(0660)
+      }
       from "${packagingFiles}/env/elasticsearch"
     }
 
     // ========= systemd =========
     into('/usr/lib/tmpfiles.d') {
       from "${packagingFiles}/systemd/elasticsearch.conf"
-      fileMode 0644
+      filePermissions {
+        unix(0644)
+      }
     }
     into('/usr/lib/systemd/system') {
       fileType CONFIG | NOREPLACE
       from "${packagingFiles}/systemd/elasticsearch.service"
-      fileMode 0644
+      filePermissions {
+        unix(0644)
+      }
     }
     into('/usr/lib/sysctl.d') {
       fileType CONFIG | NOREPLACE
       from "${packagingFiles}/systemd/sysctl/elasticsearch.conf"
-      fileMode 0644
+      filePermissions {
+        unix(0644)
+      }
     }
     into('/usr/share/elasticsearch/bin') {
       from "${packagingFiles}/systemd/systemd-entrypoint"
-      fileMode 0755
-    }
-
-    // ========= sysV init =========
-    configurationFile '/etc/init.d/elasticsearch'
-    into('/etc/init.d') {
-      fileMode 0750
-      fileType CONFIG | NOREPLACE
-      from "${packagingFiles}/init.d/elasticsearch"
+      filePermissions {
+        unix(0755)
+      }
     }
 
     // ========= empty dirs =========
@@ -255,7 +269,10 @@ Closure commonPackageConfig(String type, boolean oss, boolean jdk) {
         createDirectoryEntry true
         user u
         permissionGroup g
-        dirMode mode
+        dirPermissions {
+          unix(mode)
+        }
+        setgid (mode == 02750)
       }
     }
     copyEmptyDir('/var/log/elasticsearch', 'elasticsearch', 'elasticsearch', 02750)
@@ -263,16 +280,14 @@ Closure commonPackageConfig(String type, boolean oss, boolean jdk) {
     copyEmptyDir('/usr/share/elasticsearch/plugins', 'root', 'root', 0755)
 
     // the oss package conflicts with the default distribution and vice versa
-    conflicts('elasticsearch' + (oss ? '' : '-oss'))
+    conflicts('elasticsearch-oss')
 
     into '/usr/share/elasticsearch'
-    with noticeFile(oss, jdk)
+    with noticeFile(false)
   }
 }
 
-apply plugin: 'nebula.ospackage-base'
-
-// this is package indepdendent configuration
+// this is package independent configuration
 ospackage {
   maintainer 'Elasticsearch Team <info@elastic.co>'
   summary 'Distributed RESTful search engine built for the cloud'
@@ -290,7 +305,7 @@ ospackage {
     signingKeyPassphrase = project.property('signing.password')
     signingKeyRingFile = project.hasProperty('signing.secretKeyRingFile') ?
       project.file(project.property('signing.secretKeyRingFile')) :
-      new File(new File(System.getProperty('user.home'), '.gnupg'), 'secring.gpg')
+      new File(new File(project.providers.systemProperty('user.home').orElse('.gnupg').get()), 'secring.gpg')
   }
 
   // version found on oldest supported distro, centos-6
@@ -304,19 +319,17 @@ ospackage {
   into '/usr/share/elasticsearch'
 }
 
-Closure commonDebConfig(boolean oss, boolean jdk) {
+Closure commonDebConfig(String architecture) {
   return {
-    configure(commonPackageConfig('deb', oss, jdk))
+    configure(commonPackageConfig('deb', architecture))
 
-    // jdeb does not provide a way to set the License control attribute, and ospackage
-    // silently ignores setting it. Instead, we set the license as "custom field"
-    if (oss) {
-      customFields['License'] = 'ASL-2.0'
-    } else {
-      customFields['License'] = 'Elastic-License'
-    }
+    // jdeb does not provide a way to set the License control attribute, and
+    // ospackage silently ignores setting it. This is probably because `License`
+    // is not actually a field in the Debian control file. So instead, we set
+    // the license as "custom field".
+    customFields['License'] = 'Elastic-License'
 
-    version = project.version.replace('-', '~')
+    archiveVersion = project.version.replace('-', '~')
     packageGroup 'web'
 
     // versions found on oldest supported distro, centos-6
@@ -327,38 +340,26 @@ Closure commonDebConfig(boolean oss, boolean jdk) {
 
     into('/usr/share/lintian/overrides') {
       from('src/deb/lintian/elasticsearch')
-      if (oss) {
-        rename('elasticsearch', 'elasticsearch-oss')
+      filePermissions {
+        unix(0644)
       }
     }
   }
 }
 
-task buildDeb(type: Deb) {
-  configure(commonDebConfig(false, true))
+tasks.register('buildAarch64Deb', Deb) {
+  configure(commonDebConfig('aarch64'))
 }
 
-task buildOssDeb(type: Deb) {
-  configure(commonDebConfig(true, true))
+tasks.register('buildDeb', Deb) {
+  configure(commonDebConfig('x64'))
 }
 
-task buildNoJdkDeb(type: Deb) {
-  configure(commonDebConfig(false, false))
-}
-
-task buildOssNoJdkDeb(type: Deb) {
-  configure(commonDebConfig(true, false))
-}
-
-Closure commonRpmConfig(boolean oss, boolean jdk) {
+Closure commonRpmConfig(String architecture) {
   return {
-    configure(commonPackageConfig('rpm', oss, jdk))
+    configure(commonPackageConfig('rpm', architecture))
 
-    if (oss) {
-      license 'ASL 2.0'
-    } else {
-      license 'Elastic License'
-    }
+    license 'Elastic License'
 
     packageGroup 'Application/Internet'
     requires '/bin/bash'
@@ -367,7 +368,7 @@ Closure commonRpmConfig(boolean oss, boolean jdk) {
 
     prefix '/usr'
     packager 'Elasticsearch'
-    version = project.version.replace('-', '_')
+    archiveVersion = project.version.replace('-', '_')
     release = '1'
     os 'LINUX'
     distribution 'Elasticsearch'
@@ -379,20 +380,12 @@ Closure commonRpmConfig(boolean oss, boolean jdk) {
   }
 }
 
-task buildRpm(type: Rpm) {
-  configure(commonRpmConfig(false, true))
+tasks.register('buildAarch64Rpm', Rpm) {
+  configure(commonRpmConfig('aarch64'))
 }
 
-task buildOssRpm(type: Rpm) {
-  configure(commonRpmConfig(true, true))
-}
-
-task buildNoJdkRpm(type: Rpm) {
-  configure(commonRpmConfig(false, false))
-}
-
-task buildOssNoJdkRpm(type: Rpm) {
-  configure(commonRpmConfig(true, false))
+tasks.register('buildRpm', Rpm) {
+  configure(commonRpmConfig('x64'))
 }
 
 Closure dpkgExists = { it -> new File('/bin/dpkg-deb').exists() || new File('/usr/bin/dpkg-deb').exists() || new File('/usr/local/bin/dpkg-deb').exists() }
@@ -407,7 +400,7 @@ subprojects {
   apply plugin: 'distribution'
 
   String buildTask = "build${it.name.replaceAll(/-[a-z]/) { it.substring(1).toUpperCase() }.capitalize()}"
-  ext.buildDist = parent.tasks.getByName(buildTask)
+  ext.buildDist = parent.tasks.named(buildTask)
   artifacts {
     'default' buildDist
   }
@@ -423,27 +416,29 @@ subprojects {
       assert project.name.contains('rpm')
       packageExtractionDir = new File(extractionDir, 'rpm-extracted')
     }
-    task checkExtraction(type: LoggedExec) {
+    tasks.register('checkExtraction', LoggedExec) {
       dependsOn buildDist
       doFirst {
-        project.delete(extractionDir)
+        delete(extractionDir)
         extractionDir.mkdirs()
       }
     }
 
-    check.dependsOn checkExtraction
+    tasks.named("check").configure { dependsOn "checkExtraction" }
     if (project.name.contains('deb')) {
-      checkExtraction {
-        onlyIf dpkgExists
-        commandLine 'dpkg-deb', '-x', "${-> buildDist.outputs.files.filter(debFilter).singleFile}", packageExtractionDir
+      tasks.named("checkExtraction").configure {
+        onlyIf("dpkg exists", dpkgExists)
+        commandLine 'dpkg-deb', '-x', "${-> buildDist.get().outputs.files.filter(debFilter).singleFile}", packageExtractionDir
       }
     } else {
       assert project.name.contains('rpm')
-      checkExtraction {
-        onlyIf rpmExists
+      tasks.named("checkExtraction").configure {
+        onlyIf("rpm exists", rpmExists)
         final File rpmDatabase = new File(extractionDir, 'rpm-database')
         commandLine 'rpm',
           '--badreloc',
+          '--ignorearch',
+          '--ignoreos',
           '--nodeps',
           '--noscripts',
           '--notriggers',
@@ -452,33 +447,29 @@ subprojects {
           '--relocate',
           "/=${packageExtractionDir}",
           '-i',
-          "${-> buildDist.outputs.files.singleFile}"
+          "${-> buildDist.get().outputs.files.singleFile}"
       }
     }
 
-    task checkLicense {
-      dependsOn buildDist, checkExtraction
+    tasks.register("checkLicense") {
+      dependsOn buildDist, "checkExtraction"
     }
-    check.dependsOn checkLicense
+    tasks.named("check").configure { dependsOn "checkLicense" }
     if (project.name.contains('deb')) {
-      checkLicense {
-        onlyIf dpkgExists
+      tasks.named("checkLicense").configure {
+        onlyIf("dpkg exists", dpkgExists)
         doLast {
           Path copyrightPath
           String expectedLicense
           String licenseFilename
-          if (project.name.contains('oss-')) {
-            copyrightPath = packageExtractionDir.toPath().resolve("usr/share/doc/elasticsearch-oss/copyright")
-            expectedLicense = "ASL-2.0"
-            licenseFilename = "APACHE-LICENSE-2.0.txt"
-          } else {
-            copyrightPath = packageExtractionDir.toPath().resolve("usr/share/doc/elasticsearch/copyright")
-            expectedLicense = "Elastic-License"
-            licenseFilename = "ELASTIC-LICENSE.txt"
-          }
-          final List<String> header = Arrays.asList("Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/",
+          copyrightPath = packageExtractionDir.toPath().resolve("usr/share/doc/elasticsearch/copyright")
+          expectedLicense = "Elastic-License"
+          licenseFilename = "ELASTIC-LICENSE-2.0.txt"
+          final List<String> header = Arrays.asList(
+            "Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/",
             "Copyright: Elasticsearch B.V. <info@elastic.co>",
-            "License: " + expectedLicense)
+            "License: " + expectedLicense
+          )
           final List<String> licenseLines = Files.readAllLines(rootDir.toPath().resolve("licenses/" + licenseFilename))
           final List<String> expectedLines = header + licenseLines.collect { " " + it }
           assertLinesInFile(copyrightPath, expectedLines)
@@ -486,15 +477,11 @@ subprojects {
       }
     } else {
       assert project.name.contains('rpm')
-      checkLicense {
-        onlyIf rpmExists
+      tasks.named("checkLicense").configure {
+        onlyIf("rpm exists", rpmExists)
         doLast {
           String licenseFilename
-          if (project.name.contains('oss-')) {
-            licenseFilename = "APACHE-LICENSE-2.0.txt"
-          } else {
-            licenseFilename = "ELASTIC-LICENSE.txt"
-          }
+          licenseFilename = "ELASTIC-LICENSE-2.0.txt"
           final List<String> licenseLines = Files.readAllLines(rootDir.toPath().resolve("licenses/" + licenseFilename))
           final Path licensePath = packageExtractionDir.toPath().resolve("usr/share/elasticsearch/LICENSE.txt")
           assertLinesInFile(licensePath, licenseLines)
@@ -502,39 +489,36 @@ subprojects {
       }
     }
 
-    task checkNotice {
-      dependsOn buildDist, checkExtraction
-      onlyIf {
+    tasks.register("checkNotice") {
+      dependsOn buildDist, "checkExtraction"
+      onlyIf("${project.name.contains('deb') ? 'dpkg' : 'rpm'} exists") {
         (project.name.contains('deb') && dpkgExists.call(it)) || (project.name.contains('rpm') && rpmExists.call(it))
       }
       doLast {
-        final List<String> noticeLines = Arrays.asList("Elasticsearch", "Copyright 2009-2018 Elasticsearch")
+        final List<String> noticeLines = Arrays.asList("Elasticsearch", "Copyright 2009-2021 Elasticsearch")
         final Path noticePath = packageExtractionDir.toPath().resolve("usr/share/elasticsearch/NOTICE.txt")
         assertLinesInFile(noticePath, noticeLines)
       }
     }
-    check.dependsOn checkNotice
 
-    task checkLicenseMetadata(type: LoggedExec) {
-      dependsOn buildDist, checkExtraction
+    def checkLicenseMetadataTaskProvider = tasks.register('checkLicenseMetadata', LoggedExec) {
+      dependsOn buildDist, "checkExtraction"
     }
-    check.dependsOn checkLicenseMetadata
+    tasks.named("check").configure {
+      dependsOn "checkNotice"
+      dependsOn(checkLicenseMetadataTaskProvider)
+    }
+
     if (project.name.contains('deb')) {
-      checkLicenseMetadata { LoggedExec exec ->
-        onlyIf dpkgExists
-        final ByteArrayOutputStream output = new ByteArrayOutputStream()
-        exec.commandLine 'dpkg-deb', '--info', "${-> buildDist.outputs.files.filter(debFilter).singleFile}"
-        exec.standardOutput = output
+      checkLicenseMetadataTaskProvider.configure { LoggedExec exec ->
+        onlyIf("dpkg exists", dpkgExists)
+        exec.commandLine 'dpkg-deb', '--info', "${-> buildDist.get().outputs.files.filter(debFilter).singleFile}"
+        exec.getCaptureOutput().set(true)
         doLast {
           String expectedLicense
-          if (project.name.contains('oss-')) {
-            expectedLicense = "ASL-2.0"
-          } else {
-            expectedLicense = "Elastic-License"
-          }
+          expectedLicense = "Elastic-License"
           final Pattern pattern = Pattern.compile("\\s*License: (.+)")
-          final String info = output.toString('UTF-8')
-          final String[] actualLines = info.split("\n")
+          final String[] actualLines = getOutput().split("\n")
           int count = 0
           for (final String actualLine : actualLines) {
             final Matcher matcher = pattern.matcher(actualLine)
@@ -556,21 +540,16 @@ subprojects {
       }
     } else {
       assert project.name.contains('rpm')
-      checkLicenseMetadata { LoggedExec exec ->
-        onlyIf rpmExists
-        final ByteArrayOutputStream output = new ByteArrayOutputStream()
-        exec.commandLine 'rpm', '-qp', '--queryformat', '%{License}', "${-> buildDist.outputs.files.singleFile}"
-        exec.standardOutput = output
+      checkLicenseMetadataTaskProvider.configure { LoggedExec exec ->
+        onlyIf("rpm exists", rpmExists)
+        exec.commandLine 'rpm', '-qp', '--queryformat', '%{License}', "${-> buildDist.get().outputs.files.singleFile}"
+        exec.getCaptureOutput().set(true)
         doLast {
-          String license = output.toString('UTF-8')
+          String license = getOutput()
           String expectedLicense
-          if (project.name.contains('oss-')) {
-            expectedLicense = "ASL 2.0"
-          } else {
-            expectedLicense = "Elastic License"
-          }
+          expectedLicense = "Elastic License"
           if (license != expectedLicense) {
-            throw new GradleException("expected license [${expectedLicense}] for [${-> buildDist.outputs.files.singleFile}] but was [${license}]")
+            throw new GradleException("expected license [${expectedLicense}] for [${-> buildDist.get().outputs.files.singleFile}] but was [${license}]")
           }
         }
       }

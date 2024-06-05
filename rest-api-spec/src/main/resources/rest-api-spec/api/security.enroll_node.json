@@ -1,0 +1,24 @@
+{
+  "security.enroll_node":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/security-api-node-enrollment.html",
+      "description":"Allows a new node to enroll to an existing cluster with security enabled."
+    },
+    "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_security/enroll/node",
+          "methods":[
+            "GET"
+          ]
+        }
+      ]
+    }
+  }
+}

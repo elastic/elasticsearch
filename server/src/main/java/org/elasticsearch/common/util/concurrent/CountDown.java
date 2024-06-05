@@ -1,80 +1,57 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.util.concurrent;
-
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * A simple thread safe count-down class that in contrast to a {@link CountDownLatch}
- * never blocks. This class is useful if a certain action has to wait for N concurrent 
- * tasks to return or a timeout to occur in order to proceed.
+ * A simple thread-safe count-down class that does not block, unlike a {@link CountDownLatch}. This class is useful if an action must wait
+ * for N concurrent tasks to succeed, or some other task to fail, in order to proceed. When called enough times, exactly one invocation of
+ * {@link #countDown()} or {@link #fastForward()} will return {@code true}.
  */
 public final class CountDown {
 
     private final AtomicInteger countDown;
-    private final int originalCount;
 
     public CountDown(int count) {
-        if (count < 0) {
-            throw new IllegalArgumentException("count must be greater or equal to 0 but was: " + count);
+        if (count <= 0) {
+            final String message = "count must be greater than 0 but was: " + count;
+            assert false : message;
+            throw new IllegalArgumentException(message);
         }
-        this.originalCount = count;
         this.countDown = new AtomicInteger(count);
     }
 
-    /**
-     * Decrements the count-down and returns <code>true</code> iff this call
-     * reached zero otherwise <code>false</code>
-     */
-    public boolean countDown() {
-        assert originalCount > 0;
-        for (;;) {
-            final int current = countDown.get();
-            assert current >= 0;
-            if (current == 0) {
-                return false;
-            }
-            if (countDown.compareAndSet(current, current - 1)) {
-                return current == 1;
-            }
-        }
+    private static int assertValidCount(int count) {
+        assert count >= 0 : count;
+        return count;
     }
 
     /**
-     * Fast forwards the count-down to zero and returns <code>true</code> iff
-     * the count down reached zero with this fast forward call otherwise
-     * <code>false</code>
+     * Decrements the count and returns {@code true} if and only if the count reached zero with this call.
+     */
+    public boolean countDown() {
+        return countDown.getAndUpdate(current -> assertValidCount(current) == 0 ? 0 : current - 1) == 1;
+    }
+
+    /**
+     * Fast-forwards the count to zero and returns {@code true} if and only if the count reached zero with this call.
      */
     public boolean fastForward() {
-        assert originalCount > 0;
-        assert countDown.get() >= 0;
-        return countDown.getAndSet(0) > 0;
+        return assertValidCount(countDown.getAndSet(0)) > 0;
     }
-    
+
     /**
-     * Returns <code>true</code> iff the count-down has reached zero. Otherwise <code>false</code>
+     * Returns {@code true} if and only if the count has reached zero.
      */
     public boolean isCountedDown() {
-        assert countDown.get() >= 0;
-        return countDown.get() == 0;
+        return assertValidCount(countDown.get()) == 0;
     }
 }

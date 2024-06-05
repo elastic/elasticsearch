@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.index.query;
 
@@ -22,24 +11,25 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext.FieldAndFormat;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilderTests;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -57,6 +47,7 @@ import static java.util.Collections.emptyList;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class InnerHitBuilderTests extends ESTestCase {
@@ -122,7 +113,7 @@ public class InnerHitBuilderTests extends ESTestCase {
             InnerHitBuilder innerHit = randomInnerHits();
             XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
             innerHit.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            //fields is printed out as an object but parsed into a List where order matters, we disable shuffling
+            // fields is printed out as an object but parsed into a List where order matters, we disable shuffling
             XContentBuilder shuffled = shuffleXContent(builder, "fields");
             try (XContentParser parser = createParser(shuffled)) {
                 InnerHitBuilder secondInnerHits = InnerHitBuilder.fromXContent(parser);
@@ -144,6 +135,7 @@ public class InnerHitBuilderTests extends ESTestCase {
         innerHitBuilder.setSeqNoAndPrimaryTerm(false); // not supported by nested queries
         return innerHitBuilder;
     }
+
     public static InnerHitBuilder randomInnerHits() {
         InnerHitBuilder innerHits = new InnerHitBuilder();
         innerHits.setName(randomAlphaOfLengthBetween(5, 16));
@@ -156,30 +148,31 @@ public class InnerHitBuilderTests extends ESTestCase {
         if (randomBoolean()) {
             innerHits.setStoredFieldNames(randomListStuff(16, () -> randomAlphaOfLengthBetween(1, 16)));
         }
-        innerHits.setDocValueFields(randomListStuff(16,
-                () -> new FieldAndFormat(randomAlphaOfLengthBetween(1, 16), null)));
+        innerHits.setDocValueFields(randomListStuff(16, () -> new FieldAndFormat(randomAlphaOfLengthBetween(1, 16), null)));
+        innerHits.setFetchFields(randomListStuff(16, () -> new FieldAndFormat(randomAlphaOfLengthBetween(1, 16), null)));
         // Random script fields deduped on their field name.
         Map<String, SearchSourceBuilder.ScriptField> scriptFields = new HashMap<>();
-        for (SearchSourceBuilder.ScriptField field: randomListStuff(16, InnerHitBuilderTests::randomScript)) {
+        for (SearchSourceBuilder.ScriptField field : randomListStuff(16, InnerHitBuilderTests::randomScript)) {
             scriptFields.put(field.fieldName(), field);
         }
         innerHits.setScriptFields(new HashSet<>(scriptFields.values()));
         FetchSourceContext randomFetchSourceContext;
         int randomInt = randomIntBetween(0, 2);
         if (randomInt == 0) {
-            randomFetchSourceContext = new FetchSourceContext(true, Strings.EMPTY_ARRAY, Strings.EMPTY_ARRAY);
+            randomFetchSourceContext = FetchSourceContext.FETCH_SOURCE;
         } else if (randomInt == 1) {
-            randomFetchSourceContext = new FetchSourceContext(true,
-                    generateRandomStringArray(12, 16, false),
-                    generateRandomStringArray(12, 16, false)
+            randomFetchSourceContext = FetchSourceContext.of(
+                true,
+                generateRandomStringArray(12, 16, false),
+                generateRandomStringArray(12, 16, false)
             );
         } else {
-            randomFetchSourceContext = new FetchSourceContext(randomBoolean());
+            randomFetchSourceContext = FetchSourceContext.of(randomBoolean());
         }
         innerHits.setFetchSourceContext(randomFetchSourceContext);
         if (randomBoolean()) {
-            innerHits.setSorts(randomListStuff(16,
-                    () -> SortBuilders.fieldSort(randomAlphaOfLengthBetween(5, 20)).order(randomFrom(SortOrder.values())))
+            innerHits.setSorts(
+                randomListStuff(16, () -> SortBuilders.fieldSort(randomAlphaOfLengthBetween(5, 20)).order(randomFrom(SortOrder.values())))
             );
         }
         innerHits.setHighlightBuilder(HighlightBuilderTests.randomHighlighterBuilder());
@@ -191,17 +184,33 @@ public class InnerHitBuilderTests extends ESTestCase {
         List<Runnable> modifiers = new ArrayList<>(12);
         modifiers.add(() -> copy.setFrom(randomValueOtherThan(copy.getFrom(), () -> randomIntBetween(0, 128))));
         modifiers.add(() -> copy.setSize(randomValueOtherThan(copy.getSize(), () -> randomIntBetween(0, 128))));
-        modifiers.add(() -> copy.setExplain(!copy.isExplain()));
-        modifiers.add(() -> copy.setVersion(!copy.isVersion()));
-        modifiers.add(() -> copy.setSeqNoAndPrimaryTerm(!copy.isSeqNoAndPrimaryTerm()));
-        modifiers.add(() -> copy.setTrackScores(!copy.isTrackScores()));
+        modifiers.add(() -> copy.setExplain(copy.isExplain() == false));
+        modifiers.add(() -> copy.setVersion(copy.isVersion() == false));
+        modifiers.add(() -> copy.setSeqNoAndPrimaryTerm(copy.isSeqNoAndPrimaryTerm() == false));
+        modifiers.add(() -> copy.setTrackScores(copy.isTrackScores() == false));
         modifiers.add(() -> copy.setName(randomValueOtherThan(copy.getName(), () -> randomAlphaOfLengthBetween(1, 16))));
         modifiers.add(() -> {
             if (randomBoolean()) {
-                copy.setDocValueFields(randomValueOtherThan(copy.getDocValueFields(),
-                        () -> randomListStuff(16, () -> new FieldAndFormat(randomAlphaOfLengthBetween(1, 16), null))));
+                copy.setDocValueFields(
+                    randomValueOtherThan(
+                        copy.getDocValueFields(),
+                        () -> randomListStuff(16, () -> new FieldAndFormat(randomAlphaOfLengthBetween(1, 16), null))
+                    )
+                );
             } else {
                 copy.addDocValueField(randomAlphaOfLengthBetween(1, 16));
+            }
+        });
+        modifiers.add(() -> {
+            if (randomBoolean()) {
+                copy.setFetchFields(
+                    randomValueOtherThan(
+                        copy.getFetchFields(),
+                        () -> randomListStuff(16, () -> new FieldAndFormat(randomAlphaOfLengthBetween(1, 16), null))
+                    )
+                );
+            } else {
+                copy.addFetchField(randomAlphaOfLengthBetween(1, 16));
             }
         });
         modifiers.add(() -> {
@@ -217,37 +226,48 @@ public class InnerHitBuilderTests extends ESTestCase {
         modifiers.add(() -> copy.setFetchSourceContext(randomValueOtherThan(copy.getFetchSourceContext(), () -> {
             FetchSourceContext randomFetchSourceContext;
             if (randomBoolean()) {
-                randomFetchSourceContext = new FetchSourceContext(randomBoolean());
+                randomFetchSourceContext = FetchSourceContext.of(randomBoolean());
             } else {
-                randomFetchSourceContext = new FetchSourceContext(true, generateRandomStringArray(12, 16, false),
-                        generateRandomStringArray(12, 16, false));
+                randomFetchSourceContext = FetchSourceContext.of(
+                    true,
+                    generateRandomStringArray(12, 16, false),
+                    generateRandomStringArray(12, 16, false)
+                );
             }
             return randomFetchSourceContext;
         })));
         modifiers.add(() -> {
-                if (randomBoolean()) {
-                    final List<SortBuilder<?>> sortBuilders = randomValueOtherThan(copy.getSorts(), () -> {
-                        List<SortBuilder<?>> builders = randomListStuff(16,
-                                () -> SortBuilders.fieldSort(randomAlphaOfLengthBetween(5, 20)).order(randomFrom(SortOrder.values())));
-                        return builders;
-                    });
-                    copy.setSorts(sortBuilders);
-                } else {
-                    copy.addSort(SortBuilders.fieldSort(randomAlphaOfLengthBetween(5, 20)));
-                }
+            if (randomBoolean()) {
+                final List<SortBuilder<?>> sortBuilders = randomValueOtherThan(copy.getSorts(), () -> {
+                    List<SortBuilder<?>> builders = randomListStuff(
+                        16,
+                        () -> SortBuilders.fieldSort(randomAlphaOfLengthBetween(5, 20)).order(randomFrom(SortOrder.values()))
+                    );
+                    return builders;
+                });
+                copy.setSorts(sortBuilders);
+            } else {
+                copy.addSort(SortBuilders.fieldSort(randomAlphaOfLengthBetween(5, 20)));
+            }
         });
-        modifiers.add(() -> copy
-                .setHighlightBuilder(randomValueOtherThan(copy.getHighlightBuilder(), HighlightBuilderTests::randomHighlighterBuilder)));
+        modifiers.add(
+            () -> copy.setHighlightBuilder(
+                randomValueOtherThan(copy.getHighlightBuilder(), HighlightBuilderTests::randomHighlighterBuilder)
+            )
+        );
         modifiers.add(() -> {
-                if (copy.getStoredFieldsContext() == null || randomBoolean()) {
-                    List<String> previous = copy.getStoredFieldsContext() == null ?
-                        Collections.emptyList() : copy.getStoredFieldsContext().fieldNames();
-                    List<String> newValues = randomValueOtherThan(previous,
-                            () -> randomListStuff(1, 16, () -> randomAlphaOfLengthBetween(1, 16)));
-                    copy.setStoredFieldNames(newValues);
-                } else {
-                    copy.getStoredFieldsContext().addFieldName(randomAlphaOfLengthBetween(1, 16));
-                }
+            if (copy.getStoredFieldsContext() == null || randomBoolean()) {
+                List<String> previous = copy.getStoredFieldsContext() == null
+                    ? Collections.emptyList()
+                    : copy.getStoredFieldsContext().fieldNames();
+                List<String> newValues = randomValueOtherThan(
+                    previous,
+                    () -> randomListStuff(1, 16, () -> randomAlphaOfLengthBetween(1, 16))
+                );
+                copy.setStoredFieldNames(newValues);
+            } else {
+                copy.getStoredFieldsContext().addFieldName(randomAlphaOfLengthBetween(1, 16));
+            }
         });
         randomFrom(modifiers).run();
         return copy;
@@ -262,8 +282,12 @@ public class InnerHitBuilderTests extends ESTestCase {
                 randomMap.put(String.valueOf(i), randomAlphaOfLength(16));
             }
         }
-        Script script = new Script(randomScriptType, randomScriptType == ScriptType.STORED ? null : randomAlphaOfLengthBetween(1, 4),
-            randomAlphaOfLength(128), randomMap);
+        Script script = new Script(
+            randomScriptType,
+            randomScriptType == ScriptType.STORED ? null : randomAlphaOfLengthBetween(1, 4),
+            randomAlphaOfLength(128),
+            randomMap
+        );
         return new SearchSourceBuilder.ScriptField(randomAlphaOfLengthBetween(1, 32), script, randomBoolean());
     }
 
@@ -289,7 +313,132 @@ public class InnerHitBuilderTests extends ESTestCase {
         innerHit.addDocValueField("foo");
         innerHit.addDocValueField("@timestamp", "epoch_millis");
         assertEquals(
-                Arrays.asList(new FieldAndFormat("foo", null), new FieldAndFormat("@timestamp", "epoch_millis")),
-                innerHit.getDocValueFields());
+            Arrays.asList(new FieldAndFormat("foo", null), new FieldAndFormat("@timestamp", "epoch_millis")),
+            innerHit.getDocValueFields()
+        );
+    }
+
+    public void testSetFetchFieldFormat() {
+        InnerHitBuilder innerHit = new InnerHitBuilder();
+        innerHit.addFetchField("foo");
+        innerHit.addFetchField("@timestamp", "epoch_millis");
+        assertEquals(
+            Arrays.asList(new FieldAndFormat("foo", null), new FieldAndFormat("@timestamp", "epoch_millis")),
+            innerHit.getFetchFields()
+        );
+    }
+
+    public void testParseDefaults() throws IOException {
+        InnerHitBuilder b = parse("{}");
+        assertThat(b.getName(), nullValue());
+        assertThat(b.getFrom(), equalTo(0));
+        assertThat(b.getSize(), equalTo(3));
+        assertThat(b.isVersion(), equalTo(false));
+        assertThat(b.isSeqNoAndPrimaryTerm(), equalTo(false));
+        assertThat(b.isExplain(), equalTo(false));
+        assertThat(b.isTrackScores(), equalTo(false));
+        assertThat(b.getStoredFieldsContext(), equalTo(null));
+        assertThat(b.getSorts(), equalTo(null));
+        assertThat(b.getDocValueFields(), equalTo(null));
+        assertThat(b.getScriptFields(), equalTo(null));
+        assertThat(b.getHighlightBuilder(), equalTo(null));
+        assertThat(b.getFetchSourceContext(), equalTo(null));
+        assertThat(b.getFetchFields(), equalTo(null));
+        assertThat(b.getInnerCollapseBuilder(), equalTo(null));
+        assertThat(Strings.toString(b), equalTo("{}"));
+    }
+
+    public void testParseDefaultsRemoved() throws IOException {
+        String json = """
+            {
+              "name" : "inner_hits_name",
+              "ignore_unmapped" : false,
+              "from" : 0,
+              "size" : 3,
+              "version" : false,
+              "seq_no_primary_term" : false,
+              "explain" : false,
+              "track_scores" : false
+            }""";
+        assertThat(Strings.toString(parse(json), true, true), equalTo("""
+            {
+              "name" : "inner_hits_name"
+            }"""));
+    }
+
+    public void testParseStoredFields() throws IOException {
+        InnerHitBuilder b = parse("""
+            {
+              "stored_fields" : ["foo"]
+            }""");
+        assertThat(b.getStoredFieldsContext().fieldNames(), equalTo(List.of("foo")));
+        assertThat(Strings.toString(b, true, true), equalTo("""
+            {
+              "stored_fields" : "foo"
+            }"""));
+
+        b = parse("""
+            {
+              "stored_fields" : ["foo", "bar"]
+            }""");
+        assertThat(b.getStoredFieldsContext().fieldNames(), equalTo(List.of("foo", "bar")));
+        assertThat(Strings.toString(b, true, true), equalTo("""
+            {
+              "stored_fields" : [
+                "foo",
+                "bar"
+              ]
+            }"""));
+
+        b = parse("""
+            {
+              "stored_fields" : ["_none_"]
+            }""");
+        assertThat(b.getStoredFieldsContext().fieldNames(), equalTo(null));
+        assertThat(b.getStoredFieldsContext().fetchFields(), equalTo(false));
+        assertThat(Strings.toString(b, true, true), equalTo("""
+            {
+              "stored_fields" : "_none_"
+            }"""));
+    }
+
+    public void testParseSorts() throws IOException {
+        InnerHitBuilder b = parse("""
+            {
+              "sort" : ["foo"]
+            }""");
+        assertThat(b.getSorts(), equalTo(List.of(SortBuilders.fieldSort("foo"))));
+        assertThat(Strings.toString(b, true, true), equalTo("""
+            {
+              "sort" : [
+                {
+                  "foo" : {
+                    "order" : "asc"
+                  }
+                }
+              ]
+            }"""));
+
+        b = parse("""
+            {
+              "sort" : [{"foo": "desc"}]
+            }""");
+        assertThat(b.getSorts(), equalTo(List.of(SortBuilders.fieldSort("foo").order(SortOrder.DESC))));
+        assertThat(Strings.toString(b, true, true), equalTo("""
+            {
+              "sort" : [
+                {
+                  "foo" : {
+                    "order" : "desc"
+                  }
+                }
+              ]
+            }"""));
+    }
+
+    private InnerHitBuilder parse(String json) throws IOException {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
+            return InnerHitBuilder.fromXContent(parser);
+        }
     }
 }

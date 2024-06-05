@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.transport.filter;
 
 import io.netty.handler.ipfilter.IpFilterRule;
 import io.netty.handler.ipfilter.IpFilterRuleType;
-import org.elasticsearch.common.SuppressForbidden;
+
 import org.elasticsearch.common.network.NetworkAddress;
+import org.elasticsearch.core.SuppressForbidden;
 
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
@@ -103,14 +105,14 @@ final class PatternRule implements IpFilterRule {
         if (pattern.length() != 0) {
             pattern += "|";
         }
-        rule = rule.replaceAll("\\.", "\\\\.");
-        rule = rule.replaceAll("\\*", ".*");
-        rule = rule.replaceAll("\\?", ".");
+        rule = rule.replace(".", "\\.");
+        rule = rule.replace("*", ".*");
+        rule = rule.replace("?", ".");
         pattern += '(' + rule + ')';
         return pattern;
     }
 
-    private boolean isLocalhost(InetAddress address) {
+    private static boolean isLocalhost(InetAddress address) {
         try {
             return address.isAnyLocalAddress() || address.isLoopbackAddress() || NetworkInterface.getByInetAddress(address) != null;
         } catch (SocketException e) {
@@ -118,7 +120,6 @@ final class PatternRule implements IpFilterRule {
             return false;
         }
     }
-
 
     @Override
     public boolean matches(InetSocketAddress remoteAddress) {

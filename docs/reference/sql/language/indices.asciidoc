@@ -1,15 +1,14 @@
 [role="xpack"]
-[testenv="basic"]
 [[sql-index-patterns]]
 === Index patterns
 
 {es-sql} supports two types of patterns for matching multiple indices or tables:
 
 [[sql-index-patterns-multi]]
-[float]
-==== {es} multi-index
+[discrete]
+==== {es} multi-target syntax
 
-The {es} notation for enumerating, including or excluding <<multi-index,multi index syntax>>
+The {es} notation for enumerating, including or excluding <<api-multi-index,multi-target syntax>>
 is supported _as long_ as it is quoted or escaped as a table identifier.
 
 For example:
@@ -35,8 +34,21 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[fromTablePatternQuoted]
 
 NOTE: There is the restriction that all resolved concrete tables have the exact same mapping.
 
+experimental:[] To run a <<modules-cross-cluster-search,{ccs}>>, specify a
+cluster name using the `<remote_cluster>:<target>` syntax, where
+`<remote_cluster>` maps to a SQL catalog (cluster) and `<target>` to a table
+(index or data stream). The `<remote_cluster>` supports wildcards (`*`)
+and `<target>` can be an index pattern.
+
+For example:
+
+[source, sql]
+----
+include-tagged::{sql-specs}/multi-cluster-with-security/multi-cluster-docs.csv-spec[fromQualifiedTableQuoted]
+----
+
 [[sql-index-patterns-like]]
-[float]
+[discrete]
 ==== SQL `LIKE` notation
 
 The common `LIKE` statement (including escaping if needed) to match a wildcard pattern, based on one `_`
@@ -49,7 +61,7 @@ Using `SHOW TABLES` command again:
 include-tagged::{sql-specs}/docs/docs.csv-spec[showTablesLikeWildcard]
 ----
 
-The pattern matches all tables that start with `emp`. 
+The pattern matches all tables that start with `emp`.
 
 This command supports _escaping_ as well, for example:
 
@@ -88,28 +100,24 @@ requires the keyword `LIKE` for SQL `LIKE` pattern.
 [[sql-index-frozen]]
 === Frozen Indices
 
-{es} <<frozen-indices, frozen indices>> are a useful and powerful tool for hot/warm architecture introduced in {es} 6.6, 
-essentially by trading speed for memory.
-{es-sql} supports frozen indices and similar to {es}, due to their performance characteristics, allows searches on them only
-when explicitly told so by user - in other words, by default, frozen indices are not included in searches.
-
-One can toggle the use of frozen indices through:
+By default, {es-sql} doesn't search <<unfreeze-index-api,frozen indices>>. To
+search frozen indices, use one of the following features:
 
 dedicated configuration parameter::
-Set to `true` properties `index_include_frozen` in the <<sql-rest>> or `index.include.frozen` in the drivers to include frozen indices.
+Set to `true` properties `index_include_frozen` in the <<sql-search-api,SQL search API>> or `index.include.frozen` in the drivers to include frozen indices.
 
 dedicated keyword::
 Explicitly perform the inclusion through the dedicated `FROZEN` keyword in the `FROM` clause or `INCLUDE FROZEN` in the `SHOW` commands:
 
 [source, sql]
 ----
-include-tagged::{sql-specs}/docs/docs.csv-spec[showTablesIncludeFrozen]
+include-tagged::{sql-specs}/docs/docs-frozen.csv-spec[showTablesIncludeFrozen]
 ----
 
 
 [source, sql]
 ----
-include-tagged::{sql-specs}/docs/docs.csv-spec[fromTableIncludeFrozen]
+include-tagged::{sql-specs}/docs/docs-frozen.csv-spec[fromTableIncludeFrozen]
 ----
 
 Unless enabled, frozen indices are completely ignored; it is as if they do not exist and as such, queries ran against them are likely to fail.

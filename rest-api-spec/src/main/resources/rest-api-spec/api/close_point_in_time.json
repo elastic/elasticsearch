@@ -1,0 +1,28 @@
+{
+  "close_point_in_time":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/point-in-time-api.html",
+      "description":"Close a point in time"
+    },
+    "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_pit",
+          "methods":[
+            "DELETE"
+          ]
+        }
+      ]
+    },
+    "params":{},
+    "body":{
+      "description": "a point-in-time id to close"
+    }
+  }
+}

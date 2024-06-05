@@ -1,29 +1,29 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
-import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
@@ -40,7 +40,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.Version.V_7_3_0;
+import static org.elasticsearch.core.Strings.format;
 
 public class GetJobsStatsAction extends ActionType<GetJobsStatsAction.Response> {
 
@@ -57,15 +57,15 @@ public class GetJobsStatsAction extends ActionType<GetJobsStatsAction.Response> 
     private static final String TIMING_STATS = "timing_stats";
 
     private GetJobsStatsAction() {
-        super(NAME, GetJobsStatsAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends BaseTasksRequest<Request> {
 
-        public static final ParseField ALLOW_NO_JOBS = new ParseField("allow_no_jobs");
+        public static final String ALLOW_NO_MATCH = "allow_no_match";
 
-        private String jobId;
-        private boolean allowNoJobs = true;
+        private final String jobId;
+        private boolean allowNoMatch = true;
 
         // used internally to expand _all jobid to encapsulate all jobs in cluster:
         private List<String> expandedJobsIds;
@@ -75,13 +75,11 @@ public class GetJobsStatsAction extends ActionType<GetJobsStatsAction.Response> 
             this.expandedJobsIds = Collections.singletonList(jobId);
         }
 
-        public Request() {}
-
         public Request(StreamInput in) throws IOException {
             super(in);
             jobId = in.readString();
-            expandedJobsIds = in.readStringList();
-            allowNoJobs = in.readBoolean();
+            expandedJobsIds = in.readStringCollectionAsList();
+            allowNoMatch = in.readBoolean();
         }
 
         @Override
@@ -89,28 +87,32 @@ public class GetJobsStatsAction extends ActionType<GetJobsStatsAction.Response> 
             super.writeTo(out);
             out.writeString(jobId);
             out.writeStringCollection(expandedJobsIds);
-            out.writeBoolean(allowNoJobs);
+            out.writeBoolean(allowNoMatch);
         }
 
-        public List<String> getExpandedJobsIds() { return expandedJobsIds; }
+        public List<String> getExpandedJobsIds() {
+            return expandedJobsIds;
+        }
 
-        public void setExpandedJobsIds(List<String> expandedJobsIds) { this.expandedJobsIds = expandedJobsIds; }
+        public void setExpandedJobsIds(List<String> expandedJobsIds) {
+            this.expandedJobsIds = expandedJobsIds;
+        }
 
-        public void setAllowNoJobs(boolean allowNoJobs) {
-            this.allowNoJobs = allowNoJobs;
+        public void setAllowNoMatch(boolean allowNoMatch) {
+            this.allowNoMatch = allowNoMatch;
         }
 
         public String getJobId() {
             return jobId;
         }
 
-        public boolean allowNoJobs() {
-            return allowNoJobs;
+        public boolean allowNoMatch() {
+            return allowNoMatch;
         }
 
         @Override
         public boolean match(Task task) {
-            return expandedJobsIds.stream().anyMatch(jobId -> OpenJobAction.JobTaskMatcher.match(task, jobId));
+            return expandedJobsIds.stream().anyMatch(id -> OpenJobAction.JobTaskMatcher.match(task, id));
         }
 
         @Override
@@ -120,7 +122,7 @@ public class GetJobsStatsAction extends ActionType<GetJobsStatsAction.Response> 
 
         @Override
         public int hashCode() {
-            return Objects.hash(jobId, allowNoJobs);
+            return Objects.hash(jobId, allowNoMatch);
         }
 
         @Override
@@ -132,14 +134,14 @@ public class GetJobsStatsAction extends ActionType<GetJobsStatsAction.Response> 
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.equals(jobId, other.jobId) && Objects.equals(allowNoJobs, other.allowNoJobs);
+            return Objects.equals(jobId, other.jobId)
+                && Objects.equals(allowNoMatch, other.allowNoMatch)
+                && Objects.equals(getTimeout(), other.getTimeout());
         }
-    }
 
-    public static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
-
-        public RequestBuilder(ElasticsearchClient client, GetJobsStatsAction action) {
-            super(client, action, new Request());
+        @Override
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            return new CancellableTask(id, type, action, format("get_job_stats[%s]", id), parentTaskId, headers);
         }
     }
 
@@ -162,9 +164,17 @@ public class GetJobsStatsAction extends ActionType<GetJobsStatsAction.Response> 
             @Nullable
             private final TimingStats timingStats;
 
-            public JobStats(String jobId, DataCounts dataCounts, @Nullable ModelSizeStats modelSizeStats,
-                            @Nullable ForecastStats forecastStats, JobState state, @Nullable DiscoveryNode node,
-                            @Nullable String assignmentExplanation, @Nullable TimeValue openTime, @Nullable TimingStats timingStats) {
+            public JobStats(
+                String jobId,
+                DataCounts dataCounts,
+                @Nullable ModelSizeStats modelSizeStats,
+                @Nullable ForecastStats forecastStats,
+                JobState state,
+                @Nullable DiscoveryNode node,
+                @Nullable String assignmentExplanation,
+                @Nullable TimeValue openTime,
+                @Nullable TimingStats timingStats
+            ) {
                 this.jobId = Objects.requireNonNull(jobId);
                 this.dataCounts = Objects.requireNonNull(dataCounts);
                 this.modelSizeStats = modelSizeStats;
@@ -185,11 +195,7 @@ public class GetJobsStatsAction extends ActionType<GetJobsStatsAction.Response> 
                 assignmentExplanation = in.readOptionalString();
                 openTime = in.readOptionalTimeValue();
                 forecastStats = in.readOptionalWriteable(ForecastStats::new);
-                if (in.getVersion().onOrAfter(V_7_3_0)) {
-                    timingStats = in.readOptionalWriteable(TimingStats::new);
-                } else {
-                    timingStats = null;
-                }
+                timingStats = in.readOptionalWriteable(TimingStats::new);
             }
 
             public String getJobId() {
@@ -203,7 +209,7 @@ public class GetJobsStatsAction extends ActionType<GetJobsStatsAction.Response> 
             public ModelSizeStats getModelSizeStats() {
                 return modelSizeStats;
             }
-            
+
             public ForecastStats getForecastStats() {
                 return forecastStats;
             }
@@ -247,7 +253,7 @@ public class GetJobsStatsAction extends ActionType<GetJobsStatsAction.Response> 
                 if (forecastStats != null) {
                     builder.field(FORECASTS_STATS, forecastStats);
                 }
-                
+
                 builder.field(STATE, state.toString());
                 if (node != null) {
                     builder.startObject(NODE);
@@ -273,7 +279,8 @@ public class GetJobsStatsAction extends ActionType<GetJobsStatsAction.Response> 
                     builder.field(
                         TIMING_STATS,
                         timingStats,
-                        new MapParams(Collections.singletonMap(ToXContentParams.INCLUDE_CALCULATED_FIELDS, "true")));
+                        new MapParams(Collections.singletonMap(ToXContentParams.INCLUDE_CALCULATED_FIELDS, "true"))
+                    );
                 }
                 return builder;
             }
@@ -288,15 +295,22 @@ public class GetJobsStatsAction extends ActionType<GetJobsStatsAction.Response> 
                 out.writeOptionalString(assignmentExplanation);
                 out.writeOptionalTimeValue(openTime);
                 out.writeOptionalWriteable(forecastStats);
-                if (out.getVersion().onOrAfter(V_7_3_0)) {
-                    out.writeOptionalWriteable(timingStats);
-                }
+                out.writeOptionalWriteable(timingStats);
             }
 
             @Override
             public int hashCode() {
                 return Objects.hash(
-                    jobId, dataCounts, modelSizeStats, forecastStats, state, node, assignmentExplanation, openTime, timingStats);
+                    jobId,
+                    dataCounts,
+                    modelSizeStats,
+                    forecastStats,
+                    state,
+                    node,
+                    assignmentExplanation,
+                    openTime,
+                    timingStats
+                );
             }
 
             @Override
@@ -320,15 +334,18 @@ public class GetJobsStatsAction extends ActionType<GetJobsStatsAction.Response> 
             }
         }
 
-        private QueryPage<JobStats> jobsStats;
+        private final QueryPage<JobStats> jobsStats;
 
         public Response(QueryPage<JobStats> jobsStats) {
             super(Collections.emptyList(), Collections.emptyList());
             this.jobsStats = jobsStats;
         }
 
-        public Response(List<TaskOperationFailure> taskFailures, List<? extends ElasticsearchException> nodeFailures,
-                 QueryPage<JobStats> jobsStats) {
+        public Response(
+            List<TaskOperationFailure> taskFailures,
+            List<? extends ElasticsearchException> nodeFailures,
+            QueryPage<JobStats> jobsStats
+        ) {
             super(taskFailures, nodeFailures);
             this.jobsStats = jobsStats;
         }

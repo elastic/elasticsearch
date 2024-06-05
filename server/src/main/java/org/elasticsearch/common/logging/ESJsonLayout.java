@@ -1,30 +1,22 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.logging;
 
 import org.apache.logging.log4j.core.Layout;
 import org.apache.logging.log4j.core.LogEvent;
+import org.apache.logging.log4j.core.config.Configuration;
+import org.apache.logging.log4j.core.config.DefaultConfiguration;
 import org.apache.logging.log4j.core.config.Node;
 import org.apache.logging.log4j.core.config.plugins.Plugin;
 import org.apache.logging.log4j.core.config.plugins.PluginAttribute;
 import org.apache.logging.log4j.core.config.plugins.PluginBuilderFactory;
+import org.apache.logging.log4j.core.config.plugins.PluginConfiguration;
 import org.apache.logging.log4j.core.config.plugins.PluginFactory;
 import org.apache.logging.log4j.core.layout.AbstractStringLayout;
 import org.apache.logging.log4j.core.layout.ByteBufferDestination;
@@ -50,7 +42,7 @@ import java.util.Set;
  * <li>component - logger name, most of the times class name</li>
  * <li>cluster.name - taken from sys:es.logs.cluster_name system property because it is always set</li>
  * <li>node.name - taken from NodeNamePatternConverter, as it can be set in runtime as hostname when not set in elasticsearch.yml</li>
- * <li>node_and_cluster_id - in json as node.id and cluster.uuid - taken from NodeAndClusterIdConverter and present
+ * <li>node_and_cluster_id - in json as node.id and cluster.uuid - taken from NodeIdConverter and present
  * once clusterStateUpdate is first received</li>
  * <li>message - a json escaped message. Multiline messages will be converted to single line with new line explicitly
  * replaced to \n</li>
@@ -66,23 +58,26 @@ import java.util.Set;
  * Once an appender is defined to be overriding a field, all the log events should contain this field.
  * <p>
  * The value taken from ESLogMessage has to be a simple escaped JSON value.
+ * @deprecated ECSJsonlayout should be used as JSON logs layout
  */
+@Deprecated(since = "v8")
 @Plugin(name = "ESJsonLayout", category = Node.CATEGORY, elementType = Layout.ELEMENT_TYPE, printObject = true)
 public class ESJsonLayout extends AbstractStringLayout {
 
     private final PatternLayout patternLayout;
-    private String overridenFields;
+    private String esmessagefields;
 
-    protected ESJsonLayout(String typeName, Charset charset, String[] overrideFields) {
+    protected ESJsonLayout(String typeName, Charset charset, String[] overrideFields, final Configuration config) {
         super(charset);
-        this.overridenFields = String.join(",",overrideFields);
+        this.esmessagefields = String.join(",", overrideFields);
         this.patternLayout = PatternLayout.newBuilder()
-                                          .withPattern(pattern(typeName, overrideFields))
-                                          .withAlwaysWriteExceptions(false)
-                                          .build();
+            .withPattern(pattern(typeName, overrideFields))
+            .withAlwaysWriteExceptions(false)
+            .withConfiguration(config)
+            .build();
     }
 
-    private String pattern(String type, String[] overrideFields) {
+    private static String pattern(String type, String[] esmessagefields) {
         if (Strings.isEmpty(type)) {
             throw new IllegalArgumentException("layout parameter 'type_name' cannot be empty");
         }
@@ -95,28 +90,22 @@ public class ESJsonLayout extends AbstractStringLayout {
         map.put("node.name", inQuotes("%node_name"));
         map.put("message", inQuotes("%notEmpty{%enc{%marker}{JSON} }%enc{%.-10000m}{JSON}"));
 
-
-        // overridden fields are expected to be present in a log message
-        for (String key : overrideFields) {
+        // esmessagefields are treated as potentially overriding
+        for (String key : esmessagefields) {
             map.remove(key);
         }
 
-        return createPattern(map, Set.of(overrideFields));
+        return createPattern(map, Set.of(esmessagefields));
     }
 
-
-    private String createPattern(Map<String, Object> map, Set<String> overrideFields) {
+    private static String createPattern(Map<String, Object> map, Set<String> esmessagefields) {
         StringBuilder sb = new StringBuilder();
         sb.append("{");
         String separator = "";
         for (Map.Entry<String, Object> entry : map.entrySet()) {
 
-            if (overrideFields.contains(entry.getKey())) {
-                sb.append("%notEmpty{");
-                sb.append(separator);
-                appendField(sb, entry);
-                sb.append("}");
-            } else {
+            // fields present in esmessagefields are meant to be provided in CustomMapFields
+            if (esmessagefields.contains(entry.getKey()) == false) {
                 sb.append(separator);
                 appendField(sb, entry);
             }
@@ -124,7 +113,7 @@ public class ESJsonLayout extends AbstractStringLayout {
             separator = ", ";
         }
         sb.append(notEmpty(", %node_and_cluster_id "));
-        sb.append(notEmpty(", %CustomMapFields{"+overridenFields+"} "));
+        sb.append(notEmpty(", %CustomMapFields "));
         sb.append("%exceptionAsJson ");
         sb.append("}");
         sb.append(System.lineSeparator());
@@ -132,36 +121,35 @@ public class ESJsonLayout extends AbstractStringLayout {
         return sb.toString();
     }
 
-    private void appendField(StringBuilder sb, Map.Entry<String, Object> entry) {
+    private static void appendField(StringBuilder sb, Map.Entry<String, Object> entry) {
         sb.append(jsonKey(entry.getKey()));
         sb.append(entry.getValue().toString());
     }
 
-    private String notEmpty(String value) {
+    private static String notEmpty(String value) {
         return "%notEmpty{" + value + "}";
     }
 
-    private CharSequence jsonKey(String s) {
+    private static CharSequence jsonKey(String s) {
         return inQuotes(s) + ": ";
     }
 
-    private String inQuotes(String s) {
+    private static String inQuotes(String s) {
         return "\"" + s + "\"";
     }
 
     @PluginFactory
-    public static ESJsonLayout createLayout(String type,
-                                            Charset charset,
-                                            String[] overrideFields) {
-        return new ESJsonLayout(type, charset, overrideFields);
+    public static ESJsonLayout createLayout(String type, Charset charset, String[] overrideFields, Configuration configuration) {
+        return new ESJsonLayout(type, charset, overrideFields, configuration);
     }
 
     PatternLayout getPatternLayout() {
         return patternLayout;
     }
 
-    public static class Builder<B extends ESJsonLayout.Builder<B>> extends AbstractStringLayout.Builder<B>
-        implements org.apache.logging.log4j.core.util.Builder<ESJsonLayout> {
+    public static final class Builder<B extends ESJsonLayout.Builder<B>> extends AbstractStringLayout.Builder<B>
+        implements
+            org.apache.logging.log4j.core.util.Builder<ESJsonLayout> {
 
         @PluginAttribute("type_name")
         String type;
@@ -169,8 +157,11 @@ public class ESJsonLayout extends AbstractStringLayout {
         @PluginAttribute(value = "charset", defaultString = "UTF-8")
         Charset charset;
 
-        @PluginAttribute("overrideFields")
+        @PluginAttribute("esmessagefields")
         private String overrideFields;
+
+        @PluginConfiguration
+        private Configuration config;
 
         public Builder() {
             setCharset(StandardCharsets.UTF_8);
@@ -178,8 +169,8 @@ public class ESJsonLayout extends AbstractStringLayout {
 
         @Override
         public ESJsonLayout build() {
-            String[] split = Strings.isNullOrEmpty(overrideFields) ? new String[]{} : overrideFields.split(",");
-            return ESJsonLayout.createLayout(type, charset, split);
+            String[] split = Strings.isNullOrEmpty(overrideFields) ? new String[] {} : overrideFields.split(",");
+            return ESJsonLayout.createLayout(type, charset, split, new DefaultConfiguration());
         }
 
         public Charset getCharset() {
@@ -208,6 +199,7 @@ public class ESJsonLayout extends AbstractStringLayout {
             this.overrideFields = overrideFields;
             return asBuilder();
         }
+
     }
 
     @PluginBuilderFactory

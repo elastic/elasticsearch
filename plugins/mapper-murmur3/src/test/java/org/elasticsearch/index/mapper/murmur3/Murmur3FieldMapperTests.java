@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.mapper.murmur3;
@@ -22,138 +11,138 @@ package org.elasticsearch.index.mapper.murmur3;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.IndexService;
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.hash.MurmurHash3;
+import org.elasticsearch.index.fielddata.FieldDataContext;
+import org.elasticsearch.index.fielddata.IndexFieldDataCache;
+import org.elasticsearch.index.mapper.DocValueFetcher;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.DocumentMapperParser;
-import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
-import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.indices.mapper.MapperRegistry;
-import org.elasticsearch.plugins.MapperPlugin;
+import org.elasticsearch.index.mapper.ValueFetcher;
+import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.plugin.mapper.MapperMurmur3Plugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.test.InternalSettingsPlugin;
-import org.junit.Before;
+import org.elasticsearch.search.lookup.Source;
+import org.elasticsearch.search.lookup.SourceProvider;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.junit.AssumptionViolatedException;
 
-import java.util.Arrays;
+import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
-import java.util.function.Supplier;
+import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
-import static org.hamcrest.Matchers.containsString;
+import static java.util.stream.Collectors.toList;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.hasSize;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
-public class Murmur3FieldMapperTests extends ESSingleNodeTestCase {
+public class Murmur3FieldMapperTests extends MapperTestCase {
 
-    MapperRegistry mapperRegistry;
-    IndexService indexService;
-    DocumentMapperParser parser;
-
-    @Before
-    public void setup() {
-        indexService = createIndex("test");
-        mapperRegistry = new MapperRegistry(
-                Collections.singletonMap(Murmur3FieldMapper.CONTENT_TYPE, new Murmur3FieldMapper.TypeParser()),
-                Collections.emptyMap(), MapperPlugin.NOOP_FIELD_FILTER);
-        Supplier<QueryShardContext> queryShardContext = () -> {
-            return indexService.newQueryShardContext(0, null, () -> { throw new UnsupportedOperationException(); }, null);
-        };
-        parser = new DocumentMapperParser(indexService.getIndexSettings(), indexService.mapperService(), indexService.xContentRegistry(),
-                indexService.similarityService(), mapperRegistry, queryShardContext);
+    @Override
+    protected Object getSampleValueForDocument() {
+        return "value";
     }
 
     @Override
-    protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(InternalSettingsPlugin.class);
+    protected Collection<? extends Plugin> getPlugins() {
+        return List.of(new MapperMurmur3Plugin());
+    }
+
+    @Override
+    protected void minimalMapping(XContentBuilder b) throws IOException {
+        b.field("type", "murmur3");
+    }
+
+    @Override
+    protected void registerParameters(ParameterChecker checker) throws IOException {
+        checker.registerConflictCheck("store", b -> b.field("store", true));
     }
 
     public void testDefaults() throws Exception {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("field")
-                    .field("type", "murmur3")
-                .endObject().endObject().endObject().endObject());
-        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
-        ParsedDocument parsedDoc = mapper.parse(new SourceToParse("test", "1", BytesReference.bytes(XContentFactory.jsonBuilder()
-                .startObject()
-                .field("field", "value")
-                .endObject()),
-                XContentType.JSON));
-        IndexableField[] fields = parsedDoc.rootDoc().getFields("field");
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+        ParsedDocument parsedDoc = mapper.parse(source(b -> b.field("field", "value")));
+        List<IndexableField> fields = parsedDoc.rootDoc().getFields("field");
         assertNotNull(fields);
-        assertEquals(Arrays.toString(fields), 1, fields.length);
-        IndexableField field = fields[0];
+        assertThat(fields, hasSize(1));
+        IndexableField field = fields.get(0);
         assertEquals(IndexOptions.NONE, field.fieldType().indexOptions());
         assertEquals(DocValuesType.SORTED_NUMERIC, field.fieldType().docValuesType());
     }
 
-    public void testDocValuesSettingNotAllowed() throws Exception {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("properties").startObject("field")
-                .field("type", "murmur3")
-                .field("doc_values", false)
-            .endObject().endObject().endObject().endObject());
-        try {
-            parser.parse("type", new CompressedXContent(mapping));
-            fail("expected a mapper parsing exception");
-        } catch (MapperParsingException e) {
-            assertTrue(e.getMessage().contains("Setting [doc_values] cannot be modified"));
-        }
-
-        // even setting to the default is not allowed, the setting is invalid
-        mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("properties").startObject("field")
-                .field("type", "murmur3")
-                .field("doc_values", true)
-            .endObject().endObject().endObject().endObject());
-        try {
-            parser.parse("type", new CompressedXContent(mapping));
-            fail("expected a mapper parsing exception");
-        } catch (MapperParsingException e) {
-            assertTrue(e.getMessage().contains("Setting [doc_values] cannot be modified"));
-        }
+    @Override
+    protected Object generateRandomInputValue(MappedFieldType ft) {
+        return randomAlphaOfLength(randomIntBetween(0, 2048));
     }
 
-    public void testIndexSettingNotAllowed() throws Exception {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("properties").startObject("field")
-                .field("type", "murmur3")
-                .field("index", "not_analyzed")
-            .endObject().endObject().endObject().endObject());
-        try {
-            parser.parse("type", new CompressedXContent(mapping));
-            fail("expected a mapper parsing exception");
-        } catch (MapperParsingException e) {
-            assertTrue(e.getMessage().contains("Setting [index] cannot be modified"));
-        }
-
-        // even setting to the default is not allowed, the setting is invalid
-        mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("properties").startObject("field")
-                .field("type", "murmur3")
-                .field("index", "no")
-            .endObject().endObject().endObject().endObject());
-        try {
-            parser.parse("type", new CompressedXContent(mapping));
-            fail("expected a mapper parsing exception");
-        } catch (MapperParsingException e) {
-            assertTrue(e.getMessage().contains("Setting [index] cannot be modified"));
-        }
-    }
-
-    public void testEmptyName() throws Exception {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("properties").startObject("")
-            .field("type", "murmur3")
-            .endObject().endObject().endObject().endObject());
-
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> parser.parse("type", new CompressedXContent(mapping))
+    /**
+     * Murmur3 transforms the input into a hash and only stores the hash, the native value fetcher pulling things from _source
+     * should ensure that it hashes the value before it compares with the retrieved doc value
+     */
+    @Override
+    protected void assertFetch(MapperService mapperService, String field, Object value, String format) throws IOException {
+        MappedFieldType ft = mapperService.fieldType(field);
+        MappedFieldType.FielddataOperation fdt = MappedFieldType.FielddataOperation.SEARCH;
+        SourceToParse source = source(b -> b.field(ft.name(), value));
+        ValueFetcher docValueFetcher = new DocValueFetcher(
+            ft.docValueFormat(format, null),
+            ft.fielddataBuilder(FieldDataContext.noRuntimeFields("test"))
+                .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService())
         );
-        assertThat(e.getMessage(), containsString("name cannot be empty string"));
+        SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
+        when(searchExecutionContext.isSourceEnabled()).thenReturn(true);
+        when(searchExecutionContext.sourcePath(field)).thenReturn(Set.of(field));
+        when(searchExecutionContext.getForField(ft, fdt)).thenAnswer(inv -> fieldDataLookup(mapperService).apply(ft, () -> {
+            throw new UnsupportedOperationException();
+        }, fdt));
+        ValueFetcher nativeFetcher = ft.valueFetcher(searchExecutionContext, format);
+        ParsedDocument doc = mapperService.documentMapper().parse(source);
+        withLuceneIndex(mapperService, iw -> iw.addDocuments(doc.docs()), ir -> {
+            Source s = SourceProvider.fromStoredFields().getSource(ir.leaves().get(0), 0);
+            docValueFetcher.setNextReader(ir.leaves().get(0));
+            nativeFetcher.setNextReader(ir.leaves().get(0));
+            List<Object> fromDocValues = docValueFetcher.fetchValues(s, 0, new ArrayList<>());
+            List<Object> fromNative = nativeFetcher.fetchValues(s, 0, new ArrayList<>());
+            /*
+             * The native fetcher returns String from source as Murmur3 transforms the input and stores the hash
+             */
+            fromNative = fromNative.stream().map(o -> {
+                final BytesRef bytes = new BytesRef(o.toString());
+                return MurmurHash3.hash128(bytes.bytes, bytes.offset, bytes.length, 0, new MurmurHash3.Hash128()).h1;
+            }).collect(toList());
+
+            if (dedupAfterFetch()) {
+                fromNative = fromNative.stream().distinct().collect(Collectors.toList());
+            }
+            /*
+             * Doc values sort according to something appropriate to the field
+             * and the native fetchers usually don't sort. We're ok with this
+             * difference. But we have to convince the test we're ok with it.
+             */
+            assertThat("fetching " + value, fromNative, containsInAnyOrder(fromDocValues.toArray()));
+        });
+    }
+
+    @Override
+    protected boolean supportsIgnoreMalformed() {
+        return false;
+    }
+
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
+        throw new AssumptionViolatedException("not supported");
+    }
+
+    @Override
+    protected IngestScriptSupport ingestScriptSupport() {
+        throw new AssumptionViolatedException("not supported");
     }
 }

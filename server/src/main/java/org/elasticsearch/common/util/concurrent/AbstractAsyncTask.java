@@ -1,32 +1,23 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.common.util.concurrent;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.util.Objects;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
+
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * A base class for tasks that need to repeat.
@@ -35,6 +26,7 @@ public abstract class AbstractAsyncTask implements Runnable, Closeable {
 
     private final Logger logger;
     private final ThreadPool threadPool;
+    private final Executor executor;
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final boolean autoReschedule;
     private volatile Scheduler.Cancellable cancellable;
@@ -42,9 +34,10 @@ public abstract class AbstractAsyncTask implements Runnable, Closeable {
     private volatile Exception lastThrownException;
     private volatile TimeValue interval;
 
-    protected AbstractAsyncTask(Logger logger, ThreadPool threadPool, TimeValue interval, boolean autoReschedule) {
+    protected AbstractAsyncTask(Logger logger, ThreadPool threadPool, Executor executor, TimeValue interval, boolean autoReschedule) {
         this.logger = logger;
         this.threadPool = threadPool;
+        this.executor = executor;
         this.interval = interval;
         this.autoReschedule = autoReschedule;
     }
@@ -91,7 +84,7 @@ public abstract class AbstractAsyncTask implements Runnable, Closeable {
             if (logger.isTraceEnabled()) {
                 logger.trace("scheduling {} every {}", toString(), interval);
             }
-            cancellable = threadPool.schedule(threadPool.preserveContext(this), interval, getThreadPool());
+            cancellable = threadPool.schedule(this, interval, executor);
             isScheduledOrRunning = true;
         } else {
             logger.trace("scheduled {} disabled", toString());
@@ -146,10 +139,9 @@ public abstract class AbstractAsyncTask implements Runnable, Closeable {
             if (lastThrownException == null || sameException(lastThrownException, ex) == false) {
                 // prevent the annoying fact of logging the same stuff all the time with an interval of 1 sec will spam all your logs
                 logger.warn(
-                    () -> new ParameterizedMessage(
-                        "failed to run task {} - suppressing re-occurring exceptions unless the exception changes",
-                        toString()),
-                    ex);
+                    () -> format("failed to run task %s - suppressing re-occurring exceptions unless the exception changes", toString()),
+                    ex
+                );
                 lastThrownException = ex;
             }
         } finally {
@@ -178,12 +170,4 @@ public abstract class AbstractAsyncTask implements Runnable, Closeable {
     }
 
     protected abstract void runInternal();
-
-    /**
-     * Use the same threadpool by default.
-     * Derived classes can change this if required.
-     */
-    protected String getThreadPool() {
-        return ThreadPool.Names.SAME;
-    }
 }

@@ -1,30 +1,35 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification;
 
 import org.apache.lucene.search.TotalHits;
+import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationFields;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetric;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetricResult;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationParameters;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider;
 
 import java.io.IOException;
@@ -32,16 +37,20 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.elasticsearch.test.hamcrest.OptionalMatchers.isEmpty;
 import static org.elasticsearch.test.hamcrest.OptionalMatchers.isPresent;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class ClassificationTests extends AbstractSerializingTestCase<Classification> {
+public class ClassificationTests extends AbstractXContentSerializingTestCase<Classification> {
+
+    private static final EvaluationParameters EVALUATION_PARAMETERS = new EvaluationParameters(100);
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
@@ -54,14 +63,23 @@ public class ClassificationTests extends AbstractSerializingTestCase<Classificat
     }
 
     public static Classification createRandom() {
-        List<EvaluationMetric> metrics =
-            randomSubsetOf(
-                Arrays.asList(
-                    AccuracyTests.createRandom(),
-                    PrecisionTests.createRandom(),
-                    RecallTests.createRandom(),
-                    MulticlassConfusionMatrixTests.createRandom()));
-        return new Classification(randomAlphaOfLength(10), randomAlphaOfLength(10), metrics.isEmpty() ? null : metrics);
+        List<EvaluationMetric> metrics = randomSubsetOf(
+            Arrays.asList(
+                // AccuracyTests.createRandom(),
+                AucRocTests.createRandom(),
+                PrecisionTests.createRandom(),
+                RecallTests.createRandom(),
+                MulticlassConfusionMatrixTests.createRandom()
+            )
+        );
+        boolean usesAucRoc = metrics.stream().map(EvaluationMetric::getName).anyMatch(n -> AucRoc.NAME.getPreferredName().equals(n));
+        return new Classification(
+            randomAlphaOfLength(10),
+            randomAlphaOfLength(10),
+            // If AucRoc is to be calculated, the top_classes field is required
+            (usesAucRoc || randomBoolean()) ? randomAlphaOfLength(10) : null,
+            metrics.isEmpty() ? null : metrics
+        );
     }
 
     @Override
@@ -75,32 +93,143 @@ public class ClassificationTests extends AbstractSerializingTestCase<Classificat
     }
 
     @Override
+    protected Classification mutateInstance(Classification instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Writeable.Reader<Classification> instanceReader() {
         return Classification::new;
     }
 
+    public void testConstructor_GivenMissingField() {
+        FakeClassificationMetric metric = new FakeClassificationMetric("fake");
+        ElasticsearchStatusException e = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> new Classification("foo", null, null, Collections.singletonList(metric))
+        );
+        assertThat(
+            e.getMessage(),
+            is(equalTo("[classification] must define [predicted_field] as required by the following metrics [fake]"))
+        );
+    }
+
     public void testConstructor_GivenEmptyMetrics() {
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
-            () -> new Classification("foo", "bar", Collections.emptyList()));
+        ElasticsearchStatusException e = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> new Classification("foo", "bar", "results", Collections.emptyList())
+        );
         assertThat(e.getMessage(), equalTo("[classification] must have one or more metrics"));
     }
 
-    public void testBuildSearch() {
-        QueryBuilder userProvidedQuery =
-            QueryBuilders.boolQuery()
-                .filter(QueryBuilders.termQuery("field_A", "some-value"))
-                .filter(QueryBuilders.termQuery("field_B", "some-other-value"));
-        QueryBuilder expectedSearchQuery =
-            QueryBuilders.boolQuery()
-                .filter(QueryBuilders.existsQuery("act"))
-                .filter(QueryBuilders.existsQuery("pred"))
-                .filter(QueryBuilders.boolQuery()
+    public void testConstructor_GivenDefaultMetrics() {
+        Classification classification = new Classification("actual", "predicted", null, null);
+
+        List<EvaluationMetric> metrics = classification.getMetrics();
+
+        assertThat(metrics, containsInAnyOrder(new Accuracy(), new MulticlassConfusionMatrix(), new Precision(), new Recall()));
+    }
+
+    public void testGetFields() {
+        Classification evaluation = new Classification("foo", "bar", "results", null);
+        EvaluationFields fields = evaluation.getFields();
+        assertThat(fields.getActualField(), is(equalTo("foo")));
+        assertThat(fields.getPredictedField(), is(equalTo("bar")));
+        assertThat(fields.getTopClassesField(), is(equalTo("results")));
+        assertThat(fields.getPredictedClassField(), is(equalTo("results.class_name")));
+        assertThat(fields.getPredictedProbabilityField(), is(equalTo("results.class_probability")));
+        assertThat(fields.isPredictedProbabilityFieldNested(), is(true));
+    }
+
+    public void testBuildSearch_WithDefaultNonRequiredNestedFields() {
+        QueryBuilder userProvidedQuery = QueryBuilders.boolQuery()
+            .filter(QueryBuilders.termQuery("field_A", "some-value"))
+            .filter(QueryBuilders.termQuery("field_B", "some-other-value"));
+        QueryBuilder expectedSearchQuery = QueryBuilders.boolQuery()
+            .filter(QueryBuilders.existsQuery("act"))
+            .filter(QueryBuilders.existsQuery("pred"))
+            .filter(
+                QueryBuilders.boolQuery()
                     .filter(QueryBuilders.termQuery("field_A", "some-value"))
-                    .filter(QueryBuilders.termQuery("field_B", "some-other-value")));
+                    .filter(QueryBuilders.termQuery("field_B", "some-other-value"))
+            );
 
-        Classification evaluation = new Classification("act", "pred", Arrays.asList(new MulticlassConfusionMatrix()));
+        Classification evaluation = new Classification("act", "pred", null, Arrays.asList(new MulticlassConfusionMatrix()));
 
-        SearchSourceBuilder searchSourceBuilder = evaluation.buildSearch(userProvidedQuery);
+        SearchSourceBuilder searchSourceBuilder = evaluation.buildSearch(EVALUATION_PARAMETERS, userProvidedQuery);
+        assertThat(searchSourceBuilder.query(), equalTo(expectedSearchQuery));
+        assertThat(searchSourceBuilder.aggregations().count(), greaterThan(0));
+    }
+
+    public void testBuildSearch_WithExplicitNonRequiredNestedFields() {
+        QueryBuilder userProvidedQuery = QueryBuilders.boolQuery()
+            .filter(QueryBuilders.termQuery("field_A", "some-value"))
+            .filter(QueryBuilders.termQuery("field_B", "some-other-value"));
+        QueryBuilder expectedSearchQuery = QueryBuilders.boolQuery()
+            .filter(QueryBuilders.existsQuery("act"))
+            .filter(QueryBuilders.existsQuery("pred"))
+            .filter(
+                QueryBuilders.boolQuery()
+                    .filter(QueryBuilders.termQuery("field_A", "some-value"))
+                    .filter(QueryBuilders.termQuery("field_B", "some-other-value"))
+            );
+
+        Classification evaluation = new Classification("act", "pred", "results", Arrays.asList(new MulticlassConfusionMatrix()));
+
+        SearchSourceBuilder searchSourceBuilder = evaluation.buildSearch(EVALUATION_PARAMETERS, userProvidedQuery);
+        assertThat(searchSourceBuilder.query(), equalTo(expectedSearchQuery));
+        assertThat(searchSourceBuilder.aggregations().count(), greaterThan(0));
+    }
+
+    public void testBuildSearch_WithDefaultRequiredNestedFields() {
+        QueryBuilder userProvidedQuery = QueryBuilders.boolQuery()
+            .filter(QueryBuilders.termQuery("field_A", "some-value"))
+            .filter(QueryBuilders.termQuery("field_B", "some-other-value"));
+        QueryBuilder expectedSearchQuery = QueryBuilders.boolQuery()
+            .filter(QueryBuilders.existsQuery("act"))
+            .filter(
+                QueryBuilders.nestedQuery("ml.top_classes", QueryBuilders.existsQuery("ml.top_classes.class_name"), ScoreMode.None)
+                    .ignoreUnmapped(true)
+            )
+            .filter(
+                QueryBuilders.nestedQuery("ml.top_classes", QueryBuilders.existsQuery("ml.top_classes.class_probability"), ScoreMode.None)
+                    .ignoreUnmapped(true)
+            )
+            .filter(
+                QueryBuilders.boolQuery()
+                    .filter(QueryBuilders.termQuery("field_A", "some-value"))
+                    .filter(QueryBuilders.termQuery("field_B", "some-other-value"))
+            );
+
+        Classification evaluation = new Classification("act", "pred", null, Arrays.asList(new AucRoc(false, "some-value")));
+
+        SearchSourceBuilder searchSourceBuilder = evaluation.buildSearch(EVALUATION_PARAMETERS, userProvidedQuery);
+        assertThat(searchSourceBuilder.query(), equalTo(expectedSearchQuery));
+        assertThat(searchSourceBuilder.aggregations().count(), greaterThan(0));
+    }
+
+    public void testBuildSearch_WithExplicitRequiredNestedFields() {
+        QueryBuilder userProvidedQuery = QueryBuilders.boolQuery()
+            .filter(QueryBuilders.termQuery("field_A", "some-value"))
+            .filter(QueryBuilders.termQuery("field_B", "some-other-value"));
+        QueryBuilder expectedSearchQuery = QueryBuilders.boolQuery()
+            .filter(QueryBuilders.existsQuery("act"))
+            .filter(
+                QueryBuilders.nestedQuery("results", QueryBuilders.existsQuery("results.class_name"), ScoreMode.None).ignoreUnmapped(true)
+            )
+            .filter(
+                QueryBuilders.nestedQuery("results", QueryBuilders.existsQuery("results.class_probability"), ScoreMode.None)
+                    .ignoreUnmapped(true)
+            )
+            .filter(
+                QueryBuilders.boolQuery()
+                    .filter(QueryBuilders.termQuery("field_A", "some-value"))
+                    .filter(QueryBuilders.termQuery("field_B", "some-other-value"))
+            );
+
+        Classification evaluation = new Classification("act", "pred", "results", Arrays.asList(new AucRoc(false, "some-value")));
+
+        SearchSourceBuilder searchSourceBuilder = evaluation.buildSearch(EVALUATION_PARAMETERS, userProvidedQuery);
         assertThat(searchSourceBuilder.query(), equalTo(expectedSearchQuery));
         assertThat(searchSourceBuilder.aggregations().count(), greaterThan(0));
     }
@@ -111,7 +240,7 @@ public class ClassificationTests extends AbstractSerializingTestCase<Classificat
         EvaluationMetric metric3 = new FakeClassificationMetric("fake_metric_3", 4);
         EvaluationMetric metric4 = new FakeClassificationMetric("fake_metric_4", 5);
 
-        Classification evaluation = new Classification("act", "pred", Arrays.asList(metric1, metric2, metric3, metric4));
+        Classification evaluation = new Classification("act", "pred", null, Arrays.asList(metric1, metric2, metric3, metric4));
         assertThat(metric1.getResult(), isEmpty());
         assertThat(metric2.getResult(), isEmpty());
         assertThat(metric3.getResult(), isEmpty());
@@ -163,8 +292,7 @@ public class ClassificationTests extends AbstractSerializingTestCase<Classificat
 
     private static SearchResponse mockSearchResponseWithNonZeroTotalHits() {
         SearchResponse searchResponse = mock(SearchResponse.class);
-        SearchHits hits = new SearchHits(SearchHits.EMPTY, new TotalHits(10, TotalHits.Relation.EQUAL_TO), 0);
-        when(searchResponse.getHits()).thenReturn(hits);
+        when(searchResponse.getHits()).thenReturn(SearchHits.empty(new TotalHits(10, TotalHits.Relation.EQUAL_TO), 0));
         return searchResponse;
     }
 
@@ -179,6 +307,10 @@ public class ClassificationTests extends AbstractSerializingTestCase<Classificat
         private final int numSteps;
         private int currentStepIndex;
         private EvaluationMetricResult result;
+
+        FakeClassificationMetric(String name) {
+            this(name, 1);
+        }
 
         FakeClassificationMetric(String name, int numSteps) {
             this.name = name;
@@ -196,12 +328,20 @@ public class ClassificationTests extends AbstractSerializingTestCase<Classificat
         }
 
         @Override
-        public Tuple<List<AggregationBuilder>, List<PipelineAggregationBuilder>> aggs(String actualField, String predictedField) {
+        public Set<String> getRequiredFields() {
+            return Sets.newHashSet(EvaluationFields.ACTUAL_FIELD.getPreferredName(), EvaluationFields.PREDICTED_FIELD.getPreferredName());
+        }
+
+        @Override
+        public Tuple<List<AggregationBuilder>, List<PipelineAggregationBuilder>> aggs(
+            EvaluationParameters parameters,
+            EvaluationFields fields
+        ) {
             return Tuple.tuple(List.of(), List.of());
         }
 
         @Override
-        public void process(Aggregations aggs) {
+        public void process(InternalAggregations aggs) {
             if (result != null) {
                 return;
             }
@@ -223,7 +363,6 @@ public class ClassificationTests extends AbstractSerializingTestCase<Classificat
         }
 
         @Override
-        public void writeTo(StreamOutput out) {
-        }
+        public void writeTo(StreamOutput out) {}
     }
 }

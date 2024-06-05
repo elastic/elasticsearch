@@ -1,0 +1,67 @@
+import org.elasticsearch.gradle.internal.info.BuildParams
+
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
+apply plugin: 'elasticsearch.internal-cluster-test'
+
+esplugin {
+  description 'Adds "built in" aggregations to Elasticsearch.'
+  classname 'org.elasticsearch.aggregations.AggregationsPlugin'
+  extendedPlugins = ['lang-painless']
+}
+
+restResources {
+  restApi {
+    include '_common', 'indices', 'cluster', 'index', 'search', 'nodes', 'bulk', 'scripts_painless_execute'
+  }
+  restTests {
+    // Pulls in all aggregation tests from core AND the forwards v7's core for forwards compatibility
+    includeCore 'search.aggregation'
+  }
+}
+
+if (BuildParams.isSnapshotBuild() == false) {
+  tasks.named("test").configure {
+    systemProperty 'es.index_mode_feature_flag_registered', 'true'
+  }
+  tasks.named("internalClusterTest").configure {
+    systemProperty 'es.index_mode_feature_flag_registered', 'true'
+  }
+}
+
+tasks.named("yamlRestTestV7CompatTransform").configure { task ->
+  task.skipTest("search.aggregation/20_terms/string profiler via global ordinals filters implementation", "The profiler results aren't backwards compatible.")
+  task.skipTest("search.aggregation/20_terms/string profiler via global ordinals native implementation", "The profiler results aren't backwards compatible.")
+  task.skipTest("search.aggregation/20_terms/string profiler via map", "The profiler results aren't backwards compatible.")
+  task.skipTest("search.aggregation/20_terms/numeric profiler", "The profiler results aren't backwards compatible.")
+  task.skipTest("search.aggregation/210_top_hits_nested_metric/top_hits aggregation with sequence numbers", "#42809 the use nested path and filter sort throws an exception")
+  task.skipTest("search.aggregation/370_doc_count_field/Test filters agg with doc_count", "Uses profiler for assertions which is not backwards compatible")
+
+  // In 8.9.0, the default t-digest algorithm changed from AVL-tree-based to hybrid, combining a sorted array of samples with a merging
+  // implementation. This change leads to slight different percentile results, compared to previous versions.
+  task.skipTest("search.aggregation/180_percentiles_tdigest_metric/Basic test", "Hybrid t-digest produces different results.")
+  task.skipTest("search.aggregation/180_percentiles_tdigest_metric/Non-keyed test", "Hybrid t-digest produces different results.")
+  task.skipTest("search.aggregation/180_percentiles_tdigest_metric/Only aggs test", "Hybrid t-digest produces different results.")
+  task.skipTest("search.aggregation/180_percentiles_tdigest_metric/Explicit Percents test", "Hybrid t-digest produces different results.")
+  task.skipTest("search.aggregation/180_percentiles_tdigest_metric/Metadata test", "Hybrid t-digest produces different results.")
+  task.skipTest("search.aggregation/180_percentiles_tdigest_metric/Filtered test", "Hybrid t-digest produces different results.")
+  task.skipTest("search.aggregation/420_percentile_ranks_tdigest_metric/filtered", "Hybrid t-digest produces different results.")
+
+  task.addAllowedWarningRegex("\\[types removal\\].*")
+}
+
+artifacts {
+  restTests(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
+}
+
+dependencies {
+  compileOnly(project(':modules:lang-painless:spi'))
+  clusterModules(project(':modules:lang-painless'))
+}

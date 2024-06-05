@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.monitoring.cleaner;
 
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -25,18 +26,14 @@ import java.time.ZonedDateTime;
 import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 public class CleanerServiceTests extends ESTestCase {
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
 
-    private final XPackLicenseState licenseState = mock(XPackLicenseState.class);
     private ClusterSettings clusterSettings;
     private ThreadPool threadPool;
 
@@ -55,42 +52,27 @@ public class CleanerServiceTests extends ESTestCase {
         // invalid setting
         expectedException.expect(IllegalArgumentException.class);
 
-        TimeValue expected = TimeValue.timeValueHours(1);
-        Settings settings = Settings.builder().put(MonitoringField.HISTORY_DURATION.getKey(), expected.getStringRep()).build();
+        try {
+            TimeValue expected = TimeValue.timeValueHours(1);
+            Settings settings = Settings.builder().put(MonitoringField.HISTORY_DURATION.getKey(), expected.getStringRep()).build();
 
-        new CleanerService(settings, clusterSettings, threadPool, licenseState);
+            new CleanerService(settings, clusterSettings, threadPool);
+        } finally {
+            assertWarnings(
+                "[xpack.monitoring.history.duration] setting was deprecated in Elasticsearch and will be removed in a future release."
+            );
+        }
     }
 
-    public void testGetRetentionWithSettingWithUpdatesAllowed() {
+    public void testGetRetention() {
         TimeValue expected = TimeValue.timeValueHours(25);
         Settings settings = Settings.builder().put(MonitoringField.HISTORY_DURATION.getKey(), expected.getStringRep()).build();
 
-        when(licenseState.isUpdateRetentionAllowed()).thenReturn(true);
+        assertEquals(expected, new CleanerService(settings, clusterSettings, threadPool).getRetention());
 
-        assertEquals(expected, new CleanerService(settings, clusterSettings, threadPool, licenseState).getRetention());
-
-        verify(licenseState).isUpdateRetentionAllowed();
-    }
-
-    public void testGetRetentionDefaultValueWithNoSettings() {
-        when(licenseState.isUpdateRetentionAllowed()).thenReturn(true);
-
-        assertEquals(MonitoringField.HISTORY_DURATION.get(Settings.EMPTY),
-                     new CleanerService(Settings.EMPTY, clusterSettings, threadPool, licenseState).getRetention());
-
-        verify(licenseState).isUpdateRetentionAllowed();
-    }
-
-    public void testGetRetentionDefaultValueWithSettingsButUpdatesNotAllowed() {
-        TimeValue notExpected = TimeValue.timeValueHours(25);
-        Settings settings = Settings.builder().put(MonitoringField.HISTORY_DURATION.getKey(), notExpected.getStringRep()).build();
-
-        when(licenseState.isUpdateRetentionAllowed()).thenReturn(false);
-
-        assertEquals(MonitoringField.HISTORY_DURATION.get(Settings.EMPTY),
-                     new CleanerService(settings, clusterSettings, threadPool, licenseState).getRetention());
-
-        verify(licenseState).isUpdateRetentionAllowed();
+        assertWarnings(
+            "[xpack.monitoring.history.duration] setting was deprecated in Elasticsearch and will be removed in a future release."
+        );
     }
 
     public void testSetGlobalRetention() {
@@ -98,40 +80,15 @@ public class CleanerServiceTests extends ESTestCase {
         // only thing calling this method and it will use the settings object to validate the time value
         TimeValue expected = TimeValue.timeValueHours(2);
 
-        when(licenseState.isUpdateRetentionAllowed()).thenReturn(true);
-
-        CleanerService service = new CleanerService(Settings.EMPTY, clusterSettings, threadPool, licenseState);
-
+        CleanerService service = new CleanerService(Settings.EMPTY, clusterSettings, threadPool);
         service.setGlobalRetention(expected);
-
         assertEquals(expected, service.getRetention());
-
-        verify(licenseState, times(2)).isUpdateRetentionAllowed(); // once by set, once by get
-    }
-
-    public void testSetGlobalRetentionAppliesEvenIfLicenseDisallows() {
-        // Note: I used this value to ensure we're not double-validating the setter; the cluster state should be the
-        // only thing calling this method and it will use the settings object to validate the time value
-        TimeValue expected = TimeValue.timeValueHours(2);
-
-        // required to be true on the second call for it to see it take effect
-        when(licenseState.isUpdateRetentionAllowed()).thenReturn(false).thenReturn(true);
-
-        CleanerService service = new CleanerService(Settings.EMPTY, clusterSettings, threadPool, licenseState);
-
-        // uses allow=false
-        service.setGlobalRetention(expected);
-
-        // uses allow=true
-        assertEquals(expected, service.getRetention());
-
-        verify(licenseState, times(2)).isUpdateRetentionAllowed();
     }
 
     public void testNextExecutionDelay() {
         CleanerService.ExecutionScheduler scheduler = new CleanerService.DefaultExecutionScheduler();
 
-        ZonedDateTime now = ZonedDateTime.of(2015, 1, 1, 0, 0,0,0, ZoneOffset.UTC);
+        ZonedDateTime now = ZonedDateTime.of(2015, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
         assertThat(scheduler.nextExecutionDelay(now).millis(), equalTo(TimeValue.timeValueHours(1).millis()));
 
         now = ZonedDateTime.of(2015, 1, 1, 1, 0, 0, 0, ZoneOffset.UTC);
@@ -145,8 +102,7 @@ public class CleanerServiceTests extends ESTestCase {
 
         ZoneId defaultZone = Clock.systemDefaultZone().getZone();
         now = ZonedDateTime.of(2015, 1, 1, 12, 34, 56, 0, defaultZone);
-        long nextScheduledMillis = ZonedDateTime.of(2015, 1, 2, 1, 0, 0,0,
-            defaultZone).toInstant().toEpochMilli();
+        long nextScheduledMillis = ZonedDateTime.of(2015, 1, 2, 1, 0, 0, 0, defaultZone).toInstant().toEpochMilli();
         assertThat(scheduler.nextExecutionDelay(now).millis(), equalTo(nextScheduledMillis - now.toInstant().toEpochMilli()));
 
     }
@@ -156,10 +112,7 @@ public class CleanerServiceTests extends ESTestCase {
         CountDownLatch latch = new CountDownLatch(nbExecutions);
 
         logger.debug("--> creates a cleaner service that cleans every second");
-        XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isMonitoringAllowed()).thenReturn(true);
-        CleanerService service = new CleanerService(Settings.EMPTY, clusterSettings, licenseState, threadPool,
-                new TestExecutionScheduler(1_000));
+        CleanerService service = new CleanerService(Settings.EMPTY, clusterSettings, threadPool, new TestExecutionScheduler(1_000));
 
         logger.debug("--> registers cleaning listener");
         TestListener listener = new TestListener(latch);
@@ -170,13 +123,36 @@ public class CleanerServiceTests extends ESTestCase {
             service.start();
 
             logger.debug("--> waits for listener to be executed");
-            if (!latch.await(10, TimeUnit.SECONDS)) {
+            if (latch.await(10, TimeUnit.SECONDS) == false) {
                 fail("waiting too long for test to complete. Expected listener was not executed");
             }
         } finally {
             service.stop();
         }
         assertThat(latch.getCount(), equalTo(0L));
+    }
+
+    public void testLifecycle() {
+        final var deterministicTaskQueue = new DeterministicTaskQueue();
+        final var threadPool = deterministicTaskQueue.getThreadPool();
+
+        CleanerService service = new CleanerService(Settings.EMPTY, clusterSettings, threadPool, new TestExecutionScheduler(1_000));
+
+        final var cleanupCount = new AtomicInteger();
+        service.add(ignored -> cleanupCount.incrementAndGet());
+
+        service.start();
+        while (cleanupCount.get() < 10) {
+            deterministicTaskQueue.advanceTime();
+            deterministicTaskQueue.runAllRunnableTasks();
+        }
+
+        service.stop();
+        if (randomBoolean()) {
+            service.close();
+        }
+        deterministicTaskQueue.runAllTasks(); // ensures the scheduling stops
+        assertEquals(10, cleanupCount.get());
     }
 
     class TestListener implements CleanerService.Listener {

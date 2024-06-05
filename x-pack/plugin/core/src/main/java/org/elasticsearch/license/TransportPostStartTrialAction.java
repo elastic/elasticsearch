@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.license;
 
@@ -14,39 +15,55 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.license.internal.MutableLicenseService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.io.IOException;
-
 public class TransportPostStartTrialAction extends TransportMasterNodeAction<PostStartTrialRequest, PostStartTrialResponse> {
 
-    private final LicenseService licenseService;
+    private final MutableLicenseService licenseService;
 
     @Inject
-    public TransportPostStartTrialAction(TransportService transportService, ClusterService clusterService,
-                                         LicenseService licenseService, ThreadPool threadPool, ActionFilters actionFilters,
-                                         IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(PostStartTrialAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                PostStartTrialRequest::new, indexNameExpressionResolver);
+    public TransportPostStartTrialAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        MutableLicenseService licenseService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        super(
+            PostStartTrialAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            PostStartTrialRequest::new,
+            indexNameExpressionResolver,
+            PostStartTrialResponse::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
         this.licenseService = licenseService;
     }
 
     @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected PostStartTrialResponse read(StreamInput in) throws IOException {
-        return new PostStartTrialResponse(in);
-    }
-
-    @Override
-    protected void masterOperation(Task task, PostStartTrialRequest request, ClusterState state,
-                                   ActionListener<PostStartTrialResponse> listener) throws Exception {
+    protected void masterOperation(
+        Task task,
+        PostStartTrialRequest request,
+        ClusterState state,
+        ActionListener<PostStartTrialResponse> listener
+    ) throws Exception {
+        if (state.nodes().getMaxNodeVersion().after(state.nodes().getSmallestNonClientNodeVersion())) {
+            throw new IllegalStateException(
+                "Please ensure all nodes are on the same version before starting your trial, the highest node version in this cluster is ["
+                    + state.nodes().getMaxNodeVersion()
+                    + "] and the lowest node version is ["
+                    + state.nodes().getMinNodeVersion()
+                    + "]"
+            );
+        }
         licenseService.startTrialLicense(request, listener);
     }
 

@@ -1,19 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.XPackField;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 
@@ -37,13 +38,15 @@ public class MachineLearningFeatureSetUsage extends XPackFeatureSet.Usage {
     private final Map<String, Object> inferenceUsage;
     private final int nodeCount;
 
-    public MachineLearningFeatureSetUsage(boolean available,
-                                          boolean enabled,
-                                          Map<String, Object> jobsUsage,
-                                          Map<String, Object> datafeedsUsage,
-                                          Map<String, Object> analyticsUsage,
-                                          Map<String, Object> inferenceUsage,
-                                          int nodeCount) {
+    public MachineLearningFeatureSetUsage(
+        boolean available,
+        boolean enabled,
+        Map<String, Object> jobsUsage,
+        Map<String, Object> datafeedsUsage,
+        Map<String, Object> analyticsUsage,
+        Map<String, Object> inferenceUsage,
+        int nodeCount
+    ) {
         super(XPackField.MACHINE_LEARNING, available, enabled);
         this.jobsUsage = Objects.requireNonNull(jobsUsage);
         this.datafeedsUsage = Objects.requireNonNull(datafeedsUsage);
@@ -54,32 +57,25 @@ public class MachineLearningFeatureSetUsage extends XPackFeatureSet.Usage {
 
     public MachineLearningFeatureSetUsage(StreamInput in) throws IOException {
         super(in);
-        this.jobsUsage = in.readMap();
-        this.datafeedsUsage = in.readMap();
-        if (in.getVersion().onOrAfter(Version.V_7_4_0)) {
-            this.analyticsUsage = in.readMap();
-        } else {
-            this.analyticsUsage = Collections.emptyMap();
-        }
-        if (in.getVersion().onOrAfter(Version.V_7_6_0)) {
-            this.inferenceUsage = in.readMap();
-        } else {
-            this.inferenceUsage = Collections.emptyMap();
-        }
+        this.jobsUsage = in.readGenericMap();
+        this.datafeedsUsage = in.readGenericMap();
+        this.analyticsUsage = in.readGenericMap();
+        this.inferenceUsage = in.readGenericMap();
         this.nodeCount = in.readInt();
+    }
+
+    @Override
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.V_7_0_0;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeMap(jobsUsage);
-        out.writeMap(datafeedsUsage);
-        if (out.getVersion().onOrAfter(Version.V_7_4_0)) {
-            out.writeMap(analyticsUsage);
-        }
-        if (out.getVersion().onOrAfter(Version.V_7_6_0)) {
-            out.writeMap(inferenceUsage);
-        }
+        out.writeGenericMap(jobsUsage);
+        out.writeGenericMap(datafeedsUsage);
+        out.writeGenericMap(analyticsUsage);
+        out.writeGenericMap(inferenceUsage);
         out.writeInt(nodeCount);
     }
 

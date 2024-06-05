@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.bootstrap;
@@ -25,17 +14,13 @@ import com.sun.jna.NativeLong;
 import com.sun.jna.Pointer;
 import com.sun.jna.Structure;
 import com.sun.jna.WString;
-import com.sun.jna.win32.StdCallLibrary;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
 
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
-
 
 /**
  * Library for Windows/Kernel32
@@ -43,10 +28,6 @@ import java.util.List;
 final class JNAKernel32Library {
 
     private static final Logger logger = LogManager.getLogger(JNAKernel32Library.class);
-
-    // Callbacks must be kept around in order to be able to be called later,
-    // when the Windows ConsoleCtrlHandler sends an event.
-    private List<NativeHandlerCallback> callbacks = new ArrayList<>();
 
     // Native library instance must be kept around for the same reason.
     private static final class Holder {
@@ -68,61 +49,6 @@ final class JNAKernel32Library {
 
     static JNAKernel32Library getInstance() {
         return Holder.instance;
-    }
-
-    /**
-     * Adds a Console Ctrl Handler.
-     *
-     * @return true if the handler is correctly set
-     * @throws java.lang.UnsatisfiedLinkError if the Kernel32 library is not loaded or if the native function is not found
-     * @throws java.lang.NoClassDefFoundError if the library for native calls is missing
-     */
-    boolean addConsoleCtrlHandler(ConsoleCtrlHandler handler) {
-        boolean result = false;
-        if (handler != null) {
-            NativeHandlerCallback callback = new NativeHandlerCallback(handler);
-            result = SetConsoleCtrlHandler(callback, true);
-            if (result) {
-                callbacks.add(callback);
-            }
-        }
-        return result;
-    }
-
-    List<Object> getCallbacks() {
-        return Collections.<Object>unmodifiableList(callbacks);
-    }
-
-    /**
-     * Native call to the Kernel32 API to set a new Console Ctrl Handler.
-     *
-     * @return true if the handler is correctly set
-     * @throws java.lang.UnsatisfiedLinkError if the Kernel32 library is not loaded or if the native function is not found
-     * @throws java.lang.NoClassDefFoundError if the library for native calls is missing
-     */
-    native boolean SetConsoleCtrlHandler(StdCallLibrary.StdCallCallback handler, boolean add);
-
-    /**
-     * Handles consoles event with WIN API
-     * <p>
-     * See http://msdn.microsoft.com/en-us/library/windows/desktop/ms683242%28v=vs.85%29.aspx
-     */
-    class NativeHandlerCallback implements StdCallLibrary.StdCallCallback {
-
-        private final ConsoleCtrlHandler handler;
-
-        NativeHandlerCallback(ConsoleCtrlHandler handler) {
-            this.handler = handler;
-        }
-
-        public boolean callback(long dwCtrlType) {
-            int event = (int) dwCtrlType;
-            if (logger.isDebugEnabled()) {
-                logger.debug("console control handler receives event [{}@{}]", event, dwCtrlType);
-
-            }
-            return handler.handle(event);
-        }
     }
 
     /**
@@ -264,21 +190,30 @@ final class JNAKernel32Library {
      * https://msdn.microsoft.com/en-us/library/windows/desktop/ms684147%28v=vs.85%29.aspx
      */
     public static class JOBOBJECT_BASIC_LIMIT_INFORMATION extends Structure implements Structure.ByReference {
-      public long PerProcessUserTimeLimit;
-      public long PerJobUserTimeLimit;
-      public int LimitFlags;
-      public SizeT MinimumWorkingSetSize;
-      public SizeT MaximumWorkingSetSize;
-      public int ActiveProcessLimit;
-      public Pointer Affinity;
-      public int PriorityClass;
-      public int SchedulingClass;
+        public long PerProcessUserTimeLimit;
+        public long PerJobUserTimeLimit;
+        public int LimitFlags;
+        public SizeT MinimumWorkingSetSize;
+        public SizeT MaximumWorkingSetSize;
+        public int ActiveProcessLimit;
+        public Pointer Affinity;
+        public int PriorityClass;
+        public int SchedulingClass;
 
-      @Override
-      protected List<String> getFieldOrder() {
-          return Arrays.asList("PerProcessUserTimeLimit", "PerJobUserTimeLimit", "LimitFlags", "MinimumWorkingSetSize",
-              "MaximumWorkingSetSize", "ActiveProcessLimit", "Affinity", "PriorityClass", "SchedulingClass");
-      }
+        @Override
+        protected List<String> getFieldOrder() {
+            return Arrays.asList(
+                "PerProcessUserTimeLimit",
+                "PerJobUserTimeLimit",
+                "LimitFlags",
+                "MinimumWorkingSetSize",
+                "MaximumWorkingSetSize",
+                "ActiveProcessLimit",
+                "Affinity",
+                "PriorityClass",
+                "SchedulingClass"
+            );
+        }
     }
 
     /**

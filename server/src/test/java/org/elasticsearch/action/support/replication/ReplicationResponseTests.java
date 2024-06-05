@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.support.replication;
@@ -25,17 +14,17 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.RandomObjects;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
-import java.util.Locale;
 
 import static org.elasticsearch.ElasticsearchExceptionTests.assertDeepEquals;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
@@ -46,29 +35,70 @@ public class ReplicationResponseTests extends ESTestCase {
     public void testShardInfoToString() {
         final int total = 5;
         final int successful = randomIntBetween(1, total);
-        final ShardInfo shardInfo = new ShardInfo(total, successful);
-        assertEquals(String.format(Locale.ROOT, "ShardInfo{total=5, successful=%d, failures=[]}", successful), shardInfo.toString());
+        final ShardInfo shardInfo = ShardInfo.of(total, successful);
+        assertEquals(Strings.format("ShardInfo{total=5, successful=%d, failures=[]}", successful), shardInfo.toString());
     }
 
     public void testShardInfoToXContent() throws IOException {
         {
-            ShardInfo shardInfo = new ShardInfo(5, 3);
+            ShardInfo shardInfo = ShardInfo.of(5, 3);
             String output = Strings.toString(shardInfo);
             assertEquals("{\"total\":5,\"successful\":3,\"failed\":0}", output);
         }
         {
-            ShardInfo shardInfo = new ShardInfo(6, 4,
-                    new ShardInfo.Failure(new ShardId("index", "_uuid", 3),
-                            "_node_id", new IllegalArgumentException("Wrong"), RestStatus.BAD_REQUEST, false),
-                    new ShardInfo.Failure(new ShardId("index", "_uuid", 1),
-                            "_node_id", new CircuitBreakingException("Wrong", 12, 21, CircuitBreaker.Durability.PERMANENT),
-                        RestStatus.NOT_ACCEPTABLE, true));
+            ShardInfo shardInfo = ShardInfo.of(
+                6,
+                4,
+                new ShardInfo.Failure[] {
+                    new ShardInfo.Failure(
+                        new ShardId("index", "_uuid", 3),
+                        "_node_id",
+                        new IllegalArgumentException("Wrong"),
+                        RestStatus.BAD_REQUEST,
+                        false
+                    ),
+                    new ShardInfo.Failure(
+                        new ShardId("index", "_uuid", 1),
+                        "_node_id",
+                        new CircuitBreakingException("Wrong", 12, 21, CircuitBreaker.Durability.PERMANENT),
+                        RestStatus.NOT_ACCEPTABLE,
+                        true
+                    ) }
+            );
             String output = Strings.toString(shardInfo);
-            assertEquals("{\"total\":6,\"successful\":4,\"failed\":2,\"failures\":[{\"_index\":\"index\",\"_shard\":3," +
-                    "\"_node\":\"_node_id\",\"reason\":{\"type\":\"illegal_argument_exception\",\"reason\":\"Wrong\"}," +
-                    "\"status\":\"BAD_REQUEST\",\"primary\":false},{\"_index\":\"index\",\"_shard\":1,\"_node\":\"_node_id\"," +
-                    "\"reason\":{\"type\":\"circuit_breaking_exception\",\"reason\":\"Wrong\",\"bytes_wanted\":12,\"bytes_limit\":21" +
-                    ",\"durability\":\"PERMANENT\"},\"status\":\"NOT_ACCEPTABLE\",\"primary\":true}]}", output);
+            assertEquals(XContentHelper.stripWhitespace("""
+                {
+                  "total": 6,
+                  "successful": 4,
+                  "failed": 2,
+                  "failures": [
+                    {
+                      "_index": "index",
+                      "_shard": 3,
+                      "_node": "_node_id",
+                      "reason": {
+                        "type": "illegal_argument_exception",
+                        "reason": "Wrong"
+                      },
+                      "status": "BAD_REQUEST",
+                      "primary": false
+                    },
+                    {
+                      "_index": "index",
+                      "_shard": 1,
+                      "_node": "_node_id",
+                      "reason": {
+                        "type": "circuit_breaking_exception",
+                        "reason": "Wrong",
+                        "bytes_wanted": 12,
+                        "bytes_limit": 21,
+                        "durability": "PERMANENT"
+                      },
+                      "status": "NOT_ACCEPTABLE",
+                      "primary": true
+                    }
+                  ]
+                }"""), output);
         }
     }
 
@@ -122,10 +152,14 @@ public class ReplicationResponseTests extends ESTestCase {
                 assertEquals(expectedFailure.status(), actualFailure.status());
                 assertEquals(expectedFailure.nodeId(), actualFailure.nodeId());
                 assertEquals(expectedFailure.primary(), actualFailure.primary());
-
-                ElasticsearchException expectedCause = (ElasticsearchException) expectedFailure.getCause();
-                ElasticsearchException actualCause = (ElasticsearchException) actualFailure.getCause();
-                assertDeepEquals(expectedCause, actualCause);
+                Throwable expectedCause = expectedFailure.getCause();
+                Throwable actualCause = actualFailure.getCause();
+                if (expectedCause instanceof ElasticsearchException) {
+                    assertDeepEquals((ElasticsearchException) expectedCause, (ElasticsearchException) actualCause);
+                } else {
+                    assertEquals(expectedCause.getClass(), actualCause.getClass());
+                    assertEquals(expectedCause.getMessage(), actualCause.getMessage());
+                }
             }
         }
     }

@@ -1,24 +1,27 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.support.search;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -42,8 +45,16 @@ public class WatcherSearchTemplateRequest implements ToXContentObject {
     private final BytesReference searchSource;
     private boolean restTotalHitsAsInt = true;
 
-    public WatcherSearchTemplateRequest(String[] indices, SearchType searchType, IndicesOptions indicesOptions,
-                                        BytesReference searchSource) {
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(WatcherSearchTemplateRequest.class);
+    static final String TYPES_DEPRECATION_MESSAGE =
+        "[types removal] Specifying empty types array in a watcher search request is deprecated.";
+
+    public WatcherSearchTemplateRequest(
+        String[] indices,
+        SearchType searchType,
+        IndicesOptions indicesOptions,
+        BytesReference searchSource
+    ) {
         this.indices = indices;
         this.searchType = searchType;
         this.indicesOptions = indicesOptions;
@@ -53,8 +64,7 @@ public class WatcherSearchTemplateRequest implements ToXContentObject {
         this.searchSource = BytesArray.EMPTY;
     }
 
-    public WatcherSearchTemplateRequest(String[] indices, SearchType searchType, IndicesOptions indicesOptions,
-                                        Script template) {
+    public WatcherSearchTemplateRequest(String[] indices, SearchType searchType, IndicesOptions indicesOptions, Script template) {
         this.indices = indices;
         this.searchType = searchType;
         this.indicesOptions = indicesOptions;
@@ -71,8 +81,13 @@ public class WatcherSearchTemplateRequest implements ToXContentObject {
         this.restTotalHitsAsInt = original.restTotalHitsAsInt;
     }
 
-    private WatcherSearchTemplateRequest(String[] indices, SearchType searchType, IndicesOptions indicesOptions,
-                                 BytesReference searchSource, Script template) {
+    private WatcherSearchTemplateRequest(
+        String[] indices,
+        SearchType searchType,
+        IndicesOptions indicesOptions,
+        BytesReference searchSource,
+        Script template
+    ) {
         this.indices = indices;
         this.searchType = searchType;
         this.indicesOptions = indicesOptions;
@@ -131,29 +146,17 @@ public class WatcherSearchTemplateRequest implements ToXContentObject {
         if (indices != null) {
             builder.array(INDICES_FIELD.getPreferredName(), indices);
         }
-        if (restTotalHitsAsInt) {
-            builder.field(REST_TOTAL_HITS_AS_INT_FIELD.getPreferredName(), restTotalHitsAsInt);
-        }
+
+        builder.field(REST_TOTAL_HITS_AS_INT_FIELD.getPreferredName(), restTotalHitsAsInt);
+
         if (searchSource != null && searchSource.length() > 0) {
             try (InputStream stream = searchSource.streamInput()) {
                 builder.rawField(BODY_FIELD.getPreferredName(), stream);
             }
         }
-        if (indicesOptions != DEFAULT_INDICES_OPTIONS) {
+        if (indicesOptions.equals(DEFAULT_INDICES_OPTIONS) == false) {
             builder.startObject(INDICES_OPTIONS_FIELD.getPreferredName());
-            String value;
-            if (indicesOptions.expandWildcardsClosed() && indicesOptions.expandWildcardsOpen()) {
-                value = "all";
-            } else if (indicesOptions.expandWildcardsOpen()) {
-                value = "open";
-            } else if (indicesOptions.expandWildcardsClosed()) {
-                value = "closed";
-            } else {
-                value = "none";
-            }
-            builder.field(EXPAND_WILDCARDS_FIELD.getPreferredName(), value);
-            builder.field(IGNORE_UNAVAILABLE_FIELD.getPreferredName(), indicesOptions.ignoreUnavailable());
-            builder.field(ALLOW_NO_INDICES_FIELD.getPreferredName(), indicesOptions.allowNoIndices());
+            indicesOptions.toXContent(builder, params);
             builder.endObject();
         }
         if (template != null) {
@@ -161,7 +164,6 @@ public class WatcherSearchTemplateRequest implements ToXContentObject {
         }
         return builder.endObject();
     }
-
 
     /**
      * Reads a new watcher search request instance for the specified parser.
@@ -185,13 +187,30 @@ public class WatcherSearchTemplateRequest implements ToXContentObject {
                         if (token == XContentParser.Token.VALUE_STRING) {
                             indices.add(parser.textOrNull());
                         } else {
-                            throw new ElasticsearchParseException("could not read search request. expected string values in [" +
-                                    currentFieldName + "] field, but instead found [" + token + "]");
+                            throw new ElasticsearchParseException(
+                                "could not read search request. expected string values in ["
+                                    + currentFieldName
+                                    + "] field, but instead found ["
+                                    + token
+                                    + "]"
+                            );
                         }
                     }
+                } else if (TYPES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                    // Tolerate an empty types array, because some watches created internally in 6.x have
+                    // an empty types array in their search, and it's clearly equivalent to typeless.
+                    if (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                        throw new ElasticsearchParseException(
+                            "could not read search request. unsupported non-empty array field [" + currentFieldName + "]"
+                        );
+                    }
+                    // Empty types arrays still generate the same deprecation warning they did in 7.x.
+                    // Ideally they should be removed from the definition.
+                    deprecationLogger.critical(DeprecationCategory.PARSING, "watcher_search_input", TYPES_DEPRECATION_MESSAGE);
                 } else {
-                    throw new ElasticsearchParseException("could not read search request. unexpected array field [" +
-                            currentFieldName + "]");
+                    throw new ElasticsearchParseException(
+                        "could not read search request. unexpected array field [" + currentFieldName + "]"
+                    );
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (BODY_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -200,56 +219,13 @@ public class WatcherSearchTemplateRequest implements ToXContentObject {
                         searchSource = BytesReference.bytes(builder);
                     }
                 } else if (INDICES_OPTIONS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    boolean expandOpen = DEFAULT_INDICES_OPTIONS.expandWildcardsOpen();
-                    boolean expandClosed = DEFAULT_INDICES_OPTIONS.expandWildcardsClosed();
-                    boolean allowNoIndices = DEFAULT_INDICES_OPTIONS.allowNoIndices();
-                    boolean ignoreUnavailable = DEFAULT_INDICES_OPTIONS.ignoreUnavailable();
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                        if (token == XContentParser.Token.FIELD_NAME) {
-                            currentFieldName = parser.currentName();
-                        } else if (token.isValue()) {
-                            if (EXPAND_WILDCARDS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                                switch (parser.text()) {
-                                    case "all":
-                                        expandOpen = true;
-                                        expandClosed = true;
-                                        break;
-                                    case "open":
-                                        expandOpen = true;
-                                        expandClosed = false;
-                                        break;
-                                    case "closed":
-                                        expandOpen = false;
-                                        expandClosed = true;
-                                        break;
-                                    case "none":
-                                        expandOpen = false;
-                                        expandClosed = false;
-                                        break;
-                                    default:
-                                        throw new ElasticsearchParseException("could not read search request. unknown value [" +
-                                                parser.text() + "] for [" + currentFieldName + "] field ");
-                                }
-                            } else if (IGNORE_UNAVAILABLE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                                ignoreUnavailable = parser.booleanValue();
-                            } else if (ALLOW_NO_INDICES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                                allowNoIndices = parser.booleanValue();
-                            } else {
-                                throw new ElasticsearchParseException("could not read search request. unexpected index option [" +
-                                        currentFieldName + "]");
-                            }
-                        } else {
-                            throw new ElasticsearchParseException("could not read search request. unexpected object field [" +
-                                    currentFieldName + "]");
-                        }
-                    }
-                    indicesOptions = IndicesOptions.fromOptions(ignoreUnavailable, allowNoIndices, expandOpen, expandClosed,
-                            DEFAULT_INDICES_OPTIONS);
+                    indicesOptions = IndicesOptions.fromXContent(parser, DEFAULT_INDICES_OPTIONS);
                 } else if (TEMPLATE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     template = Script.parse(parser, Script.DEFAULT_TEMPLATE_LANG);
                 } else {
-                    throw new ElasticsearchParseException("could not read search request. unexpected object field [" +
-                            currentFieldName + "]");
+                    throw new ElasticsearchParseException(
+                        "could not read search request. unexpected object field [" + currentFieldName + "]"
+                    );
                 }
             } else if (token == XContentParser.Token.VALUE_STRING) {
                 if (INDICES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -260,15 +236,17 @@ public class WatcherSearchTemplateRequest implements ToXContentObject {
                 } else if (REST_TOTAL_HITS_AS_INT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     totalHitsAsInt = parser.booleanValue();
                 } else {
-                    throw new ElasticsearchParseException("could not read search request. unexpected string field [" +
-                            currentFieldName + "]");
+                    throw new ElasticsearchParseException(
+                        "could not read search request. unexpected string field [" + currentFieldName + "]"
+                    );
                 }
             } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
                 if (REST_TOTAL_HITS_AS_INT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     totalHitsAsInt = parser.booleanValue();
                 } else {
-                    throw new ElasticsearchParseException("could not read search request. unexpected boolean field [" +
-                        currentFieldName + "]");
+                    throw new ElasticsearchParseException(
+                        "could not read search request. unexpected boolean field [" + currentFieldName + "]"
+                    );
                 }
             } else {
                 throw new ElasticsearchParseException("could not read search request. unexpected token [" + token + "]");
@@ -279,8 +257,13 @@ public class WatcherSearchTemplateRequest implements ToXContentObject {
             searchSource = BytesArray.EMPTY;
         }
 
-        WatcherSearchTemplateRequest request = new WatcherSearchTemplateRequest(indices.toArray(new String[0]),
-            searchType, indicesOptions, searchSource, template);
+        WatcherSearchTemplateRequest request = new WatcherSearchTemplateRequest(
+            indices.toArray(new String[0]),
+            searchType,
+            indicesOptions,
+            searchSource,
+            template
+        );
         request.setRestTotalHitsAsInt(totalHitsAsInt);
         return request;
     }
@@ -291,27 +274,25 @@ public class WatcherSearchTemplateRequest implements ToXContentObject {
         if (o == null || getClass() != o.getClass()) return false;
 
         WatcherSearchTemplateRequest other = (WatcherSearchTemplateRequest) o;
-        return Arrays.equals(indices, other.indices) &&
-                Objects.equals(searchType, other.searchType) &&
-                Objects.equals(indicesOptions, other.indicesOptions) &&
-                Objects.equals(searchSource, other.searchSource) &&
-                Objects.equals(template, other.template) &&
-                Objects.equals(restTotalHitsAsInt, other.restTotalHitsAsInt);
+        return Arrays.equals(indices, other.indices)
+            && Objects.equals(searchType, other.searchType)
+            && Objects.equals(indicesOptions, other.indicesOptions)
+            && Objects.equals(searchSource, other.searchSource)
+            && Objects.equals(template, other.template)
+            && Objects.equals(restTotalHitsAsInt, other.restTotalHitsAsInt);
 
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(indices, searchType, indicesOptions, searchSource, template, restTotalHitsAsInt);
+        return Objects.hash(Arrays.hashCode(indices), searchType, indicesOptions, searchSource, template, restTotalHitsAsInt);
     }
 
     private static final ParseField INDICES_FIELD = new ParseField("indices");
+    private static final ParseField TYPES_FIELD = new ParseField("types");
     private static final ParseField BODY_FIELD = new ParseField("body");
     private static final ParseField SEARCH_TYPE_FIELD = new ParseField("search_type");
     private static final ParseField INDICES_OPTIONS_FIELD = new ParseField("indices_options");
-    private static final ParseField EXPAND_WILDCARDS_FIELD = new ParseField("expand_wildcards");
-    private static final ParseField IGNORE_UNAVAILABLE_FIELD = new ParseField("ignore_unavailable");
-    private static final ParseField ALLOW_NO_INDICES_FIELD = new ParseField("allow_no_indices");
     private static final ParseField TEMPLATE_FIELD = new ParseField("template");
     private static final ParseField REST_TOTAL_HITS_AS_INT_FIELD = new ParseField("rest_total_hits_as_int");
 

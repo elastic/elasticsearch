@@ -5,6 +5,11 @@
       "description":"Returns the information about the capabilities of fields among multiple indices."
     },
     "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
     "url":{
       "paths":[
         {
@@ -47,6 +52,7 @@
         "options":[
           "open",
           "closed",
+          "hidden",
           "none",
           "all"
         ],
@@ -57,7 +63,23 @@
         "type":"boolean",
         "default":false,
         "description":"Indicates whether unmapped fields should be included in the response."
+      },
+      "filters": {
+        "type":"list",
+        "description":"An optional set of filters: can include +metadata,-metadata,-nested,-multifield,-parent"
+      },
+      "types": {
+        "type": "list",
+        "description":"Only return results for fields that have one of the types in the list"
+      },
+      "include_empty_fields": {
+        "type":"boolean",
+        "default": true,
+        "description":"Include empty fields in result"
       }
+    },
+    "body":{
+      "description":"An index filter specified with the Query DSL"
     }
   }
 }

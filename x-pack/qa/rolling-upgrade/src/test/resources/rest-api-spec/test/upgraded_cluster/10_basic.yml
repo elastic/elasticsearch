@@ -3,7 +3,7 @@
   - do:
       get:
         index: scroll_index
-        id: 1
+        id: "1"
 
   - set: {_source.value: scroll_id}
 

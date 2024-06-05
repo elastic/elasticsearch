@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.persistent;
 
@@ -22,10 +11,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
-import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -49,7 +36,7 @@ public class UpdatePersistentTaskStatusAction extends ActionType<PersistentTaskR
     public static final String NAME = "cluster:admin/persistent/update_status";
 
     private UpdatePersistentTaskStatusAction() {
-        super(NAME, PersistentTaskResponse::new);
+        super(NAME);
     }
 
     public static class Request extends MasterNodeRequest<Request> {
@@ -58,7 +45,9 @@ public class UpdatePersistentTaskStatusAction extends ActionType<PersistentTaskR
         private long allocationId = -1L;
         private PersistentTaskState state;
 
-        public Request() {}
+        public Request() {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
+        }
 
         public Request(StreamInput in) throws IOException {
             super(in);
@@ -68,6 +57,7 @@ public class UpdatePersistentTaskStatusAction extends ActionType<PersistentTaskR
         }
 
         public Request(String taskId, long allocationId, PersistentTaskState state) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
             this.taskId = taskId;
             this.allocationId = allocationId;
             this.state = state;
@@ -77,12 +67,24 @@ public class UpdatePersistentTaskStatusAction extends ActionType<PersistentTaskR
             this.taskId = taskId;
         }
 
+        public String getTaskId() {
+            return taskId;
+        }
+
         public void setAllocationId(long allocationId) {
             this.allocationId = allocationId;
         }
 
+        public long getAllocationId() {
+            return allocationId;
+        }
+
         public void setState(PersistentTaskState state) {
             this.state = state;
+        }
+
+        public PersistentTaskState getState() {
+            return state;
         }
 
         @Override
@@ -121,46 +123,31 @@ public class UpdatePersistentTaskStatusAction extends ActionType<PersistentTaskR
         }
     }
 
-    public static class RequestBuilder extends MasterNodeOperationRequestBuilder<UpdatePersistentTaskStatusAction.Request,
-            PersistentTaskResponse, UpdatePersistentTaskStatusAction.RequestBuilder> {
-
-        protected RequestBuilder(ElasticsearchClient client, UpdatePersistentTaskStatusAction action) {
-            super(client, action, new Request());
-        }
-
-        public final RequestBuilder setTaskId(String taskId) {
-            request.setTaskId(taskId);
-            return this;
-        }
-
-        public final RequestBuilder setState(PersistentTaskState state) {
-            request.setState(state);
-            return this;
-        }
-    }
-
     public static class TransportAction extends TransportMasterNodeAction<Request, PersistentTaskResponse> {
 
         private final PersistentTasksClusterService persistentTasksClusterService;
 
         @Inject
-        public TransportAction(TransportService transportService, ClusterService clusterService,
-                               ThreadPool threadPool, ActionFilters actionFilters,
-                               PersistentTasksClusterService persistentTasksClusterService,
-                               IndexNameExpressionResolver indexNameExpressionResolver) {
-            super(UpdatePersistentTaskStatusAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                Request::new, indexNameExpressionResolver);
+        public TransportAction(
+            TransportService transportService,
+            ClusterService clusterService,
+            ThreadPool threadPool,
+            ActionFilters actionFilters,
+            PersistentTasksClusterService persistentTasksClusterService,
+            IndexNameExpressionResolver indexNameExpressionResolver
+        ) {
+            super(
+                UpdatePersistentTaskStatusAction.NAME,
+                transportService,
+                clusterService,
+                threadPool,
+                actionFilters,
+                Request::new,
+                indexNameExpressionResolver,
+                PersistentTaskResponse::new,
+                threadPool.executor(ThreadPool.Names.MANAGEMENT)
+            );
             this.persistentTasksClusterService = persistentTasksClusterService;
-        }
-
-        @Override
-        protected String executor() {
-            return ThreadPool.Names.MANAGEMENT;
-        }
-
-        @Override
-        protected PersistentTaskResponse read(StreamInput in) throws IOException {
-            return new PersistentTaskResponse(in);
         }
 
         @Override
@@ -170,12 +157,18 @@ public class UpdatePersistentTaskStatusAction extends ActionType<PersistentTaskR
         }
 
         @Override
-        protected final void masterOperation(Task ignoredTask, final Request request,
-                                             final ClusterState state,
-                                             final ActionListener<PersistentTaskResponse> listener) {
-            persistentTasksClusterService.updatePersistentTaskState(request.taskId, request.allocationId, request.state,
-                ActionListener.delegateFailure(listener,
-                    (delegatedListener, task) -> delegatedListener.onResponse(new PersistentTaskResponse(task))));
+        protected final void masterOperation(
+            Task ignoredTask,
+            final Request request,
+            final ClusterState state,
+            final ActionListener<PersistentTaskResponse> listener
+        ) {
+            persistentTasksClusterService.updatePersistentTaskState(
+                request.taskId,
+                request.allocationId,
+                request.state,
+                listener.map(PersistentTaskResponse::new)
+            );
         }
     }
 }

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.ingest.common;
@@ -34,16 +23,24 @@ import java.util.Map;
 public final class RenameProcessor extends AbstractProcessor {
 
     public static final String TYPE = "rename";
-
     private final TemplateScript.Factory field;
     private final TemplateScript.Factory targetField;
     private final boolean ignoreMissing;
+    private final boolean overrideEnabled;
 
-    RenameProcessor(String tag, TemplateScript.Factory field, TemplateScript.Factory targetField, boolean ignoreMissing) {
-        super(tag);
+    RenameProcessor(
+        String tag,
+        String description,
+        TemplateScript.Factory field,
+        TemplateScript.Factory targetField,
+        boolean ignoreMissing,
+        boolean overrideEnabled
+    ) {
+        super(tag, description);
         this.field = field;
         this.targetField = targetField;
         this.ignoreMissing = ignoreMissing;
+        this.overrideEnabled = overrideEnabled;
     }
 
     TemplateScript.Factory getField() {
@@ -58,22 +55,27 @@ public final class RenameProcessor extends AbstractProcessor {
         return ignoreMissing;
     }
 
+    public boolean isOverrideEnabled() {
+        return overrideEnabled;
+    }
+
     @Override
     public IngestDocument execute(IngestDocument document) {
         String path = document.renderTemplate(field);
-        if (document.hasField(path, true) == false) {
+        if (path.isEmpty() || document.hasField(path, true) == false) {
             if (ignoreMissing) {
                 return document;
             } else {
                 throw new IllegalArgumentException("field [" + path + "] doesn't exist");
             }
         }
+
         // We fail here if the target field point to an array slot that is out of range.
         // If we didn't do this then we would fail if we set the value in the target_field
         // and then on failure processors would not see that value we tried to rename as we already
         // removed it.
         String target = document.renderTemplate(targetField);
-        if (document.hasField(target, true)) {
+        if (document.hasField(target, true) && overrideEnabled == false) {
             throw new IllegalArgumentException("field [" + target + "] already exists");
         }
 
@@ -103,16 +105,25 @@ public final class RenameProcessor extends AbstractProcessor {
         }
 
         @Override
-        public RenameProcessor create(Map<String, Processor.Factory> registry, String processorTag,
-                                      Map<String, Object> config) throws Exception {
+        public RenameProcessor create(
+            Map<String, Processor.Factory> registry,
+            String processorTag,
+            String description,
+            Map<String, Object> config
+        ) throws Exception {
             String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
-            TemplateScript.Factory fieldTemplate = ConfigurationUtils.compileTemplate(TYPE, processorTag,
-                "field", field, scriptService);
+            TemplateScript.Factory fieldTemplate = ConfigurationUtils.compileTemplate(TYPE, processorTag, "field", field, scriptService);
             String targetField = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "target_field");
-            TemplateScript.Factory targetFieldTemplate = ConfigurationUtils.compileTemplate(TYPE, processorTag,
-                "target_field", targetField, scriptService);
+            TemplateScript.Factory targetFieldTemplate = ConfigurationUtils.compileTemplate(
+                TYPE,
+                processorTag,
+                "target_field",
+                targetField,
+                scriptService
+            );
             boolean ignoreMissing = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "ignore_missing", false);
-            return new RenameProcessor(processorTag, fieldTemplate, targetFieldTemplate , ignoreMissing);
+            boolean overrideEnabled = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "override", false);
+            return new RenameProcessor(processorTag, description, fieldTemplate, targetFieldTemplate, ignoreMissing, overrideEnabled);
         }
     }
 }

@@ -1,26 +1,39 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.inference.results;
 
-import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.ESTestCase;
 
-public class RawInferenceResultsTests extends AbstractWireSerializingTestCase<RawInferenceResults> {
+import java.util.Arrays;
+
+import static org.hamcrest.CoreMatchers.equalTo;
+
+public class RawInferenceResultsTests extends ESTestCase {
 
     public static RawInferenceResults createRandomResults() {
-        return new RawInferenceResults(randomDouble());
+        int n = randomIntBetween(1, 10);
+        double[] results = new double[n];
+        for (int i = 0; i < n; i++) {
+            results[i] = randomDouble();
+        }
+        return new RawInferenceResults(results, randomBoolean() ? new double[0][] : new double[][] { { 1.08 } });
     }
 
-    @Override
-    protected RawInferenceResults createTestInstance() {
-        return createRandomResults();
+    public void testEqualityAndHashcode() {
+        int n = randomIntBetween(1, 10);
+        double[] results = new double[n];
+        for (int i = 0; i < n; i++) {
+            results[i] = randomDouble();
+        }
+        double[][] importance = randomBoolean() ? new double[0][] : new double[][] { { 1.08, 42.0 } };
+        RawInferenceResults lft = new RawInferenceResults(results, importance);
+        RawInferenceResults rgt = new RawInferenceResults(Arrays.copyOf(results, n), importance);
+        assertThat(lft, equalTo(rgt));
+        assertThat(lft.hashCode(), equalTo(rgt.hashCode()));
     }
 
-    @Override
-    protected Writeable.Reader<RawInferenceResults> instanceReader() {
-        return RawInferenceResults::new;
-    }
 }

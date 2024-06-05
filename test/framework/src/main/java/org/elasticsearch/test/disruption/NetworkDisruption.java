@@ -1,32 +1,22 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.test.disruption;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.ConnectTransportException;
@@ -69,28 +59,28 @@ public class NetworkDisruption implements ServiceDisruptionScheme {
     }
 
     @Override
-    public void applyToCluster(InternalTestCluster cluster) {
-        this.cluster = cluster;
+    public void applyToCluster(InternalTestCluster testCluster) {
+        this.cluster = testCluster;
     }
 
     @Override
-    public void removeFromCluster(InternalTestCluster cluster) {
+    public void removeFromCluster(InternalTestCluster testCluster) {
         stopDisrupting();
     }
 
     @Override
-    public void removeAndEnsureHealthy(InternalTestCluster cluster) {
-        removeFromCluster(cluster);
-        ensureHealthy(cluster);
+    public void removeAndEnsureHealthy(InternalTestCluster testCluster) {
+        removeFromCluster(testCluster);
+        ensureHealthy(testCluster);
     }
 
     /**
      * ensures the cluster is healthy after the disruption
      */
-    public void ensureHealthy(InternalTestCluster cluster) {
+    public void ensureHealthy(InternalTestCluster testCluster) {
         assert activeDisruption == false;
-        ensureNodeCount(cluster);
-        ensureFullyConnectedCluster(cluster);
+        ensureNodeCount(testCluster);
+        ensureFullyConnectedCluster(testCluster);
     }
 
     /**
@@ -115,20 +105,20 @@ public class NetworkDisruption implements ServiceDisruptionScheme {
         }
     }
 
-    protected void ensureNodeCount(InternalTestCluster cluster) {
-        cluster.validateClusterFormed();
+    protected void ensureNodeCount(InternalTestCluster testCluster) {
+        testCluster.validateClusterFormed();
     }
 
     @Override
-    public synchronized void applyToNode(String node, InternalTestCluster cluster) {
+    public synchronized void applyToNode(String node, InternalTestCluster testCluster) {
 
     }
 
     @Override
-    public synchronized void removeFromNode(String node1, InternalTestCluster cluster) {
+    public synchronized void removeFromNode(String node1, InternalTestCluster testCluster) {
         logger.info("stop disrupting node (disruption type: {}, disrupted links: {})", networkLinkDisruptionType, disruptedLinks);
-        applyToNodes(new String[]{ node1 }, cluster.getNodeNames(), networkLinkDisruptionType::removeDisruption);
-        applyToNodes(cluster.getNodeNames(), new String[]{ node1 }, networkLinkDisruptionType::removeDisruption);
+        applyToNodes(new String[] { node1 }, testCluster.getNodeNames(), networkLinkDisruptionType::removeDisruption);
+        applyToNodes(testCluster.getNodeNames(), new String[] { node1 }, networkLinkDisruptionType::removeDisruption);
     }
 
     @Override
@@ -145,7 +135,7 @@ public class NetworkDisruption implements ServiceDisruptionScheme {
 
     @Override
     public synchronized void stopDisrupting() {
-        if (!activeDisruption) {
+        if (activeDisruption == false) {
             return;
         }
         logger.info("stop disrupting (disruption scheme: {}, disrupted links: {})", networkLinkDisruptionType, disruptedLinks);
@@ -192,6 +182,7 @@ public class NetworkDisruption implements ServiceDisruptionScheme {
     public abstract static class DisruptedLinks {
         private final Set<String> nodes;
 
+        @SafeVarargs
         protected DisruptedLinks(Set<String>... nodeSets) {
             Set<String> allNodes = new HashSet<>();
             for (Set<String> nodeSet : nodeSets) {
@@ -366,8 +357,13 @@ public class NetworkDisruption implements ServiceDisruptionScheme {
         }
 
         public String toString() {
-            return "bridge partition (super connected node: [" + bridgeNode + "], partition 1: " + nodesSideOne +
-                " and partition 2: " + nodesSideTwo + ")";
+            return "bridge partition (super connected node: ["
+                + bridgeNode
+                + "], partition 1: "
+                + nodesSideOne
+                + " and partition 2: "
+                + nodesSideTwo
+                + ")";
         }
     }
 
@@ -405,7 +401,7 @@ public class NetworkDisruption implements ServiceDisruptionScheme {
          * @param targetTransportService target transport service to which requests are sent
          */
         public void removeDisruption(MockTransportService sourceTransportService, MockTransportService targetTransportService) {
-            sourceTransportService.clearRule(targetTransportService);
+            sourceTransportService.clearOutboundRules(targetTransportService);
         }
 
         /**
@@ -420,7 +416,7 @@ public class NetworkDisruption implements ServiceDisruptionScheme {
     /**
      * Simulates a network disconnect. Sending a request from source to target node throws a {@link ConnectTransportException}.
      */
-    public static class NetworkDisconnect extends NetworkLinkDisruptionType {
+    public static final NetworkLinkDisruptionType DISCONNECT = new NetworkLinkDisruptionType() {
 
         @Override
         public void applyDisruption(MockTransportService sourceTransportService, MockTransportService targetTransportService) {
@@ -431,13 +427,12 @@ public class NetworkDisruption implements ServiceDisruptionScheme {
         public String toString() {
             return "network disconnects";
         }
-    }
+    };
 
     /**
      * Simulates an unresponsive target node by dropping requests sent from source to target node.
      */
-    public static class NetworkUnresponsive extends NetworkLinkDisruptionType {
-
+    public static final NetworkLinkDisruptionType UNRESPONSIVE = new NetworkLinkDisruptionType() {
         @Override
         public void applyDisruption(MockTransportService sourceTransportService, MockTransportService targetTransportService) {
             sourceTransportService.addUnresponsiveRule(targetTransportService);
@@ -447,7 +442,7 @@ public class NetworkDisruption implements ServiceDisruptionScheme {
         public String toString() {
             return "network unresponsive";
         }
-    }
+    };
 
     /**
      * Simulates slow or congested network. Delivery of requests that are sent from source to target node are delayed by a configurable
@@ -486,9 +481,13 @@ public class NetworkDisruption implements ServiceDisruptionScheme {
          * @param delayMax maximum delay
          */
         public static NetworkDelay random(Random random, TimeValue delayMin, TimeValue delayMax) {
-            return new NetworkDelay(TimeValue.timeValueMillis(delayMin.millis() == delayMax.millis() ?
-                    delayMin.millis() :
-                    delayMin.millis() + random.nextInt((int) (delayMax.millis() - delayMin.millis()))));
+            return new NetworkDelay(
+                TimeValue.timeValueMillis(
+                    delayMin.millis() == delayMax.millis()
+                        ? delayMin.millis()
+                        : delayMin.millis() + random.nextInt((int) (delayMax.millis() - delayMin.millis()))
+                )
+            );
         }
 
         @Override

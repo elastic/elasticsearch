@@ -1,15 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.enrich.action;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.action.support.master.TransportMasterNodeAction;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -17,9 +18,8 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -33,13 +33,11 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
 import org.elasticsearch.xpack.enrich.EnrichStore;
 
-import java.io.IOException;
+public class TransportPutEnrichPolicyAction extends AcknowledgedTransportMasterNodeAction<PutEnrichPolicyAction.Request> {
 
-public class TransportPutEnrichPolicyAction extends TransportMasterNodeAction<PutEnrichPolicyAction.Request, AcknowledgedResponse> {
-
-    private final XPackLicenseState licenseState;
     private final SecurityContext securityContext;
     private final Client client;
+    private final Settings settings;
 
     @Inject
     public TransportPutEnrichPolicyAction(
@@ -48,7 +46,6 @@ public class TransportPutEnrichPolicyAction extends TransportMasterNodeAction<Pu
         ClusterService clusterService,
         ThreadPool threadPool,
         Client client,
-        XPackLicenseState licenseState,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
@@ -59,27 +56,14 @@ public class TransportPutEnrichPolicyAction extends TransportMasterNodeAction<Pu
             threadPool,
             actionFilters,
             PutEnrichPolicyAction.Request::new,
-            indexNameExpressionResolver
+            indexNameExpressionResolver,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
-        this.licenseState = licenseState;
+        this.settings = settings;
         this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings)
             ? new SecurityContext(settings, threadPool.getThreadContext())
             : null;
         this.client = client;
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
-    }
-
-    protected AcknowledgedResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
-    protected AcknowledgedResponse read(StreamInput in) throws IOException {
-        return new AcknowledgedResponse(in);
     }
 
     @Override
@@ -90,7 +74,7 @@ public class TransportPutEnrichPolicyAction extends TransportMasterNodeAction<Pu
         ActionListener<AcknowledgedResponse> listener
     ) {
 
-        if (licenseState.isAuthAllowed()) {
+        if (XPackSettings.SECURITY_ENABLED.get(settings)) {
             RoleDescriptor.IndicesPrivileges privileges = RoleDescriptor.IndicesPrivileges.builder()
                 .indices(request.getPolicy().getIndices())
                 .privileges("read")
@@ -104,11 +88,11 @@ public class TransportPutEnrichPolicyAction extends TransportMasterNodeAction<Pu
             privRequest.clusterPrivileges(Strings.EMPTY_ARRAY);
             privRequest.indexPrivileges(privileges);
 
-            ActionListener<HasPrivilegesResponse> wrappedListener = ActionListener.wrap(r -> {
+            ActionListener<HasPrivilegesResponse> wrappedListener = listener.delegateFailureAndWrap((delegate, r) -> {
                 if (r.isCompleteMatch()) {
-                    putPolicy(request, listener);
+                    putPolicy(request, delegate);
                 } else {
-                    listener.onFailure(
+                    delegate.onFailure(
                         Exceptions.authorizationError(
                             "unable to store policy because no indices match with the " + "specified index patterns {}",
                             request.getPolicy().getIndices(),
@@ -116,7 +100,7 @@ public class TransportPutEnrichPolicyAction extends TransportMasterNodeAction<Pu
                         )
                     );
                 }
-            }, listener::onFailure);
+            });
             client.execute(HasPrivilegesAction.INSTANCE, privRequest, wrappedListener);
         } else {
             putPolicy(request, listener);
@@ -126,7 +110,7 @@ public class TransportPutEnrichPolicyAction extends TransportMasterNodeAction<Pu
     private void putPolicy(PutEnrichPolicyAction.Request request, ActionListener<AcknowledgedResponse> listener) {
         EnrichStore.putPolicy(request.getName(), request.getPolicy(), clusterService, indexNameExpressionResolver, e -> {
             if (e == null) {
-                listener.onResponse(new AcknowledgedResponse(true));
+                listener.onResponse(AcknowledgedResponse.TRUE);
             } else {
                 listener.onFailure(e);
             }

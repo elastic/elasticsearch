@@ -1,44 +1,49 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.transport;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.telemetry.tracing.Tracer;
 
 import java.io.IOException;
+import java.util.concurrent.Executor;
 
-public class RequestHandlerRegistry<Request extends TransportRequest> {
+import static org.elasticsearch.core.Releasables.assertOnce;
+
+public class RequestHandlerRegistry<Request extends TransportRequest> implements ResponseStatsConsumer {
 
     private final String action;
     private final TransportRequestHandler<Request> handler;
     private final boolean forceExecution;
     private final boolean canTripCircuitBreaker;
-    private final String executor;
+    private final Executor executor;
     private final TaskManager taskManager;
+    private final Tracer tracer;
     private final Writeable.Reader<Request> requestReader;
+    private final TransportActionStatsTracker statsTracker = new TransportActionStatsTracker();
 
-    public RequestHandlerRegistry(String action, Writeable.Reader<Request> requestReader, TaskManager taskManager,
-                                  TransportRequestHandler<Request> handler, String executor, boolean forceExecution,
-                                  boolean canTripCircuitBreaker) {
+    public RequestHandlerRegistry(
+        String action,
+        Writeable.Reader<Request> requestReader,
+        TaskManager taskManager,
+        TransportRequestHandler<Request> handler,
+        Executor executor,
+        boolean forceExecution,
+        boolean canTripCircuitBreaker,
+        Tracer tracer
+    ) {
         this.action = action;
         this.requestReader = requestReader;
         this.handler = handler;
@@ -46,6 +51,7 @@ public class RequestHandlerRegistry<Request extends TransportRequest> {
         this.canTripCircuitBreaker = canTripCircuitBreaker;
         this.executor = executor;
         this.taskManager = taskManager;
+        this.tracer = tracer;
     }
 
     public String getAction() {
@@ -57,15 +63,19 @@ public class RequestHandlerRegistry<Request extends TransportRequest> {
     }
 
     public void processMessageReceived(Request request, TransportChannel channel) throws Exception {
-        final Task task = taskManager.register(channel.getChannelType(), action, request);
-        boolean success = false;
+        final Task task = taskManager.register("transport", action, request);
+        Releasable unregisterTask = () -> taskManager.unregister(task);
         try {
-            handler.messageReceived(request, new TaskTransportChannel(taskManager, task, channel), task);
-            success = true;
-        } finally {
-            if (success == false) {
-                taskManager.unregister(task);
+            if (channel instanceof TcpTransportChannel tcpTransportChannel && task instanceof CancellableTask cancellableTask) {
+                final TcpChannel tcpChannel = tcpTransportChannel.getChannel();
+                final Releasable stopTracking = taskManager.startTrackingCancellableChannelTask(tcpChannel, cancellableTask);
+                unregisterTask = Releasables.wrap(unregisterTask, stopTracking);
             }
+            final TaskTransportChannel taskTransportChannel = new TaskTransportChannel(task.getId(), channel, assertOnce(unregisterTask));
+            handler.messageReceived(request, taskTransportChannel, task);
+            unregisterTask = null;
+        } finally {
+            Releasables.close(unregisterTask);
         }
     }
 
@@ -77,8 +87,12 @@ public class RequestHandlerRegistry<Request extends TransportRequest> {
         return canTripCircuitBreaker;
     }
 
-    public String getExecutor() {
+    public Executor getExecutor() {
         return executor;
+    }
+
+    public TransportRequestHandler<Request> getHandler() {
+        return handler;
     }
 
     @Override
@@ -86,4 +100,32 @@ public class RequestHandlerRegistry<Request extends TransportRequest> {
         return handler.toString();
     }
 
+    public static <R extends TransportRequest> RequestHandlerRegistry<R> replaceHandler(
+        RequestHandlerRegistry<R> registry,
+        TransportRequestHandler<R> handler
+    ) {
+        return new RequestHandlerRegistry<>(
+            registry.action,
+            registry.requestReader,
+            registry.taskManager,
+            handler,
+            registry.executor,
+            registry.forceExecution,
+            registry.canTripCircuitBreaker,
+            registry.tracer
+        );
+    }
+
+    public void addRequestStats(int messageSize) {
+        statsTracker.addRequestStats(messageSize);
+    }
+
+    @Override
+    public void addResponseStats(int messageSize) {
+        statsTracker.addResponseStats(messageSize);
+    }
+
+    public TransportActionStats getStats() {
+        return statsTracker.getStats();
+    }
 }

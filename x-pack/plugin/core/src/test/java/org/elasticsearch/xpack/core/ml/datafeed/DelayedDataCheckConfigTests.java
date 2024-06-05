@@ -1,25 +1,24 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.datafeed;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractSerializingTestCase;
-
-import java.io.IOException;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.core.Is.is;
 
-public class DelayedDataCheckConfigTests extends AbstractSerializingTestCase<DelayedDataCheckConfig> {
+public class DelayedDataCheckConfigTests extends AbstractXContentSerializingTestCase<DelayedDataCheckConfig> {
 
     @Override
-    protected DelayedDataCheckConfig createTestInstance(){
+    protected DelayedDataCheckConfig createTestInstance() {
         return createRandomizedConfig(100);
     }
 
@@ -61,34 +60,33 @@ public class DelayedDataCheckConfigTests extends AbstractSerializingTestCase<Del
         TimeValue timeWindow = null;
         if (enabled || randomBoolean()) {
             // time span is required to be at least 1 millis, so we use a custom method to generate a time value here
-            timeWindow = new TimeValue(randomLongBetween(bucketSpanMillis,bucketSpanMillis*2));
+            timeWindow = new TimeValue(randomLongBetween(bucketSpanMillis, bucketSpanMillis * 2));
         }
         return new DelayedDataCheckConfig(enabled, timeWindow);
     }
 
     @Override
-    protected DelayedDataCheckConfig mutateInstance(DelayedDataCheckConfig instance) throws IOException {
+    protected DelayedDataCheckConfig mutateInstance(DelayedDataCheckConfig instance) {
         boolean enabled = instance.isEnabled();
         TimeValue timeWindow = instance.getCheckWindow();
         switch (between(0, 1)) {
-        case 0:
-            enabled = !enabled;
-            if (randomBoolean()) {
-                timeWindow = TimeValue.timeValueMillis(randomLongBetween(1, 1000));
-            } else {
-                timeWindow = null;
+            case 0 -> {
+                enabled = enabled == false;
+                if (randomBoolean()) {
+                    timeWindow = TimeValue.timeValueMillis(randomLongBetween(1, 1000));
+                } else {
+                    timeWindow = null;
+                }
             }
-            break;
-        case 1:
-            if (timeWindow == null) {
-                timeWindow = TimeValue.timeValueMillis(randomLongBetween(1, 1000));
-            } else {
-                timeWindow = new TimeValue(timeWindow.getMillis() + between(10, 100));
+            case 1 -> {
+                if (timeWindow == null) {
+                    timeWindow = TimeValue.timeValueMillis(randomLongBetween(1, 1000));
+                } else {
+                    timeWindow = new TimeValue(timeWindow.getMillis() + between(10, 100));
+                }
+                enabled = true;
             }
-            enabled = true;
-            break;
-        default:
-            throw new AssertionError("Illegal randomisation branch");
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
         return new DelayedDataCheckConfig(enabled, timeWindow);
     }

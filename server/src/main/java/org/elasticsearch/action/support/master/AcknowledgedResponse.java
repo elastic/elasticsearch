@@ -1,65 +1,77 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.action.support.master;
 
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
- * A response that indicates that a request has been acknowledged
+ * A response to an action which updated the cluster state, but needs to report whether any relevant nodes failed to apply the update. For
+ * instance, a {@link org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest} may update a mapping in the index metadata, but
+ * one or more data nodes may fail to acknowledge the new mapping within the ack timeout. If this happens then clients must accept that
+ * subsequent requests that rely on the mapping update may return errors from the lagging data nodes.
+ * <p>
+ * Actions which return a payload-free acknowledgement of success should generally prefer to use {@link ActionResponse.Empty} instead of
+ * {@link AcknowledgedResponse}, and other listeners should generally prefer {@link Void}.
  */
-public class AcknowledgedResponse extends ActionResponse implements ToXContentObject {
+public class AcknowledgedResponse extends ActionResponse implements IsAcknowledgedSupplier, ToXContentObject {
 
-    private static final ParseField ACKNOWLEDGED = new ParseField("acknowledged");
+    public static final AcknowledgedResponse TRUE = new AcknowledgedResponse(true);
 
-    protected static <T extends AcknowledgedResponse> void declareAcknowledgedField(ConstructingObjectParser<T, Void> objectParser) {
-        objectParser.declareField(constructorArg(), (parser, context) -> parser.booleanValue(), ACKNOWLEDGED,
-            ObjectParser.ValueType.BOOLEAN);
+    public static final AcknowledgedResponse FALSE = new AcknowledgedResponse(false);
+
+    public static final String ACKNOWLEDGED_KEY = "acknowledged";
+    private static final ParseField ACKNOWLEDGED = new ParseField(ACKNOWLEDGED_KEY);
+
+    public static <T extends AcknowledgedResponse> void declareAcknowledgedField(ConstructingObjectParser<T, Void> objectParser) {
+        objectParser.declareField(
+            constructorArg(),
+            (parser, context) -> parser.booleanValue(),
+            ACKNOWLEDGED,
+            ObjectParser.ValueType.BOOLEAN
+        );
     }
 
     protected final boolean acknowledged;
 
-    public AcknowledgedResponse(StreamInput in) throws IOException {
+    public static AcknowledgedResponse readFrom(StreamInput in) throws IOException {
+        return in.readBoolean() ? TRUE : FALSE;
+    }
+
+    protected AcknowledgedResponse(StreamInput in) throws IOException {
         super(in);
         acknowledged = in.readBoolean();
     }
 
-    public AcknowledgedResponse(boolean acknowledged) {
+    public static AcknowledgedResponse of(boolean acknowledged) {
+        return acknowledged ? TRUE : FALSE;
+    }
+
+    protected AcknowledgedResponse(boolean acknowledged) {
         this.acknowledged = acknowledged;
     }
 
     /**
-     * Returns whether the response is acknowledged or not
-     * @return true if the response is acknowledged, false otherwise
+     * @return whether the update was acknowledged by all the relevant nodes in the cluster.
      */
+    @Override
     public final boolean isAcknowledged() {
         return acknowledged;
     }
@@ -72,29 +84,34 @@ public class AcknowledgedResponse extends ActionResponse implements ToXContentOb
     @Override
     public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(ACKNOWLEDGED.getPreferredName(), isAcknowledged());
+        builder.field(ACKNOWLEDGED_KEY, isAcknowledged());
         addCustomFields(builder, params);
         builder.endObject();
         return builder;
     }
 
-    protected void addCustomFields(XContentBuilder builder, Params params) throws IOException {
-
-    }
+    protected void addCustomFields(XContentBuilder builder, Params params) throws IOException {}
 
     /**
      * A generic parser that simply parses the acknowledged flag
      */
     private static final ConstructingObjectParser<Boolean, Void> ACKNOWLEDGED_FLAG_PARSER = new ConstructingObjectParser<>(
-            "acknowledged_flag", true, args -> (Boolean) args[0]);
+        "acknowledged_flag",
+        true,
+        args -> (Boolean) args[0]
+    );
 
     static {
-        ACKNOWLEDGED_FLAG_PARSER.declareField(constructorArg(), (parser, context) -> parser.booleanValue(), ACKNOWLEDGED,
-                ObjectParser.ValueType.BOOLEAN);
+        ACKNOWLEDGED_FLAG_PARSER.declareField(
+            constructorArg(),
+            (parser, context) -> parser.booleanValue(),
+            ACKNOWLEDGED,
+            ObjectParser.ValueType.BOOLEAN
+        );
     }
 
     public static AcknowledgedResponse fromXContent(XContentParser parser) throws IOException {
-        return new AcknowledgedResponse(ACKNOWLEDGED_FLAG_PARSER.apply(parser, null));
+        return AcknowledgedResponse.of(ACKNOWLEDGED_FLAG_PARSER.apply(parser, null));
     }
 
     @Override

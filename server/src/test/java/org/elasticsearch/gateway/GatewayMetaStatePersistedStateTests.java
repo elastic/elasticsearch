@@ -1,63 +1,64 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.gateway;
 
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.MockDirectoryWrapper;
+import org.apache.lucene.tests.mockfile.FilterFileSystemProvider;
+import org.apache.lucene.tests.store.MockDirectoryWrapper;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.coordination.CoordinationMetaData;
-import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfigExclusion;
+import org.elasticsearch.cluster.coordination.CoordinationMetadata;
+import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfigExclusion;
 import org.elasticsearch.cluster.coordination.CoordinationState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Manifest;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.version.CompatibilityVersionsUtils;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.PathUtilsForTesting;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.Closeable;
 import java.io.IOError;
 import java.io.IOException;
+import java.io.OutputStream;
+import java.nio.file.OpenOption;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.test.NodeRoles.nonMasterNode;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
@@ -73,10 +74,16 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
     @Override
     public void setUp() throws Exception {
         nodeEnvironment = newNodeEnvironment();
-        localNode = new DiscoveryNode("node1", buildNewFakeTransportAddress(), Collections.emptyMap(),
-            Sets.newHashSet(DiscoveryNodeRole.MASTER_ROLE), Version.CURRENT);
+        localNode = DiscoveryNodeUtils.builder("node1").roles(Sets.newHashSet(DiscoveryNodeRole.MASTER_ROLE)).build();
         clusterName = new ClusterName(randomAlphaOfLength(10));
-        settings = Settings.builder().put(ClusterName.CLUSTER_NAME_SETTING.getKey(), clusterName.value()).build();
+        final Settings.Builder settingsBuilder = Settings.builder().put(ClusterName.CLUSTER_NAME_SETTING.getKey(), clusterName.value());
+        if (randomBoolean()) {
+            settingsBuilder.put(
+                PersistedClusterStateService.DOCUMENT_PAGE_SIZE.getKey(),
+                ByteSizeValue.ofBytes(randomLongBetween(1, 1024))
+            );
+        }
+        settings = settingsBuilder.build();
         super.setUp();
     }
 
@@ -108,12 +115,12 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
             gateway = newGatewayPersistedState();
             ClusterState state = gateway.getLastAcceptedState();
             assertThat(state.getClusterName(), equalTo(clusterName));
-            assertTrue(MetaData.isGlobalStateEquals(state.metaData(), MetaData.EMPTY_META_DATA));
-            assertThat(state.getVersion(), equalTo(Manifest.empty().getClusterStateVersion()));
+            assertTrue(Metadata.isGlobalStateEquals(state.metadata(), Metadata.EMPTY_METADATA));
+            assertThat(state.getVersion(), equalTo(Manifest.empty().clusterStateVersion()));
             assertThat(state.getNodes().getLocalNode(), equalTo(localNode));
 
             long currentTerm = gateway.getCurrentTerm();
-            assertThat(currentTerm, equalTo(Manifest.empty().getCurrentTerm()));
+            assertThat(currentTerm, equalTo(Manifest.empty().currentTerm()));
         } finally {
             IOUtils.close(gateway);
         }
@@ -135,23 +142,23 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
         }
     }
 
-    private ClusterState createClusterState(long version, MetaData metaData) {
-        return ClusterState.builder(clusterName).
-            nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()).build()).
-            version(version).
-            metaData(metaData).
-            build();
+    private ClusterState createClusterState(long version, Metadata metadata) {
+        return ClusterState.builder(clusterName)
+            .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()).build())
+            .version(version)
+            .metadata(metadata)
+            .build();
     }
 
-    private CoordinationMetaData createCoordinationMetaData(long term) {
-        CoordinationMetaData.Builder builder = CoordinationMetaData.builder();
+    private CoordinationMetadata createCoordinationMetadata(long term) {
+        CoordinationMetadata.Builder builder = CoordinationMetadata.builder();
         builder.term(term);
         builder.lastAcceptedConfiguration(
-            new CoordinationMetaData.VotingConfiguration(
-                Sets.newHashSet(generateRandomStringArray(10, 10, false))));
+            new CoordinationMetadata.VotingConfiguration(Sets.newHashSet(generateRandomStringArray(10, 10, false)))
+        );
         builder.lastCommittedConfiguration(
-            new CoordinationMetaData.VotingConfiguration(
-                Sets.newHashSet(generateRandomStringArray(10, 10, false))));
+            new CoordinationMetadata.VotingConfiguration(Sets.newHashSet(generateRandomStringArray(10, 10, false)))
+        );
         for (int i = 0; i < randomIntBetween(0, 5); i++) {
             builder.addVotingConfigExclusion(new VotingConfigExclusion(randomAlphaOfLength(10), randomAlphaOfLength(10)));
         }
@@ -159,22 +166,18 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
         return builder.build();
     }
 
-    private IndexMetaData createIndexMetaData(String indexName, int numberOfShards, long version) {
-        return IndexMetaData.builder(indexName).settings(
-            Settings.builder()
-                .put(IndexMetaData.SETTING_INDEX_UUID, indexName)
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, numberOfShards)
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-                .build()
-        ).version(version).build();
+    private static IndexMetadata createIndexMetadata(String indexName, int numberOfShards, long version) {
+        return IndexMetadata.builder(indexName)
+            .settings(indexSettings(IndexVersion.current(), numberOfShards, 0).put(IndexMetadata.SETTING_INDEX_UUID, indexName).build())
+            .version(version)
+            .build();
     }
 
     private void assertClusterStateEqual(ClusterState expected, ClusterState actual) {
         assertThat(actual.version(), equalTo(expected.version()));
-        assertTrue(MetaData.isGlobalStateEquals(actual.metaData(), expected.metaData()));
-        for (IndexMetaData indexMetaData : expected.metaData()) {
-            assertThat(actual.metaData().index(indexMetaData.getIndex()), equalTo(indexMetaData));
+        assertTrue(Metadata.isGlobalStateEquals(actual.metadata(), expected.metadata()));
+        for (IndexMetadata indexMetadata : expected.metadata()) {
+            assertThat(actual.metadata().index(indexMetadata.getIndex()), equalTo(indexMetadata));
         }
     }
 
@@ -187,13 +190,13 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
             for (int i = 0; i < randomIntBetween(1, 5); i++) {
                 final long version = randomNonNegativeLong();
                 final String indexName = randomAlphaOfLength(10);
-                final IndexMetaData indexMetaData = createIndexMetaData(indexName, randomIntBetween(1, 5), randomNonNegativeLong());
-                final MetaData metaData = MetaData.builder().
-                    persistentSettings(Settings.builder().put(randomAlphaOfLength(10), randomAlphaOfLength(10)).build()).
-                    coordinationMetaData(createCoordinationMetaData(term)).
-                    put(indexMetaData, false).
-                    build();
-                ClusterState state = createClusterState(version, metaData);
+                final IndexMetadata indexMetadata = createIndexMetadata(indexName, randomIntBetween(1, 5), randomNonNegativeLong());
+                final Metadata metadata = Metadata.builder()
+                    .persistentSettings(Settings.builder().put(randomAlphaOfLength(10), randomAlphaOfLength(10)).build())
+                    .coordinationMetadata(createCoordinationMetadata(term))
+                    .put(indexMetadata, false)
+                    .build();
+                ClusterState state = createClusterState(version, metadata);
 
                 gateway.setLastAcceptedState(state);
                 gateway = maybeNew(gateway);
@@ -215,21 +218,25 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
             final int numberOfShards = randomIntBetween(1, 5);
             final long version = randomNonNegativeLong();
             final long term = randomValueOtherThan(Long.MAX_VALUE, ESTestCase::randomNonNegativeLong);
-            final IndexMetaData indexMetaData = createIndexMetaData(indexName, numberOfShards, version);
-            final ClusterState state = createClusterState(randomNonNegativeLong(),
-                MetaData.builder().coordinationMetaData(createCoordinationMetaData(term)).put(indexMetaData, false).build());
+            final IndexMetadata indexMetadata = createIndexMetadata(indexName, numberOfShards, version);
+            final ClusterState state = createClusterState(
+                randomNonNegativeLong(),
+                Metadata.builder().coordinationMetadata(createCoordinationMetadata(term)).put(indexMetadata, false).build()
+            );
             gateway.setLastAcceptedState(state);
 
             gateway = maybeNew(gateway);
             final long newTerm = randomLongBetween(term + 1, Long.MAX_VALUE);
             final int newNumberOfShards = randomValueOtherThan(numberOfShards, () -> randomIntBetween(1, 5));
-            final IndexMetaData newIndexMetaData = createIndexMetaData(indexName, newNumberOfShards, version);
-            final ClusterState newClusterState = createClusterState(randomNonNegativeLong(),
-                MetaData.builder().coordinationMetaData(createCoordinationMetaData(newTerm)).put(newIndexMetaData, false).build());
+            final IndexMetadata newIndexMetadata = createIndexMetadata(indexName, newNumberOfShards, version);
+            final ClusterState newClusterState = createClusterState(
+                randomNonNegativeLong(),
+                Metadata.builder().coordinationMetadata(createCoordinationMetadata(newTerm)).put(newIndexMetadata, false).build()
+            );
             gateway.setLastAcceptedState(newClusterState);
 
             gateway = maybeNew(gateway);
-            assertThat(gateway.getLastAcceptedState().metaData().index(indexName), equalTo(newIndexMetaData));
+            assertThat(gateway.getLastAcceptedState().metadata().index(indexName), equalTo(newIndexMetadata));
         } finally {
             IOUtils.close(gateway);
         }
@@ -244,12 +251,16 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
             long term = randomValueOtherThan(currentTerm, ESTestCase::randomNonNegativeLong);
 
             gateway.setCurrentTerm(currentTerm);
-            gateway.setLastAcceptedState(createClusterState(randomNonNegativeLong(),
-                MetaData.builder().coordinationMetaData(CoordinationMetaData.builder().term(term).build()).build()));
+            gateway.setLastAcceptedState(
+                createClusterState(
+                    randomNonNegativeLong(),
+                    Metadata.builder().coordinationMetadata(CoordinationMetadata.builder().term(term).build()).build()
+                )
+            );
 
             gateway = maybeNew(gateway);
             assertThat(gateway.getCurrentTerm(), equalTo(currentTerm));
-            assertThat(gateway.getLastAcceptedState().coordinationMetaData().term(), equalTo(term));
+            assertThat(gateway.getLastAcceptedState().coordinationMetadata().term(), equalTo(term));
         } finally {
             IOUtils.close(gateway);
         }
@@ -260,27 +271,37 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
         try {
             gateway = newGatewayPersistedState();
 
-            // generate random coordinationMetaData with different lastAcceptedConfiguration and lastCommittedConfiguration
-            CoordinationMetaData coordinationMetaData;
+            // generate random coordinationMetadata with different lastAcceptedConfiguration and lastCommittedConfiguration
+            CoordinationMetadata coordinationMetadata;
             do {
-                coordinationMetaData = createCoordinationMetaData(randomNonNegativeLong());
-            } while (coordinationMetaData.getLastAcceptedConfiguration().equals(coordinationMetaData.getLastCommittedConfiguration()));
+                coordinationMetadata = createCoordinationMetadata(randomNonNegativeLong());
+            } while (coordinationMetadata.getLastAcceptedConfiguration().equals(coordinationMetadata.getLastCommittedConfiguration()));
 
-            ClusterState state = createClusterState(randomNonNegativeLong(),
-                MetaData.builder().coordinationMetaData(coordinationMetaData)
-                    .clusterUUID(randomAlphaOfLength(10)).build());
+            ClusterState state = createClusterState(
+                randomNonNegativeLong(),
+                Metadata.builder().coordinationMetadata(coordinationMetadata).clusterUUID(randomAlphaOfLength(10)).build()
+            );
             gateway.setLastAcceptedState(state);
 
             gateway = maybeNew(gateway);
-            assertThat(gateway.getLastAcceptedState().getLastAcceptedConfiguration(),
-                not(equalTo(gateway.getLastAcceptedState().getLastCommittedConfiguration())));
+            assertThat(
+                gateway.getLastAcceptedState().getLastAcceptedConfiguration(),
+                not(equalTo(gateway.getLastAcceptedState().getLastCommittedConfiguration()))
+            );
             gateway.markLastAcceptedStateAsCommitted();
 
-            CoordinationMetaData expectedCoordinationMetaData = CoordinationMetaData.builder(coordinationMetaData)
-                .lastCommittedConfiguration(coordinationMetaData.getLastAcceptedConfiguration()).build();
-            ClusterState expectedClusterState =
-                ClusterState.builder(state).metaData(MetaData.builder().coordinationMetaData(expectedCoordinationMetaData)
-                    .clusterUUID(state.metaData().clusterUUID()).clusterUUIDCommitted(true).build()).build();
+            CoordinationMetadata expectedCoordinationMetadata = CoordinationMetadata.builder(coordinationMetadata)
+                .lastCommittedConfiguration(coordinationMetadata.getLastAcceptedConfiguration())
+                .build();
+            ClusterState expectedClusterState = ClusterState.builder(state)
+                .metadata(
+                    Metadata.builder()
+                        .coordinationMetadata(expectedCoordinationMetadata)
+                        .clusterUUID(state.metadata().clusterUUID())
+                        .clusterUUIDCommitted(true)
+                        .build()
+                )
+                .build();
 
             gateway = maybeNew(gateway);
             assertClusterStateEqual(expectedClusterState, gateway.getLastAcceptedState());
@@ -295,13 +316,25 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
 
     public void testStatePersistedOnLoad() throws IOException {
         // open LucenePersistedState to make sure that cluster state is written out to each data path
-        final PersistedClusterStateService persistedClusterStateService =
-            new PersistedClusterStateService(nodeEnvironment, xContentRegistry(), BigArrays.NON_RECYCLING_INSTANCE,
-                new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), () -> 0L);
-        final ClusterState state = createClusterState(randomNonNegativeLong(),
-            MetaData.builder().clusterUUID(randomAlphaOfLength(10)).build());
-        try (GatewayMetaState.LucenePersistedState ignored = new GatewayMetaState.LucenePersistedState(
-            persistedClusterStateService, 42L, state)) {
+        final PersistedClusterStateService persistedClusterStateService = new PersistedClusterStateService(
+            nodeEnvironment,
+            xContentRegistry(),
+            new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            () -> 0L
+        );
+        final ClusterState state = createClusterState(
+            randomNonNegativeLong(),
+            Metadata.builder().clusterUUID(randomAlphaOfLength(10)).build()
+        );
+
+        // noinspection EmptyTryBlock
+        try (
+            GatewayMetaState.LucenePersistedState ignored = new GatewayMetaState.LucenePersistedState(
+                persistedClusterStateService,
+                42L,
+                state
+            )
+        ) {
 
         }
 
@@ -311,140 +344,213 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
         for (Path path : nodeEnvironment.nodeDataPaths()) {
             Settings settings = Settings.builder()
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath())
-                .put(Environment.PATH_DATA_SETTING.getKey(), path.toString()).build();
+                .put(Environment.PATH_DATA_SETTING.getKey(), path.toString())
+                .build();
             try (NodeEnvironment nodeEnvironment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings))) {
-                final PersistedClusterStateService newPersistedClusterStateService =
-                    new PersistedClusterStateService(nodeEnvironment, xContentRegistry(), BigArrays.NON_RECYCLING_INSTANCE,
-                        new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), () -> 0L);
+                final PersistedClusterStateService newPersistedClusterStateService = new PersistedClusterStateService(
+                    nodeEnvironment,
+                    xContentRegistry(),
+                    new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+                    () -> 0L
+                );
                 final PersistedClusterStateService.OnDiskState onDiskState = newPersistedClusterStateService.loadBestOnDiskState();
                 assertFalse(onDiskState.empty());
                 assertThat(onDiskState.currentTerm, equalTo(42L));
-                assertClusterStateEqual(state,
+                assertClusterStateEqual(
+                    state,
                     ClusterState.builder(ClusterName.DEFAULT)
                         .version(onDiskState.lastAcceptedVersion)
-                        .metaData(onDiskState.metaData).build());
+                        .metadata(onDiskState.metadata)
+                        .build()
+                );
             }
         }
     }
 
+    @TestIssueLogging(value = "org.elasticsearch.gateway:TRACE", issueUrl = "https://github.com/elastic/elasticsearch/issues/87952")
     public void testDataOnlyNodePersistence() throws Exception {
-        DiscoveryNode localNode = new DiscoveryNode("node1", buildNewFakeTransportAddress(), Collections.emptyMap(),
-            Sets.newHashSet(DiscoveryNodeRole.DATA_ROLE), Version.CURRENT);
-        Settings settings = Settings.builder().put(ClusterName.CLUSTER_NAME_SETTING.getKey(), clusterName.value()).put(
-            Node.NODE_MASTER_SETTING.getKey(), false).put(Node.NODE_NAME_SETTING.getKey(), "test").build();
-        final MockGatewayMetaState gateway = new MockGatewayMetaState(localNode);
-        final TransportService transportService = mock(TransportService.class);
-        TestThreadPool threadPool = new TestThreadPool("testMarkAcceptedConfigAsCommittedOnDataOnlyNode");
-        when(transportService.getThreadPool()).thenReturn(threadPool);
-        ClusterService clusterService = mock(ClusterService.class);
-        when(clusterService.getClusterSettings()).thenReturn(
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
-        final PersistedClusterStateService persistedClusterStateService =
-            new PersistedClusterStateService(nodeEnvironment, xContentRegistry(), BigArrays.NON_RECYCLING_INSTANCE,
-                new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), () -> 0L);
-        gateway.start(settings, transportService, clusterService,
-            new MetaStateService(nodeEnvironment, xContentRegistry()), null, null, persistedClusterStateService);
-        final CoordinationState.PersistedState persistedState = gateway.getPersistedState();
-        assertThat(persistedState, instanceOf(GatewayMetaState.AsyncLucenePersistedState.class));
+        final List<Closeable> cleanup = new ArrayList<>(2);
 
-        //generate random coordinationMetaData with different lastAcceptedConfiguration and lastCommittedConfiguration
-        CoordinationMetaData coordinationMetaData;
-        do {
-            coordinationMetaData = createCoordinationMetaData(randomNonNegativeLong());
-        } while (coordinationMetaData.getLastAcceptedConfiguration().equals(coordinationMetaData.getLastCommittedConfiguration()));
+        try {
+            DiscoveryNode localNode = DiscoveryNodeUtils.builder("node1").roles(Sets.newHashSet(DiscoveryNodeRole.DATA_ROLE)).build();
+            Settings settings = Settings.builder()
+                .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), clusterName.value())
+                .put(nonMasterNode())
+                .put(Node.NODE_NAME_SETTING.getKey(), "test")
+                .build();
+            final MockGatewayMetaState gateway = new MockGatewayMetaState(localNode);
+            cleanup.add(gateway);
+            final TransportService transportService = mock(TransportService.class);
+            TestThreadPool threadPool = new TestThreadPool("testMarkAcceptedConfigAsCommittedOnDataOnlyNode");
+            cleanup.add(() -> ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS));
+            when(transportService.getThreadPool()).thenReturn(threadPool);
+            ClusterService clusterService = mock(ClusterService.class);
+            when(clusterService.getClusterSettings()).thenReturn(
+                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+            );
+            final PersistedClusterStateService persistedClusterStateService = new PersistedClusterStateService(
+                nodeEnvironment,
+                xContentRegistry(),
+                new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+                () -> 0L
+            );
+            gateway.start(
+                settings,
+                transportService,
+                clusterService,
+                new MetaStateService(nodeEnvironment, xContentRegistry()),
+                null,
+                null,
+                persistedClusterStateService,
+                List.of(),
+                CompatibilityVersionsUtils.staticCurrent()
+            );
+            final CoordinationState.PersistedState persistedState = gateway.getPersistedState();
+            assertThat(persistedState, instanceOf(GatewayMetaState.AsyncPersistedState.class));
 
-        ClusterState state = createClusterState(randomNonNegativeLong(),
-            MetaData.builder().coordinationMetaData(coordinationMetaData)
-                .clusterUUID(randomAlphaOfLength(10)).build());
-        persistedState.setLastAcceptedState(state);
-        assertBusy(() -> assertTrue(gateway.allPendingAsyncStatesWritten()));
+            // generate random coordinationMetadata with different lastAcceptedConfiguration and lastCommittedConfiguration
+            CoordinationMetadata coordinationMetadata;
+            do {
+                coordinationMetadata = createCoordinationMetadata(randomNonNegativeLong());
+            } while (coordinationMetadata.getLastAcceptedConfiguration().equals(coordinationMetadata.getLastCommittedConfiguration()));
 
-        assertThat(persistedState.getLastAcceptedState().getLastAcceptedConfiguration(),
-            not(equalTo(persistedState.getLastAcceptedState().getLastCommittedConfiguration())));
-        CoordinationMetaData persistedCoordinationMetaData =
-            persistedClusterStateService.loadBestOnDiskState().metaData.coordinationMetaData();
-        assertThat(persistedCoordinationMetaData.getLastAcceptedConfiguration(),
-            equalTo(GatewayMetaState.AsyncLucenePersistedState.staleStateConfiguration));
-        assertThat(persistedCoordinationMetaData.getLastCommittedConfiguration(),
-            equalTo(GatewayMetaState.AsyncLucenePersistedState.staleStateConfiguration));
+            ClusterState state = createClusterState(
+                randomNonNegativeLong(),
+                Metadata.builder().coordinationMetadata(coordinationMetadata).clusterUUID(randomAlphaOfLength(10)).build()
+            );
+            persistedState.setCurrentTerm(state.term());
+            persistedState.setLastAcceptedState(state);
+            assertBusy(() -> assertTrue(gateway.allPendingAsyncStatesWritten()), 30, TimeUnit.SECONDS);
 
-        persistedState.markLastAcceptedStateAsCommitted();
-        assertBusy(() -> assertTrue(gateway.allPendingAsyncStatesWritten()));
+            assertThat(
+                persistedState.getLastAcceptedState().getLastAcceptedConfiguration(),
+                not(equalTo(persistedState.getLastAcceptedState().getLastCommittedConfiguration()))
+            );
+            CoordinationMetadata persistedCoordinationMetadata = persistedClusterStateService.loadBestOnDiskState(false).metadata
+                .coordinationMetadata();
+            assertThat(
+                persistedCoordinationMetadata.getLastAcceptedConfiguration(),
+                equalTo(GatewayMetaState.AsyncPersistedState.staleStateConfiguration)
+            );
+            assertThat(
+                persistedCoordinationMetadata.getLastCommittedConfiguration(),
+                equalTo(GatewayMetaState.AsyncPersistedState.staleStateConfiguration)
+            );
 
-        CoordinationMetaData expectedCoordinationMetaData = CoordinationMetaData.builder(coordinationMetaData)
-            .lastCommittedConfiguration(coordinationMetaData.getLastAcceptedConfiguration()).build();
-        ClusterState expectedClusterState =
-            ClusterState.builder(state).metaData(MetaData.builder().coordinationMetaData(expectedCoordinationMetaData)
-                .clusterUUID(state.metaData().clusterUUID()).clusterUUIDCommitted(true).build()).build();
+            persistedState.markLastAcceptedStateAsCommitted();
+            assertBusy(() -> assertTrue(gateway.allPendingAsyncStatesWritten()), 30, TimeUnit.SECONDS);
 
-        assertClusterStateEqual(expectedClusterState, persistedState.getLastAcceptedState());
-        persistedCoordinationMetaData = persistedClusterStateService.loadBestOnDiskState().metaData.coordinationMetaData();
-        assertThat(persistedCoordinationMetaData.getLastAcceptedConfiguration(),
-            equalTo(GatewayMetaState.AsyncLucenePersistedState.staleStateConfiguration));
-        assertThat(persistedCoordinationMetaData.getLastCommittedConfiguration(),
-            equalTo(GatewayMetaState.AsyncLucenePersistedState.staleStateConfiguration));
-        assertTrue(persistedClusterStateService.loadBestOnDiskState().metaData.clusterUUIDCommitted());
+            CoordinationMetadata expectedCoordinationMetadata = CoordinationMetadata.builder(coordinationMetadata)
+                .lastCommittedConfiguration(coordinationMetadata.getLastAcceptedConfiguration())
+                .build();
+            ClusterState expectedClusterState = ClusterState.builder(state)
+                .metadata(
+                    Metadata.builder()
+                        .coordinationMetadata(expectedCoordinationMetadata)
+                        .clusterUUID(state.metadata().clusterUUID())
+                        .clusterUUIDCommitted(true)
+                        .build()
+                )
+                .build();
 
-        // generate a series of updates and check if batching works
-        final String indexName = randomAlphaOfLength(10);
-        long currentTerm = state.term();
-        for (int i = 0; i < 1000; i++) {
-            if (rarely()) {
-                // bump term
-                currentTerm = currentTerm + (rarely() ? randomIntBetween(1, 5) : 0L);
-                persistedState.setCurrentTerm(currentTerm);
-            } else {
-                // update cluster state
-                final int numberOfShards = randomIntBetween(1, 5);
-                final long term = Math.min(state.term() + (rarely() ? randomIntBetween(1, 5) : 0L), currentTerm);
-                final IndexMetaData indexMetaData = createIndexMetaData(indexName, numberOfShards, i);
-                state = createClusterState(state.version() + 1,
-                    MetaData.builder().coordinationMetaData(createCoordinationMetaData(term)).put(indexMetaData, false).build());
-                persistedState.setLastAcceptedState(state);
+            assertClusterStateEqual(expectedClusterState, persistedState.getLastAcceptedState());
+            persistedCoordinationMetadata = persistedClusterStateService.loadBestOnDiskState(false).metadata.coordinationMetadata();
+            assertThat(
+                persistedCoordinationMetadata.getLastAcceptedConfiguration(),
+                equalTo(GatewayMetaState.AsyncPersistedState.staleStateConfiguration)
+            );
+            assertThat(
+                persistedCoordinationMetadata.getLastCommittedConfiguration(),
+                equalTo(GatewayMetaState.AsyncPersistedState.staleStateConfiguration)
+            );
+            assertTrue(persistedClusterStateService.loadBestOnDiskState(false).metadata.clusterUUIDCommitted());
+
+            // generate a series of updates and check if batching works
+            final String indexName = randomAlphaOfLength(10);
+            long currentTerm = state.term();
+            boolean wroteState = false;
+            final int iterations = randomIntBetween(1, 1000);
+            for (int i = 0; i < iterations; i++) {
+                final boolean mustWriteState = wroteState == false && i == iterations - 1;
+                if (rarely() && mustWriteState == false) {
+                    // bump term
+                    currentTerm = currentTerm + (rarely() ? randomIntBetween(1, 5) : 0L);
+                    persistedState.setCurrentTerm(currentTerm);
+                } else {
+                    // update cluster state
+                    final int numberOfShards = randomIntBetween(1, 5);
+                    final long term = Math.min(state.term() + (rarely() ? randomIntBetween(1, 5) : 0L), currentTerm);
+                    final IndexMetadata indexMetadata = createIndexMetadata(indexName, numberOfShards, i);
+                    state = createClusterState(
+                        state.version() + 1,
+                        Metadata.builder().coordinationMetadata(createCoordinationMetadata(term)).put(indexMetadata, false).build()
+                    );
+                    persistedState.setLastAcceptedState(state);
+                    wroteState = true;
+                }
             }
+            assertTrue(wroteState); // must write it at least once
+            assertEquals(currentTerm, persistedState.getCurrentTerm());
+            assertClusterStateEqual(state, persistedState.getLastAcceptedState());
+            assertBusy(() -> assertTrue(gateway.allPendingAsyncStatesWritten()), 30, TimeUnit.SECONDS);
+
+            gateway.close();
+            assertTrue(cleanup.remove(gateway));
+
+            try (CoordinationState.PersistedState reloadedPersistedState = newGatewayPersistedState()) {
+                assertEquals(currentTerm, reloadedPersistedState.getCurrentTerm());
+                assertClusterStateEqual(
+                    GatewayMetaState.AsyncPersistedState.resetVotingConfiguration(state),
+                    reloadedPersistedState.getLastAcceptedState()
+                );
+                assertNotNull(reloadedPersistedState.getLastAcceptedState().metadata().index(indexName));
+            }
+        } finally {
+            IOUtils.close(cleanup);
         }
-        assertEquals(currentTerm, persistedState.getCurrentTerm());
-        assertClusterStateEqual(state, persistedState.getLastAcceptedState());
-        assertBusy(() -> assertTrue(gateway.allPendingAsyncStatesWritten()));
-
-        gateway.close();
-
-        try (CoordinationState.PersistedState reloadedPersistedState = newGatewayPersistedState()) {
-            assertEquals(currentTerm, reloadedPersistedState.getCurrentTerm());
-            assertClusterStateEqual(GatewayMetaState.AsyncLucenePersistedState.resetVotingConfiguration(state),
-                reloadedPersistedState.getLastAcceptedState());
-            assertNotNull(reloadedPersistedState.getLastAcceptedState().metaData().index(indexName));
-        }
-
-        ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
     }
 
     public void testStatePersistenceWithIOIssues() throws IOException {
         final AtomicReference<Double> ioExceptionRate = new AtomicReference<>(0.01d);
         final List<MockDirectoryWrapper> list = new ArrayList<>();
-        final PersistedClusterStateService persistedClusterStateService =
-            new PersistedClusterStateService(nodeEnvironment, xContentRegistry(), BigArrays.NON_RECYCLING_INSTANCE,
-                new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), () -> 0L) {
-                @Override
-                Directory createDirectory(Path path) {
-                    final MockDirectoryWrapper wrapper = newMockFSDirectory(path);
-                    wrapper.setAllowRandomFileNotFoundException(randomBoolean());
-                    wrapper.setRandomIOExceptionRate(ioExceptionRate.get());
-                    wrapper.setRandomIOExceptionRateOnOpen(ioExceptionRate.get());
-                    list.add(wrapper);
-                    return wrapper;
-                }
-            };
-        ClusterState state = createClusterState(randomNonNegativeLong(),
-            MetaData.builder().clusterUUID(randomAlphaOfLength(10)).build());
+        final PersistedClusterStateService persistedClusterStateService = new PersistedClusterStateService(
+            nodeEnvironment,
+            xContentRegistry(),
+            new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            () -> 0L
+        ) {
+            @Override
+            protected Directory createDirectory(Path path) {
+                final MockDirectoryWrapper wrapper = newMockFSDirectory(path);
+                wrapper.setAllowRandomFileNotFoundException(randomBoolean());
+                wrapper.setRandomIOExceptionRate(ioExceptionRate.get());
+                wrapper.setRandomIOExceptionRateOnOpen(ioExceptionRate.get());
+                list.add(wrapper);
+                return wrapper;
+            }
+
+            @Override
+            CheckedBiConsumer<Path, DirectoryReader, IOException> getAssertOnCommit() {
+                // IO issues might prevent reloading the state to verify that it round-trips
+                return null;
+            }
+        };
+        ClusterState state = createClusterState(randomNonNegativeLong(), Metadata.builder().clusterUUID(randomAlphaOfLength(10)).build());
         long currentTerm = 42L;
-        try (GatewayMetaState.LucenePersistedState persistedState = new GatewayMetaState.LucenePersistedState(
-            persistedClusterStateService, currentTerm, state)) {
+        try (
+            GatewayMetaState.LucenePersistedState persistedState = new GatewayMetaState.LucenePersistedState(
+                persistedClusterStateService,
+                currentTerm,
+                state
+            )
+        ) {
 
             try {
                 if (randomBoolean()) {
-                    final ClusterState newState = createClusterState(randomNonNegativeLong(),
-                        MetaData.builder().clusterUUID(randomAlphaOfLength(10)).build());
+                    final ClusterState newState = createClusterState(
+                        randomNonNegativeLong(),
+                        Metadata.builder().clusterUUID(randomAlphaOfLength(10)).build()
+                    );
                     persistedState.setLastAcceptedState(newState);
                     state = newState;
                 } else {
@@ -462,17 +568,17 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
                 wrapper.setRandomIOExceptionRateOnOpen(ioExceptionRate.get());
             }
 
-            for (int i = 0; i < randomIntBetween(1, 5); i++) {
+            for (int i = between(1, 5); 0 <= i; i--) {
                 if (randomBoolean()) {
                     final long version = randomNonNegativeLong();
                     final String indexName = randomAlphaOfLength(10);
-                    final IndexMetaData indexMetaData = createIndexMetaData(indexName, randomIntBetween(1, 5), randomNonNegativeLong());
-                    final MetaData metaData = MetaData.builder().
-                        persistentSettings(Settings.builder().put(randomAlphaOfLength(10), randomAlphaOfLength(10)).build()).
-                        coordinationMetaData(createCoordinationMetaData(1L)).
-                        put(indexMetaData, false).
-                        build();
-                    state = createClusterState(version, metaData);
+                    final IndexMetadata indexMetadata = createIndexMetadata(indexName, randomIntBetween(1, 5), randomNonNegativeLong());
+                    final Metadata metadata = Metadata.builder()
+                        .persistentSettings(Settings.builder().put(randomAlphaOfLength(10), randomAlphaOfLength(10)).build())
+                        .coordinationMetadata(createCoordinationMetadata(1L))
+                        .put(indexMetadata, false)
+                        .build();
+                    state = createClusterState(version, metadata);
                     persistedState.setLastAcceptedState(state);
                 } else {
                     currentTerm += 1;
@@ -497,20 +603,149 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
         for (Path path : nodeEnvironment.nodeDataPaths()) {
             Settings settings = Settings.builder()
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath())
-                .put(Environment.PATH_DATA_SETTING.getKey(), path.toString()).build();
+                .put(Environment.PATH_DATA_SETTING.getKey(), path.toString())
+                .build();
             try (NodeEnvironment nodeEnvironment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings))) {
-                final PersistedClusterStateService newPersistedClusterStateService =
-                    new PersistedClusterStateService(nodeEnvironment, xContentRegistry(), BigArrays.NON_RECYCLING_INSTANCE,
-                        new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), () -> 0L);
+                final PersistedClusterStateService newPersistedClusterStateService = new PersistedClusterStateService(
+                    nodeEnvironment,
+                    xContentRegistry(),
+                    new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+                    () -> 0L
+                ) {
+                    @Override
+                    CheckedBiConsumer<Path, DirectoryReader, IOException> getAssertOnCommit() {
+                        // IO issues might prevent reloading the state to verify that it round-trips
+                        return null;
+                    }
+                };
                 final PersistedClusterStateService.OnDiskState onDiskState = newPersistedClusterStateService.loadBestOnDiskState();
                 assertFalse(onDiskState.empty());
                 assertThat(onDiskState.currentTerm, equalTo(currentTerm));
-                assertClusterStateEqual(state,
+                assertClusterStateEqual(
+                    state,
                     ClusterState.builder(ClusterName.DEFAULT)
                         .version(onDiskState.lastAcceptedVersion)
-                        .metaData(onDiskState.metaData).build());
+                        .metadata(onDiskState.metadata)
+                        .build()
+                );
             }
         }
     }
 
+    public void testStatePersistenceWithFatalError() throws IOException {
+        long currentTerm = 42L;
+        ClusterState state = createClusterState(randomNonNegativeLong(), Metadata.builder().clusterUUID(randomAlphaOfLength(10)).build());
+
+        final AtomicBoolean throwError = new AtomicBoolean();
+        final AtomicBoolean openedFile = new AtomicBoolean();
+        PathUtilsForTesting.installMock(new FilterFileSystemProvider("throwerror://", PathUtils.getDefaultFileSystem()) {
+            @Override
+            public OutputStream newOutputStream(Path path, OpenOption... options) throws IOException {
+                if (throwError.get() && path.getFileName().toString().startsWith("pending_segments_")) {
+                    openedFile.set(true);
+                    if (randomBoolean()) {
+                        throw randomBoolean() ? new TestTragicError() : new TestComedicError();
+                    }
+                }
+                return super.newOutputStream(path, options);
+            }
+        }.getFileSystem(null));
+
+        final Path[] dataPaths;
+        try (NodeEnvironment nodeEnvironment = newNodeEnvironment()) { // a new node environment is needed to pick up the fake filesystem
+            dataPaths = nodeEnvironment.nodeDataPaths();
+            try (
+                GatewayMetaState.LucenePersistedState persistedState = new GatewayMetaState.LucenePersistedState(
+                    new PersistedClusterStateService(
+                        nodeEnvironment,
+                        xContentRegistry(),
+                        new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+                        () -> 0L
+                    ),
+                    currentTerm,
+                    state
+                )
+            ) {
+                throwError.set(true);
+                for (int i = between(1, 5); 0 <= i; i--) {
+                    if (randomBoolean()) {
+                        final ClusterState newState = createClusterState(
+                            randomNonNegativeLong(),
+                            Metadata.builder()
+                                .clusterUUID(randomAlphaOfLength(10))
+                                .coordinationMetadata(CoordinationMetadata.builder().term(currentTerm).build())
+                                .build()
+                        );
+                        try {
+                            persistedState.setLastAcceptedState(newState);
+                            state = newState;
+                        } catch (TestTragicError | TestComedicError e) {
+                            logger.info("--> test error", e);
+                            // ok
+                        }
+                    } else {
+                        final long newTerm = currentTerm + 1;
+                        try {
+                            persistedState.setCurrentTerm(newTerm);
+                            currentTerm = newTerm;
+                        } catch (TestTragicError | TestComedicError e) {
+                            logger.info("--> test error", e);
+                            // ok
+                        }
+                    }
+                }
+
+                assertEquals(state, persistedState.getLastAcceptedState());
+                assertEquals(currentTerm, persistedState.getCurrentTerm());
+            }
+        } finally {
+            PathUtilsForTesting.teardown();
+        }
+        assertTrue(openedFile.get()); // make sure we had opportunity to throw an error
+
+        nodeEnvironment.close();
+
+        for (Path path : dataPaths) {
+            Settings settings = Settings.builder()
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath())
+                .put(Environment.PATH_DATA_SETTING.getKey(), path.toString())
+                .build();
+            try (NodeEnvironment nodeEnvironment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings))) {
+                final PersistedClusterStateService newPersistedClusterStateService = new PersistedClusterStateService(
+                    nodeEnvironment,
+                    xContentRegistry(),
+                    new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+                    () -> 0L
+                );
+                final PersistedClusterStateService.OnDiskState onDiskState = newPersistedClusterStateService.loadBestOnDiskState();
+                assertFalse("loaded state from " + path, onDiskState.empty());
+                assertThat(onDiskState.currentTerm, equalTo(currentTerm));
+                assertClusterStateEqual(
+                    state,
+                    ClusterState.builder(ClusterName.DEFAULT)
+                        .version(onDiskState.lastAcceptedVersion)
+                        .metadata(onDiskState.metadata)
+                        .build()
+                );
+            }
+        }
+    }
+
+    /**
+     * An {@link Error} which is tragic.
+     */
+    private static final class TestTragicError extends VirtualMachineError {
+        TestTragicError() {
+            super("test tragic error");
+        }
+    }
+
+    /**
+     * An {@link Error} which is not tragic.
+     */
+    private static final class TestComedicError extends Error {
+        TestComedicError() {
+            super("test comedic error");
+        }
+    }
 }

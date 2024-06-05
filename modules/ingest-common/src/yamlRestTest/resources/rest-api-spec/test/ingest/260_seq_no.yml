@@ -1,0 +1,62 @@
+---
+teardown:
+  - do:
+      ingest.delete_pipeline:
+        id: "my_pipeline"
+        ignore: 404
+
+---
+"Test set _if_seq_no & _if_primary_term":
+  - do:
+      cluster.health:
+          wait_for_status: green
+
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "set" : {
+                  "field" : "_if_seq_no",
+                  "value": 0
+                }
+              },
+              {
+                "set" : {
+                  "field" : "_if_primary_term",
+                  "value": 1
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      catch: conflict
+      index:
+        index: test
+        id: "1"
+        pipeline: "my_pipeline"
+        body: {}
+  - match: { error.root_cause.0.type: "version_conflict_engine_exception" }
+  - match: { error.root_cause.0.reason: "[1]: version conflict, required seqNo [0], primary term [1]. but no document was found" }
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        body: {}
+  - match: { _seq_no: 0 }
+  - match: { _primary_term: 1 }
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        pipeline: "my_pipeline"
+        body: {}
+  - match: { _seq_no: 1 }
+  - match: { _primary_term: 1 }

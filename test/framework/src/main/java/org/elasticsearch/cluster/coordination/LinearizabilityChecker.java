@@ -1,30 +1,25 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.cluster.coordination;
 
-import com.carrotsearch.hppc.LongObjectHashMap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.threadpool.Scheduler;
+import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.IOException;
+import java.io.StringWriter;
+import java.io.Writer;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -38,9 +33,11 @@ import java.util.Optional;
 import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
-import java.util.function.Consumer;
 import java.util.function.Function;
 
 /**
@@ -175,6 +172,7 @@ public class LinearizabilityChecker {
         public List<Event> copyEvents() {
             return new ArrayList<>(events);
         }
+
         /**
          * Completes the history with response events for invocations that are missing corresponding responses
          *
@@ -211,24 +209,16 @@ public class LinearizabilityChecker {
 
         @Override
         public String toString() {
-            return "History{" +
-                "events=" + events +
-                ", nextId=" + nextId +
-                '}';
+            return "History{" + "events=" + events + ", nextId=" + nextId + '}';
         }
 
     }
 
     /**
-     * Checks whether the provided history is linearizable with respect to the given sequential specification
-     *
-     * @param spec the sequential specification of the datatype
-     * @param history the history of events to check for linearizability
-     * @param missingResponseGenerator used to complete the history with missing responses
-     * @return true iff the history is linearizable w.r.t. the given spec
+     * Convenience method for {@link #isLinearizable(SequentialSpec, History, Function)} that requires the history to be complete
      */
-    public boolean isLinearizable(SequentialSpec spec, History history, Function<Object, Object> missingResponseGenerator) {
-        return isLinearizable(spec, history, missingResponseGenerator, () -> false);
+    public static boolean isLinearizable(SequentialSpec spec, History history) throws LinearizabilityCheckAborted {
+        return isLinearizable(spec, history, o -> { throw new AssertionError("history is not complete"); });
     }
 
     /**
@@ -237,18 +227,38 @@ public class LinearizabilityChecker {
      * @param spec the sequential specification of the datatype
      * @param history the history of events to check for linearizability
      * @param missingResponseGenerator used to complete the history with missing responses
-     * @param terminateEarly a condition upon which to terminate early
      * @return true iff the history is linearizable w.r.t. the given spec
      */
-    public boolean isLinearizable(SequentialSpec spec, History history, Function<Object, Object> missingResponseGenerator,
-                                  BooleanSupplier terminateEarly) {
-        history = history.clone(); // clone history before completing it
-        history.complete(missingResponseGenerator); // complete history
-        final Collection<List<Event>> partitions = spec.partition(history.copyEvents());
-        return partitions.stream().allMatch(h -> isLinearizable(spec, h, terminateEarly));
+    public static boolean isLinearizable(SequentialSpec spec, History history, Function<Object, Object> missingResponseGenerator)
+        throws LinearizabilityCheckAborted {
+        final ScheduledThreadPoolExecutor scheduler = Scheduler.initScheduler(Settings.EMPTY, "test-scheduler");
+        final AtomicBoolean abort = new AtomicBoolean();
+        try {
+            history = history.clone(); // clone history before completing it
+            history.complete(missingResponseGenerator); // complete history
+            final Collection<List<Event>> partitions = spec.partition(history.copyEvents());
+            // Large histories can be problematic and have the linearizability checker run OOM
+            // Bound the time how long the checker can run on such histories (Values empirically determined)
+            if (history.size() > 300 || partitions.stream().anyMatch(p -> p.size() > 25)) {
+                logger.warn("Detected large history or partition for linearizable check. Limiting execution time");
+                scheduler.schedule(() -> abort.set(true), 10, TimeUnit.SECONDS);
+            }
+            var allLinearizable = partitions.stream().allMatch(h -> isLinearizable(spec, h, abort::get));
+            if (abort.get()) {
+                throw new LinearizabilityCheckAborted();
+            }
+            return allLinearizable;
+        } finally {
+            ThreadPool.terminate(scheduler, 1, TimeUnit.SECONDS);
+        }
     }
 
-    private boolean isLinearizable(SequentialSpec spec, List<Event> history, BooleanSupplier terminateEarly) {
+    /**
+     * This exception is thrown if the check could not be completed due to timeout or OOM (that could be caused by long event history)
+     */
+    public static final class LinearizabilityCheckAborted extends Exception {}
+
+    private static boolean isLinearizable(SequentialSpec spec, List<Event> history, BooleanSupplier terminateEarly) {
         logger.debug("Checking history of size: {}: {}", history.size(), history);
         Object state = spec.initialState(); // the current state of the datatype
         final FixedBitSet linearized = new FixedBitSet(history.size() / 2); // the linearized prefix of the history
@@ -297,36 +307,41 @@ public class LinearizabilityChecker {
     }
 
     /**
-     * Convenience method for {@link #isLinearizable(SequentialSpec, History, Function)} that requires the history to be complete
-     */
-    public boolean isLinearizable(SequentialSpec spec, History history) {
-        return isLinearizable(spec, history, o -> {
-            throw new IllegalArgumentException("history is not complete");
-        });
-    }
-
-    /**
      * Return a visual representation of the history
      */
     public static String visualize(SequentialSpec spec, History history, Function<Object, Object> missingResponseGenerator) {
+        final var writer = new StringWriter();
+        writeVisualisation(spec, history, missingResponseGenerator, writer);
+        return writer.toString();
+    }
+
+    /**
+     * Write a visual representation of the history to the given writer
+     */
+    public static void writeVisualisation(
+        SequentialSpec spec,
+        History history,
+        Function<Object, Object> missingResponseGenerator,
+        Writer writer
+    ) {
         history = history.clone();
         history.complete(missingResponseGenerator);
         final Collection<List<Event>> partitions = spec.partition(history.copyEvents());
-        StringBuilder builder = new StringBuilder();
-        partitions.forEach(new Consumer<List<Event>>() {
+        try {
             int index = 0;
-            @Override
-            public void accept(List<Event> events) {
-                builder.append("Partition " ).append(index++).append("\n");
-                builder.append(visualizePartition(events));
+            for (List<Event> partition : partitions) {
+                writer.write("Partition ");
+                writer.write(Integer.toString(index++));
+                writer.append('\n');
+                visualizePartition(partition, writer);
             }
-        });
-
-        return builder.toString();
+        } catch (IOException e) {
+            logger.error("unexpected writeVisualisation failure", e);
+            assert false : e; // not really doing any IO
+        }
     }
 
-    private static String visualizePartition(List<Event> events) {
-        StringBuilder builder = new StringBuilder();
+    private static void visualizePartition(List<Event> events, Writer writer) throws IOException {
         Entry entry = createLinkedEntries(events).next;
         Map<Tuple<EventType, Integer>, Integer> eventToPosition = new HashMap<>();
         for (Event event : events) {
@@ -334,23 +349,30 @@ public class LinearizabilityChecker {
         }
         while (entry != null) {
             if (entry.match != null) {
-                builder.append(visualizeEntry(entry, eventToPosition)).append("\n");
+                visualizeEntry(entry, eventToPosition, writer);
+                writer.append('\n');
             }
             entry = entry.next;
         }
-        return builder.toString();
     }
 
-    private static String visualizeEntry(Entry entry, Map<Tuple<EventType, Integer>, Integer> eventToPosition) {
+    private static void visualizeEntry(Entry entry, Map<Tuple<EventType, Integer>, Integer> eventToPosition, Writer writer)
+        throws IOException {
+
         String input = String.valueOf(entry.event.value);
         String output = String.valueOf(entry.match.event.value);
         int id = entry.event.id;
         int beginIndex = eventToPosition.get(Tuple.tuple(EventType.INVOCATION, id));
         int endIndex = eventToPosition.get(Tuple.tuple(EventType.RESPONSE, id));
         input = input.substring(0, Math.min(beginIndex + 25, input.length()));
-        return Strings.padStart(input, beginIndex + 25, ' ') +
-            "   "  + Strings.padStart("", endIndex-beginIndex, 'X') + "   "
-            + output + "  (" + entry.event.id + ")";
+        writer.write(Strings.padStart(input, beginIndex + 25, ' '));
+        writer.write("   ");
+        writer.write(Strings.padStart("", endIndex - beginIndex, 'X'));
+        writer.write("   ");
+        writer.write(output);
+        writer.write("  (");
+        writer.write(Integer.toString(entry.event.id));
+        writer.write(")");
     }
 
     /**
@@ -405,26 +427,7 @@ public class LinearizabilityChecker {
         RESPONSE
     }
 
-    public static class Event {
-        public final EventType type;
-        public final Object value;
-        public final int id;
-
-        public Event(EventType type, Object value, int id) {
-            this.type = type;
-            this.value = value;
-            this.id = id;
-        }
-
-        @Override
-        public String toString() {
-            return "Event{" +
-                "type=" + type +
-                ", value=" + value +
-                ", id=" + id +
-                '}';
-        }
-    }
+    public record Event(EventType type, Object value, int id) {}
 
     static class Entry {
         final Event event;
@@ -460,7 +463,6 @@ public class LinearizabilityChecker {
         }
     }
 
-
     /**
      * A cache optimized for small bit-counts (less than 64) and small number of unique permutations of state objects.
      *
@@ -484,7 +486,7 @@ public class LinearizabilityChecker {
      */
     private static class Cache {
         private final Map<Object, Set<FixedBitSet>> largeMap = new HashMap<>();
-        private final LongObjectHashMap<Set<Object>> smallMap = new LongObjectHashMap<>();
+        private final Map<Long, Set<Object>> smallMap = new HashMap<>();
         private final Map<Object, Object> internalizeStateMap = new HashMap<>();
         private final Map<Set<Object>, Set<Object>> statePermutations = new HashMap<>();
 
@@ -498,22 +500,18 @@ public class LinearizabilityChecker {
 
         private boolean addInternal(Object state, FixedBitSet bitSet) {
             long[] bits = bitSet.getBits();
-            if (bits.length == 1)
-                return addSmall(state, bits[0]);
-            else
-                return addLarge(state, bitSet);
+            if (bits.length == 1) return addSmall(state, bits[0]);
+            else return addLarge(state, bitSet);
         }
 
         private boolean addSmall(Object state, long bits) {
-            int index = smallMap.indexOf(bits);
-            Set<Object> states;
-            if (index < 0) {
-                states = Collections.singleton(state);
+            Set<Object> states = smallMap.get(bits);
+            if (states == null) {
+                states = Set.of(state);
             } else {
-                Set<Object> oldStates = smallMap.indexGet(index);
-                if (oldStates.contains(state))
-                    return false;
-                states = new HashSet<>(oldStates.size() + 1);
+                Set<Object> oldStates = states;
+                if (oldStates.contains(state)) return false;
+                states = Sets.newHashSetWithExpectedSize(oldStates.size() + 1);
                 states.addAll(oldStates);
                 states.add(state);
             }
@@ -522,11 +520,7 @@ public class LinearizabilityChecker {
             // We thus avoid the overhead of the set data structure.
             states = statePermutations.computeIfAbsent(states, k -> k);
 
-            if (index < 0) {
-                smallMap.indexInsert(index, bits, states);
-            } else {
-                smallMap.indexReplace(index, states);
-            }
+            smallMap.put(bits, states);
 
             return true;
         }

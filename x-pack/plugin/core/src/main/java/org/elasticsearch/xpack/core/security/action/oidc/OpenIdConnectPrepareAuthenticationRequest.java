@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.action.oidc;
 
@@ -74,8 +75,7 @@ public class OpenIdConnectPrepareAuthenticationRequest extends ActionRequest {
         this.loginHint = loginHint;
     }
 
-    public OpenIdConnectPrepareAuthenticationRequest() {
-    }
+    public OpenIdConnectPrepareAuthenticationRequest() {}
 
     public OpenIdConnectPrepareAuthenticationRequest(StreamInput in) throws IOException {
         super(in);
@@ -109,8 +109,17 @@ public class OpenIdConnectPrepareAuthenticationRequest extends ActionRequest {
     }
 
     public String toString() {
-        return "{realmName=" + realmName + ", issuer=" + issuer + ", login_hint=" +
-            loginHint + ", state=" + state + ", nonce=" + nonce + "}";
+        return "{realmName="
+            + realmName
+            + ", issuer="
+            + issuer
+            + ", login_hint="
+            + loginHint
+            + ", state="
+            + state
+            + ", nonce="
+            + nonce
+            + "}";
     }
 
 }

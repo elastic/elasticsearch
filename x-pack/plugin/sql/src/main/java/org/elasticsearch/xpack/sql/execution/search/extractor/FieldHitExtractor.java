@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.execution.search.extractor;
 
@@ -9,6 +10,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xpack.ql.execution.search.extractor.AbstractFieldHitExtractor;
 import org.elasticsearch.xpack.ql.execution.search.extractor.HitExtractor;
 import org.elasticsearch.xpack.ql.type.DataType;
@@ -24,6 +26,9 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
+import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.ql.type.DataTypes.VERSION;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypeConverter.convert;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.GEO_POINT;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.GEO_SHAPE;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.SHAPE;
@@ -40,17 +45,16 @@ public class FieldHitExtractor extends AbstractFieldHitExtractor {
      */
     static final String NAME = "f";
 
-    public FieldHitExtractor(String name, DataType dataType, ZoneId zoneId, boolean useDocValue, boolean arrayLeniency) {
-        super(name, dataType, zoneId, useDocValue, arrayLeniency);
+    public FieldHitExtractor(String name, DataType dataType, ZoneId zoneId, MultiValueSupport multiValueSupport) {
+        super(name, dataType, zoneId, multiValueSupport);
     }
 
-    public FieldHitExtractor(String name, DataType dataType, ZoneId zoneId, boolean useDocValue) {
-        super(name, dataType, zoneId, useDocValue);
+    public FieldHitExtractor(String name, DataType dataType, ZoneId zoneId) {
+        super(name, dataType, zoneId);
     }
 
-    public FieldHitExtractor(String name, String fullFieldName, DataType dataType, ZoneId zoneId, boolean useDocValue, String hitName,
-            boolean arrayLeniency) {
-        super(name, fullFieldName, dataType, zoneId, useDocValue, hitName, arrayLeniency);
+    public FieldHitExtractor(String name, DataType dataType, ZoneId zoneId, String hitName, MultiValueSupport multiValueSupport) {
+        super(name, dataType, zoneId, hitName, multiValueSupport);
     }
 
     public FieldHitExtractor(StreamInput in) throws IOException {
@@ -89,19 +93,15 @@ public class FieldHitExtractor extends AbstractFieldHitExtractor {
         return list.get(0) instanceof Number;
     }
 
-    
-    @Override
-    protected boolean isFromDocValuesOnly(DataType dataType) {
-        return SqlDataTypes.isFromDocValuesOnly(dataType);
-    }
-
     @Override
     protected Object unwrapCustomValue(Object values) {
         DataType dataType = dataType();
 
         if (dataType == GEO_POINT) {
             try {
-                GeoPoint geoPoint = GeoUtils.parseGeoPoint(values, true);
+                @SuppressWarnings("unchecked")
+                Map<String, Object> map = (Map<String, Object>) values;
+                GeoPoint geoPoint = GeoUtils.parseGeoPoint(map.get("coordinates"), true);
                 return new GeoShape(geoPoint.lon(), geoPoint.lat());
             } catch (ElasticsearchParseException ex) {
                 throw new SqlIllegalArgumentException("Cannot parse geo_point value [{}] (returned by [{}])", values, fieldName());
@@ -110,7 +110,7 @@ public class FieldHitExtractor extends AbstractFieldHitExtractor {
         if (dataType == GEO_SHAPE) {
             try {
                 return new GeoShape(values);
-            } catch (IOException ex) {
+            } catch (IOException | XContentParseException ex) {
                 throw new SqlIllegalArgumentException("Cannot read geo_shape value [{}] (returned by [{}])", values, fieldName());
             }
         }
@@ -126,8 +126,16 @@ public class FieldHitExtractor extends AbstractFieldHitExtractor {
         }
         if (dataType == DATETIME) {
             if (values instanceof String) {
-                return DateUtils.asDateTime(Long.parseLong(values.toString()), zoneId());
+                return DateUtils.asDateTimeWithNanos(values.toString()).withZoneSameInstant(zoneId());
             }
+        }
+        if (dataType == UNSIGNED_LONG) {
+            // Unsigned longs can be returned either as such (for values exceeding long range) or as longs. Value conversion is needed
+            // since its later processing will be type dependent. (ex.: negation of UL is only "safe" for 0 values)
+            return convert(values, UNSIGNED_LONG);
+        }
+        if (dataType == VERSION) {
+            return convert(values, VERSION);
         }
 
         return null;

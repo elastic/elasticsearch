@@ -1,24 +1,25 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.enrich;
-
-import java.io.IOException;
-import java.io.UncheckedIOException;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.ingest.PipelineConfiguration;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
+
+import java.io.IOException;
+import java.io.UncheckedIOException;
 
 /**
  * Manages the definitions and lifecycle of the ingest pipeline used by the reindex operation within the Enrich Policy execution.
@@ -47,13 +48,13 @@ public class EnrichPolicyReindexPipeline {
      * @return true if a pipeline exists that is compatible with this version of Enrich, false otherwise
      */
     static boolean exists(ClusterState clusterState) {
-        final IngestMetadata ingestMetadata = clusterState.getMetaData().custom(IngestMetadata.TYPE);
+        final IngestMetadata ingestMetadata = clusterState.getMetadata().custom(IngestMetadata.TYPE);
         // we ensure that we both have the pipeline and its version represents the current (or later) version
         if (ingestMetadata != null) {
             final PipelineConfiguration pipeline = ingestMetadata.getPipelines().get(pipelineName());
             if (pipeline != null) {
                 Object version = pipeline.getConfigAsMap().get("version");
-                return version instanceof Number && ((Number) version).intValue() >= ENRICH_PIPELINE_LAST_UPDATED_VERSION;
+                return version instanceof Number number && number.intValue() >= ENRICH_PIPELINE_LAST_UPDATED_VERSION;
             }
         }
         return false;

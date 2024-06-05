@@ -1,31 +1,23 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.rest.action.cat;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.health.ClusterIndexHealth;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.health.ClusterStateHealth;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.Table;
@@ -33,13 +25,12 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
-import org.elasticsearch.usage.UsageService;
 
-import java.util.Collections;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -47,7 +38,6 @@ import java.util.Map;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -56,36 +46,37 @@ public class RestIndicesActionTests extends ESTestCase {
     public void testBuildTable() {
         final int numIndices = randomIntBetween(3, 20);
         final Map<String, Settings> indicesSettings = new LinkedHashMap<>();
-        final Map<String, IndexMetaData> indicesMetaDatas = new LinkedHashMap<>();
-        final Map<String, ClusterIndexHealth> indicesHealths = new LinkedHashMap<>();
-        final Map<String, IndexStats> indicesStats = new LinkedHashMap<>();
+        final Map<String, IndexStats> indicesStats = new HashMap<>();
+
+        final Metadata.Builder metadata = Metadata.builder();
+        final RoutingTable.Builder routingTable = RoutingTable.builder();
 
         for (int i = 0; i < numIndices; i++) {
             String indexName = "index-" + i;
 
             Settings indexSettings = Settings.builder()
-                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
+                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
                 .put(IndexSettings.INDEX_SEARCH_THROTTLED.getKey(), randomBoolean())
                 .build();
             indicesSettings.put(indexName, indexSettings);
 
-            IndexMetaData.State indexState = randomBoolean() ? IndexMetaData.State.OPEN : IndexMetaData.State.CLOSE;
+            IndexMetadata.State indexState = randomBoolean() ? IndexMetadata.State.OPEN : IndexMetadata.State.CLOSE;
             if (frequently()) {
                 ClusterHealthStatus healthStatus = randomFrom(ClusterHealthStatus.values());
                 int numberOfShards = randomIntBetween(1, 3);
                 int numberOfReplicas = healthStatus == ClusterHealthStatus.YELLOW ? 1 : randomInt(1);
-                IndexMetaData indexMetaData = IndexMetaData.builder(indexName)
+                IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
                     .settings(indexSettings)
                     .creationDate(System.currentTimeMillis())
                     .numberOfShards(numberOfShards)
                     .numberOfReplicas(numberOfReplicas)
                     .state(indexState)
                     .build();
-                indicesMetaDatas.put(indexName, indexMetaData);
+                metadata.put(indexMetadata, false);
 
                 if (frequently()) {
-                    Index index = indexMetaData.getIndex();
+                    Index index = indexMetadata.getIndex();
                     IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(index);
                     switch (randomFrom(ClusterHealthStatus.values())) {
                         case GREEN:
@@ -115,7 +106,7 @@ public class RestIndicesActionTests extends ESTestCase {
                         case RED:
                             break;
                     }
-                    indicesHealths.put(indexName, new ClusterIndexHealth(indexMetaData, indexRoutingTable.build()));
+                    routingTable.add(indexRoutingTable);
 
                     if (frequently()) {
                         IndexStats indexStats = mock(IndexStats.class);
@@ -127,9 +118,13 @@ public class RestIndicesActionTests extends ESTestCase {
             }
         }
 
-        final RestController restController = new RestController(Collections.emptySet(), null, null, null, new UsageService());
-        final RestIndicesAction action = new RestIndicesAction(restController);
-        final Table table = action.buildTable(new FakeRestRequest(), indicesSettings, indicesHealths, indicesStats, indicesMetaDatas);
+        final ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .metadata(metadata)
+            .routingTable(randomBoolean() ? routingTable : RoutingTable.builder())
+            .build();
+
+        final RestIndicesAction action = new RestIndicesAction();
+        final Table table = action.buildTable(new FakeRestRequest(), indicesSettings, clusterState, indicesStats);
 
         // now, verify the table is correct
         List<Table.Cell> headers = table.getHeaders();
@@ -141,14 +136,16 @@ public class RestIndicesActionTests extends ESTestCase {
         assertThat(headers.get(5).value, equalTo("rep"));
 
         final List<List<Table.Cell>> rows = table.getRows();
-        assertThat(rows.size(), equalTo(indicesMetaDatas.size()));
+        assertThat(rows.size(), equalTo(clusterState.metadata().indices().size()));
+
+        final var clusterStateHealth = new ClusterStateHealth(clusterState);
 
         for (final List<Table.Cell> row : rows) {
             final String indexName = (String) row.get(2).value;
 
-            ClusterIndexHealth indexHealth = indicesHealths.get(indexName);
+            ClusterIndexHealth indexHealth = clusterStateHealth.getIndices().get(indexName);
             IndexStats indexStats = indicesStats.get(indexName);
-            IndexMetaData indexMetaData = indicesMetaDatas.get(indexName);
+            IndexMetadata indexMetadata = clusterState.metadata().index(indexName);
 
             if (indexHealth != null) {
                 assertThat(row.get(0).value, equalTo(indexHealth.getStatus().toString().toLowerCase(Locale.ROOT)));
@@ -158,16 +155,11 @@ public class RestIndicesActionTests extends ESTestCase {
                 assertThat(row.get(0).value, equalTo(""));
             }
 
-            assertThat(row.get(1).value, equalTo(indexMetaData.getState().toString().toLowerCase(Locale.ROOT)));
+            assertThat(row.get(1).value, equalTo(indexMetadata.getState().toString().toLowerCase(Locale.ROOT)));
             assertThat(row.get(2).value, equalTo(indexName));
-            assertThat(row.get(3).value, equalTo(indexMetaData.getIndexUUID()));
-            if (indexHealth != null) {
-                assertThat(row.get(4).value, equalTo(indexMetaData.getNumberOfShards()));
-                assertThat(row.get(5).value, equalTo(indexMetaData.getNumberOfReplicas()));
-            } else {
-                assertThat(row.get(4).value, nullValue());
-                assertThat(row.get(5).value, nullValue());
-            }
+            assertThat(row.get(3).value, equalTo(indexMetadata.getIndexUUID()));
+            assertThat(row.get(4).value, equalTo(indexMetadata.getNumberOfShards()));
+            assertThat(row.get(5).value, equalTo(indexMetadata.getNumberOfReplicas()));
         }
     }
 }

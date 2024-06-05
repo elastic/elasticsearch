@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.bulk;
@@ -24,24 +13,108 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
+import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.delete.DeleteResponseTests;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.index.IndexResponseTests;
+import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.action.update.UpdateResponseTests;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
+import java.util.UUID;
 
 import static org.elasticsearch.ElasticsearchExceptionTests.assertDeepEquals;
 import static org.elasticsearch.ElasticsearchExceptionTests.randomExceptions;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.throwUnknownField;
 import static org.hamcrest.Matchers.containsString;
 
 public class BulkItemResponseTests extends ESTestCase {
+
+    /**
+     * Parse the output of the {@link DocWriteResponse#innerToXContent(XContentBuilder, ToXContent.Params)} method.
+     *
+     * This method is intended to be called by subclasses and must be called multiple times to parse all the information concerning
+     * {@link DocWriteResponse} objects. It always parses the current token, updates the given parsing context accordingly
+     * if needed and then immediately returns.
+     */
+    public static void parseInnerToXContent(XContentParser parser, DocWriteResponse.Builder context) throws IOException {
+        XContentParser.Token token = parser.currentToken();
+        ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
+
+        String currentFieldName = parser.currentName();
+        token = parser.nextToken();
+
+        if (token.isValue()) {
+            if (DocWriteResponse._INDEX.equals(currentFieldName)) {
+                // index uuid and shard id are unknown and can't be parsed back for now.
+                context.setShardId(new ShardId(new Index(parser.text(), IndexMetadata.INDEX_UUID_NA_VALUE), -1));
+            } else if (DocWriteResponse._ID.equals(currentFieldName)) {
+                context.setId(parser.text());
+            } else if (DocWriteResponse._VERSION.equals(currentFieldName)) {
+                context.setVersion(parser.longValue());
+            } else if (DocWriteResponse.RESULT.equals(currentFieldName)) {
+                String result = parser.text();
+                for (DocWriteResponse.Result r : DocWriteResponse.Result.values()) {
+                    if (r.getLowercase().equals(result)) {
+                        context.setResult(r);
+                        break;
+                    }
+                }
+            } else if (DocWriteResponse.FORCED_REFRESH.equals(currentFieldName)) {
+                context.setForcedRefresh(parser.booleanValue());
+            } else if (DocWriteResponse._SEQ_NO.equals(currentFieldName)) {
+                context.setSeqNo(parser.longValue());
+            } else if (DocWriteResponse._PRIMARY_TERM.equals(currentFieldName)) {
+                context.setPrimaryTerm(parser.longValue());
+            }
+        } else if (token == XContentParser.Token.START_OBJECT) {
+            if (DocWriteResponse._SHARDS.equals(currentFieldName)) {
+                context.setShardInfo(ReplicationResponse.ShardInfo.fromXContent(parser));
+            } else {
+                parser.skipChildren(); // skip potential inner objects for forward compatibility
+            }
+        } else if (token == XContentParser.Token.START_ARRAY) {
+            parser.skipChildren(); // skip potential inner arrays for forward compatibility
+        }
+    }
+
+    public void testBulkItemResponseShouldContainTypeInV7CompatibilityMode() throws IOException {
+        BulkItemResponse bulkItemResponse = BulkItemResponse.success(
+            randomInt(),
+            DocWriteRequest.OpType.INDEX,
+            new IndexResponse(
+                new ShardId(randomAlphaOfLength(8), UUID.randomUUID().toString(), randomInt()),
+                randomAlphaOfLength(4),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                true
+            )
+        );
+        XContentBuilder xContentBuilder = bulkItemResponse.toXContent(
+            XContentBuilder.builder(JsonXContent.jsonXContent, RestApiVersion.V_7),
+            ToXContent.EMPTY_PARAMS
+        );
+
+        String json = BytesReference.bytes(xContentBuilder).utf8ToString();
+        assertThat(json, containsString("\"_type\":\"_doc\""));
+    }
 
     public void testFailureToString() {
         Failure failure = new Failure("index", "id", new RuntimeException("test"));
@@ -69,14 +142,14 @@ public class BulkItemResponseTests extends ESTestCase {
                 fail("Test does not support opType [" + opType + "]");
             }
 
-            BulkItemResponse bulkItemResponse = new BulkItemResponse(bulkItemId, opType, randomDocWriteResponses.v1());
-            BulkItemResponse expectedBulkItemResponse = new BulkItemResponse(bulkItemId, opType, randomDocWriteResponses.v2());
+            BulkItemResponse bulkItemResponse = BulkItemResponse.success(bulkItemId, opType, randomDocWriteResponses.v1());
+            BulkItemResponse expectedBulkItemResponse = BulkItemResponse.success(bulkItemId, opType, randomDocWriteResponses.v2());
             BytesReference originalBytes = toShuffledXContent(bulkItemResponse, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
 
             BulkItemResponse parsedBulkItemResponse;
             try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
                 assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
-                parsedBulkItemResponse = BulkItemResponse.fromXContent(parser, bulkItemId);
+                parsedBulkItemResponse = itemResponseFromXContent(parser, bulkItemId);
                 assertNull(parser.nextToken());
             }
             assertBulkItemResponse(expectedBulkItemResponse, parsedBulkItemResponse);
@@ -95,9 +168,9 @@ public class BulkItemResponseTests extends ESTestCase {
 
         Exception bulkItemCause = (Exception) exceptions.v1();
         Failure bulkItemFailure = new Failure(index, id, bulkItemCause);
-        BulkItemResponse bulkItemResponse = new BulkItemResponse(itemId, opType, bulkItemFailure);
+        BulkItemResponse bulkItemResponse = BulkItemResponse.failure(itemId, opType, bulkItemFailure);
         Failure expectedBulkItemFailure = new Failure(index, id, exceptions.v2(), ExceptionsHelper.status(bulkItemCause));
-        BulkItemResponse expectedBulkItemResponse = new BulkItemResponse(itemId, opType, expectedBulkItemFailure);
+        BulkItemResponse expectedBulkItemResponse = BulkItemResponse.failure(itemId, opType, expectedBulkItemFailure);
         BytesReference originalBytes = toShuffledXContent(bulkItemResponse, xContentType, ToXContent.EMPTY_PARAMS, randomBoolean());
 
         // Shuffle the XContent fields
@@ -110,7 +183,7 @@ public class BulkItemResponseTests extends ESTestCase {
         BulkItemResponse parsedBulkItemResponse;
         try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
-            parsedBulkItemResponse = BulkItemResponse.fromXContent(parser, itemId);
+            parsedBulkItemResponse = itemResponseFromXContent(parser, itemId);
             assertNull(parser.nextToken());
         }
         assertBulkItemResponse(expectedBulkItemResponse, parsedBulkItemResponse);
@@ -140,8 +213,81 @@ public class BulkItemResponseTests extends ESTestCase {
 
             IndexResponseTests.assertDocWriteResponse(expectedDocResponse, actualDocResponse);
             if (expected.getOpType() == DocWriteRequest.OpType.UPDATE) {
-                assertEquals(((UpdateResponse) expectedDocResponse).getGetResult(), ((UpdateResponse)actualDocResponse).getGetResult());
+                assertEquals(((UpdateResponse) expectedDocResponse).getGetResult(), ((UpdateResponse) actualDocResponse).getGetResult());
             }
         }
+    }
+
+    /**
+     * Reads a {@link BulkItemResponse} from a {@link XContentParser}.
+     *
+     * @param parser the {@link XContentParser}
+     * @param id the id to assign to the parsed {@link BulkItemResponse}. It is usually the index of
+     *           the item in the {@link BulkResponse#getItems} array.
+     */
+    public static BulkItemResponse itemResponseFromXContent(XContentParser parser, int id) throws IOException {
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
+
+        XContentParser.Token token = parser.nextToken();
+        ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
+
+        String currentFieldName = parser.currentName();
+        token = parser.nextToken();
+
+        final DocWriteRequest.OpType opType = DocWriteRequest.OpType.fromString(currentFieldName);
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
+
+        DocWriteResponse.Builder builder = null;
+        CheckedConsumer<XContentParser, IOException> itemParser = null;
+
+        if (opType == DocWriteRequest.OpType.INDEX || opType == DocWriteRequest.OpType.CREATE) {
+            final IndexResponse.Builder indexResponseBuilder = new IndexResponse.Builder();
+            builder = indexResponseBuilder;
+            itemParser = indexParser -> parseInnerToXContent(indexParser, indexResponseBuilder);
+        } else if (opType == DocWriteRequest.OpType.UPDATE) {
+            final UpdateResponse.Builder updateResponseBuilder = new UpdateResponse.Builder();
+            builder = updateResponseBuilder;
+            itemParser = updateParser -> UpdateResponseTests.parseXContentFields(updateParser, updateResponseBuilder);
+
+        } else if (opType == DocWriteRequest.OpType.DELETE) {
+            final DeleteResponse.Builder deleteResponseBuilder = new DeleteResponse.Builder();
+            builder = deleteResponseBuilder;
+            itemParser = deleteParser -> parseInnerToXContent(deleteParser, deleteResponseBuilder);
+        } else {
+            throwUnknownField(currentFieldName, parser);
+        }
+
+        RestStatus status = null;
+        ElasticsearchException exception = null;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            }
+
+            if (BulkItemResponse.ERROR.equals(currentFieldName)) {
+                if (token == XContentParser.Token.START_OBJECT) {
+                    exception = ElasticsearchException.fromXContent(parser);
+                }
+            } else if (BulkItemResponse.STATUS.equals(currentFieldName)) {
+                if (token == XContentParser.Token.VALUE_NUMBER) {
+                    status = RestStatus.fromCode(parser.intValue());
+                }
+            } else {
+                itemParser.accept(parser);
+            }
+        }
+
+        ensureExpectedToken(XContentParser.Token.END_OBJECT, token, parser);
+        token = parser.nextToken();
+        ensureExpectedToken(XContentParser.Token.END_OBJECT, token, parser);
+
+        BulkItemResponse bulkItemResponse;
+        if (exception != null) {
+            Failure failure = new Failure(builder.getShardId().getIndexName(), builder.getId(), exception, status);
+            bulkItemResponse = BulkItemResponse.failure(id, opType, failure);
+        } else {
+            bulkItemResponse = BulkItemResponse.success(id, opType, builder.build());
+        }
+        return bulkItemResponse;
     }
 }

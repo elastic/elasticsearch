@@ -1,31 +1,19 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.env;
 
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.io.PathUtils;
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.SuppressForbidden;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -36,11 +24,9 @@ import java.nio.file.FileStore;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 /**
  * The environment of where things exists.
@@ -53,14 +39,10 @@ public class Environment {
     private static final Path[] EMPTY_PATH_ARRAY = new Path[0];
 
     public static final Setting<String> PATH_HOME_SETTING = Setting.simpleString("path.home", Property.NodeScope);
-    public static final Setting<List<String>> PATH_DATA_SETTING =
-            Setting.listSetting("path.data", Collections.emptyList(), Function.identity(), Property.NodeScope);
-    public static final Setting<String> PATH_LOGS_SETTING =
-            new Setting<>("path.logs", "", Function.identity(), Property.NodeScope);
-    public static final Setting<List<String>> PATH_REPO_SETTING =
-        Setting.listSetting("path.repo", Collections.emptyList(), Function.identity(), Property.NodeScope);
+    public static final Setting<List<String>> PATH_DATA_SETTING = Setting.stringListSetting("path.data", Property.NodeScope);
+    public static final Setting<String> PATH_LOGS_SETTING = new Setting<>("path.logs", "", Function.identity(), Property.NodeScope);
+    public static final Setting<List<String>> PATH_REPO_SETTING = Setting.stringListSetting("path.repo", Property.NodeScope);
     public static final Setting<String> PATH_SHARED_DATA_SETTING = Setting.simpleString("path.shared_data", Property.NodeScope);
-    public static final Setting<String> NODE_PIDFILE_SETTING = Setting.simpleString("node.pidfile", Property.NodeScope);
 
     private final Settings settings;
 
@@ -83,9 +65,6 @@ public class Environment {
     private final Path libFile;
 
     private final Path logsFile;
-
-    /** Path to the PID file (can be null if no PID file is configured) **/
-    private final Path pidFile;
 
     /** Path to the temporary file directory used by the JDK */
     private final Path tmpFile;
@@ -114,23 +93,13 @@ public class Environment {
         pluginsFile = homeFile.resolve("plugins");
 
         List<String> dataPaths = PATH_DATA_SETTING.get(settings);
-        final ClusterName clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);
-        if (DiscoveryNode.nodeRequiresLocalStorage(settings)) {
-            if (dataPaths.isEmpty() == false) {
-                dataFiles = new Path[dataPaths.size()];
-                for (int i = 0; i < dataPaths.size(); i++) {
-                    dataFiles[i] = PathUtils.get(dataPaths.get(i)).toAbsolutePath().normalize();
-                }
-            } else {
-                dataFiles = new Path[]{homeFile.resolve("data")};
+        if (dataPaths.isEmpty() == false) {
+            dataFiles = new Path[dataPaths.size()];
+            for (int i = 0; i < dataPaths.size(); i++) {
+                dataFiles[i] = PathUtils.get(dataPaths.get(i)).toAbsolutePath().normalize();
             }
         } else {
-            if (dataPaths.isEmpty()) {
-                dataFiles = EMPTY_PATH_ARRAY;
-            } else {
-                final String paths = String.join(",", dataPaths);
-                throw new IllegalStateException("node does not require local storage yet path.data is set to [" + paths + "]");
-            }
+            dataFiles = new Path[] { homeFile.resolve("data") };
         }
         if (PATH_SHARED_DATA_SETTING.exists(settings)) {
             sharedDataFile = PathUtils.get(PATH_SHARED_DATA_SETTING.get(settings)).toAbsolutePath().normalize();
@@ -154,35 +123,29 @@ public class Environment {
             logsFile = homeFile.resolve("logs");
         }
 
-        if (NODE_PIDFILE_SETTING.exists(settings)) {
-            pidFile = PathUtils.get(NODE_PIDFILE_SETTING.get(settings)).toAbsolutePath().normalize();
-        } else {
-            pidFile = null;
-        }
-
         binFile = homeFile.resolve("bin");
         libFile = homeFile.resolve("lib");
         modulesFile = homeFile.resolve("modules");
 
         final Settings.Builder finalSettings = Settings.builder().put(settings);
         if (PATH_DATA_SETTING.exists(settings)) {
-            finalSettings.putList(PATH_DATA_SETTING.getKey(), Arrays.stream(dataFiles).map(Path::toString).collect(Collectors.toList()));
+            if (dataPathUsesList(settings)) {
+                finalSettings.putList(PATH_DATA_SETTING.getKey(), Arrays.stream(dataFiles).map(Path::toString).toList());
+            } else {
+                assert dataFiles.length == 1;
+                finalSettings.put(PATH_DATA_SETTING.getKey(), dataFiles[0]);
+            }
         }
         finalSettings.put(PATH_HOME_SETTING.getKey(), homeFile);
         finalSettings.put(PATH_LOGS_SETTING.getKey(), logsFile.toString());
         if (PATH_REPO_SETTING.exists(settings)) {
-            finalSettings.putList(
-                Environment.PATH_REPO_SETTING.getKey(),
-                Arrays.stream(repoFiles).map(Path::toString).collect(Collectors.toList()));
+            finalSettings.putList(Environment.PATH_REPO_SETTING.getKey(), Arrays.stream(repoFiles).map(Path::toString).toList());
         }
         if (PATH_SHARED_DATA_SETTING.exists(settings)) {
             assert sharedDataFile != null;
             finalSettings.put(Environment.PATH_SHARED_DATA_SETTING.getKey(), sharedDataFile.toString());
         }
-        if (NODE_PIDFILE_SETTING.exists(settings)) {
-            assert pidFile != null;
-            finalSettings.put(Environment.NODE_PIDFILE_SETTING.getKey(), pidFile.toString());
-        }
+
         this.settings = finalSettings.build();
     }
 
@@ -297,13 +260,6 @@ public class Environment {
         return logsFile;
     }
 
-    /**
-     * The PID file location (can be null if no PID file is configured)
-     */
-    public Path pidFile() {
-        return pidFile;
-    }
-
     /** Path to the default temp directory used by the JDK */
     public Path tmpFile() {
         return tmpFile;
@@ -311,16 +267,67 @@ public class Environment {
 
     /** Ensure the configured temp directory is a valid directory */
     public void validateTmpFile() throws IOException {
-        if (Files.exists(tmpFile) == false) {
-            throw new FileNotFoundException("Temporary file directory [" + tmpFile + "] does not exist or is not accessible");
+        validateTemporaryDirectory("Temporary directory", tmpFile);
+    }
+
+    /**
+     * Ensure the temp directories needed for JNA are set up correctly.
+     */
+    public void validateNativesConfig() throws IOException {
+        validateTmpFile();
+        if (Constants.LINUX) {
+            validateTemporaryDirectory(LIBFFI_TMPDIR_ENVIRONMENT_VARIABLE + " environment variable", getLibffiTemporaryDirectory());
         }
-        if (Files.isDirectory(tmpFile) == false) {
-            throw new IOException("Configured temporary file directory [" + tmpFile + "] is not a directory");
+    }
+
+    private static void validateTemporaryDirectory(String description, Path path) throws IOException {
+        if (path == null) {
+            throw new NullPointerException(description + " was not specified");
         }
+        if (Files.exists(path) == false) {
+            throw new FileNotFoundException(description + " [" + path + "] does not exist or is not accessible");
+        }
+        if (Files.isDirectory(path) == false) {
+            throw new IOException(description + " [" + path + "] is not a directory");
+        }
+    }
+
+    private static final String LIBFFI_TMPDIR_ENVIRONMENT_VARIABLE = "LIBFFI_TMPDIR";
+
+    @SuppressForbidden(reason = "using PathUtils#get since libffi resolves paths without interference from the JVM")
+    private static Path getLibffiTemporaryDirectory() {
+        final String environmentVariable = System.getenv(LIBFFI_TMPDIR_ENVIRONMENT_VARIABLE);
+        if (environmentVariable == null) {
+            return null;
+        }
+        // Explicitly resolve into an absolute path since the working directory might be different from the one in which we were launched
+        // and it would be confusing to report that the given relative path doesn't exist simply because it's being resolved relative to a
+        // different location than the one the user expects.
+        final String workingDirectory = System.getProperty("user.dir");
+        if (workingDirectory == null) {
+            assert false;
+            return null;
+        }
+        return PathUtils.get(workingDirectory).resolve(environmentVariable);
+    }
+
+    /** Returns true if the data path is a list, false otherwise */
+    public static boolean dataPathUsesList(Settings settings) {
+        if (settings.hasValue(PATH_DATA_SETTING.getKey()) == false) {
+            return false;
+        }
+        String rawDataPath = settings.get(PATH_DATA_SETTING.getKey());
+        return rawDataPath.startsWith("[") || rawDataPath.contains(",");
     }
 
     public static FileStore getFileStore(final Path path) throws IOException {
         return new ESFileStore(Files.getFileStore(path));
+    }
+
+    public static long getUsableSpace(Path path) throws IOException {
+        long freeSpaceInBytes = Environment.getFileStore(path).getUsableSpace();
+        assert freeSpaceInBytes >= 0;
+        return freeSpaceInBytes;
     }
 
     /**
@@ -336,7 +343,6 @@ public class Environment {
         assertEquals(actual.libFile(), expected.libFile(), "libFile");
         assertEquals(actual.modulesFile(), expected.modulesFile(), "modulesFile");
         assertEquals(actual.logsFile(), expected.logsFile(), "logsFile");
-        assertEquals(actual.pidFile(), expected.pidFile(), "pidFile");
         assertEquals(actual.tmpFile(), expected.tmpFile(), "tmpFile");
     }
 

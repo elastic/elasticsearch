@@ -1,34 +1,24 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.query.support;
 
 import org.apache.lucene.search.MultiTermQuery;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.xcontent.DeprecationHandler;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.DeprecationHandler;
+import org.elasticsearch.xcontent.ParseField;
 
 public final class QueryParsers {
 
     public static final ParseField CONSTANT_SCORE = new ParseField("constant_score");
     public static final ParseField SCORING_BOOLEAN = new ParseField("scoring_boolean");
     public static final ParseField CONSTANT_SCORE_BOOLEAN = new ParseField("constant_score_boolean");
+    public static final ParseField CONSTANT_SCORE_BLENDED = new ParseField("constant_score_blended");
     public static final ParseField TOP_TERMS = new ParseField("top_terms_");
     public static final ParseField TOP_TERMS_BOOST = new ParseField("top_terms_boost_");
     public static final ParseField TOP_TERMS_BLENDED_FREQS = new ParseField("top_terms_blended_freqs_");
@@ -37,20 +27,15 @@ public final class QueryParsers {
 
     }
 
-    public static void setRewriteMethod(MultiTermQuery query, @Nullable MultiTermQuery.RewriteMethod rewriteMethod) {
-        if (rewriteMethod == null) {
-            return;
-        }
-        query.setRewriteMethod(rewriteMethod);
-    }
-
     public static MultiTermQuery.RewriteMethod parseRewriteMethod(@Nullable String rewriteMethod, DeprecationHandler deprecationHandler) {
-        return parseRewriteMethod(rewriteMethod, MultiTermQuery.CONSTANT_SCORE_REWRITE, deprecationHandler);
+        return parseRewriteMethod(rewriteMethod, MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE, deprecationHandler);
     }
 
-    public static MultiTermQuery.RewriteMethod parseRewriteMethod(@Nullable String rewriteMethod,
-                                                                  @Nullable MultiTermQuery.RewriteMethod defaultRewriteMethod,
-                                                                  DeprecationHandler deprecationHandler) {
+    public static MultiTermQuery.RewriteMethod parseRewriteMethod(
+        @Nullable String rewriteMethod,
+        @Nullable MultiTermQuery.RewriteMethod defaultRewriteMethod,
+        DeprecationHandler deprecationHandler
+    ) {
         if (rewriteMethod == null) {
             return defaultRewriteMethod;
         }
@@ -62,6 +47,9 @@ public final class QueryParsers {
         }
         if (CONSTANT_SCORE_BOOLEAN.match(rewriteMethod, deprecationHandler)) {
             return MultiTermQuery.CONSTANT_SCORE_BOOLEAN_REWRITE;
+        }
+        if (CONSTANT_SCORE_BLENDED.match(rewriteMethod, deprecationHandler)) {
+            return MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE;
         }
 
         int firstDigit = -1;

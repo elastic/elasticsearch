@@ -1,0 +1,7 @@
+{
+    "properties" : {
+        "long_field" : {
+            "type" : "long"
+        }
+    }
+}

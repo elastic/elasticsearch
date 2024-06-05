@@ -1,33 +1,22 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.analysis;
 
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope.Scope;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope.Scope;
 
 import org.apache.lucene.analysis.StopFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
-import org.apache.lucene.analysis.miscellaneous.DisableGraphAttribute;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.lucene.analysis.miscellaneous.DisableGraphAttribute;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ESTokenStreamTestCase;
 
@@ -44,7 +33,7 @@ public class ShingleTokenFilterFactoryTests extends ESTokenStreamTestCase {
         ESTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromClassPath(createTempDir(), RESOURCE);
         TokenFilterFactory tokenFilter = analysis.tokenFilter.get("shingle");
         String source = "the quick brown fox";
-        String[] expected = new String[]{"the", "the quick", "quick", "quick brown", "brown", "brown fox", "fox"};
+        String[] expected = new String[] { "the", "the quick", "quick", "quick brown", "brown", "brown fox", "fox" };
         Tokenizer tokenizer = new WhitespaceTokenizer();
         tokenizer.setReader(new StringReader(source));
         assertTokenStreamContents(tokenFilter.create(tokenizer), expected);
@@ -55,7 +44,7 @@ public class ShingleTokenFilterFactoryTests extends ESTokenStreamTestCase {
         TokenFilterFactory tokenFilter = analysis.tokenFilter.get("shingle_inverse");
         assertThat(tokenFilter, instanceOf(ShingleTokenFilterFactory.class));
         String source = "the quick brown fox";
-        String[] expected = new String[]{"the_quick_brown", "quick_brown_fox"};
+        String[] expected = new String[] { "the_quick_brown", "quick_brown_fox" };
         Tokenizer tokenizer = new WhitespaceTokenizer();
         tokenizer.setReader(new StringReader(source));
         assertTokenStreamContents(tokenFilter.create(tokenizer), expected);
@@ -66,7 +55,7 @@ public class ShingleTokenFilterFactoryTests extends ESTokenStreamTestCase {
         TokenFilterFactory tokenFilter = analysis.tokenFilter.get("shingle_inverse");
         assertThat(tokenFilter, instanceOf(ShingleTokenFilterFactory.class));
         String source = "the quick";
-        String[] expected = new String[]{"the", "quick"};
+        String[] expected = new String[] { "the", "quick" };
         Tokenizer tokenizer = new WhitespaceTokenizer();
         tokenizer.setReader(new StringReader(source));
         assertTokenStreamContents(tokenFilter.create(tokenizer), expected);
@@ -76,7 +65,7 @@ public class ShingleTokenFilterFactoryTests extends ESTokenStreamTestCase {
         ESTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromClassPath(createTempDir(), RESOURCE);
         TokenFilterFactory tokenFilter = analysis.tokenFilter.get("shingle_filler");
         String source = "simon the sorcerer";
-        String[] expected = new String[]{"simon FILLER", "simon FILLER sorcerer", "FILLER sorcerer"};
+        String[] expected = new String[] { "simon FILLER", "simon FILLER sorcerer", "FILLER sorcerer" };
         Tokenizer tokenizer = new WhitespaceTokenizer();
         tokenizer.setReader(new StringReader(source));
         TokenStream stream = new StopFilter(tokenizer, StopFilter.makeStopSet("the"));
@@ -108,7 +97,7 @@ public class ShingleTokenFilterFactoryTests extends ESTokenStreamTestCase {
     * test that throws an error when trying to get a ShingleTokenFilter where difference between max_shingle_size and min_shingle_size
     * is greater than the allowed value of max_shingle_diff
      */
-    public void testMaxShingleDiffException() throws Exception{
+    public void testMaxShingleDiffException() throws Exception {
         String RESOURCE2 = "/org/elasticsearch/index/analysis/shingle_analysis2.json";
         int maxAllowedShingleDiff = 3;
         int shingleDiff = 8;
@@ -119,9 +108,16 @@ public class ShingleTokenFilterFactoryTests extends ESTokenStreamTestCase {
         } catch (IllegalArgumentException ex) {
             assertEquals(
                 "In Shingle TokenFilter the difference between max_shingle_size and min_shingle_size (and +1 if outputting unigrams)"
-                    + " must be less than or equal to: [" + maxAllowedShingleDiff + "] but was [" + shingleDiff + "]. This limit"
-                    + " can be set by changing the [" + IndexSettings.MAX_SHINGLE_DIFF_SETTING.getKey() + "] index level setting.",
-                ex.getMessage());
+                    + " must be less than or equal to: ["
+                    + maxAllowedShingleDiff
+                    + "] but was ["
+                    + shingleDiff
+                    + "]. This limit"
+                    + " can be set by changing the ["
+                    + IndexSettings.MAX_SHINGLE_DIFF_SETTING.getKey()
+                    + "] index level setting.",
+                ex.getMessage()
+            );
         }
     }
 }

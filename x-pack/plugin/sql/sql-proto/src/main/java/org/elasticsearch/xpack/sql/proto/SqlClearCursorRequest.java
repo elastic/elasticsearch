@@ -1,13 +1,11 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.proto;
 
-import org.elasticsearch.common.xcontent.XContentBuilder;
-
-import java.io.IOException;
 import java.util.Objects;
 
 /**
@@ -16,37 +14,33 @@ import java.util.Objects;
 public class SqlClearCursorRequest extends AbstractSqlRequest {
 
     private final String cursor;
+    private final Boolean binaryCommunication;
 
-    public SqlClearCursorRequest(String cursor, RequestInfo requestInfo) {
+    public SqlClearCursorRequest(String cursor, RequestInfo requestInfo, Boolean binaryCommunication) {
         super(requestInfo);
         this.cursor = cursor;
+        this.binaryCommunication = binaryCommunication;
     }
 
     public String getCursor() {
         return cursor;
     }
 
+    public Boolean binaryCommunication() {
+        return binaryCommunication;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        if (!super.equals(o)) return false;
+        if (super.equals(o) == false) return false;
         SqlClearCursorRequest that = (SqlClearCursorRequest) o;
-        return Objects.equals(cursor, that.cursor);
+        return Objects.equals(cursor, that.cursor) && Objects.equals(binaryCommunication, that.binaryCommunication);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), cursor);
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field("cursor", cursor);
-        builder.field("mode", mode().toString());
-        if (clientId() != null) {
-            builder.field("client_id", clientId());
-        }
-        return builder;
+        return Objects.hash(super.hashCode(), cursor, binaryCommunication);
     }
 }

@@ -1,0 +1,10 @@
+setup:
+  - skip:
+      awaits_fix: "my reason"
+---
+"Test without a setup":
+  - do:
+      something:
+        id: "something"
+  - match: { acknowledged: true }
+

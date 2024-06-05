@@ -1,105 +1,107 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
+
 
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionProperties
-import org.elasticsearch.gradle.info.BuildParams
-import org.elasticsearch.gradle.testclusters.RestTestRunnerTask
+import org.elasticsearch.gradle.internal.info.BuildParams
+import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
-apply plugin: 'elasticsearch.testclusters'
-apply plugin: 'elasticsearch.standalone-test'
-
-tasks.register("bwcTest") {
-  description = 'Runs backwards compatibility tests.'
-  group = 'verification'
-}
-
-configurations {
-  restSpec
-}
+apply plugin: 'elasticsearch.internal-testclusters'
+apply plugin: 'elasticsearch.standalone-rest-test'
+apply plugin: 'elasticsearch.bwc-test'
+apply plugin: 'elasticsearch.rest-resources'
 
 dependencies {
-  restSpec project(':rest-api-spec')
+  restTestConfig project(path: ':modules:aggregations', configuration: 'restTests')
 }
 
-processTestResources {
-  from({ zipTree(configurations.restSpec.singleFile) })
-  dependsOn configurations.restSpec
-}
-
-for (Version bwcVersion : bwcVersions.wireCompatible) {
-  if (bwcVersion == VersionProperties.getElasticsearchVersion()) {
-    // Not really a mixed cluster
-    continue;
+restResources {
+  restTests {
+    includeCore '*'
   }
+}
 
-  String baseName = "v${bwcVersion}"
+def excludeList = []
+// Excluding these cache aggregation tests from mixed cluster qa,
+// because we can't hit the same node reliable. The qa cluster
+// consists of 4 nodes. Two nodes are on old version and the
+// other two nodes on the current version. The node selector skips
+// the nodes on current version. The rest client then round robins
+// between the two nodes on old version. In order to unmute this,
+// we need a different node selector, that always consistently
+// selects the same node.
+excludeList.add('aggregations/adjacency_matrix/Terms lookup')
+excludeList.add('aggregations/filter/Standard queries get cached')
+excludeList.add('aggregations/filter/Terms lookup gets cached')
+excludeList.add('aggregations/filters_bucket/cache hits')
 
-  /* This project runs the core REST tests against a 4 node cluster where two of
+// These tests check setting validations in the desired_node API.
+// Validation (and associated tests) are supposed to be skipped/have
+// different behaviour for versions before and after 8.10 but mixed
+// cluster tests may not respect that - see the comment above.
+// Same for node version, which has been deprecated (and made optional)
+// starting from 8.13
+excludeList.add('cluster.desired_nodes/11_old_format/Test settings are validated')
+excludeList.add('cluster.desired_nodes/11_old_format/Test unknown settings are forbidden in known versions')
+excludeList.add('cluster.desired_nodes/11_old_format/Test unknown settings are allowed in future versions')
+excludeList.add('cluster.desired_nodes/11_old_format/Test some settings can be overridden')
+excludeList.add('cluster.desired_nodes/11_old_format/Test node version must be at least the current master version')
+excludeList.add('cluster.desired_nodes/11_old_format/Test node version is required')
+excludeList.add('cluster.desired_nodes/11_old_format/Test node version must have content')
+excludeList.add('cluster.desired_nodes/11_old_format/Test node version can not be null')
+excludeList.add('cluster.desired_nodes/20_dry_run/Test validation works for dry run updates')
+
+BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
+
+  if (bwcVersion != VersionProperties.getElasticsearchVersion()) {
+    /* This project runs the core REST tests against a 4 node cluster where two of
      the nodes has a different minor.  */
-  testClusters {
-    "${baseName}" {
+    def baseCluster = testClusters.register(baseName) {
       versions = [bwcVersion.toString(), project.version]
       numberOfNodes = 4
-
       setting 'path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
-    }
-  }
-
-  tasks.register("${baseName}#mixedClusterTest", RestTestRunnerTask) {
-    useCluster testClusters."${baseName}"
-    mustRunAfter(precommit)
-    doFirst {
-      project.delete("${buildDir}/cluster/shared/repo/${baseName}")
-      // Getting the endpoints causes a wait for the cluster
-      println "Test cluster endpoints are: ${-> testClusters."${baseName}".allHttpSocketURI.join(",")}"
-      println "Upgrading one node to create a mixed cluster"
-      testClusters."${baseName}".nextNodeToNextVersion()
-      // Getting the endpoints causes a wait for the cluster
-      println "Upgrade complete, endpoints are: ${-> testClusters."${baseName}".allHttpSocketURI.join(",")}"
-      println "Upgrading another node to create a mixed cluster"
-      testClusters."${baseName}".nextNodeToNextVersion()
-
-      nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",")}")
-      nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName()}")
-    }
-    systemProperty 'tests.path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
-    onlyIf { project.bwc_tests_enabled }
-  }
-
-  tasks.register("${baseName}#bwcTest") {
-    dependsOn "${baseName}#mixedClusterTest"
-  }
-
-  tasks.bwcTest.dependsOn "${baseName}#bwcTest"
-}
-
-task bwcTestSnapshots {
-  if (project.bwc_tests_enabled) {
-    for (Version bwcVersion : bwcVersions.unreleasedWireCompatible) {
-      if (bwcVersion != VersionProperties.getElasticsearchVersion()) {
-        dependsOn "v${bwcVersion}#bwcTest"
+      setting 'xpack.security.enabled', 'false'
+      /* There is a chance we have more master changes than "normal", so to avoid this test from failing,
+       we increase the threshold (as this purpose of this test isn't to test that specific indicator). */
+      if (bwcVersion.onOrAfter(Version.fromString("8.4.0"))) {
+        setting 'health.master_history.no_master_transitions_threshold', '10'
       }
+      requiresFeature 'es.index_mode_feature_flag_registered', Version.fromString("8.0.0")
+    }
+
+    tasks.register("${baseName}#mixedClusterTest", StandaloneRestIntegTestTask) {
+      useCluster baseCluster
+      mustRunAfter("precommit")
+      doFirst {
+        delete("${buildDir}/cluster/shared/repo/${baseName}")
+        // Getting the endpoints causes a wait for the cluster
+        println "Test cluster endpoints are: ${-> baseCluster.get().allHttpSocketURI.join(",")}"
+        println "Upgrading one node to create a mixed cluster"
+        baseCluster.get().nextNodeToNextVersion()
+        // Getting the endpoints causes a wait for the cluster
+        println "Upgrade complete, endpoints are: ${-> baseCluster.get().allHttpSocketURI.join(",")}"
+        println "Upgrading another node to create a mixed cluster"
+        baseCluster.get().nextNodeToNextVersion()
+        nonInputProperties.systemProperty('tests.rest.cluster', baseCluster.map(c -> c.allHttpSocketURI.join(",")))
+        nonInputProperties.systemProperty('tests.clustername', baseName)
+        if (excludeList.isEmpty() == false) {
+          systemProperty 'tests.rest.blacklist', excludeList.join(',')
+        }
+      }
+      systemProperty 'tests.path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
+      systemProperty 'tests.bwc_nodes_version', bwcVersion.toString().replace('-SNAPSHOT', '')
+      systemProperty 'tests.new_nodes_version', project.version.toString().replace('-SNAPSHOT', '')
+      onlyIf("BWC tests disabled") { project.bwc_tests_enabled }
+    }
+
+    tasks.register(bwcTaskName(bwcVersion)) {
+      dependsOn "${baseName}#mixedClusterTest"
     }
   }
 }
-
-check.dependsOn(bwcTestSnapshots)
-
-test.enabled = false

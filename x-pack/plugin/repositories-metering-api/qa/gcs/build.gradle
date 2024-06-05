@@ -1,0 +1,47 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+
+import org.elasticsearch.gradle.internal.info.BuildParams
+
+apply plugin: 'elasticsearch.internal-java-rest-test'
+
+dependencies {
+  clusterModules project(':modules:repository-gcs')
+  clusterModules project(xpackModule('repositories-metering-api'))
+  javaRestTestImplementation(testArtifact(project(xpackModule('repositories-metering-api'))))
+  javaRestTestImplementation(project(':test:fixtures:gcs-fixture'))
+}
+
+boolean useFixture = false
+String gcsServiceAccount = System.getenv("google_storage_service_account")
+String gcsBucket = System.getenv("google_storage_bucket")
+String gcsBasePath = System.getenv("google_storage_base_path")
+File serviceAccountFile = null
+
+if (!gcsServiceAccount && !gcsBucket && !gcsBasePath) {
+  gcsBucket = 'bucket'
+  gcsBasePath = 'integration_test'
+  useFixture = true
+} else if (!gcsServiceAccount || !gcsBucket || !gcsBasePath) {
+  throw new IllegalArgumentException("not all options specified to run tests against external GCS service are present")
+} else {
+  serviceAccountFile = new File(gcsServiceAccount)
+}
+
+tasks.named("javaRestTest").configure {
+  systemProperty 'test.google.fixture', Boolean.toString(useFixture)
+  systemProperty 'test.gcs.bucket', gcsBucket
+  nonInputProperties.systemProperty 'test.gcs.base_path', gcsBasePath + "_repositories_metering" + BuildParams.testSeed
+  if (useFixture == false) {
+    systemProperty 'test.google.account', serviceAccountFile
+  }
+}
+
+tasks.register("gcsThirdPartyTest").configure {
+  dependsOn "javaRestTest"
+}

@@ -1,0 +1,4 @@
+testClusters.configureEach {
+  setting 'xpack.security.enabled', 'false'
+  setting 'xpack.license.self_generated.type', 'trial'
+}

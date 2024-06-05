@@ -1,0 +1,5 @@
+pr: 107892
+summary: Optimise cardinality aggregations for single value fields
+area: Aggregations
+type: enhancement
+issues: []

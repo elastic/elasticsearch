@@ -1,13 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.test;
 
-import org.elasticsearch.cluster.metadata.AliasMetaData;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource.ExistingStoreRecoverySource;
@@ -15,7 +16,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
@@ -28,14 +29,14 @@ import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Locale;
-import java.util.UUID;
 
 import static java.nio.file.StandardCopyOption.ATOMIC_MOVE;
 import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 import static java.nio.file.StandardOpenOption.CREATE;
 import static java.nio.file.StandardOpenOption.TRUNCATE_EXISTING;
 import static java.nio.file.StandardOpenOption.WRITE;
-import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
+import static org.elasticsearch.cluster.routing.ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE;
+import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
 
 public class SecurityTestUtils {
 
@@ -66,27 +67,38 @@ public class SecurityTestUtils {
         return writeFile(folder, name, content.getBytes(StandardCharsets.UTF_8));
     }
 
-    public static RoutingTable buildIndexRoutingTable(String indexName) {
-        Index index = new Index(indexName, UUID.randomUUID().toString());
-        ShardRouting shardRouting = ShardRouting.newUnassigned(new ShardId(index, 0), true, ExistingStoreRecoverySource.INSTANCE,
-                new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, ""));
+    public static RoutingTable buildIndexRoutingTable(Index index) {
+        ShardRouting shardRouting = ShardRouting.newUnassigned(
+            new ShardId(index, 0),
+            true,
+            ExistingStoreRecoverySource.INSTANCE,
+            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, ""),
+            ShardRouting.Role.DEFAULT
+        );
         String nodeId = ESTestCase.randomAlphaOfLength(8);
-        IndexShardRoutingTable table = new IndexShardRoutingTable.Builder(new ShardId(index, 0))
-                .addShard(shardRouting.initialize(nodeId, null, shardRouting.getExpectedShardSize()).moveToStarted())
-                .build();
         return RoutingTable.builder()
-                .add(IndexRoutingTable.builder(index).addIndexShard(table).build())
-                .build();
+            .add(
+                IndexRoutingTable.builder(index)
+                    .addIndexShard(
+                        IndexShardRoutingTable.builder(new ShardId(index, 0))
+                            .addShard(
+                                shardRouting.initialize(nodeId, null, shardRouting.getExpectedShardSize())
+                                    .moveToStarted(UNAVAILABLE_EXPECTED_SHARD_SIZE)
+                            )
+                    )
+                    .build()
+            )
+            .build();
     }
 
     /**
      * Adds the index alias {@code .security} to the underlying concrete index.
      */
-    public static MetaData addAliasToMetaData(MetaData metaData, String indexName) {
-        AliasMetaData aliasMetaData = AliasMetaData.newAliasMetaDataBuilder(SECURITY_MAIN_ALIAS).build();
-        MetaData.Builder metaDataBuilder = new MetaData.Builder(metaData);
-        IndexMetaData indexMetaData = metaData.index(indexName);
-        metaDataBuilder.put(IndexMetaData.builder(indexMetaData).putAlias(aliasMetaData));
-        return metaDataBuilder.build();
+    public static Metadata addAliasToMetadata(Metadata metadata, String indexName) {
+        AliasMetadata aliasMetadata = AliasMetadata.newAliasMetadataBuilder(SECURITY_MAIN_ALIAS).build();
+        Metadata.Builder metadataBuilder = Metadata.builder(metadata);
+        IndexMetadata indexMetadata = metadata.index(indexName);
+        metadataBuilder.put(IndexMetadata.builder(indexMetadata).putAlias(aliasMetadata));
+        return metadataBuilder.build();
     }
 }

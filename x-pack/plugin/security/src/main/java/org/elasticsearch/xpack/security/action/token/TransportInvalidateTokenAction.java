@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.action.token;
 
@@ -10,6 +11,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.token.InvalidateTokenAction;
@@ -27,17 +29,24 @@ public final class TransportInvalidateTokenAction extends HandledTransportAction
 
     @Inject
     public TransportInvalidateTokenAction(TransportService transportService, ActionFilters actionFilters, TokenService tokenService) {
-        super(InvalidateTokenAction.NAME, transportService, actionFilters, InvalidateTokenRequest::new);
+        super(
+            InvalidateTokenAction.NAME,
+            transportService,
+            actionFilters,
+            InvalidateTokenRequest::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
         this.tokenService = tokenService;
     }
 
     @Override
     protected void doExecute(Task task, InvalidateTokenRequest request, ActionListener<InvalidateTokenResponse> listener) {
-        final ActionListener<TokensInvalidationResult> invalidateListener =
-            ActionListener.wrap(tokensInvalidationResult ->
-                listener.onResponse(new InvalidateTokenResponse(tokensInvalidationResult)), listener::onFailure);
+        final ActionListener<TokensInvalidationResult> invalidateListener = ActionListener.wrap(
+            tokensInvalidationResult -> listener.onResponse(new InvalidateTokenResponse(tokensInvalidationResult)),
+            listener::onFailure
+        );
         if (Strings.hasText(request.getUserName()) || Strings.hasText(request.getRealmName())) {
-            tokenService.invalidateActiveTokensForRealmAndUser(request.getRealmName(), request.getUserName(), invalidateListener);
+            tokenService.invalidateActiveTokens(request.getRealmName(), request.getUserName(), null, invalidateListener);
         } else if (request.getTokenType() == InvalidateTokenRequest.Type.ACCESS_TOKEN) {
             tokenService.invalidateAccessToken(request.getTokenString(), invalidateListener);
         } else {

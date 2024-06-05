@@ -1,57 +1,49 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.indices.create;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 import org.junit.After;
 import org.junit.Before;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.HashMap;
-import java.util.Locale;
 import java.util.Map;
 
 public class CreateIndexRequestBuilderTests extends ESTestCase {
 
     private static final String KEY = "my.settings.key";
     private static final String VALUE = "my.settings.value";
+    private TestThreadPool threadPool;
     private NoOpClient testClient;
 
     @Override
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        this.testClient = new NoOpClient(getTestName());
+        this.threadPool = createThreadPool();
+        this.testClient = new NoOpClient(threadPool);
     }
 
     @Override
     @After
     public void tearDown() throws Exception {
-        this.testClient.close();
+        this.threadPool.close();
         super.tearDown();
     }
 
@@ -59,24 +51,33 @@ public class CreateIndexRequestBuilderTests extends ESTestCase {
      * test setting the source with available setters
      */
     public void testSetSource() throws IOException {
-        CreateIndexRequestBuilder builder = new CreateIndexRequestBuilder(this.testClient, CreateIndexAction.INSTANCE);
-        
-        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, 
-                () -> {builder.setSource("{\""+KEY+"\" : \""+VALUE+"\"}", XContentType.JSON);});
-        assertEquals(String.format(Locale.ROOT, "unknown key [%s] for create index", KEY), e.getMessage());
-        
-        builder.setSource("{\"settings\" : {\""+KEY+"\" : \""+VALUE+"\"}}", XContentType.JSON);
+        CreateIndexRequestBuilder builder = new CreateIndexRequestBuilder(this.testClient);
+
+        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> {
+            builder.setSource(Strings.format("{ \"%s\": \"%s\" }", KEY, VALUE), XContentType.JSON);
+        });
+        assertEquals(Strings.format("unknown key [%s] for create index", KEY), e.getMessage());
+
+        builder.setSource(Strings.format("{ \"settings\": { \"%s\": \"%s\" }}", KEY, VALUE), XContentType.JSON);
         assertEquals(VALUE, builder.request().settings().get(KEY));
 
-        XContentBuilder xContent = XContentFactory.jsonBuilder().startObject()
-                .startObject("settings").field(KEY, VALUE).endObject().endObject();
+        XContentBuilder xContent = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("settings")
+            .field(KEY, VALUE)
+            .endObject()
+            .endObject();
         xContent.close();
         builder.setSource(xContent);
         assertEquals(VALUE, builder.request().settings().get(KEY));
 
         ByteArrayOutputStream docOut = new ByteArrayOutputStream();
-        XContentBuilder doc = XContentFactory.jsonBuilder(docOut).startObject()
-                .startObject("settings").field(KEY, VALUE).endObject().endObject();
+        XContentBuilder doc = XContentFactory.jsonBuilder(docOut)
+            .startObject()
+            .startObject("settings")
+            .field(KEY, VALUE)
+            .endObject()
+            .endObject();
         doc.close();
         builder.setSource(docOut.toByteArray(), XContentType.JSON);
         assertEquals(VALUE, builder.request().settings().get(KEY));
@@ -91,11 +92,11 @@ public class CreateIndexRequestBuilderTests extends ESTestCase {
      * test setting the settings with available setters
      */
     public void testSetSettings() throws IOException {
-        CreateIndexRequestBuilder builder = new CreateIndexRequestBuilder(this.testClient, CreateIndexAction.INSTANCE);
+        CreateIndexRequestBuilder builder = new CreateIndexRequestBuilder(this.testClient);
         builder.setSettings(Settings.builder().put(KEY, VALUE));
         assertEquals(VALUE, builder.request().settings().get(KEY));
 
-        builder.setSettings("{\""+KEY+"\" : \""+VALUE+"\"}", XContentType.JSON);
+        builder.setSettings("{\"" + KEY + "\" : \"" + VALUE + "\"}", XContentType.JSON);
         assertEquals(VALUE, builder.request().settings().get(KEY));
 
         builder.setSettings(Settings.builder().put(KEY, VALUE));

@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.ql.InvalidArgumentException;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.gen.processor.ConstantProcessor;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -27,7 +29,8 @@ public class DatePartProcessorTests extends AbstractSqlWireSerializingTestCase<D
         return new DatePartProcessor(
             new ConstantProcessor(randomRealisticUnicodeOfLengthBetween(0, 128)),
             new ConstantProcessor(DateTimeTestUtils.nowWithMillisResolution()),
-            randomZone());
+            randomZone()
+        );
     }
 
     @Override
@@ -50,28 +53,38 @@ public class DatePartProcessorTests extends AbstractSqlWireSerializingTestCase<D
         return new DatePartProcessor(
             new ConstantProcessor(ESTestCase.randomRealisticUnicodeOfLength(128)),
             new ConstantProcessor(DateTimeTestUtils.nowWithMillisResolution()),
-            randomValueOtherThan(instance.zoneId(), ESTestCase::randomZone));
+            randomValueOtherThan(instance.zoneId(), ESTestCase::randomZone)
+        );
     }
 
     public void testInvalidInputs() {
-        SqlIllegalArgumentException siae = expectThrows(SqlIllegalArgumentException.class,
-                () -> new DatePart(Source.EMPTY, l(5), randomDatetimeLiteral(), randomZone()).makePipe().asProcessor().process(null));
-        assertEquals("A string is required; received [5]", siae.getMessage());
+        Exception e = expectThrows(
+            SqlIllegalArgumentException.class,
+            () -> new DatePart(Source.EMPTY, l(5), randomDatetimeLiteral(), randomZone()).makePipe().asProcessor().process(null)
+        );
+        assertEquals("A string is required; received [5]", e.getMessage());
 
-        siae = expectThrows(SqlIllegalArgumentException.class,
-            () -> new DatePart(Source.EMPTY, l("days"), l("foo"), randomZone()).makePipe().asProcessor().process(null));
-        assertEquals("A date/datetime is required; received [foo]", siae.getMessage());
+        e = expectThrows(
+            SqlIllegalArgumentException.class,
+            () -> new DatePart(Source.EMPTY, l("days"), l("foo"), randomZone()).makePipe().asProcessor().process(null)
+        );
+        assertEquals("A date/datetime is required; received [foo]", e.getMessage());
 
-        siae = expectThrows(SqlIllegalArgumentException.class,
-            () -> new DatePart(Source.EMPTY, l("invalid"), randomDatetimeLiteral(), randomZone()).makePipe().asProcessor().process(null));
-        assertEquals("A value of [YEAR, QUARTER, MONTH, DAYOFYEAR, DAY, WEEK, WEEKDAY, HOUR, MINUTE, SECOND, MILLISECOND, " +
-                "MICROSECOND, NANOSECOND, TZOFFSET] or their aliases is required; received [invalid]",
-            siae.getMessage());
+        e = expectThrows(
+            InvalidArgumentException.class,
+            () -> new DatePart(Source.EMPTY, l("invalid"), randomDatetimeLiteral(), randomZone()).makePipe().asProcessor().process(null)
+        );
+        assertEquals(
+            "A value of [YEAR, QUARTER, MONTH, DAYOFYEAR, DAY, WEEK, WEEKDAY, HOUR, MINUTE, SECOND, MILLISECOND, "
+                + "MICROSECOND, NANOSECOND, TZOFFSET] or their aliases is required; received [invalid]",
+            e.getMessage()
+        );
 
-        siae = expectThrows(SqlIllegalArgumentException.class,
-            () -> new DatePart(Source.EMPTY, l("dayfyear"), randomDatetimeLiteral(), randomZone()).makePipe().asProcessor().process(null));
-        assertEquals("Received value [dayfyear] is not valid date part for extraction; did you mean [dayofyear, year]?",
-            siae.getMessage());
+        e = expectThrows(
+            InvalidArgumentException.class,
+            () -> new DatePart(Source.EMPTY, l("dayfyear"), randomDatetimeLiteral(), randomZone()).makePipe().asProcessor().process(null)
+        );
+        assertEquals("Received value [dayfyear] is not valid date part for extraction; did you mean [dayofyear, year]?", e.getMessage());
     }
 
     public void testWithNulls() {

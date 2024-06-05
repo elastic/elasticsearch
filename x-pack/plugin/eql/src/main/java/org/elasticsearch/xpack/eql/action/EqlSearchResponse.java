@@ -1,113 +1,111 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.eql.action;
 
 import org.apache.lucene.search.TotalHits;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentParserUtils;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.get.GetResult;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.InstantiatingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.ql.async.QlStatusResponse;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xpack.eql.util.SearchHitUtils.qualifiedIndex;
 
-/**
- * Response to perform an eql search
- *
- * Example events response:
- *         List&lt;SearchHit&gt; events = Arrays.asList(
- *             new SearchHit(1, "111", null),
- *             new SearchHit(2, "222", null)
- *         );
- *         EqlSearchResponse.Hits hits = new EqlSearchResponse.Hits(Arrays.asList(
- *             new EqlSearchResponse.Sequence(Collections.singletonList("4021"), events),
- *             new EqlSearchResponse.Sequence(Collections.singletonList("2343"), events)
- *         ), null, null, new TotalHits(0, TotalHits.Relation.EQUAL_TO));
- *         EqlSearchResponse response = new EqlSearchResponse(hits, 5, false);
- *
- *
- *  Example sequence response:
- *         List&lt;SearchHit&gt; events1 = Arrays.asList(
- *             new SearchHit(1, "111", null),
- *             new SearchHit(2, "222", null)
- *         );
- *         List&lt;SearchHit&gt; events2 = Arrays.asList(
- *             new SearchHit(1, "333", null),
- *             new SearchHit(2, "444", null)
- *         );
- *         List&lt;Sequence&gt; sequences = Arrays.asList(
- *                 new EqlSearchResponse.Sequence(new String[]{"4021"}, events1),
- *                 new EqlSearchResponse.Sequence(new String[]{"2343"}, events2)
- *             );
- *
- *         EqlSearchResponse.Hits hits = new EqlSearchResponse.Hits(null, sequences, null, new TotalHits(100, TotalHits.Relation.EQUAL_TO));
- *         EqlSearchResponse response = new EqlSearchResponse(hits, 5, false);
- *
- *
- *  Example count response:
- *         TotalHits totals = new TotalHits(100, TotalHits.Relation.EQUAL_TO);
- *         List&lt;Count&gt; counts = Arrays.asList(
- *                 new EqlSearchResponse.Count(40, new String[]{"foo", "bar"}, .42233f),
- *                 new EqlSearchResponse.Count(15, new String[]{"foo", "bar"}, .170275f)
- *         );
- *
- *         EqlSearchResponse.Hits hits = new EqlSearchResponse.Hits(null, null, counts, totals);
- *         EqlSearchResponse response = new EqlSearchResponse(hits, 5, false);
- */
-public class EqlSearchResponse extends ActionResponse implements ToXContentObject {
+public class EqlSearchResponse extends ActionResponse implements ToXContentObject, QlStatusResponse.AsyncStatus {
 
     private final Hits hits;
     private final long tookInMillis;
     private final boolean isTimeout;
+    private final String asyncExecutionId;
+    private final boolean isRunning;
+    private final boolean isPartial;
 
     private static final class Fields {
         static final String TOOK = "took";
         static final String TIMED_OUT = "timed_out";
         static final String HITS = "hits";
+        static final String ID = "id";
+        static final String IS_RUNNING = "is_running";
+        static final String IS_PARTIAL = "is_partial";
     }
 
     private static final ParseField TOOK = new ParseField(Fields.TOOK);
     private static final ParseField TIMED_OUT = new ParseField(Fields.TIMED_OUT);
     private static final ParseField HITS = new ParseField(Fields.HITS);
+    private static final ParseField ID = new ParseField(Fields.ID);
+    private static final ParseField IS_RUNNING = new ParseField(Fields.IS_RUNNING);
+    private static final ParseField IS_PARTIAL = new ParseField(Fields.IS_PARTIAL);
 
-    private static final ConstructingObjectParser<EqlSearchResponse, Void> PARSER =
-        new ConstructingObjectParser<>("eql/search_response", true,
-            args -> {
-                int i = 0;
-                Hits hits = (Hits) args[i++];
-                Long took = (Long) args[i++];
-                Boolean timeout = (Boolean) args[i];
-                return new EqlSearchResponse(hits, took, timeout);
-            });
-
+    private static final InstantiatingObjectParser<EqlSearchResponse, Void> PARSER;
     static {
-        PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> Hits.fromXContent(p), HITS);
-        PARSER.declareLong(ConstructingObjectParser.constructorArg(), TOOK);
-        PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), TIMED_OUT);
+        InstantiatingObjectParser.Builder<EqlSearchResponse, Void> parser = InstantiatingObjectParser.builder(
+            "eql/search_response",
+            true,
+            EqlSearchResponse.class
+        );
+        parser.declareObject(constructorArg(), (p, c) -> Hits.fromXContent(p), HITS);
+        parser.declareLong(constructorArg(), TOOK);
+        parser.declareBoolean(constructorArg(), TIMED_OUT);
+        parser.declareString(optionalConstructorArg(), ID);
+        parser.declareBoolean(constructorArg(), IS_RUNNING);
+        parser.declareBoolean(constructorArg(), IS_PARTIAL);
+        PARSER = parser.build();
     }
 
     public EqlSearchResponse(Hits hits, long tookInMillis, boolean isTimeout) {
+        this(hits, tookInMillis, isTimeout, null, false, false);
+    }
+
+    public EqlSearchResponse(
+        Hits hits,
+        long tookInMillis,
+        boolean isTimeout,
+        String asyncExecutionId,
+        boolean isRunning,
+        boolean isPartial
+    ) {
         super();
         this.hits = hits == null ? Hits.EMPTY : hits;
         this.tookInMillis = tookInMillis;
         this.isTimeout = isTimeout;
+        this.asyncExecutionId = asyncExecutionId;
+        this.isRunning = isRunning;
+        this.isPartial = isPartial;
     }
 
     public EqlSearchResponse(StreamInput in) throws IOException {
@@ -115,6 +113,9 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
         tookInMillis = in.readVLong();
         isTimeout = in.readBoolean();
         hits = new Hits(in);
+        asyncExecutionId = in.readOptionalString();
+        isPartial = in.readBoolean();
+        isRunning = in.readBoolean();
     }
 
     public static EqlSearchResponse fromXContent(XContentParser parser) {
@@ -126,6 +127,9 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
         out.writeVLong(tookInMillis);
         out.writeBoolean(isTimeout);
         hits.writeTo(out);
+        out.writeOptionalString(asyncExecutionId);
+        out.writeBoolean(isPartial);
+        out.writeBoolean(isRunning);
     }
 
     @Override
@@ -136,6 +140,11 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
     }
 
     private XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
+        if (asyncExecutionId != null) {
+            builder.field(ID.getPreferredName(), asyncExecutionId);
+        }
+        builder.field(IS_PARTIAL.getPreferredName(), isPartial);
+        builder.field(IS_RUNNING.getPreferredName(), isRunning);
         builder.field(TOOK.getPreferredName(), tookInMillis);
         builder.field(TIMED_OUT.getPreferredName(), isTimeout);
         hits.toXContent(builder, params);
@@ -155,6 +164,21 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
     }
 
     @Override
+    public String id() {
+        return asyncExecutionId;
+    }
+
+    @Override
+    public boolean isRunning() {
+        return isRunning;
+    }
+
+    @Override
+    public boolean isPartial() {
+        return isPartial;
+    }
+
+    @Override
     public boolean equals(Object o) {
         if (this == o) {
             return true;
@@ -165,12 +189,13 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
         EqlSearchResponse that = (EqlSearchResponse) o;
         return Objects.equals(hits, that.hits)
             && Objects.equals(tookInMillis, that.tookInMillis)
-            && Objects.equals(isTimeout, that.isTimeout);
+            && Objects.equals(isTimeout, that.isTimeout)
+            && Objects.equals(asyncExecutionId, that.asyncExecutionId);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(hits, tookInMillis, isTimeout);
+        return Objects.hash(hits, tookInMillis, isTimeout, asyncExecutionId);
     }
 
     @Override
@@ -178,6 +203,200 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
         return Strings.toString(this);
     }
 
+    // Event
+    public static class Event implements Writeable, ToXContentObject {
+
+        public static Event MISSING_EVENT = new Event("", "", new BytesArray("{}".getBytes(StandardCharsets.UTF_8)), null, true);
+
+        private static final class Fields {
+            static final String INDEX = GetResult._INDEX;
+            static final String ID = GetResult._ID;
+            static final String SOURCE = SourceFieldMapper.NAME;
+            static final String FIELDS = "fields";
+            static final String MISSING = "missing";
+        }
+
+        private static final ParseField INDEX = new ParseField(Fields.INDEX);
+        private static final ParseField ID = new ParseField(Fields.ID);
+        private static final ParseField SOURCE = new ParseField(Fields.SOURCE);
+        private static final ParseField FIELDS = new ParseField(Fields.FIELDS);
+        private static final ParseField MISSING = new ParseField(Fields.MISSING);
+
+        @SuppressWarnings("unchecked")
+        private static final ConstructingObjectParser<Event, Void> PARSER = new ConstructingObjectParser<>(
+            "eql/search_response_event",
+            true,
+            args -> new Event(
+                (String) args[0],
+                (String) args[1],
+                (BytesReference) args[2],
+                (Map<String, DocumentField>) args[3],
+                (Boolean) args[4]
+            )
+        );
+
+        static {
+            PARSER.declareString(constructorArg(), INDEX);
+            PARSER.declareString(constructorArg(), ID);
+            PARSER.declareObject(constructorArg(), (p, c) -> {
+                try (XContentBuilder builder = XContentBuilder.builder(p.contentType().xContent())) {
+                    builder.copyCurrentStructure(p);
+                    return BytesReference.bytes(builder);
+                }
+            }, SOURCE);
+            PARSER.declareObject(optionalConstructorArg(), (p, c) -> {
+                Map<String, DocumentField> fields = new HashMap<>();
+                while (p.nextToken() != XContentParser.Token.END_OBJECT) {
+                    DocumentField field = DocumentField.fromXContent(p);
+                    fields.put(field.getName(), field);
+                }
+                return fields;
+            }, FIELDS);
+            PARSER.declareBoolean(optionalConstructorArg(), MISSING);
+        }
+
+        private String index;
+        private final String id;
+        private final BytesReference source;
+        private final Map<String, DocumentField> fetchFields;
+
+        private final boolean missing;
+
+        public Event(SearchHit hit) {
+            this(qualifiedIndex(hit), hit.getId(), hit.getSourceRef(), hit.getDocumentFields(), false);
+        }
+
+        public Event(String index, String id, BytesReference source, Map<String, DocumentField> fetchFields, Boolean missing) {
+            this.index = index;
+            this.id = id;
+            this.source = source;
+            this.fetchFields = fetchFields;
+            this.missing = missing != null && missing;
+        }
+
+        private Event(StreamInput in) throws IOException {
+            index = in.readString();
+            id = in.readString();
+            // TODO: make this pooled?
+            source = in.readBytesReference();
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_13_0) && in.readBoolean()) {
+                fetchFields = in.readMap(DocumentField::new);
+            } else {
+                fetchFields = null;
+            }
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)) {
+                missing = in.readBoolean();
+            } else {
+                missing = index.isEmpty();
+            }
+        }
+
+        public static Event readFrom(StreamInput in) throws IOException {
+            Event result = new Event(in);
+            return result.missing() ? MISSING_EVENT : result;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(index);
+            out.writeString(id);
+            out.writeBytesReference(source);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_13_0)) {
+                out.writeBoolean(fetchFields != null);
+                if (fetchFields != null) {
+                    out.writeMap(fetchFields, StreamOutput::writeWriteable);
+                }
+            }
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)) {
+                // for BWC, 8.9.1+ does not have "missing" attribute, but it considers events with an empty index "" as missing events
+                // see https://github.com/elastic/elasticsearch/pull/98130
+                out.writeBoolean(missing);
+            }
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field(Fields.INDEX, index);
+            builder.field(Fields.ID, id);
+            // We have to use the deprecated version since we don't know the content type of the original source
+            XContentHelper.writeRawField(Fields.SOURCE, source, builder, params);
+            // ignore fields all together if they are all empty
+            if (fetchFields != null
+                && fetchFields.isEmpty() == false
+                && fetchFields.values().stream().anyMatch(df -> df.getValues().size() > 0)) {
+                builder.startObject(Fields.FIELDS);
+                for (DocumentField field : fetchFields.values()) {
+                    if (field.getValues().size() > 0) {
+                        field.getValidValuesWriter().toXContent(builder, params);
+                    }
+                }
+                builder.endObject();
+            }
+            if (missing) {
+                // preserve original event structure (before introduction of missing events): avoid "missing: false" for normal events
+                builder.field(Fields.MISSING, missing);
+            }
+            builder.endObject();
+            return builder;
+        }
+
+        public static Event fromXContent(XContentParser parser) throws IOException {
+            return PARSER.apply(parser, null);
+        }
+
+        public void index(String index) {
+            this.index = index;
+        }
+
+        public String index() {
+            return index;
+        }
+
+        public String id() {
+            return id;
+        }
+
+        public BytesReference source() {
+            return source;
+        }
+
+        public Map<String, DocumentField> fetchFields() {
+            return fetchFields;
+        }
+
+        public boolean missing() {
+            return missing;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(index, id, source, fetchFields, missing);
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (this == obj) {
+                return true;
+            }
+
+            if (obj == null || getClass() != obj.getClass()) {
+                return false;
+            }
+
+            EqlSearchResponse.Event other = (EqlSearchResponse.Event) obj;
+            return Objects.equals(index, other.index)
+                && Objects.equals(id, other.id)
+                && Objects.equals(source, other.source)
+                && Objects.equals(fetchFields, other.fetchFields)
+                && Objects.equals(missing, other.missing);
+        }
+
+        @Override
+        public String toString() {
+            return Strings.toString(this, true, true);
+        }
+    }
 
     // Sequence
     public static class Sequence implements Writeable, ToXContentObject {
@@ -189,41 +408,47 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
         private static final ParseField JOIN_KEYS = new ParseField(Fields.JOIN_KEYS);
         private static final ParseField EVENTS = new ParseField(Fields.EVENTS);
 
-        private static final ConstructingObjectParser<EqlSearchResponse.Sequence, Void> PARSER =
-            new ConstructingObjectParser<>("eql/search_response_sequence", true,
-                args -> {
-                    int i = 0;
-                    @SuppressWarnings("unchecked") List<String> joinKeys = (List<String>) args[i++];
-                    @SuppressWarnings("unchecked") List<SearchHit> events = (List<SearchHit>) args[i];
-                    return new EqlSearchResponse.Sequence(joinKeys, events);
-                });
+        private static final ConstructingObjectParser<EqlSearchResponse.Sequence, Void> PARSER = new ConstructingObjectParser<>(
+            "eql/search_response_sequence",
+            true,
+            args -> {
+                int i = 0;
+                @SuppressWarnings("unchecked")
+                List<Object> joinKeys = (List<Object>) args[i++];
+                @SuppressWarnings("unchecked")
+                List<Event> events = (List<Event>) args[i];
+                return new EqlSearchResponse.Sequence(joinKeys, events);
+            }
+        );
 
         static {
-            PARSER.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), JOIN_KEYS);
-            PARSER.declareObjectArray(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> SearchHit.fromXContent(p), EVENTS);
+            PARSER.declareFieldArray(
+                ConstructingObjectParser.optionalConstructorArg(),
+                (p, c) -> XContentParserUtils.parseFieldsValue(p),
+                JOIN_KEYS,
+                ObjectParser.ValueType.VALUE_ARRAY
+            );
+            PARSER.declareObjectArray(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> Event.fromXContent(p), EVENTS);
         }
 
-        private final List<String> joinKeys;
-        private final List<SearchHit> events;
+        private final List<Object> joinKeys;
+        private final List<Event> events;
 
-        public Sequence(List<String> joinKeys, List<SearchHit> events) {
+        public Sequence(List<Object> joinKeys, List<Event> events) {
             this.joinKeys = joinKeys == null ? Collections.emptyList() : joinKeys;
             this.events = events == null ? Collections.emptyList() : events;
         }
 
+        @SuppressWarnings("unchecked")
         public Sequence(StreamInput in) throws IOException {
-            this.joinKeys = in.readStringList();
-            this.events = in.readList(SearchHit::new);
-        }
-
-        public static Sequence fromXContent(XContentParser parser) {
-            return PARSER.apply(parser, null);
+            this.joinKeys = (List<Object>) in.readGenericValue();
+            this.events = in.readCollectionAsList(Event::readFrom);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeStringCollection(joinKeys);
-            out.writeList(events);
+            out.writeGenericValue(joinKeys);
+            out.writeCollection(events);
         }
 
         @Override
@@ -233,8 +458,8 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
                 builder.field(Fields.JOIN_KEYS, joinKeys);
             }
             if (events.isEmpty() == false) {
-                builder.startArray(EVENTS.getPreferredName());
-                for (SearchHit event : events) {
+                builder.startArray(Fields.EVENTS);
+                for (Event event : events) {
                     event.toXContent(builder, params);
                 }
                 builder.endArray();
@@ -252,108 +477,28 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
                 return false;
             }
             Sequence that = (Sequence) o;
-            return Objects.equals(joinKeys, that.joinKeys)
-                && Objects.equals(events, that.events);
+            return Objects.equals(joinKeys, that.joinKeys) && Objects.equals(events, that.events);
         }
 
         @Override
         public int hashCode() {
             return Objects.hash(joinKeys, events);
         }
-    }
 
-    // Count
-    public static class Count implements ToXContentObject, Writeable {
-        private static final class Fields {
-            static final String COUNT = "_count";
-            static final String KEYS = "_keys";
-            static final String PERCENT = "_percent";
+        public List<Object> joinKeys() {
+            return joinKeys;
         }
 
-        private final int count;
-        private final List<String> keys;
-        private final float percent;
-
-        private static final ParseField COUNT = new ParseField(Fields.COUNT);
-        private static final ParseField KEYS = new ParseField(Fields.KEYS);
-        private static final ParseField PERCENT = new ParseField(Fields.PERCENT);
-
-        private static final ConstructingObjectParser<EqlSearchResponse.Count, Void> PARSER =
-            new ConstructingObjectParser<>("eql/search_response_count", true,
-                args -> {
-                    int i = 0;
-                    int count = (int) args[i++];
-                    @SuppressWarnings("unchecked") List<String> joinKeys = (List<String>) args[i++];
-                    float percent = (float) args[i];
-                    return new EqlSearchResponse.Count(count, joinKeys, percent);
-                });
-
-        static {
-            PARSER.declareInt(ConstructingObjectParser.constructorArg(), COUNT);
-            PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), KEYS);
-            PARSER.declareFloat(ConstructingObjectParser.constructorArg(), PERCENT);
-        }
-
-        public Count(int count, List<String> keys, float percent) {
-            this.count = count;
-            this.keys = keys == null ? Collections.emptyList() : keys;
-            this.percent = percent;
-        }
-
-        public Count(StreamInput in) throws IOException {
-            count = in.readVInt();
-            keys = in.readStringList();
-            percent = in.readFloat();
-        }
-
-        public static Count fromXContent(XContentParser parser) {
-            return PARSER.apply(parser, null);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeVInt(count);
-            out.writeStringCollection(keys);
-            out.writeFloat(percent);
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.field(Fields.COUNT, count);
-            builder.field(Fields.KEYS, keys);
-            builder.field(Fields.PERCENT, percent);
-            builder.endObject();
-            return builder;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) {
-                return true;
-            }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-            Count that = (Count) o;
-            return Objects.equals(count, that.count)
-                && Objects.equals(keys, that.keys)
-                && Objects.equals(percent, that.percent);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(count, keys, percent);
+        public List<Event> events() {
+            return events;
         }
     }
 
-    // Hits
     public static class Hits implements Writeable, ToXContentFragment {
-        public static final Hits EMPTY = new Hits(null, null, null, null);
+        public static final Hits EMPTY = new Hits(null, null, null);
 
-        private final List<SearchHit> events;
+        private final List<Event> events;
         private final List<Sequence> sequences;
-        private final List<Count> counts;
         private final TotalHits totalHits;
 
         private static final class Fields {
@@ -361,17 +506,13 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
             static final String TOTAL = "total";
             static final String EVENTS = "events";
             static final String SEQUENCES = "sequences";
-            static final String COUNTS = "counts";
         }
 
-        public Hits(@Nullable List<SearchHit> events, @Nullable List<Sequence> sequences, @Nullable List<Count> counts,
-                    @Nullable TotalHits totalHits) {
+        public Hits(@Nullable List<Event> events, @Nullable List<Sequence> sequences, @Nullable TotalHits totalHits) {
             this.events = events;
             this.sequences = sequences;
-            this.counts = counts;
             this.totalHits = totalHits;
         }
-
 
         public Hits(StreamInput in) throws IOException {
             if (in.readBoolean()) {
@@ -379,9 +520,8 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
             } else {
                 totalHits = null;
             }
-            events =  in.readBoolean() ? in.readList(SearchHit::new) : null;
-            sequences = in.readBoolean() ? in.readList(Sequence::new) : null;
-            counts = in.readBoolean() ? in.readList(Count::new) : null;
+            events = in.readBoolean() ? in.readCollectionAsList(Event::readFrom) : null;
+            sequences = in.readBoolean() ? in.readCollectionAsList(Sequence::new) : null;
         }
 
         @Override
@@ -393,44 +533,44 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
             }
             if (events != null) {
                 out.writeBoolean(true);
-                out.writeList(events);
+                out.writeCollection(events);
             } else {
                 out.writeBoolean(false);
             }
             if (sequences != null) {
                 out.writeBoolean(true);
-                out.writeList(sequences);
-            } else {
-                out.writeBoolean(false);
-            }
-            if (counts != null) {
-                out.writeBoolean(true);
-                out.writeList(counts);
+                out.writeCollection(sequences);
             } else {
                 out.writeBoolean(false);
             }
         }
 
-        private static final ConstructingObjectParser<EqlSearchResponse.Hits, Void> PARSER =
-            new ConstructingObjectParser<>("eql/search_response_count", true,
-                args -> {
-                    int i = 0;
-                    @SuppressWarnings("unchecked") List<SearchHit> searchHits = (List<SearchHit>) args[i++];
-                    @SuppressWarnings("unchecked") List<Sequence> sequences = (List<Sequence>) args[i++];
-                    @SuppressWarnings("unchecked") List<Count> counts = (List<Count>) args[i++];
-                    TotalHits totalHits = (TotalHits) args[i];
-                    return new EqlSearchResponse.Hits(searchHits, sequences, counts, totalHits);
-                });
+        private static final ConstructingObjectParser<EqlSearchResponse.Hits, Void> PARSER = new ConstructingObjectParser<>(
+            "eql/search_response_hits",
+            true,
+            args -> {
+                int i = 0;
+                @SuppressWarnings("unchecked")
+                List<Event> events = (List<Event>) args[i++];
+                @SuppressWarnings("unchecked")
+                List<Sequence> sequences = (List<Sequence>) args[i++];
+                TotalHits totalHits = (TotalHits) args[i];
+                return new EqlSearchResponse.Hits(events, sequences, totalHits);
+            }
+        );
 
         static {
-            PARSER.declareObjectArray(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> SearchHit.fromXContent(p),
-                new ParseField(Fields.EVENTS));
-            PARSER.declareObjectArray(ConstructingObjectParser.optionalConstructorArg(), Sequence.PARSER,
-                new ParseField(Fields.SEQUENCES));
-            PARSER.declareObjectArray(ConstructingObjectParser.optionalConstructorArg(), Count.PARSER,
-                new ParseField(Fields.COUNTS));
-            PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> SearchHits.parseTotalHitsFragment(p),
-                new ParseField(Fields.TOTAL));
+            PARSER.declareObjectArray(
+                ConstructingObjectParser.optionalConstructorArg(),
+                (p, c) -> Event.fromXContent(p),
+                new ParseField(Fields.EVENTS)
+            );
+            PARSER.declareObjectArray(ConstructingObjectParser.optionalConstructorArg(), Sequence.PARSER, new ParseField(Fields.SEQUENCES));
+            PARSER.declareObject(
+                ConstructingObjectParser.optionalConstructorArg(),
+                (p, c) -> SearchHits.parseTotalHitsFragment(p),
+                new ParseField(Fields.TOTAL)
+            );
         }
 
         public static Hits fromXContent(XContentParser parser) throws IOException {
@@ -448,16 +588,13 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
             }
             if (events != null) {
                 builder.startArray(Fields.EVENTS);
-                for (SearchHit event : events) {
+                for (Event event : events) {
                     event.toXContent(builder, params);
                 }
                 builder.endArray();
             }
             if (sequences != null) {
                 builder.field(Fields.SEQUENCES, sequences);
-            }
-            if (counts != null) {
-                builder.field(Fields.COUNTS, counts);
             }
             builder.endObject();
 
@@ -475,13 +612,24 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
             Hits that = (Hits) o;
             return Objects.equals(events, that.events)
                 && Objects.equals(sequences, that.sequences)
-                && Objects.equals(counts, that.counts)
                 && Objects.equals(totalHits, that.totalHits);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(events, sequences, counts, totalHits);
+            return Objects.hash(events, sequences, totalHits);
+        }
+
+        public List<Event> events() {
+            return this.events;
+        }
+
+        public List<Sequence> sequences() {
+            return this.sequences;
+        }
+
+        public TotalHits totalHits() {
+            return this.totalHits;
         }
     }
 }

@@ -1,59 +1,50 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.indices.rollover;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsTests;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
+import org.elasticsearch.action.datastreams.autosharding.DataStreamAutoShardingService;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.AliasAction;
-import org.elasticsearch.cluster.metadata.AliasMetaData;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
-import org.elasticsearch.cluster.metadata.MetaDataIndexAliasesService;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
+import org.elasticsearch.cluster.metadata.MetadataDataStreamsService;
+import org.elasticsearch.cluster.metadata.MetadataIndexAliasesService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
 import org.elasticsearch.index.cache.request.RequestCacheStats;
 import org.elasticsearch.index.engine.SegmentsStats;
@@ -63,44 +54,80 @@ import org.elasticsearch.index.get.GetStats;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
+import org.elasticsearch.index.shard.DenseVectorStats;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.shard.IndexingStats;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.index.warmer.WarmerStats;
+import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
-import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.hamcrest.Matchers;
+import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
 import static java.util.Collections.emptyList;
+import static org.elasticsearch.action.admin.indices.rollover.TransportRolloverAction.buildStats;
 import static org.elasticsearch.action.admin.indices.rollover.TransportRolloverAction.evaluateConditions;
+import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-
 public class TransportRolloverActionTests extends ESTestCase {
+
+    final ClusterService mockClusterService = mock(ClusterService.class);
+    final DiscoveryNode mockNode = mock(DiscoveryNode.class);
+    final ThreadPool mockThreadPool = mock(ThreadPool.class);
+    final MetadataCreateIndexService mockCreateIndexService = mock(MetadataCreateIndexService.class);
+    final IndexNameExpressionResolver mockIndexNameExpressionResolver = mock(IndexNameExpressionResolver.class);
+    final ActionFilters mockActionFilters = mock(ActionFilters.class);
+    final MetadataIndexAliasesService mdIndexAliasesService = mock(MetadataIndexAliasesService.class);
+    final MetadataDataStreamsService mockMetadataDataStreamService = mock(MetadataDataStreamsService.class);
+    final Client mockClient = mock(Client.class);
+    final AllocationService mockAllocationService = mock(AllocationService.class);
+    final TestTelemetryPlugin telemetryPlugin = new TestTelemetryPlugin();
+    final MetadataRolloverService rolloverService = new MetadataRolloverService(
+        mockThreadPool,
+        mockCreateIndexService,
+        mdIndexAliasesService,
+        EmptySystemIndices.INSTANCE,
+        WriteLoadForecaster.DEFAULT,
+        mockClusterService,
+        telemetryPlugin.getTelemetryProvider(Settings.EMPTY)
+    );
+    final DataStreamAutoShardingService dataStreamAutoShardingService = new DataStreamAutoShardingService(
+        Settings.EMPTY,
+        mockClusterService,
+        new FeatureService(List.of()),
+        System::currentTimeMillis
+    );
+
+    @Before
+    public void setUpMocks() {
+        when(mockNode.getId()).thenReturn("mocknode");
+        when(mockClusterService.localNode()).thenReturn(mockNode);
+    }
 
     public void testDocStatsSelectionFromPrimariesOnly() {
         long docsInPrimaryShards = 100;
@@ -108,294 +135,214 @@ public class TransportRolloverActionTests extends ESTestCase {
 
         final Condition<?> condition = createTestCondition();
         String indexName = randomAlphaOfLengthBetween(5, 7);
-        evaluateConditions(Sets.newHashSet(condition), createMetaData(indexName),
-                createIndicesStatResponse(indexName, docsInShards, docsInPrimaryShards));
+        evaluateConditions(
+            Set.of(condition),
+            buildStats(createMetadata(indexName), createIndicesStatResponse(indexName, docsInShards, docsInPrimaryShards))
+        );
         final ArgumentCaptor<Condition.Stats> argument = ArgumentCaptor.forClass(Condition.Stats.class);
         verify(condition).evaluate(argument.capture());
 
-        assertEquals(docsInPrimaryShards, argument.getValue().numDocs);
+        assertEquals(docsInPrimaryShards, argument.getValue().numDocs());
     }
 
     public void testEvaluateConditions() {
-        MaxDocsCondition maxDocsCondition = new MaxDocsCondition(100L);
         MaxAgeCondition maxAgeCondition = new MaxAgeCondition(TimeValue.timeValueHours(2));
-        MaxSizeCondition maxSizeCondition = new MaxSizeCondition(new ByteSizeValue(randomIntBetween(10, 100), ByteSizeUnit.MB));
+        MaxDocsCondition maxDocsCondition = new MaxDocsCondition(100L);
+        MaxSizeCondition maxSizeCondition = new MaxSizeCondition(ByteSizeValue.ofMb(randomIntBetween(10, 100)));
+        MaxPrimaryShardSizeCondition maxPrimaryShardSizeCondition = new MaxPrimaryShardSizeCondition(
+            ByteSizeValue.ofMb(randomIntBetween(10, 100))
+        );
+        MaxPrimaryShardDocsCondition maxPrimaryShardDocsCondition = new MaxPrimaryShardDocsCondition(10L);
+        MinAgeCondition minAgeCondition = new MinAgeCondition(TimeValue.timeValueHours(2));
+        MinDocsCondition minDocsCondition = new MinDocsCondition(100L);
+        MinSizeCondition minSizeCondition = new MinSizeCondition(ByteSizeValue.ofMb(randomIntBetween(10, 100)));
+        MinPrimaryShardSizeCondition minPrimaryShardSizeCondition = new MinPrimaryShardSizeCondition(
+            ByteSizeValue.ofMb(randomIntBetween(10, 100))
+        );
+        MinPrimaryShardDocsCondition minPrimaryShardDocsCondition = new MinPrimaryShardDocsCondition(10L);
+        final Set<Condition<?>> conditions = Set.of(
+            maxAgeCondition,
+            maxDocsCondition,
+            maxSizeCondition,
+            maxPrimaryShardSizeCondition,
+            maxPrimaryShardDocsCondition,
+            minAgeCondition,
+            minDocsCondition,
+            minSizeCondition,
+            minPrimaryShardSizeCondition,
+            minPrimaryShardDocsCondition
+        );
 
         long matchMaxDocs = randomIntBetween(100, 1000);
         long notMatchMaxDocs = randomIntBetween(0, 99);
-        ByteSizeValue notMatchMaxSize = new ByteSizeValue(randomIntBetween(0, 9), ByteSizeUnit.MB);
-        final Settings settings = Settings.builder()
-            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
-            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
-            .build();
-        final IndexMetaData metaData = IndexMetaData.builder(randomAlphaOfLength(10))
-            .creationDate(System.currentTimeMillis() - TimeValue.timeValueHours(3).getMillis())
-            .settings(settings)
-            .build();
-        final Set<Condition<?>> conditions = Sets.newHashSet(maxDocsCondition, maxAgeCondition, maxSizeCondition);
-        Map<String, Boolean> results = evaluateConditions(conditions,
-            new DocsStats(matchMaxDocs, 0L, ByteSizeUnit.MB.toBytes(120)), metaData);
-        assertThat(results.size(), equalTo(3));
+        ByteSizeValue notMatchMaxSize = ByteSizeValue.ofMb(randomIntBetween(0, 9));
+        long indexCreated = TimeValue.timeValueHours(3).getMillis();
+        long matchMaxPrimaryShardDocs = randomIntBetween(10, 100);
+        long notMatchMaxPrimaryShardDocs = randomIntBetween(0, 9);
+
+        expectThrows(
+            NullPointerException.class,
+            () -> evaluateConditions(null, new Condition.Stats(0, 0, ByteSizeValue.ofMb(0), ByteSizeValue.ofMb(0), 0))
+        );
+
+        Map<String, Boolean> results = evaluateConditions(conditions, null);
+        assertThat(results.size(), equalTo(10));
+        for (Boolean matched : results.values()) {
+            assertThat(matched, equalTo(false));
+        }
+
+        results = evaluateConditions(
+            conditions,
+            new Condition.Stats(matchMaxDocs, indexCreated, ByteSizeValue.ofMb(120), ByteSizeValue.ofMb(120), matchMaxPrimaryShardDocs)
+        );
+        assertThat(results.size(), equalTo(10));
         for (Boolean matched : results.values()) {
             assertThat(matched, equalTo(true));
         }
 
-        results = evaluateConditions(conditions, new DocsStats(notMatchMaxDocs, 0, notMatchMaxSize.getBytes()), metaData);
-        assertThat(results.size(), equalTo(3));
-        for (Map.Entry<String, Boolean> entry : results.entrySet()) {
-            if (entry.getKey().equals(maxAgeCondition.toString())) {
-                assertThat(entry.getValue(), equalTo(true));
-            } else if (entry.getKey().equals(maxDocsCondition.toString())) {
-                assertThat(entry.getValue(), equalTo(false));
-            } else if (entry.getKey().equals(maxSizeCondition.toString())) {
-                assertThat(entry.getValue(), equalTo(false));
-            } else {
-                fail("unknown condition result found " + entry.getKey());
-            }
-        }
-    }
-
-    public void testEvaluateWithoutDocStats() {
-        MaxDocsCondition maxDocsCondition = new MaxDocsCondition(randomNonNegativeLong());
-        MaxAgeCondition maxAgeCondition = new MaxAgeCondition(TimeValue.timeValueHours(randomIntBetween(1, 3)));
-        MaxSizeCondition maxSizeCondition = new MaxSizeCondition(new ByteSizeValue(randomNonNegativeLong()));
-
-        Set<Condition<?>> conditions = Sets.newHashSet(maxDocsCondition, maxAgeCondition, maxSizeCondition);
-        final Settings settings = Settings.builder()
-            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
-            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 1000))
-            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomInt(10))
-            .build();
-
-        final IndexMetaData metaData = IndexMetaData.builder(randomAlphaOfLength(10))
-            .creationDate(System.currentTimeMillis() - TimeValue.timeValueHours(randomIntBetween(5, 10)).getMillis())
-            .settings(settings)
-            .build();
-        Map<String, Boolean> results = evaluateConditions(conditions, null, metaData);
-        assertThat(results.size(), equalTo(3));
-
-        for (Map.Entry<String, Boolean> entry : results.entrySet()) {
-            if (entry.getKey().equals(maxAgeCondition.toString())) {
-                assertThat(entry.getValue(), equalTo(true));
-            } else if (entry.getKey().equals(maxDocsCondition.toString())) {
-                assertThat(entry.getValue(), equalTo(false));
-            } else if (entry.getKey().equals(maxSizeCondition.toString())) {
-                assertThat(entry.getValue(), equalTo(false));
-            } else {
-                fail("unknown condition result found " + entry.getKey());
-            }
-        }
-    }
-
-    public void testEvaluateWithoutMetaData() {
-        MaxDocsCondition maxDocsCondition = new MaxDocsCondition(100L);
-        MaxAgeCondition maxAgeCondition = new MaxAgeCondition(TimeValue.timeValueHours(2));
-        MaxSizeCondition maxSizeCondition = new MaxSizeCondition(new ByteSizeValue(randomIntBetween(10, 100), ByteSizeUnit.MB));
-
-        long matchMaxDocs = randomIntBetween(100, 1000);
-        final Set<Condition<?>> conditions = Sets.newHashSet(maxDocsCondition, maxAgeCondition, maxSizeCondition);
-        Map<String, Boolean> results = evaluateConditions(conditions,
-            new DocsStats(matchMaxDocs, 0L, ByteSizeUnit.MB.toBytes(120)), null);
-        assertThat(results.size(), equalTo(3));
-        results.forEach((k, v) -> assertFalse(v));
-
-        final Settings settings = Settings.builder()
-            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
-            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 1000))
-            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomInt(10))
-            .build();
-
-        final IndexMetaData metaData = IndexMetaData.builder(randomAlphaOfLength(10))
-            .creationDate(System.currentTimeMillis() - TimeValue.timeValueHours(randomIntBetween(5, 10)).getMillis())
-            .settings(settings)
-            .build();
-        IndicesStatsResponse indicesStats = randomIndicesStatsResponse(new IndexMetaData[]{metaData});
-        Map<String, Boolean> results2 = evaluateConditions(conditions, null, indicesStats);
-        assertThat(results2.size(), equalTo(3));
-        results2.forEach((k, v) -> assertFalse(v));
-    }
-
-    public void testRolloverAliasActions() {
-        String sourceAlias = randomAlphaOfLength(10);
-        String sourceIndex = randomAlphaOfLength(10);
-        String targetIndex = randomAlphaOfLength(10);
-        final RolloverRequest rolloverRequest = new RolloverRequest(sourceAlias, targetIndex);
-
-        List<AliasAction> actions = TransportRolloverAction.rolloverAliasToNewIndex(sourceIndex, targetIndex, rolloverRequest, false);
-        assertThat(actions, hasSize(2));
-        boolean foundAdd = false;
-        boolean foundRemove = false;
-        for (AliasAction action : actions) {
-            if (action.getIndex().equals(targetIndex)) {
-                assertEquals(sourceAlias, ((AliasAction.Add) action).getAlias());
-                foundAdd = true;
-            } else if (action.getIndex().equals(sourceIndex)) {
-                assertEquals(sourceAlias, ((AliasAction.Remove) action).getAlias());
-                foundRemove = true;
-            } else {
-                throw new AssertionError("Unknown index [" + action.getIndex() + "]");
-            }
-        }
-        assertTrue(foundAdd);
-        assertTrue(foundRemove);
-    }
-
-    public void testRolloverAliasActionsWithExplicitWriteIndex() {
-        String sourceAlias = randomAlphaOfLength(10);
-        String sourceIndex = randomAlphaOfLength(10);
-        String targetIndex = randomAlphaOfLength(10);
-        final RolloverRequest rolloverRequest = new RolloverRequest(sourceAlias, targetIndex);
-        List<AliasAction> actions = TransportRolloverAction.rolloverAliasToNewIndex(sourceIndex, targetIndex, rolloverRequest, true);
-
-        assertThat(actions, hasSize(2));
-        boolean foundAddWrite = false;
-        boolean foundRemoveWrite = false;
-        for (AliasAction action : actions) {
-            AliasAction.Add addAction = (AliasAction.Add) action;
-            if (action.getIndex().equals(targetIndex)) {
-                assertEquals(sourceAlias, addAction.getAlias());
-                assertTrue(addAction.writeIndex());
-                foundAddWrite = true;
-            } else if (action.getIndex().equals(sourceIndex)) {
-                assertEquals(sourceAlias, addAction.getAlias());
-                assertFalse(addAction.writeIndex());
-                foundRemoveWrite = true;
-            } else {
-                throw new AssertionError("Unknown index [" + action.getIndex() + "]");
-            }
-        }
-        assertTrue(foundAddWrite);
-        assertTrue(foundRemoveWrite);
-    }
-
-    public void testValidation() {
-        String index1 = randomAlphaOfLength(10);
-        String aliasWithWriteIndex = randomAlphaOfLength(10);
-        String index2 = randomAlphaOfLength(10);
-        String aliasWithNoWriteIndex = randomAlphaOfLength(10);
-        Boolean firstIsWriteIndex = randomFrom(false, null);
-        final Settings settings = Settings.builder()
-            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
-            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
-            .build();
-        MetaData.Builder metaDataBuilder = MetaData.builder()
-            .put(IndexMetaData.builder(index1)
-                .settings(settings)
-                .putAlias(AliasMetaData.builder(aliasWithWriteIndex))
-                .putAlias(AliasMetaData.builder(aliasWithNoWriteIndex).writeIndex(firstIsWriteIndex))
-            );
-        IndexMetaData.Builder indexTwoBuilder = IndexMetaData.builder(index2).settings(settings);
-        if (firstIsWriteIndex == null) {
-            indexTwoBuilder.putAlias(AliasMetaData.builder(aliasWithNoWriteIndex).writeIndex(randomFrom(false, null)));
-        }
-        metaDataBuilder.put(indexTwoBuilder);
-        MetaData metaData = metaDataBuilder.build();
-
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () ->
-            TransportRolloverAction.validate(metaData, new RolloverRequest(aliasWithNoWriteIndex,
-                randomAlphaOfLength(10))));
-        assertThat(exception.getMessage(), equalTo("source alias [" + aliasWithNoWriteIndex + "] does not point to a write index"));
-        exception = expectThrows(IllegalArgumentException.class, () ->
-            TransportRolloverAction.validate(metaData, new RolloverRequest(randomFrom(index1, index2),
-                randomAlphaOfLength(10))));
-        assertThat(exception.getMessage(), equalTo("source alias is a concrete index"));
-        exception = expectThrows(IllegalArgumentException.class, () ->
-            TransportRolloverAction.validate(metaData, new RolloverRequest(randomAlphaOfLength(5),
-                randomAlphaOfLength(10)))
+        results = evaluateConditions(
+            conditions,
+            new Condition.Stats(notMatchMaxDocs, indexCreated, notMatchMaxSize, ByteSizeValue.ofMb(0), notMatchMaxPrimaryShardDocs)
         );
-        assertThat(exception.getMessage(), equalTo("source alias does not exist"));
-        TransportRolloverAction.validate(metaData, new RolloverRequest(aliasWithWriteIndex, randomAlphaOfLength(10)));
+        assertThat(results.size(), equalTo(10));
+        for (Map.Entry<String, Boolean> entry : results.entrySet()) {
+            if (entry.getKey().equals(maxAgeCondition.toString())) {
+                assertThat(entry.getValue(), equalTo(true));
+            } else if (entry.getKey().equals(maxDocsCondition.toString())) {
+                assertThat(entry.getValue(), equalTo(false));
+            } else if (entry.getKey().equals(maxSizeCondition.toString())) {
+                assertThat(entry.getValue(), equalTo(false));
+            } else if (entry.getKey().equals(maxPrimaryShardSizeCondition.toString())) {
+                assertThat(entry.getValue(), equalTo(false));
+            } else if (entry.getKey().equals(maxPrimaryShardDocsCondition.toString())) {
+                assertThat(entry.getValue(), equalTo(false));
+            } else if (entry.getKey().equals(minAgeCondition.toString())) {
+                assertThat(entry.getValue(), equalTo(true));
+            } else if (entry.getKey().equals(minDocsCondition.toString())) {
+                assertThat(entry.getValue(), equalTo(false));
+            } else if (entry.getKey().equals(minSizeCondition.toString())) {
+                assertThat(entry.getValue(), equalTo(false));
+            } else if (entry.getKey().equals(minPrimaryShardSizeCondition.toString())) {
+                assertThat(entry.getValue(), equalTo(false));
+            } else if (entry.getKey().equals(minPrimaryShardDocsCondition.toString())) {
+                assertThat(entry.getValue(), equalTo(false));
+            } else {
+                fail("unknown condition result found " + entry.getKey());
+            }
+        }
     }
 
-    public void testGenerateRolloverIndexName() {
-        String invalidIndexName = randomAlphaOfLength(10) + "A";
-        IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver();
-        expectThrows(IllegalArgumentException.class, () ->
-            TransportRolloverAction.generateRolloverIndexName(invalidIndexName, indexNameExpressionResolver));
-        int num = randomIntBetween(0, 100);
-        final String indexPrefix = randomAlphaOfLength(10);
-        String indexEndingInNumbers = indexPrefix + "-" + num;
-        assertThat(TransportRolloverAction.generateRolloverIndexName(indexEndingInNumbers, indexNameExpressionResolver),
-            equalTo(indexPrefix + "-" + String.format(Locale.ROOT, "%06d", num + 1)));
-        assertThat(TransportRolloverAction.generateRolloverIndexName("index-name-1", indexNameExpressionResolver),
-            equalTo("index-name-000002"));
-        assertThat(TransportRolloverAction.generateRolloverIndexName("index-name-2", indexNameExpressionResolver),
-            equalTo("index-name-000003"));
-        assertEquals( "<index-name-{now/d}-000002>", TransportRolloverAction.generateRolloverIndexName("<index-name-{now/d}-1>",
-            indexNameExpressionResolver));
-    }
+    public void testEvaluateWithoutStats() {
+        MaxAgeCondition maxAgeCondition = new MaxAgeCondition(TimeValue.timeValueHours(randomIntBetween(1, 3)));
+        MaxDocsCondition maxDocsCondition = new MaxDocsCondition(randomNonNegativeLong());
+        MaxSizeCondition maxSizeCondition = new MaxSizeCondition(ByteSizeValue.ofBytes(randomNonNegativeLong()));
+        MaxPrimaryShardSizeCondition maxPrimaryShardSizeCondition = new MaxPrimaryShardSizeCondition(
+            ByteSizeValue.ofBytes(randomNonNegativeLong())
+        );
+        MaxPrimaryShardDocsCondition maxPrimaryShardDocsCondition = new MaxPrimaryShardDocsCondition(randomNonNegativeLong());
+        MinAgeCondition minAgeCondition = new MinAgeCondition(TimeValue.timeValueHours(randomIntBetween(1, 3)));
+        MinDocsCondition minDocsCondition = new MinDocsCondition(randomNonNegativeLong());
+        MinSizeCondition minSizeCondition = new MinSizeCondition(ByteSizeValue.ofBytes(randomNonNegativeLong()));
+        MinPrimaryShardSizeCondition minPrimaryShardSizeCondition = new MinPrimaryShardSizeCondition(
+            ByteSizeValue.ofBytes(randomNonNegativeLong())
+        );
+        MinPrimaryShardDocsCondition minPrimaryShardDocsCondition = new MinPrimaryShardDocsCondition(randomNonNegativeLong());
+        final Set<Condition<?>> conditions = Set.of(
+            maxAgeCondition,
+            maxDocsCondition,
+            maxSizeCondition,
+            maxPrimaryShardSizeCondition,
+            maxPrimaryShardDocsCondition,
+            minAgeCondition,
+            minDocsCondition,
+            minSizeCondition,
+            minPrimaryShardSizeCondition,
+            minPrimaryShardDocsCondition
+        );
 
-    public void testCreateIndexRequest() {
-        String alias = randomAlphaOfLength(10);
-        String rolloverIndex = randomAlphaOfLength(10);
-        final RolloverRequest rolloverRequest = new RolloverRequest(alias, randomAlphaOfLength(10));
-        final ActiveShardCount activeShardCount = randomBoolean() ? ActiveShardCount.ALL : ActiveShardCount.ONE;
-        rolloverRequest.getCreateIndexRequest().waitForActiveShards(activeShardCount);
-        final Settings settings = Settings.builder()
-            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
-            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+        final Settings settings = indexSettings(IndexVersion.current(), randomIntBetween(1, 1000), 10).put(
+            IndexMetadata.SETTING_INDEX_UUID,
+            UUIDs.randomBase64UUID()
+        ).build();
+
+        final IndexMetadata metadata = IndexMetadata.builder(randomAlphaOfLength(10))
+            .creationDate(System.currentTimeMillis() - TimeValue.timeValueHours(randomIntBetween(5, 10)).getMillis())
+            .settings(settings)
             .build();
-        rolloverRequest.getCreateIndexRequest().settings(settings);
-        final CreateIndexClusterStateUpdateRequest createIndexRequest =
-            TransportRolloverAction.prepareCreateIndexRequest(rolloverIndex, rolloverIndex, rolloverRequest);
-        assertThat(createIndexRequest.settings(), equalTo(settings));
-        assertThat(createIndexRequest.index(), equalTo(rolloverIndex));
-        assertThat(createIndexRequest.cause(), equalTo("rollover_index"));
+        Map<String, Boolean> results = evaluateConditions(conditions, buildStats(metadata, null));
+        assertThat(results.size(), equalTo(10));
+
+        for (Map.Entry<String, Boolean> entry : results.entrySet()) {
+            if (entry.getKey().equals(maxAgeCondition.toString())) {
+                assertThat(entry.getValue(), equalTo(true));
+            } else if (entry.getKey().equals(maxDocsCondition.toString())) {
+                assertThat(entry.getValue(), equalTo(false));
+            } else if (entry.getKey().equals(maxSizeCondition.toString())) {
+                assertThat(entry.getValue(), equalTo(false));
+            } else if (entry.getKey().equals(maxPrimaryShardSizeCondition.toString())) {
+                assertThat(entry.getValue(), equalTo(false));
+            } else if (entry.getKey().equals(maxPrimaryShardDocsCondition.toString())) {
+                assertThat(entry.getValue(), equalTo(false));
+            } else if (entry.getKey().equals(minAgeCondition.toString())) {
+                assertThat(entry.getValue(), equalTo(true));
+            } else if (entry.getKey().equals(minDocsCondition.toString())) {
+                assertThat(entry.getValue(), equalTo(false));
+            } else if (entry.getKey().equals(minSizeCondition.toString())) {
+                assertThat(entry.getValue(), equalTo(false));
+            } else if (entry.getKey().equals(minPrimaryShardSizeCondition.toString())) {
+                assertThat(entry.getValue(), equalTo(false));
+            } else if (entry.getKey().equals(minPrimaryShardDocsCondition.toString())) {
+                assertThat(entry.getValue(), equalTo(false));
+            } else {
+                fail("unknown condition result found " + entry.getKey());
+            }
+        }
     }
 
-    public void testRejectDuplicateAlias() {
-        final IndexTemplateMetaData template = IndexTemplateMetaData.builder("test-template")
-            .patterns(Arrays.asList("foo-*", "bar-*"))
-            .putAlias(AliasMetaData.builder("foo-write")).putAlias(AliasMetaData.builder("bar-write").writeIndex(randomBoolean()))
+    public void testEvaluateWithoutMetadata() {
+        MaxAgeCondition maxAgeCondition = new MaxAgeCondition(TimeValue.timeValueHours(2));
+        MaxDocsCondition maxDocsCondition = new MaxDocsCondition(100L);
+        MaxSizeCondition maxSizeCondition = new MaxSizeCondition(ByteSizeValue.ofMb(randomIntBetween(10, 100)));
+        MaxPrimaryShardSizeCondition maxPrimaryShardSizeCondition = new MaxPrimaryShardSizeCondition(
+            ByteSizeValue.ofMb(randomIntBetween(10, 100))
+        );
+        MaxPrimaryShardDocsCondition maxPrimaryShardDocsCondition = new MaxPrimaryShardDocsCondition(10L);
+        MinAgeCondition minAgeCondition = new MinAgeCondition(TimeValue.timeValueHours(2));
+        MinDocsCondition minDocsCondition = new MinDocsCondition(100L);
+        MinSizeCondition minSizeCondition = new MinSizeCondition(ByteSizeValue.ofMb(randomIntBetween(10, 100)));
+        MinPrimaryShardSizeCondition minPrimaryShardSizeCondition = new MinPrimaryShardSizeCondition(
+            ByteSizeValue.ofMb(randomIntBetween(10, 100))
+        );
+        MinPrimaryShardDocsCondition minPrimaryShardDocsCondition = new MinPrimaryShardDocsCondition(10L);
+        final Set<Condition<?>> conditions = Set.of(
+            maxAgeCondition,
+            maxDocsCondition,
+            maxSizeCondition,
+            maxPrimaryShardSizeCondition,
+            maxPrimaryShardDocsCondition,
+            minAgeCondition,
+            minDocsCondition,
+            minSizeCondition,
+            minPrimaryShardSizeCondition,
+            minPrimaryShardDocsCondition
+        );
+
+        final Settings settings = indexSettings(IndexVersion.current(), randomIntBetween(1, 1000), 10).put(
+            IndexMetadata.SETTING_INDEX_UUID,
+            UUIDs.randomBase64UUID()
+        ).build();
+
+        final IndexMetadata metadata = IndexMetadata.builder(randomAlphaOfLength(10))
+            .creationDate(System.currentTimeMillis() - TimeValue.timeValueHours(randomIntBetween(5, 10)).getMillis())
+            .settings(settings)
             .build();
-        final MetaData metaData = MetaData.builder().put(createMetaData(randomAlphaOfLengthBetween(5, 7)), false).put(template).build();
-        String indexName = randomFrom("foo-123", "bar-xyz");
-        String aliasName = randomFrom("foo-write", "bar-write");
-        final IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
-            () -> TransportRolloverAction.checkNoDuplicatedAliasInIndexTemplate(metaData, indexName, aliasName, randomBoolean()));
-        assertThat(ex.getMessage(), containsString("index template [test-template]"));
+        IndicesStatsResponse indicesStats = randomIndicesStatsResponse(new IndexMetadata[] { metadata });
+        Map<String, Boolean> results = evaluateConditions(conditions, buildStats(null, indicesStats));
+        assertThat(results.size(), equalTo(10));
+        results.forEach((k, v) -> assertFalse(v));
     }
 
-    public void testHiddenAffectsResolvedTemplates() {
-        final IndexTemplateMetaData template = IndexTemplateMetaData.builder("test-template")
-            .patterns(Collections.singletonList("*"))
-            .putAlias(AliasMetaData.builder("foo-write")).putAlias(AliasMetaData.builder("bar-write").writeIndex(randomBoolean()))
-            .build();
-        final MetaData metaData = MetaData.builder().put(createMetaData(randomAlphaOfLengthBetween(5, 7)), false).put(template).build();
-        String indexName = randomFrom("foo-123", "bar-xyz");
-        String aliasName = randomFrom("foo-write", "bar-write");
-
-        // hidden shouldn't throw
-        TransportRolloverAction.checkNoDuplicatedAliasInIndexTemplate(metaData, indexName, aliasName, Boolean.TRUE);
-        // not hidden will throw
-        final IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () ->
-            TransportRolloverAction.checkNoDuplicatedAliasInIndexTemplate(metaData, indexName, aliasName, randomFrom(Boolean.FALSE, null)));
-        assertThat(ex.getMessage(), containsString("index template [test-template]"));
-    }
-
-    public void testConditionEvaluationWhenAliasToWriteAndReadIndicesConsidersOnlyPrimariesFromWriteIndex() {
-        final TransportService mockTransportService = mock(TransportService.class);
-        final ClusterService mockClusterService = mock(ClusterService.class);
-        final DiscoveryNode mockNode = mock(DiscoveryNode.class);
-        when(mockNode.getId()).thenReturn("mocknode");
-        when(mockClusterService.localNode()).thenReturn(mockNode);
-        final ThreadPool mockThreadPool = mock(ThreadPool.class);
-        final MetaDataCreateIndexService mockCreateIndexService = mock(MetaDataCreateIndexService.class);
-        final IndexNameExpressionResolver mockIndexNameExpressionResolver = mock(IndexNameExpressionResolver.class);
-        when(mockIndexNameExpressionResolver.resolveDateMathExpression(any())).thenReturn("logs-index-000003");
-        final ActionFilters mockActionFilters = mock(ActionFilters.class);
-        final MetaDataIndexAliasesService mdIndexAliasesService = mock(MetaDataIndexAliasesService.class);
-
-        final Client mockClient = mock(Client.class);
-
+    public void testConditionEvaluationWhenAliasToWriteAndReadIndicesConsidersOnlyPrimariesFromWriteIndex() throws Exception {
         final Map<String, IndexStats> indexStats = new HashMap<>();
         int total = randomIntBetween(500, 1000);
         indexStats.put("logs-index-000001", createIndexStats(200L, total));
@@ -404,34 +351,52 @@ public class TransportRolloverActionTests extends ESTestCase {
         doAnswer(invocation -> {
             Object[] args = invocation.getArguments();
             assert args.length == 3;
+            @SuppressWarnings("unchecked")
             ActionListener<IndicesStatsResponse> listener = (ActionListener<IndicesStatsResponse>) args[2];
             listener.onResponse(statsResponse);
             return null;
-        }).when(mockClient).execute(eq(IndicesStatsAction.INSTANCE), any(ActionRequest.class), any(ActionListener.class));
+        }).when(mockClient).execute(eq(IndicesStatsAction.INSTANCE), any(ActionRequest.class), anyActionListener());
 
         assert statsResponse.getPrimaries().getDocs().getCount() == 500L;
         assert statsResponse.getTotal().getDocs().getCount() == (total + total);
 
-        final IndexMetaData.Builder indexMetaData = IndexMetaData.builder("logs-index-000001")
-                .putAlias(AliasMetaData.builder("logs-alias").writeIndex(false).build()).settings(settings(Version.CURRENT))
-                .numberOfShards(1).numberOfReplicas(1);
-        final IndexMetaData.Builder indexMetaData2 = IndexMetaData.builder("logs-index-000002")
-                .putAlias(AliasMetaData.builder("logs-alias").writeIndex(true).build()).settings(settings(Version.CURRENT))
-                .numberOfShards(1).numberOfReplicas(1);
+        final IndexMetadata.Builder indexMetadata = IndexMetadata.builder("logs-index-000001")
+            .putAlias(AliasMetadata.builder("logs-alias").writeIndex(false).build())
+            .settings(settings(IndexVersion.current()))
+            .numberOfShards(1)
+            .numberOfReplicas(1);
+        final IndexMetadata.Builder indexMetadata2 = IndexMetadata.builder("logs-index-000002")
+            .putAlias(AliasMetadata.builder("logs-alias").writeIndex(true).build())
+            .settings(settings(IndexVersion.current()))
+            .numberOfShards(1)
+            .numberOfReplicas(1);
         final ClusterState stateBefore = ClusterState.builder(ClusterName.DEFAULT)
-                .metaData(MetaData.builder().put(indexMetaData).put(indexMetaData2)).build();
+            .metadata(Metadata.builder().put(indexMetadata).put(indexMetadata2))
+            .build();
 
-        final TransportRolloverAction transportRolloverAction = new TransportRolloverAction(mockTransportService, mockClusterService,
-                mockThreadPool, mockCreateIndexService, mockActionFilters, mockIndexNameExpressionResolver, mdIndexAliasesService,
-                mockClient);
+        when(mockCreateIndexService.applyCreateIndexRequest(any(), any(), anyBoolean(), any())).thenReturn(stateBefore);
+        when(mdIndexAliasesService.applyAliasActions(any(), any())).thenReturn(stateBefore);
+
+        final TransportRolloverAction transportRolloverAction = new TransportRolloverAction(
+            mock(TransportService.class),
+            mockClusterService,
+            mockThreadPool,
+            mockActionFilters,
+            mockIndexNameExpressionResolver,
+            rolloverService,
+            mockClient,
+            mockAllocationService,
+            mockMetadataDataStreamService,
+            dataStreamAutoShardingService
+        );
 
         // For given alias, verify that condition evaluation fails when the condition doc count is greater than the primaries doc count
         // (primaries from only write index is considered)
         PlainActionFuture<RolloverResponse> future = new PlainActionFuture<>();
         RolloverRequest rolloverRequest = new RolloverRequest("logs-alias", "logs-index-000003");
-        rolloverRequest.addMaxIndexDocsCondition(500L);
+        rolloverRequest.setConditions(RolloverConditions.newBuilder().addMaxIndexDocsCondition(500L).build());
         rolloverRequest.dryRun(true);
-        transportRolloverAction.masterOperation(mock(Task.class), rolloverRequest, stateBefore, future);
+        transportRolloverAction.masterOperation(mock(CancellableTask.class), rolloverRequest, stateBefore, future);
 
         RolloverResponse response = future.actionGet();
         assertThat(response.getOldIndex(), equalTo("logs-index-000002"));
@@ -445,9 +410,9 @@ public class TransportRolloverActionTests extends ESTestCase {
         // (primaries from only write index is considered)
         future = new PlainActionFuture<>();
         rolloverRequest = new RolloverRequest("logs-alias", "logs-index-000003");
-        rolloverRequest.addMaxIndexDocsCondition(300L);
+        rolloverRequest.setConditions(RolloverConditions.newBuilder().addMaxIndexDocsCondition(300L).build());
         rolloverRequest.dryRun(true);
-        transportRolloverAction.masterOperation(mock(Task.class), rolloverRequest, stateBefore, future);
+        transportRolloverAction.masterOperation(mock(CancellableTask.class), rolloverRequest, stateBefore, future);
 
         response = future.actionGet();
         assertThat(response.getOldIndex(), equalTo("logs-index-000002"));
@@ -456,6 +421,161 @@ public class TransportRolloverActionTests extends ESTestCase {
         assertThat(response.isRolledOver(), equalTo(false));
         assertThat(response.getConditionStatus().size(), equalTo(1));
         assertThat(response.getConditionStatus().get("[max_docs: 300]"), is(true));
+    }
+
+    public void testLazyRollover() throws Exception {
+        final IndexMetadata backingIndexMetadata = IndexMetadata.builder(".ds-logs-ds-000001")
+            .settings(settings(IndexVersion.current()))
+            .numberOfShards(1)
+            .numberOfReplicas(1)
+            .build();
+        final DataStream dataStream = DataStream.builder("logs-ds", List.of(backingIndexMetadata.getIndex()))
+            .setMetadata(Map.of())
+            .setIndexMode(IndexMode.STANDARD)
+            .build();
+        final ClusterState stateBefore = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(Metadata.builder().put(backingIndexMetadata, false).put(dataStream))
+            .build();
+
+        doAnswer(invocation -> {
+            Object[] args = invocation.getArguments();
+            assert args.length == 6;
+            @SuppressWarnings("unchecked")
+            ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) args[5];
+            listener.onResponse(AcknowledgedResponse.TRUE);
+            return null;
+        }).when(mockMetadataDataStreamService)
+            .setRolloverOnWrite(eq(dataStream.getName()), eq(true), eq(false), any(), any(), anyActionListener());
+
+        final TransportRolloverAction transportRolloverAction = new TransportRolloverAction(
+            mock(TransportService.class),
+            mockClusterService,
+            mockThreadPool,
+            mockActionFilters,
+            mockIndexNameExpressionResolver,
+            rolloverService,
+            mockClient,
+            mockAllocationService,
+            mockMetadataDataStreamService,
+            dataStreamAutoShardingService
+        );
+        final PlainActionFuture<RolloverResponse> future = new PlainActionFuture<>();
+        RolloverRequest rolloverRequest = new RolloverRequest("logs-ds", null);
+        rolloverRequest.lazy(true);
+        transportRolloverAction.masterOperation(mock(CancellableTask.class), rolloverRequest, stateBefore, future);
+        RolloverResponse rolloverResponse = future.actionGet();
+        assertThat(rolloverResponse.getOldIndex(), equalTo(".ds-logs-ds-000001"));
+        assertThat(rolloverResponse.getNewIndex(), Matchers.startsWith(".ds-logs-ds-"));
+        assertThat(rolloverResponse.getNewIndex(), Matchers.endsWith("-000002"));
+        assertThat(rolloverResponse.isLazy(), equalTo(true));
+        assertThat(rolloverResponse.isDryRun(), equalTo(false));
+        assertThat(rolloverResponse.isRolledOver(), equalTo(false));
+        assertThat(rolloverResponse.getConditionStatus().size(), equalTo(0));
+        assertThat(rolloverResponse.isAcknowledged(), is(true));
+    }
+
+    public void testLazyRolloverFails() throws Exception {
+        final IndexMetadata.Builder indexMetadata = IndexMetadata.builder("logs-index-000001")
+            .putAlias(AliasMetadata.builder("logs-alias").writeIndex(true).build())
+            .settings(settings(IndexVersion.current()))
+            .numberOfShards(1)
+            .numberOfReplicas(1);
+        final IndexMetadata backingIndexMetadata = IndexMetadata.builder(".ds-logs-ds-000001")
+            .settings(settings(IndexVersion.current()))
+            .numberOfShards(1)
+            .numberOfReplicas(1)
+            .build();
+        final DataStream dataStream = DataStream.builder("logs-ds", List.of(backingIndexMetadata.getIndex()))
+            .setGeneration(randomIntBetween(1, 10))
+            .setMetadata(Map.of())
+            .setIndexMode(IndexMode.STANDARD)
+            .build();
+        final ClusterState stateBefore = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(Metadata.builder().put(indexMetadata).put(backingIndexMetadata, false).put(dataStream))
+            .build();
+
+        final TransportRolloverAction transportRolloverAction = new TransportRolloverAction(
+            mock(TransportService.class),
+            mockClusterService,
+            mockThreadPool,
+            mockActionFilters,
+            mockIndexNameExpressionResolver,
+            rolloverService,
+            mockClient,
+            mockAllocationService,
+            mockMetadataDataStreamService,
+            dataStreamAutoShardingService
+        );
+
+        // Lazy rollover fails on a concrete index
+        {
+            final PlainActionFuture<RolloverResponse> future = new PlainActionFuture<>();
+            RolloverRequest rolloverRequest = new RolloverRequest("logs-alias", null);
+            rolloverRequest.lazy(true);
+            transportRolloverAction.masterOperation(mock(CancellableTask.class), rolloverRequest, stateBefore, future);
+            IllegalArgumentException illegalArgumentException = expectThrows(IllegalArgumentException.class, future::actionGet);
+            assertThat(illegalArgumentException.getMessage(), containsString("Lazy rollover can be applied only on a data stream."));
+        }
+
+        // Lazy rollover fails when used with conditions
+        {
+            final PlainActionFuture<RolloverResponse> future = new PlainActionFuture<>();
+            RolloverRequest rolloverRequest = new RolloverRequest("logs-ds", null);
+            rolloverRequest.setConditions(RolloverConditions.newBuilder().addMaxIndexAgeCondition(TimeValue.timeValueDays(1)).build());
+            rolloverRequest.lazy(true);
+            transportRolloverAction.masterOperation(mock(CancellableTask.class), rolloverRequest, stateBefore, future);
+            IllegalArgumentException illegalArgumentException = expectThrows(IllegalArgumentException.class, future::actionGet);
+            assertThat(illegalArgumentException.getMessage(), containsString("Lazy rollover can be used only without any conditions."));
+        }
+
+        // Lazy rollover fails on concrete index with conditions
+        {
+            final PlainActionFuture<RolloverResponse> future = new PlainActionFuture<>();
+            RolloverRequest rolloverRequest = new RolloverRequest("logs-alias", null);
+            rolloverRequest.setConditions(RolloverConditions.newBuilder().addMaxIndexAgeCondition(TimeValue.timeValueDays(1)).build());
+            rolloverRequest.lazy(true);
+            transportRolloverAction.masterOperation(mock(CancellableTask.class), rolloverRequest, stateBefore, future);
+            IllegalArgumentException illegalArgumentException = expectThrows(IllegalArgumentException.class, future::actionGet);
+            assertThat(
+                illegalArgumentException.getMessage(),
+                containsString("Lazy rollover can be applied only on a data stream with no conditions.")
+            );
+        }
+    }
+
+    public void testRolloverAliasToDataStreamFails() throws Exception {
+        final IndexMetadata backingIndexMetadata = IndexMetadata.builder(".ds-logs-ds-000001")
+            .settings(settings(IndexVersion.current()))
+            .numberOfShards(1)
+            .numberOfReplicas(1)
+            .build();
+        final DataStream dataStream = DataStream.builder("logs-ds", List.of(backingIndexMetadata.getIndex()))
+            .setGeneration(1)
+            .setMetadata(Map.of())
+            .setIndexMode(IndexMode.STANDARD)
+            .build();
+        Metadata.Builder metadataBuilder = Metadata.builder().put(backingIndexMetadata, false).put(dataStream);
+        metadataBuilder.put("ds-alias", dataStream.getName(), true, null);
+        final ClusterState stateBefore = ClusterState.builder(ClusterName.DEFAULT).metadata(metadataBuilder).build();
+
+        final TransportRolloverAction transportRolloverAction = new TransportRolloverAction(
+            mock(TransportService.class),
+            mockClusterService,
+            mockThreadPool,
+            mockActionFilters,
+            mockIndexNameExpressionResolver,
+            rolloverService,
+            mockClient,
+            mockAllocationService,
+            mockMetadataDataStreamService,
+            dataStreamAutoShardingService
+        );
+
+        final PlainActionFuture<RolloverResponse> future = new PlainActionFuture<>();
+        RolloverRequest rolloverRequest = new RolloverRequest("ds-alias", null);
+        transportRolloverAction.masterOperation(mock(CancellableTask.class), rolloverRequest, stateBefore, future);
+        IllegalStateException illegalStateException = expectThrows(IllegalStateException.class, future::actionGet);
+        assertThat(illegalStateException.getMessage(), containsString("Aliases to data streams cannot be rolled over."));
     }
 
     private IndicesStatsResponse createIndicesStatResponse(String indexName, long totalDocs, long primariesDocs) {
@@ -503,14 +623,12 @@ public class TransportRolloverActionTests extends ESTestCase {
         return indexStats;
     }
 
-    private static IndexMetaData createMetaData(String indexName) {
-        final Settings settings = Settings.builder()
-            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
-            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
-            .build();
-        return IndexMetaData.builder(indexName)
+    private static IndexMetadata createMetadata(String indexName) {
+        final Settings settings = indexSettings(IndexVersion.current(), 1, 0).put(
+            IndexMetadata.SETTING_INDEX_UUID,
+            UUIDs.randomBase64UUID()
+        ).build();
+        return IndexMetadata.builder(indexName)
             .creationDate(System.currentTimeMillis() - TimeValue.timeValueHours(3).getMillis())
             .settings(settings)
             .build();
@@ -522,21 +640,24 @@ public class TransportRolloverActionTests extends ESTestCase {
         return condition;
     }
 
-    public static IndicesStatsResponse randomIndicesStatsResponse(final IndexMetaData[] indices) {
+    public static IndicesStatsResponse randomIndicesStatsResponse(final IndexMetadata[] indices) {
         List<ShardStats> shardStats = new ArrayList<>();
-        for (final IndexMetaData index : indices) {
+        for (final IndexMetadata index : indices) {
             int numShards = randomIntBetween(1, 3);
             int primaryIdx = randomIntBetween(-1, numShards - 1); // -1 means there is no primary shard.
             for (int i = 0; i < numShards; i++) {
                 ShardId shardId = new ShardId(index.getIndex(), i);
                 boolean primary = (i == primaryIdx);
                 Path path = createTempDir().resolve("indices").resolve(index.getIndexUUID()).resolve(String.valueOf(i));
-                ShardRouting shardRouting = ShardRouting.newUnassigned(shardId, primary,
+                ShardRouting shardRouting = ShardRouting.newUnassigned(
+                    shardId,
+                    primary,
                     primary ? RecoverySource.EmptyStoreRecoverySource.INSTANCE : RecoverySource.PeerRecoverySource.INSTANCE,
-                    new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null)
+                    new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null),
+                    ShardRouting.Role.DEFAULT
                 );
                 shardRouting = shardRouting.initialize("node-0", null, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
-                shardRouting = shardRouting.moveToStarted();
+                shardRouting = shardRouting.moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
                 CommonStats stats = new CommonStats();
                 stats.fieldData = new FieldDataStats();
                 stats.queryCache = new QueryCacheStats();
@@ -552,11 +673,17 @@ public class TransportRolloverActionTests extends ESTestCase {
                 stats.get = new GetStats();
                 stats.flush = new FlushStats();
                 stats.warmer = new WarmerStats();
-                shardStats.add(new ShardStats(shardRouting, new ShardPath(false, path, path, shardId), stats, null, null, null));
+                stats.denseVectorStats = new DenseVectorStats();
+                shardStats.add(new ShardStats(shardRouting, new ShardPath(false, path, path, shardId), stats, null, null, null, false, 0));
             }
         }
         return IndicesStatsTests.newIndicesStatsResponse(
-            shardStats.toArray(new ShardStats[shardStats.size()]), shardStats.size(), shardStats.size(), 0, emptyList()
+            shardStats.toArray(new ShardStats[shardStats.size()]),
+            shardStats.size(),
+            shardStats.size(),
+            0,
+            emptyList(),
+            ClusterState.EMPTY_STATE
         );
     }
 }

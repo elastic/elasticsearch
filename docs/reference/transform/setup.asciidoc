@@ -1,0 +1,107 @@
+[role="xpack"]
+[[transform-setup]]
+= Set up {transforms}
+++++
+<titleabbrev>Setup</titleabbrev>
+++++
+
+[discrete]
+[[requirements-overview]]
+== Requirements overview
+
+To use {transforms}, you must have:
+
+* at least one <<transform-node,{transform} node>>,
+* management features visible in the {kib} space, and
+* security privileges that:
++
+--
+* grant use of {transforms}, and
+* grant access to source and destination indices
+--
+
+[discrete]
+[[transform-privileges]]
+== Security privileges
+
+Assigning security privileges affects how users access {transforms}. Consider
+the two main categories:
+
+* *<<transform-es-security-privileges>>*: uses an {es} client, cURL, or {kib}
+**{dev-tools-app}** to access {transforms} via {es} APIs. This scenario requires
+{es} security privileges.
+* *<<transform-kib-security-privileges>>*: uses {transforms} in {kib}. This
+scenario requires {kib} feature privileges _and_ {es} security privileges.
+
+[discrete]
+[[transform-es-security-privileges]]
+=== {es} API user
+
+To _manage_ {transforms}, you must meet all of the following requirements:
+
+* `transform_admin` built-in role or `manage_transform` cluster privileges,
+* `read` and `view_index_metadata` index privileges on source indices, and
+* `create_index`, `index`, `manage`, and `read` index privileges on destination
+indices. If a `retention_policy` is configured, `delete` index privilege is
+also required on the destination index.
+
+To view only the configuration and status of {transforms}, you must have:
+
+* `transform_user` built-in role or `monitor_transform` cluster privileges
+
+For more information about {es} roles and privileges, refer to
+<<built-in-roles>> and <<security-privileges>>.
+
+[discrete]
+[[transform-kib-security-privileges]]
+=== {kib} user
+
+Within a {kib} space, for full access to {transforms}, you must meet all of the
+following requirements:
+
+*  Management features visible in the {kib} space, including
+`Data View Management` and `Stack Monitoring`,
+* `monitoring_user` built-in role,
+* `transform_admin` built-in role or `manage_transform` cluster privileges,
+* `kibana_admin` built-in role or a custom role with `read` or `all` {kib}
+privileges for the `Data View Management` feature (dependent on whether data
+views already exist for your destination indices),
+* data views for your source indices,
+* `read` and `view_index_metadata` index privileges on source indices, and
+* `create_index`, `index`, `manage`, and `read` index privileges on destination
+indices. Additionally, when using a `retention_policy`, `delete` index privilege is required
+on destination indices.
+* `read_pipeline` cluster privileges, if the {transform} uses an ingest pipeline
+
+Within a {kib} space, for read-only access to {transforms}, you must meet all of
+the following requirements:
+
+* Management features visible in the {kib} space, including `Stack Monitoring`,
+* `monitoring_user` built-in role,
+* `transform_user` built-in role or `monitor_transform` cluster privileges,
+* `kibana_admin` built-in role or a custom role with `read` {kib} privileges
+for at least one feature in the space,
+* data views for your source and destination indices, and
+* `read`, and `view_index_metadata` index privileges on source indices and
+destination indices
+
+For more information and {kib} security features, see
+{kibana-ref}/kibana-role-management.html[{kib} role management] and
+{kibana-ref}/kibana-privileges.html[{kib} privileges].
+
+
+[discrete]
+[[transform-kib-spaces]]
+== {kib} spaces
+
+{kibana-ref}/xpack-spaces.html[Spaces] enable you to organize your source and
+destination indices and other saved objects in {kib} and to see only the objects
+that belong to your space. However, a {transform} is a long running task which 
+is managed on cluster level and therefore not limited in scope to certain 
+spaces. Space awareness can be implemented for a {data-source} under 
+**Stack Management > Kibana** which allows privileges to the {transform} 
+destination index.
+
+To successfully create {transforms} in {kib}, you must be logged into a space
+where the source indices are visible and the `Data View Management` and
+`Stack Monitoring` features are visible.

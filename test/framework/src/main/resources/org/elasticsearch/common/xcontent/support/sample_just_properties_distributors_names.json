@@ -1,0 +1,26 @@
+{
+  "properties" : {
+    "language" : {
+      "en" : {
+        "distributors" : [
+          {
+            "name" : "The Book Shop"
+          },
+          {
+            "name" : "Sussex Books House"
+          }
+        ]
+      },
+      "fr" : {
+        "distributors" : [
+          {
+            "name" : "La Maison du Livre"
+          },
+          {
+            "name" : "Thetra"
+          }
+        ]
+      }
+    }
+  }
+}

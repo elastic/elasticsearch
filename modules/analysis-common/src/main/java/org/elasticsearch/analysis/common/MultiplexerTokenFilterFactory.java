@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.analysis.common;
@@ -27,6 +16,7 @@ import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.IndexService.IndexCreationContext;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
 import org.elasticsearch.index.analysis.AnalysisMode;
@@ -45,7 +35,7 @@ public class MultiplexerTokenFilterFactory extends AbstractTokenFilterFactory {
     private final boolean preserveOriginal;
 
     public MultiplexerTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) throws IOException {
-        super(indexSettings, name, settings);
+        super(name, settings);
         this.filterNames = settings.getAsList("filters");
         this.preserveOriginal = settings.getAsBoolean("preserve_original", true);
     }
@@ -61,9 +51,13 @@ public class MultiplexerTokenFilterFactory extends AbstractTokenFilterFactory {
     }
 
     @Override
-    public TokenFilterFactory getChainAwareTokenFilterFactory(TokenizerFactory tokenizer, List<CharFilterFactory> charFilters,
-                                                              List<TokenFilterFactory> previousTokenFilters,
-                                                              Function<String, TokenFilterFactory> allFilters) {
+    public TokenFilterFactory getChainAwareTokenFilterFactory(
+        IndexCreationContext context,
+        TokenizerFactory tokenizer,
+        List<CharFilterFactory> charFilters,
+        List<TokenFilterFactory> previousTokenFilters,
+        Function<String, TokenFilterFactory> allFilters
+    ) {
         List<TokenFilterFactory> filters = new ArrayList<>();
         if (preserveOriginal) {
             filters.add(IDENTITY_FILTER);
@@ -74,7 +68,7 @@ public class MultiplexerTokenFilterFactory extends AbstractTokenFilterFactory {
             String[] parts = Strings.tokenizeToStringArray(filter, ",");
             if (parts.length == 1) {
                 TokenFilterFactory factory = resolveFilterFactory(allFilters, parts[0]);
-                factory = factory.getChainAwareTokenFilterFactory(tokenizer, charFilters, previousTokenFilters, allFilters);
+                factory = factory.getChainAwareTokenFilterFactory(context, tokenizer, charFilters, previousTokenFilters, allFilters);
                 filters.add(factory);
                 mode = mode.merge(factory.getAnalysisMode());
             } else {
@@ -82,7 +76,7 @@ public class MultiplexerTokenFilterFactory extends AbstractTokenFilterFactory {
                 List<TokenFilterFactory> chain = new ArrayList<>();
                 for (String subfilter : parts) {
                     TokenFilterFactory factory = resolveFilterFactory(allFilters, subfilter);
-                    factory = factory.getChainAwareTokenFilterFactory(tokenizer, charFilters, existingChain, allFilters);
+                    factory = factory.getChainAwareTokenFilterFactory(context, tokenizer, charFilters, existingChain, allFilters);
                     chain.add(factory);
                     existingChain.add(factory);
                     mode = mode.merge(factory.getAnalysisMode());
@@ -119,7 +113,7 @@ public class MultiplexerTokenFilterFactory extends AbstractTokenFilterFactory {
         };
     }
 
-    private TokenFilterFactory chainFilters(String name, List<TokenFilterFactory> filters) {
+    private static TokenFilterFactory chainFilters(String name, List<TokenFilterFactory> filters) {
         return new TokenFilterFactory() {
             @Override
             public String name() {
@@ -145,7 +139,7 @@ public class MultiplexerTokenFilterFactory extends AbstractTokenFilterFactory {
         }
     }
 
-    private final class MultiplexTokenFilter extends TokenFilter {
+    private static final class MultiplexTokenFilter extends TokenFilter {
 
         private final TokenStream source;
         private final int filterCount;
@@ -157,17 +151,17 @@ public class MultiplexerTokenFilterFactory extends AbstractTokenFilterFactory {
          */
         MultiplexTokenFilter(TokenStream input, List<Function<TokenStream, TokenStream>> filters) {
             super(input);
-            TokenStream source = new MultiplexerFilter(input);
+            TokenStream sourceFilter = new MultiplexerFilter(input);
             for (int i = 0; i < filters.size(); i++) {
                 final int slot = i;
-                source = new ConditionalTokenFilter(source, filters.get(i)) {
+                sourceFilter = new ConditionalTokenFilter(sourceFilter, filters.get(i)) {
                     @Override
                     protected boolean shouldFilter() {
                         return slot == selector;
                     }
                 };
             }
-            this.source = source;
+            this.source = sourceFilter;
             this.filterCount = filters.size();
             this.selector = filterCount - 1;
         }

@@ -1,74 +1,85 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.action.saml;
 
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.bulk.BulkAction;
+import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
+import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.index.IndexAction;
+import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.search.ClearScrollAction;
+import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.ClearScrollResponse;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchResponseSections;
-import org.elasticsearch.action.search.SearchScrollAction;
 import org.elasticsearch.action.search.SearchScrollRequest;
+import org.elasticsearch.action.search.TransportClearScrollAction;
+import org.elasticsearch.action.search.TransportSearchAction;
+import org.elasticsearch.action.search.TransportSearchScrollAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.update.UpdateRequest;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.action.update.UpdateResponse;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.xcontent.DeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.client.NoOpClient;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.DeprecationHandler;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.saml.SamlInvalidateSessionRequest;
 import org.elasticsearch.xpack.core.security.action.saml.SamlInvalidateSessionResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig.RealmIdentifier;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.TokenService;
+import org.elasticsearch.xpack.security.authc.TokenServiceTests;
 import org.elasticsearch.xpack.security.authc.saml.SamlLogoutRequestHandler;
 import org.elasticsearch.xpack.security.authc.saml.SamlNameId;
 import org.elasticsearch.xpack.security.authc.saml.SamlRealm;
@@ -94,14 +105,16 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.core.security.authc.RealmSettings.getFullSettingKey;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.iterableWithSize;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyString;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -117,8 +130,8 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
     private List<SearchRequest> searchRequests;
     private TransportSamlInvalidateSessionAction action;
     private SamlLogoutRequestHandler.Result logoutRequest;
-    private Function<SearchRequest, SearchHit[]> searchFunction = ignore -> new SearchHit[0];
-    private Function<SearchScrollRequest, SearchHit[]> searchScrollFunction = ignore -> new SearchHit[0];
+    private Function<SearchRequest, SearchHit[]> searchFunction = ignore -> SearchHits.EMPTY;
+    private ThreadPool threadPool;
 
     @Before
     public void setup() throws Exception {
@@ -136,53 +149,109 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
             .put(getFullSettingKey(realmId, RealmSettings.ORDER_SETTING), 0)
             .build();
 
-        final ThreadContext threadContext = new ThreadContext(settings);
-        final ThreadPool threadPool = mock(ThreadPool.class);
-        when(threadPool.getThreadContext()).thenReturn(threadContext);
-        new Authentication(new User("kibana"), new RealmRef("realm", "type", "node"), null).writeToContext(threadContext);
+        this.threadPool = new TestThreadPool("saml test thread pool", settings);
+        final ThreadContext threadContext = threadPool.getThreadContext();
+        AuthenticationTestHelper.builder()
+            .user(new User("kibana"))
+            .realmRef(new RealmRef("realm", "type", "node"))
+            .build(false)
+            .writeToContext(threadContext);
 
         indexRequests = new ArrayList<>();
         searchRequests = new ArrayList<>();
         bulkRequests = new ArrayList<>();
         final Client client = new NoOpClient(threadPool) {
             @Override
-            protected <Request extends ActionRequest, Response extends ActionResponse>
-            void doExecute(ActionType<Response> action, Request request, ActionListener<Response> listener) {
-                if (IndexAction.NAME.equals(action.name())) {
+            @SuppressWarnings("unchecked")
+            protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                ActionType<Response> action,
+                Request request,
+                ActionListener<Response> listener
+            ) {
+                if (TransportIndexAction.NAME.equals(action.name())) {
                     assertThat(request, instanceOf(IndexRequest.class));
                     IndexRequest indexRequest = (IndexRequest) request;
                     indexRequests.add(indexRequest);
-                    final IndexResponse response = new IndexResponse(
-                        new ShardId("test", "test", 0), indexRequest.id(), 1, 1, 1, true);
+                    final IndexResponse response = new IndexResponse(new ShardId("test", "test", 0), indexRequest.id(), 1, 1, 1, true);
                     listener.onResponse((Response) response);
-                } else if (BulkAction.NAME.equals(action.name())) {
+                } else if (TransportBulkAction.NAME.equals(action.name())) {
                     assertThat(request, instanceOf(BulkRequest.class));
-                    bulkRequests.add((BulkRequest) request);
-                    final BulkResponse response = new BulkResponse(new BulkItemResponse[0], 1);
+                    BulkRequest bulkRequest = (BulkRequest) request;
+                    bulkRequests.add(bulkRequest);
+                    BulkItemResponse[] bulkItemResponses = new BulkItemResponse[bulkRequest.requests().size()];
+                    for (int i = 0; i < bulkItemResponses.length; i++) {
+                        UpdateResponse updateResponse = mock(UpdateResponse.class);
+                        DocWriteResponse.Result docWriteResponse = randomFrom(
+                            DocWriteResponse.Result.UPDATED,
+                            DocWriteResponse.Result.NOOP
+                        );
+                        when(updateResponse.getResult()).thenReturn(docWriteResponse);
+                        GetResult getResult = mock(GetResult.class);
+                        when(getResult.getId()).thenReturn(bulkRequest.requests().get(i).id());
+                        when(updateResponse.getGetResult()).thenReturn(getResult);
+                        bulkItemResponses[i] = BulkItemResponse.success(i, DocWriteRequest.OpType.UPDATE, updateResponse);
+                    }
+                    BulkResponse response = new BulkResponse(bulkItemResponses, 1);
                     listener.onResponse((Response) response);
-                } else if (SearchAction.NAME.equals(action.name())) {
+                } else if (TransportSearchAction.TYPE.name().equals(action.name())) {
                     assertThat(request, instanceOf(SearchRequest.class));
                     SearchRequest searchRequest = (SearchRequest) request;
                     searchRequests.add(searchRequest);
                     final SearchHit[] hits = searchFunction.apply(searchRequest);
-                    final SearchResponse response = new SearchResponse(
-                        new SearchResponseSections(new SearchHits(hits, new TotalHits(hits.length, TotalHits.Relation.EQUAL_TO), 0f),
-                            null, null, false, false, null, 1), "_scrollId1", 1, 1, 0, 1, null, null);
-                    listener.onResponse((Response) response);
-                } else if (SearchScrollAction.NAME.equals(action.name())){
+                    final var searchHits = new SearchHits(hits, new TotalHits(hits.length, TotalHits.Relation.EQUAL_TO), 0f);
+                    try {
+                        ActionListener.respondAndRelease(
+                            listener,
+                            (Response) new SearchResponse(
+                                searchHits,
+                                null,
+                                null,
+                                false,
+                                false,
+                                null,
+                                1,
+                                "_scrollId1",
+                                1,
+                                1,
+                                0,
+                                1,
+                                null,
+                                null
+                            )
+                        );
+                    } finally {
+                        searchHits.decRef();
+                    }
+                } else if (TransportSearchScrollAction.TYPE.name().equals(action.name())) {
                     assertThat(request, instanceOf(SearchScrollRequest.class));
-                    SearchScrollRequest searchScrollRequest = (SearchScrollRequest) request;
-                    final SearchHit[] hits = searchScrollFunction.apply(searchScrollRequest);
-                    final SearchResponse response = new SearchResponse(
-                        new SearchResponseSections(new SearchHits(hits, new TotalHits(hits.length, TotalHits.Relation.EQUAL_TO), 0f),
-                            null, null, false, false, null, 1), "_scrollId1", 1, 1, 0, 1, null, null);
-                    listener.onResponse((Response) response);
-                } else if (ClearScrollAction.NAME.equals(action.name())) {
+                    ActionListener.respondAndRelease(
+                        listener,
+                        (Response) new SearchResponse(
+                            SearchHits.EMPTY_WITH_TOTAL_HITS,
+                            null,
+                            null,
+                            false,
+                            false,
+                            null,
+                            1,
+                            "_scrollId1",
+                            1,
+                            1,
+                            0,
+                            1,
+                            null,
+                            null
+                        )
+                    );
+                } else if (TransportClearScrollAction.NAME.equals(action.name())) {
                     assertThat(request, instanceOf(ClearScrollRequest.class));
                     ClearScrollRequest scrollRequest = (ClearScrollRequest) request;
                     assertEquals("_scrollId1", scrollRequest.getScrollIds().get(0));
                     ClearScrollResponse response = new ClearScrollResponse(true, 1);
                     listener.onResponse((Response) response);
+                } else if (RefreshAction.NAME.equals(action.name())) {
+                    assertThat(request, instanceOf(RefreshRequest.class));
+                    listener.onResponse((Response) mock(BroadcastResponse.class));
                 } else {
                     super.doExecute(action, request, listener);
                 }
@@ -193,44 +262,59 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
         doAnswer(inv -> {
             ((Runnable) inv.getArguments()[1]).run();
             return null;
-        }).when(securityIndex).prepareIndexIfNeededThenExecute(any(Consumer.class), any(Runnable.class));
+        }).when(securityIndex).prepareIndexIfNeededThenExecute(anyConsumer(), any(Runnable.class));
         doAnswer(inv -> {
             ((Runnable) inv.getArguments()[1]).run();
             return null;
-        }).when(securityIndex).checkIndexVersionThenExecute(any(Consumer.class), any(Runnable.class));
-        when(securityIndex.isAvailable()).thenReturn(true);
+        }).when(securityIndex).checkIndexVersionThenExecute(anyConsumer(), any(Runnable.class));
+        when(securityIndex.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(true);
+        when(securityIndex.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(true);
         when(securityIndex.indexExists()).thenReturn(true);
         when(securityIndex.isIndexUpToDate()).thenReturn(true);
         when(securityIndex.getCreationTime()).thenReturn(Clock.systemUTC().instant());
         when(securityIndex.aliasName()).thenReturn(".security");
-        when(securityIndex.freeze()).thenReturn(securityIndex);
+        when(securityIndex.defensiveCopy()).thenReturn(securityIndex);
 
-        final XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isTokenServiceAllowed()).thenReturn(true);
+        final MockLicenseState licenseState = mock(MockLicenseState.class);
+        when(licenseState.isAllowed(Security.TOKEN_SERVICE_FEATURE)).thenReturn(true);
 
         final ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
-        tokenService = new TokenService(settings, Clock.systemUTC(), client, licenseState, securityIndex, securityIndex, clusterService);
+        final SecurityContext securityContext = new SecurityContext(settings, threadContext);
+        tokenService = new TokenService(
+            settings,
+            Clock.systemUTC(),
+            client,
+            licenseState,
+            securityContext,
+            securityIndex,
+            securityIndex,
+            clusterService
+        );
 
-        final TransportService transportService = new TransportService(Settings.EMPTY, mock(Transport.class), null,
-                TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null, Collections.emptySet());
+        final TransportService transportService = new TransportService(
+            Settings.EMPTY,
+            mock(Transport.class),
+            threadPool,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            x -> null,
+            null,
+            Collections.emptySet()
+        );
         final Realms realms = mock(Realms.class);
-        action = new TransportSamlInvalidateSessionAction(transportService, mock(ActionFilters.class),tokenService, realms);
+        action = new TransportSamlInvalidateSessionAction(transportService, mock(ActionFilters.class), tokenService, realms);
 
         final Environment env = TestEnvironment.newEnvironment(settings);
 
-        final RealmConfig realmConfig = new RealmConfig(
-                realmId,
-            settings,
-                env, threadContext);
+        final RealmConfig realmConfig = new RealmConfig(realmId, settings, env, threadContext);
         samlRealm = SamlRealmTestHelper.buildRealm(realmConfig, null);
         when(realms.realm(realmConfig.name())).thenReturn(samlRealm);
         when(realms.stream()).thenAnswer(i -> Stream.of(samlRealm));
 
         logoutRequest = new SamlLogoutRequestHandler.Result(
-                randomAlphaOfLengthBetween(8, 24),
-                new SamlNameId(NameID.TRANSIENT, randomAlphaOfLengthBetween(8, 24), null, null, null),
-                randomAlphaOfLengthBetween(12, 16),
-                null
+            randomAlphaOfLengthBetween(8, 24),
+            new SamlNameId(NameID.TRANSIENT, randomAlphaOfLengthBetween(8, 24), null, null, null),
+            randomAlphaOfLengthBetween(12, 16),
+            null
         );
         when(samlRealm.getLogoutHandler().parseFromQueryString(anyString())).thenReturn(logoutRequest);
     }
@@ -238,10 +322,13 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
     private SearchHit tokenHit(int idx, BytesReference source) {
         try {
             final Map<String, Object> sourceMap = XContentType.JSON.xContent()
-                    .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, source.streamInput()).map();
+                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, source.streamInput())
+                .map();
+            @SuppressWarnings("unchecked")
             final Map<String, Object> accessToken = (Map<String, Object>) sourceMap.get("access_token");
+            @SuppressWarnings("unchecked")
             final Map<String, Object> userToken = (Map<String, Object>) accessToken.get("user_token");
-            final SearchHit hit = new SearchHit(idx, "token_" + userToken.get("id"), null, null);
+            final SearchHit hit = new SearchHit(idx, "token_" + userToken.get("id"));
             hit.sourceRef(source);
             return hit;
         } catch (IOException e) {
@@ -252,27 +339,37 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
     @After
     public void cleanup() {
         samlRealm.close();
+        threadPool.shutdown();
     }
 
     public void testInvalidateCorrectTokensFromLogoutRequest() throws Exception {
-        final String userTokenId1 = UUIDs.randomBase64UUID();
-        final String refreshToken1 = UUIDs.randomBase64UUID();
-        final String userTokenId2 = UUIDs.randomBase64UUID();
-        final String refreshToken2 = UUIDs.randomBase64UUID();
-        storeToken(logoutRequest.getNameId(), randomAlphaOfLength(10));
-        final Tuple<String, String> tokenToInvalidate1 = storeToken(userTokenId1, refreshToken1, logoutRequest.getNameId(),
-            logoutRequest.getSession());
-        storeToken(userTokenId2, refreshToken2, logoutRequest.getNameId(), logoutRequest.getSession());
-        storeToken(new SamlNameId(NameID.PERSISTENT, randomAlphaOfLength(16), null, null, null), logoutRequest.getSession());
+        Tuple<byte[], byte[]> newTokenBytes1 = tokenService.getRandomTokenBytes(true);
+        Tuple<byte[], byte[]> newTokenBytes2 = tokenService.getRandomTokenBytes(true);
+        Tuple<byte[], byte[]> newTokenBytes3 = tokenService.getRandomTokenBytes(true);
+        Tuple<byte[], byte[]> newTokenBytes4 = tokenService.getRandomTokenBytes(true);
+        storeToken(newTokenBytes3.v1(), newTokenBytes3.v2(), logoutRequest.getNameId(), randomAlphaOfLength(10));
+        final TokenService.CreateTokenResult tokenToInvalidate1 = storeToken(
+            newTokenBytes1.v1(),
+            newTokenBytes1.v2(),
+            logoutRequest.getNameId(),
+            logoutRequest.getSession()
+        );
+        storeToken(newTokenBytes2.v1(), newTokenBytes2.v2(), logoutRequest.getNameId(), logoutRequest.getSession());
+        storeToken(
+            newTokenBytes4.v1(),
+            newTokenBytes4.v2(),
+            new SamlNameId(NameID.PERSISTENT, randomAlphaOfLength(16), null, null, null),
+            logoutRequest.getSession()
+        );
 
-        assertThat(indexRequests.size(), equalTo(4));
+        assertThat(indexRequests, hasSize(4));
 
         final AtomicInteger counter = new AtomicInteger();
         final SearchHit[] searchHits = indexRequests.stream()
-                .filter(r -> r.id().startsWith("token"))
-                .map(r -> tokenHit(counter.incrementAndGet(), r.source()))
-                .collect(Collectors.toList())
-                .toArray(new SearchHit[0]);
+            .filter(r -> r.id().startsWith("token"))
+            .map(r -> tokenHit(counter.incrementAndGet(), r.source()))
+            .collect(Collectors.toList())
+            .toArray(SearchHits.EMPTY);
         assertThat(searchHits.length, equalTo(4));
         searchFunction = req1 -> {
             searchFunction = findTokenByRefreshToken(searchHits);
@@ -288,15 +385,14 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
         action.doExecute(mock(Task.class), request, future);
         final SamlInvalidateSessionResponse response = future.get();
         assertThat(response, notNullValue());
-        assertThat(response.getCount(), equalTo(2));
+        assertThat(response.getCount(), equalTo(4));
         assertThat(response.getRealmName(), equalTo(samlRealm.name()));
         assertThat(response.getRedirectUrl(), notNullValue());
         assertThat(response.getRedirectUrl(), startsWith(SamlRealmTestHelper.IDP_LOGOUT_URL));
         assertThat(response.getRedirectUrl(), containsString("SAMLResponse="));
 
-        // 1 to find the tokens for the realm
-        // 2 more to find the UserTokens from the 2 matching refresh tokens
-        assertThat(searchRequests.size(), equalTo(3));
+        // only 1 search request to find the tokens for the realm
+        assertThat(searchRequests, hasSize(1));
 
         assertThat(searchRequests.get(0).source().query(), instanceOf(BoolQueryBuilder.class));
         final List<QueryBuilder> filter0 = ((BoolQueryBuilder) searchRequests.get(0).source().query()).filter();
@@ -313,40 +409,50 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
         assertThat(filter0.get(2), instanceOf(BoolQueryBuilder.class));
         assertThat(((BoolQueryBuilder) filter0.get(2)).should(), iterableWithSize(2));
 
-        assertThat(searchRequests.get(1).source().query(), instanceOf(BoolQueryBuilder.class));
-        final List<QueryBuilder> filter1 = ((BoolQueryBuilder) searchRequests.get(1).source().query()).filter();
-        assertThat(filter1, iterableWithSize(2));
+        assertThat(
+            tokenToInvalidate1.getAuthentication(),
+            equalTo(
+                AuthenticationTestHelper.builder()
+                    .realm()
+                    .user(new User("bob"))
+                    .realmRef(new RealmRef("native", NativeRealmSettings.TYPE, "node01"))
+                    .build(false)
+            )
+        );
 
-        assertThat(filter1.get(0), instanceOf(TermQueryBuilder.class));
-        assertThat(((TermQueryBuilder) filter1.get(0)).fieldName(), equalTo("doc_type"));
-        assertThat(((TermQueryBuilder) filter1.get(0)).value(), equalTo("token"));
-
-        assertThat(filter1.get(1), instanceOf(TermQueryBuilder.class));
-        assertThat(((TermQueryBuilder) filter1.get(1)).fieldName(), equalTo("refresh_token.token"));
-        assertThat(((TermQueryBuilder) filter1.get(1)).value(),
-            equalTo(TokenService.hashTokenString(TokenService.unpackVersionAndPayload(tokenToInvalidate1.v2()).v2())));
-
-        assertThat(bulkRequests.size(), equalTo(4)); // 4 updates (refresh-token + access-token)
-        // Invalidate refresh token 1
+        assertThat(bulkRequests, hasSize(2)); // 2 updates (first for all (2) the refresh-tokens, second one for all (2) the access-tokens)
+        assertThat(bulkRequests.get(0).requests().size(), equalTo(2));
+        assertThat(bulkRequests.get(1).requests().size(), equalTo(2));
         assertThat(bulkRequests.get(0).requests().get(0), instanceOf(UpdateRequest.class));
-        assertThat(bulkRequests.get(0).requests().get(0).id(), equalTo("token_" + TokenService.hashTokenString(userTokenId1)));
-        UpdateRequest updateRequest1 = (UpdateRequest) bulkRequests.get(0).requests().get(0);
-        assertThat(updateRequest1.toString().contains("refresh_token"), equalTo(true));
-        // Invalidate access token 1
+        assertThat(bulkRequests.get(0).requests().get(1), instanceOf(UpdateRequest.class));
         assertThat(bulkRequests.get(1).requests().get(0), instanceOf(UpdateRequest.class));
-        assertThat(bulkRequests.get(1).requests().get(0).id(), equalTo("token_" + TokenService.hashTokenString(userTokenId1)));
-        UpdateRequest updateRequest2 = (UpdateRequest) bulkRequests.get(1).requests().get(0);
-        assertThat(updateRequest2.toString().contains("access_token"), equalTo(true));
-        // Invalidate refresh token 2
-        assertThat(bulkRequests.get(2).requests().get(0), instanceOf(UpdateRequest.class));
-        assertThat(bulkRequests.get(2).requests().get(0).id(), equalTo("token_" + TokenService.hashTokenString(userTokenId2)));
-        UpdateRequest updateRequest3 = (UpdateRequest) bulkRequests.get(2).requests().get(0);
-        assertThat(updateRequest3.toString().contains("refresh_token"), equalTo(true));
-        // Invalidate access token 2
-        assertThat(bulkRequests.get(3).requests().get(0), instanceOf(UpdateRequest.class));
-        assertThat(bulkRequests.get(3).requests().get(0).id(), equalTo("token_" + TokenService.hashTokenString(userTokenId2)));
-        UpdateRequest updateRequest4 = (UpdateRequest) bulkRequests.get(3).requests().get(0);
-        assertThat(updateRequest4.toString().contains("access_token"), equalTo(true));
+        assertThat(bulkRequests.get(1).requests().get(1), instanceOf(UpdateRequest.class));
+        UpdateRequest updateRequest1 = (UpdateRequest) bulkRequests.get(0).requests().get(0);
+        UpdateRequest updateRequest2 = (UpdateRequest) bulkRequests.get(0).requests().get(1);
+        UpdateRequest updateRequest3 = (UpdateRequest) bulkRequests.get(1).requests().get(0);
+        UpdateRequest updateRequest4 = (UpdateRequest) bulkRequests.get(1).requests().get(1);
+        assertThat(updateRequest1.toString(), containsString("refresh_token"));
+        assertThat(updateRequest2.toString(), containsString("refresh_token"));
+        assertThat(updateRequest3.toString(), containsString("access_token"));
+        assertThat(updateRequest4.toString(), containsString("access_token"));
+        assertThat(
+            List.of(updateRequest1.id(), updateRequest2.id()),
+            containsInAnyOrder(
+                "token_"
+                    + TokenServiceTests.tokenDocIdFromAccessTokenBytes(newTokenBytes1.v1(), tokenService.getTokenVersionCompatibility()),
+                "token_"
+                    + TokenServiceTests.tokenDocIdFromAccessTokenBytes(newTokenBytes2.v1(), tokenService.getTokenVersionCompatibility())
+            )
+        );
+        assertThat(
+            List.of(updateRequest3.id(), updateRequest4.id()),
+            containsInAnyOrder(
+                "token_"
+                    + TokenServiceTests.tokenDocIdFromAccessTokenBytes(newTokenBytes1.v1(), tokenService.getTokenVersionCompatibility()),
+                "token_"
+                    + TokenServiceTests.tokenDocIdFromAccessTokenBytes(newTokenBytes2.v1(), tokenService.getTokenVersionCompatibility())
+            )
+        );
     }
 
     private Function<SearchRequest, SearchHit[]> findTokenByRefreshToken(SearchHit[] searchHits) {
@@ -358,28 +464,30 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
             final TermQueryBuilder termQuery = (TermQueryBuilder) filters.get(1);
             assertThat(termQuery.fieldName(), equalTo("refresh_token.token"));
             for (SearchHit hit : searchHits) {
+                @SuppressWarnings("unchecked")
                 final Map<String, Object> refreshToken = (Map<String, Object>) hit.getSourceAsMap().get("refresh_token");
                 if (termQuery.value().equals(refreshToken.get("token"))) {
-                    return new SearchHit[]{hit};
+                    return new SearchHit[] { hit };
                 }
             }
-            return new SearchHit[0];
+            return SearchHits.EMPTY;
         };
     }
 
-    private Tuple<String, String> storeToken(String userTokenId, String refreshToken, SamlNameId nameId, String session) {
-        Authentication authentication = new Authentication(new User("bob"),
-                new RealmRef("native", NativeRealmSettings.TYPE, "node01"), null);
+    private TokenService.CreateTokenResult storeToken(byte[] userTokenBytes, byte[] refreshTokenBytes, SamlNameId nameId, String session) {
+        Authentication authentication = AuthenticationTestHelper.builder()
+            .realm()
+            .user(new User("bob"))
+            .realmRef(new RealmRef("native", NativeRealmSettings.TYPE, "node01"))
+            .build(false);
         final Map<String, Object> metadata = samlRealm.createTokenMetadata(nameId, session);
-        final PlainActionFuture<Tuple<String, String>> future = new PlainActionFuture<>();
-        tokenService.createOAuth2Tokens(userTokenId, refreshToken, authentication, authentication, metadata, future);
+        final PlainActionFuture<TokenService.CreateTokenResult> future = new PlainActionFuture<>();
+        tokenService.createOAuth2Tokens(userTokenBytes, refreshTokenBytes, authentication, authentication, metadata, future);
         return future.actionGet();
     }
 
-    private Tuple<String, String> storeToken(SamlNameId nameId, String session) {
-        final String userTokenId = UUIDs.randomBase64UUID();
-        final String refreshToken = UUIDs.randomBase64UUID();
-        return storeToken(userTokenId, refreshToken, nameId, session);
+    @SuppressWarnings("unchecked")
+    private static <T> Consumer<T> anyConsumer() {
+        return any(Consumer.class);
     }
-
 }

@@ -1,24 +1,26 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.enrich;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.enrich.EnrichMetadata;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.enrich.EnrichPolicyTests.randomEnrichPolicy;
 import static org.hamcrest.Matchers.equalTo;
 
-public class EnrichMetadataTests extends AbstractSerializingTestCase<EnrichMetadata> {
+public class EnrichMetadataTests extends AbstractChunkedSerializingTestCase<EnrichMetadata> {
 
     @Override
     protected EnrichMetadata doParseInstance(XContentParser parser) throws IOException {
@@ -31,13 +33,18 @@ public class EnrichMetadataTests extends AbstractSerializingTestCase<EnrichMetad
     }
 
     @Override
+    protected EnrichMetadata mutateInstance(EnrichMetadata instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected EnrichMetadata createXContextTestInstance(XContentType xContentType) {
         return randomEnrichMetadata(xContentType);
     }
 
     private static EnrichMetadata randomEnrichMetadata(XContentType xContentType) {
         int numPolicies = randomIntBetween(8, 64);
-        Map<String, EnrichPolicy> policies = new HashMap<>(numPolicies);
+        Map<String, EnrichPolicy> policies = Maps.newMapWithExpectedSize(numPolicies);
         for (int i = 0; i < numPolicies; i++) {
             EnrichPolicy policy = randomEnrichPolicy(xContentType);
             policies.put(randomAlphaOfLength(8), policy);

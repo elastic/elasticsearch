@@ -1,81 +1,56 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.Scope;
-import org.elasticsearch.painless.ir.ClassNode;
-import org.elasticsearch.painless.ir.DeclarationNode;
-import org.elasticsearch.painless.symbol.ScriptRoot;
+import org.elasticsearch.painless.phase.UserTreeVisitor;
 
 import java.util.Objects;
 
 /**
  * Represents a single variable declaration.
  */
-public final class SDeclaration extends AStatement {
+public class SDeclaration extends AStatement {
 
-    private DType type;
-    protected final String name;
-    private AExpression expression;
+    private final String canonicalTypeName;
+    private final String symbol;
+    private final AExpression valueNode;
 
-    public SDeclaration(Location location, DType type, String name, AExpression expression) {
-        super(location);
+    public SDeclaration(int identifier, Location location, String canonicalTypeName, String symbol, AExpression valueNode) {
+        super(identifier, location);
 
-        this.type = Objects.requireNonNull(type);
-        this.name = Objects.requireNonNull(name);
-        this.expression = expression;
+        this.canonicalTypeName = Objects.requireNonNull(canonicalTypeName);
+        this.symbol = Objects.requireNonNull(symbol);
+        this.valueNode = valueNode;
+    }
+
+    public String getCanonicalTypeName() {
+        return canonicalTypeName;
+    }
+
+    public String getSymbol() {
+        return symbol;
+    }
+
+    public AExpression getValueNode() {
+        return valueNode;
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Scope scope) {
-        DResolvedType resolvedType = type.resolveType(scriptRoot.getPainlessLookup());
-        type = resolvedType;
+    public <Scope> void visit(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        userTreeVisitor.visitDeclaration(this, scope);
+    }
 
-        if (expression != null) {
-            expression.expected = resolvedType.getType();
-            expression.analyze(scriptRoot, scope);
-            expression = expression.cast(scriptRoot, scope);
+    @Override
+    public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        if (valueNode != null) {
+            valueNode.visit(userTreeVisitor, scope);
         }
-
-        scope.defineVariable(location, resolvedType.getType(), name, false);
-    }
-
-    @Override
-    DeclarationNode write(ClassNode classNode) {
-        DeclarationNode declarationNode = new DeclarationNode();
-
-        declarationNode.setExpressionNode(expression == null ? null : expression.write(classNode));
-
-        declarationNode.setLocation(location);
-        declarationNode.setDeclarationType(((DResolvedType)type).getType());
-        declarationNode.setName(name);
-
-        return declarationNode;
-    }
-
-    @Override
-    public String toString() {
-        if (expression == null) {
-            return singleLineToString(type, name);
-        }
-        return singleLineToString(type, name, expression);
     }
 }

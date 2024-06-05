@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.rollup.action;
 
@@ -9,15 +10,15 @@ import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 
 public class RollupSearchAction extends ActionType<SearchResponse> {
 
     public static final RollupSearchAction INSTANCE = new RollupSearchAction();
-    public static final String NAME = "indices:admin/xpack/rollup/search";
+    public static final String NAME = "indices:data/read/xpack/rollup/search";
 
     private RollupSearchAction() {
-        super(NAME, SearchResponse::new);
+        super(NAME);
     }
 
     public static class RequestBuilder extends ActionRequestBuilder<SearchRequest, SearchResponse> {

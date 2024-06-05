@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.dissect;
@@ -22,9 +11,9 @@ package org.elasticsearch.dissect;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.EnumSet;
 import java.util.Iterator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -34,12 +23,13 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
- * <p>Splits (dissects) a string into its parts based on a pattern.</p><p>A dissect pattern is composed of a set of keys and delimiters.
+ * Splits (dissects) a string into its parts based on a pattern.
+ * <p>A dissect pattern is composed of a set of keys and delimiters.
  * For example the dissect pattern: <pre>%{a} %{b},%{c}</pre> has 3 keys (a,b,c) and two delimiters (space and comma). This pattern will
  * match a string of the form: <pre>foo bar,baz</pre> and will result a key/value pairing of <pre>a=foo, b=bar, and c=baz.</pre>
  * <p>Matches are all or nothing. For example, the same pattern will NOT match <pre>foo bar baz</pre> since all of the delimiters did not
  * match. (the comma did not match)
- * <p>Dissect patterns can optionally have modifiers. These modifiers instruct the parser to change it's behavior. For example the
+ * <p>Dissect patterns can optionally have modifiers. These modifiers instruct the parser to change its behavior. For example the
  * dissect pattern of <pre>%{a},%{b}:%{c}</pre> would not match <pre>foo,bar,baz</pre> since there the colon never matches.
  * <p>Modifiers appear to the left or the right of the key name. The supported modifiers are:
  * <ul>
@@ -93,15 +83,17 @@ import java.util.stream.Collectors;
  * Inspired by the Logstash Dissect Filter by Guy Boertje
  */
 public final class DissectParser {
-    private static final Pattern LEADING_DELIMITER_PATTERN = Pattern.compile("^(.*?)%");
-    private static final Pattern KEY_DELIMITER_FIELD_PATTERN = Pattern.compile("%\\{([^}]*?)}([^%]*)", Pattern.DOTALL);
+    private static final Pattern LEADING_DELIMITER_PATTERN = Pattern.compile("^(.*?)%\\{");
+    private static final Pattern KEY_DELIMITER_FIELD_PATTERN = Pattern.compile("%\\{([^}]*?)}(.+?(?=%\\{)|.*$)", Pattern.DOTALL);
     private static final EnumSet<DissectKey.Modifier> ASSOCIATE_MODIFIERS = EnumSet.of(
         DissectKey.Modifier.FIELD_NAME,
-        DissectKey.Modifier.FIELD_VALUE);
+        DissectKey.Modifier.FIELD_VALUE
+    );
     private static final EnumSet<DissectKey.Modifier> APPEND_MODIFIERS = EnumSet.of(
         DissectKey.Modifier.APPEND,
-        DissectKey.Modifier.APPEND_WITH_ORDER);
-    private static final Function<DissectPair, String> KEY_NAME = val -> val.getKey().getName();
+        DissectKey.Modifier.APPEND_WITH_ORDER
+    );
+    private static final Function<DissectPair, String> KEY_NAME = val -> val.key().getName();
     private final List<DissectPair> matchPairs;
     private final String pattern;
     private String leadingDelimiter = "";
@@ -118,60 +110,64 @@ public final class DissectParser {
         while (matcher.find()) {
             leadingDelimiter = matcher.group(1);
         }
-        List<DissectPair> matchPairs = new ArrayList<>();
+        List<DissectPair> dissectPairs = new ArrayList<>();
         matcher = KEY_DELIMITER_FIELD_PATTERN.matcher(pattern.substring(leadingDelimiter.length()));
         while (matcher.find()) {
             DissectKey key = new DissectKey(matcher.group(1));
             String delimiter = matcher.group(2);
-            matchPairs.add(new DissectPair(key, delimiter));
+            dissectPairs.add(new DissectPair(key, delimiter));
         }
-        this.maxMatches = matchPairs.size();
-        this.maxResults = Long.valueOf(matchPairs.stream()
-            .filter(dissectPair -> !dissectPair.getKey().skip()).map(KEY_NAME).distinct().count()).intValue();
+        this.maxMatches = dissectPairs.size();
+        this.maxResults = Long.valueOf(
+            dissectPairs.stream().filter(dissectPair -> dissectPair.key().skip() == false).map(KEY_NAME).distinct().count()
+        ).intValue();
         if (this.maxMatches == 0 || maxResults == 0) {
             throw new DissectException.PatternParse(pattern, "Unable to find any keys or delimiters.");
         }
-        //append validation - look through all of the keys to see if there are any keys that need to participate in an append operation
+        // append validation - look through all of the keys to see if there are any keys that need to participate in an append operation
         // but don't have the '+' defined
-        Set<String> appendKeyNames = matchPairs.stream()
-            .filter(dissectPair -> APPEND_MODIFIERS.contains(dissectPair.getKey().getModifier()))
-            .map(KEY_NAME).distinct().collect(Collectors.toSet());
+        Set<String> appendKeyNames = dissectPairs.stream()
+            .filter(dissectPair -> APPEND_MODIFIERS.contains(dissectPair.key().getModifier()))
+            .map(KEY_NAME)
+            .collect(Collectors.toSet());
         if (appendKeyNames.size() > 0) {
-            List<DissectPair> modifiedMatchPairs = new ArrayList<>(matchPairs.size());
-            for (DissectPair p : matchPairs) {
-                if (p.getKey().getModifier().equals(DissectKey.Modifier.NONE) && appendKeyNames.contains(p.getKey().getName())) {
-                    modifiedMatchPairs.add(new DissectPair(new DissectKey(p.getKey(), DissectKey.Modifier.APPEND), p.getDelimiter()));
+            List<DissectPair> modifiedMatchPairs = new ArrayList<>(dissectPairs.size());
+            for (DissectPair p : dissectPairs) {
+                if (p.key().getModifier().equals(DissectKey.Modifier.NONE) && appendKeyNames.contains(p.key().getName())) {
+                    modifiedMatchPairs.add(new DissectPair(new DissectKey(p.key(), DissectKey.Modifier.APPEND), p.delimiter()));
                 } else {
                     modifiedMatchPairs.add(p);
                 }
             }
-            matchPairs = modifiedMatchPairs;
+            dissectPairs = modifiedMatchPairs;
         }
         appendCount = appendKeyNames.size();
 
-        //reference validation - ensure that '*' and '&' come in pairs
-        Map<String, List<DissectPair>> referenceGroupings = matchPairs.stream()
-            .filter(dissectPair -> ASSOCIATE_MODIFIERS.contains(dissectPair.getKey().getModifier()))
+        // reference validation - ensure that '*' and '&' come in pairs
+        Map<String, List<DissectPair>> referenceGroupings = dissectPairs.stream()
+            .filter(dissectPair -> ASSOCIATE_MODIFIERS.contains(dissectPair.key().getModifier()))
             .collect(Collectors.groupingBy(KEY_NAME));
         for (Map.Entry<String, List<DissectPair>> entry : referenceGroupings.entrySet()) {
             if (entry.getValue().size() != 2) {
-                throw new DissectException.PatternParse(pattern, "Found invalid key/reference associations: '"
-                    + entry.getValue().stream().map(KEY_NAME).collect(Collectors.joining(",")) +
-                    "' Please ensure each '*<key>' is matched with a matching '&<key>");
+                throw new DissectException.PatternParse(
+                    pattern,
+                    "Found invalid key/reference associations: '"
+                        + entry.getValue().stream().map(KEY_NAME).collect(Collectors.joining(","))
+                        + "' Please ensure each '*<key>' is matched with a matching '&<key>"
+                );
             }
         }
 
         referenceCount = referenceGroupings.size() * 2;
-        this.matchPairs = Collections.unmodifiableList(matchPairs);
+        this.matchPairs = List.copyOf(dissectPairs);
     }
 
-
     /**
-     * <p>Entry point to dissect a string into it's parts.</p>
+     * Entry point to dissect a string into its parts.
      *
      * @param inputString The string to dissect
      * @return the key/value Map of the results
-     * @throws DissectException if unable to dissect a pair into it's parts.
+     * @throws DissectException if unable to dissect a pair into its parts.
      */
     public Map<String, String> parse(String inputString) {
         /**
@@ -197,38 +193,39 @@ public final class DissectParser {
          */
         DissectMatch dissectMatch = new DissectMatch(appendSeparator, maxMatches, maxResults, appendCount, referenceCount);
         Iterator<DissectPair> it = matchPairs.iterator();
-        //ensure leading delimiter matches
-        if (inputString != null && inputString.length() > leadingDelimiter.length()
+        // ensure leading delimiter matches
+        if (inputString != null
+            && inputString.length() > leadingDelimiter.length()
             && leadingDelimiter.equals(inputString.substring(0, leadingDelimiter.length()))) {
             byte[] input = inputString.getBytes(StandardCharsets.UTF_8);
-            //grab the first key/delimiter pair
+            // grab the first key/delimiter pair
             DissectPair dissectPair = it.next();
-            DissectKey key = dissectPair.getKey();
-            byte[] delimiter = dissectPair.getDelimiter().getBytes(StandardCharsets.UTF_8);
-            //start dissection after the first delimiter
+            DissectKey key = dissectPair.key();
+            byte[] delimiter = dissectPair.delimiter().getBytes(StandardCharsets.UTF_8);
+            // start dissection after the first delimiter
             int i = leadingDelimiter.length();
             int valueStart = i;
             int lookAheadMatches;
-            //start walking the input string byte by byte, look ahead for matches where needed
-            //if a match is found jump forward to the end of the match
-            for (; i < input.length; i++) {
+            // start walking the input string byte by byte, look ahead for matches where needed
+            // if a match is found jump forward to the end of the match
+            while (i < input.length) {
                 lookAheadMatches = 0;
-                //potential match between delimiter and input string
+                // potential match between delimiter and input string
                 if (delimiter.length > 0 && input[i] == delimiter[0]) {
-                    //look ahead to see if the entire delimiter matches the input string
+                    // look ahead to see if the entire delimiter matches the input string
                     for (int j = 0; j < delimiter.length; j++) {
                         if (i + j < input.length && input[i + j] == delimiter[j]) {
                             lookAheadMatches++;
                         }
                     }
-                    //found a full delimiter match
+                    // found a full delimiter match
                     if (lookAheadMatches == delimiter.length) {
-                        //record the key/value tuple
+                        // record the key/value tuple
                         byte[] value = Arrays.copyOfRange(input, valueStart, i);
                         dissectMatch.add(key, new String(value, StandardCharsets.UTF_8));
-                        //jump to the end of the match
+                        // jump to the end of the match
                         i += lookAheadMatches;
-                        //look for consecutive delimiters (e.g. a,,,,d,e)
+                        // look for consecutive delimiters (e.g. a,,,,d,e)
                         while (i < input.length) {
                             lookAheadMatches = 0;
                             for (int j = 0; j < delimiter.length; j++) {
@@ -236,39 +233,43 @@ public final class DissectParser {
                                     lookAheadMatches++;
                                 }
                             }
-                            //found consecutive delimiters
+                            // found consecutive delimiters
                             if (lookAheadMatches == delimiter.length) {
-                                //jump to the end of the match
+                                // jump to the end of the match
                                 i += lookAheadMatches;
-                                if (!key.skipRightPadding()) {
-                                    //progress the keys/delimiter if possible
-                                    if (!it.hasNext()) {
-                                        break; //the while loop
+                                if (key.skipRightPadding() == false) {
+                                    // progress the keys/delimiter if possible
+                                    if (it.hasNext() == false) {
+                                        break; // the while loop
                                     }
                                     dissectPair = it.next();
-                                    key = dissectPair.getKey();
-                                    //add the key with an empty value for the empty delimiter
+                                    key = dissectPair.key();
+                                    // add the key with an empty value for the empty delimiter
                                     dissectMatch.add(key, "");
                                 }
                             } else {
-                                break; //the while loop
+                                break; // the while loop
                             }
                         }
-                        //progress the keys/delimiter if possible
-                        if (!it.hasNext()) {
-                            break; //the for loop
+                        // progress the keys/delimiter if possible
+                        if (it.hasNext() == false) {
+                            break; // the for loop
                         }
                         dissectPair = it.next();
-                        key = dissectPair.getKey();
-                        delimiter = dissectPair.getDelimiter().getBytes(StandardCharsets.UTF_8);
-                        //i is always one byte after the last found delimiter, aka the start of the next value
+                        key = dissectPair.key();
+                        delimiter = dissectPair.delimiter().getBytes(StandardCharsets.UTF_8);
+                        // i is always one byte after the last found delimiter, aka the start of the next value
                         valueStart = i;
+                    } else {
+                        i++;
                     }
+                } else {
+                    i++;
                 }
             }
-            //the last key, grab the rest of the input (unless consecutive delimiters already grabbed the last key)
-            //and there is no trailing delimiter
-            if (!dissectMatch.fullyMatched() && delimiter.length == 0 ) {
+            // the last key, grab the rest of the input (unless consecutive delimiters already grabbed the last key)
+            // and there is no trailing delimiter
+            if (dissectMatch.fullyMatched() == false && delimiter.length == 0) {
                 byte[] value = Arrays.copyOfRange(input, valueStart, input.length);
                 String valueString = new String(value, StandardCharsets.UTF_8);
                 dissectMatch.add(key, valueString);
@@ -276,35 +277,66 @@ public final class DissectParser {
         }
         Map<String, String> results = dissectMatch.getResults();
 
-        if (!dissectMatch.isValid(results)) {
+        return dissectMatch.isValid(results) ? results : null;
+    }
+
+    /**
+     * Entry point to dissect a string into its parts.
+     *
+     * @param inputString The string to dissect
+     * @return the key/value Map of the results
+     * @throws DissectException if unable to dissect a pair into its parts.
+     */
+    public Map<String, String> forceParse(String inputString) {
+        Map<String, String> results = parse(inputString);
+        if (results == null) {
             throw new DissectException.FindMatch(pattern, inputString);
         }
         return results;
     }
 
     /**
-     * A tuple class to hold the dissect key and delimiter
+     * Returns the output keys produced by the instance (excluding named skip keys),
+     * e.g. for the pattern <code>"%{a} %{b} %{?c}"</code> the result is <code>[a, b]</code>.
+     * <p>
+     * The result is an ordered set, where the entries are in the same order as they appear in the pattern.
+     * <p>
+     * The reference keys are returned with the name they have in the pattern, e.g. for <code>"%{*x} %{&amp;x}"</code>
+     * the result is <code>[x]</code>.
+     *
+     * @return the output keys produced by the instance.
      */
-    private class DissectPair {
-
-        private final DissectKey key;
-        private final String delimiter;
-
-        private DissectPair(DissectKey key, String delimiter) {
-            this.key = key;
-            this.delimiter = delimiter;
+    public Set<String> outputKeys() {
+        Set<String> result = new LinkedHashSet<>(matchPairs.size());
+        for (DissectPair matchPair : matchPairs) {
+            if (matchPair.key.getModifier() != DissectKey.Modifier.NAMED_SKIP) {
+                result.add(matchPair.key.getName());
+            }
         }
-
-        private DissectKey getKey() {
-            return key;
-        }
-
-        private String getDelimiter() {
-            return delimiter;
-        }
+        return result;
     }
 
+    /**
+     * Returns the reference keys present in the pattern,
+     * e.g. for the pattern <code>"%{a} %{b} %{*c} %{&amp;c} %{*d} %{&amp;d}"</code> it returns <code>[c, d]</code>.
+     * <p>
+     * The result is an ordered set, where the entries are in the same order as they appear in the pattern.
+     *
+     * @return the reference keys included in the pattern.
+     */
+    public Set<String> referenceKeys() {
+        Set<String> result = new LinkedHashSet<>(matchPairs.size());
+        for (DissectPair matchPair : matchPairs) {
+            if (matchPair.key.getModifier() == DissectKey.Modifier.FIELD_NAME) {
+                result.add(matchPair.key.getName());
+            }
+        }
+        return result;
+    }
+
+    /**
+     * A tuple class to hold the dissect key and delimiter
+     */
+    private record DissectPair(DissectKey key, String delimiter) {}
+
 }
-
-
-

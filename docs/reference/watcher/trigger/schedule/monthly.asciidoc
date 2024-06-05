@@ -1,0 +1,77 @@
+[role="xpack"]
+[[schedule-monthly]]
+==== {watcher} monthly schedule
+++++
+<titleabbrev>Monthly schedule</titleabbrev>
+++++
+
+A <<trigger-schedule,`schedule`>> that triggers at a specific day and time
+every month. To use the `monthly` schedule, you specify the day of the month and
+time (or days and times) when you want the scheduler to start the watch execution
+with the `on` and `at` attributes.
+
+You specify the day of month as a numeric value between `1` and `31` (inclusive).
+Times are specified in the form `HH:mm` on a 24-hour clock. You can also use the
+reserved values `midnight` and `noon` for `00:00` and `12:00`.
+
+===== Configuring a monthly schedule
+
+To configure a once a month schedule, you specify a single day and time with the
+`on` and `at` attributes. For example, the following `monthly` schedule triggers
+on the 10th of each month at noon:
+
+[source,js]
+--------------------------------------------------
+{
+  "trigger" : {
+    "schedule" : {
+      "monthly" : { "on" : 10, "at" : "noon" }
+    }
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+NOTE: You can also specify the day and time with the `day` and `time` attributes,
+      they are interchangeable with `on` and `at`.
+
+===== Configuring a multiple times monthly schedule
+
+To configure a `monthly` schedule that triggers multiple times a month, you can
+specify an array of day and time values. For example, the following `monthly`
+schedule triggers at 12:00 PM on the 10th of each month and at 5:00 PM on the
+20th of each month:
+
+[source,js]
+--------------------------------------------------
+{
+  "trigger" : {
+    "schedule" : {
+      "monthly" : [
+        { "on" : 10, "at" : "noon" },
+        { "on" : 20, "at" : "17:00" }
+      ]
+    }
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+Alternatively, you can specify days and times in an object that has `on` and `at`
+attributes that contain an array of values. For example, the following `monthly`
+schedule triggers at 12:00 AM and 12:00 PM on the 10th and 20th of each month.
+
+[source,js]
+--------------------------------------------------
+{
+  "trigger" : {
+    "schedule" : {
+      "monthly" : {
+        "on" : [ 10, 20 ],
+        "at" : [ "midnight", "noon" ]
+      }
+    }
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE

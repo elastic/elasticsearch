@@ -1,42 +1,31 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateMathParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.time.DateTimeException;
@@ -100,17 +89,14 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
         String relationString = in.readOptionalString();
         if (relationString != null) {
             relation = ShapeRelation.getRelationByName(relationString);
-            if (relation != null && !isRelationAllowed(relation)) {
-                throw new IllegalArgumentException(
-                    "[range] query does not support relation [" + relationString + "]");
+            if (relation != null && isRelationAllowed(relation) == false) {
+                throw new IllegalArgumentException("[range] query does not support relation [" + relationString + "]");
             }
         }
     }
 
-    private boolean isRelationAllowed(ShapeRelation relation) {
-        return relation == ShapeRelation.INTERSECTS
-            || relation == ShapeRelation.CONTAINS
-            || relation == ShapeRelation.WITHIN;
+    private static boolean isRelationAllowed(ShapeRelation relation) {
+        return relation == ShapeRelation.INTERSECTS || relation == ShapeRelation.CONTAINS || relation == ShapeRelation.WITHIN;
     }
 
     @Override
@@ -312,7 +298,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
         if (this.relation == null) {
             throw new IllegalArgumentException(relation + " is not a valid relation");
         }
-        if (!isRelationAllowed(this.relation)) {
+        if (isRelationAllowed(this.relation) == false) {
             throw new IllegalArgumentException("[range] query does not support relation [" + relation + "]");
         }
         return this;
@@ -322,10 +308,25 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
         builder.startObject(fieldName);
-        builder.field(FROM_FIELD.getPreferredName(), maybeConvertToString(this.from));
-        builder.field(TO_FIELD.getPreferredName(), maybeConvertToString(this.to));
-        builder.field(INCLUDE_LOWER_FIELD.getPreferredName(), includeLower);
-        builder.field(INCLUDE_UPPER_FIELD.getPreferredName(), includeUpper);
+
+        Object from = maybeConvertToString(this.from);
+        if (from != null) {
+            if (includeLower) {
+                builder.field(GTE_FIELD.getPreferredName(), from);
+            } else {
+                builder.field(GT_FIELD.getPreferredName(), from);
+            }
+        }
+
+        Object to = maybeConvertToString(this.to);
+        if (to != null) {
+            if (includeUpper) {
+                builder.field(LTE_FIELD.getPreferredName(), to);
+            } else {
+                builder.field(LT_FIELD.getPreferredName(), to);
+            }
+        }
+
         if (timeZone != null) {
             builder.field(TIME_ZONE_FIELD.getPreferredName(), timeZone.getId());
         }
@@ -395,13 +396,15 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
                         } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                             queryName = parser.text();
                         } else {
-                            throw new ParsingException(parser.getTokenLocation(),
-                                    "[range] query does not support [" + currentFieldName + "]");
+                            throw new ParsingException(
+                                parser.getTokenLocation(),
+                                "[range] query does not support [" + currentFieldName + "]"
+                            );
                         }
                     }
                 }
             } else if (token.isValue()) {
-                    throw new ParsingException(parser.getTokenLocation(), "[range] query does not support [" + currentFieldName + "]");
+                throw new ParsingException(parser.getTokenLocation(), "[range] query does not support [" + currentFieldName + "]");
             }
         }
 
@@ -430,96 +433,113 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
     }
 
     // Overridable for testing only
-    protected MappedFieldType.Relation getRelation(QueryRewriteContext queryRewriteContext) throws IOException {
-        QueryShardContext shardContext = queryRewriteContext.convertToShardContext();
-        // If the context is null we are not on the shard and cannot
-        // rewrite so just pretend there is an intersection so that the rewrite is a noop
-        if (shardContext == null || shardContext.getIndexReader() == null) {
+    protected MappedFieldType.Relation getRelation(final CoordinatorRewriteContext coordinatorRewriteContext) {
+        final MappedFieldType fieldType = coordinatorRewriteContext.getFieldType(fieldName);
+        if (fieldType instanceof final DateFieldMapper.DateFieldType dateFieldType) {
+            if (coordinatorRewriteContext.hasTimestampData() == false) {
+                return MappedFieldType.Relation.DISJOINT;
+            }
+            long minTimestamp = coordinatorRewriteContext.getMinTimestamp();
+            long maxTimestamp = coordinatorRewriteContext.getMaxTimestamp();
+            DateMathParser dateMathParser = getForceDateParser();
+            return dateFieldType.isFieldWithinQuery(
+                minTimestamp,
+                maxTimestamp,
+                from,
+                to,
+                includeLower,
+                includeUpper,
+                timeZone,
+                dateMathParser,
+                coordinatorRewriteContext
+            );
+        }
+        // If the field type is null or not of type DataFieldType then we have no idea whether this range query will match during
+        // coordinating rewrite. So we should return that it intersects, either the data node query rewrite or by actually running
+        // the query we know whether this range query actually matches.
+        return MappedFieldType.Relation.INTERSECTS;
+    }
+
+    protected MappedFieldType.Relation getRelation(final SearchExecutionContext searchExecutionContext) throws IOException {
+        final MappedFieldType fieldType = searchExecutionContext.getFieldType(fieldName);
+        if (fieldType == null) {
+            return MappedFieldType.Relation.DISJOINT;
+        }
+        if (searchExecutionContext.getIndexReader() == null) {
+            // No reader, this may happen e.g. for percolator queries.
             return MappedFieldType.Relation.INTERSECTS;
         }
-        final MapperService mapperService = shardContext.getMapperService();
-        final MappedFieldType fieldType = mapperService.fullName(fieldName);
-        if (fieldType == null) {
-            // no field means we have no values
-            return MappedFieldType.Relation.DISJOINT;
-        } else {
-            DateMathParser dateMathParser = getForceDateParser();
-            return fieldType.isFieldWithinQuery(shardContext.getIndexReader(), from, to, includeLower,
-                    includeUpper, timeZone, dateMathParser, queryRewriteContext);
-        }
+
+        DateMathParser dateMathParser = getForceDateParser();
+        return fieldType.isFieldWithinQuery(
+            searchExecutionContext.getIndexReader(),
+            from,
+            to,
+            includeLower,
+            includeUpper,
+            timeZone,
+            dateMathParser,
+            searchExecutionContext
+        );
     }
 
     @Override
-    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
-        // Percolator queries get rewritten and pre-processed at index time.
-        // If a range query has a date range using 'now' and 'now' gets resolved at index time then
-        // the pre-processing uses that to pre-process. This can then lead to mismatches at query time.
-        if (queryRewriteContext.convertNowRangeToMatchAll()) {
-            if ((from() != null && from().toString().contains("now")) ||
-                (to() != null && to().toString().contains("now"))) {
-                return new MatchAllQueryBuilder();
-            }
-        }
+    protected QueryBuilder doCoordinatorRewrite(final CoordinatorRewriteContext coordinatorRewriteContext) {
+        return toQueryBuilder(getRelation(coordinatorRewriteContext));
+    }
 
-        final MappedFieldType.Relation relation = getRelation(queryRewriteContext);
+    @Override
+    protected QueryBuilder doSearchRewrite(final SearchExecutionContext searchExecutionContext) throws IOException {
+        return toQueryBuilder(getRelation(searchExecutionContext));
+    }
+
+    private AbstractQueryBuilder<? extends AbstractQueryBuilder<?>> toQueryBuilder(MappedFieldType.Relation relation) {
         switch (relation) {
-        case DISJOINT:
-            return new MatchNoneQueryBuilder();
-        case WITHIN:
-            if (from != null || to != null || format != null || timeZone != null) {
-                RangeQueryBuilder newRangeQuery = new RangeQueryBuilder(fieldName);
-                newRangeQuery.from(null);
-                newRangeQuery.to(null);
-                newRangeQuery.format = null;
-                newRangeQuery.timeZone = null;
-                return newRangeQuery;
-            } else {
+            case DISJOINT -> {
+                return new MatchNoneQueryBuilder("The \"" + getName() + "\" query was rewritten to a \"match_none\" query.");
+            }
+            case WITHIN -> {
+                if (from != null || to != null || format != null || timeZone != null) {
+                    RangeQueryBuilder newRangeQuery = new RangeQueryBuilder(fieldName);
+                    newRangeQuery.from(null);
+                    newRangeQuery.to(null);
+                    newRangeQuery.format = null;
+                    newRangeQuery.timeZone = null;
+                    return newRangeQuery;
+                } else {
+                    return this;
+                }
+            }
+            case INTERSECTS -> {
                 return this;
             }
-        case INTERSECTS:
-            return this;
-        default:
-            throw new AssertionError();
+            default -> throw new AssertionError();
         }
     }
 
     @Override
-    protected Query doToQuery(QueryShardContext context) throws IOException {
+    protected Query doToQuery(SearchExecutionContext context) throws IOException {
         if (from == null && to == null) {
-            /**
+            /*
              * Open bounds on both side, we can rewrite to an exists query
              * if the {@link FieldNamesFieldMapper} is enabled.
              */
-            final FieldNamesFieldMapper.FieldNamesFieldType fieldNamesFieldType =
-                (FieldNamesFieldMapper.FieldNamesFieldType) context.getMapperService().fullName(FieldNamesFieldMapper.NAME);
-            if (fieldNamesFieldType == null) {
+            if (context.isFieldMapped(FieldNamesFieldMapper.NAME) == false) {
                 return new MatchNoDocsQuery("No mappings yet");
             }
+            final FieldNamesFieldMapper.FieldNamesFieldType fieldNamesFieldType = (FieldNamesFieldMapper.FieldNamesFieldType) context
+                .getFieldType(FieldNamesFieldMapper.NAME);
             // Exists query would fail if the fieldNames field is disabled.
             if (fieldNamesFieldType.isEnabled()) {
-                return ExistsQueryBuilder.newFilter(context, fieldName);
+                return ExistsQueryBuilder.newFilter(context, fieldName, false);
             }
         }
-        Query query = null;
-        MappedFieldType mapper = context.fieldMapper(this.fieldName);
-        if (mapper != null) {
-            DateMathParser forcedDateParser = getForceDateParser();
-            query = mapper.rangeQuery(
-                    from, to, includeLower, includeUpper,
-                    relation, timeZone, forcedDateParser, context);
-        } else {
-            if (timeZone != null) {
-                throw new QueryShardException(context, "[range] time_zone can not be applied to non unmapped field ["
-                        + fieldName + "]");
-            }
+        MappedFieldType mapper = context.getFieldType(this.fieldName);
+        if (mapper == null) {
+            throw new IllegalStateException("Rewrite first");
         }
-
-        if (query == null) {
-            query = new TermRangeQuery(this.fieldName,
-                    BytesRefs.toBytesRef(from), BytesRefs.toBytesRef(to),
-                    includeLower, includeUpper);
-        }
-        return query;
+        DateMathParser forcedDateParser = getForceDateParser();
+        return mapper.rangeQuery(from, to, includeLower, includeUpper, relation, timeZone, forcedDateParser, context);
     }
 
     @Override
@@ -529,12 +549,17 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
 
     @Override
     protected boolean doEquals(RangeQueryBuilder other) {
-        return Objects.equals(fieldName, other.fieldName) &&
-               Objects.equals(from, other.from) &&
-               Objects.equals(to, other.to) &&
-               Objects.equals(timeZone, other.timeZone) &&
-               Objects.equals(includeLower, other.includeLower) &&
-               Objects.equals(includeUpper, other.includeUpper) &&
-               Objects.equals(format, other.format);
+        return Objects.equals(fieldName, other.fieldName)
+            && Objects.equals(from, other.from)
+            && Objects.equals(to, other.to)
+            && Objects.equals(timeZone, other.timeZone)
+            && Objects.equals(includeLower, other.includeLower)
+            && Objects.equals(includeUpper, other.includeUpper)
+            && Objects.equals(format, other.format);
+    }
+
+    @Override
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.ZERO;
     }
 }

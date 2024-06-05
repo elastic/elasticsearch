@@ -1,20 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.slm.action;
 
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -28,14 +28,15 @@ public class ExecuteSnapshotLifecycleAction extends ActionType<ExecuteSnapshotLi
     public static final String NAME = "cluster:admin/slm/execute";
 
     protected ExecuteSnapshotLifecycleAction() {
-        super(NAME, ExecuteSnapshotLifecycleAction.Response::new);
+        super(NAME);
     }
 
-    public static class Request extends AcknowledgedRequest<Request> implements ToXContentObject {
+    public static class Request extends AcknowledgedRequest<Request> {
 
-        private String lifecycleId;
+        private final String lifecycleId;
 
-        public Request(String lifecycleId) {
+        public Request(TimeValue masterNodeTimeout, TimeValue ackTimeout, String lifecycleId) {
+            super(masterNodeTimeout, ackTimeout);
             this.lifecycleId = lifecycleId;
         }
 
@@ -43,8 +44,6 @@ public class ExecuteSnapshotLifecycleAction extends ActionType<ExecuteSnapshotLi
             super(in);
             lifecycleId = in.readString();
         }
-
-        public Request() { }
 
         public String getLifecycleId() {
             return this.lifecycleId;
@@ -54,18 +53,6 @@ public class ExecuteSnapshotLifecycleAction extends ActionType<ExecuteSnapshotLi
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(lifecycleId);
-        }
-
-        @Override
-        public ActionRequestValidationException validate() {
-            return null;
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.endObject();
-            return builder;
         }
 
         @Override
@@ -83,11 +70,6 @@ public class ExecuteSnapshotLifecycleAction extends ActionType<ExecuteSnapshotLi
             }
             Request other = (Request) obj;
             return lifecycleId.equals(other.lifecycleId);
-        }
-
-        @Override
-        public String toString() {
-            return Strings.toString(this);
         }
     }
 

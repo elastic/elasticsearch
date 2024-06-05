@@ -1,0 +1,347 @@
+---
+"Test geoip processor with defaults":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "geoip" : {
+                  "field" : "field1"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        pipeline: "my_pipeline"
+        body: {field1: "89.160.20.128"}
+
+  - do:
+      get:
+        index: test
+        id: "1"
+  - match: { _source.field1: "89.160.20.128" }
+  - length: { _source.geoip: 7 }
+  - match: { _source.geoip.city_name: "Linköping" }
+  - match: { _source.geoip.country_iso_code: "SE" }
+  - match: { _source.geoip.location.lon: 15.6167 }
+  - match: { _source.geoip.location.lat: 58.4167 }
+  - match: { _source.geoip.region_iso_code: "SE-E" }
+  - match: { _source.geoip.country_name: "Sweden" }
+  - match: { _source.geoip.region_name: "Östergötland County" }
+  - match: { _source.geoip.continent_name: "Europe" }
+
+---
+"Test geoip processor with list":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "geoip" : {
+                  "field" : "field1",
+                  "first_only" : false
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        pipeline: "my_pipeline"
+        body: {field1: ["89.160.20.128", "127.0.0.1"]}
+
+  - do:
+      get:
+        index: test
+        id: "1"
+  - match: { _source.field1: ["89.160.20.128", "127.0.0.1"] }
+  - length: { _source.geoip: 2 }
+  - length: { _source.geoip.0: 7 }
+  - match: { _source.geoip.0.city_name: "Linköping" }
+  - match: { _source.geoip.0.country_iso_code: "SE" }
+  - match: { _source.geoip.0.location.lon: 15.6167 }
+  - match: { _source.geoip.0.location.lat: 58.4167 }
+  - match: { _source.geoip.0.region_iso_code: "SE-E" }
+  - match: { _source.geoip.0.country_name: "Sweden" }
+  - match: { _source.geoip.0.region_name: "Östergötland County" }
+  - match: { _source.geoip.0.continent_name: "Europe" }
+  - match: { _source.geoip.1: null }
+
+---
+"Test geoip processor with lists, first only":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "geoip" : {
+                  "field" : "field1"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        pipeline: "my_pipeline"
+        body: {field1: ["127.0.0.1", "89.160.20.128", "89.160.20.128"]}
+
+  - do:
+      get:
+        index: test
+        id: "1"
+  - match: { _source.field1: ["127.0.0.1", "89.160.20.128", "89.160.20.128"] }
+  - length: { _source.geoip: 7 }
+  - match: { _source.geoip.city_name: "Linköping" }
+  - match: { _source.geoip.country_iso_code: "SE" }
+  - match: { _source.geoip.location.lon: 15.6167 }
+  - match: { _source.geoip.location.lat: 58.4167 }
+  - match: { _source.geoip.region_iso_code: "SE-E" }
+  - match: { _source.geoip.country_name: "Sweden" }
+  - match: { _source.geoip.region_name: "Östergötland County" }
+  - match: { _source.geoip.continent_name: "Europe" }
+
+---
+"Test geoip processor with fields":
+  - do:
+      cluster.health:
+          wait_for_status: green
+
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "geoip" : {
+                  "field" : "field1",
+                  "properties" : ["city_name", "country_iso_code", "ip", "location", "timezone", "country_name", "region_iso_code", "region_name", "continent_name"]
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        pipeline: "my_pipeline"
+        body: {field1: "89.160.20.128"}
+
+  - do:
+      get:
+        index: test
+        id: "1"
+  - match: { _source.field1: "89.160.20.128" }
+  - length: { _source.geoip: 9 }
+  - match: { _source.geoip.city_name: "Linköping" }
+  - match: { _source.geoip.country_iso_code: "SE" }
+  - match: { _source.geoip.ip: "89.160.20.128" }
+  - match: { _source.geoip.location.lon: 15.6167 }
+  - match: { _source.geoip.location.lat: 58.4167 }
+  - match: { _source.geoip.timezone: "Europe/Stockholm" }
+  - match: { _source.geoip.country_name: "Sweden" }
+  - match: { _source.geoip.region_iso_code: "SE-E" }
+  - match: { _source.geoip.region_name: "Östergötland County" }
+  - match: { _source.geoip.continent_name: "Europe" }
+
+---
+"Test geoip processor with different database file - GeoLite2-Country":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "geoip" : {
+                  "field" : "field1",
+                  "database_file" : "GeoLite2-Country.mmdb"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        pipeline: "my_pipeline"
+        body: {field1: "89.160.20.128"}
+
+  - do:
+      get:
+        index: test
+        id: "1"
+  - match: { _source.field1: "89.160.20.128" }
+  - length: { _source.geoip: 3 }
+  - match: { _source.geoip.country_iso_code: "SE" }
+  - match: { _source.geoip.country_name: "Sweden" }
+  - match: { _source.geoip.continent_name: "Europe" }
+
+---
+"Test geoip processor with geopoint mapping (both missing and including location)":
+  - do:
+      indices.create:
+        index: test
+        body:  >
+          {
+            "mappings" : {
+                "properties" : {
+                  "geoip.location" : {
+                    "type": "geo_point"
+                  }
+                }
+              }
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "geoip" : {
+                  "field" : "field1"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        pipeline: "my_pipeline"
+        body: { field1: "80.231.5.0" }
+
+  - do:
+      get:
+        index: test
+        id: "1"
+  - match: { _source.field1: "80.231.5.0" }
+  - is_false: _source.geoip
+
+  - do:
+      index:
+        index: test
+        id: "2"
+        pipeline: "my_pipeline"
+        body: { field1: "89.160.20.128" }
+
+  - do:
+      get:
+        index: test
+        id: "2"
+  - match: { _source.field1: "89.160.20.128" }
+  - length: { _source.geoip: 7 }
+  - match: { _source.geoip.city_name: "Linköping" }
+  - match: { _source.geoip.country_iso_code: "SE" }
+  - match: { _source.geoip.location.lon: 15.6167 }
+  - match: { _source.geoip.location.lat: 58.4167 }
+  - match: { _source.geoip.region_iso_code: "SE-E" }
+  - match: { _source.geoip.country_name: "Sweden" }
+  - match: { _source.geoip.region_name: "Östergötland County" }
+  - match: { _source.geoip.continent_name: "Europe" }
+
+---
+"Test geoip processor with different database file - GeoLite2-ASN":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "geoip" : {
+                  "field" : "field1",
+                  "database_file" : "GeoLite2-ASN.mmdb"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        pipeline: "my_pipeline"
+        body: {field1: "89.160.20.128"}
+
+  - do:
+      get:
+        index: test
+        id: "1"
+  - match: { _source.field1: "89.160.20.128" }
+  - length: { _source.geoip: 4 }
+  - match: { _source.geoip.ip: "89.160.20.128" }
+  - match: { _source.geoip.asn: 29518 }
+  - match: { _source.geoip.organization_name: "Bredband2 AB" }
+  - match: { _source.geoip.network: "89.160.0.0/17" }
+
+---
+"Test simulate with Geoip Processor":
+- do:
+    ingest.put_pipeline:
+      id: "pipeline1"
+      body:  >
+        {
+          "processors": [
+          {
+            "geoip": {
+              "field": "source.ip",
+              "target_field": "source.geo"
+            }
+          }
+          ]
+        }
+- match: { acknowledged: true }
+
+- do:
+    ingest.simulate:
+      id: "pipeline1"
+      body:  >
+        {
+          "docs": [
+            {
+              "_source": {
+                "source": {
+                  "ip": "89.160.20.128"
+                }
+              }
+            }
+          ]
+        }
+- length: { docs: 1 }
+- match: { docs.0.doc._source.source.geo.city_name: "Linköping" }

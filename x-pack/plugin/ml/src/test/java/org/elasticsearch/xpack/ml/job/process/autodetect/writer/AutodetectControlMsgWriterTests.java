@@ -1,11 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect.writer;
 
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.calendars.ScheduledEvent;
 import org.elasticsearch.xpack.core.ml.job.config.DetectionRule;
@@ -15,6 +17,7 @@ import org.elasticsearch.xpack.core.ml.job.config.Operator;
 import org.elasticsearch.xpack.core.ml.job.config.RuleCondition;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.FlushJobParams;
+import org.elasticsearch.xpack.ml.job.process.autodetect.params.ForecastParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.TimeRange;
 import org.elasticsearch.xpack.ml.process.writer.LengthEncodedWriter;
 import org.junit.Before;
@@ -30,7 +33,9 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.IntStream;
 
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -53,6 +58,9 @@ public class AutodetectControlMsgWriterTests extends ESTestCase {
         inOrder.verify(lengthEncodedWriter).writeNumFields(4);
         inOrder.verify(lengthEncodedWriter, times(3)).writeField("");
         inOrder.verify(lengthEncodedWriter).writeField("t1234567890");
+        inOrder.verify(lengthEncodedWriter).writeNumFields(4);
+        inOrder.verify(lengthEncodedWriter, times(3)).writeField("");
+        inOrder.verify(lengthEncodedWriter).writeField("ztrue");
         verifyNoMoreInteractions(lengthEncodedWriter);
     }
 
@@ -66,6 +74,9 @@ public class AutodetectControlMsgWriterTests extends ESTestCase {
         inOrder.verify(lengthEncodedWriter).writeNumFields(4);
         inOrder.verify(lengthEncodedWriter, times(3)).writeField("");
         inOrder.verify(lengthEncodedWriter).writeField("s1234567890");
+        inOrder.verify(lengthEncodedWriter).writeNumFields(4);
+        inOrder.verify(lengthEncodedWriter, times(3)).writeField("");
+        inOrder.verify(lengthEncodedWriter).writeField("ztrue");
         verifyNoMoreInteractions(lengthEncodedWriter);
     }
 
@@ -82,8 +93,7 @@ public class AutodetectControlMsgWriterTests extends ESTestCase {
 
     public void testWriteFlushControlMessage_GivenCalcInterimResultsWithNoTimeParams() throws IOException {
         AutodetectControlMsgWriter writer = new AutodetectControlMsgWriter(lengthEncodedWriter, 4);
-        FlushJobParams flushJobParams = FlushJobParams.builder()
-                .calcInterim(true).build();
+        FlushJobParams flushJobParams = FlushJobParams.builder().calcInterim(true).build();
 
         writer.writeFlushControlMessage(flushJobParams);
 
@@ -91,6 +101,9 @@ public class AutodetectControlMsgWriterTests extends ESTestCase {
         inOrder.verify(lengthEncodedWriter).writeNumFields(4);
         inOrder.verify(lengthEncodedWriter, times(3)).writeField("");
         inOrder.verify(lengthEncodedWriter).writeField("i");
+        inOrder.verify(lengthEncodedWriter).writeNumFields(4);
+        inOrder.verify(lengthEncodedWriter, times(3)).writeField("");
+        inOrder.verify(lengthEncodedWriter).writeField("ztrue");
         verifyNoMoreInteractions(lengthEncodedWriter);
     }
 
@@ -100,15 +113,36 @@ public class AutodetectControlMsgWriterTests extends ESTestCase {
 
         writer.writeFlushControlMessage(flushJobParams);
 
+        // Even a plain flush message contains the "refreshRequired" flag, which
+        // is set to "true" by default
+        InOrder inOrder = inOrder(lengthEncodedWriter);
+        inOrder.verify(lengthEncodedWriter).writeNumFields(4);
+        inOrder.verify(lengthEncodedWriter, times(3)).writeField("");
+        inOrder.verify(lengthEncodedWriter).writeField("ztrue");
+        verifyNoMoreInteractions(lengthEncodedWriter);
+    }
+
+    public void testWriteFlushControlMessage_GivenShouldRefreshFalse() throws IOException {
+        AutodetectControlMsgWriter writer = new AutodetectControlMsgWriter(lengthEncodedWriter, 4);
+        FlushJobParams flushJobParams = FlushJobParams.builder().refreshRequired(false).build();
+
+        writer.writeFlushControlMessage(flushJobParams);
+
+        // Even a plain flush message contains the "refreshRequired" flag, which
+        // is set to "true" by default
+        InOrder inOrder = inOrder(lengthEncodedWriter);
+        inOrder.verify(lengthEncodedWriter).writeNumFields(4);
+        inOrder.verify(lengthEncodedWriter, times(3)).writeField("");
+        inOrder.verify(lengthEncodedWriter).writeField("zfalse");
         verifyNoMoreInteractions(lengthEncodedWriter);
     }
 
     public void testWriteFlushControlMessage_GivenCalcInterimResultsWithTimeParams() throws IOException {
         AutodetectControlMsgWriter writer = new AutodetectControlMsgWriter(lengthEncodedWriter, 4);
         FlushJobParams flushJobParams = FlushJobParams.builder()
-                .calcInterim(true)
-                .forTimeRange(TimeRange.builder().startTime("120").endTime("180").build())
-                .build();
+            .calcInterim(true)
+            .forTimeRange(TimeRange.builder().startTime("120").endTime("180").build())
+            .build();
 
         writer.writeFlushControlMessage(flushJobParams);
 
@@ -116,16 +150,19 @@ public class AutodetectControlMsgWriterTests extends ESTestCase {
         inOrder.verify(lengthEncodedWriter).writeNumFields(4);
         inOrder.verify(lengthEncodedWriter, times(3)).writeField("");
         inOrder.verify(lengthEncodedWriter).writeField("i120 180");
+        inOrder.verify(lengthEncodedWriter).writeNumFields(4);
+        inOrder.verify(lengthEncodedWriter, times(3)).writeField("");
+        inOrder.verify(lengthEncodedWriter).writeField("ztrue");
         verifyNoMoreInteractions(lengthEncodedWriter);
     }
 
     public void testWriteFlushControlMessage_GivenCalcInterimAndAdvanceTime() throws IOException {
         AutodetectControlMsgWriter writer = new AutodetectControlMsgWriter(lengthEncodedWriter, 4);
         FlushJobParams flushJobParams = FlushJobParams.builder()
-                .calcInterim(true)
-                .forTimeRange(TimeRange.builder().startTime("50").endTime("100").build())
-                .advanceTime("180")
-                .build();
+            .calcInterim(true)
+            .forTimeRange(TimeRange.builder().startTime("50").endTime("100").build())
+            .advanceTime("180")
+            .build();
 
         writer.writeFlushControlMessage(flushJobParams);
 
@@ -136,6 +173,9 @@ public class AutodetectControlMsgWriterTests extends ESTestCase {
         inOrder.verify(lengthEncodedWriter).writeNumFields(4);
         inOrder.verify(lengthEncodedWriter, times(3)).writeField("");
         inOrder.verify(lengthEncodedWriter).writeField("i50 100");
+        inOrder.verify(lengthEncodedWriter).writeNumFields(4);
+        inOrder.verify(lengthEncodedWriter, times(3)).writeField("");
+        inOrder.verify(lengthEncodedWriter).writeField("ztrue");
         verifyNoMoreInteractions(lengthEncodedWriter);
     }
 
@@ -155,7 +195,7 @@ public class AutodetectControlMsgWriterTests extends ESTestCase {
         inOrder.verify(lengthEncodedWriter).writeNumFields(4);
         inOrder.verify(lengthEncodedWriter, times(3)).writeField("");
         StringBuilder spaces = new StringBuilder();
-        IntStream.rangeClosed(1, 8192).forEach(i -> spaces.append(' '));
+        IntStream.rangeClosed(1, 2048).forEach(i -> spaces.append(' '));
         inOrder.verify(lengthEncodedWriter).writeField(spaces.toString());
 
         inOrder.verify(lengthEncodedWriter).flush();
@@ -165,8 +205,7 @@ public class AutodetectControlMsgWriterTests extends ESTestCase {
     public void testWriteResetBucketsMessage() throws IOException {
         AutodetectControlMsgWriter writer = new AutodetectControlMsgWriter(lengthEncodedWriter, 4);
 
-        writer.writeResetBucketsMessage(
-                new DataLoadParams(TimeRange.builder().startTime("0").endTime("600").build(), Optional.empty()));
+        writer.writeResetBucketsMessage(new DataLoadParams(TimeRange.builder().startTime("0").endTime("600").build(), Optional.empty()));
 
         InOrder inOrder = inOrder(lengthEncodedWriter);
         inOrder.verify(lengthEncodedWriter).writeNumFields(4);
@@ -178,12 +217,13 @@ public class AutodetectControlMsgWriterTests extends ESTestCase {
     public void testWriteUpdateModelPlotMessage() throws IOException {
         AutodetectControlMsgWriter writer = new AutodetectControlMsgWriter(lengthEncodedWriter, 4);
 
-        writer.writeUpdateModelPlotMessage(new ModelPlotConfig(true, "foo,bar"));
+        writer.writeUpdateModelPlotMessage(new ModelPlotConfig(true, "foo,bar", false));
 
         InOrder inOrder = inOrder(lengthEncodedWriter);
         inOrder.verify(lengthEncodedWriter).writeNumFields(4);
         inOrder.verify(lengthEncodedWriter, times(3)).writeField("");
-        inOrder.verify(lengthEncodedWriter).writeField("u[modelPlotConfig]\nboundspercentile = 95.0\nterms = foo,bar\n");
+        inOrder.verify(lengthEncodedWriter).writeField("""
+            u{"model_plot_config":{"enabled":true,"terms":"foo,bar","annotations_enabled":false}}""");
         verifyNoMoreInteractions(lengthEncodedWriter);
     }
 
@@ -197,11 +237,38 @@ public class AutodetectControlMsgWriterTests extends ESTestCase {
         InOrder inOrder = inOrder(lengthEncodedWriter);
         inOrder.verify(lengthEncodedWriter).writeNumFields(4);
         inOrder.verify(lengthEncodedWriter, times(3)).writeField("");
-        inOrder.verify(lengthEncodedWriter).writeField("u[detectorRules]\ndetectorIndex=2\n" +
-                "rulesJson=[{\"actions\":[\"skip_result\"],\"conditions\":" +
-                "[{\"applies_to\":\"actual\",\"operator\":\"gt\",\"value\":5.0}]}," +
-                "{\"actions\":[\"skip_result\"],\"conditions\":[" +
-                "{\"applies_to\":\"actual\",\"operator\":\"gt\",\"value\":5.0}]}]");
+        inOrder.verify(lengthEncodedWriter).writeField("u" + XContentHelper.stripWhitespace("""
+            {
+              "detector_rules": {
+                "detector_index": 2,
+                "custom_rules": [
+                  {
+                    "actions": [
+                      "skip_result"
+                    ],
+                    "conditions": [
+                      {
+                        "applies_to": "actual",
+                        "operator": "gt",
+                        "value": 5.0
+                      }
+                    ]
+                  },
+                  {
+                    "actions": [
+                      "skip_result"
+                    ],
+                    "conditions": [
+                      {
+                        "applies_to": "actual",
+                        "operator": "gt",
+                        "value": 5.0
+                      }
+                    ]
+                  }
+                ]
+              }
+            }"""));
         verifyNoMoreInteractions(lengthEncodedWriter);
     }
 
@@ -216,7 +283,8 @@ public class AutodetectControlMsgWriterTests extends ESTestCase {
         InOrder inOrder = inOrder(lengthEncodedWriter);
         inOrder.verify(lengthEncodedWriter).writeNumFields(2);
         inOrder.verify(lengthEncodedWriter, times(1)).writeField("");
-        inOrder.verify(lengthEncodedWriter).writeField("u[filters]\nfilter.filter_1 = [\"a\"]\nfilter.filter_2 = [\"b\",\"c\"]\n");
+        inOrder.verify(lengthEncodedWriter).writeField("""
+            u{"filters":[{"filter_id":"filter_1","items":["a"]},{"filter_id":"filter_2","items":["b","c"]}]}""");
         verifyNoMoreInteractions(lengthEncodedWriter);
     }
 
@@ -242,15 +310,57 @@ public class AutodetectControlMsgWriterTests extends ESTestCase {
         inOrder.verify(lengthEncodedWriter, times(1)).writeField("");
         ArgumentCaptor<String> capturedMessage = ArgumentCaptor.forClass(String.class);
         inOrder.verify(lengthEncodedWriter).writeField(capturedMessage.capture());
-        assertThat(capturedMessage.getValue(), equalTo("u[scheduledEvents]\n"
-                + "scheduledevent.0.description = new year\n"
-                + "scheduledevent.0.rules = [{\"actions\":[\"skip_result\",\"skip_model_update\"],"
-                +     "\"conditions\":[{\"applies_to\":\"time\",\"operator\":\"gte\",\"value\":1.5147648E9},"
-                +     "{\"applies_to\":\"time\",\"operator\":\"lt\",\"value\":1.5148512E9}]}]\n"
-                + "scheduledevent.1.description = Jan maintenance day\n"
-                + "scheduledevent.1.rules = [{\"actions\":[\"skip_result\",\"skip_model_update\"],"
-                +     "\"conditions\":[{\"applies_to\":\"time\",\"operator\":\"gte\",\"value\":1.5151968E9},"
-                +     "{\"applies_to\":\"time\",\"operator\":\"lt\",\"value\":1.5152832E9}]}]\n"));
+        assertThat(capturedMessage.getValue(), equalTo("u" + XContentHelper.stripWhitespace("""
+            {
+              "events": [
+                {
+                  "description": "new year",
+                  "rules": [
+                    {
+                      "actions": [
+                        "skip_result",
+                        "skip_model_update"
+                      ],
+                      "conditions": [
+                        {
+                          "applies_to": "time",
+                          "operator": "gte",
+                          "value": 1.5147648E9
+                        },
+                        {
+                          "applies_to": "time",
+                          "operator": "lt",
+                          "value": 1.5148512E9
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "description": "Jan maintenance day",
+                  "rules": [
+                    {
+                      "actions": [
+                        "skip_result",
+                        "skip_model_update"
+                      ],
+                      "conditions": [
+                        {
+                          "applies_to": "time",
+                          "operator": "gte",
+                          "value": 1.5151968E9
+                        },
+                        {
+                          "applies_to": "time",
+                          "operator": "lt",
+                          "value": 1.5152832E9
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }""")));
         verifyNoMoreInteractions(lengthEncodedWriter);
     }
 
@@ -262,7 +372,7 @@ public class AutodetectControlMsgWriterTests extends ESTestCase {
         InOrder inOrder = inOrder(lengthEncodedWriter);
         inOrder.verify(lengthEncodedWriter).writeNumFields(2);
         inOrder.verify(lengthEncodedWriter, times(1)).writeField("");
-        inOrder.verify(lengthEncodedWriter).writeField("u[scheduledEvents]\nclear = true\n");
+        inOrder.verify(lengthEncodedWriter).writeField("u{\"events\":[]}");
         verifyNoMoreInteractions(lengthEncodedWriter);
     }
 
@@ -274,6 +384,40 @@ public class AutodetectControlMsgWriterTests extends ESTestCase {
         inOrder.verify(lengthEncodedWriter).writeNumFields(2);
         inOrder.verify(lengthEncodedWriter).writeField("");
         inOrder.verify(lengthEncodedWriter).writeField("w");
+
+        inOrder.verify(lengthEncodedWriter).writeNumFields(2);
+        inOrder.verify(lengthEncodedWriter).writeField("");
+        StringBuilder spaces = new StringBuilder();
+        IntStream.rangeClosed(1, AutodetectControlMsgWriter.FLUSH_SPACES_LENGTH).forEach(i -> spaces.append(' '));
+        inOrder.verify(lengthEncodedWriter).writeField(spaces.toString());
+        inOrder.verify(lengthEncodedWriter).flush();
+
+        verifyNoMoreInteractions(lengthEncodedWriter);
+    }
+
+    public void testWriteForecastParamsMessage() throws IOException {
+        AutodetectControlMsgWriter writer = new AutodetectControlMsgWriter(lengthEncodedWriter, 2);
+
+        ForecastParams params = ForecastParams.builder()
+            .duration(TimeValue.timeValueHours(3))
+            .expiresIn(TimeValue.timeValueDays(4))
+            .tmpStorage("/my_temp_dir")
+            .maxModelMemory(12345)
+            .minAvailableDiskSpace(98765)
+            .build();
+
+        writer.writeForecastMessage(params);
+
+        InOrder inOrder = inOrder(lengthEncodedWriter);
+        inOrder.verify(lengthEncodedWriter).writeNumFields(2);
+        inOrder.verify(lengthEncodedWriter).writeField("");
+        ArgumentCaptor<String> capturedMessage = ArgumentCaptor.forClass(String.class);
+        inOrder.verify(lengthEncodedWriter).writeField(capturedMessage.capture());
+
+        assertThat(capturedMessage.getValue(), startsWith("p{\"forecast_id\":\""));
+        assertThat(capturedMessage.getValue(), endsWith("""
+            "duration":10800,"expires_in":345600,"tmp_storage":"/my_temp_dir",\
+            "max_model_memory":12345,"min_available_disk_space":98765}"""));
 
         inOrder.verify(lengthEncodedWriter).writeNumFields(2);
         inOrder.verify(lengthEncodedWriter).writeField("");

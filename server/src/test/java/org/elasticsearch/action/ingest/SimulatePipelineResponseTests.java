@@ -1,28 +1,20 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.ingest;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -32,12 +24,64 @@ import java.util.StringJoiner;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.ingest.IngestDocumentMatcher.assertIngestDocument;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.nullValue;
 
 public class SimulatePipelineResponseTests extends AbstractXContentTestCase<SimulatePipelineResponse> {
+
+    @SuppressWarnings("unchecked")
+    private static final ConstructingObjectParser<SimulatePipelineResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "simulate_pipeline_response",
+        true,
+        a -> {
+            List<SimulateDocumentResult> results = (List<SimulateDocumentResult>) a[0];
+            boolean verbose = false;
+            if (results.size() > 0) {
+                if (results.get(0) instanceof SimulateDocumentVerboseResult) {
+                    verbose = true;
+                }
+            }
+            return new SimulatePipelineResponse(null, verbose, results);
+        }
+    );
+    static {
+        PARSER.declareObjectArray(constructorArg(), (parser, context) -> {
+            XContentParser.Token token = parser.currentToken();
+            ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
+            SimulateDocumentResult result = null;
+            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
+                String fieldName = parser.currentName();
+                token = parser.nextToken();
+                if (token == XContentParser.Token.START_ARRAY) {
+                    if (fieldName.equals(SimulateDocumentVerboseResult.PROCESSOR_RESULT_FIELD)) {
+                        List<SimulateProcessorResult> results = new ArrayList<>();
+                        while ((token = parser.nextToken()) == XContentParser.Token.START_OBJECT) {
+                            results.add(SimulateProcessorResult.fromXContent(parser));
+                        }
+                        ensureExpectedToken(XContentParser.Token.END_ARRAY, token, parser);
+                        result = new SimulateDocumentVerboseResult(results);
+                    } else {
+                        parser.skipChildren();
+                    }
+                } else if (token.equals(XContentParser.Token.START_OBJECT)) {
+                    switch (fieldName) {
+                        case WriteableIngestDocument.DOC_FIELD -> result = new SimulateDocumentBaseResult(
+                            WriteableIngestDocument.INGEST_DOC_PARSER.apply(parser, null).getIngestDocument()
+                        );
+                        case "error" -> result = new SimulateDocumentBaseResult(ElasticsearchException.fromXContent(parser));
+                        default -> parser.skipChildren();
+                    }
+                } // else it is a value skip it
+            }
+            assert result != null;
+            return result;
+        }, new ParseField(SimulatePipelineResponse.Fields.DOCUMENTS));
+    }
 
     public void testSerialization() throws IOException {
         boolean isVerbose = randomBoolean();
@@ -55,14 +99,17 @@ public class SimulatePipelineResponseTests extends AbstractXContentTestCase<Simu
         Iterator<SimulateDocumentResult> expectedResultIterator = response.getResults().iterator();
         for (SimulateDocumentResult result : otherResponse.getResults()) {
             if (isVerbose) {
-                SimulateDocumentVerboseResult expectedSimulateDocumentVerboseResult =
-                        (SimulateDocumentVerboseResult) expectedResultIterator.next();
+                SimulateDocumentVerboseResult expectedSimulateDocumentVerboseResult = (SimulateDocumentVerboseResult) expectedResultIterator
+                    .next();
                 assertThat(result, instanceOf(SimulateDocumentVerboseResult.class));
                 SimulateDocumentVerboseResult simulateDocumentVerboseResult = (SimulateDocumentVerboseResult) result;
-                assertThat(simulateDocumentVerboseResult.getProcessorResults().size(),
-                        equalTo(expectedSimulateDocumentVerboseResult.getProcessorResults().size()));
-                Iterator<SimulateProcessorResult> expectedProcessorResultIterator =
-                        expectedSimulateDocumentVerboseResult.getProcessorResults().iterator();
+                assertThat(
+                    simulateDocumentVerboseResult.getProcessorResults().size(),
+                    equalTo(expectedSimulateDocumentVerboseResult.getProcessorResults().size())
+                );
+                Iterator<SimulateProcessorResult> expectedProcessorResultIterator = expectedSimulateDocumentVerboseResult
+                    .getProcessorResults()
+                    .iterator();
                 for (SimulateProcessorResult simulateProcessorResult : simulateDocumentVerboseResult.getProcessorResults()) {
                     SimulateProcessorResult expectedProcessorResult = expectedProcessorResultIterator.next();
                     assertThat(simulateProcessorResult.getProcessorTag(), equalTo(expectedProcessorResult.getProcessorTag()));
@@ -82,8 +129,10 @@ public class SimulatePipelineResponseTests extends AbstractXContentTestCase<Simu
                 assertThat(result, instanceOf(SimulateDocumentBaseResult.class));
                 SimulateDocumentBaseResult simulateDocumentBaseResult = (SimulateDocumentBaseResult) result;
                 if (simulateDocumentBaseResult.getIngestDocument() != null) {
-                    assertIngestDocument(simulateDocumentBaseResult.getIngestDocument(),
-                            expectedSimulateDocumentBaseResult.getIngestDocument());
+                    assertIngestDocument(
+                        simulateDocumentBaseResult.getIngestDocument(),
+                        expectedSimulateDocumentBaseResult.getIngestDocument()
+                    );
                 }
                 if (expectedSimulateDocumentBaseResult.getFailure() == null) {
                     assertThat(simulateDocumentBaseResult.getFailure(), nullValue());
@@ -101,13 +150,9 @@ public class SimulatePipelineResponseTests extends AbstractXContentTestCase<Simu
         List<SimulateDocumentResult> results = new ArrayList<>(numResults);
         for (int i = 0; i < numResults; i++) {
             if (isVerbose) {
-                results.add(
-                    SimulateDocumentVerboseResultTests.createTestInstance(withFailure)
-                );
+                results.add(SimulateDocumentVerboseResultTests.createTestInstance(withFailure));
             } else {
-                results.add(
-                    SimulateDocumentBaseResultTests.createTestInstance(withFailure && randomBoolean())
-                );
+                results.add(SimulateDocumentBaseResultTests.createTestInstance(withFailure && randomBoolean()));
             }
         }
         return new SimulatePipelineResponse(pipelineId, isVerbose, results);
@@ -128,7 +173,7 @@ public class SimulatePipelineResponseTests extends AbstractXContentTestCase<Simu
 
     @Override
     protected SimulatePipelineResponse doParseInstance(XContentParser parser) {
-        return SimulatePipelineResponse.fromXContent(parser);
+        return PARSER.apply(parser, null);
     }
 
     @Override
@@ -137,23 +182,22 @@ public class SimulatePipelineResponseTests extends AbstractXContentTestCase<Simu
     }
 
     @Override
-    protected void assertEqualInstances(SimulatePipelineResponse response,
-                                        SimulatePipelineResponse parsedResponse) {
+    protected void assertEqualInstances(SimulatePipelineResponse response, SimulatePipelineResponse parsedResponse) {
         assertEquals(response.getPipelineId(), parsedResponse.getPipelineId());
         assertEquals(response.isVerbose(), parsedResponse.isVerbose());
         assertEquals(response.getResults().size(), parsedResponse.getResults().size());
-        for (int i=0; i < response.getResults().size(); i++) {
+        for (int i = 0; i < response.getResults().size(); i++) {
             if (response.isVerbose()) {
                 assertThat(response.getResults().get(i), instanceOf(SimulateDocumentVerboseResult.class));
                 assertThat(parsedResponse.getResults().get(i), instanceOf(SimulateDocumentVerboseResult.class));
-                SimulateDocumentVerboseResult responseResult = (SimulateDocumentVerboseResult)response.getResults().get(i);
-                SimulateDocumentVerboseResult parsedResult = (SimulateDocumentVerboseResult)parsedResponse.getResults().get(i);
+                SimulateDocumentVerboseResult responseResult = (SimulateDocumentVerboseResult) response.getResults().get(i);
+                SimulateDocumentVerboseResult parsedResult = (SimulateDocumentVerboseResult) parsedResponse.getResults().get(i);
                 SimulateDocumentVerboseResultTests.assertEqualDocs(responseResult, parsedResult);
             } else {
                 assertThat(response.getResults().get(i), instanceOf(SimulateDocumentBaseResult.class));
                 assertThat(parsedResponse.getResults().get(i), instanceOf(SimulateDocumentBaseResult.class));
-                SimulateDocumentBaseResult responseResult = (SimulateDocumentBaseResult)response.getResults().get(i);
-                SimulateDocumentBaseResult parsedResult = (SimulateDocumentBaseResult)parsedResponse.getResults().get(i);
+                SimulateDocumentBaseResult responseResult = (SimulateDocumentBaseResult) response.getResults().get(i);
+                SimulateDocumentBaseResult parsedResult = (SimulateDocumentBaseResult) parsedResponse.getResults().get(i);
                 SimulateDocumentBaseResultTests.assertEqualDocs(responseResult, parsedResult);
             }
         }
@@ -162,17 +206,12 @@ public class SimulatePipelineResponseTests extends AbstractXContentTestCase<Simu
     @Override
     protected Predicate<String> getRandomFieldsExcludeFilter() {
         // We cannot have random fields in the _source field and _ingest field
-        return field ->
-            field.contains(
-                new StringJoiner(".")
-                    .add(WriteableIngestDocument.DOC_FIELD)
-                    .add(WriteableIngestDocument.SOURCE_FIELD).toString()
-            ) ||
-                field.contains(
-                    new StringJoiner(".")
-                        .add(WriteableIngestDocument.DOC_FIELD)
-                        .add(WriteableIngestDocument.INGEST_FIELD).toString()
-                );
+        return field -> field.contains(
+            new StringJoiner(".").add(WriteableIngestDocument.DOC_FIELD).add(WriteableIngestDocument.SOURCE_FIELD).toString()
+        )
+            || field.contains(
+                new StringJoiner(".").add(WriteableIngestDocument.DOC_FIELD).add(WriteableIngestDocument.INGEST_FIELD).toString()
+            );
     }
 
     /**
@@ -182,10 +221,19 @@ public class SimulatePipelineResponseTests extends AbstractXContentTestCase<Simu
      */
     public void testFromXContentWithFailures() throws IOException {
         Supplier<SimulatePipelineResponse> instanceSupplier = SimulatePipelineResponseTests::createTestInstanceWithFailures;
-        //exceptions are not of the same type whenever parsed back
+        // exceptions are not of the same type whenever parsed back
         boolean assertToXContentEquivalence = false;
-        AbstractXContentTestCase.testFromXContent(NUMBER_OF_TEST_RUNS, instanceSupplier, supportsUnknownFields(),
-                getShuffleFieldsExceptions(), getRandomFieldsExcludeFilter(), this::createParser, this::doParseInstance,
-                this::assertEqualInstances, assertToXContentEquivalence, getToXContentParams());
+        AbstractXContentTestCase.testFromXContent(
+            NUMBER_OF_TEST_RUNS,
+            instanceSupplier,
+            supportsUnknownFields(),
+            getShuffleFieldsExceptions(),
+            getRandomFieldsExcludeFilter(),
+            this::createParser,
+            this::doParseInstance,
+            this::assertEqualInstances,
+            assertToXContentEquivalence,
+            getToXContentParams()
+        );
     }
 }

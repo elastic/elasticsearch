@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="platinum"]
 [[ccr-post-forget-follower]]
 === Forget follower API
 ++++
@@ -101,6 +100,12 @@ the <<ccr-post-unfollow,unfollow API>> is invoked.
 `<leader_index>`::
   (Required, string) The name of the leader index.
 
+[[ccr-post-forget-follower-query-params]]
+==== {api-query-parms-title}
+
+`timeout`::
+(Optional, time) Controls the amount of time to wait for results. Defaults to unlimited.
+
 [[ccr-post-forget-follower-request-body]]
 ==== {api-request-body-title}
 
@@ -115,7 +120,7 @@ the <<ccr-post-unfollow,unfollow API>> is invoked.
 
 `leader_remote_cluster`::
   (Required, string) The alias (from the perspective of the cluster containing
-  the follower index) of the <<modules-remote-clusters,remote cluster>>
+  the follower index) of the <<remote-clusters,remote cluster>>
   containing the leader index.
 
 [[ccr-post-forget-follower-examples]]

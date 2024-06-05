@@ -1,33 +1,19 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.translog;
 
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexCommit;
-import org.apache.lucene.store.NIOFSDirectory;
-import org.apache.lucene.util.LuceneTestCase;
-import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.index.engine.CombinedDeletionPolicy;
+import org.apache.lucene.tests.util.LuceneTestCase;
+import org.elasticsearch.core.IOUtils;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -69,7 +55,7 @@ public class TestTranslog {
      * See {@link TestTranslog#corruptFile(Logger, Random, Path, boolean)} for details of the corruption applied.
      */
     public static void corruptRandomTranslogFile(Logger logger, Random random, Path translogDir) throws IOException {
-        corruptRandomTranslogFile(logger, random, translogDir, minTranslogGenUsedInRecovery(translogDir));
+        corruptRandomTranslogFile(logger, random, translogDir, Translog.readCheckpoint(translogDir).minTranslogGeneration);
     }
 
     /**
@@ -102,17 +88,32 @@ public class TestTranslog {
                     long newMinSeqNo = Math.min(newMaxSeqNo, checkpoint.minSeqNo + random.nextInt(2));
                     long newTrimmedAboveSeqNo = Math.min(newMaxSeqNo, checkpoint.trimmedAboveSeqNo + random.nextInt(2));
 
-                    checkpointCopy = new Checkpoint(checkpoint.offset + random.nextInt(2), checkpoint.numOps + random.nextInt(2),
-                        newTranslogGeneration, newMinSeqNo,
-                        newMaxSeqNo, checkpoint.globalCheckpoint + random.nextInt(2),
-                        newMinTranslogGeneration, newTrimmedAboveSeqNo);
+                    checkpointCopy = new Checkpoint(
+                        checkpoint.offset + random.nextInt(2),
+                        checkpoint.numOps + random.nextInt(2),
+                        newTranslogGeneration,
+                        newMinSeqNo,
+                        newMaxSeqNo,
+                        checkpoint.globalCheckpoint + random.nextInt(2),
+                        newMinTranslogGeneration,
+                        newTrimmedAboveSeqNo
+                    );
                 }
-                Checkpoint.write(FileChannel::open, unnecessaryCheckpointCopyPath, checkpointCopy,
-                    StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW);
+                Checkpoint.write(
+                    FileChannel::open,
+                    unnecessaryCheckpointCopyPath,
+                    checkpointCopy,
+                    StandardOpenOption.WRITE,
+                    StandardOpenOption.CREATE_NEW
+                );
 
                 if (checkpointCopy.equals(checkpoint) == false) {
-                    logger.info("corruptRandomTranslogFile: created [{}] containing [{}] instead of [{}]", unnecessaryCheckpointCopyPath,
-                        checkpointCopy, checkpoint);
+                    logger.info(
+                        "corruptRandomTranslogFile: created [{}] containing [{}] instead of [{}]",
+                        unnecessaryCheckpointCopyPath,
+                        checkpointCopy,
+                        checkpoint
+                    );
                     return;
                 } // else checkpoint copy has the correct content so it's now a candidate for the usual kinds of corruption
             }
@@ -179,25 +180,17 @@ public class TestTranslog {
                 // rewrite
                 fileChannel.position(corruptPosition);
                 fileChannel.write(bb);
-                logger.info("corruptFile: corrupting file {} at position {} turning 0x{} into 0x{}", fileToCorrupt, corruptPosition,
-                    Integer.toHexString(oldValue & 0xff), Integer.toHexString(newValue & 0xff));
+                logger.info(
+                    "corruptFile: corrupting file {} at position {} turning 0x{} into 0x{}",
+                    fileToCorrupt,
+                    corruptPosition,
+                    Integer.toHexString(oldValue & 0xff),
+                    Integer.toHexString(newValue & 0xff)
+                );
             } else {
                 logger.info("corruptFile: truncating file {} from length {} to length {}", fileToCorrupt, fileSize, corruptPosition);
                 fileChannel.truncate(corruptPosition);
             }
-        }
-    }
-
-    /**
-     * Lists all existing commits in a given index path, then read the minimum translog generation that will be used in recoverFromTranslog.
-     */
-    private static long minTranslogGenUsedInRecovery(Path translogPath) throws IOException {
-        try (NIOFSDirectory directory = new NIOFSDirectory(translogPath.getParent().resolve("index"))) {
-            List<IndexCommit> commits = DirectoryReader.listCommits(directory);
-            final String translogUUID = commits.get(commits.size() - 1).getUserData().get(Translog.TRANSLOG_UUID_KEY);
-            long globalCheckpoint = Translog.readGlobalCheckpoint(translogPath, translogUUID);
-            IndexCommit recoveringCommit = CombinedDeletionPolicy.findSafeCommitPoint(commits, globalCheckpoint);
-            return Long.parseLong(recoveringCommit.getUserData().get(Translog.TRANSLOG_GENERATION_KEY));
         }
     }
 
@@ -209,7 +202,7 @@ public class TestTranslog {
     }
 
     public static List<Translog.Operation> drainSnapshot(Translog.Snapshot snapshot, boolean sortBySeqNo) throws IOException {
-        final List<Translog.Operation> ops = new ArrayList<>(snapshot.totalOperations());
+        final List<Translog.Operation> ops = new ArrayList<>();
         Translog.Operation op;
         while ((op = snapshot.next()) != null) {
             ops.add(op);
@@ -220,8 +213,8 @@ public class TestTranslog {
         return ops;
     }
 
-    public static Translog.Snapshot newSnapshotFromOperations(List<Translog.Operation> operations) {
-        final Iterator<Translog.Operation> iterator = operations.iterator();
+    public static Translog.Snapshot newSnapshotFromOperations(List<Translog.Index> operations) {
+        final Iterator<Translog.Index> iterator = operations.iterator();
         return new Translog.Snapshot() {
             @Override
             public int totalOperations() {

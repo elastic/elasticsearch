@@ -1,33 +1,29 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.bootstrap;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.nativeaccess.NativeAccess;
 import org.elasticsearch.plugins.Platforms;
-import org.elasticsearch.plugins.PluginInfo;
-import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.plugins.PluginDescriptor;
+import org.elasticsearch.plugins.PluginsUtils;
 
+import java.io.BufferedReader;
 import java.io.Closeable;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -45,54 +41,88 @@ final class Spawner implements Closeable {
      * References to the processes that have been spawned, so that we can destroy them.
      */
     private final List<Process> processes = new ArrayList<>();
+    private final List<Thread> pumpThreads = new ArrayList<>();
     private AtomicBoolean spawned = new AtomicBoolean();
 
     @Override
     public void close() throws IOException {
-        IOUtils.close(() -> processes.stream().map(s -> (Closeable) s::destroy).iterator());
+        List<Closeable> closeables = new ArrayList<>();
+        closeables.addAll(processes.stream().map(s -> (Closeable) s::destroy).toList());
+        closeables.addAll(pumpThreads.stream().map(t -> (Closeable) () -> {
+            try {
+                t.join(); // wait for thread to complete now that the spawned process is destroyed
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt(); // best effort, ignore
+            }
+        }).toList());
+        IOUtils.close(closeables);
     }
 
     /**
      * Spawns the native controllers for each module.
      *
-     * @param environment the node environment
+     * @param environment The node environment
      * @throws IOException if an I/O error occurs reading the module or spawning a native process
      */
     void spawnNativeControllers(final Environment environment) throws IOException {
-        if (!spawned.compareAndSet(false, true)) {
+        if (spawned.compareAndSet(false, true) == false) {
             throw new IllegalStateException("native controllers already spawned");
         }
-        if (!Files.exists(environment.modulesFile())) {
+        if (Files.exists(environment.modulesFile()) == false) {
             throw new IllegalStateException("modules directory [" + environment.modulesFile() + "] not found");
         }
         /*
          * For each module, attempt to spawn the controller daemon. Silently ignore any module that doesn't include a controller for the
          * correct platform.
          */
-        List<Path> paths = PluginsService.findPluginDirs(environment.modulesFile());
+        List<Path> paths = PluginsUtils.findPluginDirs(environment.modulesFile());
         for (final Path modules : paths) {
-            final PluginInfo info = PluginInfo.readFromProperties(modules);
+            final PluginDescriptor info = PluginDescriptor.readFromProperties(modules);
             final Path spawnPath = Platforms.nativeControllerPath(modules);
-            if (!Files.isRegularFile(spawnPath)) {
+            if (Files.isRegularFile(spawnPath) == false) {
                 continue;
             }
-            if (!info.hasNativeController()) {
+            if (info.hasNativeController() == false) {
                 final String message = String.format(
                     Locale.ROOT,
                     "module [%s] does not have permission to fork native controller",
-                    modules.getFileName());
+                    modules.getFileName()
+                );
                 throw new IllegalArgumentException(message);
             }
             final Process process = spawnNativeController(spawnPath, environment.tmpFile());
+            // The process _shouldn't_ write any output via its stdout or stderr, but if it does then
+            // it will block if nothing is reading that output. To avoid this we can pipe the
+            // outputs and create pump threads to write any messages there to the ES log.
+            startPumpThread(info.getName(), "stdout", process.getInputStream());
+            startPumpThread(info.getName(), "stderr", process.getErrorStream());
             processes.add(process);
         }
+    }
+
+    private void startPumpThread(String componentName, String streamName, InputStream stream) {
+        String loggerName = componentName + "-controller-" + streamName;
+        final Logger logger = LogManager.getLogger(loggerName);
+        Thread t = new Thread(() -> {
+            try (var br = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8))) {
+                String line;
+                while ((line = br.readLine()) != null) {
+                    // since we do not expect native controllers to ever write to stdout/stderr, we always log at warn level
+                    logger.warn(line);
+                }
+            } catch (IOException e) {
+                logger.error("error while reading " + streamName, e);
+            }
+        }, loggerName + "-pump");
+        t.start();
+        pumpThreads.add(t);
     }
 
     /**
      * Attempt to spawn the controller daemon for a given module. The spawned process will remain connected to this JVM via its stdin,
      * stdout, and stderr streams, but the references to these streams are not available to code outside this package.
      */
-    private Process spawnNativeController(final Path spawnPath, final Path tmpPath) throws IOException {
+    private static Process spawnNativeController(final Path spawnPath, final Path tmpPath) throws IOException {
         final String command;
         if (Constants.WINDOWS) {
             /*
@@ -104,7 +134,7 @@ final class Spawner implements Closeable {
              * http://hg.openjdk.java.net/jdk8/jdk8/jdk/file/687fd7c7986d/src/windows/native/java/lang/ProcessImpl_md.c#l319), this
              * limitation is in force. As such, we use the short name to avoid any such problems.
              */
-            command = Natives.getShortPathName(spawnPath.toString());
+            command = NativeAccess.instance().getWindowsFunctions().getShortPathName(spawnPath.toString());
         } else {
             command = spawnPath.toString();
         }

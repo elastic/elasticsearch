@@ -1,0 +1,17 @@
+apply plugin: 'elasticsearch.internal-java-rest-test'
+
+import org.elasticsearch.gradle.internal.info.BuildParams
+
+dependencies {
+  javaRestTestImplementation project(path: xpackModule('eql:qa:common'))
+}
+
+tasks.named('javaRestTest') {
+  usesDefaultDistribution()
+}
+
+if (BuildParams.inFipsJvm){
+  // This test cluster is using a BASIC license and FIPS 140 mode is not supported in BASIC
+  tasks.named("javaRestTest").configure{enabled = false }
+}
+

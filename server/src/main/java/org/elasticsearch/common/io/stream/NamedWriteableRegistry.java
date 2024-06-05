@@ -1,26 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.io.stream;
 
 import java.util.ArrayList;
-import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -33,6 +22,8 @@ import java.util.Objects;
  * to that category.
  */
 public class NamedWriteableRegistry {
+
+    static boolean ignoreDeserializationErrors; // disable assertions just to test production behaviour
 
     /** An entry in the registry, made up of a category class and name, and a reader for that category class. */
     public static class Entry {
@@ -66,11 +57,11 @@ public class NamedWriteableRegistry {
     @SuppressWarnings("rawtypes")
     public NamedWriteableRegistry(List<Entry> entries) {
         if (entries.isEmpty()) {
-            registry = Collections.emptyMap();
+            registry = Map.of();
             return;
         }
         entries = new ArrayList<>(entries);
-        entries.sort((e1, e2) -> e1.categoryClass.getName().compareTo(e2.categoryClass.getName()));
+        entries.sort(Comparator.comparing(e -> e.categoryClass.getName()));
 
         Map<Class<?>, Map<String, Writeable.Reader<?>>> registry = new HashMap<>();
         Map<String, Writeable.Reader<?>> readers = null;
@@ -79,7 +70,7 @@ public class NamedWriteableRegistry {
             if (currentCategory != entry.categoryClass) {
                 if (currentCategory != null) {
                     // we've seen the last of this category, put it into the big map
-                    registry.put(currentCategory, Collections.unmodifiableMap(readers));
+                    registry.put(currentCategory, Map.copyOf(readers));
                 }
                 readers = new HashMap<>();
                 currentCategory = entry.categoryClass;
@@ -87,15 +78,25 @@ public class NamedWriteableRegistry {
 
             Writeable.Reader<?> oldReader = readers.put(entry.name, entry.reader);
             if (oldReader != null) {
-                throw new IllegalArgumentException("NamedWriteable [" + currentCategory.getName() + "][" + entry.name + "]" +
-                    " is already registered for [" + oldReader.getClass().getName() + "]," +
-                    " cannot register [" + entry.reader.getClass().getName() + "]");
+                throw new IllegalArgumentException(
+                    "NamedWriteable ["
+                        + currentCategory.getName()
+                        + "]["
+                        + entry.name
+                        + "]"
+                        + " is already registered for ["
+                        + oldReader.getClass().getName()
+                        + "],"
+                        + " cannot register ["
+                        + entry.reader.getClass().getName()
+                        + "]"
+                );
             }
         }
         // handle the last category
-        registry.put(currentCategory, Collections.unmodifiableMap(readers));
+        registry.put(currentCategory, Map.copyOf(readers));
 
-        this.registry = Collections.unmodifiableMap(registry);
+        this.registry = Map.copyOf(registry);
     }
 
     /**
@@ -103,15 +104,55 @@ public class NamedWriteableRegistry {
      * name provided as argument and its category.
      */
     public <T> Writeable.Reader<? extends T> getReader(Class<T> categoryClass, String name) {
-        Map<String, Writeable.Reader<?>> readers = registry.get(categoryClass);
-        if (readers == null) {
-            throw new IllegalArgumentException("Unknown NamedWriteable category [" + categoryClass.getName() + "]");
-        }
+        Map<String, Writeable.Reader<?>> readers = getReaders(categoryClass);
+        return getReader(categoryClass, name, readers);
+    }
+
+    /**
+     * @param categoryClass category of the reader
+     * @param name          name of the writeable
+     * @param readers       map of readers for the category
+     * @return reader for the named writable of the given {@code name}
+     */
+    public static <T> Writeable.Reader<? extends T> getReader(
+        Class<T> categoryClass,
+        String name,
+        Map<String, Writeable.Reader<?>> readers
+    ) {
         @SuppressWarnings("unchecked")
-        Writeable.Reader<? extends T> reader = (Writeable.Reader<? extends T>)readers.get(name);
+        Writeable.Reader<? extends T> reader = (Writeable.Reader<? extends T>) readers.get(name);
         if (reader == null) {
-            throw new IllegalArgumentException("Unknown NamedWriteable [" + categoryClass.getName() + "][" + name + "]");
+            throwOnUnknownWritable(categoryClass, name);
         }
         return reader;
+    }
+
+    /**
+     * Gets the readers map keyed by name for the given category
+     * @param categoryClass category to get readers map for
+     * @return map of readers for the category
+     */
+    public <T> Map<String, Writeable.Reader<?>> getReaders(Class<T> categoryClass) {
+        Map<String, Writeable.Reader<?>> readers = registry.get(categoryClass);
+        if (readers == null) {
+            throwOnUnknownCategory(categoryClass);
+        }
+        return readers;
+    }
+
+    public boolean hasReaders(Class<?> categoryClass) {
+        return registry.containsKey(categoryClass);
+    }
+
+    private static <T> void throwOnUnknownWritable(Class<T> categoryClass, String name) {
+        final var message = "Unknown NamedWriteable [" + categoryClass.getName() + "][" + name + "]";
+        assert ignoreDeserializationErrors : message;
+        throw new IllegalArgumentException(message);
+    }
+
+    private static <T> void throwOnUnknownCategory(Class<T> categoryClass) {
+        final var message = "Unknown NamedWriteable category [" + categoryClass.getName() + "]";
+        assert ignoreDeserializationErrors : message;
+        throw new IllegalArgumentException(message);
     }
 }

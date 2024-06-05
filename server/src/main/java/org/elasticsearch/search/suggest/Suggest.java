@@ -1,44 +1,27 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.suggest;
 
 import org.apache.lucene.util.CollectionUtil;
-import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.common.CheckedFunction;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.text.Text;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry.Option;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -46,17 +29,13 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
-
-import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
 /**
  * Top level suggest result, containing the result for each suggestion.
  */
-public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? extends Option>>>, Writeable, ToXContentFragment {
+public final class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? extends Option>>>, Writeable, ToXContentFragment {
 
     public static final String NAME = "suggest";
 
@@ -66,10 +45,10 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
             return cmp;
         }
         return first.getText().compareTo(second.getText());
-     };
+    };
 
-    private List<Suggestion<? extends Entry<? extends Option>>> suggestions;
-    private boolean hasScoreDocs;
+    private final List<Suggestion<? extends Entry<? extends Option>>> suggestions;
+    private final boolean hasScoreDocs;
 
     private Map<String, Suggestion<? extends Entry<? extends Option>>> suggestMap;
 
@@ -82,13 +61,9 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
         this.hasScoreDocs = filter(CompletionSuggestion.class).stream().anyMatch(CompletionSuggestion::hasScoreDocs);
     }
 
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({ "rawtypes", "unchecked", "this-escape" })
     public Suggest(StreamInput in) throws IOException {
-        int suggestionCount = in.readVInt();
-        suggestions = new ArrayList<>(suggestionCount);
-        for (int i = 0; i < suggestionCount; i++) {
-            suggestions.add(in.readNamedWriteable(Suggestion.class));
-        }
+        suggestions = (List) in.readNamedWriteableCollectionAsList(Suggestion.class);
         hasScoreDocs = filter(CompletionSuggestion.class).stream().anyMatch(CompletionSuggestion::hasScoreDocs);
     }
 
@@ -109,7 +84,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
         if (suggestions.isEmpty() || name == null) {
             return null;
         } else if (suggestions.size() == 1) {
-          return (T) (name.equals(suggestions.get(0).name) ? suggestions.get(0) : null);
+            return (T) (name.equals(suggestions.get(0).name) ? suggestions.get(0) : null);
         } else if (this.suggestMap == null) {
             suggestMap = new HashMap<>();
             for (Suggest.Suggestion<? extends Entry<? extends Option>> item : suggestions) {
@@ -128,10 +103,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(suggestions.size());
-        for (Suggestion<? extends Entry<? extends Option>> suggestion : suggestions) {
-            out.writeNamedWriteable(suggestion);
-        }
+        out.writeNamedWriteableCollection(suggestions);
     }
 
     @Override
@@ -144,43 +116,24 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
         return builder;
     }
 
-    /**
-     * this parsing method assumes that the leading "suggest" field name has already been parsed by the caller
-     */
-    public static Suggest fromXContent(XContentParser parser) throws IOException {
-        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser::getTokenLocation);
-        List<Suggestion<? extends Entry<? extends Option>>> suggestions = new ArrayList<>();
-        while ((parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser::getTokenLocation);
-            String currentField = parser.currentName();
-            ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.nextToken(), parser::getTokenLocation);
-            Suggestion<? extends Entry<? extends Option>> suggestion = Suggestion.fromXContent(parser);
-            if (suggestion != null) {
-                suggestions.add(suggestion);
-            } else {
-                throw new ParsingException(parser.getTokenLocation(),
-                        String.format(Locale.ROOT, "Could not parse suggestion keyed as [%s]", currentField));
-            }
-        }
-        return new Suggest(suggestions);
-    }
-
-    @SuppressWarnings({"unchecked", "rawtypes"})
-    public static List<Suggestion<? extends Entry<? extends Option>>> reduce(Map<String, List<Suggest.Suggestion>> groupedSuggestions) {
+    public static List<Suggestion<? extends Entry<? extends Option>>> reduce(Map<String, List<Suggest.Suggestion<?>>> groupedSuggestions) {
         List<Suggestion<? extends Entry<? extends Option>>> reduced = new ArrayList<>(groupedSuggestions.size());
-        for (Map.Entry<String, List<Suggestion>> unmergedResults : groupedSuggestions.entrySet()) {
-            List<Suggestion> value = unmergedResults.getValue();
+        for (Map.Entry<String, List<Suggestion<?>>> unmergedResults : groupedSuggestions.entrySet()) {
+            List<Suggestion<?>> value = unmergedResults.getValue();
+            @SuppressWarnings("rawtypes")
             Class<? extends Suggestion> suggestionClass = null;
-            for (Suggestion suggestion : value) {
+            for (Suggestion<?> suggestion : value) {
                 if (suggestionClass == null) {
                     suggestionClass = suggestion.getClass();
                 } else if (suggestionClass != suggestion.getClass()) {
                     throw new IllegalArgumentException(
-                        "detected mixed suggestion results, due to querying on old and new completion suggester," +
-                        " query on a single completion suggester version");
+                        "detected mixed suggestion results, due to querying on old and new completion suggester,"
+                            + " query on a single completion suggester version"
+                    );
                 }
             }
-            Suggestion reduce = value.get(0).reduce(value);
+            @SuppressWarnings({ "unchecked", "rawtypes" })
+            Suggestion<? extends Entry<? extends Option>> reduce = value.get(0).reduce((List) value);
             reduce.trim();
             reduced.add(reduce);
         }
@@ -190,12 +143,12 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
     /**
      * @return only suggestions of type <code>suggestionType</code> contained in this {@link Suggest} instance
      */
-    @SuppressWarnings({"rawtypes", "unchecked"})
+    @SuppressWarnings({ "rawtypes", "unchecked" })
     public <T extends Suggestion> List<T> filter(Class<T> suggestionType) {
-         return suggestions.stream()
+        return suggestions.stream()
             .filter(suggestion -> suggestion.getClass() == suggestionType)
             .map(suggestion -> (T) suggestion)
-            .collect(Collectors.toList());
+            .toList();
     }
 
     @Override
@@ -221,7 +174,6 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
     @SuppressWarnings("rawtypes")
     public abstract static class Suggestion<T extends Suggestion.Entry> implements Iterable<T>, NamedWriteable, ToXContentFragment {
 
-        public static final int TYPE = 0;
         protected final String name;
         protected final int size;
         protected final List<T> entries = new ArrayList<>(5);
@@ -231,6 +183,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
             this.size = size; // The suggested term size specified in request, only used for merging shard responses
         }
 
+        @SuppressWarnings("this-escape")
         public Suggestion(StreamInput in) throws IOException {
             name = in.readString();
             size = in.readVInt();
@@ -245,17 +198,6 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
 
         public void addTerm(T entry) {
             entries.add(entry);
-        }
-
-        /**
-         * Returns a integer representing the type of the suggestion. This is used for
-         * internal serialization over the network.
-         *
-         * This class is now serialized as a NamedWriteable and this method only remains for backwards compatibility
-         */
-        @Deprecated
-        public int getWriteableType() {
-            return TYPE;
         }
 
         @Override
@@ -302,10 +244,15 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
             List<T> currentEntries = new ArrayList<>();
             for (int i = 0; i < size; i++) {
                 for (Suggestion<T> suggestion : toReduce) {
-                    if(suggestion.entries.size() != size) {
-                        throw new IllegalStateException("Can't merge suggest result, this might be caused by suggest calls " +
-                                "across multiple indices with different analysis chains. Suggest entries have different sizes actual [" +
-                                suggestion.entries.size() + "] expected [" + size +"]");
+                    if (suggestion.entries.size() != size) {
+                        throw new IllegalStateException(
+                            "Can't merge suggest result, this might be caused by suggest calls "
+                                + "across multiple indices with different analysis chains. Suggest entries have different sizes actual ["
+                                + suggestion.entries.size()
+                                + "] expected ["
+                                + size
+                                + "]"
+                        );
                     }
                     assert suggestion.name.equals(leader.name);
                     currentEntries.add(suggestion.entries.get(i));
@@ -338,10 +285,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(name);
             out.writeVInt(size);
-            out.writeVInt(entries.size());
-            for (Entry<?> entry : entries) {
-                entry.writeTo(out);
-            }
+            out.writeCollection(entries);
         }
 
         @Override
@@ -386,31 +330,14 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
             return Objects.hash(name, size, entries);
         }
 
-        @SuppressWarnings("unchecked")
-        public static Suggestion<? extends Entry<? extends Option>> fromXContent(XContentParser parser) throws IOException {
-            ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.currentToken(), parser::getTokenLocation);
-            SetOnce<Suggestion> suggestion = new SetOnce<>();
-            XContentParserUtils.parseTypedKeysObject(parser, Aggregation.TYPED_KEYS_DELIMITER, Suggestion.class, suggestion::set);
-            return suggestion.get();
-        }
-
-        protected static <E extends Suggestion.Entry<?>> void parseEntries(XContentParser parser, Suggestion<E> suggestion,
-                                                                           CheckedFunction<XContentParser, E, IOException> entryParser)
-                throws IOException {
-            ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.currentToken(), parser::getTokenLocation);
-            while ((parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                suggestion.addTerm(entryParser.apply(parser));
-            }
-        }
-
         /**
          * Represents a part from the suggest text with suggested options.
          */
         public abstract static class Entry<O extends Option> implements Iterable<O>, Writeable, ToXContentFragment {
 
-            private static final String TEXT = "text";
-            private static final String OFFSET = "offset";
-            private static final String LENGTH = "length";
+            static final String TEXT = "text";
+            static final String OFFSET = "offset";
+            static final String LENGTH = "length";
             protected static final String OPTIONS = "options";
 
             protected Text text;
@@ -427,6 +354,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
 
             protected Entry() {}
 
+            @SuppressWarnings("this-escape")
             public Entry(StreamInput in) throws IOException {
                 text = in.readText();
                 offset = in.readVInt();
@@ -460,10 +388,15 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
                 final Map<O, O> entries = new HashMap<>();
                 Entry<O> leader = toReduce.get(0);
                 for (Entry<O> entry : toReduce) {
-                    if (!leader.text.equals(entry.text)) {
-                        throw new IllegalStateException("Can't merge suggest entries, this might be caused by suggest calls " +
-                                "across multiple indices with different analysis chains. Suggest entries have different text actual [" +
-                                entry.text + "] expected [" + leader.text +"]");
+                    if (leader.text.equals(entry.text) == false) {
+                        throw new IllegalStateException(
+                            "Can't merge suggest entries, this might be caused by suggest calls "
+                                + "across multiple indices with different analysis chains. Suggest entries have different text actual ["
+                                + entry.text
+                                + "] expected ["
+                                + leader.text
+                                + "]"
+                        );
                     }
                     assert leader.offset == entry.offset;
                     assert leader.length == entry.length;
@@ -478,7 +411,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
                     }
                 }
                 leader.options.clear();
-                for (O option: entries.keySet()) {
+                for (O option : entries.keySet()) {
                     leader.addOption(option);
                 }
                 return leader;
@@ -487,8 +420,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
             /**
              * Merge any extra fields for this subtype.
              */
-            protected void merge(Entry<O> other) {
-            }
+            protected void merge(Entry<O> other) {}
 
             /**
              * @return the text (analyzed by suggest analyzer) originating from the suggest text. Usually this is a
@@ -560,10 +492,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
                 out.writeText(text);
                 out.writeVInt(offset);
                 out.writeVInt(length);
-                out.writeVInt(options.size());
-                for (Option option : options) {
-                    option.writeTo(out);
-                }
+                out.writeCollection(options);
             }
 
             @Override
@@ -579,12 +508,6 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
                 }
                 builder.endArray();
                 return builder;
-            }
-
-            protected static void declareCommonFields(ObjectParser<? extends Entry<? extends Option>, Void> parser) {
-                parser.declareString((entry, text) -> entry.text = new Text(text), new ParseField(TEXT));
-                parser.declareInt((entry, offset) -> entry.offset = offset, new ParseField(OFFSET));
-                parser.declareInt((entry, length) -> entry.length = length, new ParseField(LENGTH));
             }
 
             /**
@@ -652,10 +575,6 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
                  */
                 public boolean collateMatch() {
                     return (collateMatch != null) ? collateMatch : true;
-                }
-
-                protected void setScore(float score) {
-                    this.score = score;
                 }
 
                 @Override

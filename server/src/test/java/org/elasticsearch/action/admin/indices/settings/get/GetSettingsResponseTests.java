@@ -1,39 +1,29 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.indices.settings.get;
 
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.index.RandomCreateIndexGenerator;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
 
-public class GetSettingsResponseTests extends AbstractSerializingTestCase<GetSettingsResponse> {
+public class GetSettingsResponseTests extends AbstractChunkedSerializingTestCase<GetSettingsResponse> {
 
     @Override
     protected GetSettingsResponse createTestInstance() {
@@ -44,7 +34,7 @@ public class GetSettingsResponseTests extends AbstractSerializingTestCase<GetSet
 
         Set<String> indexNames = new HashSet<String>();
         int numIndices = randomIntBetween(1, 5);
-        for (int x=0;x<numIndices;x++) {
+        for (int x = 0; x < numIndices; x++) {
             String indexName = randomAlphaOfLength(5);
             indexNames.add(indexName);
         }
@@ -59,9 +49,6 @@ public class GetSettingsResponseTests extends AbstractSerializingTestCase<GetSet
             builder.put("index.refresh_interval", "1s");
             indexToSettings.put(indexName, builder.build());
         }
-        ImmutableOpenMap<String, Settings> immutableIndexToSettings =
-            ImmutableOpenMap.<String, Settings>builder().putAll(indexToSettings).build();
-
 
         if (randomBoolean()) {
             for (String indexName : indexToSettings.keySet()) {
@@ -70,10 +57,12 @@ public class GetSettingsResponseTests extends AbstractSerializingTestCase<GetSet
             }
         }
 
-        ImmutableOpenMap<String, Settings> immutableIndexToDefaultSettings =
-            ImmutableOpenMap.<String, Settings>builder().putAll(indexToDefaultSettings).build();
+        return new GetSettingsResponse(indexToSettings, indexToDefaultSettings);
+    }
 
-        return new GetSettingsResponse(immutableIndexToSettings, immutableIndexToDefaultSettings);
+    @Override
+    protected GetSettingsResponse mutateInstance(GetSettingsResponse instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override
@@ -83,13 +72,68 @@ public class GetSettingsResponseTests extends AbstractSerializingTestCase<GetSet
 
     @Override
     protected GetSettingsResponse doParseInstance(XContentParser parser) throws IOException {
-        return GetSettingsResponse.fromXContent(parser);
+        HashMap<String, Settings> indexToSettings = new HashMap<>();
+        HashMap<String, Settings> indexToDefaultSettings = new HashMap<>();
+
+        if (parser.currentToken() == null) {
+            parser.nextToken();
+        }
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
+        parser.nextToken();
+
+        while (parser.isClosed() == false) {
+            if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
+                // we must assume this is an index entry
+                parseIndexEntry(parser, indexToSettings, indexToDefaultSettings);
+            } else if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
+                parser.skipChildren();
+            } else {
+                parser.nextToken();
+            }
+        }
+
+        return new GetSettingsResponse(Map.copyOf(indexToSettings), Map.copyOf(indexToDefaultSettings));
+    }
+
+    private static void parseIndexEntry(
+        XContentParser parser,
+        Map<String, Settings> indexToSettings,
+        Map<String, Settings> indexToDefaultSettings
+    ) throws IOException {
+        String indexName = parser.currentName();
+        parser.nextToken();
+        while (parser.isClosed() == false && parser.currentToken() != XContentParser.Token.END_OBJECT) {
+            parseSettingsField(parser, indexName, indexToSettings, indexToDefaultSettings);
+        }
+    }
+
+    private static void parseSettingsField(
+        XContentParser parser,
+        String currentIndexName,
+        Map<String, Settings> indexToSettings,
+        Map<String, Settings> indexToDefaultSettings
+    ) throws IOException {
+
+        if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
+            switch (parser.currentName()) {
+                case "settings" -> indexToSettings.put(currentIndexName, Settings.fromXContent(parser));
+                case "defaults" -> indexToDefaultSettings.put(currentIndexName, Settings.fromXContent(parser));
+                default -> parser.skipChildren();
+            }
+        } else if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
+            parser.skipChildren();
+        }
+        parser.nextToken();
     }
 
     @Override
     protected Predicate<String> getRandomFieldsExcludeFilter() {
-        //we do not want to add new fields at the root (index-level), or inside settings blocks
+        // we do not want to add new fields at the root (index-level), or inside settings blocks
         return f -> f.equals("") || f.contains(".settings") || f.contains(".defaults");
+    }
+
+    public void testChunking() {
+        AbstractChunkedSerializingTestCase.assertChunkCount(createTestInstance(), response -> 2 + response.getIndexToSettings().size());
     }
 
 }

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ql.expression.function.scalar;
 
@@ -26,10 +27,10 @@ public abstract class BinaryScalarFunction extends ScalarFunction {
 
     @Override
     public final BinaryScalarFunction replaceChildren(List<Expression> newChildren) {
-        if (newChildren.size() != 2) {
-            throw new IllegalArgumentException("expected [2] children but received [" + newChildren.size() + "]");
-        }
-        return replaceChildren(newChildren.get(0), newChildren.get(1));
+        Expression newLeft = newChildren.get(0);
+        Expression newRight = newChildren.get(1);
+
+        return left.equals(newLeft) && right.equals(newRight) ? this : replaceChildren(newLeft, newRight);
     }
 
     protected abstract BinaryScalarFunction replaceChildren(Expression newLeft, Expression newRight);
@@ -56,9 +57,9 @@ public abstract class BinaryScalarFunction extends ScalarFunction {
     }
 
     protected ScriptTemplate asScriptFrom(ScriptTemplate leftScript, ScriptTemplate rightScript) {
-        return Scripts.binaryMethod(scriptMethodName(), leftScript, rightScript, dataType());
+        return Scripts.binaryMethod(Scripts.classPackageAsPrefix(getClass()), scriptMethodName(), leftScript, rightScript, dataType());
     }
-    
+
     protected String scriptMethodName() {
         return getClass().getSimpleName().toLowerCase(Locale.ROOT);
     }

@@ -1,13 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.utils;
 
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.Nullable;
 
-import java.util.Arrays;
+import java.util.Collection;
 import java.util.Map;
 import java.util.Stack;
 
@@ -57,23 +60,48 @@ public final class MapHelper {
      *
      * Instead we lazily create potential paths once we know that they are possibilities.
      *
-     * @param path Dot delimited path containing the field desired
+     * @param path Dot delimited path containing the field desired. Assumes that the path contains no empty strings
      * @param map The {@link Map} map to dig
      * @return The found object. Returns {@code null} if not found
      */
     @Nullable
     public static Object dig(String path, Map<String, Object> map) {
         // short cut before search
-        if (map.keySet().contains(path)) {
-            return map.get(path);
+        Object obj = map.get(path);
+        if (obj != null) {
+            return obj;
         }
-        String[] fields = path.split("\\.");
-        if (Arrays.stream(fields).anyMatch(String::isEmpty)) {
-            throw new IllegalArgumentException("Empty path detected. Invalid field name");
-        }
+        String[] fields = Strings.delimitedListToStringArray(path, ".");
         Stack<PotentialPath> pathStack = new Stack<>();
         pathStack.push(new PotentialPath(map, 0));
         return explore(fields, pathStack);
+    }
+
+    /**
+     * Collapses dot delimited fields so that the map is a single layer.
+     *
+     * Example:
+     * {
+     *     "a" :{"b": {"c": {"d" : 2}}}
+     * }
+     * becomes:
+     * {
+     *     "a.b.c.d": 2
+     * }
+     *
+     * @param map The map that has nested and/or collapsed paths
+     * @param pathsToCollapse The desired paths to collapse
+     * @return A fully collapsed map
+     */
+    public static Map<String, Object> dotCollapse(Map<String, Object> map, Collection<String> pathsToCollapse) {
+        Map<String, Object> collapsed = Maps.newMapWithExpectedSize(pathsToCollapse.size());
+        for (String path : pathsToCollapse) {
+            Object dug = dig(path, map);
+            if (dug != null) {
+                collapsed.put(path, dug);
+            }
+        }
+        return collapsed;
     }
 
     @SuppressWarnings("unchecked")
@@ -84,19 +112,22 @@ public final class MapHelper {
             int startPos = potentialPath.pathPosition;
             Map<String, Object> map = potentialPath.map;
             String candidateKey = null;
-            while(endPos <= path.length) {
+            while (endPos <= path.length) {
                 candidateKey = mergePath(path, startPos, endPos);
                 Object next = map.get(candidateKey);
                 if (endPos == path.length && next != null) { // exit early, we reached the full path and found something
                     return next;
                 }
                 if (next instanceof Map<?, ?>) { // we found another map, continue exploring down this path
-                    pathStack.push(new PotentialPath((Map<String, Object>)next, endPos));
+                    pathStack.push(new PotentialPath((Map<String, Object>) next, endPos));
                 }
                 endPos++;
             }
-            if (candidateKey != null && map.containsKey(candidateKey)) { //exit early
-                return map.get(candidateKey);
+            if (candidateKey != null) { // exit early
+                Object val = map.get(candidateKey);
+                if (val != null) {
+                    return val;
+                }
             }
         }
 

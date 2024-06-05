@@ -1,6 +1,5 @@
-evaluationDependsOn(xpackModule('core'))
-
-apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
   name 'x-pack-autoscaling'
@@ -10,20 +9,21 @@ esplugin {
   hasNativeController false
   requiresKeystore true
 }
-archivesBaseName = 'x-pack-autoscaling'
-
-integTest.enabled = false
+base {
+  archivesName = 'x-pack-autoscaling'
+}
 
 dependencies {
-  compileOnly project(path: xpackModule('core'), configuration: 'default')
-  testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+  compileOnly project(path: xpackModule('core'))
+  testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation project(':modules:data-streams')
+  testImplementation project(path: xpackModule('blob-cache'))
+  testImplementation project(path: xpackModule('searchable-snapshots'))
+  testImplementation project(path: xpackModule('ilm'))
+  testImplementation project(path: xpackModule('slm'))
+  testImplementation project(path: xpackModule('ccr'))
+
+  testImplementation "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
 }
 
-// add all sub-projects of the qa sub-project
-gradle.projectsEvaluated {
-  project.subprojects
-    .find { it.path == project.path + ":qa" }
-    .subprojects
-    .findAll { it.path.startsWith(project.path + ":qa") }
-    .each { check.dependsOn it.check }
-}
+addQaCheckDependencies(project)

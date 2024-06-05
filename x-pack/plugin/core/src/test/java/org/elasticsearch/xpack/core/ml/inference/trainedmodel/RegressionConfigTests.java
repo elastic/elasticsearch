@@ -1,45 +1,39 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
+import org.junit.Before;
 
 import java.io.IOException;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
 
-import static org.hamcrest.Matchers.equalTo;
-
-public class RegressionConfigTests extends AbstractSerializingTestCase<RegressionConfig> {
+public class RegressionConfigTests extends AbstractBWCSerializationTestCase<RegressionConfig> {
+    private boolean lenient;
 
     public static RegressionConfig randomRegressionConfig() {
         return new RegressionConfig(randomBoolean() ? null : randomAlphaOfLength(10));
     }
 
-    public void testFromMap() {
-        RegressionConfig expected = new RegressionConfig("foo");
-        Map<String, Object> config = new HashMap<>(){{
-            put(RegressionConfig.RESULTS_FIELD.getPreferredName(), "foo");
-        }};
-        assertThat(RegressionConfig.fromMap(config), equalTo(expected));
-    }
-
-    public void testFromMapWithUnknownField() {
-        ElasticsearchException ex = expectThrows(ElasticsearchException.class,
-            () -> RegressionConfig.fromMap(Collections.singletonMap("some_key", 1)));
-        assertThat(ex.getMessage(), equalTo("Unrecognized fields [some_key]."));
+    @Before
+    public void chooseStrictOrLenient() {
+        lenient = randomBoolean();
     }
 
     @Override
     protected RegressionConfig createTestInstance() {
         return randomRegressionConfig();
+    }
+
+    @Override
+    protected RegressionConfig mutateInstance(RegressionConfig instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override
@@ -49,6 +43,16 @@ public class RegressionConfigTests extends AbstractSerializingTestCase<Regressio
 
     @Override
     protected RegressionConfig doParseInstance(XContentParser parser) throws IOException {
-        return RegressionConfig.fromXContent(parser);
+        return lenient ? RegressionConfig.fromXContentLenient(parser) : RegressionConfig.fromXContentStrict(parser);
+    }
+
+    @Override
+    protected boolean supportsUnknownFields() {
+        return lenient;
+    }
+
+    @Override
+    protected RegressionConfig mutateInstanceForVersion(RegressionConfig instance, TransportVersion version) {
+        return instance;
     }
 }

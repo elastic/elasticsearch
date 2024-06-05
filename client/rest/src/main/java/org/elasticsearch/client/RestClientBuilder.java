@@ -1,13 +1,13 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
+ * Licensed to Elasticsearch B.V. under one or more contributor
  * license agreements. See the NOTICE file distributed with
  * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
+ * ownership. Elasticsearch B.V. licenses this file to you under
  * the Apache License, Version 2.0 (the "License"); you may
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -26,13 +26,21 @@ import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
 import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
 import org.apache.http.nio.conn.SchemeIOSessionStrategy;
+import org.apache.http.util.VersionInfo;
 
-import javax.net.ssl.SSLContext;
+import java.io.IOException;
+import java.io.InputStream;
 import java.security.AccessController;
 import java.security.NoSuchAlgorithmException;
 import java.security.PrivilegedAction;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
+import java.util.Properties;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.atomic.AtomicLong;
+
+import javax.net.ssl.SSLContext;
 
 /**
  * Helps creating a new {@link RestClient}. Allows to set the most common http client configuration options when internally
@@ -45,6 +53,14 @@ public final class RestClientBuilder {
     public static final int DEFAULT_MAX_CONN_PER_ROUTE = 10;
     public static final int DEFAULT_MAX_CONN_TOTAL = 30;
 
+    static final String THREAD_NAME_PREFIX = "elasticsearch-rest-client-";
+    private static final String THREAD_NAME_FORMAT = THREAD_NAME_PREFIX + "%d-thread-%d";
+
+    public static final String VERSION;
+    static final String META_HEADER_NAME = "X-Elastic-Client-Meta";
+    static final String META_HEADER_VALUE;
+    private static final String USER_AGENT_HEADER_VALUE;
+
     private static final Header[] EMPTY_HEADERS = new Header[0];
 
     private final List<Node> nodes;
@@ -55,6 +71,67 @@ public final class RestClientBuilder {
     private String pathPrefix;
     private NodeSelector nodeSelector = NodeSelector.ANY;
     private boolean strictDeprecationMode = false;
+    private boolean compressionEnabled = false;
+    private boolean metaHeaderEnabled = true;
+
+    static {
+
+        // Never fail on unknown version, even if an environment messed up their classpath enough that we can't find it.
+        // Better have incomplete telemetry than crashing user applications.
+        String version = null;
+        try (InputStream is = RestClient.class.getResourceAsStream("version.properties")) {
+            if (is != null) {
+                Properties versions = new Properties();
+                versions.load(is);
+                version = versions.getProperty("elasticsearch-client");
+            }
+        } catch (IOException e) {
+            // Keep version unknown
+        }
+
+        if (version == null) {
+            version = ""; // unknown values are reported as empty strings in X-Elastic-Client-Meta
+        }
+
+        VERSION = version;
+
+        USER_AGENT_HEADER_VALUE = String.format(
+            Locale.ROOT,
+            "elasticsearch-java/%s (Java/%s)",
+            VERSION.isEmpty() ? "Unknown" : VERSION,
+            System.getProperty("java.version")
+        );
+
+        VersionInfo httpClientVersion = null;
+        try {
+            httpClientVersion = AccessController.doPrivileged(
+                (PrivilegedAction<VersionInfo>) () -> VersionInfo.loadVersionInfo(
+                    "org.apache.http.nio.client",
+                    HttpAsyncClientBuilder.class.getClassLoader()
+                )
+            );
+        } catch (Exception e) {
+            // Keep unknown
+        }
+
+        // Use a single 'p' suffix for all prerelease versions (snapshot, beta, etc).
+        String metaVersion = version;
+        int dashPos = metaVersion.indexOf('-');
+        if (dashPos > 0) {
+            metaVersion = metaVersion.substring(0, dashPos) + "p";
+        }
+
+        // service, language, transport, followed by additional information
+        META_HEADER_VALUE = "es="
+            + metaVersion
+            + ",jv="
+            + System.getProperty("java.specification.version")
+            + ",t="
+            + metaVersion
+            + ",hc="
+            + (httpClientVersion == null ? "" : httpClientVersion.getRelease())
+            + LanguageRuntimeVersions.getRuntimeMetadata();
+    }
 
     /**
      * Creates a new builder instance and sets the hosts that the client will send requests to.
@@ -182,6 +259,26 @@ public final class RestClientBuilder {
     }
 
     /**
+     * Whether the REST client should compress requests using gzip content encoding and add the "Accept-Encoding: gzip"
+     * header to receive compressed responses.
+     */
+    public RestClientBuilder setCompressionEnabled(boolean compressionEnabled) {
+        this.compressionEnabled = compressionEnabled;
+        return this;
+    }
+
+    /**
+     * Whether to send a {@code X-Elastic-Client-Meta} header that describes the runtime environment. It contains
+     * information that is similar to what could be found in {@code User-Agent}. Using a separate header allows
+     * applications to use {@code User-Agent} for their own needs, e.g. to identify application version or other
+     * environment information. Defaults to {@code true}.
+     */
+    public RestClientBuilder setMetaHeaderEnabled(boolean metadataEnabled) {
+        this.metaHeaderEnabled = metadataEnabled;
+        return this;
+    }
+
+    /**
      * Creates a new {@link RestClient} based on the provided configuration.
      */
     public RestClient build() {
@@ -189,28 +286,60 @@ public final class RestClientBuilder {
             failureListener = new RestClient.FailureListener();
         }
         CloseableHttpAsyncClient httpClient = AccessController.doPrivileged(
-            (PrivilegedAction<CloseableHttpAsyncClient>) this::createHttpClient);
-        RestClient restClient = new RestClient(httpClient, defaultHeaders, nodes,
-                pathPrefix, failureListener, nodeSelector, strictDeprecationMode);
+            (PrivilegedAction<CloseableHttpAsyncClient>) this::createHttpClient
+        );
+        RestClient restClient = new RestClient(
+            httpClient,
+            defaultHeaders,
+            nodes,
+            pathPrefix,
+            failureListener,
+            nodeSelector,
+            strictDeprecationMode,
+            compressionEnabled,
+            metaHeaderEnabled
+        );
         httpClient.start();
         return restClient;
     }
 
+    /**
+     * Similar to {@code org.apache.http.impl.nio.reactor.AbstractMultiworkerIOReactor.DefaultThreadFactory} but with better thread names.
+     */
+    private static class RestClientThreadFactory implements ThreadFactory {
+        private static final AtomicLong CLIENT_THREAD_POOL_ID_GENERATOR = new AtomicLong();
+
+        private final long clientThreadPoolId = CLIENT_THREAD_POOL_ID_GENERATOR.getAndIncrement(); // 0-based
+        private final AtomicLong clientThreadId = new AtomicLong();
+
+        @Override
+        public Thread newThread(Runnable runnable) {
+            return new Thread(
+                runnable,
+                String.format(Locale.ROOT, THREAD_NAME_FORMAT, clientThreadPoolId, clientThreadId.incrementAndGet()) // 1-based
+            );
+        }
+    }
+
     private CloseableHttpAsyncClient createHttpClient() {
-        //default timeouts are all infinite
+        // default timeouts are all infinite
         RequestConfig.Builder requestConfigBuilder = RequestConfig.custom()
-                .setConnectTimeout(DEFAULT_CONNECT_TIMEOUT_MILLIS)
-                .setSocketTimeout(DEFAULT_SOCKET_TIMEOUT_MILLIS);
+            .setConnectTimeout(DEFAULT_CONNECT_TIMEOUT_MILLIS)
+            .setSocketTimeout(DEFAULT_SOCKET_TIMEOUT_MILLIS);
         if (requestConfigCallback != null) {
             requestConfigBuilder = requestConfigCallback.customizeRequestConfig(requestConfigBuilder);
         }
 
         try {
-            HttpAsyncClientBuilder httpClientBuilder = HttpAsyncClientBuilder.create().setDefaultRequestConfig(requestConfigBuilder.build())
-                //default settings for connection pooling may be too constraining
-                .setMaxConnPerRoute(DEFAULT_MAX_CONN_PER_ROUTE).setMaxConnTotal(DEFAULT_MAX_CONN_TOTAL)
+            HttpAsyncClientBuilder httpClientBuilder = HttpAsyncClientBuilder.create()
+                .setDefaultRequestConfig(requestConfigBuilder.build())
+                // default settings for connection pooling may be too constraining
+                .setMaxConnPerRoute(DEFAULT_MAX_CONN_PER_ROUTE)
+                .setMaxConnTotal(DEFAULT_MAX_CONN_TOTAL)
                 .setSSLContext(SSLContext.getDefault())
-                .setTargetAuthenticationStrategy(new PersistentCredentialsAuthenticationStrategy());
+                .setUserAgent(USER_AGENT_HEADER_VALUE)
+                .setTargetAuthenticationStrategy(new PersistentCredentialsAuthenticationStrategy())
+                .setThreadFactory(new RestClientThreadFactory());
             if (httpClientConfigCallback != null) {
                 httpClientBuilder = httpClientConfigCallback.customizeHttpClient(httpClientBuilder);
             }

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.geometry.utils;
@@ -35,6 +24,8 @@ import org.elasticsearch.geometry.Rectangle;
 import java.io.IOException;
 import java.io.StreamTokenizer;
 import java.io.StringReader;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -45,8 +36,6 @@ import java.util.Locale;
  * Utility class for converting to and from WKT
  */
 public class WellKnownText {
-    /* The instance of WKT serializer that coerces values and accepts Z component */
-    public static final WellKnownText INSTANCE = new WellKnownText(true, new StandardValidator(true));
 
     public static final String EMPTY = "EMPTY";
     public static final String SPACE = " ";
@@ -55,25 +44,19 @@ public class WellKnownText {
     public static final String COMMA = ",";
     public static final String NAN = "NaN";
 
-    private final String NUMBER = "<NUMBER>";
-    private final String EOF = "END-OF-STREAM";
-    private final String EOL = "END-OF-LINE";
+    private static final String NUMBER = "<NUMBER>";
+    private static final String EOF = "END-OF-STREAM";
+    private static final String EOL = "END-OF-LINE";
 
-    private final boolean coerce;
-    private final GeometryValidator validator;
+    private WellKnownText() {}
 
-    public WellKnownText(boolean coerce, GeometryValidator validator) {
-        this.coerce = coerce;
-        this.validator = validator;
-    }
-
-    public String toWKT(Geometry geometry) {
+    public static String toWKT(Geometry geometry) {
         StringBuilder builder = new StringBuilder();
         toWKT(geometry, builder);
         return builder.toString();
     }
 
-    public void toWKT(Geometry geometry, StringBuilder sb) {
+    private static void toWKT(Geometry geometry, StringBuilder sb) {
         sb.append(getWKTName(geometry));
         sb.append(SPACE);
         if (geometry.isEmpty()) {
@@ -234,7 +217,197 @@ public class WellKnownText {
         }
     }
 
-    public Geometry fromWKT(String wkt) throws IOException, ParseException {
+    public static String fromWKB(byte[] wkb, int offset, int length) {
+        final StringBuilder builder = new StringBuilder();
+        final ByteBuffer byteBuffer = ByteBuffer.wrap(wkb, offset, length);
+        parseGeometry(byteBuffer, builder);
+        assert byteBuffer.remaining() == 0;
+        return builder.toString();
+    }
+
+    private static void parseGeometry(ByteBuffer byteBuffer, StringBuilder sb) {
+        byteBuffer.order(byteBuffer.get() == 0 ? ByteOrder.BIG_ENDIAN : ByteOrder.LITTLE_ENDIAN);
+        final int type = byteBuffer.getInt();
+        switch (type) {
+            case 1 -> parsePoint(byteBuffer, false, sb);
+            case 1001 -> parsePoint(byteBuffer, true, sb);
+            case 2 -> parseLine(byteBuffer, false, sb);
+            case 1002 -> parseLine(byteBuffer, true, sb);
+            case 3 -> parsePolygon(byteBuffer, false, sb);
+            case 1003 -> parsePolygon(byteBuffer, true, sb);
+            case 4 -> parseMultiPoint(byteBuffer, false, sb);
+            case 1004 -> parseMultiPoint(byteBuffer, true, sb);
+            case 5 -> parseMultiLine(byteBuffer, false, sb);
+            case 1005 -> parseMultiLine(byteBuffer, true, sb);
+            case 6 -> parseMultiPolygon(byteBuffer, false, sb);
+            case 1006 -> parseMultiPolygon(byteBuffer, true, sb);
+            case 7, 1007 -> parseGeometryCollection(byteBuffer, sb);
+            case 17 -> parseCircle(byteBuffer, false, sb);
+            case 1017 -> parseCircle(byteBuffer, true, sb);
+            case 18 -> parseBBox(byteBuffer, false, sb);
+            case 1018 -> parseBBox(byteBuffer, true, sb);
+            default -> throw new IllegalArgumentException("Unknown geometry type: " + type);
+        }
+        ;
+    }
+
+    private static void writeCoordinate(ByteBuffer byteBuffer, boolean hasZ, StringBuilder sb) {
+        sb.append(byteBuffer.getDouble()).append(SPACE).append(byteBuffer.getDouble());
+        if (hasZ) {
+            sb.append(SPACE).append(byteBuffer.getDouble());
+        }
+    }
+
+    private static void parsePoint(ByteBuffer byteBuffer, boolean hasZ, StringBuilder sb) {
+        sb.append("POINT").append(SPACE);
+        sb.append(LPAREN);
+        writeCoordinate(byteBuffer, hasZ, sb);
+        sb.append(RPAREN);
+    }
+
+    private static void parseMultiPoint(ByteBuffer byteBuffer, boolean hasZ, StringBuilder sb) {
+        sb.append("MULTIPOINT").append(SPACE);
+        final int numPoints = byteBuffer.getInt();
+        if (numPoints == 0) {
+            sb.append(EMPTY);
+            return;
+        }
+        sb.append(LPAREN);
+        for (int i = 0; i < numPoints; i++) {
+            byteBuffer.order(byteBuffer.get() == 0 ? ByteOrder.BIG_ENDIAN : ByteOrder.LITTLE_ENDIAN);
+            byteBuffer.getInt();
+            writeCoordinate(byteBuffer, hasZ, sb);
+            if (i != numPoints - 1) {
+                sb.append(COMMA);
+                sb.append(SPACE);
+            }
+        }
+        sb.append(RPAREN);
+    }
+
+    private static void parseLine(ByteBuffer byteBuffer, boolean hasZ, StringBuilder sb) {
+        sb.append("LINESTRING").append(SPACE);
+        parseLineString(byteBuffer, hasZ, sb);
+    }
+
+    private static void parseMultiLine(ByteBuffer byteBuffer, boolean hasZ, StringBuilder sb) {
+        sb.append("MULTILINESTRING").append(SPACE);
+        final int numLines = byteBuffer.getInt();
+        if (numLines == 0) {
+            sb.append(EMPTY);
+            return;
+        }
+        sb.append(LPAREN);
+        for (int i = 0; i < numLines; i++) {
+            byteBuffer.order(byteBuffer.get() == 0 ? ByteOrder.BIG_ENDIAN : ByteOrder.LITTLE_ENDIAN);
+            byteBuffer.getInt();
+            parseLineString(byteBuffer, hasZ, sb);
+            if (i != numLines - 1) {
+                sb.append(COMMA);
+            }
+        }
+        sb.append(RPAREN);
+    }
+
+    private static void parsePolygon(ByteBuffer byteBuffer, boolean hasZ, StringBuilder sb) {
+        sb.append("POLYGON").append(SPACE);
+        parseRings(byteBuffer, hasZ, sb, byteBuffer.getInt());
+
+    }
+
+    private static void parseRings(ByteBuffer byteBuffer, boolean hasZ, StringBuilder sb, int numRings) {
+        if (numRings == 0) {
+            sb.append(EMPTY);
+            return;
+        }
+        sb.append(LPAREN);
+        parseLineString(byteBuffer, hasZ, sb);
+        for (int i = 1; i < numRings; i++) {
+            sb.append(COMMA);
+            sb.append(SPACE);
+            parseLineString(byteBuffer, hasZ, sb);
+        }
+        sb.append(RPAREN);
+    }
+
+    private static void parseMultiPolygon(ByteBuffer byteBuffer, boolean hasZ, StringBuilder sb) {
+        sb.append("MULTIPOLYGON").append(SPACE);
+        final int numPolygons = byteBuffer.getInt();
+        if (numPolygons == 0) {
+            sb.append(EMPTY);
+            return;
+        }
+        sb.append(LPAREN);
+        for (int i = 0; i < numPolygons; i++) {
+            byteBuffer.order(byteBuffer.get() == 0 ? ByteOrder.BIG_ENDIAN : ByteOrder.LITTLE_ENDIAN);
+            byteBuffer.getInt();
+            parseRings(byteBuffer, hasZ, sb, byteBuffer.getInt());
+            if (i != numPolygons - 1) {
+                sb.append(COMMA);
+            }
+        }
+        sb.append(RPAREN);
+    }
+
+    private static void parseLineString(ByteBuffer byteBuffer, boolean hasZ, StringBuilder sb) {
+        final int length = byteBuffer.getInt();
+        if (length == 0) {
+            sb.append(EMPTY);
+            return;
+        }
+        sb.append(LPAREN);
+        for (int i = 0; i < length; i++) {
+            writeCoordinate(byteBuffer, hasZ, sb);
+            if (i != length - 1) {
+                sb.append(COMMA);
+                sb.append(SPACE);
+            }
+        }
+        sb.append(RPAREN);
+    }
+
+    private static void parseGeometryCollection(ByteBuffer byteBuffer, StringBuilder sb) {
+        sb.append("GEOMETRYCOLLECTION").append(SPACE);
+        final int numGeometries = byteBuffer.getInt();
+        if (numGeometries == 0) {
+            sb.append(EMPTY);
+            return;
+        }
+        sb.append(LPAREN);
+        for (int i = 0; i < numGeometries; i++) {
+            parseGeometry(byteBuffer, sb);
+            if (i != numGeometries - 1) {
+                sb.append(COMMA);
+            }
+        }
+        sb.append(RPAREN);
+    }
+
+    private static void parseCircle(ByteBuffer byteBuffer, boolean hasZ, StringBuilder sb) {
+        sb.append("CIRCLE").append(SPACE);
+        sb.append(LPAREN);
+        sb.append(byteBuffer.getDouble()).append(SPACE).append(byteBuffer.getDouble());
+        final double r = byteBuffer.getDouble();
+        if (hasZ) {
+            sb.append(SPACE).append(byteBuffer.getDouble()).append(SPACE).append(r);
+        } else {
+            sb.append(SPACE).append(r);
+        }
+        sb.append(RPAREN);
+    }
+
+    private static void parseBBox(ByteBuffer byteBuffer, boolean hasZ, StringBuilder sb) {
+        sb.append("BBOX").append(SPACE);
+        sb.append(LPAREN);
+        sb.append(byteBuffer.getDouble()).append(COMMA).append(SPACE).append(byteBuffer.getDouble());
+        sb.append(COMMA).append(SPACE).append(byteBuffer.getDouble()).append(COMMA).append(SPACE).append(byteBuffer.getDouble());
+        if (hasZ) {
+            sb.append(COMMA).append(SPACE).append(byteBuffer.getDouble()).append(COMMA).append(SPACE).append(byteBuffer.getDouble());
+        }
+        sb.append(RPAREN);
+    }
+
+    public static Geometry fromWKT(GeometryValidator validator, boolean coerce, String wkt) throws IOException, ParseException {
         StringReader reader = new StringReader(wkt);
         try {
             // setup the tokenizer; configured to read words w/o numbers
@@ -252,7 +425,7 @@ public class WellKnownText {
             tokenizer.whitespaceChars('\r', '\r');
             tokenizer.whitespaceChars('\n', '\n');
             tokenizer.commentChar('#');
-            Geometry geometry = parseGeometry(tokenizer);
+            Geometry geometry = parseGeometry(tokenizer, coerce);
             validator.validate(geometry);
             return geometry;
         } finally {
@@ -263,7 +436,7 @@ public class WellKnownText {
     /**
      * parse geometry from the stream tokenizer
      */
-    private Geometry parseGeometry(StreamTokenizer stream) throws IOException, ParseException {
+    private static Geometry parseGeometry(StreamTokenizer stream, boolean coerce) throws IOException, ParseException {
         final String type = nextWord(stream).toLowerCase(Locale.ROOT);
         switch (type) {
             case "point":
@@ -275,32 +448,33 @@ public class WellKnownText {
             case "multilinestring":
                 return parseMultiLine(stream);
             case "polygon":
-                return parsePolygon(stream);
+                return parsePolygon(stream, coerce);
             case "multipolygon":
-                return parseMultiPolygon(stream);
+                return parseMultiPolygon(stream, coerce);
             case "bbox":
                 return parseBBox(stream);
             case "geometrycollection":
-                return parseGeometryCollection(stream);
+                return parseGeometryCollection(stream, coerce);
             case "circle": // Not part of the standard, but we need it for internal serialization
                 return parseCircle(stream);
         }
         throw new IllegalArgumentException("Unknown geometry type: " + type);
     }
 
-    private GeometryCollection<Geometry> parseGeometryCollection(StreamTokenizer stream) throws IOException, ParseException {
+    private static GeometryCollection<Geometry> parseGeometryCollection(StreamTokenizer stream, boolean coerce) throws IOException,
+        ParseException {
         if (nextEmptyOrOpen(stream).equals(EMPTY)) {
             return GeometryCollection.EMPTY;
         }
         List<Geometry> shapes = new ArrayList<>();
-        shapes.add(parseGeometry(stream));
+        shapes.add(parseGeometry(stream, coerce));
         while (nextCloserOrComma(stream).equals(COMMA)) {
-            shapes.add(parseGeometry(stream));
+            shapes.add(parseGeometry(stream, coerce));
         }
         return new GeometryCollection<>(shapes);
     }
 
-    private Point parsePoint(StreamTokenizer stream) throws IOException, ParseException {
+    private static Point parsePoint(StreamTokenizer stream) throws IOException, ParseException {
         if (nextEmptyOrOpen(stream).equals(EMPTY)) {
             return Point.EMPTY;
         }
@@ -316,7 +490,7 @@ public class WellKnownText {
         return pt;
     }
 
-    private void parseCoordinates(StreamTokenizer stream, ArrayList<Double> lats, ArrayList<Double> lons, ArrayList<Double> alts)
+    private static void parseCoordinates(StreamTokenizer stream, ArrayList<Double> lats, ArrayList<Double> lons, ArrayList<Double> alts)
         throws IOException, ParseException {
         parseCoordinate(stream, lats, lons, alts);
         while (nextCloserOrComma(stream).equals(COMMA)) {
@@ -324,7 +498,7 @@ public class WellKnownText {
         }
     }
 
-    private void parseCoordinate(StreamTokenizer stream, ArrayList<Double> lats, ArrayList<Double> lons, ArrayList<Double> alts)
+    private static void parseCoordinate(StreamTokenizer stream, ArrayList<Double> lats, ArrayList<Double> lons, ArrayList<Double> alts)
         throws IOException, ParseException {
         lons.add(nextNumber(stream));
         lats.add(nextNumber(stream));
@@ -336,7 +510,7 @@ public class WellKnownText {
         }
     }
 
-    private MultiPoint parseMultiPoint(StreamTokenizer stream) throws IOException, ParseException {
+    private static MultiPoint parseMultiPoint(StreamTokenizer stream) throws IOException, ParseException {
         String token = nextEmptyOrOpen(stream);
         if (token.equals(EMPTY)) {
             return MultiPoint.EMPTY;
@@ -356,7 +530,7 @@ public class WellKnownText {
         return new MultiPoint(Collections.unmodifiableList(points));
     }
 
-    private Line parseLine(StreamTokenizer stream) throws IOException, ParseException {
+    private static Line parseLine(StreamTokenizer stream) throws IOException, ParseException {
         String token = nextEmptyOrOpen(stream);
         if (token.equals(EMPTY)) {
             return Line.EMPTY;
@@ -372,7 +546,7 @@ public class WellKnownText {
         }
     }
 
-    private MultiLine parseMultiLine(StreamTokenizer stream) throws IOException, ParseException {
+    private static MultiLine parseMultiLine(StreamTokenizer stream) throws IOException, ParseException {
         String token = nextEmptyOrOpen(stream);
         if (token.equals(EMPTY)) {
             return MultiLine.EMPTY;
@@ -385,13 +559,13 @@ public class WellKnownText {
         return new MultiLine(Collections.unmodifiableList(lines));
     }
 
-    private LinearRing parsePolygonHole(StreamTokenizer stream) throws IOException, ParseException {
+    private static LinearRing parsePolygonHole(StreamTokenizer stream, boolean coerce) throws IOException, ParseException {
         nextOpener(stream);
         ArrayList<Double> lats = new ArrayList<>();
         ArrayList<Double> lons = new ArrayList<>();
         ArrayList<Double> alts = new ArrayList<>();
         parseCoordinates(stream, lats, lons, alts);
-        closeLinearRingIfCoerced(lats, lons, alts);
+        closeLinearRingIfCoerced(lats, lons, alts, coerce);
         if (alts.isEmpty()) {
             return new LinearRing(toArray(lons), toArray(lats));
         } else {
@@ -399,7 +573,7 @@ public class WellKnownText {
         }
     }
 
-    private Polygon parsePolygon(StreamTokenizer stream) throws IOException, ParseException {
+    private static Polygon parsePolygon(StreamTokenizer stream, boolean coerce) throws IOException, ParseException {
         if (nextEmptyOrOpen(stream).equals(EMPTY)) {
             return Polygon.EMPTY;
         }
@@ -410,9 +584,9 @@ public class WellKnownText {
         parseCoordinates(stream, lats, lons, alts);
         ArrayList<LinearRing> holes = new ArrayList<>();
         while (nextCloserOrComma(stream).equals(COMMA)) {
-            holes.add(parsePolygonHole(stream));
+            holes.add(parsePolygonHole(stream, coerce));
         }
-        closeLinearRingIfCoerced(lats, lons, alts);
+        closeLinearRingIfCoerced(lats, lons, alts, coerce);
         LinearRing shell;
         if (alts.isEmpty()) {
             shell = new LinearRing(toArray(lons), toArray(lats));
@@ -430,11 +604,12 @@ public class WellKnownText {
      * Treats supplied arrays as coordinates of a linear ring. If the ring is not closed and coerce is set to true,
      * the first set of coordinates (lat, lon and alt if available) are added to the end of the arrays.
      */
-    private void closeLinearRingIfCoerced(ArrayList<Double> lats, ArrayList<Double> lons, ArrayList<Double> alts) {
+    private static void closeLinearRingIfCoerced(ArrayList<Double> lats, ArrayList<Double> lons, ArrayList<Double> alts, boolean coerce) {
         if (coerce && lats.isEmpty() == false && lons.isEmpty() == false) {
             int last = lats.size() - 1;
-            if (!lats.get(0).equals(lats.get(last)) || !lons.get(0).equals(lons.get(last)) ||
-                (alts.isEmpty() == false && !alts.get(0).equals(alts.get(last)))) {
+            if (lats.get(0).equals(lats.get(last)) == false
+                || lons.get(0).equals(lons.get(last)) == false
+                || (alts.isEmpty() == false && alts.get(0).equals(alts.get(last)) == false)) {
                 lons.add(lons.get(0));
                 lats.add(lats.get(0));
                 if (alts.isEmpty() == false) {
@@ -444,20 +619,20 @@ public class WellKnownText {
         }
     }
 
-    private MultiPolygon parseMultiPolygon(StreamTokenizer stream) throws IOException, ParseException {
+    private static MultiPolygon parseMultiPolygon(StreamTokenizer stream, boolean coerce) throws IOException, ParseException {
         String token = nextEmptyOrOpen(stream);
         if (token.equals(EMPTY)) {
             return MultiPolygon.EMPTY;
         }
         ArrayList<Polygon> polygons = new ArrayList<>();
-        polygons.add(parsePolygon(stream));
+        polygons.add(parsePolygon(stream, coerce));
         while (nextCloserOrComma(stream).equals(COMMA)) {
-            polygons.add(parsePolygon(stream));
+            polygons.add(parsePolygon(stream, coerce));
         }
         return new MultiPolygon(Collections.unmodifiableList(polygons));
     }
 
-    private Rectangle parseBBox(StreamTokenizer stream) throws IOException, ParseException {
+    private static Rectangle parseBBox(StreamTokenizer stream) throws IOException, ParseException {
         if (nextEmptyOrOpen(stream).equals(EMPTY)) {
             return Rectangle.EMPTY;
         }
@@ -473,8 +648,7 @@ public class WellKnownText {
         return new Rectangle(minLon, maxLon, maxLat, minLat);
     }
 
-
-    private Circle parseCircle(StreamTokenizer stream) throws IOException, ParseException {
+    private static Circle parseCircle(StreamTokenizer stream) throws IOException, ParseException {
         if (nextEmptyOrOpen(stream).equals(EMPTY)) {
             return Circle.EMPTY;
         }
@@ -493,7 +667,7 @@ public class WellKnownText {
     /**
      * next word in the stream
      */
-    private String nextWord(StreamTokenizer stream) throws ParseException, IOException {
+    private static String nextWord(StreamTokenizer stream) throws ParseException, IOException {
         switch (stream.nextToken()) {
             case StreamTokenizer.TT_WORD:
                 final String word = stream.sval;
@@ -508,7 +682,7 @@ public class WellKnownText {
         throw new ParseException("expected word but found: " + tokenString(stream), stream.lineno());
     }
 
-    private double nextNumber(StreamTokenizer stream) throws IOException, ParseException {
+    private static double nextNumber(StreamTokenizer stream) throws IOException, ParseException {
         if (stream.nextToken() == StreamTokenizer.TT_WORD) {
             if (stream.sval.equalsIgnoreCase(NAN)) {
                 return Double.NaN;
@@ -523,63 +697,57 @@ public class WellKnownText {
         throw new ParseException("expected number but found: " + tokenString(stream), stream.lineno());
     }
 
-    private String tokenString(StreamTokenizer stream) {
-        switch (stream.ttype) {
-            case StreamTokenizer.TT_WORD:
-                return stream.sval;
-            case StreamTokenizer.TT_EOF:
-                return EOF;
-            case StreamTokenizer.TT_EOL:
-                return EOL;
-            case StreamTokenizer.TT_NUMBER:
-                return NUMBER;
-        }
-        return "'" + (char) stream.ttype + "'";
+    private static String tokenString(StreamTokenizer stream) {
+        return switch (stream.ttype) {
+            case StreamTokenizer.TT_WORD -> stream.sval;
+            case StreamTokenizer.TT_EOF -> EOF;
+            case StreamTokenizer.TT_EOL -> EOL;
+            case StreamTokenizer.TT_NUMBER -> NUMBER;
+            default -> "'" + (char) stream.ttype + "'";
+        };
     }
 
-    private boolean isNumberNext(StreamTokenizer stream) throws IOException {
+    private static boolean isNumberNext(StreamTokenizer stream) throws IOException {
         final int type = stream.nextToken();
         stream.pushBack();
         return type == StreamTokenizer.TT_WORD;
     }
 
-    private String nextEmptyOrOpen(StreamTokenizer stream) throws IOException, ParseException {
+    private static String nextEmptyOrOpen(StreamTokenizer stream) throws IOException, ParseException {
         final String next = nextWord(stream);
         if (next.equals(EMPTY) || next.equals(LPAREN)) {
             return next;
         }
-        throw new ParseException("expected " + EMPTY + " or " + LPAREN
-            + " but found: " + tokenString(stream), stream.lineno());
+        throw new ParseException("expected " + EMPTY + " or " + LPAREN + " but found: " + tokenString(stream), stream.lineno());
     }
 
-    private String nextCloser(StreamTokenizer stream) throws IOException, ParseException {
+    private static String nextCloser(StreamTokenizer stream) throws IOException, ParseException {
         if (nextWord(stream).equals(RPAREN)) {
             return RPAREN;
         }
         throw new ParseException("expected " + RPAREN + " but found: " + tokenString(stream), stream.lineno());
     }
 
-    private String nextComma(StreamTokenizer stream) throws IOException, ParseException {
+    private static String nextComma(StreamTokenizer stream) throws IOException, ParseException {
         if (nextWord(stream).equals(COMMA)) {
             return COMMA;
         }
         throw new ParseException("expected " + COMMA + " but found: " + tokenString(stream), stream.lineno());
     }
 
-    private String nextOpener(StreamTokenizer stream) throws IOException, ParseException {
+    private static String nextOpener(StreamTokenizer stream) throws IOException, ParseException {
         if (nextWord(stream).equals(LPAREN)) {
             return LPAREN;
         }
         throw new ParseException("expected " + LPAREN + " but found: " + tokenString(stream), stream.lineno());
     }
 
-    private String nextCloserOrComma(StreamTokenizer stream) throws IOException, ParseException {
+    private static String nextCloserOrComma(StreamTokenizer stream) throws IOException, ParseException {
         String token = nextWord(stream);
         if (token.equals(COMMA) || token.equals(RPAREN)) {
             return token;
         }
-        throw new ParseException("expected " + COMMA + " or " + RPAREN
-            + " but found: " + tokenString(stream), stream.lineno());
+        throw new ParseException("expected " + COMMA + " or " + RPAREN + " but found: " + tokenString(stream), stream.lineno());
     }
 
     private static String getWKTName(Geometry geometry) {
@@ -636,7 +804,7 @@ public class WellKnownText {
         });
     }
 
-    private double[] toArray(ArrayList<Double> doubles) {
+    private static double[] toArray(ArrayList<Double> doubles) {
         return doubles.stream().mapToDouble(i -> i).toArray();
     }
 

@@ -1,0 +1,96 @@
+---
+teardown:
+  - do:
+      ingest.delete_pipeline:
+        id: "1"
+        ignore: 404
+
+---
+"Test KV Processor":
+  - do:
+      ingest.put_pipeline:
+        id: "1"
+        body:  >
+          {
+            "processors": [
+              {
+                "kv" : {
+                  "field" : "foo",
+                  "field_split": " ",
+                  "value_split": "="
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        pipeline: "1"
+        body: {
+          foo: "goodbye=everybody hello=world"
+        }
+
+  - do:
+      get:
+        index: test
+        id: "1"
+  - match: { _source.goodbye: "everybody" }
+  - match: { _source.hello: "world" }
+
+---
+"Test KV Processor with template snippets":
+  - do:
+      ingest.put_pipeline:
+        id: "1"
+        body:  >
+          {
+            "processors": [
+              {
+                "kv" : {
+                  "field" : "{{origin}}",
+                  "target_field" : "{{target}}",
+                  "field_split": " ",
+                  "value_split": "="
+                }
+              },
+              {
+                "kv" : {
+                  "field" : "{{origin}}",
+                  "field_split": " ",
+                  "value_split": "="
+                }
+              },
+              {
+                "kv" : {
+                  "field" : "{{origin1}}",
+                  "field_split": " ",
+                  "value_split": "=",
+                  "ignore_missing": true
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        pipeline: "1"
+        body: {
+          origin: "field1",
+          field1: "goodbye=everybody hello=world",
+          target: "bar"
+        }
+
+  - do:
+      get:
+        index: test
+        id: "1"
+  - match: { _source.bar.goodbye: "everybody" }
+  - match: { _source.bar.hello: "world" }
+  - match: { _source.goodbye: "everybody" }
+  - match: { _source.hello: "world" }

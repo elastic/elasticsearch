@@ -1,11 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.proto;
-
-import org.elasticsearch.common.xcontent.ToXContentFragment;
 
 import java.util.Objects;
 
@@ -14,7 +13,7 @@ import java.util.Objects;
  * <p>
  * Contains information about the client mode that can be used to generate different responses based on the caller type.
  */
-public abstract class AbstractSqlRequest implements ToXContentFragment {
+public abstract class AbstractSqlRequest {
 
     private final RequestInfo requestInfo;
 
@@ -29,9 +28,13 @@ public abstract class AbstractSqlRequest implements ToXContentFragment {
     public Mode mode() {
         return requestInfo.mode();
     }
-    
+
     public String clientId() {
         return requestInfo.clientId();
+    }
+
+    public SqlVersion version() {
+        return requestInfo.version();
     }
 
     @Override

@@ -1,28 +1,18 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.transport;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.concurrent.CompletableContext;
+import org.elasticsearch.common.util.concurrent.ListenableFuture;
 
 import java.net.InetSocketAddress;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 public class FakeTcpChannel implements TcpChannel {
@@ -32,7 +22,9 @@ public class FakeTcpChannel implements TcpChannel {
     private final InetSocketAddress remoteAddress;
     private final String profile;
     private final ChannelStats stats = new ChannelStats();
-    private final CompletableContext<Void> closeContext = new CompletableContext<>();
+    private final ListenableFuture<Void> closeContext = new ListenableFuture<>();
+
+    private final AtomicBoolean closed = new AtomicBoolean(false);
     private final AtomicReference<BytesReference> messageCaptor;
     private final AtomicReference<ActionListener<Void>> listenerCaptor;
 
@@ -48,17 +40,17 @@ public class FakeTcpChannel implements TcpChannel {
         this(isServer, localAddress, remoteAddress, "profile", new AtomicReference<>());
     }
 
-    public FakeTcpChannel(boolean isServer, AtomicReference<BytesReference> messageCaptor) {
-        this(isServer, "profile", messageCaptor);
-    }
-
-
     public FakeTcpChannel(boolean isServer, String profile, AtomicReference<BytesReference> messageCaptor) {
         this(isServer, null, null, profile, messageCaptor);
     }
 
-    public FakeTcpChannel(boolean isServer, InetSocketAddress localAddress, InetSocketAddress remoteAddress, String profile,
-                          AtomicReference<BytesReference> messageCaptor) {
+    public FakeTcpChannel(
+        boolean isServer,
+        InetSocketAddress localAddress,
+        InetSocketAddress remoteAddress,
+        String profile,
+        AtomicReference<BytesReference> messageCaptor
+    ) {
         this.isServer = isServer;
         this.localAddress = localAddress;
         this.remoteAddress = remoteAddress;
@@ -100,17 +92,19 @@ public class FakeTcpChannel implements TcpChannel {
 
     @Override
     public void close() {
-        closeContext.complete(null);
+        if (closed.compareAndSet(false, true)) {
+            closeContext.onResponse(null);
+        }
     }
 
     @Override
     public void addCloseListener(ActionListener<Void> listener) {
-        closeContext.addListener(ActionListener.toBiConsumer(listener));
+        closeContext.addListener(listener);
     }
 
     @Override
     public boolean isOpen() {
-        return closeContext.isDone() == false;
+        return closed.get() == false;
     }
 
     @Override

@@ -1,0 +1,151 @@
+---
+setup:
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+
+  - do:
+      index:
+        index: my_test_index
+        id: my_id
+        refresh: true
+        body: >
+          {
+            "key": "value"
+          }
+
+---
+"Test search input includes hits by default":
+
+  - do:
+      watcher.execute_watch:
+        body:  >
+          {
+            "watch" : {
+              "trigger": {
+                "schedule" : { "cron" : "0 0 0 1 * ? 2099" }
+              },
+              "input": {
+                "search" : {
+                  "request" : {
+                    "indices" : [ "my_test_index" ],
+                    "body" : {
+                      "query": {
+                        "match_all" : {}
+                      }
+                    }
+                  }
+                }
+              },
+              "condition": {
+                "compare": {
+                  "ctx.payload.hits.total": {
+                    "gt": 0
+                  }
+                }
+              },
+              "actions": {
+                "logging" : {
+                  "logging" : {
+                    "text" : "Logging from a test"
+                  }
+                }
+              }
+            }
+          }
+
+  - match: { watch_record.result.condition.met: true }
+
+
+---
+"Test search transform includes hits by default":
+
+  - do:
+      watcher.execute_watch:
+        body:  >
+          {
+            "watch" : {
+              "trigger": {
+                "schedule" : { "cron" : "0 0 0 1 * ? 2099" }
+              },
+              "input": {
+                "simple": {
+                  "foo": "bar"
+                }
+              },
+              "transform" : {
+                "search" : {
+                  "request" : {
+                    "indices" : [ "my_test_index" ],
+                    "body" : {
+                      "query": {
+                        "match_all" : {}
+                      }
+                    }
+                  }
+                }
+              },
+              "actions": {
+                "indexme" : {
+                  "condition": {
+                    "compare": {
+                      "ctx.payload.hits.total": {
+                        "gt": 0
+                      }
+                    }
+                  },
+                  "index" : {
+                    "index" : "my_test_index",
+                    "doc_id": "my-id"
+                  }
+                }
+              }
+            }
+          }
+
+  - do:
+      get:
+        index: my_test_index
+        id: my_id
+
+  - match: { _source.key: "value" }
+
+---
+"Test persist rest_total_hits_as_int":
+  - do:
+      watcher.put_watch:
+        id: "my_watch1"
+        body:  >
+          {
+            "trigger": {
+              "schedule" : { "cron" : "0 0 0 1 * ? 2099" }
+            },
+            "input": {
+              "search" : {
+                "request" : {
+                  "indices" : [ "my_test_index" ],
+                  "rest_total_hits_as_int": false,
+                  "body" : {
+                    "query": {
+                      "match_all" : {}
+                    }
+                  }
+                }
+              }
+            },
+            "actions": {
+              "test_index": {
+                "index": {
+                  "index": "test"
+                }
+              }
+            }
+          }
+  - match: { _id: "my_watch1" }
+
+  - do:
+      watcher.get_watch:
+        id: "my_watch1"
+  - match: { found : true}
+  - match: { _id: "my_watch1" }
+  - match: { watch.input.search.request.rest_total_hits_as_int: false }

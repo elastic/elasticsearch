@@ -1,0 +1,41 @@
+import org.elasticsearch.gradle.internal.info.BuildParams
+
+apply plugin: 'elasticsearch.internal-java-rest-test'
+
+dependencies {
+  clusterModules project(':modules:repository-gcs')
+  clusterModules project(':modules:lang-painless')
+  clusterModules project(xpackModule('searchable-snapshots'))
+  javaRestTestImplementation(testArtifact(project(xpackModule('searchable-snapshots'))))
+  javaRestTestImplementation(project(':test:fixtures:gcs-fixture'))
+}
+
+boolean useFixture = false
+String gcsServiceAccount = System.getenv("google_storage_service_account")
+String gcsBucket = System.getenv("google_storage_bucket")
+String gcsBasePath = System.getenv("google_storage_base_path")
+
+File serviceAccountFile = null
+if (!gcsServiceAccount && !gcsBucket && !gcsBasePath) {
+  gcsBucket = 'bucket'
+  gcsBasePath = 'integration_test'
+  useFixture = true
+} else if (!gcsServiceAccount || !gcsBucket || !gcsBasePath) {
+  throw new IllegalArgumentException("not all options specified to run tests against external GCS service are present")
+} else {
+  serviceAccountFile = new File(gcsServiceAccount)
+}
+
+tasks.named("javaRestTest").configure {
+  systemProperty 'test.google.fixture', Boolean.toString(useFixture)
+  systemProperty 'test.gcs.bucket', gcsBucket
+  nonInputProperties.systemProperty 'test.gcs.base_path', gcsBasePath + "_searchable_snapshots_tests" + BuildParams.testSeed
+
+  if (useFixture == false) {
+    systemProperty 'test.google.account', serviceAccountFile
+  }
+}
+
+tasks.register("gcsThirdPartyTest")  {
+  dependsOn "javaRestTest"
+}

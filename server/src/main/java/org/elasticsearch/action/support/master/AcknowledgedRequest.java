@@ -1,90 +1,105 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.action.support.master;
 
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.cluster.ack.AckedRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 
 import java.io.IOException;
+import java.util.Objects;
 
-import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
+import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 
 /**
- * Abstract class that allows to mark action requests that support acknowledgements.
- * Facilitates consistency across different api.
+ * Abstract base class for action requests that track acknowledgements of cluster state updates: such a request is acknowledged only once
+ * the cluster state update is committed and all relevant nodes have applied it and acknowledged its application to the elected master..
  */
 public abstract class AcknowledgedRequest<Request extends MasterNodeRequest<Request>> extends MasterNodeRequest<Request>
-        implements AckedRequest {
+    implements
+        AckedRequest {
 
     public static final TimeValue DEFAULT_ACK_TIMEOUT = timeValueSeconds(30);
 
-    protected TimeValue timeout = DEFAULT_ACK_TIMEOUT;
+    /**
+     * Specifies how long to wait for all relevant nodes to apply a cluster state update and acknowledge this to the elected master.
+     */
+    private TimeValue ackTimeout;
 
-    protected AcknowledgedRequest() {
+    /**
+     * @param masterNodeTimeout Specifies how long to wait when the master has not been discovered yet, or is disconnected, or is busy
+     *                          processing other tasks. The value {@link TimeValue#MINUS_ONE} means to wait forever in 8.15.0 onwards.
+     *                          <p>
+     *                          For requests which originate in the REST layer, use {@link
+     *                          org.elasticsearch.rest.RestUtils#getMasterNodeTimeout} to determine the timeout.
+     *                          <p>
+     *                          For internally-generated requests, choose an appropriate timeout. Often this will be {@link
+     *                          TimeValue#MAX_VALUE} (or {@link TimeValue#MINUS_ONE} which means an infinite timeout in 8.15.0 onwards)
+     *                          since usually we want internal requests to wait for as long as necessary to complete.
+     *
+     * @param ackTimeout        specifies how long to wait for all relevant nodes to apply a cluster state update and acknowledge this to
+     *                          the elected master.
+     */
+    protected AcknowledgedRequest(TimeValue masterNodeTimeout, TimeValue ackTimeout) {
+        super(masterNodeTimeout);
+        this.ackTimeout = Objects.requireNonNull(ackTimeout);
     }
 
     protected AcknowledgedRequest(StreamInput in) throws IOException {
         super(in);
-        this.timeout = in.readTimeValue();
+        this.ackTimeout = in.readTimeValue();
     }
 
     /**
-     * Allows to set the timeout
-     * @param timeout timeout as a string (e.g. 1s)
-     * @return the request itself
+     * Sets the {@link #ackTimeout}, which specifies how long to wait for all relevant nodes to apply a cluster state update and acknowledge
+     * this to the elected master.
+     *
+     * @param ackTimeout timeout as a {@link TimeValue}
+     * @return this request, for method chaining.
      */
     @SuppressWarnings("unchecked")
-    public final Request timeout(String timeout) {
-        this.timeout = TimeValue.parseTimeValue(timeout, this.timeout, getClass().getSimpleName() + ".timeout");
-        return (Request)this;
-    }
-
-    /**
-     * Allows to set the timeout
-     * @param timeout timeout as a {@link TimeValue}
-     * @return the request itself
-     */
-    @SuppressWarnings("unchecked")
-    public final Request timeout(TimeValue timeout) {
-        this.timeout = timeout;
+    public final Request ackTimeout(TimeValue ackTimeout) {
+        this.ackTimeout = Objects.requireNonNull(ackTimeout);
         return (Request) this;
     }
 
     /**
-     * Returns the current timeout
-     * @return the current timeout as a {@link TimeValue}
+     * @return the current ack timeout as a {@link TimeValue}
      */
-    public final TimeValue timeout() {
-        return  timeout;
-    }
-
     @Override
-    public TimeValue ackTimeout() {
-        return timeout;
+    public final TimeValue ackTimeout() {
+        return ackTimeout;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeTimeValue(timeout);
+        out.writeTimeValue(ackTimeout);
     }
 
+    @Override
+    public ActionRequestValidationException validate() {
+        return null;
+    }
+
+    /**
+     * {@link AcknowledgedRequest} that does not have any additional fields. Should be used instead of implementing noop subclasses of
+     * {@link AcknowledgedRequest}.
+     */
+    public static final class Plain extends AcknowledgedRequest<Plain> {
+        public Plain(StreamInput in) throws IOException {
+            super(in);
+        }
+
+        public Plain(TimeValue masterNodeTimeout, TimeValue ackTimeout) {
+            super(masterNodeTimeout, ackTimeout);
+        }
+    }
 }

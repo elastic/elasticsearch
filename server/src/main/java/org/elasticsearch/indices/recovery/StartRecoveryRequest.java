@@ -1,25 +1,16 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.indices.recovery;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -34,14 +25,16 @@ import java.io.IOException;
  */
 public class StartRecoveryRequest extends TransportRequest {
 
-    private long recoveryId;
-    private ShardId shardId;
-    private String targetAllocationId;
-    private DiscoveryNode sourceNode;
-    private DiscoveryNode targetNode;
-    private Store.MetadataSnapshot metadataSnapshot;
-    private boolean primaryRelocation;
-    private long startingSeqNo;
+    private final long recoveryId;
+    private final ShardId shardId;
+    private final String targetAllocationId;
+    private final DiscoveryNode sourceNode;
+    private final DiscoveryNode targetNode;
+    private final long clusterStateVersion;
+    private final Store.MetadataSnapshot metadataSnapshot;
+    private final boolean primaryRelocation;
+    private final long startingSeqNo;
+    private final boolean canDownloadSnapshotFiles;
 
     public StartRecoveryRequest(StreamInput in) throws IOException {
         super(in);
@@ -50,31 +43,48 @@ public class StartRecoveryRequest extends TransportRequest {
         targetAllocationId = in.readString();
         sourceNode = new DiscoveryNode(in);
         targetNode = new DiscoveryNode(in);
-        metadataSnapshot = new Store.MetadataSnapshot(in);
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
+            clusterStateVersion = in.readVLong();
+        } else {
+            clusterStateVersion = 0L; // bwc: do not wait for cluster state to be applied
+        }
+        metadataSnapshot = Store.MetadataSnapshot.readFrom(in);
         primaryRelocation = in.readBoolean();
         startingSeqNo = in.readLong();
+        if (in.getTransportVersion().onOrAfter(RecoverySettings.SNAPSHOT_FILE_DOWNLOAD_THROTTLING_SUPPORTED_TRANSPORT_VERSION)) {
+            canDownloadSnapshotFiles = in.readBoolean();
+        } else {
+            canDownloadSnapshotFiles = true;
+        }
     }
 
     /**
      * Construct a request for starting a peer recovery.
      *
-     * @param shardId            the shard ID to recover
-     * @param targetAllocationId the allocation id of the target shard
-     * @param sourceNode         the source node to remover from
-     * @param targetNode         the target node to recover to
-     * @param metadataSnapshot   the Lucene metadata
-     * @param primaryRelocation  whether or not the recovery is a primary relocation
-     * @param recoveryId         the recovery ID
-     * @param startingSeqNo      the starting sequence number
+     * @param shardId                  the shard ID to recover
+     * @param targetAllocationId       the allocation id of the target shard
+     * @param sourceNode               the source node to remover from
+     * @param targetNode               the target node to recover to
+     * @param clusterStateVersion      the cluster state version which initiated the recovery
+     * @param metadataSnapshot         the Lucene metadata
+     * @param primaryRelocation        whether or not the recovery is a primary relocation
+     * @param recoveryId               the recovery ID
+     * @param startingSeqNo            the starting sequence number
+     * @param canDownloadSnapshotFiles flag that indicates if the snapshot files can be downloaded
      */
-    public StartRecoveryRequest(final ShardId shardId,
-                                final String targetAllocationId,
-                                final DiscoveryNode sourceNode,
-                                final DiscoveryNode targetNode,
-                                final Store.MetadataSnapshot metadataSnapshot,
-                                final boolean primaryRelocation,
-                                final long recoveryId,
-                                final long startingSeqNo) {
+    public StartRecoveryRequest(
+        final ShardId shardId,
+        final String targetAllocationId,
+        final DiscoveryNode sourceNode,
+        final DiscoveryNode targetNode,
+        final long clusterStateVersion,
+        final Store.MetadataSnapshot metadataSnapshot,
+        final boolean primaryRelocation,
+        final long recoveryId,
+        final long startingSeqNo,
+        final boolean canDownloadSnapshotFiles
+    ) {
+        this.clusterStateVersion = clusterStateVersion;
         this.recoveryId = recoveryId;
         this.shardId = shardId;
         this.targetAllocationId = targetAllocationId;
@@ -83,8 +93,9 @@ public class StartRecoveryRequest extends TransportRequest {
         this.metadataSnapshot = metadataSnapshot;
         this.primaryRelocation = primaryRelocation;
         this.startingSeqNo = startingSeqNo;
-        assert startingSeqNo == SequenceNumbers.UNASSIGNED_SEQ_NO || metadataSnapshot.getHistoryUUID() != null :
-                        "starting seq no is set but not history uuid";
+        this.canDownloadSnapshotFiles = canDownloadSnapshotFiles;
+        assert startingSeqNo == SequenceNumbers.UNASSIGNED_SEQ_NO || metadataSnapshot.getHistoryUUID() != null
+            : "starting seq no is set but not history uuid";
     }
 
     public long recoveryId() {
@@ -107,6 +118,10 @@ public class StartRecoveryRequest extends TransportRequest {
         return targetNode;
     }
 
+    public long clusterStateVersion() {
+        return clusterStateVersion;
+    }
+
     public boolean isPrimaryRelocation() {
         return primaryRelocation;
     }
@@ -119,6 +134,28 @@ public class StartRecoveryRequest extends TransportRequest {
         return startingSeqNo;
     }
 
+    public boolean canDownloadSnapshotFiles() {
+        return canDownloadSnapshotFiles;
+    }
+
+    @Override
+    public String getDescription() {
+        return Strings.format(
+            """
+                recovery of %s to %s \
+                [recoveryId=%d, targetAllocationId=%s, clusterStateVersion=%d, startingSeqNo=%d, \
+                primaryRelocation=%s, canDownloadSnapshotFiles=%s]""",
+            shardId,
+            targetNode.descriptionWithoutAttributes(),
+            recoveryId,
+            targetAllocationId,
+            clusterStateVersion,
+            startingSeqNo,
+            primaryRelocation,
+            canDownloadSnapshotFiles
+        );
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
@@ -127,8 +164,14 @@ public class StartRecoveryRequest extends TransportRequest {
         out.writeString(targetAllocationId);
         sourceNode.writeTo(out);
         targetNode.writeTo(out);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
+            out.writeVLong(clusterStateVersion);
+        } // else bwc: just omit it, the receiver doesn't wait for a cluster state anyway
         metadataSnapshot.writeTo(out);
         out.writeBoolean(primaryRelocation);
         out.writeLong(startingSeqNo);
+        if (out.getTransportVersion().onOrAfter(RecoverySettings.SNAPSHOT_FILE_DOWNLOAD_THROTTLING_SUPPORTED_TRANSPORT_VERSION)) {
+            out.writeBoolean(canDownloadSnapshotFiles);
+        }
     }
 }

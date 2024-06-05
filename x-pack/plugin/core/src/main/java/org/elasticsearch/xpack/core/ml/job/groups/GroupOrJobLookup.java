@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.job.groups;
 
@@ -15,6 +16,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
@@ -55,8 +57,8 @@ public class GroupOrJobLookup {
         }
     }
 
-    public Set<String> expandJobIds(String expression, boolean allowNoJobs) {
-        return new GroupOrJobResolver().expand(expression, allowNoJobs);
+    public Set<String> expandJobIds(String expression, boolean allowNoMatch) {
+        return new GroupOrJobResolver().expand(expression, allowNoMatch, Optional.of(","));
     }
 
     public boolean isGroupOrJob(String id) {
@@ -76,10 +78,11 @@ public class GroupOrJobLookup {
 
         @Override
         protected Set<String> nameSet() {
-            return groupOrJobLookup.values().stream()
-                    .filter(groupOrJob -> groupOrJob.isGroup() == false)
-                    .map(groupOrJob -> groupOrJob.jobs().get(0).getId())
-                    .collect(Collectors.toSet());
+            return groupOrJobLookup.values()
+                .stream()
+                .filter(groupOrJob -> groupOrJob.isGroup() == false)
+                .map(groupOrJob -> groupOrJob.jobs().get(0).getId())
+                .collect(Collectors.toSet());
         }
 
         @Override

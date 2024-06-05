@@ -1,91 +1,198 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.action.admin.indices.alias.get;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
+import org.elasticsearch.action.support.TransportLocalClusterStateAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.AliasMetaData;
+import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.DataStreamAlias;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Predicates;
+import org.elasticsearch.core.UpdateForV9;
+import org.elasticsearch.indices.SystemIndices;
+import org.elasticsearch.indices.SystemIndices.SystemIndexAccessLevel;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.Transports;
 
-import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Predicate;
 
-public class TransportGetAliasesAction extends TransportMasterNodeReadAction<GetAliasesRequest, GetAliasesResponse> {
+/**
+ * NB prior to 8.12 this was a TransportMasterNodeReadAction so for BwC it must be registered with the TransportService (i.e. a
+ * HandledTransportAction) until we no longer need to support calling this action remotely.
+ */
+@UpdateForV9 // remove the HandledTransportAction superclass, this action need not be registered with the TransportService
+public class TransportGetAliasesAction extends TransportLocalClusterStateAction<GetAliasesRequest, GetAliasesResponse> {
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(TransportGetAliasesAction.class);
+
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
+    private final SystemIndices systemIndices;
+    private final ThreadContext threadContext;
 
     @Inject
-    public TransportGetAliasesAction(TransportService transportService, ClusterService clusterService,
-                                     ThreadPool threadPool, ActionFilters actionFilters,
-                                     IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(GetAliasesAction.NAME, transportService, clusterService, threadPool, actionFilters, GetAliasesRequest::new,
-            indexNameExpressionResolver);
-    }
-
-    @Override
-    protected String executor() {
-        // very lightweight operation all in memory no need to fork to a thread pool
-        return ThreadPool.Names.SAME;
+    public TransportGetAliasesAction(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        ClusterService clusterService,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        SystemIndices systemIndices
+    ) {
+        super(
+            GetAliasesAction.NAME,
+            clusterService,
+            transportService,
+            actionFilters,
+            GetAliasesRequest::new,
+            clusterService.threadPool().executor(ThreadPool.Names.MANAGEMENT)
+        );
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
+        this.systemIndices = systemIndices;
+        this.threadContext = clusterService.threadPool().getThreadContext();
     }
 
     @Override
     protected ClusterBlockException checkBlock(GetAliasesRequest request, ClusterState state) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ,
-            indexNameExpressionResolver.concreteIndexNames(state, request));
+        // Resolve with system index access since we're just checking blocks
+        return state.blocks()
+            .indicesBlockedException(
+                ClusterBlockLevel.METADATA_READ,
+                indexNameExpressionResolver.concreteIndexNamesWithSystemIndexAccess(state, request)
+            );
     }
 
     @Override
-    protected GetAliasesResponse read(StreamInput in) throws IOException {
-        return new GetAliasesResponse(in);
-    }
-
-    @Override
-    protected void masterOperation(Task task, GetAliasesRequest request, ClusterState state, ActionListener<GetAliasesResponse> listener) {
-        String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(state, request);
-        ImmutableOpenMap<String, List<AliasMetaData>> aliases = state.metaData().findAliases(request, concreteIndices);
-        listener.onResponse(new GetAliasesResponse(postProcess(request, concreteIndices, aliases)));
+    protected void localClusterStateOperation(
+        Task task,
+        GetAliasesRequest request,
+        ClusterState state,
+        ActionListener<GetAliasesResponse> listener
+    ) {
+        assert Transports.assertNotTransportThread("no need to avoid the context switch and may be expensive if there are many aliases");
+        final var cancellableTask = (CancellableTask) task;
+        // resolve all concrete indices upfront and warn/error later
+        final String[] concreteIndices = indexNameExpressionResolver.concreteIndexNamesWithSystemIndexAccess(state, request);
+        final SystemIndexAccessLevel systemIndexAccessLevel = indexNameExpressionResolver.getSystemIndexAccessLevel();
+        Map<String, List<AliasMetadata>> aliases = state.metadata().findAliases(request.aliases(), concreteIndices);
+        cancellableTask.ensureNotCancelled();
+        listener.onResponse(
+            new GetAliasesResponse(
+                postProcess(request, concreteIndices, aliases, state, systemIndexAccessLevel, threadContext, systemIndices),
+                postProcess(indexNameExpressionResolver, request, state)
+            )
+        );
     }
 
     /**
      * Fills alias result with empty entries for requested indices when no specific aliases were requested.
      */
-    static ImmutableOpenMap<String, List<AliasMetaData>> postProcess(GetAliasesRequest request, String[] concreteIndices,
-                                                                     ImmutableOpenMap<String, List<AliasMetaData>> aliases) {
+    static Map<String, List<AliasMetadata>> postProcess(
+        GetAliasesRequest request,
+        String[] concreteIndices,
+        Map<String, List<AliasMetadata>> aliases,
+        ClusterState state,
+        SystemIndexAccessLevel systemIndexAccessLevel,
+        ThreadContext threadContext,
+        SystemIndices systemIndices
+    ) {
         boolean noAliasesSpecified = request.getOriginalAliases() == null || request.getOriginalAliases().length == 0;
-        ImmutableOpenMap.Builder<String, List<AliasMetaData>> mapBuilder = ImmutableOpenMap.builder(aliases);
+        Map<String, List<AliasMetadata>> mapBuilder = new HashMap<>(aliases);
         for (String index : concreteIndices) {
+            IndexAbstraction ia = state.metadata().getIndicesLookup().get(index);
+            assert ia.getType() == IndexAbstraction.Type.CONCRETE_INDEX;
+            if (ia.getParentDataStream() != null) {
+                // Don't include backing indices of data streams,
+                // because it is just noise. Aliases can't refer
+                // to backing indices directly.
+                continue;
+            }
+
             if (aliases.get(index) == null && noAliasesSpecified) {
-                List<AliasMetaData> previous = mapBuilder.put(index, Collections.emptyList());
+                List<AliasMetadata> previous = mapBuilder.put(index, Collections.emptyList());
                 assert previous == null;
             }
         }
-        return mapBuilder.build();
+        final Map<String, List<AliasMetadata>> finalResponse = Collections.unmodifiableMap(mapBuilder);
+        if (systemIndexAccessLevel != SystemIndexAccessLevel.ALL) {
+            checkSystemIndexAccess(systemIndices, state, finalResponse, systemIndexAccessLevel, threadContext);
+        }
+        return finalResponse;
     }
 
+    static Map<String, List<DataStreamAlias>> postProcess(
+        IndexNameExpressionResolver resolver,
+        GetAliasesRequest request,
+        ClusterState state
+    ) {
+        Map<String, List<DataStreamAlias>> result = new HashMap<>();
+        List<String> requestedDataStreams = resolver.dataStreamNames(state, request.indicesOptions(), request.indices());
+
+        return state.metadata().findDataStreamAliases(request.aliases(), requestedDataStreams.toArray(new String[0]));
+    }
+
+    private static void checkSystemIndexAccess(
+        SystemIndices systemIndices,
+        ClusterState state,
+        Map<String, List<AliasMetadata>> aliasesMap,
+        SystemIndexAccessLevel systemIndexAccessLevel,
+        ThreadContext threadContext
+    ) {
+        final Predicate<String> systemIndexAccessAllowPredicate;
+        if (systemIndexAccessLevel == SystemIndexAccessLevel.NONE) {
+            systemIndexAccessAllowPredicate = Predicates.never();
+        } else if (systemIndexAccessLevel == SystemIndexAccessLevel.RESTRICTED) {
+            systemIndexAccessAllowPredicate = systemIndices.getProductSystemIndexNamePredicate(threadContext);
+        } else {
+            throw new IllegalArgumentException("Unexpected system index access level: " + systemIndexAccessLevel);
+        }
+
+        List<String> netNewSystemIndices = new ArrayList<>();
+        List<String> systemIndicesNames = new ArrayList<>();
+        aliasesMap.keySet().forEach(indexName -> {
+            IndexMetadata index = state.metadata().index(indexName);
+            if (index != null && index.isSystem()) {
+                if (systemIndexAccessAllowPredicate.test(indexName) == false) {
+                    if (systemIndices.isNetNewSystemIndex(indexName)) {
+                        netNewSystemIndices.add(indexName);
+                    } else {
+                        systemIndicesNames.add(indexName);
+                    }
+                }
+            }
+        });
+        if (systemIndicesNames.isEmpty() == false) {
+            deprecationLogger.warn(
+                DeprecationCategory.API,
+                "open_system_index_access",
+                "this request accesses system indices: {}, but in a future major version, direct access to system "
+                    + "indices will be prevented by default",
+                systemIndicesNames
+            );
+        }
+        if (netNewSystemIndices.isEmpty() == false) {
+            throw SystemIndices.netNewSystemIndexAccessException(threadContext, netNewSystemIndices);
+        }
+    }
 }

@@ -1,13 +1,30 @@
 apply plugin: 'elasticsearch.build'
 
-targetCompatibility = JavaVersion.VERSION_1_7
-
-// java_version_checker do not depend on core so only JDK signatures should be checked
-forbiddenApisMain {
-  replaceSignatureFiles 'jdk-signatures'
+sourceSets {
+  unsupportedJdkVersionEntrypoint
 }
 
-test.enabled = false
-javadoc.enabled = false
-loggerUsageCheck.enabled = false
-jarHell.enabled = false
+tasks.named(sourceSets.unsupportedJdkVersionEntrypoint.compileJavaTaskName).configure {
+  targetCompatibility = JavaVersion.VERSION_1_8
+}
+
+
+tasks.named("jar") {
+  manifest {
+    attributes("Multi-Release": "true")
+  }
+
+  FileCollection mainOutput = sourceSets.main.output;
+  from(sourceSets.unsupportedJdkVersionEntrypoint.output)
+  eachFile { details ->
+    if (details.path.equals("org/elasticsearch/tools/java_version_checker/JavaVersionChecker.class") &&
+      mainOutput.asFileTree.contains(details.file)) {
+      details.relativePath = details.relativePath.prepend("META-INF/versions/17")
+    }
+  }
+}
+
+// TODO revisit forbiddenApis issues
+["javadoc", "forbiddenApisMain", "forbiddenApisUnsupportedJdkVersionEntrypoint"].each {
+  tasks.named(it).configure { enabled = false }
+}

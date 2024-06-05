@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.logging;
@@ -44,7 +33,7 @@ public class LoggingOutputStreamTests extends ESTestCase {
         }
 
         @Override
-        void log(String msg) {
+        protected void log(String msg) {
             lines.add(msg);
         }
     }
@@ -58,9 +47,15 @@ public class LoggingOutputStreamTests extends ESTestCase {
         printStream = new PrintStream(loggingStream, false, StandardCharsets.UTF_8);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/51838")
-    public void testEmptyLine() {
-        printStream.println("");
+    public void testEmptyLineUnix() {
+        printStream.print("\n");
+        assertTrue(loggingStream.lines.isEmpty());
+        printStream.flush();
+        assertTrue(loggingStream.lines.isEmpty());
+    }
+
+    public void testEmptyLineWindows() {
+        printStream.print("\r\n");
         assertTrue(loggingStream.lines.isEmpty());
         printStream.flush();
         assertTrue(loggingStream.lines.isEmpty());
@@ -75,6 +70,7 @@ public class LoggingOutputStreamTests extends ESTestCase {
     // this test explicitly outputs the newlines instead of relying on println, to always test the unix behavior
     public void testFlushOnUnixNewline() {
         printStream.print("hello\n");
+        printStream.print("\n"); // newline by itself does not show up
         printStream.print("world\n");
         assertThat(loggingStream.lines, contains("hello", "world"));
     }
@@ -82,6 +78,7 @@ public class LoggingOutputStreamTests extends ESTestCase {
     // this test explicitly outputs the newlines instead of relying on println, to always test the windows behavior
     public void testFlushOnWindowsNewline() {
         printStream.print("hello\r\n");
+        printStream.print("\r\n"); // newline by itself does not show up
         printStream.print("world\r\n");
         assertThat(loggingStream.lines, contains("hello", "world"));
     }
@@ -96,7 +93,6 @@ public class LoggingOutputStreamTests extends ESTestCase {
         assertThat(loggingStream.threadLocal.get().bytes.length, equalTo(DEFAULT_BUFFER_LENGTH));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/51838")
     public void testMaxBuffer() {
         String longStr = randomAlphaOfLength(MAX_BUFFER_LENGTH);
         String extraLongStr = longStr + "OVERFLOW";
@@ -113,9 +109,7 @@ public class LoggingOutputStreamTests extends ESTestCase {
 
     public void testThreadIsolation() throws Exception {
         printStream.print("from thread 1");
-        Thread thread2 = new Thread(() -> {
-            printStream.println("from thread 2");
-        });
+        Thread thread2 = new Thread(() -> { printStream.println("from thread 2"); });
         thread2.start();
         thread2.join();
         printStream.flush();

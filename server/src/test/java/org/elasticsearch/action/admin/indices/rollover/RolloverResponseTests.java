@@ -1,27 +1,17 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.indices.rollover;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.util.ArrayList;
@@ -36,8 +26,16 @@ public class RolloverResponseTests extends AbstractWireSerializingTestCase<Rollo
     protected RolloverResponse createTestInstance() {
         boolean acknowledged = randomBoolean();
         boolean shardsAcknowledged = acknowledged && randomBoolean();
-        return new RolloverResponse(randomAlphaOfLengthBetween(3, 10),
-                randomAlphaOfLengthBetween(3, 10), randomResults(true), randomBoolean(), randomBoolean(), acknowledged, shardsAcknowledged);
+        return new RolloverResponse(
+            randomAlphaOfLengthBetween(3, 10),
+            randomAlphaOfLengthBetween(3, 10),
+            randomResults(true),
+            randomBoolean(),
+            randomBoolean(),
+            acknowledged,
+            shardsAcknowledged,
+            randomBoolean()
+        );
     }
 
     private static Map<String, Boolean> randomResults(boolean allowNoItems) {
@@ -54,8 +52,15 @@ public class RolloverResponseTests extends AbstractWireSerializingTestCase<Rollo
     private static final List<Supplier<Condition<?>>> conditionSuppliers = new ArrayList<>();
     static {
         conditionSuppliers.add(() -> new MaxAgeCondition(new TimeValue(randomNonNegativeLong())));
-        conditionSuppliers.add(() -> new MaxSizeCondition(new ByteSizeValue(randomNonNegativeLong())));
         conditionSuppliers.add(() -> new MaxDocsCondition(randomNonNegativeLong()));
+        conditionSuppliers.add(() -> new MaxSizeCondition(ByteSizeValue.ofBytes(randomNonNegativeLong())));
+        conditionSuppliers.add(() -> new MaxPrimaryShardSizeCondition(ByteSizeValue.ofBytes(randomNonNegativeLong())));
+        conditionSuppliers.add(() -> new MaxPrimaryShardDocsCondition(randomNonNegativeLong()));
+        conditionSuppliers.add(() -> new MinAgeCondition(new TimeValue(randomNonNegativeLong())));
+        conditionSuppliers.add(() -> new MinDocsCondition(randomNonNegativeLong()));
+        conditionSuppliers.add(() -> new MinSizeCondition(ByteSizeValue.ofBytes(randomNonNegativeLong())));
+        conditionSuppliers.add(() -> new MinPrimaryShardSizeCondition(ByteSizeValue.ofBytes(randomNonNegativeLong())));
+        conditionSuppliers.add(() -> new MinPrimaryShardDocsCondition(randomNonNegativeLong()));
     }
 
     @Override
@@ -65,55 +70,46 @@ public class RolloverResponseTests extends AbstractWireSerializingTestCase<Rollo
 
     @Override
     protected RolloverResponse mutateInstance(RolloverResponse response) {
-        int i = randomIntBetween(0, 6);
-        switch(i) {
-            case 0:
-                return new RolloverResponse(response.getOldIndex() + randomAlphaOfLengthBetween(2, 5),
-                        response.getNewIndex(), response.getConditionStatus(), response.isDryRun(), response.isRolledOver(),
-                        response.isAcknowledged(), response.isShardsAcknowledged());
-            case 1:
-                return new RolloverResponse(response.getOldIndex(), response.getNewIndex() + randomAlphaOfLengthBetween(2, 5),
-                        response.getConditionStatus(), response.isDryRun(), response.isRolledOver(),
-                        response.isAcknowledged(), response.isShardsAcknowledged());
-            case 2:
-                Map<String, Boolean> results;
+        var oldIndex = response.getOldIndex();
+        var newIndex = response.getNewIndex();
+        var conditionStatus = response.getConditionStatus();
+        var dryRun = response.isDryRun();
+        var rolledOver = response.isRolledOver();
+        var acknowledged = response.isAcknowledged();
+        var shardsAcknowledged = response.isShardsAcknowledged();
+        var lazy = response.isLazy();
+        int i = randomIntBetween(0, 7);
+        switch (i) {
+            case 0 -> oldIndex = oldIndex + randomAlphaOfLengthBetween(2, 5);
+            case 1 -> newIndex = newIndex + randomAlphaOfLengthBetween(2, 5);
+            case 2 -> {
                 if (response.getConditionStatus().isEmpty()) {
-                    results = randomResults(false);
+                    conditionStatus = randomResults(false);
                 } else {
-                    results = new HashMap<>(response.getConditionStatus().size());
-                    List<String> keys = randomSubsetOf(randomIntBetween(1, response.getConditionStatus().size()),
-                            response.getConditionStatus().keySet());
+                    conditionStatus = Maps.newMapWithExpectedSize(response.getConditionStatus().size());
+                    List<String> keys = randomSubsetOf(
+                        randomIntBetween(1, response.getConditionStatus().size()),
+                        response.getConditionStatus().keySet()
+                    );
                     for (Map.Entry<String, Boolean> entry : response.getConditionStatus().entrySet()) {
                         boolean value = keys.contains(entry.getKey()) ? entry.getValue() == false : entry.getValue();
-                        results.put(entry.getKey(), value);
+                        conditionStatus.put(entry.getKey(), value);
                     }
                 }
-                return new RolloverResponse(response.getOldIndex(), response.getNewIndex(), results, response.isDryRun(),
-                        response.isRolledOver(), response.isAcknowledged(), response.isShardsAcknowledged());
-            case 3:
-                return new RolloverResponse(response.getOldIndex(), response.getNewIndex(),
-                        response.getConditionStatus(), response.isDryRun() == false, response.isRolledOver(),
-                        response.isAcknowledged(), response.isShardsAcknowledged());
-            case 4:
-                return new RolloverResponse(response.getOldIndex(), response.getNewIndex(),
-                        response.getConditionStatus(), response.isDryRun(), response.isRolledOver() == false,
-                        response.isAcknowledged(), response.isShardsAcknowledged());
-            case 5: {
-                boolean acknowledged = response.isAcknowledged() == false;
-                boolean shardsAcknowledged = acknowledged && response.isShardsAcknowledged();
-                return new RolloverResponse(response.getOldIndex(), response.getNewIndex(),
-                        response.getConditionStatus(), response.isDryRun(), response.isRolledOver(),
-                        acknowledged, shardsAcknowledged);
             }
-            case 6: {
-                boolean shardsAcknowledged = response.isShardsAcknowledged() == false;
-                boolean acknowledged = shardsAcknowledged || response.isAcknowledged();
-                return new RolloverResponse(response.getOldIndex(), response.getNewIndex(),
-                        response.getConditionStatus(), response.isDryRun(), response.isRolledOver(),
-                        acknowledged, shardsAcknowledged);
+            case 3 -> dryRun = dryRun == false;
+            case 4 -> rolledOver = rolledOver == false;
+            case 5 -> {
+                acknowledged = response.isAcknowledged() == false;
+                shardsAcknowledged = acknowledged && response.isShardsAcknowledged();
             }
-            default:
-                throw new UnsupportedOperationException();
+            case 6 -> {
+                shardsAcknowledged = response.isShardsAcknowledged() == false;
+                acknowledged = shardsAcknowledged || response.isAcknowledged();
+            }
+            case 7 -> lazy = lazy == false;
+            default -> throw new UnsupportedOperationException();
         }
+        return new RolloverResponse(oldIndex, newIndex, conditionStatus, dryRun, rolledOver, acknowledged, shardsAcknowledged, lazy);
     }
 }

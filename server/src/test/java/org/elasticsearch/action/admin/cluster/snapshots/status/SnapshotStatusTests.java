@@ -1,40 +1,88 @@
-package org.elasticsearch.action.admin.cluster.snapshots.status;
-
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
+
+package org.elasticsearch.action.admin.cluster.snapshots.status;
 
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
-import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Predicate;
 
+import static java.util.Collections.emptyList;
+import static java.util.Collections.emptyMap;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
-public class SnapshotStatusTests extends AbstractXContentTestCase<SnapshotStatus> {
+public class SnapshotStatusTests extends AbstractChunkedSerializingTestCase<SnapshotStatus> {
 
+    static final ConstructingObjectParser<SnapshotStatus, Void> PARSER = new ConstructingObjectParser<>(
+        "snapshot_status",
+        true,
+        (Object[] parsedObjects) -> {
+            int i = 0;
+            String name = (String) parsedObjects[i++];
+            String repository = (String) parsedObjects[i++];
+            String uuid = (String) parsedObjects[i++];
+            String rawState = (String) parsedObjects[i++];
+            Boolean includeGlobalState = (Boolean) parsedObjects[i++];
+            SnapshotStats stats = ((SnapshotStats) parsedObjects[i++]);
+            SnapshotShardsStats shardsStats = ((SnapshotShardsStats) parsedObjects[i++]);
+            @SuppressWarnings("unchecked")
+            List<SnapshotIndexStatus> indices = ((List<SnapshotIndexStatus>) parsedObjects[i]);
+
+            Snapshot snapshot = new Snapshot(repository, new SnapshotId(name, uuid));
+            SnapshotsInProgress.State state = SnapshotsInProgress.State.valueOf(rawState);
+            Map<String, SnapshotIndexStatus> indicesStatus;
+            List<SnapshotIndexShardStatus> shards;
+            if (indices == null || indices.isEmpty()) {
+                indicesStatus = emptyMap();
+                shards = emptyList();
+            } else {
+                indicesStatus = Maps.newMapWithExpectedSize(indices.size());
+                shards = new ArrayList<>();
+                for (SnapshotIndexStatus index : indices) {
+                    indicesStatus.put(index.getIndex(), index);
+                    shards.addAll(index.getShards().values());
+                }
+            }
+            return new SnapshotStatus(snapshot, state, shards, indicesStatus, shardsStats, stats, includeGlobalState);
+        }
+    );
+    static {
+        PARSER.declareString(constructorArg(), new ParseField(SnapshotStatus.SNAPSHOT));
+        PARSER.declareString(constructorArg(), new ParseField(SnapshotStatus.REPOSITORY));
+        PARSER.declareString(constructorArg(), new ParseField(SnapshotStatus.UUID));
+        PARSER.declareString(constructorArg(), new ParseField(SnapshotStatus.STATE));
+        PARSER.declareBoolean(optionalConstructorArg(), new ParseField(SnapshotStatus.INCLUDE_GLOBAL_STATE));
+        PARSER.declareField(
+            constructorArg(),
+            SnapshotStats::fromXContent,
+            new ParseField(SnapshotStats.Fields.STATS),
+            ObjectParser.ValueType.OBJECT
+        );
+        PARSER.declareObject(constructorArg(), SnapshotShardsStatsTests.PARSER, new ParseField(SnapshotShardsStats.Fields.SHARDS_STATS));
+        PARSER.declareNamedObjects(constructorArg(), SnapshotIndexStatusTests.PARSER, new ParseField(SnapshotStatus.INDICES));
+    }
 
     public void testToString() throws Exception {
         SnapshotsInProgress.State state = randomFrom(SnapshotsInProgress.State.values());
@@ -60,93 +108,102 @@ public class SnapshotStatusTests extends AbstractXContentTestCase<SnapshotStatus
         int totalShards = 1;
 
         switch (shardStage) {
-            case INIT:
-                initializingShards++;
-                break;
-            case STARTED:
-                startedShards++;
-                break;
-            case FINALIZE:
-                finalizingShards++;
-                break;
-            case DONE:
-                doneShards++;
-                break;
-            case FAILURE:
-                failedShards++;
-                break;
-            default:
-                break;
+            case INIT -> initializingShards++;
+            case STARTED -> startedShards++;
+            case FINALIZE -> finalizingShards++;
+            case DONE -> doneShards++;
+            case FAILURE -> failedShards++;
         }
 
-        String expected = "{\n" +
-            "  \"snapshot\" : \"test-snap\",\n" +
-            "  \"repository\" : \"test-repo\",\n" +
-            "  \"uuid\" : \"" + uuid + "\",\n" +
-            "  \"state\" : \"" + state.toString() + "\",\n" +
-            "  \"include_global_state\" : " + includeGlobalState + ",\n" +
-            "  \"shards_stats\" : {\n" +
-            "    \"initializing\" : " + initializingShards + ",\n" +
-            "    \"started\" : " + startedShards + ",\n" +
-            "    \"finalizing\" : " + finalizingShards + ",\n" +
-            "    \"done\" : " + doneShards + ",\n" +
-            "    \"failed\" : " + failedShards + ",\n" +
-            "    \"total\" : " + totalShards + "\n" +
-            "  },\n" +
-            "  \"stats\" : {\n" +
-            "    \"incremental\" : {\n" +
-            "      \"file_count\" : 0,\n" +
-            "      \"size_in_bytes\" : 0\n" +
-            "    },\n" +
-            "    \"total\" : {\n" +
-            "      \"file_count\" : 0,\n" +
-            "      \"size_in_bytes\" : 0\n" +
-            "    },\n" +
-            "    \"start_time_in_millis\" : 0,\n" +
-            "    \"time_in_millis\" : 0\n" +
-            "  },\n" +
-            "  \"indices\" : {\n" +
-            "    \"" + indexName + "\" : {\n" +
-            "      \"shards_stats\" : {\n" +
-            "        \"initializing\" : " + initializingShards + ",\n" +
-            "        \"started\" : " + startedShards + ",\n" +
-            "        \"finalizing\" : " + finalizingShards + ",\n" +
-            "        \"done\" : " + doneShards + ",\n" +
-            "        \"failed\" : " + failedShards + ",\n" +
-            "        \"total\" : " + totalShards + "\n" +
-            "      },\n" +
-            "      \"stats\" : {\n" +
-            "        \"incremental\" : {\n" +
-            "          \"file_count\" : 0,\n" +
-            "          \"size_in_bytes\" : 0\n" +
-            "        },\n" +
-            "        \"total\" : {\n" +
-            "          \"file_count\" : 0,\n" +
-            "          \"size_in_bytes\" : 0\n" +
-            "        },\n" +
-            "        \"start_time_in_millis\" : 0,\n" +
-            "        \"time_in_millis\" : 0\n" +
-            "      },\n" +
-            "      \"shards\" : {\n" +
-            "        \"" + shardId + "\" : {\n" +
-            "          \"stage\" : \"" + shardStage.toString() + "\",\n" +
-            "          \"stats\" : {\n" +
-            "            \"incremental\" : {\n" +
-            "              \"file_count\" : 0,\n" +
-            "              \"size_in_bytes\" : 0\n" +
-            "            },\n" +
-            "            \"total\" : {\n" +
-            "              \"file_count\" : 0,\n" +
-            "              \"size_in_bytes\" : 0\n" +
-            "            },\n" +
-            "            \"start_time_in_millis\" : 0,\n" +
-            "            \"time_in_millis\" : 0\n" +
-            "          }\n" +
-            "        }\n" +
-            "      }\n" +
-            "    }\n" +
-            "  }\n" +
-            "}";
+        String expected = Strings.format(
+            """
+                {
+                  "snapshot" : "test-snap",
+                  "repository" : "test-repo",
+                  "uuid" : "%s",
+                  "state" : "%s",
+                  "include_global_state" : %s,
+                  "shards_stats" : {
+                    "initializing" : %s,
+                    "started" : %s,
+                    "finalizing" : %s,
+                    "done" : %s,
+                    "failed" : %s,
+                    "total" : %s
+                  },
+                  "stats" : {
+                    "incremental" : {
+                      "file_count" : 0,
+                      "size_in_bytes" : 0
+                    },
+                    "total" : {
+                      "file_count" : 0,
+                      "size_in_bytes" : 0
+                    },
+                    "start_time_in_millis" : 0,
+                    "time_in_millis" : 0
+                  },
+                  "indices" : {
+                    "%s" : {
+                      "shards_stats" : {
+                        "initializing" : %s,
+                        "started" : %s,
+                        "finalizing" : %s,
+                        "done" : %s,
+                        "failed" : %s,
+                        "total" : %s
+                      },
+                      "stats" : {
+                        "incremental" : {
+                          "file_count" : 0,
+                          "size_in_bytes" : 0
+                        },
+                        "total" : {
+                          "file_count" : 0,
+                          "size_in_bytes" : 0
+                        },
+                        "start_time_in_millis" : 0,
+                        "time_in_millis" : 0
+                      },
+                      "shards" : {
+                        "%s" : {
+                          "stage" : "%s",
+                          "stats" : {
+                            "incremental" : {
+                              "file_count" : 0,
+                              "size_in_bytes" : 0
+                            },
+                            "total" : {
+                              "file_count" : 0,
+                              "size_in_bytes" : 0
+                            },
+                            "start_time_in_millis" : 0,
+                            "time_in_millis" : 0
+                          }
+                        }
+                      }
+                    }
+                  }
+                }""",
+            uuid,
+            state.toString(),
+            includeGlobalState,
+            initializingShards,
+            startedShards,
+            finalizingShards,
+            doneShards,
+            failedShards,
+            totalShards,
+            indexName,
+            initializingShards,
+            startedShards,
+            finalizingShards,
+            doneShards,
+            failedShards,
+            totalShards,
+            shardId,
+            shardStage.toString()
+        );
         assertEquals(expected, status.toString());
     }
 
@@ -170,6 +227,11 @@ public class SnapshotStatusTests extends AbstractXContentTestCase<SnapshotStatus
     }
 
     @Override
+    protected SnapshotStatus mutateInstance(SnapshotStatus instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Predicate<String> getRandomFieldsExcludeFilter() {
         // Do not place random fields in the indices field or shards field since their fields correspond to names.
         return (s) -> s.endsWith("shards") || s.endsWith("indices");
@@ -177,11 +239,16 @@ public class SnapshotStatusTests extends AbstractXContentTestCase<SnapshotStatus
 
     @Override
     protected SnapshotStatus doParseInstance(XContentParser parser) throws IOException {
-        return SnapshotStatus.fromXContent(parser);
+        return PARSER.parse(parser, null);
     }
 
     @Override
     protected boolean supportsUnknownFields() {
         return true;
+    }
+
+    @Override
+    protected Writeable.Reader<SnapshotStatus> instanceReader() {
+        return SnapshotStatus::new;
     }
 }

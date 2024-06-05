@@ -1,23 +1,25 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect.writer;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzer;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
+import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzer;
 import org.elasticsearch.xpack.ml.job.process.DataCountsReporter;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcess;
-import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -34,17 +36,23 @@ import java.util.function.BiConsumer;
  * See CLengthEncodedInputParser.h in the C++ code for a more
  * detailed description.
  */
-class JsonDataToProcessWriter extends AbstractDataToProcessWriter {
+public class JsonDataToProcessWriter extends AbstractDataToProcessWriter {
 
     private static final Logger LOGGER = LogManager.getLogger(JsonDataToProcessWriter.class);
-    private NamedXContentRegistry xContentRegistry;
+    private final XContentParserConfiguration parserConfig;
 
-    JsonDataToProcessWriter(boolean includeControlField, boolean includeTokensField, AutodetectProcess autodetectProcess,
-                            DataDescription dataDescription, AnalysisConfig analysisConfig,
-                            DataCountsReporter dataCountsReporter, NamedXContentRegistry xContentRegistry) {
-        super(includeControlField, includeTokensField, autodetectProcess, dataDescription, analysisConfig,
-                dataCountsReporter, LOGGER);
-        this.xContentRegistry = xContentRegistry;
+    public JsonDataToProcessWriter(
+        boolean includeControlField,
+        boolean includeTokensField,
+        AutodetectProcess autodetectProcess,
+        DataDescription dataDescription,
+        AnalysisConfig analysisConfig,
+        DataCountsReporter dataCountsReporter,
+        NamedXContentRegistry xContentRegistry
+    ) {
+        super(includeControlField, includeTokensField, autodetectProcess, dataDescription, analysisConfig, dataCountsReporter, LOGGER);
+        this.parserConfig = XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry)
+            .withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
     }
 
     /**
@@ -55,18 +63,20 @@ class JsonDataToProcessWriter extends AbstractDataToProcessWriter {
      * timeField is missing from the JSON inputIndex an exception is thrown
      */
     @Override
-    public void write(InputStream inputStream, CategorizationAnalyzer categorizationAnalyzer, XContentType xContentType,
-                      BiConsumer<DataCounts, Exception> handler)
-            throws IOException {
+    public void write(
+        InputStream inputStream,
+        CategorizationAnalyzer categorizationAnalyzer,
+        XContentType xContentType,
+        BiConsumer<DataCounts, Exception> handler
+    ) throws IOException {
         dataCountsReporter.startNewIncrementalCount();
 
-        if (xContentType.equals(XContentType.JSON)) {
+        if (xContentType.canonical() == XContentType.JSON) {
             writeJsonXContent(categorizationAnalyzer, inputStream);
-        } else if (xContentType.equals(XContentType.SMILE)) {
+        } else if (xContentType.canonical() == XContentType.SMILE) {
             writeSmileXContent(categorizationAnalyzer, inputStream);
         } else {
-            throw new RuntimeException("XContentType [" + xContentType
-                    + "] is not supported by JsonDataToProcessWriter");
+            throw new RuntimeException("XContentType [" + xContentType + "] is not supported by JsonDataToProcessWriter");
         }
 
         dataCountsReporter.finishReporting();
@@ -74,8 +84,7 @@ class JsonDataToProcessWriter extends AbstractDataToProcessWriter {
     }
 
     private void writeJsonXContent(CategorizationAnalyzer categorizationAnalyzer, InputStream inputStream) throws IOException {
-        try (XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, inputStream)) {
+        try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, inputStream)) {
             writeJson(categorizationAnalyzer, parser);
         }
     }
@@ -86,19 +95,18 @@ class JsonDataToProcessWriter extends AbstractDataToProcessWriter {
             if (nextObject.length == 0) {
                 break;
             }
-            try (XContentParser parser = XContentFactory.xContent(XContentType.SMILE)
-                    .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, nextObject)) {
+            try (XContentParser parser = XContentFactory.xContent(XContentType.SMILE).createParser(parserConfig, nextObject)) {
                 writeJson(categorizationAnalyzer, parser);
             }
         }
     }
 
-    private byte[] findNextObject(byte marker, InputStream data) throws IOException {
+    private static byte[] findNextObject(byte marker, InputStream data) throws IOException {
         // The underlying stream, MarkSupportingStreamInputWrapper, doesn't care about
-        // readlimit, so just set to -1.  We could pick a value, but I worry that if the
+        // readlimit, so just set to -1. We could pick a value, but I worry that if the
         // underlying implementation changes it may cause strange behavior, whereas -1 should
         // blow up immediately
-        assert(data.markSupported());
+        assert (data.markSupported());
         data.mark(-1);
 
         int nextByte;
@@ -146,12 +154,17 @@ class JsonDataToProcessWriter extends AbstractDataToProcessWriter {
 
             for (InputOutputMap inOut : inputOutputMap) {
                 String field = input[inOut.inputIndex];
-                record[inOut.outputIndex] = (field == null) ? "" : field;
+                field = (field == null) ? "" : field;
+                if (categorizationFieldIndex != null && inOut.inputIndex == categorizationFieldIndex) {
+                    field = maybeTruncateCatgeorizationField(field);
+                }
+                record[inOut.outputIndex] = field;
             }
 
             if (categorizationAnalyzer != null && categorizationFieldIndex != null) {
                 tokenizeForCategorization(categorizationAnalyzer, input[categorizationFieldIndex], record);
             }
+
             transformTimeAndWrite(record, inputFieldCount);
 
             inputFieldCount = recordReader.read(input, gotFields);
@@ -163,9 +176,7 @@ class JsonDataToProcessWriter extends AbstractDataToProcessWriter {
      * Always returns true
      */
     @Override
-    protected boolean checkForMissingFields(Collection<String> inputFields,
-            Map<String, Integer> inputFieldIndexes,
-            String[] header) {
+    protected boolean checkForMissingFields(Collection<String> inputFields, Map<String, Integer> inputFieldIndexes, String[] header) {
         return true;
     }
 

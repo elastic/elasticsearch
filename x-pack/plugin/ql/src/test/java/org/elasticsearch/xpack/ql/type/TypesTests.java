@@ -1,13 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ql.type;
 
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -89,7 +90,7 @@ public class TypesTests extends ESTestCase {
         EsField field = mapping.get("date");
         assertThat(field.getDataType(), is(DATETIME));
         assertThat(field.isAggregatable(), is(true));
-        DateEsField dfield = (DateEsField) field;
+        assertThat(field, is(instanceOf(DateEsField.class)));
     }
 
     public void testDateMulti() {
@@ -99,7 +100,17 @@ public class TypesTests extends ESTestCase {
         EsField field = mapping.get("date");
         assertThat(field.getDataType(), is(DATETIME));
         assertThat(field.isAggregatable(), is(true));
-        DateEsField dfield = (DateEsField) field;
+        assertThat(field, is(instanceOf(DateEsField.class)));
+    }
+
+    public void testDateNanosField() {
+        Map<String, EsField> mapping = loadMapping("mapping-date_nanos.json");
+
+        assertThat(mapping.size(), is(1));
+        EsField field = mapping.get("date_nanos");
+        assertThat(field.getDataType(), is(DATETIME));
+        assertThat(field.isAggregatable(), is(true));
+        assertThat(field, is(instanceOf(DateEsField.class)));
     }
 
     public void testDocValueField() {
@@ -108,7 +119,7 @@ public class TypesTests extends ESTestCase {
         assertThat(mapping.size(), is(1));
         EsField field = mapping.get("session_id");
         assertThat(field, instanceOf(KeywordEsField.class));
-        //assertThat(field.getPrecision(), is(15));
+        // assertThat(field.getPrecision(), is(15));
         assertThat(field.isAggregatable(), is(false));
     }
 
@@ -135,9 +146,10 @@ public class TypesTests extends ESTestCase {
         assertThat(DataTypes.isPrimitive(field.getDataType()), is(true));
         assertThat(field.getDataType(), is(TEXT));
         Map<String, EsField> fields = field.getProperties();
-        assertThat(fields.size(), is(2));
+        assertThat(fields.size(), is(4));
         assertThat(fields.get("raw").getDataType(), is(KEYWORD));
         assertThat(fields.get("english").getDataType(), is(TEXT));
+        assertThat(fields.get("wildcard").getDataType(), is(KEYWORD));
     }
 
     public void testMultiFieldTooManyOptions() {
@@ -148,9 +160,10 @@ public class TypesTests extends ESTestCase {
         assertThat(DataTypes.isPrimitive(field.getDataType()), is(true));
         assertThat(field, instanceOf(TextEsField.class));
         Map<String, EsField> fields = field.getProperties();
-        assertThat(fields.size(), is(2));
+        assertThat(fields.size(), is(4));
         assertThat(fields.get("raw").getDataType(), is(KEYWORD));
         assertThat(fields.get("english").getDataType(), is(TEXT));
+        assertThat(fields.get("wildcard").getDataType(), is(KEYWORD));
     }
 
     public void testNestedDoc() {
@@ -171,6 +184,27 @@ public class TypesTests extends ESTestCase {
         assertThat(mapping.size(), is(1));
         EsField dt = mapping.get("ip_addr");
         assertThat(dt.getDataType().typeName(), is("ip"));
+    }
+
+    public void testVersionField() {
+        Map<String, EsField> mapping = loadMapping("mapping-version.json");
+        assertThat(mapping.size(), is(1));
+        EsField dt = mapping.get("version_number");
+        assertThat(dt.getDataType().typeName(), is("version"));
+    }
+
+    public void testConstantKeywordField() {
+        Map<String, EsField> mapping = loadMapping("mapping-constant-keyword.json");
+        assertThat(mapping.size(), is(1));
+        EsField dt = mapping.get("full_name");
+        assertThat(dt.getDataType().typeName(), is("keyword"));
+    }
+
+    public void testWildcardField() {
+        Map<String, EsField> mapping = loadMapping("mapping-wildcard.json");
+        assertThat(mapping.size(), is(1));
+        EsField dt = mapping.get("full_name");
+        assertThat(dt.getDataType().typeName(), is("keyword"));
     }
 
     public void testUnsupportedTypes() {
@@ -201,10 +235,11 @@ public class TypesTests extends ESTestCase {
         return loadMapping(registry, stream, ordered);
     }
 
-    public static Map<String, EsField> loadMapping(DataTypeRegistry registry, InputStream stream, Boolean ordered) {
+    private static Map<String, EsField> loadMapping(DataTypeRegistry registry, InputStream stream, Boolean ordered) {
         boolean order = ordered != null ? ordered.booleanValue() : randomBoolean();
         try (InputStream in = stream) {
-            return Types.fromEs(registry, XContentHelper.convertToMap(JsonXContent.jsonXContent, in, order));
+            Map<String, Object> map = XContentHelper.convertToMap(JsonXContent.jsonXContent, in, order);
+            return Types.fromEs(registry, map);
         } catch (IOException ex) {
             throw new RuntimeException(ex);
         }

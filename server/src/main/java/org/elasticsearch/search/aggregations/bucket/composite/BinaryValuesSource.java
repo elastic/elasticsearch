@@ -1,34 +1,25 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.bucket.composite;
 
+import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
-import org.elasticsearch.common.CheckedFunction;
-import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ObjectArray;
+import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.StringFieldType;
@@ -48,20 +39,36 @@ class BinaryValuesSource extends SingleDimensionValuesSource<BytesRef> {
     private ObjectArray<BytesRefBuilder> valueBuilders;
     private BytesRef currentValue;
 
-    BinaryValuesSource(BigArrays bigArrays, LongConsumer breakerConsumer,
-                       MappedFieldType fieldType, CheckedFunction<LeafReaderContext, SortedBinaryDocValues, IOException> docValuesFunc,
-                       DocValueFormat format, boolean missingBucket, int size, int reverseMul) {
-        super(bigArrays, format, fieldType, missingBucket, size, reverseMul);
+    BinaryValuesSource(
+        BigArrays bigArrays,
+        LongConsumer breakerConsumer,
+        MappedFieldType fieldType,
+        CheckedFunction<LeafReaderContext, SortedBinaryDocValues, IOException> docValuesFunc,
+        DocValueFormat format,
+        boolean missingBucket,
+        MissingOrder missingOrder,
+        int size,
+        int reverseMul
+    ) {
+        super(bigArrays, format, fieldType, missingBucket, missingOrder, reverseMul);
         this.breakerConsumer = breakerConsumer;
         this.docValuesFunc = docValuesFunc;
         this.values = bigArrays.newObjectArray(Math.min(size, 100));
-        this.valueBuilders = bigArrays.newObjectArray(Math.min(size, 100));
+        boolean success = false;
+        try {
+            this.valueBuilders = bigArrays.newObjectArray(Math.min(size, 100));
+            success = true;
+        } finally {
+            if (success == false) {
+                close();
+            }
+        }
     }
 
     @Override
     void copyCurrent(int slot) {
-        values =  bigArrays.grow(values, slot+1);
-        valueBuilders = bigArrays.grow(valueBuilders, slot+1);
+        values = bigArrays.grow(values, slot + 1);
+        valueBuilders = bigArrays.grow(valueBuilders, slot + 1);
         BytesRefBuilder builder = valueBuilders.get(slot);
         int byteSize = builder == null ? 0 : builder.bytes().length;
         if (builder == null) {
@@ -82,9 +89,9 @@ class BinaryValuesSource extends SingleDimensionValuesSource<BytesRef> {
     int compare(int from, int to) {
         if (missingBucket) {
             if (values.get(from) == null) {
-                return values.get(to) == null ? 0 : -1 * reverseMul;
+                return values.get(to) == null ? 0 : -1 * missingOrder.compareAnyValueToMissing(reverseMul);
             } else if (values.get(to) == null) {
-                return reverseMul;
+                return missingOrder.compareAnyValueToMissing(reverseMul);
             }
         }
         return compareValues(values.get(from), values.get(to));
@@ -94,9 +101,9 @@ class BinaryValuesSource extends SingleDimensionValuesSource<BytesRef> {
     int compareCurrent(int slot) {
         if (missingBucket) {
             if (currentValue == null) {
-                return values.get(slot) == null ? 0 : -1 * reverseMul;
+                return values.get(slot) == null ? 0 : -1 * missingOrder.compareAnyValueToMissing(reverseMul);
             } else if (values.get(slot) == null) {
-                return reverseMul;
+                return missingOrder.compareAnyValueToMissing(reverseMul);
             }
         }
         return compareValues(currentValue, values.get(slot));
@@ -106,9 +113,9 @@ class BinaryValuesSource extends SingleDimensionValuesSource<BytesRef> {
     int compareCurrentWithAfter() {
         if (missingBucket) {
             if (currentValue == null) {
-                return afterValue == null ? 0 : -1 * reverseMul;
+                return afterValue == null ? 0 : -1 * missingOrder.compareAnyValueToMissing(reverseMul);
             } else if (afterValue == null) {
-                return reverseMul;
+                return missingOrder.compareAnyValueToMissing(reverseMul);
             }
         }
         return compareValues(currentValue, afterValue);
@@ -137,11 +144,14 @@ class BinaryValuesSource extends SingleDimensionValuesSource<BytesRef> {
     }
 
     @Override
-    void setAfter(Comparable value) {
+    void setAfter(Comparable<?> value) {
         if (missingBucket && value == null) {
             afterValue = null;
         } else if (value.getClass() == String.class) {
-            afterValue = format.parseBytesRef(value.toString());
+            afterValue = format.parseBytesRef(value);
+        } else if (value.getClass() == BytesRef.class) {
+            // The value may be a bytes reference (eg an encoded tsid field)
+            afterValue = (BytesRef) value;
         } else {
             throw new IllegalArgumentException("invalid value, expected string, got " + value.getClass().getSimpleName());
         }
@@ -149,12 +159,17 @@ class BinaryValuesSource extends SingleDimensionValuesSource<BytesRef> {
 
     @Override
     BytesRef toComparable(int slot) {
-       return values.get(slot);
+        return values.get(slot);
     }
 
     @Override
     LeafBucketCollector getLeafCollector(LeafReaderContext context, LeafBucketCollector next) throws IOException {
         final SortedBinaryDocValues dvs = docValuesFunc.apply(context);
+        final BinaryDocValues singleton = FieldData.unwrapSingleton(dvs);
+        return singleton != null ? getLeafCollector(singleton, next) : getLeafCollector(dvs, next);
+    }
+
+    private LeafBucketCollector getLeafCollector(SortedBinaryDocValues dvs, LeafBucketCollector next) {
         return new LeafBucketCollector() {
             @Override
             public void collect(int doc, long bucket) throws IOException {
@@ -172,8 +187,23 @@ class BinaryValuesSource extends SingleDimensionValuesSource<BytesRef> {
         };
     }
 
+    private LeafBucketCollector getLeafCollector(BinaryDocValues dvs, LeafBucketCollector next) {
+        return new LeafBucketCollector() {
+            @Override
+            public void collect(int doc, long bucket) throws IOException {
+                if (dvs.advanceExact(doc)) {
+                    currentValue = dvs.binaryValue();
+                    next.collect(doc, bucket);
+                } else if (missingBucket) {
+                    currentValue = null;
+                    next.collect(doc, bucket);
+                }
+            }
+        };
+    }
+
     @Override
-    LeafBucketCollector getLeafCollector(Comparable value, LeafReaderContext context, LeafBucketCollector next) {
+    LeafBucketCollector getLeafCollector(Comparable<BytesRef> value, LeafReaderContext context, LeafBucketCollector next) {
         if (value.getClass() != BytesRef.class) {
             throw new IllegalArgumentException("Expected BytesRef, got " + value.getClass());
         }
@@ -188,9 +218,9 @@ class BinaryValuesSource extends SingleDimensionValuesSource<BytesRef> {
 
     @Override
     SortedDocsProducer createSortedDocsProducerOrNull(IndexReader reader, Query query) {
-        if (checkIfSortedDocsIsApplicable(reader, fieldType) == false ||
-                fieldType instanceof StringFieldType == false ||
-                    (query != null && query.getClass() != MatchAllDocsQuery.class)) {
+        if (checkIfSortedDocsIsApplicable(reader, fieldType) == false
+            || fieldType instanceof StringFieldType == false
+            || (query != null && query.getClass() != MatchAllDocsQuery.class)) {
             return null;
         }
         return new TermsSortedDocsProducer(fieldType.name());

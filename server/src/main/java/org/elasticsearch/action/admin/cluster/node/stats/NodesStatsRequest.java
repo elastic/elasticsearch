@@ -1,69 +1,45 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.cluster.node.stats;
 
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Map;
+import java.util.Set;
+import java.util.SortedSet;
+import java.util.TreeSet;
 
 /**
  * A request to get node (cluster) level stats.
  */
 public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
 
-    private CommonStatsFlags indices = new CommonStatsFlags();
-    private boolean os;
-    private boolean process;
-    private boolean jvm;
-    private boolean threadPool;
-    private boolean fs;
-    private boolean transport;
-    private boolean http;
-    private boolean breaker;
-    private boolean script;
-    private boolean discovery;
-    private boolean ingest;
-    private boolean adaptiveSelection;
+    private final NodesStatsRequestParameters nodesStatsRequestParameters;
 
     public NodesStatsRequest() {
         super((String[]) null);
+        nodesStatsRequestParameters = new NodesStatsRequestParameters();
     }
 
     public NodesStatsRequest(StreamInput in) throws IOException {
         super(in);
-        indices = new CommonStatsFlags(in);
-        os = in.readBoolean();
-        process = in.readBoolean();
-        jvm = in.readBoolean();
-        threadPool = in.readBoolean();
-        fs = in.readBoolean();
-        transport = in.readBoolean();
-        http = in.readBoolean();
-        breaker = in.readBoolean();
-        script = in.readBoolean();
-        discovery = in.readBoolean();
-        ingest = in.readBoolean();
-        adaptiveSelection = in.readBoolean();
+
+        nodesStatsRequestParameters = new NodesStatsRequestParameters(in);
     }
 
     /**
@@ -71,26 +47,20 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
      * for all nodes will be returned.
      */
     public NodesStatsRequest(String... nodesIds) {
+        this(new NodesStatsRequestParameters(), nodesIds);
+    }
+
+    public NodesStatsRequest(NodesStatsRequestParameters nodesStatsRequestParameters, String... nodesIds) {
         super(nodesIds);
+        this.nodesStatsRequestParameters = nodesStatsRequestParameters;
     }
 
     /**
      * Sets all the request flags.
      */
     public NodesStatsRequest all() {
-        this.indices.all();
-        this.os = true;
-        this.process = true;
-        this.jvm = true;
-        this.threadPool = true;
-        this.fs = true;
-        this.transport = true;
-        this.http = true;
-        this.breaker = true;
-        this.script = true;
-        this.discovery = true;
-        this.ingest = true;
-        this.adaptiveSelection = true;
+        this.nodesStatsRequestParameters.indices().all();
+        this.nodesStatsRequestParameters.requestedMetrics().addAll(NodesStatsRequestParameters.Metric.allMetrics());
         return this;
     }
 
@@ -98,28 +68,28 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
      * Clears all the request flags.
      */
     public NodesStatsRequest clear() {
-        this.indices.clear();
-        this.os = false;
-        this.process = false;
-        this.jvm = false;
-        this.threadPool = false;
-        this.fs = false;
-        this.transport = false;
-        this.http = false;
-        this.breaker = false;
-        this.script = false;
-        this.discovery = false;
-        this.ingest = false;
-        this.adaptiveSelection = false;
+        this.nodesStatsRequestParameters.indices().clear();
+        this.nodesStatsRequestParameters.requestedMetrics().clear();
         return this;
     }
 
+    /**
+     * Get nodesStatsMetrics.indices(). Handles separately from other metrics because it may or
+     * may not have submetrics.
+     * @return flags indicating which indices stats to return
+     */
     public CommonStatsFlags indices() {
-        return indices;
+        return nodesStatsRequestParameters.indices();
     }
 
+    /**
+     * Set nodesStatsMetrics.indices(). Handles separately from other metrics because it may or
+     * may not involve submetrics.
+     * @param indices flags indicating which indices stats to return
+     * @return This object, for request chaining.
+     */
     public NodesStatsRequest indices(CommonStatsFlags indices) {
-        this.indices = indices;
+        nodesStatsRequestParameters.setIndices(indices);
         return this;
     }
 
@@ -128,191 +98,93 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
      */
     public NodesStatsRequest indices(boolean indices) {
         if (indices) {
-            this.indices.all();
+            this.nodesStatsRequestParameters.indices().all();
         } else {
-            this.indices.clear();
+            this.nodesStatsRequestParameters.indices().clear();
         }
         return this;
     }
 
     /**
-     * Should the node OS be returned.
+     * Get the names of requested metrics, excluding indices, which are
+     * handled separately.
      */
-    public boolean os() {
-        return this.os;
+    public Set<String> requestedMetrics() {
+        return Set.copyOf(nodesStatsRequestParameters.requestedMetrics());
     }
 
     /**
-     * Should the node OS be returned.
+     * Add metric
      */
-    public NodesStatsRequest os(boolean os) {
-        this.os = os;
+    public NodesStatsRequest addMetric(String metric) {
+        if (NodesStatsRequestParameters.Metric.allMetrics().contains(metric) == false) {
+            throw new IllegalStateException("Used an illegal metric: " + metric);
+        }
+        nodesStatsRequestParameters.requestedMetrics().add(metric);
         return this;
     }
 
     /**
-     * Should the node Process be returned.
+     * Add an array of metric names
      */
-    public boolean process() {
-        return this.process;
-    }
-
-    /**
-     * Should the node Process be returned.
-     */
-    public NodesStatsRequest process(boolean process) {
-        this.process = process;
+    public NodesStatsRequest addMetrics(String... metrics) {
+        // use sorted set for reliable ordering in error messages
+        SortedSet<String> metricsSet = new TreeSet<>(Set.of(metrics));
+        if (NodesStatsRequestParameters.Metric.allMetrics().containsAll(metricsSet) == false) {
+            metricsSet.removeAll(NodesStatsRequestParameters.Metric.allMetrics());
+            String plural = metricsSet.size() == 1 ? "" : "s";
+            throw new IllegalStateException("Used illegal metric" + plural + ": " + metricsSet);
+        }
+        nodesStatsRequestParameters.requestedMetrics().addAll(metricsSet);
         return this;
     }
 
     /**
-     * Should the node JVM be returned.
+     * Remove metric
      */
-    public boolean jvm() {
-        return this.jvm;
-    }
-
-    /**
-     * Should the node JVM be returned.
-     */
-    public NodesStatsRequest jvm(boolean jvm) {
-        this.jvm = jvm;
+    public NodesStatsRequest removeMetric(String metric) {
+        if (NodesStatsRequestParameters.Metric.allMetrics().contains(metric) == false) {
+            throw new IllegalStateException("Used an illegal metric: " + metric);
+        }
+        nodesStatsRequestParameters.requestedMetrics().remove(metric);
         return this;
     }
 
-    /**
-     * Should the node Thread Pool be returned.
-     */
-    public boolean threadPool() {
-        return this.threadPool;
+    @Override
+    public String getDescription() {
+        return Strings.format(
+            "nodes=%s, metrics=%s, flags=%s",
+            Arrays.toString(nodesIds()),
+            nodesStatsRequestParameters.requestedMetrics().toString(),
+            Arrays.toString(nodesStatsRequestParameters.indices().getFlags())
+        );
     }
 
-    /**
-     * Should the node Thread Pool be returned.
-     */
-    public NodesStatsRequest threadPool(boolean threadPool) {
-        this.threadPool = threadPool;
-        return this;
+    @Override
+    public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+        return new CancellableTask(id, type, action, "", parentTaskId, headers) {
+            @Override
+            public String getDescription() {
+                return NodesStatsRequest.this.getDescription();
+            }
+        };
     }
 
-    /**
-     * Should the node file system stats be returned.
-     */
-    public boolean fs() {
-        return this.fs;
+    public boolean includeShardsStats() {
+        return nodesStatsRequestParameters.includeShardsStats();
     }
 
-    /**
-     * Should the node file system stats be returned.
-     */
-    public NodesStatsRequest fs(boolean fs) {
-        this.fs = fs;
-        return this;
-    }
-
-    /**
-     * Should the node Transport be returned.
-     */
-    public boolean transport() {
-        return this.transport;
-    }
-
-    /**
-     * Should the node Transport be returned.
-     */
-    public NodesStatsRequest transport(boolean transport) {
-        this.transport = transport;
-        return this;
-    }
-
-    /**
-     * Should the node HTTP be returned.
-     */
-    public boolean http() {
-        return this.http;
-    }
-
-    /**
-     * Should the node HTTP be returned.
-     */
-    public NodesStatsRequest http(boolean http) {
-        this.http = http;
-        return this;
-    }
-
-    public boolean breaker() {
-        return this.breaker;
-    }
-
-    /**
-     * Should the node's circuit breaker stats be returned.
-     */
-    public NodesStatsRequest breaker(boolean breaker) {
-        this.breaker = breaker;
-        return this;
-    }
-
-    public boolean script() {
-        return script;
-    }
-
-    public NodesStatsRequest script(boolean script) {
-        this.script = script;
-        return this;
-    }
-
-
-    public boolean discovery() {
-        return this.discovery;
-    }
-
-    /**
-     * Should the node's discovery stats be returned.
-     */
-    public NodesStatsRequest discovery(boolean discovery) {
-        this.discovery = discovery;
-        return this;
-    }
-
-    public boolean ingest() {
-        return ingest;
-    }
-
-    /**
-     * Should ingest statistics be returned.
-     */
-    public NodesStatsRequest ingest(boolean ingest) {
-        this.ingest = ingest;
-        return this;
-    }
-
-    public boolean adaptiveSelection() {
-        return adaptiveSelection;
-    }
-
-    /**
-     * Should adaptiveSelection statistics be returned.
-     */
-    public NodesStatsRequest adaptiveSelection(boolean adaptiveSelection) {
-        this.adaptiveSelection = adaptiveSelection;
-        return this;
+    public void setIncludeShardsStats(boolean includeShardsStats) {
+        nodesStatsRequestParameters.setIncludeShardsStats(includeShardsStats);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        indices.writeTo(out);
-        out.writeBoolean(os);
-        out.writeBoolean(process);
-        out.writeBoolean(jvm);
-        out.writeBoolean(threadPool);
-        out.writeBoolean(fs);
-        out.writeBoolean(transport);
-        out.writeBoolean(http);
-        out.writeBoolean(breaker);
-        out.writeBoolean(script);
-        out.writeBoolean(discovery);
-        out.writeBoolean(ingest);
-        out.writeBoolean(adaptiveSelection);
+        nodesStatsRequestParameters.writeTo(out);
+    }
+
+    public NodesStatsRequestParameters getNodesStatsRequestParameters() {
+        return nodesStatsRequestParameters;
     }
 }

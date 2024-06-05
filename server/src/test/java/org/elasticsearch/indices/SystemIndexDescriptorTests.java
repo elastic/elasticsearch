@@ -1,117 +1,467 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.indices;
 
+import org.apache.lucene.util.automaton.CharacterRunAutomaton;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.indices.SystemIndexDescriptor.Type;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.indices.SystemIndexDescriptor.findDynamicMapping;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
 public class SystemIndexDescriptorTests extends ESTestCase {
 
+    private static final int TEST_MAPPINGS_VERSION = 10;
+    private static final int TEST_MAPPINGS_PRIOR_VERSION = 5;
+    private static final int TEST_MAPPINGS_NONEXISTENT_VERSION = 2;
+
+    private static final String MAPPINGS_FORMAT_STRING = """
+        {
+          "_doc": {
+            "_meta": {
+              "version": "7.4.0",
+              "%s": %d
+            }
+          }
+        }
+        """;
+
+    private static final String MAPPINGS = getVersionedMappings(TEST_MAPPINGS_VERSION);
+
+    /**
+     * Tests the various validation rules that are applied when creating a new system index descriptor.
+     */
     public void testValidation() {
         {
-            Exception ex = expectThrows(NullPointerException.class,
-                () -> new SystemIndexDescriptor(null, randomAlphaOfLength(5)));
+            Exception ex = expectThrows(
+                NullPointerException.class,
+                () -> SystemIndexDescriptor.builder()
+                    .setIndexPattern(null)
+                    .setDescription(randomAlphaOfLength(5))
+                    .setType(Type.INTERNAL_UNMANAGED)
+                    .build()
+            );
             assertThat(ex.getMessage(), containsString("must not be null"));
         }
 
         {
-            Exception ex = expectThrows(IllegalArgumentException.class,
-                () -> new SystemIndexDescriptor("", randomAlphaOfLength(5)));
+            Exception ex = expectThrows(
+                IllegalArgumentException.class,
+                () -> SystemIndexDescriptor.builder()
+                    .setIndexPattern("")
+                    .setDescription(randomAlphaOfLength(5))
+                    .setType(Type.INTERNAL_UNMANAGED)
+                    .build()
+            );
             assertThat(ex.getMessage(), containsString("must at least 2 characters in length"));
         }
 
         {
-            Exception ex = expectThrows(IllegalArgumentException.class,
-                () -> new SystemIndexDescriptor(".", randomAlphaOfLength(5)));
+            Exception ex = expectThrows(
+                IllegalArgumentException.class,
+                () -> SystemIndexDescriptor.builder()
+                    .setIndexPattern(".")
+                    .setDescription(randomAlphaOfLength(5))
+                    .setType(Type.INTERNAL_UNMANAGED)
+                    .build()
+            );
             assertThat(ex.getMessage(), containsString("must at least 2 characters in length"));
         }
 
         {
-            Exception ex = expectThrows(IllegalArgumentException.class,
-                () -> new SystemIndexDescriptor(randomAlphaOfLength(10), randomAlphaOfLength(5)));
+            Exception ex = expectThrows(
+                IllegalArgumentException.class,
+                () -> SystemIndexDescriptor.builder()
+                    .setIndexPattern(randomAlphaOfLength(10))
+                    .setDescription(randomAlphaOfLength(5))
+                    .setType(Type.INTERNAL_UNMANAGED)
+                    .build()
+            );
             assertThat(ex.getMessage(), containsString("must start with the character [.]"));
         }
 
         {
-            Exception ex = expectThrows(IllegalArgumentException.class,
-                () -> new SystemIndexDescriptor(".*", randomAlphaOfLength(5)));
+            Exception ex = expectThrows(
+                IllegalArgumentException.class,
+                () -> SystemIndexDescriptor.builder()
+                    .setIndexPattern(".*")
+                    .setDescription(randomAlphaOfLength(5))
+                    .setType(Type.INTERNAL_UNMANAGED)
+                    .build()
+            );
             assertThat(ex.getMessage(), containsString("must not start with the character sequence [.*] to prevent conflicts"));
         }
         {
-            Exception ex = expectThrows(IllegalArgumentException.class,
-                () -> new SystemIndexDescriptor(".*" + randomAlphaOfLength(10), randomAlphaOfLength(5)));
+            Exception ex = expectThrows(
+                IllegalArgumentException.class,
+                () -> SystemIndexDescriptor.builder()
+                    .setIndexPattern(".*" + randomAlphaOfLength(10))
+                    .setDescription(randomAlphaOfLength(5))
+                    .setType(Type.INTERNAL_UNMANAGED)
+                    .build()
+            );
             assertThat(ex.getMessage(), containsString("must not start with the character sequence [.*] to prevent conflicts"));
+        }
+        {
+            final String primaryIndex = randomAlphaOfLength(5);
+            Exception ex = expectThrows(
+                IllegalArgumentException.class,
+                () -> SystemIndexDescriptor.builder().setIndexPattern("." + primaryIndex).setPrimaryIndex(primaryIndex).build()
+            );
+            assertThat(
+                ex.getMessage(),
+                equalTo("system primary index provided as [" + primaryIndex + "] but must start with the character [.]")
+            );
+        }
+        {
+            final String primaryIndex = "." + randomAlphaOfLength(5) + "*";
+            Exception ex = expectThrows(
+                IllegalArgumentException.class,
+                () -> SystemIndexDescriptor.builder().setIndexPattern("." + randomAlphaOfLength(5)).setPrimaryIndex(primaryIndex).build()
+            );
+            assertThat(
+                ex.getMessage(),
+                equalTo("system primary index provided as [" + primaryIndex + "] but cannot contain special characters or patterns")
+            );
         }
     }
 
-    public void testBasicOverlappingPatterns() {
-        SystemIndexDescriptor broadPattern = new SystemIndexDescriptor(".a*c*", "test");
-        SystemIndexDescriptor notOverlapping = new SystemIndexDescriptor(".bbbddd*", "test");
-        SystemIndexDescriptor overlapping1 = new SystemIndexDescriptor(".ac*", "test");
-        SystemIndexDescriptor overlapping2 = new SystemIndexDescriptor(".aaaabbbccc", "test");
-        SystemIndexDescriptor overlapping3 = new SystemIndexDescriptor(".aaabb*cccddd*", "test");
+    /**
+     * Check that a system index descriptor correctly identifies the presence of a dynamic mapping when once is present.
+     */
+    public void testFindDynamicMappingsWithDynamicMapping() {
+        String json = """
+            {
+              "foo": {
+                "bar": {
+                  "dynamic": false
+                },
+                "baz": {
+                  "dynamic": true
+                }
+              }
+            }""";
 
-        // These sources have fixed prefixes to make sure they sort in the same order, so that the error message is consistent
-        // across tests
-        String broadPatternSource = "AAA" + randomAlphaOfLength(5);
-        String otherSource = "ZZZ" + randomAlphaOfLength(6);
-        Map<String, Collection<SystemIndexDescriptor>> descriptors = new HashMap<>();
-        descriptors.put(broadPatternSource, Arrays.asList(broadPattern));
-        descriptors.put(otherSource, Arrays.asList(notOverlapping, overlapping1, overlapping2, overlapping3));
+        final Map<String, Object> mappings = XContentHelper.convertToMap(JsonXContent.jsonXContent, json, false);
 
-        IllegalStateException exception = expectThrows(IllegalStateException.class,
-            () -> SystemIndexDescriptor.checkForOverlappingPatterns(descriptors));
-        assertThat(exception.getMessage(), containsString("a system index descriptor [" + broadPattern +
-            "] from plugin [" + broadPatternSource + "] overlaps with other system index descriptors:"));
-        String fromPluginString = " from plugin [" + otherSource + "]";
-        assertThat(exception.getMessage(), containsString(overlapping1.toString() + fromPluginString));
-        assertThat(exception.getMessage(), containsString(overlapping2.toString() + fromPluginString));
-        assertThat(exception.getMessage(), containsString(overlapping3.toString() + fromPluginString));
-        assertThat(exception.getMessage(), not(containsString(notOverlapping.toString())));
+        assertThat(findDynamicMapping(mappings), equalTo(true));
     }
 
-    public void testComplexOverlappingPatterns() {
-        // These patterns are slightly more complex to detect because pattern1 does not match pattern2 and vice versa
-        SystemIndexDescriptor pattern1 = new SystemIndexDescriptor(".a*c", "test");
-        SystemIndexDescriptor pattern2 = new SystemIndexDescriptor(".ab*", "test");
+    /**
+     * Check that a system index descriptor correctly identifies the absence of a dynamic mapping when none are present.
+     */
+    public void testFindDynamicMappingsWithoutDynamicMapping() {
+        String json = """
+            { "foo": { "bar": { "dynamic": false } } }""";
 
-        // These sources have fixed prefixes to make sure they sort in the same order, so that the error message is consistent
-        // across tests
-        String source1 = "AAA" + randomAlphaOfLength(5);
-        String source2 = "ZZZ" + randomAlphaOfLength(6);
-        Map<String, Collection<SystemIndexDescriptor>> descriptors = new HashMap<>();
-        descriptors.put(source1, Arrays.asList(pattern1));
-        descriptors.put(source2, Arrays.asList(pattern2));
+        final Map<String, Object> mappings = XContentHelper.convertToMap(JsonXContent.jsonXContent, json, false);
 
-        IllegalStateException exception = expectThrows(IllegalStateException.class,
-            () -> SystemIndexDescriptor.checkForOverlappingPatterns(descriptors));
-        assertThat(exception.getMessage(), containsString("a system index descriptor [" + pattern1 +
-            "] from plugin [" + source1 + "] overlaps with other system index descriptors:"));
-        assertThat(exception.getMessage(), containsString(pattern2.toString() + " from plugin [" + source2 + "]"));
+        assertThat(findDynamicMapping(mappings), equalTo(false));
+    }
 
+    public void testPriorSystemIndexDescriptorValidation() {
+        SystemIndexDescriptor prior = priorSystemIndexDescriptorBuilder().build();
+
+        // same minimum node version
+        IllegalArgumentException iae = expectThrows(
+            IllegalArgumentException.class,
+            () -> priorSystemIndexDescriptorBuilder().setPriorSystemIndexDescriptors(List.of(prior)).build()
+        );
+        assertThat(iae.getMessage(), containsString("same mappings version"));
+
+        // different min version but prior is after latest!
+        iae = expectThrows(
+            IllegalArgumentException.class,
+            () -> priorSystemIndexDescriptorBuilder().setMappings(getVersionedMappings(TEST_MAPPINGS_VERSION - 1))
+                .setPriorSystemIndexDescriptors(List.of(prior))
+                .build()
+        );
+        assertThat(iae.getMessage(), containsString("has mappings version [10] which is after [9]"));
+
+        // prior has another prior!
+        iae = expectThrows(
+            IllegalArgumentException.class,
+            () -> priorSystemIndexDescriptorBuilder().setMappings(getVersionedMappings(TEST_MAPPINGS_VERSION + 2))
+                .setPriorSystemIndexDescriptors(
+                    List.of(
+                        SystemIndexDescriptor.builder()
+                            .setIndexPattern(".system*")
+                            .setDescription("system stuff")
+                            .setPrimaryIndex(".system-1")
+                            .setAliasName(".system")
+                            .setType(Type.INTERNAL_MANAGED)
+                            .setSettings(Settings.EMPTY)
+                            .setMappings(getVersionedMappings(TEST_MAPPINGS_VERSION + 1))
+                            .setVersionMetaKey("version")
+                            .setOrigin("system")
+                            .setPriorSystemIndexDescriptors(List.of(prior))
+                            .build()
+                    )
+                )
+                .build()
+        );
+        assertThat(iae.getMessage(), containsString("has its own prior descriptors"));
+
+        // different index patterns
+        iae = expectThrows(
+            IllegalArgumentException.class,
+            () -> priorSystemIndexDescriptorBuilder().setIndexPattern(".system1*")
+                .setMappings(getVersionedMappings(TEST_MAPPINGS_VERSION + 1))
+                .setPriorSystemIndexDescriptors(List.of(prior))
+                .build()
+        );
+        assertThat(iae.getMessage(), containsString("index pattern must be the same"));
+
+        // different primary index
+        iae = expectThrows(
+            IllegalArgumentException.class,
+            () -> priorSystemIndexDescriptorBuilder().setPrimaryIndex(".system-2")
+                .setMappings(getVersionedMappings(TEST_MAPPINGS_VERSION + 1))
+                .setPriorSystemIndexDescriptors(List.of(prior))
+                .build()
+        );
+        assertThat(iae.getMessage(), containsString("primary index must be the same"));
+
+        // different alias
+        iae = expectThrows(
+            IllegalArgumentException.class,
+            () -> priorSystemIndexDescriptorBuilder().setAliasName(".system1")
+                .setMappings(getVersionedMappings(TEST_MAPPINGS_VERSION + 1))
+                .setPriorSystemIndexDescriptors(List.of(prior))
+                .build()
+        );
+        assertThat(iae.getMessage(), containsString("alias name must be the same"));
+
+        // success!
+        assertNotNull(
+            priorSystemIndexDescriptorBuilder().setMappings(getVersionedMappings(TEST_MAPPINGS_VERSION + 1))
+                .setPriorSystemIndexDescriptors(List.of(prior))
+                .build()
+        );
+    }
+
+    private static String getVersionedMappings(int version) {
+        return Strings.format(MAPPINGS_FORMAT_STRING, SystemIndexDescriptor.VERSION_META_KEY, version);
+    }
+
+    public void testGetDescriptorCompatibleWith() {
+        final SystemIndexDescriptor prior = SystemIndexDescriptor.builder()
+            .setIndexPattern(".system*")
+            .setDescription("system stuff")
+            .setPrimaryIndex(".system-1")
+            .setAliasName(".system")
+            .setType(Type.INTERNAL_MANAGED)
+            .setSettings(Settings.EMPTY)
+            .setMappings(getVersionedMappings(TEST_MAPPINGS_PRIOR_VERSION))
+            .setVersionMetaKey("version")
+            .setOrigin("system")
+            .setMinimumNodeVersion(Version.V_7_0_0)
+            .build();
+        final SystemIndexDescriptor descriptor = SystemIndexDescriptor.builder()
+            .setIndexPattern(".system*")
+            .setDescription("system stuff")
+            .setPrimaryIndex(".system-1")
+            .setAliasName(".system")
+            .setType(Type.INTERNAL_MANAGED)
+            .setSettings(Settings.EMPTY)
+            .setMappings(MAPPINGS)
+            .setVersionMetaKey("version")
+            .setOrigin("system")
+            .setPriorSystemIndexDescriptors(List.of(prior))
+            .build();
+
+        SystemIndexDescriptor compat = descriptor.getDescriptorCompatibleWith(Version.CURRENT);
+        assertSame(descriptor, compat);
+
+        compat = descriptor.getDescriptorCompatibleWith(descriptor.getMappingsVersion());
+        assertSame(descriptor, compat);
+
+        assertNull(descriptor.getDescriptorCompatibleWith(Version.fromString("6.8.0")));
+        assertNull(descriptor.getDescriptorCompatibleWith(new SystemIndexDescriptor.MappingsVersion(TEST_MAPPINGS_NONEXISTENT_VERSION, 1)));
+
+        compat = descriptor.getDescriptorCompatibleWith(Version.CURRENT.minimumCompatibilityVersion());
+        assertSame(descriptor, compat);
+
+        Version priorToMin = VersionUtils.getPreviousVersion(descriptor.getMinimumNodeVersion());
+        compat = descriptor.getDescriptorCompatibleWith(priorToMin);
+        assertSame(prior, compat);
+
+        SystemIndexDescriptor.MappingsVersion priorToMinMappingsVersion = new SystemIndexDescriptor.MappingsVersion(
+            TEST_MAPPINGS_PRIOR_VERSION,
+            1
+        );
+        compat = descriptor.getDescriptorCompatibleWith(priorToMinMappingsVersion);
+        assertSame(prior, compat);
+
+        compat = descriptor.getDescriptorCompatibleWith(
+            VersionUtils.randomVersionBetween(random(), prior.getMinimumNodeVersion(), priorToMin)
+        );
+        assertSame(prior, compat);
+
+        compat = descriptor.getDescriptorCompatibleWith(
+            new SystemIndexDescriptor.MappingsVersion(randomIntBetween(TEST_MAPPINGS_PRIOR_VERSION, TEST_MAPPINGS_VERSION - 1), 1)
+        );
+        assertSame(prior, compat);
+    }
+
+    public void testSystemIndicesMustBeHidden() {
+        SystemIndexDescriptor.Builder builder = SystemIndexDescriptor.builder()
+            .setIndexPattern(".system*")
+            .setDescription("system stuff")
+            .setPrimaryIndex(".system-1")
+            .setAliasName(".system")
+            .setType(Type.INTERNAL_MANAGED)
+            .setMappings(MAPPINGS)
+            .setVersionMetaKey("version")
+            .setOrigin("system");
+
+        builder.setSettings(Settings.builder().put(IndexMetadata.SETTING_INDEX_HIDDEN, false).build());
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, builder::build);
+
+        assertThat(e.getMessage(), equalTo("System indices must have index.hidden set to true."));
+    }
+
+    public void testSpecialCharactersAreReplacedWhenConvertingToAutomaton() {
+        CharacterRunAutomaton automaton = new CharacterRunAutomaton(
+            SystemIndexDescriptor.buildAutomaton(".system-index*", ".system-alias")
+        );
+
+        // None of these should match, ever.
+        assertFalse(automaton.run(".my-system-index"));
+        assertFalse(automaton.run("my.system-index"));
+        assertFalse(automaton.run("some-other-index"));
+
+        // These should only fail if the trailing `*` doesn't get properly replaced with `.*`
+        assertTrue("if the trailing * isn't replaced, suffixes won't match properly", automaton.run(".system-index-1"));
+        assertTrue("if the trailing * isn't replaced, suffixes won't match properly", automaton.run(".system-index-asdf"));
+
+        // These should only fail if the leading `.` doesn't get properly replaced with `\\.`
+        assertFalse("if the leading dot isn't replaced, it can match date math", automaton.run("<system-index-{now/d}>"));
+        assertFalse("if the leading dot isn't replaced, it can match any single-char prefix", automaton.run("Osystem-index"));
+        assertFalse("the leading dot got dropped", automaton.run("system-index-1"));
+    }
+
+    public void testManagedSystemIndexMustHaveMatchingIndexFormat() {
+        SystemIndexDescriptor.Builder builder = SystemIndexDescriptor.builder()
+            .setIndexPattern(".system*")
+            .setDescription("system stuff")
+            .setPrimaryIndex(".system-1")
+            .setAliasName(".system")
+            .setType(Type.INTERNAL_MANAGED)
+            .setMappings(MAPPINGS)
+            .setSettings(Settings.builder().put("index.format", 5).build())
+            .setIndexFormat(0)
+            .setVersionMetaKey("version")
+            .setOrigin("system");
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, builder::build);
+
+        assertThat(e.getMessage(), equalTo("Descriptor index format does not match index format in managed settings"));
+    }
+
+    public void testUnmanagedIndexMappingsVersion() {
+        SystemIndexDescriptor indexDescriptor = SystemIndexDescriptor.builder()
+            .setIndexPattern(".unmanaged-*")
+            .setDescription("an unmanaged system index")
+            .setType(Type.INTERNAL_UNMANAGED)
+            .build();
+
+        IllegalStateException e = expectThrows(IllegalStateException.class, indexDescriptor::getMappingsVersion);
+
+        assertThat(e.getMessage(), containsString("is not managed so there are no mappings or version"));
+    }
+
+    // test mapping versions can't be negative
+    public void testNegativeMappingsVersion() {
+        int negativeVersion = randomIntBetween(Integer.MIN_VALUE, -1);
+        String mappings = Strings.format("""
+            {
+              "_doc": {
+                "_meta": {
+                  "version": "7.4.0",
+                  "%s": %d
+                }
+              }
+            }
+            """, SystemIndexDescriptor.VERSION_META_KEY, negativeVersion);
+
+        SystemIndexDescriptor.Builder builder = priorSystemIndexDescriptorBuilder().setMappings(mappings);
+
+        AssertionError e = expectThrows(AssertionError.class, builder::build);
+
+        assertThat(e.getMessage(), equalTo("The mappings version must not be negative"));
+    }
+
+    public void testMappingsVersionCompareTo() {
+        SystemIndexDescriptor.MappingsVersion mv1 = new SystemIndexDescriptor.MappingsVersion(1, randomInt(20));
+        SystemIndexDescriptor.MappingsVersion mv2 = new SystemIndexDescriptor.MappingsVersion(2, randomInt(20));
+
+        NullPointerException e = expectThrows(NullPointerException.class, () -> mv1.compareTo(null));
+        assertThat(e.getMessage(), equalTo("Cannot compare null MappingsVersion"));
+
+        assertThat(mv1.compareTo(mv2), equalTo(-1));
+        assertThat(mv1.compareTo(mv1), equalTo(0));
+        assertThat(mv2.compareTo(mv1), equalTo(1));
+    }
+
+    public void testHashesIgnoreMappingMetadata() {
+        String mappingFormatString = """
+            {
+              "_doc": {
+                "_meta": {
+                  "version": "%s",
+                  "%s": %d
+                }
+              },
+              "properties": {
+                "age":    { "type": "integer" },
+                "email":  { "type": "keyword"  },
+                "name":   { "type": "text"  }
+              }
+            }
+            """;
+
+        String mappings1 = Strings.format(mappingFormatString, "8.9.0", SystemIndexDescriptor.VERSION_META_KEY, randomIntBetween(1, 10));
+        String mappings2 = Strings.format(mappingFormatString, "8.10.0", SystemIndexDescriptor.VERSION_META_KEY, randomIntBetween(11, 20));
+
+        SystemIndexDescriptor descriptor1 = priorSystemIndexDescriptorBuilder().setMappings(mappings1).build();
+        SystemIndexDescriptor descriptor2 = priorSystemIndexDescriptorBuilder().setMappings(mappings2).build();
+
+        assertThat(descriptor1.getMappingsVersion().hash(), equalTo(descriptor2.getMappingsVersion().hash()));
+        assertThat(descriptor1.getMappingsVersion().version(), not(equalTo(descriptor2.getMappingsVersion().version())));
+        assertThat(descriptor1.getMappingsNodeVersion(), not(equalTo(descriptor2.getMappingsNodeVersion())));
+    }
+
+    private SystemIndexDescriptor.Builder priorSystemIndexDescriptorBuilder() {
+        return SystemIndexDescriptor.builder()
+            .setIndexPattern(".system*")
+            .setDescription("system stuff")
+            .setPrimaryIndex(".system-1")
+            .setAliasName(".system")
+            .setType(Type.INTERNAL_MANAGED)
+            .setSettings(Settings.EMPTY)
+            .setMappings(MAPPINGS)
+            .setVersionMetaKey("version")
+            .setOrigin("system")
+            .setMinimumNodeVersion(Version.V_7_0_0);
     }
 }

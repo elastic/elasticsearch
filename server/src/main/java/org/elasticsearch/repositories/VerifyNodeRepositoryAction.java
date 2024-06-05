@@ -1,29 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.repositories;
 
-import com.carrotsearch.hppc.ObjectContainer;
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -32,18 +18,20 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.EmptyTransportResponseHandler;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class VerifyNodeRepositoryAction {
@@ -58,24 +46,32 @@ public class VerifyNodeRepositoryAction {
 
     private final RepositoriesService repositoriesService;
 
-    public VerifyNodeRepositoryAction(TransportService transportService, ClusterService clusterService,
-                                      RepositoriesService repositoriesService) {
+    public VerifyNodeRepositoryAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        RepositoriesService repositoriesService
+    ) {
         this.transportService = transportService;
         this.clusterService = clusterService;
         this.repositoriesService = repositoriesService;
-        transportService.registerRequestHandler(ACTION_NAME, ThreadPool.Names.SNAPSHOT, VerifyNodeRepositoryRequest::new,
-            new VerifyNodeRepositoryRequestHandler());
+        transportService.registerRequestHandler(
+            ACTION_NAME,
+            transportService.getThreadPool().executor(ThreadPool.Names.SNAPSHOT),
+            VerifyNodeRepositoryRequest::new,
+            new VerifyNodeRepositoryRequestHandler()
+        );
     }
 
     public void verify(String repository, String verificationToken, final ActionListener<List<DiscoveryNode>> listener) {
         final DiscoveryNodes discoNodes = clusterService.state().nodes();
         final DiscoveryNode localNode = discoNodes.getLocalNode();
 
-        final ObjectContainer<DiscoveryNode> masterAndDataNodes = discoNodes.getMasterAndDataNodes().values();
+        final Collection<DiscoveryNode> masterAndDataNodes = discoNodes.getMasterAndDataNodes().values();
         final List<DiscoveryNode> nodes = new ArrayList<>();
-        for (ObjectCursor<DiscoveryNode> cursor : masterAndDataNodes) {
-            DiscoveryNode node = cursor.value;
-            nodes.add(node);
+        for (DiscoveryNode node : masterAndDataNodes) {
+            if (RepositoriesService.isDedicatedVotingOnlyNode(node.getRoles()) == false) {
+                nodes.add(node);
+            }
         }
         final CopyOnWriteArrayList<VerificationFailure> errors = new CopyOnWriteArrayList<>();
         final AtomicInteger counter = new AtomicInteger(nodes.size());
@@ -84,17 +80,25 @@ public class VerifyNodeRepositoryAction {
                 try {
                     doVerify(repository, verificationToken, localNode);
                 } catch (Exception e) {
-                    logger.warn(() -> new ParameterizedMessage("[{}] failed to verify repository", repository), e);
+                    logger.warn(() -> "[" + repository + "] failed to verify repository", e);
                     errors.add(new VerificationFailure(node.getId(), e));
                 }
                 if (counter.decrementAndGet() == 0) {
                     finishVerification(repository, listener, nodes, errors);
                 }
             } else {
-                transportService.sendRequest(node, ACTION_NAME, new VerifyNodeRepositoryRequest(repository, verificationToken),
-                    new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
+                transportService.sendRequest(
+                    node,
+                    ACTION_NAME,
+                    new VerifyNodeRepositoryRequest(repository, verificationToken),
+                    new TransportResponseHandler.Empty() {
                         @Override
-                        public void handleResponse(TransportResponse.Empty response) {
+                        public Executor executor() {
+                            return TransportResponseHandler.TRANSPORT_WORKER;
+                        }
+
+                        @Override
+                        public void handleResponse() {
                             if (counter.decrementAndGet() == 0) {
                                 finishVerification(repository, listener, nodes, errors);
                             }
@@ -107,13 +111,18 @@ public class VerifyNodeRepositoryAction {
                                 finishVerification(repository, listener, nodes, errors);
                             }
                         }
-                    });
+                    }
+                );
             }
         }
     }
 
-    private static void finishVerification(String repositoryName, ActionListener<List<DiscoveryNode>> listener, List<DiscoveryNode> nodes,
-                                   CopyOnWriteArrayList<VerificationFailure> errors) {
+    private static void finishVerification(
+        String repositoryName,
+        ActionListener<List<DiscoveryNode>> listener,
+        List<DiscoveryNode> nodes,
+        CopyOnWriteArrayList<VerificationFailure> errors
+    ) {
         if (errors.isEmpty() == false) {
             RepositoryVerificationException e = new RepositoryVerificationException(repositoryName, errors.toString());
             for (VerificationFailure error : errors) {
@@ -132,8 +141,8 @@ public class VerifyNodeRepositoryAction {
 
     public static class VerifyNodeRepositoryRequest extends TransportRequest {
 
-        private String repository;
-        private String verificationToken;
+        private final String repository;
+        private final String verificationToken;
 
         public VerifyNodeRepositoryRequest(StreamInput in) throws IOException {
             super(in);
@@ -161,7 +170,7 @@ public class VerifyNodeRepositoryAction {
             try {
                 doVerify(request.repository, request.verificationToken, localNode);
             } catch (Exception ex) {
-                logger.warn(() -> new ParameterizedMessage("[{}] failed to verify repository", request.repository), ex);
+                logger.warn(() -> "[" + request.repository + "] failed to verify repository", ex);
                 throw ex;
             }
             channel.sendResponse(TransportResponse.Empty.INSTANCE);

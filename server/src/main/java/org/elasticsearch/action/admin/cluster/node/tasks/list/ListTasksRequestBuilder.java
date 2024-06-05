@@ -1,34 +1,23 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.cluster.node.tasks.list;
 
 import org.elasticsearch.action.support.tasks.TasksRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 
 /**
  * Builder for the request to retrieve the list of tasks running on the specified nodes
  */
 public class ListTasksRequestBuilder extends TasksRequestBuilder<ListTasksRequest, ListTasksResponse, ListTasksRequestBuilder> {
 
-    public ListTasksRequestBuilder(ElasticsearchClient client, ListTasksAction action) {
-        super(client, action, new ListTasksRequest());
+    public ListTasksRequestBuilder(ElasticsearchClient client) {
+        super(client, TransportListTasksAction.TYPE, new ListTasksRequest());
     }
 
     /**
@@ -44,6 +33,18 @@ public class ListTasksRequestBuilder extends TasksRequestBuilder<ListTasksReques
      */
     public final ListTasksRequestBuilder setWaitForCompletion(boolean waitForCompletion) {
         request.setWaitForCompletion(waitForCompletion);
+        return this;
+    }
+
+    /**
+     * Should the task match specific descriptions.
+     *
+     * Cannot be used unless {@link ListTasksRequestBuilder#setDetailed(boolean)} is `true`
+     * @param descriptions string array containing simple regex or absolute description matching
+     * @return the builder with descriptions set
+     */
+    public final ListTasksRequestBuilder setDescriptions(String... descriptions) {
+        request.setDescriptions(descriptions);
         return this;
     }
 }

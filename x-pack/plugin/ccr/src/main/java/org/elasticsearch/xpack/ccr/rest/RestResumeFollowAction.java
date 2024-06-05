@@ -1,26 +1,30 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ccr.rest;
 
-import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.List;
 
+import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.INSTANCE;
 import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request;
 
 public class RestResumeFollowAction extends BaseRestHandler {
 
-    public RestResumeFollowAction(RestController controller) {
-        controller.registerHandler(RestRequest.Method.POST, "/{index}/_ccr/resume_follow", this);
+    @Override
+    public List<Route> routes() {
+        return List.of(new Route(POST, "/{index}/_ccr/resume_follow"));
     }
 
     @Override
@@ -37,10 +41,10 @@ public class RestResumeFollowAction extends BaseRestHandler {
     static Request createRequest(RestRequest restRequest) throws IOException {
         if (restRequest.hasContentOrSourceParam()) {
             try (XContentParser parser = restRequest.contentOrSourceParamParser()) {
-                return Request.fromXContent(parser, restRequest.param("index"));
+                return Request.fromXContent(getMasterNodeTimeout(restRequest), parser, restRequest.param("index"));
             }
         } else {
-            Request request = new Request();
+            final var request = new Request(getMasterNodeTimeout(restRequest));
             request.setFollowerIndex(restRequest.param("index"));
             return request;
         }

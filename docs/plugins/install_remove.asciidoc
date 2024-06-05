@@ -1,14 +1,12 @@
-[float]
+[discrete]
 [id="{plugin_name}-install"]
 ==== Installation
 
 ifeval::["{release-state}"=="unreleased"]
 
-Version {version} of the Elastic Stack has not yet been released.
+WARNING: Version {version} of the Elastic Stack has not yet been released.
 
 endif::[]
-
-ifeval::["{release-state}"!="unreleased"]
 
 This plugin can be installed using the plugin manager:
 
@@ -20,12 +18,13 @@ sudo bin/elasticsearch-plugin install {plugin_name}
 The plugin must be installed on every node in the cluster, and each node must
 be restarted after installation.
 
-This plugin can be downloaded for <<plugin-management-custom-url,offline install>> from
-{plugin_url}/{plugin_name}/{plugin_name}-{version}.zip.
+You can download this plugin for <<plugin-management-custom-url,offline
+install>> from {plugin_url}/{plugin_name}/{plugin_name}-{version}.zip. To verify
+the `.zip` file, use the
+{plugin_url}/{plugin_name}/{plugin_name}-{version}.zip.sha512[SHA hash] or
+{plugin_url}/{plugin_name}/{plugin_name}-{version}.zip.asc[ASC key].
 
-endif::[]
-
-[float]
+[discrete]
 [id="{plugin_name}-remove"]
 ==== Removal
 

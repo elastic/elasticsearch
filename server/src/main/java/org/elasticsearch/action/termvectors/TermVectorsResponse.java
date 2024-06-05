@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.termvectors;
@@ -27,20 +16,19 @@ import org.apache.lucene.search.BoostAttribute;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CharsRefBuilder;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.termvectors.TermVectorsRequest.Flag;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.search.dfs.AggregatedDfs;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -69,7 +57,6 @@ public class TermVectorsResponse extends ActionResponse implements ToXContentObj
         public static final String END_OFFSET = "end_offset";
         public static final String PAYLOAD = "payload";
         public static final String _INDEX = "_index";
-        public static final String _TYPE = "_type";
         public static final String _ID = "_id";
         public static final String _VERSION = "_version";
         public static final String FOUND = "found";
@@ -80,15 +67,13 @@ public class TermVectorsResponse extends ActionResponse implements ToXContentObj
 
     private BytesReference termVectors;
     private BytesReference headerRef;
-    private String index;
-    private String id;
+    private final String index;
+    private final String id;
     private long docVersion;
     private boolean exists = false;
     private boolean artificial = false;
     private long tookInMillis;
     private boolean hasScores = false;
-
-    private boolean sourceCopied = false;
 
     int[] currentPositions = new int[0];
     int[] currentStartOffset = new int[0];
@@ -100,12 +85,9 @@ public class TermVectorsResponse extends ActionResponse implements ToXContentObj
         this.id = id;
     }
 
-    TermVectorsResponse() {
-    }
-
     TermVectorsResponse(StreamInput in) throws IOException {
         index = in.readString();
-        if (in.getVersion().before(Version.V_8_0_0)) {
+        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             // types no longer relevant so ignore
             in.readString();
         }
@@ -123,7 +105,7 @@ public class TermVectorsResponse extends ActionResponse implements ToXContentObj
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(index);
-        if (out.getVersion().before(Version.V_8_0_0)) {
+        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             // types not supported so send an empty array to previous versions
             out.writeString(MapperService.SINGLE_MAPPING_NAME);
         }
@@ -147,10 +129,8 @@ public class TermVectorsResponse extends ActionResponse implements ToXContentObj
 
     public Fields getFields() throws IOException {
         if (hasTermVectors() && isExists()) {
-            if (!sourceCopied) { // make the bytes safe
-                headerRef = new BytesArray(headerRef.toBytesRef(), true);
-                termVectors = new BytesArray(termVectors.toBytesRef(), true);
-            }
+            headerRef = new BytesArray(headerRef.toBytesRef(), true);
+            termVectors = new BytesArray(termVectors.toBytesRef(), true);
             TermVectorsFields termVectorsFields = new TermVectorsFields(headerRef, termVectors);
             hasScores = termVectorsFields.hasScores;
             return termVectorsFields;
@@ -180,8 +160,11 @@ public class TermVectorsResponse extends ActionResponse implements ToXContentObj
         assert id != null;
         builder.startObject();
         builder.field(FieldStrings._INDEX, index);
-        if (!isArtificial()) {
+        if (isArtificial() == false) {
             builder.field(FieldStrings._ID, id);
+        }
+        if (builder.getRestApiVersion() == RestApiVersion.V_7) {
+            builder.field(MapperService.TYPE_FIELD_NAME, MapperService.SINGLE_MAPPING_NAME);
         }
         builder.field(FieldStrings._VERSION, docVersion);
         builder.field(FieldStrings.FOUND, isExists());
@@ -200,8 +183,8 @@ public class TermVectorsResponse extends ActionResponse implements ToXContentObj
         return builder;
     }
 
-    private void buildField(XContentBuilder builder, final CharsRefBuilder spare,
-                            Fields theFields, Iterator<String> fieldIter) throws IOException {
+    private void buildField(XContentBuilder builder, final CharsRefBuilder spare, Fields theFields, Iterator<String> fieldIter)
+        throws IOException {
         String fieldName = fieldIter.next();
         builder.startObject(fieldName);
         Terms curTerms = theFields.terms(fieldName);
@@ -217,8 +200,13 @@ public class TermVectorsResponse extends ActionResponse implements ToXContentObj
         builder.endObject();
     }
 
-    private void buildTerm(XContentBuilder builder, final CharsRefBuilder spare, Terms curTerms,
-                           TermsEnum termIter, BoostAttribute boostAtt) throws IOException {
+    private void buildTerm(
+        XContentBuilder builder,
+        final CharsRefBuilder spare,
+        Terms curTerms,
+        TermsEnum termIter,
+        BoostAttribute boostAtt
+    ) throws IOException {
         // start term, optimized writing
         BytesRef term = termIter.next();
         spare.copyUTF8Bytes(term);
@@ -235,13 +223,13 @@ public class TermVectorsResponse extends ActionResponse implements ToXContentObj
         builder.endObject();
     }
 
-    private void buildTermStatistics(XContentBuilder builder, TermsEnum termIter) throws IOException {
+    private static void buildTermStatistics(XContentBuilder builder, TermsEnum termIter) throws IOException {
         // write term statistics. At this point we do not naturally have a
         // boolean that says if these values actually were requested.
         // However, we can assume that they were not if the statistic values are
         // <= 0.
-        assert (((termIter.docFreq() > 0) && (termIter.totalTermFreq() > 0)) ||
-            ((termIter.docFreq() == -1) && (termIter.totalTermFreq() == -1)));
+        assert (((termIter.docFreq() > 0) && (termIter.totalTermFreq() > 0))
+            || ((termIter.docFreq() == -1) && (termIter.totalTermFreq() == -1)));
         int docFreq = termIter.docFreq();
         if (docFreq > 0) {
             builder.field(FieldStrings.DOC_FREQ, docFreq);
@@ -250,7 +238,7 @@ public class TermVectorsResponse extends ActionResponse implements ToXContentObj
     }
 
     private void buildValues(XContentBuilder builder, Terms curTerms, int termFreq) throws IOException {
-        if (!(curTerms.hasPayloads() || curTerms.hasOffsets() || curTerms.hasPositions())) {
+        if ((curTerms.hasPayloads() || curTerms.hasOffsets() || curTerms.hasPositions()) == false) {
             return;
         }
 
@@ -308,7 +296,7 @@ public class TermVectorsResponse extends ActionResponse implements ToXContentObj
         }
     }
 
-    private void buildFieldStatistics(XContentBuilder builder, Terms curTerms) throws IOException {
+    private static void buildFieldStatistics(XContentBuilder builder, Terms curTerms) throws IOException {
         long sumDocFreq = curTerms.getSumDocFreq();
         int docCount = curTerms.getDocCount();
         long sumTotalTermFrequencies = curTerms.getSumTotalTermFreq();
@@ -327,9 +315,20 @@ public class TermVectorsResponse extends ActionResponse implements ToXContentObj
             assert ((sumTotalTermFrequencies == -1)) : "docCount was -1 but sumTotalTermFrequencies ain't!";
         } else {
             throw new IllegalStateException(
-                    "Something is wrong with the field statistics of the term vector request: Values are " + "\n"
-                            + FieldStrings.SUM_DOC_FREQ + " " + sumDocFreq + "\n" + FieldStrings.DOC_COUNT + " " + docCount + "\n"
-                            + FieldStrings.SUM_TTF + " " + sumTotalTermFrequencies);
+                "Something is wrong with the field statistics of the term vector request: Values are "
+                    + "\n"
+                    + FieldStrings.SUM_DOC_FREQ
+                    + " "
+                    + sumDocFreq
+                    + "\n"
+                    + FieldStrings.DOC_COUNT
+                    + " "
+                    + docCount
+                    + "\n"
+                    + FieldStrings.SUM_TTF
+                    + " "
+                    + sumTotalTermFrequencies
+            );
         }
     }
 
@@ -352,20 +351,25 @@ public class TermVectorsResponse extends ActionResponse implements ToXContentObj
     }
 
     public void setExists(boolean exists) {
-         this.exists = exists;
+        this.exists = exists;
     }
 
-    public void setFields(Fields termVectorsByField, Set<String> selectedFields,
-                          EnumSet<Flag> flags, Fields topLevelFields) throws IOException {
-        setFields(termVectorsByField, selectedFields, flags, topLevelFields, null, null);
+    public void setFields(Fields termVectorsByField, Set<String> selectedFields, EnumSet<Flag> flags, Fields topLevelFields)
+        throws IOException {
+        setFields(termVectorsByField, selectedFields, flags, topLevelFields, null);
     }
 
-    public void setFields(Fields termVectorsByField, Set<String> selectedFields, EnumSet<Flag> flags,
-                          Fields topLevelFields, @Nullable AggregatedDfs dfs, TermVectorsFilter termVectorsFilter) throws IOException {
+    public void setFields(
+        Fields termVectorsByField,
+        Set<String> selectedFields,
+        EnumSet<Flag> flags,
+        Fields topLevelFields,
+        TermVectorsFilter termVectorsFilter
+    ) throws IOException {
         TermVectorsWriter tvw = new TermVectorsWriter(this);
 
         if (termVectorsByField != null) {
-            tvw.setFields(termVectorsByField, selectedFields, flags, topLevelFields, dfs, termVectorsFilter);
+            tvw.setFields(termVectorsByField, selectedFields, flags, topLevelFields, termVectorsFilter);
         }
     }
 

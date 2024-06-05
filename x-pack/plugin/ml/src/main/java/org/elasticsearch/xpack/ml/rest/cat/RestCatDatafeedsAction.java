@@ -1,32 +1,43 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.rest.cat;
 
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.rest.RestController;
+import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestResponseListener;
 import org.elasticsearch.rest.action.cat.AbstractCatAction;
 import org.elasticsearch.rest.action.cat.RestTable;
+import org.elasticsearch.xpack.core.common.table.TableColumnAttributeBuilder;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction;
+import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction.Request;
+import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction.Response;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
 
-import static org.elasticsearch.rest.RestRequest.Method.GET;
+import java.util.List;
 
+import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.xpack.core.ml.MachineLearningField.DEPRECATED_ALLOW_NO_DATAFEEDS_PARAM;
+import static org.elasticsearch.xpack.ml.rest.RestCompatibilityChecker.checkAndSetDeprecatedParam;
+
+@ServerlessScope(Scope.PUBLIC)
 public class RestCatDatafeedsAction extends AbstractCatAction {
 
-    public RestCatDatafeedsAction(RestController controller) {
-        controller.registerHandler(GET, "_cat/ml/datafeeds/{" + DatafeedConfig.ID.getPreferredName() + "}", this);
-        controller.registerHandler(GET, "_cat/ml/datafeeds", this);
+    @Override
+    public List<Route> routes() {
+        return List.of(new Route(GET, "_cat/ml/datafeeds/{" + DatafeedConfig.ID + "}"), new Route(GET, "_cat/ml/datafeeds"));
     }
 
     @Override
@@ -40,12 +51,18 @@ public class RestCatDatafeedsAction extends AbstractCatAction {
         if (Strings.isNullOrEmpty(datafeedId)) {
             datafeedId = GetDatafeedsStatsAction.ALL;
         }
-        GetDatafeedsStatsAction.Request request = new GetDatafeedsStatsAction.Request(datafeedId);
-        request.setAllowNoDatafeeds(restRequest.paramAsBoolean(GetDatafeedsStatsAction.Request.ALLOW_NO_DATAFEEDS.getPreferredName(),
-            request.allowNoDatafeeds()));
+        Request request = new Request(datafeedId);
+        checkAndSetDeprecatedParam(
+            DEPRECATED_ALLOW_NO_DATAFEEDS_PARAM,
+            Request.ALLOW_NO_MATCH,
+            RestApiVersion.V_7,
+            restRequest,
+            (r, s) -> r.paramAsBoolean(s, request.allowNoMatch()),
+            request::setAllowNoMatch
+        );
         return channel -> client.execute(GetDatafeedsStatsAction.INSTANCE, request, new RestResponseListener<>(channel) {
             @Override
-            public RestResponse buildResponse(GetDatafeedsStatsAction.Response getDatafeedsStatsRespons) throws Exception {
+            public RestResponse buildResponse(Response getDatafeedsStatsRespons) throws Exception {
                 return RestTable.buildResponse(buildTable(restRequest, getDatafeedsStatsRespons), channel);
             }
         });
@@ -63,62 +80,62 @@ public class RestCatDatafeedsAction extends AbstractCatAction {
         table.startHeaders();
 
         // Datafeed Info
-        table.addCell("id", TableColumnAttributeBuilder.builder().setDescription("the datafeed_id").build());
-        table.addCell("state", TableColumnAttributeBuilder.builder()
-            .setDescription("the datafeed state")
-            .setAliases("s")
-            .setTextAlignment(TableColumnAttributeBuilder.TextAlign.RIGHT)
-            .build());
-        table.addCell("assignment_explanation",
-            TableColumnAttributeBuilder.builder("why the datafeed is or is not assigned to a node", false)
-                .setAliases("ae")
-                .build());
+        table.addCell("id", TableColumnAttributeBuilder.builder("the datafeed_id").build());
+        table.addCell(
+            "state",
+            TableColumnAttributeBuilder.builder("the datafeed state")
+                .setAliases("s")
+                .setTextAlignment(TableColumnAttributeBuilder.TextAlign.RIGHT)
+                .build()
+        );
+        table.addCell(
+            "assignment_explanation",
+            TableColumnAttributeBuilder.builder("why the datafeed is or is not assigned to a node", false).setAliases("ae").build()
+        );
 
         // Timing stats
-        table.addCell("bucket.count",
-            TableColumnAttributeBuilder.builder("bucket count")
-                .setAliases("bc", "bucketCount")
-                .build());
-        table.addCell("search.count",
-            TableColumnAttributeBuilder.builder("number of searches ran by the datafeed")
-                .setAliases("sc", "searchCount")
-                .build());
-        table.addCell("search.time",
-            TableColumnAttributeBuilder.builder("the total search time", false)
-                .setAliases("st", "searchTime")
-                .build());
-        table.addCell("search.bucket_avg",
+        table.addCell("buckets.count", TableColumnAttributeBuilder.builder("bucket count").setAliases("bc", "bucketsCount").build());
+        table.addCell(
+            "search.count",
+            TableColumnAttributeBuilder.builder("number of searches ran by the datafeed").setAliases("sc", "searchCount").build()
+        );
+        table.addCell(
+            "search.time",
+            TableColumnAttributeBuilder.builder("the total search time", false).setAliases("st", "searchTime").build()
+        );
+        table.addCell(
+            "search.bucket_avg",
             TableColumnAttributeBuilder.builder("the average search time per bucket (millisecond)", false)
-                .setAliases("sba", "bucketTimeMin")
-                .build());
-        table.addCell("search.exp_avg_hour",
+                .setAliases("sba", "searchBucketAvg")
+                .build()
+        );
+        table.addCell(
+            "search.exp_avg_hour",
             TableColumnAttributeBuilder.builder("the exponential average search time per hour (millisecond)", false)
                 .setAliases("seah", "searchExpAvgHour")
-                .build());
+                .build()
+        );
 
-        //Node info
-        table.addCell("node.id",
-            TableColumnAttributeBuilder.builder("id of the assigned node", false)
-                .setAliases("ni", "nodeId")
-                .build());
-        table.addCell("node.name",
-            TableColumnAttributeBuilder.builder("name of the assigned node", false)
-                .setAliases("nn", "nodeName")
-                .build());
-        table.addCell("node.ephemeral_id",
-            TableColumnAttributeBuilder.builder("ephemeral id of the assigned node", false)
-                .setAliases("ne", "nodeEphemeralId")
-                .build());
-        table.addCell("node.address",
-            TableColumnAttributeBuilder.builder("network address of the assigned node", false)
-                .setAliases("na", "nodeAddress")
-                .build());
+        // Node info
+        table.addCell("node.id", TableColumnAttributeBuilder.builder("id of the assigned node", false).setAliases("ni", "nodeId").build());
+        table.addCell(
+            "node.name",
+            TableColumnAttributeBuilder.builder("name of the assigned node", false).setAliases("nn", "nodeName").build()
+        );
+        table.addCell(
+            "node.ephemeral_id",
+            TableColumnAttributeBuilder.builder("ephemeral id of the assigned node", false).setAliases("ne", "nodeEphemeralId").build()
+        );
+        table.addCell(
+            "node.address",
+            TableColumnAttributeBuilder.builder("network address of the assigned node", false).setAliases("na", "nodeAddress").build()
+        );
 
         table.endHeaders();
         return table;
     }
 
-    private Table buildTable(RestRequest request, GetDatafeedsStatsAction.Response dfStats) {
+    private Table buildTable(RestRequest request, Response dfStats) {
         Table table = getTableWithHeader(request);
         dfStats.getResponse().results().forEach(df -> {
             table.startRow();
@@ -129,9 +146,9 @@ public class RestCatDatafeedsAction extends AbstractCatAction {
             DatafeedTimingStats timingStats = df.getTimingStats();
             table.addCell(timingStats == null ? 0 : timingStats.getBucketCount());
             table.addCell(timingStats == null ? 0 : timingStats.getSearchCount());
-            table.addCell(timingStats == null ?
-                TimeValue.timeValueMillis(0) :
-                TimeValue.timeValueMillis((long)timingStats.getTotalSearchTimeMs()));
+            table.addCell(
+                timingStats == null ? TimeValue.timeValueMillis(0) : TimeValue.timeValueMillis((long) timingStats.getTotalSearchTimeMs())
+            );
             table.addCell(timingStats == null || timingStats.getBucketCount() == 0 ? 0.0 : timingStats.getAvgSearchTimePerBucketMs());
             table.addCell(timingStats == null ? 0.0 : timingStats.getExponentialAvgSearchTimePerHourMs());
 

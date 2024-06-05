@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.ilm.action;
@@ -11,17 +12,24 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.ilm.action.RemoveIndexLifecyclePolicyAction.Request;
 
-import java.io.IOException;
 import java.util.Arrays;
 
 public class RemoveIndexLifecyclePolicyRequestTests extends AbstractWireSerializingTestCase<Request> {
 
     @Override
     protected Request createTestInstance() {
-        Request request = new Request(generateRandomStringArray(20, 20, false));
+        Request request = new Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, generateRandomStringArray(20, 20, false));
         if (randomBoolean()) {
-            IndicesOptions indicesOptions = IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(),
-                    randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean());
+            IndicesOptions indicesOptions = IndicesOptions.fromOptions(
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean()
+            );
             request.indicesOptions(indicesOptions);
         }
         if (randomBoolean()) {
@@ -36,29 +44,39 @@ public class RemoveIndexLifecyclePolicyRequestTests extends AbstractWireSerializ
     }
 
     @Override
-    protected Request mutateInstance(Request instance) throws IOException {
+    protected Request mutateInstance(Request instance) {
         String[] indices = instance.indices();
         IndicesOptions indicesOptions = instance.indicesOptions();
         switch (between(0, 1)) {
-        case 0:
-            indices = randomValueOtherThanMany(i -> Arrays.equals(i, instance.indices()),
-                    () -> generateRandomStringArray(20, 20, false));
-            break;
-        case 1:
-            indicesOptions = randomValueOtherThan(indicesOptions, () -> IndicesOptions.fromOptions(randomBoolean(), randomBoolean(),
-                    randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()));
-            break;
-        default:
-            throw new AssertionError("Illegal randomisation branch");
+            case 0 -> indices = randomValueOtherThanMany(
+                i -> Arrays.equals(i, instance.indices()),
+                () -> generateRandomStringArray(20, 20, false)
+            );
+            case 1 -> indicesOptions = randomValueOtherThan(
+                indicesOptions,
+                () -> IndicesOptions.fromOptions(
+                    randomBoolean(),
+                    randomBoolean(),
+                    randomBoolean(),
+                    randomBoolean(),
+                    randomBoolean(),
+                    randomBoolean(),
+                    randomBoolean(),
+                    randomBoolean()
+                )
+            );
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
-        Request newRequest = new Request(indices);
+        Request newRequest = new Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, indices);
         newRequest.indicesOptions(indicesOptions);
         return newRequest;
     }
 
     public void testNullIndices() {
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
-                () -> new Request((String[]) null));
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> new Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, (String[]) null)
+        );
         assertEquals("indices cannot be null", exception.getMessage());
     }
 

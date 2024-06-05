@@ -1,101 +1,136 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.codec;
 
-import static org.hamcrest.Matchers.instanceOf;
+import org.apache.lucene.codecs.Codec;
+import org.apache.lucene.codecs.lucene90.Lucene90StoredFieldsFormat;
+import org.apache.lucene.codecs.lucene99.Lucene99Codec;
+import org.apache.lucene.document.Document;
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.IntField;
+import org.apache.lucene.document.KeywordField;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.util.LuceneTestCase.SuppressCodecs;
+import org.apache.lucene.util.Accountable;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
+import org.elasticsearch.index.mapper.MapperMetrics;
+import org.elasticsearch.index.mapper.MapperRegistry;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.similarity.SimilarityService;
+import org.elasticsearch.plugins.MapperPlugin;
+import org.elasticsearch.script.ScriptCompiler;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.IndexSettingsModule;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.Collections;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.lucene.codecs.Codec;
-import org.apache.lucene.codecs.lucene50.Lucene50StoredFieldsFormat;
-import org.apache.lucene.codecs.lucene50.Lucene50StoredFieldsFormat.Mode;
-import org.apache.lucene.codecs.lucene84.Lucene84Codec;
-import org.apache.lucene.document.Document;
-import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.SegmentReader;
-import org.apache.lucene.store.Directory;
-import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.analysis.IndexAnalyzers;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.similarity.SimilarityService;
-import org.elasticsearch.indices.mapper.MapperRegistry;
-import org.elasticsearch.plugins.MapperPlugin;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.IndexSettingsModule;
+import static org.hamcrest.Matchers.instanceOf;
 
 @SuppressCodecs("*") // we test against default codec so never get a random one here!
 public class CodecTests extends ESTestCase {
 
     public void testResolveDefaultCodecs() throws Exception {
+        assumeTrue("Only when zstd_stored_fields feature flag is enabled", CodecService.ZSTD_STORED_FIELDS_FEATURE_FLAG.isEnabled());
         CodecService codecService = createCodecService();
-        assertThat(codecService.codec("default"), instanceOf(PerFieldMappingPostingFormatCodec.class));
-        assertThat(codecService.codec("default"), instanceOf(Lucene84Codec.class));
-        assertThat(codecService.codec("Lucene84"), instanceOf(Lucene84Codec.class));
+        assertThat(codecService.codec("default"), instanceOf(PerFieldMapperCodec.class));
+        assertThat(codecService.codec("default"), instanceOf(Elasticsearch814Codec.class));
     }
 
     public void testDefault() throws Exception {
+        assumeTrue("Only when zstd_stored_fields feature flag is enabled", CodecService.ZSTD_STORED_FIELDS_FEATURE_FLAG.isEnabled());
         Codec codec = createCodecService().codec("default");
-        assertCompressionEquals(Mode.BEST_SPEED, codec);
+        assertEquals(
+            "Zstd814StoredFieldsFormat(compressionMode=ZSTD(level=0), chunkSize=14336, maxDocsPerChunk=128, blockShift=10)",
+            codec.storedFieldsFormat().toString()
+        );
     }
 
     public void testBestCompression() throws Exception {
+        assumeTrue("Only when zstd_stored_fields feature flag is enabled", CodecService.ZSTD_STORED_FIELDS_FEATURE_FLAG.isEnabled());
         Codec codec = createCodecService().codec("best_compression");
-        assertCompressionEquals(Mode.BEST_COMPRESSION, codec);
+        assertEquals(
+            "Zstd814StoredFieldsFormat(compressionMode=ZSTD(level=3), chunkSize=245760, maxDocsPerChunk=2048, blockShift=10)",
+            codec.storedFieldsFormat().toString()
+        );
     }
 
-    // write some docs with it, inspect .si to see this was the used compression
-    private void assertCompressionEquals(Mode expected, Codec actual) throws Exception {
-        Directory dir = newDirectory();
-        IndexWriterConfig iwc = newIndexWriterConfig(null);
-        iwc.setCodec(actual);
-        IndexWriter iw = new IndexWriter(dir, iwc);
-        iw.addDocument(new Document());
-        iw.commit();
-        iw.close();
-        DirectoryReader ir = DirectoryReader.open(dir);
-        SegmentReader sr = (SegmentReader) ir.leaves().get(0).reader();
-        String v = sr.getSegmentInfo().info.getAttribute(Lucene50StoredFieldsFormat.MODE_KEY);
-        assertNotNull(v);
-        assertEquals(expected, Mode.valueOf(v));
-        ir.close();
-        dir.close();
+    public void testLegacyDefault() throws Exception {
+        Codec codec = createCodecService().codec("legacy_default");
+        assertThat(codec, Matchers.instanceOf(Lucene99Codec.class));
+        assertThat(codec.storedFieldsFormat(), Matchers.instanceOf(Lucene90StoredFieldsFormat.class));
+        // Make sure the legacy codec is writable
+        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, newIndexWriterConfig().setCodec(codec))) {
+            Document doc = new Document();
+            doc.add(new KeywordField("string_field", "abc", Field.Store.YES));
+            doc.add(new IntField("int_field", 42, Field.Store.YES));
+            w.addDocument(doc);
+            try (DirectoryReader r = DirectoryReader.open(w)) {}
+        }
+    }
+
+    public void testLegacyBestCompression() throws Exception {
+        Codec codec = createCodecService().codec("legacy_best_compression");
+        assertThat(codec, Matchers.instanceOf(Lucene99Codec.class));
+        assertThat(codec.storedFieldsFormat(), Matchers.instanceOf(Lucene90StoredFieldsFormat.class));
+        // Make sure the legacy codec is writable
+        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, newIndexWriterConfig().setCodec(codec))) {
+            Document doc = new Document();
+            doc.add(new KeywordField("string_field", "abc", Field.Store.YES));
+            doc.add(new IntField("int_field", 42, Field.Store.YES));
+            w.addDocument(doc);
+            try (DirectoryReader r = DirectoryReader.open(w)) {}
+        }
     }
 
     private CodecService createCodecService() throws IOException {
-        Settings nodeSettings = Settings.builder()
-                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-                .build();
+        Settings nodeSettings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
         IndexSettings settings = IndexSettingsModule.newIndexSettings("_na", nodeSettings);
         SimilarityService similarityService = new SimilarityService(settings, null, Collections.emptyMap());
         IndexAnalyzers indexAnalyzers = createTestAnalysis(settings, nodeSettings).indexAnalyzers;
-        MapperRegistry mapperRegistry = new MapperRegistry(Collections.emptyMap(), Collections.emptyMap(), MapperPlugin.NOOP_FIELD_FILTER);
-        MapperService service = new MapperService(settings, indexAnalyzers, xContentRegistry(), similarityService, mapperRegistry,
-                () -> null, () -> false);
-        return new CodecService(service, LogManager.getLogger("test"));
+        MapperRegistry mapperRegistry = new MapperRegistry(
+            Collections.emptyMap(),
+            Collections.emptyMap(),
+            Collections.emptyMap(),
+            MapperPlugin.NOOP_FIELD_FILTER
+        );
+        BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(settings, new BitsetFilterCache.Listener() {
+            @Override
+            public void onCache(ShardId shardId, Accountable accountable) {}
+
+            @Override
+            public void onRemoval(ShardId shardId, Accountable accountable) {}
+        });
+        MapperService service = new MapperService(
+            () -> TransportVersion.current(),
+            settings,
+            indexAnalyzers,
+            parserConfig(),
+            similarityService,
+            mapperRegistry,
+            () -> null,
+            settings.getMode().idFieldMapperWithoutFieldData(),
+            ScriptCompiler.NONE,
+            bitsetFilterCache::getBitSetProducer,
+            MapperMetrics.NOOP
+        );
+        return new CodecService(service, BigArrays.NON_RECYCLING_INSTANCE);
     }
 
 }

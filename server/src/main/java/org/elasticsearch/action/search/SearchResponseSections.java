@@ -1,91 +1,85 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.RefCounted;
+import org.elasticsearch.core.SimpleRefCounted;
 import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.search.aggregations.Aggregations;
-import org.elasticsearch.search.profile.ProfileShardResult;
-import org.elasticsearch.search.profile.SearchProfileShardResults;
+import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.profile.SearchProfileResults;
+import org.elasticsearch.search.profile.SearchProfileShardResult;
 import org.elasticsearch.search.suggest.Suggest;
+import org.elasticsearch.transport.LeakTracker;
 
-import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 
 /**
- * Base class that holds the various sections which a search response is
- * composed of (hits, aggs, suggestions etc.) and allows to retrieve them.
- *
- * The reason why this class exists is that the high level REST client uses its own classes
- * to parse aggregations into, which are not serializable. This is the common part that can be
- * shared between core and client.
+ * Holds some sections that a search response is composed of (hits, aggs, suggestions etc.) during some steps of the search response
+ * building.
  */
-public class SearchResponseSections implements ToXContentFragment {
+public class SearchResponseSections implements RefCounted {
 
+    public static final SearchResponseSections EMPTY_WITH_TOTAL_HITS = new SearchResponseSections(
+        SearchHits.EMPTY_WITH_TOTAL_HITS,
+        null,
+        null,
+        false,
+        null,
+        null,
+        1
+    );
+    public static final SearchResponseSections EMPTY_WITHOUT_TOTAL_HITS = new SearchResponseSections(
+        SearchHits.EMPTY_WITHOUT_TOTAL_HITS,
+        null,
+        null,
+        false,
+        null,
+        null,
+        1
+    );
     protected final SearchHits hits;
-    protected final Aggregations aggregations;
+    protected final InternalAggregations aggregations;
     protected final Suggest suggest;
-    protected final SearchProfileShardResults profileResults;
+    protected final SearchProfileResults profileResults;
     protected final boolean timedOut;
     protected final Boolean terminatedEarly;
     protected final int numReducePhases;
 
-    public SearchResponseSections(SearchHits hits, Aggregations aggregations, Suggest suggest, boolean timedOut, Boolean terminatedEarly,
-                                  SearchProfileShardResults profileResults,  int numReducePhases) {
+    private final RefCounted refCounted;
+
+    public SearchResponseSections(
+        SearchHits hits,
+        InternalAggregations aggregations,
+        Suggest suggest,
+        boolean timedOut,
+        Boolean terminatedEarly,
+        SearchProfileResults profileResults,
+        int numReducePhases
+    ) {
         this.hits = hits;
+        hits.incRef();
         this.aggregations = aggregations;
         this.suggest = suggest;
         this.profileResults = profileResults;
         this.timedOut = timedOut;
         this.terminatedEarly = terminatedEarly;
         this.numReducePhases = numReducePhases;
-    }
-
-    public final boolean timedOut() {
-        return this.timedOut;
-    }
-
-    public final Boolean terminatedEarly() {
-        return this.terminatedEarly;
+        refCounted = hits.getHits().length > 0 ? LeakTracker.wrap(new SimpleRefCounted()) : ALWAYS_REFERENCED;
     }
 
     public final SearchHits hits() {
         return hits;
     }
 
-    public final Aggregations aggregations() {
-        return aggregations;
-    }
-
     public final Suggest suggest() {
         return suggest;
-    }
-
-    /**
-     * Returns the number of reduce phases applied to obtain this search response
-     */
-    public final int getNumReducePhases() {
-        return numReducePhases;
     }
 
     /**
@@ -94,7 +88,7 @@ public class SearchResponseSections implements ToXContentFragment {
      *
      * @return Profile results
      */
-    public final Map<String, ProfileShardResult> profile() {
+    public final Map<String, SearchProfileShardResult> profile() {
         if (profileResults == null) {
             return Collections.emptyMap();
         }
@@ -102,21 +96,26 @@ public class SearchResponseSections implements ToXContentFragment {
     }
 
     @Override
-    public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        hits.toXContent(builder, params);
-        if (aggregations != null) {
-            aggregations.toXContent(builder, params);
-        }
-        if (suggest != null) {
-            suggest.toXContent(builder, params);
-        }
-        if (profileResults != null) {
-            profileResults.toXContent(builder, params);
-        }
-        return builder;
+    public void incRef() {
+        refCounted.incRef();
     }
 
-    protected void writeTo(StreamOutput out) throws IOException {
-        throw new UnsupportedOperationException();
+    @Override
+    public boolean tryIncRef() {
+        return refCounted.tryIncRef();
+    }
+
+    @Override
+    public boolean decRef() {
+        if (refCounted.decRef()) {
+            hits.decRef();
+            return true;
+        }
+        return false;
+    }
+
+    @Override
+    public boolean hasReferences() {
+        return refCounted.hasReferences();
     }
 }

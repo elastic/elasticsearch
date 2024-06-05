@@ -1,0 +1,28 @@
+"Action to list contexts":
+    - skip:
+        features: fips_140
+        reason: "The tests expect to be run with OSS distribution"
+    - do:
+        scripts_painless_context: {}
+    - match: { contexts.0: aggregation_selector}
+    - match: { contexts.22: update}
+---
+
+"Action to get all API values for score context":
+    - skip:
+        features: fips_140
+        reason: "The tests expect to be run with OSS distribution"
+    - do:
+        scripts_painless_context:
+            context: score
+    - match: { name: score }
+    - match: { classes.6.name: java.lang.Appendable }
+    - match: { classes.6.imported: true }
+    - match: { classes.6.methods.0.name : append }
+    - match: { classes.6.methods.0.return : java.lang.Appendable }
+    - match: { classes.6.methods.0.parameters.0 : java.lang.CharSequence }
+    - match: { classes.6.methods.0.parameters.1 : int }
+    - match: { classes.6.methods.0.parameters.2 : int }
+    - match: { imported_methods.0.name: saturation }
+    - match: { class_bindings.0.name: decayDateExp }
+    - match: { instance_bindings: [] }

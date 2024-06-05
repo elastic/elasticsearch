@@ -1,48 +1,37 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.SetBackedScalingCuckooFilter;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.BucketOrder;
-import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.InternalOrder;
 import org.elasticsearch.search.aggregations.KeyComparable;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-public abstract class InternalRareTerms<A extends InternalRareTerms<A, B>, B extends InternalRareTerms.Bucket<B>>
-    extends InternalMultiBucketAggregation<A, B> implements RareTerms {
+public abstract class InternalRareTerms<A extends InternalRareTerms<A, B>, B extends InternalRareTerms.Bucket<B>> extends
+    InternalMultiBucketAggregation<A, B>
+    implements
+        RareTerms {
 
     public abstract static class Bucket<B extends Bucket<B>> extends InternalMultiBucketAggregation.InternalBucket
-        implements RareTerms.Bucket, KeyComparable<B> {
+        implements
+            RareTerms.Bucket,
+            KeyComparable<B> {
         /**
          * Reads a bucket. Should be a constructor reference.
          */
@@ -69,7 +58,7 @@ public abstract class InternalRareTerms<A extends InternalRareTerms<A, B>, B ext
         protected Bucket(StreamInput in, DocValueFormat formatter) throws IOException {
             this.format = formatter;
             docCount = in.readVLong();
-            aggregations = new InternalAggregations(in);
+            aggregations = InternalAggregations.readFrom(in);
         }
 
         @Override
@@ -87,7 +76,7 @@ public abstract class InternalRareTerms<A extends InternalRareTerms<A, B>, B ext
         }
 
         @Override
-        public Aggregations getAggregations() {
+        public InternalAggregations getAggregations() {
             return aggregations;
         }
 
@@ -109,8 +98,7 @@ public abstract class InternalRareTerms<A extends InternalRareTerms<A, B>, B ext
                 return false;
             }
             Bucket<?> that = (Bucket<?>) obj;
-            return Objects.equals(docCount, that.docCount)
-                && Objects.equals(aggregations, that.aggregations);
+            return Objects.equals(docCount, that.docCount) && Objects.equals(aggregations, that.aggregations);
         }
 
         @Override
@@ -122,9 +110,8 @@ public abstract class InternalRareTerms<A extends InternalRareTerms<A, B>, B ext
     protected final BucketOrder order;
     protected final long maxDocCount;
 
-    protected InternalRareTerms(String name, BucketOrder order, long maxDocCount,
-                            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        super(name, pipelineAggregators, metaData);
+    protected InternalRareTerms(String name, BucketOrder order, long maxDocCount, Map<String, Object> metadata) {
+        super(name, metadata);
         this.order = order;
         this.maxDocCount = maxDocCount;
     }
@@ -150,44 +137,17 @@ public abstract class InternalRareTerms<A extends InternalRareTerms<A, B>, B ext
     @Override
     public abstract List<B> getBuckets();
 
-    @Override
-    public abstract B getBucketByKey(String term);
-
-    @Override
-    public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
-        throw new UnsupportedOperationException();
-    }
-
     abstract B createBucket(long docCount, InternalAggregations aggs, B prototype);
 
-    @Override
-    protected B reduceBucket(List<B> buckets, ReduceContext context) {
-        assert buckets.size() > 0;
-        long docCount = 0;
-        List<InternalAggregations> aggregationsList = new ArrayList<>(buckets.size());
-        for (B bucket : buckets) {
-            docCount += bucket.docCount;
-            aggregationsList.add(bucket.aggregations);
-        }
-        InternalAggregations aggs = InternalAggregations.reduce(aggregationsList, context);
-        return createBucket(docCount, aggs, buckets.get(0));
-    }
-
     protected abstract A createWithFilter(String name, List<B> buckets, SetBackedScalingCuckooFilter filter);
-
-    /**
-     * Create an array to hold some buckets. Used in collecting the results.
-     */
-    protected abstract B[] createBucketsArray(int size);
 
     @Override
     public boolean equals(Object obj) {
         if (this == obj) return true;
         if (obj == null || getClass() != obj.getClass()) return false;
         if (super.equals(obj) == false) return false;
-        InternalRareTerms<?,?> that = (InternalRareTerms<?,?>) obj;
-        return Objects.equals(maxDocCount, that.maxDocCount)
-            && Objects.equals(order, that.order);
+        InternalRareTerms<?, ?> that = (InternalRareTerms<?, ?>) obj;
+        return Objects.equals(maxDocCount, that.maxDocCount) && Objects.equals(order, that.order);
     }
 
     @Override
@@ -195,10 +155,10 @@ public abstract class InternalRareTerms<A extends InternalRareTerms<A, B>, B ext
         return Objects.hash(super.hashCode(), maxDocCount, order);
     }
 
-    protected static XContentBuilder doXContentCommon(XContentBuilder builder, Params params,
-                                                      List<? extends Bucket> buckets) throws IOException {
+    protected static XContentBuilder doXContentCommon(XContentBuilder builder, Params params, List<? extends Bucket<?>> buckets)
+        throws IOException {
         builder.startArray(CommonFields.BUCKETS.getPreferredName());
-        for (Bucket bucket : buckets) {
+        for (Bucket<?> bucket : buckets) {
             bucket.toXContent(builder, params);
         }
         builder.endArray();

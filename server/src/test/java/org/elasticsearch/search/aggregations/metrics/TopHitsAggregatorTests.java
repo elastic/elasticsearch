@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.aggregations.metrics;
 
@@ -22,22 +11,20 @@ import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Field.Store;
-import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queryparser.classic.QueryParser;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
@@ -71,14 +58,14 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
         assertEquals("3", searchHits.getAt(0).getId());
         assertEquals("2", searchHits.getAt(1).getId());
         assertEquals("1", searchHits.getAt(2).getId());
-        assertTrue(AggregationInspectionHelper.hasValue(((InternalTopHits)result)));
+        assertTrue(AggregationInspectionHelper.hasValue(((InternalTopHits) result)));
     }
 
     public void testNoResults() throws Exception {
         TopHits result = (TopHits) testCase(new MatchNoDocsQuery(), topHits("_name").sort("string", SortOrder.DESC));
-        SearchHits searchHits = ((TopHits) result).getHits();
+        SearchHits searchHits = result.getHits();
         assertEquals(0L, searchHits.getTotalHits().value);
-        assertFalse(AggregationInspectionHelper.hasValue(((InternalTopHits)result)));
+        assertFalse(AggregationInspectionHelper.hasValue(((InternalTopHits) result)));
     }
 
     /**
@@ -88,14 +75,13 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
     public void testInsideTerms() throws Exception {
         Aggregation result;
         if (randomBoolean()) {
-            result = testCase(new MatchAllDocsQuery(),
-                    terms("term").field("string")
-                        .subAggregation(topHits("top").sort("string", SortOrder.DESC)));
+            result = testCase(
+                new MatchAllDocsQuery(),
+                terms("term").field("string").subAggregation(topHits("top").sort("string", SortOrder.DESC))
+            );
         } else {
             Query query = new QueryParser("string", new KeywordAnalyzer()).parse("d^1000 c^100 b^10 a^1");
-            result = testCase(query,
-                    terms("term").field("string")
-                        .subAggregation(topHits("top")));
+            result = testCase(query, terms("term").field("string").subAggregation(topHits("top")));
         }
         Terms terms = (Terms) result;
 
@@ -127,11 +113,7 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
         assertTrue(AggregationInspectionHelper.hasValue(((InternalTopHits) terms.getBucketByKey("d").getAggregations().get("top"))));
     }
 
-    private static final MappedFieldType STRING_FIELD_TYPE = new KeywordFieldMapper.KeywordFieldType();
-    static {
-        STRING_FIELD_TYPE.setName("string");
-        STRING_FIELD_TYPE.setHasDocValues(true);
-    }
+    private static final MappedFieldType STRING_FIELD_TYPE = new KeywordFieldMapper.KeywordFieldType("string");
 
     private Aggregation testCase(Query query, AggregationBuilder builder) throws IOException {
         Directory directory = newDirectory();
@@ -142,10 +124,7 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
         iw.close();
 
         IndexReader indexReader = DirectoryReader.open(directory);
-        // We do not use LuceneTestCase.newSearcher because we need a DirectoryReader for "testInsideTerms"
-        IndexSearcher indexSearcher = new IndexSearcher(indexReader);
-
-        Aggregation result = searchAndReduce(indexSearcher, query, builder, STRING_FIELD_TYPE);
+        Aggregation result = searchAndReduce(indexReader, new AggTestConfig(builder, STRING_FIELD_TYPE).withQuery(query));
         indexReader.close();
         directory.close();
         return result;
@@ -153,19 +132,21 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
 
     private Document document(String id, String... stringValues) {
         Document document = new Document();
-        document.add(new Field(IdFieldMapper.NAME, Uid.encodeId(id), IdFieldMapper.Defaults.FIELD_TYPE));
+        document.add(new StringField(IdFieldMapper.NAME, Uid.encodeId(id), Store.YES));
         for (String stringValue : stringValues) {
-            document.add(new Field("string", stringValue, STRING_FIELD_TYPE));
-            document.add(new SortedSetDocValuesField("string", new BytesRef(stringValue)));
+            document.add(new Field("string", new BytesRef(stringValue), KeywordFieldMapper.Defaults.FIELD_TYPE));
         }
         return document;
     }
 
     public void testSetScorer() throws Exception {
         Directory directory = newDirectory();
-        IndexWriter w = new IndexWriter(directory, newIndexWriterConfig()
+        IndexWriter w = new IndexWriter(
+            directory,
+            newIndexWriterConfig()
                 // only merge adjacent segments
-                .setMergePolicy(newLogMergePolicy()));
+                .setMergePolicy(newLogMergePolicy())
+        );
         // first window (see BooleanScorer) has matches on one clause only
         for (int i = 0; i < 2048; ++i) {
             Document doc = new Document();
@@ -192,13 +173,11 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
         IndexReader reader = DirectoryReader.open(w);
         w.close();
 
-        IndexSearcher searcher = new IndexSearcher(reader);
-        Query query = new BooleanQuery.Builder()
-                .add(new TermQuery(new Term("string", "bar")), Occur.SHOULD)
-                .add(new TermQuery(new Term("string", "baz")), Occur.SHOULD)
-                .build();
+        Query query = new BooleanQuery.Builder().add(new TermQuery(new Term("string", "bar")), Occur.SHOULD)
+            .add(new TermQuery(new Term("string", "baz")), Occur.SHOULD)
+            .build();
         AggregationBuilder agg = AggregationBuilders.topHits("top_hits");
-        TopHits result = searchAndReduce(searcher, query, agg, STRING_FIELD_TYPE);
+        TopHits result = searchAndReduce(reader, new AggTestConfig(agg, STRING_FIELD_TYPE).withQuery(query));
         assertEquals(3, result.getHits().getTotalHits().value);
         reader.close();
         directory.close();

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.ccr.action;
@@ -14,6 +15,7 @@ import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.TimeValue;
 
 import java.io.IOException;
 
@@ -25,14 +27,15 @@ public class UnfollowAction extends ActionType<AcknowledgedResponse> {
     public static final String NAME = "indices:admin/xpack/ccr/unfollow";
 
     private UnfollowAction() {
-        super(NAME, AcknowledgedResponse::new);
+        super(NAME);
     }
 
     public static class Request extends AcknowledgedRequest<Request> implements IndicesRequest {
 
         private final String followerIndex;
 
-        public Request(String followerIndex) {
+        public Request(TimeValue masterNodeTimeout, TimeValue ackTimeout, String followerIndex) {
+            super(masterNodeTimeout, ackTimeout);
             this.followerIndex = followerIndex;
         }
 
@@ -47,7 +50,7 @@ public class UnfollowAction extends ActionType<AcknowledgedResponse> {
 
         @Override
         public String[] indices() {
-            return new String[] {followerIndex};
+            return new String[] { followerIndex };
         }
 
         @Override

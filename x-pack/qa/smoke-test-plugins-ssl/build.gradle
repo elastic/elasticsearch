@@ -1,23 +1,20 @@
-import org.elasticsearch.gradle.MavenFilteringHack
+import org.apache.tools.ant.filters.ReplaceTokens
 
-import org.elasticsearch.gradle.http.WaitForHttpResource
+import org.elasticsearch.gradle.internal.info.BuildParams
 
-apply plugin: 'elasticsearch.testclusters'
-apply plugin: 'elasticsearch.standalone-rest-test'
-apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.legacy-yaml-rest-test'
 
 dependencies {
-  testCompile project(':x-pack:plugin:core')
-  testCompile project(':client:rest-high-level')
+  yamlRestTestImplementation project(':x-pack:plugin:core')
 }
 
 String outputDir = "${buildDir}/generated-resources/${project.name}"
-task copyXPackPluginProps(type: Copy) {
+def copyXPackPluginProps = tasks.register("copyXPackPluginProps", Copy) {
   from project(xpackModule('core')).file('src/main/plugin-metadata')
   from project(xpackModule('core')).tasks.pluginProperties
   into outputDir
 }
-project.sourceSets.test.output.dir(outputDir, builtBy: copyXPackPluginProps)
+project.sourceSets.yamlRestTest.output.dir(outputDir, builtBy: copyXPackPluginProps)
 
 // location of generated keystores and certificates
 File keystoreDir = new File(project.buildDir, 'keystore')
@@ -29,20 +26,27 @@ File clientKey = file("$keystoreDir/testclient.pem")
 File clientCert = file("$keystoreDir/testclient.crt")
 
 // Add keystores to test classpath: it expects it there
-task copyKeyCerts(type: Copy) {
+def copyKeyCerts = tasks.register("copyKeyCerts", Copy) {
   from('./') {
     include '*.crt', '*.pem', '*.jks'
   }
   into keystoreDir
 }
 // Add keystores to test classpath: it expects it there
-sourceSets.test.resources.srcDir(keystoreDir)
-processTestResources.dependsOn(copyKeyCerts)
+sourceSets.yamlRestTest.resources.srcDir(keystoreDir)
 
-integTest.runner.dependsOn(copyKeyCerts)
+['processYamlRestTestResources', 'yamlRestTest', 'filepermissions', 'forbiddenPatterns'].each {
+  tasks.named(it).configure {
+    dependsOn(copyKeyCerts)
+  }
+}
 
-def pluginsCount = 0
-testClusters.integTest {
+ext.pluginPaths = []
+project(':plugins').getChildProjects().each { pluginName, pluginProject ->
+  pluginPaths << pluginProject.path
+}
+
+testClusters.matching { it.name == "yamlRestTest" }.configureEach {
   testDistribution = 'DEFAULT'
   setting 'xpack.monitoring.collection.interval', '1s'
 
@@ -54,7 +58,6 @@ testClusters.integTest {
   setting 'xpack.security.http.ssl.certificate_authorities', 'testnode.crt'
   keystore 'xpack.security.http.ssl.secure_key_passphrase', 'testnode'
 
-  setting 'xpack.ilm.enabled', 'false'
   setting 'xpack.ml.enabled', 'false'
   // copy keystores, keys and certificates into config/
   extraConfigFile nodeKeystore.name, nodeKeystore
@@ -67,21 +70,25 @@ testClusters.integTest {
   user username: "test_user", password: "x-pack-test-password"
   user username: "monitoring_agent", password: "x-pack-test-password", role: "remote_monitoring_agent"
 
-  project(':plugins').getChildProjects().each { pluginName, pluginProject ->
-    plugin file(pluginProject.tasks.bundlePlugin.archiveFile)
-    tasks.integTest.dependsOn pluginProject.tasks.bundlePlugin
-    pluginsCount += 1
+  pluginPaths.each { pluginPath ->
+    plugin pluginPath
   }
 }
 
 ext.expansions = [
-  'expected.plugins.count': pluginsCount
+  'expected.plugins.count': pluginPaths.size()
 ]
 
-processTestResources {
-  from(sourceSets.test.resources.srcDirs) {
+tasks.named("processYamlRestTestResources").configure {
+  from(sourceSets.yamlRestTest.resources.srcDirs) {
+    duplicatesStrategy = DuplicatesStrategy.INCLUDE
     include '**/*.yml'
     inputs.properties(expansions)
-    MavenFilteringHack.filter(it, expansions)
+    filter("tokens" : expansions.collectEntries {k, v -> [k, v.toString()]} /* must be a map of strings */, ReplaceTokens.class)
   }
+}
+
+tasks.named('yamlRestTestTestingConventions').configure {
+  baseClass 'org.elasticsearch.test.rest.ESRestTestCase'
+  baseClass 'org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase'
 }

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.support;
@@ -26,7 +15,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.index.fielddata.AbstractSortedNumericDocValues;
 import org.elasticsearch.index.fielddata.AbstractSortedSetDocValues;
-import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 
@@ -57,7 +45,7 @@ public enum MissingValues {
         };
     }
 
-    static SortedBinaryDocValues replaceMissing(final SortedBinaryDocValues values, final BytesRef missing) {
+    public static SortedBinaryDocValues replaceMissing(final SortedBinaryDocValues values, final BytesRef missing) {
         return new SortedBinaryDocValues() {
 
             private int count;
@@ -87,6 +75,7 @@ public enum MissingValues {
                     return missing;
                 }
             }
+
             @Override
             public String toString() {
                 return "anon SortedBinaryDocValues of [" + super.toString() + "]";
@@ -120,6 +109,7 @@ public enum MissingValues {
                 final SortedNumericDoubleValues values = valuesSource.doubleValues(context);
                 return replaceMissing(values, missing.doubleValue());
             }
+
             @Override
             public String toString() {
                 return "anon ValuesSource.Numeric of [" + super.toString() + "]";
@@ -127,7 +117,7 @@ public enum MissingValues {
         };
     }
 
-    static SortedNumericDocValues replaceMissing(final SortedNumericDocValues values, final long missing) {
+    public static SortedNumericDocValues replaceMissing(final SortedNumericDocValues values, final long missing) {
         return new AbstractSortedNumericDocValues() {
 
             private int count;
@@ -220,17 +210,24 @@ public enum MissingValues {
             }
 
             @Override
-            public SortedSetDocValues globalOrdinalsValues(LeafReaderContext context)
-                    throws IOException {
+            public SortedSetDocValues globalOrdinalsValues(LeafReaderContext context) throws IOException {
                 SortedSetDocValues values = valuesSource.globalOrdinalsValues(context);
                 return replaceMissing(values, missing);
             }
 
             @Override
             public LongUnaryOperator globalOrdinalsMapping(LeafReaderContext context) throws IOException {
-                return getGlobalMapping(valuesSource.ordinalsValues(context),
-                        valuesSource.globalOrdinalsValues(context),
-                        valuesSource.globalOrdinalsMapping(context), missing);
+                return getGlobalMapping(
+                    valuesSource.ordinalsValues(context),
+                    valuesSource.globalOrdinalsValues(context),
+                    valuesSource.globalOrdinalsMapping(context),
+                    missing
+                );
+            }
+
+            @Override
+            public boolean supportsGlobalOrdinalsMapping() {
+                return valuesSource.supportsGlobalOrdinalsMapping();
             }
 
             @Override
@@ -241,8 +238,7 @@ public enum MissingValues {
         };
     }
 
-    static SortedSetDocValues replaceMissing(final SortedSetDocValues values,
-            final BytesRef missing) throws IOException {
+    static SortedSetDocValues replaceMissing(final SortedSetDocValues values, final BytesRef missing) throws IOException {
         final long missingOrd = values.lookupTerm(missing);
         if (missingOrd >= 0) {
             // The value already exists
@@ -253,8 +249,7 @@ public enum MissingValues {
         }
     }
 
-    static SortedSetDocValues replaceMissingOrd(final SortedSetDocValues values,
-            final long missingOrd) {
+    static SortedSetDocValues replaceMissingOrd(final SortedSetDocValues values, final long missingOrd) {
         return new AbstractSortedSetDocValues() {
 
             private boolean hasOrds;
@@ -285,6 +280,11 @@ public enum MissingValues {
             }
 
             @Override
+            public int docValueCount() {
+                return values.docValueCount();
+            }
+
+            @Override
             public boolean advanceExact(int doc) throws IOException {
                 hasOrds = values.advanceExact(doc);
                 nextMissingOrd = missingOrd;
@@ -301,8 +301,7 @@ public enum MissingValues {
         };
     }
 
-    static SortedSetDocValues insertOrd(final SortedSetDocValues values, final long insertedOrd,
-            final BytesRef missingValue) {
+    static SortedSetDocValues insertOrd(final SortedSetDocValues values, final long insertedOrd, final BytesRef missingValue) {
         return new AbstractSortedSetDocValues() {
 
             private boolean hasOrds;
@@ -317,6 +316,11 @@ public enum MissingValues {
                 } else {
                     return missingValue;
                 }
+            }
+
+            @Override
+            public int docValueCount() {
+                return values.docValueCount();
             }
 
             @Override
@@ -359,8 +363,12 @@ public enum MissingValues {
         };
     }
 
-    static LongUnaryOperator getGlobalMapping(SortedSetDocValues values, SortedSetDocValues globalValues,
-            LongUnaryOperator segmentToGlobalOrd, BytesRef missing) throws IOException {
+    static LongUnaryOperator getGlobalMapping(
+        SortedSetDocValues values,
+        SortedSetDocValues globalValues,
+        LongUnaryOperator segmentToGlobalOrd,
+        BytesRef missing
+    ) throws IOException {
         final long missingGlobalOrd = globalValues.lookupTerm(missing);
         final long missingSegmentOrd = values.lookupTerm(missing);
 
@@ -405,52 +413,13 @@ public enum MissingValues {
             }
 
             @Override
-            public MultiGeoPointValues geoPointValues(LeafReaderContext context) {
-                final MultiGeoPointValues values = valuesSource.geoPointValues(context);
-                return replaceMissing(values, missing);
+            public SortedNumericDocValues geoSortedNumericDocValues(LeafReaderContext context) {
+                return replaceMissing(valuesSource.geoSortedNumericDocValues(context), missing.getEncoded());
             }
 
             @Override
             public String toString() {
                 return "anon ValuesSource.GeoPoint of [" + super.toString() + "]";
-            }
-        };
-    }
-
-    static MultiGeoPointValues replaceMissing(final MultiGeoPointValues values, final GeoPoint missing) {
-        return new MultiGeoPointValues() {
-
-            private int count;
-
-            @Override
-            public boolean advanceExact(int doc) throws IOException {
-                if (values.advanceExact(doc)) {
-                    count = values.docValueCount();
-                } else {
-                    count = 0;
-                }
-                // always return true because we want to return a value even if
-                // the document does not have a value
-                return true;
-            }
-
-            @Override
-            public int docValueCount() {
-                return count == 0 ? 1 : count;
-            }
-
-            @Override
-            public GeoPoint nextValue() throws IOException {
-                if (count > 0) {
-                    return values.nextValue();
-                } else {
-                    return missing;
-                }
-            }
-
-            @Override
-            public String toString() {
-                return "anon MultiGeoPointValues of [" + super.toString() + "]";
             }
         };
     }

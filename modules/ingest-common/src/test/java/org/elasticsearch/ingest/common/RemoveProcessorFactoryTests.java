@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.ingest.common;
@@ -25,13 +14,11 @@ import org.elasticsearch.ingest.TestTemplateService;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
-import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.equalTo;
 
 public class RemoveProcessorFactoryTests extends ESTestCase {
 
@@ -46,38 +33,64 @@ public class RemoveProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("field", "field1");
         String processorTag = randomAlphaOfLength(10);
-        RemoveProcessor removeProcessor = factory.create(null, processorTag, config);
+        RemoveProcessor removeProcessor = factory.create(null, processorTag, null, config);
         assertThat(removeProcessor.getTag(), equalTo(processorTag));
-        assertThat(removeProcessor.getFields().get(0).newInstance(Collections.emptyMap()).execute(), equalTo("field1"));
+        assertThat(removeProcessor.getFieldsToRemove().get(0).newInstance(Map.of()).execute(), equalTo("field1"));
+    }
+
+    public void testCreateKeepField() throws Exception {
+        Map<String, Object> config = new HashMap<>();
+        config.put("keep", List.of("field1", "field2"));
+        String processorTag = randomAlphaOfLength(10);
+        RemoveProcessor removeProcessor = factory.create(null, processorTag, null, config);
+        assertThat(removeProcessor.getTag(), equalTo(processorTag));
+        assertThat(removeProcessor.getFieldsToKeep().get(0).newInstance(Map.of()).execute(), equalTo("field1"));
+        assertThat(removeProcessor.getFieldsToKeep().get(1).newInstance(Map.of()).execute(), equalTo("field2"));
     }
 
     public void testCreateMultipleFields() throws Exception {
         Map<String, Object> config = new HashMap<>();
-        config.put("field", Arrays.asList("field1", "field2"));
+        config.put("field", List.of("field1", "field2"));
         String processorTag = randomAlphaOfLength(10);
-        RemoveProcessor removeProcessor = factory.create(null, processorTag, config);
+        RemoveProcessor removeProcessor = factory.create(null, processorTag, null, config);
         assertThat(removeProcessor.getTag(), equalTo(processorTag));
-        assertThat(removeProcessor.getFields().stream()
-            .map(template -> template.newInstance(Collections.emptyMap()).execute())
-            .collect(Collectors.toList()), equalTo(Arrays.asList("field1", "field2")));
+        assertThat(
+            removeProcessor.getFieldsToRemove().stream().map(template -> template.newInstance(Map.of()).execute()).toList(),
+            equalTo(List.of("field1", "field2"))
+        );
     }
 
     public void testCreateMissingField() throws Exception {
         Map<String, Object> config = new HashMap<>();
         try {
-            factory.create(null, null, config);
+            factory.create(null, null, null, config);
             fail("factory create should have failed");
-        } catch(ElasticsearchParseException e) {
-            assertThat(e.getMessage(), equalTo("[field] required property is missing"));
+        } catch (ElasticsearchParseException e) {
+            assertThat(e.getMessage(), equalTo("[keep] or [field] must be specified"));
+        }
+    }
+
+    public void testCreateTooManyFields() throws Exception {
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", "field1");
+        config.put("keep", "field2");
+        try {
+            factory.create(null, null, null, config);
+            fail("factory create should have failed");
+        } catch (ElasticsearchParseException e) {
+            assertThat(e.getMessage(), equalTo("[keep] and [field] cannot both be used in the same processor"));
         }
     }
 
     public void testInvalidMustacheTemplate() throws Exception {
-        RemoveProcessor.Factory factory = new RemoveProcessor.Factory(TestTemplateService.instance(true));
+        factory = new RemoveProcessor.Factory(TestTemplateService.instance(true));
         Map<String, Object> config = new HashMap<>();
         config.put("field", "{{field1}}");
         String processorTag = randomAlphaOfLength(10);
-        ElasticsearchException exception = expectThrows(ElasticsearchException.class, () -> factory.create(null, processorTag, config));
+        ElasticsearchException exception = expectThrows(
+            ElasticsearchException.class,
+            () -> factory.create(null, processorTag, null, config)
+        );
         assertThat(exception.getMessage(), equalTo("java.lang.RuntimeException: could not compile script"));
         assertThat(exception.getMetadata("es.processor_tag").get(0), equalTo(processorTag));
     }

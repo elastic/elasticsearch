@@ -1,8 +1,0 @@
-# A basic role that is used to test security
-security_test_role:
-  cluster:
-    - monitor
-    - "cluster:admin/xpack/license/*"
-  indices:
-    - names: [ "index_allowed" ]
-      privileges: [ "read", "write", "create_index" ]

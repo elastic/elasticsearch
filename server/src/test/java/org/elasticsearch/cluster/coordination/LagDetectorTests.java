@@ -1,27 +1,23 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.cluster.coordination;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.common.ReferenceDocs;
+import org.elasticsearch.common.logging.ChunkedLoggingStreamTestUtils;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Before;
 
 import java.util.Arrays;
@@ -30,7 +26,6 @@ import java.util.HashSet;
 import java.util.Set;
 
 import static org.elasticsearch.cluster.coordination.LagDetector.CLUSTER_FOLLOWER_LAG_TIMEOUT_SETTING;
-import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.greaterThan;
@@ -46,7 +41,7 @@ public class LagDetectorTests extends ESTestCase {
 
     @Before
     public void setupFixture() {
-        deterministicTaskQueue = new DeterministicTaskQueue(Settings.builder().put(NODE_NAME_SETTING.getKey(), "node").build(), random());
+        deterministicTaskQueue = new DeterministicTaskQueue();
 
         failedNodes = new HashSet<>();
 
@@ -58,7 +53,12 @@ public class LagDetectorTests extends ESTestCase {
             followerLagTimeout = CLUSTER_FOLLOWER_LAG_TIMEOUT_SETTING.get(Settings.EMPTY);
         }
 
-        lagDetector = new LagDetector(settingsBuilder.build(), deterministicTaskQueue.getThreadPool(), failedNodes::add, () -> localNode);
+        lagDetector = new LagDetector(
+            settingsBuilder.build(),
+            deterministicTaskQueue.getThreadPool(),
+            (discoveryNode, appliedVersion, expectedVersion) -> failedNodes.add(discoveryNode),
+            () -> localNode
+        );
 
         localNode = CoordinationStateTests.createNode("local");
         node1 = CoordinationStateTests.createNode("node1");
@@ -88,8 +88,10 @@ public class LagDetectorTests extends ESTestCase {
     public void testNoLagDetectedIfNodeAppliesVersionJustBeforeTimeout() {
         lagDetector.setTrackedNodes(Collections.singletonList(node1));
         lagDetector.startLagDetector(1);
-        deterministicTaskQueue.scheduleAt(deterministicTaskQueue.getCurrentTimeMillis() + followerLagTimeout.millis() - 1,
-            () -> lagDetector.setAppliedVersion(node1, 1));
+        deterministicTaskQueue.scheduleAt(
+            deterministicTaskQueue.getCurrentTimeMillis() + followerLagTimeout.millis() - 1,
+            () -> lagDetector.setAppliedVersion(node1, 1)
+        );
         deterministicTaskQueue.runAllTasksInTimeOrder();
         assertThat(failedNodes, empty());
     }
@@ -97,8 +99,10 @@ public class LagDetectorTests extends ESTestCase {
     public void testLagDetectedIfNodeAppliesVersionJustAfterTimeout() {
         lagDetector.setTrackedNodes(Collections.singletonList(node1));
         lagDetector.startLagDetector(1);
-        deterministicTaskQueue.scheduleAt(deterministicTaskQueue.getCurrentTimeMillis() + followerLagTimeout.millis() + 1,
-            () -> lagDetector.setAppliedVersion(node1, 1));
+        deterministicTaskQueue.scheduleAt(
+            deterministicTaskQueue.getCurrentTimeMillis() + followerLagTimeout.millis() + 1,
+            () -> lagDetector.setAppliedVersion(node1, 1)
+        );
         deterministicTaskQueue.runAllTasksInTimeOrder();
         assertThat(failedNodes, contains(node1));
     }
@@ -203,13 +207,17 @@ public class LagDetectorTests extends ESTestCase {
         assertThat(failedNodes, empty());
 
         lagDetector.startLagDetector(3);
-        deterministicTaskQueue.scheduleAt(deterministicTaskQueue.getCurrentTimeMillis() + followerLagTimeout.millis() - 1,
-            () -> lagDetector.setAppliedVersion(node1, 3));
+        deterministicTaskQueue.scheduleAt(
+            deterministicTaskQueue.getCurrentTimeMillis() + followerLagTimeout.millis() - 1,
+            () -> lagDetector.setAppliedVersion(node1, 3)
+        );
         assertThat(failedNodes, empty());
 
         lagDetector.startLagDetector(4);
-        deterministicTaskQueue.scheduleAt(deterministicTaskQueue.getCurrentTimeMillis() + followerLagTimeout.millis() + 1,
-            () -> lagDetector.setAppliedVersion(node1, 4));
+        deterministicTaskQueue.scheduleAt(
+            deterministicTaskQueue.getCurrentTimeMillis() + followerLagTimeout.millis() + 1,
+            () -> lagDetector.setAppliedVersion(node1, 4)
+        );
         deterministicTaskQueue.runAllTasksInTimeOrder();
         assertThat(failedNodes, contains(node1));
         failedNodes.clear();
@@ -241,4 +249,26 @@ public class LagDetectorTests extends ESTestCase {
         deterministicTaskQueue.runAllTasksInTimeOrder();
         assertThat(failedNodes, empty()); // nodes added after a lag detector was started are also ignored
     }
+
+    // literal name because it appears in the docs so must not be changed without care
+    private static final String LOGGER_NAME = "org.elasticsearch.cluster.coordination.LagDetector";
+
+    @TestLogging(reason = "testing LagDetector logging", value = LOGGER_NAME + ":DEBUG")
+    public void testHotThreadsChunkedLoggingEncoding() {
+        final var node = DiscoveryNodeUtils.create("test");
+        final var expectedBody = randomUnicodeOfLengthBetween(1, 20000);
+        assertEquals(
+            expectedBody,
+            ChunkedLoggingStreamTestUtils.getDecodedLoggedBody(
+                LogManager.getLogger(LOGGER_NAME),
+                Level.DEBUG,
+                "hot threads from node ["
+                    + node.descriptionWithoutAttributes()
+                    + "] lagging at version [1] despite commit of cluster state version [2]",
+                ReferenceDocs.LAGGING_NODE_TROUBLESHOOTING,
+                new LagDetector.HotThreadsLoggingTask(node, 1, 2, expectedBody, () -> {})::run
+            ).utf8ToString()
+        );
+    }
+
 }

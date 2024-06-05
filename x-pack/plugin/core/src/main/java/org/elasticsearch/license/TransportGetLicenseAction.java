@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.license;
 
@@ -15,35 +16,37 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.protocol.xpack.license.GetLicenseRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-
-import java.io.IOException;
 
 public class TransportGetLicenseAction extends TransportMasterNodeReadAction<GetLicenseRequest, GetLicenseResponse> {
 
     private final LicenseService licenseService;
 
     @Inject
-    public TransportGetLicenseAction(TransportService transportService, ClusterService clusterService,
-                                     LicenseService licenseService, ThreadPool threadPool, ActionFilters actionFilters,
-                                     IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(GetLicenseAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            GetLicenseRequest::new, indexNameExpressionResolver);
+    public TransportGetLicenseAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        LicenseService licenseService
+    ) {
+        super(
+            GetLicenseAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            GetLicenseRequest::new,
+            indexNameExpressionResolver,
+            GetLicenseResponse::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
         this.licenseService = licenseService;
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.MANAGEMENT;
-    }
-
-    @Override
-    protected GetLicenseResponse read(StreamInput in) throws IOException {
-        return new GetLicenseResponse(in);
     }
 
     @Override
@@ -52,8 +55,16 @@ public class TransportGetLicenseAction extends TransportMasterNodeReadAction<Get
     }
 
     @Override
-    protected void masterOperation(Task task, final GetLicenseRequest request, ClusterState state,
-                                   final ActionListener<GetLicenseResponse> listener) throws ElasticsearchException {
-        listener.onResponse(new GetLicenseResponse(licenseService.getLicense()));
+    protected void masterOperation(
+        Task task,
+        final GetLicenseRequest request,
+        ClusterState state,
+        final ActionListener<GetLicenseResponse> listener
+    ) throws ElasticsearchException {
+        if (licenseService instanceof ClusterStateLicenseService clusterStateLicenseService) {
+            listener.onResponse(new GetLicenseResponse(clusterStateLicenseService.getLicense(state.metadata())));
+        } else {
+            listener.onResponse(new GetLicenseResponse(licenseService.getLicense()));
+        }
     }
 }

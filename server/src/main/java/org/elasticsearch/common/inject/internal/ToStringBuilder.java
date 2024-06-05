@@ -31,11 +31,7 @@ public class ToStringBuilder {
 
     final String name;
 
-    public ToStringBuilder(String name) {
-        this.name = name;
-    }
-
-    public ToStringBuilder(Class type) {
+    public ToStringBuilder(Class<?> type) {
         this.name = type.getSimpleName();
     }
 

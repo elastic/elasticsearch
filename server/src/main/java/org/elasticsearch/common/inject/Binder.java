@@ -17,14 +17,8 @@
 package org.elasticsearch.common.inject;
 
 import org.elasticsearch.common.inject.binder.AnnotatedBindingBuilder;
-import org.elasticsearch.common.inject.binder.AnnotatedConstantBindingBuilder;
 import org.elasticsearch.common.inject.binder.LinkedBindingBuilder;
-import org.elasticsearch.common.inject.matcher.Matcher;
 import org.elasticsearch.common.inject.spi.Message;
-import org.elasticsearch.common.inject.spi.TypeConverter;
-import org.elasticsearch.common.inject.spi.TypeListener;
-
-import java.lang.annotation.Annotation;
 
 /**
  * Collects configuration information (primarily <i>bindings</i>) which will be
@@ -56,11 +50,7 @@ import java.lang.annotation.Annotation;
  *
  * Specifies that a request for a {@code Service} instance with no binding
  * annotations should be treated as if it were a request for a
- * {@code ServiceImpl} instance. This <i>overrides</i> the function of any
- * {@link ImplementedBy @ImplementedBy} or {@link ProvidedBy @ProvidedBy}
- * annotations found on {@code Service}, since Guice will have already
- * "moved on" to {@code ServiceImpl} before it reaches the point when it starts
- * looking for these annotations.
+ * {@code ServiceImpl} instance.
  *
  * <pre>
  *     bind(Service.class).toProvider(ServiceProvider.class);</pre>
@@ -104,11 +94,6 @@ import java.lang.annotation.Annotation;
  * <p><b>Note:</b> a scope specified in this way <i>overrides</i> any scope that
  * was specified with an annotation on the {@code ServiceImpl} class.
  *
- * <p>Besides {@link Singleton}/{@link Scopes#SINGLETON}, there are
- * servlet-specific scopes available in
- * {@code com.google.inject.servlet.ServletScopes}, and your Modules can
- * contribute their own custom scopes for use here as well.
- *
  * <pre>
  *     bind(new TypeLiteral&lt;PaymentService&lt;CreditCard&gt;&gt;() {})
  *         .to(CreditCardPaymentService.class);</pre>
@@ -140,9 +125,7 @@ import java.lang.annotation.Annotation;
  * Sets up a constant binding. Constant injections must always be annotated.
  * When a constant binding's value is a string, it is eligible for conversion to
  * all primitive types, to {@link Enum#valueOf all enums}, and to
- * {@link Class#forName class literals}. Conversions for other types can be
- * configured using {@link #convertToTypes(Matcher, TypeConverter)
- * convertToTypes()}.
+ * {@link Class#forName class literals}.
  *
  * <pre>
  *   {@literal @}Color("red") Color red; // A member variable (field)
@@ -175,9 +158,7 @@ import java.lang.annotation.Annotation;
  * cases Guice will let something bogus slip by, and will then inform you of
  * the problems at runtime, as soon as you try to create your Injector.
  *
- * <p>The other methods of Binder such as {@link #bindScope},
- * {@link #install}, {@link #requestStaticInjection},
- * {@link #addError} and {@link #currentStage} are not part of the Binding EDSL;
+ * <p>The other methods of Binder such as {@link #install}, and {@link #addError} are not part of the Binding EDSL;
  * you can learn how to use these in the usual way, from the method
  * documentation.
  *
@@ -186,11 +167,6 @@ import java.lang.annotation.Annotation;
  * @author kevinb@google.com (Kevin Bourrillion)
  */
 public interface Binder {
-
-    /**
-     * Binds a scope to an annotation.
-     */
-    void bindScope(Class<? extends Annotation> annotationType, Scope scope);
 
     /**
      * See the EDSL examples at {@link Binder}.
@@ -208,46 +184,9 @@ public interface Binder {
     <T> AnnotatedBindingBuilder<T> bind(Class<T> type);
 
     /**
-     * See the EDSL examples at {@link Binder}.
-     */
-    AnnotatedConstantBindingBuilder bindConstant();
-
-    /**
-     * Upon successful creation, the {@link Injector} will inject instance fields
-     * and methods of the given object.
-     *
-     * @param type     of instance
-     * @param instance for which members will be injected
-     * @since 2.0
-     */
-    <T> void requestInjection(TypeLiteral<T> type, T instance);
-
-    /**
-     * Upon successful creation, the {@link Injector} will inject instance fields
-     * and methods of the given object.
-     *
-     * @param instance for which members will be injected
-     * @since 2.0
-     */
-    void requestInjection(Object instance);
-
-    /**
-     * Upon successful creation, the {@link Injector} will inject static fields
-     * and methods in the given classes.
-     *
-     * @param types for which static members will be injected
-     */
-    void requestStaticInjection(Class<?>... types);
-
-    /**
      * Uses the given module to configure more bindings.
      */
     void install(Module module);
-
-    /**
-     * Gets the current stage.
-     */
-    Stage currentStage();
 
     /**
      * Records an error message which will be presented to the user at a later
@@ -257,14 +196,6 @@ public interface Binder {
      * message.
      */
     void addError(String message, Object... arguments);
-
-    /**
-     * Records an exception, the full details of which will be logged, and the
-     * message of which will be presented to the user at a later
-     * time. If your Module calls something that you worry may fail, you should
-     * catch the exception and pass it into this.
-     */
-    void addError(Throwable t);
 
     /**
      * Records an error message to be presented to the user at a later time.
@@ -282,60 +213,6 @@ public interface Binder {
      * @since 2.0
      */
     <T> Provider<T> getProvider(Key<T> key);
-
-    /**
-     * Returns the provider used to obtain instances for the given injection type.
-     * The returned provider will not be valid until the {@link Injector} has been
-     * created. The provider will throw an {@code IllegalStateException} if you
-     * try to use it beforehand.
-     *
-     * @since 2.0
-     */
-    <T> Provider<T> getProvider(Class<T> type);
-
-    /**
-     * Returns the members injector used to inject dependencies into methods and fields on instances
-     * of the given type {@code T}. The returned members injector will not be valid until the main
-     * {@link Injector} has been created. The members injector will throw an {@code
-     * IllegalStateException} if you try to use it beforehand.
-     *
-     * @param typeLiteral type to get members injector for
-     * @since 2.0
-     */
-    <T> MembersInjector<T> getMembersInjector(TypeLiteral<T> typeLiteral);
-
-    /**
-     * Returns the members injector used to inject dependencies into methods and fields on instances
-     * of the given type {@code T}. The returned members injector will not be valid until the main
-     * {@link Injector} has been created. The members injector will throw an {@code
-     * IllegalStateException} if you try to use it beforehand.
-     *
-     * @param type type to get members injector for
-     * @since 2.0
-     */
-    <T> MembersInjector<T> getMembersInjector(Class<T> type);
-
-    /**
-     * Binds a type converter. The injector will use the given converter to
-     * convert string constants to matching types as needed.
-     *
-     * @param typeMatcher matches types the converter can handle
-     * @param converter   converts values
-     * @since 2.0
-     */
-    void convertToTypes(Matcher<? super TypeLiteral<?>> typeMatcher,
-                        TypeConverter converter);
-
-    /**
-     * Registers a listener for injectable types. Guice will notify the listener when it encounters
-     * injectable types matched by the given type matcher.
-     *
-     * @param typeMatcher that matches injectable types the listener should be notified of
-     * @param listener    for injectable types matched by typeMatcher
-     * @since 2.0
-     */
-    void bindListener(Matcher<? super TypeLiteral<?>> typeMatcher,
-                      TypeListener listener);
 
     /**
      * Returns a binder that uses {@code source} as the reference location for
@@ -362,14 +239,4 @@ public interface Binder {
      */
     Binder skipSources(Class<?>... classesToSkip);
 
-    /**
-     * Creates a new private child environment for bindings and other configuration. The returned
-     * binder can be used to add and configuration information in this environment. See {@link
-     * PrivateModule} for details.
-     *
-     * @return a binder that inherits configuration from this binder. Only exposed configuration on
-     *         the returned binder will be visible to this binder.
-     * @since 2.0
-     */
-    PrivateBinder newPrivateBinder();
 }

@@ -22,8 +22,8 @@ pushd ${work} >> /dev/null
 echo Working in ${work}
 
 wget https://download.elasticsearch.org/elasticsearch/release/org/elasticsearch/distribution/tar/elasticsearch/2.0.0/elasticsearch-2.0.0.tar.gz
-wget https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-5.0.0.tar.gz
-wget https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-6.0.0.tar.gz
+wget https://artifacts-no-kpi.elastic.co/downloads/elasticsearch/elasticsearch-5.0.0.tar.gz
+wget https://artifacts-no-kpi.elastic.co/downloads/elasticsearch/elasticsearch-6.0.0.tar.gz
 sha1sum -c - << __SHAs
 e369d8579bd3a2e8b5344278d5043f19f14cac88 elasticsearch-2.0.0.tar.gz
 d25f6547bccec9f0b5ea7583815f96a6f50849e0 elasticsearch-5.0.0.tar.gz

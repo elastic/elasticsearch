@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.sql.expression;
@@ -31,10 +32,11 @@ public class ProcessorTests extends ESTestCase {
     }
 
     public void testProcessorRegistration() throws Exception {
-        LinkedHashSet<String> registered = Processors.getNamedWriteables().stream()
-                .filter(e -> Processor.class == e.categoryClass)
-                .map(e -> e.name)
-                .collect(toCollection(LinkedHashSet::new));
+        LinkedHashSet<String> registered = Processors.getNamedWriteables()
+            .stream()
+            .filter(e -> Processor.class == e.categoryClass)
+            .map(e -> e.name)
+            .collect(toCollection(LinkedHashSet::new));
 
         // discover available processors
         int missing = processors.size() - registered.size();
@@ -57,7 +59,7 @@ public class ProcessorTests extends ESTestCase {
                 fail(procName + " does NOT provide a static NAME field\n" + ex);
             }
             processorNames.add(value);
-            if (!registered.contains(value)) {
+            if (registered.contains(value) == false) {
                 notRegistered.add(procName);
             }
             Class<?> declaringClass = proc.getMethod("getWriteableName").getDeclaringClass();

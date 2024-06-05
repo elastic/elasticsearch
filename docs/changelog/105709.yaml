@@ -1,0 +1,5 @@
+pr: 105709
+summary: Apply stricter Document Level Security (DLS) rules for the validate query API with the rewrite parameter.
+area: Security
+type: bug
+issues: []

@@ -16,11 +16,9 @@
 
 package org.elasticsearch.common.inject;
 
-import org.elasticsearch.common.inject.internal.Errors;
 import org.elasticsearch.common.inject.internal.InternalFactory;
 import org.elasticsearch.common.inject.internal.Scoping;
 
-import java.lang.annotation.Annotation;
 import java.util.Locale;
 
 /**
@@ -30,15 +28,14 @@ import java.util.Locale;
  */
 public class Scopes {
 
-    private Scopes() {
-    }
+    private Scopes() {}
 
     /**
-     * One instance per {@link Injector}. Also see {@code @}{@link Singleton}.
+     * One instance per {@link Injector}.
      */
     public static final Scope SINGLETON = new Scope() {
         @Override
-        public <T> Provider<T> scope(Key<T> key, final Provider<T> creator) {
+        public <T> Provider<T> scope(final Provider<T> creator) {
             return new Provider<T>() {
 
                 private volatile T instance;
@@ -83,14 +80,13 @@ public class Scopes {
      * binding arrives it will need to obtain the instance over again.
      * <p>
      * This exists only in case a class has been annotated with a scope
-     * annotation such as {@link Singleton @Singleton}, and you need to override
-     * this to "no scope" in your binding.
+     * annotation and you need to override this to "no scope" in your binding.
      *
      * @since 2.0
      */
     public static final Scope NO_SCOPE = new Scope() {
         @Override
-        public <T> Provider<T> scope(Key<T> key, Provider<T> unscoped) {
+        public <T> Provider<T> scope(Provider<T> unscoped) {
             return unscoped;
         }
 
@@ -103,8 +99,7 @@ public class Scopes {
     /**
      * Scopes an internal factory.
      */
-    static <T> InternalFactory<? extends T> scope(Key<T> key, InjectorImpl injector,
-                                                  InternalFactory<? extends T> creator, Scoping scoping) {
+    static <T> InternalFactory<? extends T> scope(InjectorImpl injector, InternalFactory<? extends T> creator, Scoping scoping) {
 
         if (scoping.isNoScope()) {
             return creator;
@@ -113,29 +108,8 @@ public class Scopes {
         Scope scope = scoping.getScopeInstance();
 
         // TODO: use diamond operator once JI-9019884 is fixed
-        Provider<T> scoped
-                = scope.scope(key, new ProviderToInternalFactoryAdapter<T>(injector, creator));
-        return new InternalFactoryToProviderAdapter<>(
-                Initializables.<Provider<? extends T>>of(scoped));
+        Provider<T> scoped = scope.scope(new ProviderToInternalFactoryAdapter<T>(injector, creator));
+        return new InternalFactoryToProviderAdapter<>(Initializables.of(scoped));
     }
 
-    /**
-     * Replaces annotation scopes with instance scopes using the Injector's annotation-to-instance
-     * map. If the scope annotation has no corresponding instance, an error will be added and unscoped
-     * will be retuned.
-     */
-    static Scoping makeInjectable(Scoping scoping, InjectorImpl injector, Errors errors) {
-        Class<? extends Annotation> scopeAnnotation = scoping.getScopeAnnotation();
-        if (scopeAnnotation == null) {
-            return scoping;
-        }
-
-        Scope scope = injector.state.getScope(scopeAnnotation);
-        if (scope != null) {
-            return Scoping.forInstance(scope);
-        }
-
-        errors.scopeNotFound(scopeAnnotation);
-        return Scoping.UNSCOPED;
-    }
 }

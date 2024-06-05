@@ -1,61 +1,59 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.bootstrap;
 
-import org.elasticsearch.cli.Command;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.SecuredFileAccessPermission;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.http.HttpTransportSettings;
-import org.elasticsearch.plugins.PluginInfo;
-import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.jdk.JarHell;
+import org.elasticsearch.plugins.PluginsUtils;
 import org.elasticsearch.secure_sm.SecureSM;
 import org.elasticsearch.transport.TcpTransport;
 
+import java.io.FilePermission;
 import java.io.IOException;
+import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.VarHandle;
+import java.lang.reflect.Field;
 import java.net.SocketPermission;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.file.AccessMode;
-import java.nio.file.DirectoryStream;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.NotDirectoryException;
 import java.nio.file.Path;
-import java.security.NoSuchAlgorithmException;
+import java.security.Permission;
 import java.security.Permissions;
 import java.security.Policy;
-import java.security.URIParameter;
-import java.util.ArrayList;
+import java.security.UnresolvedPermission;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Consumer;
+import java.util.stream.Stream;
 
+import static java.lang.invoke.MethodType.methodType;
+import static org.elasticsearch.bootstrap.ESPolicy.POLICY_RESOURCE;
 import static org.elasticsearch.bootstrap.FilePermissionUtils.addDirectoryPath;
 import static org.elasticsearch.bootstrap.FilePermissionUtils.addSingleFilePath;
+import static org.elasticsearch.reservedstate.service.FileSettingsService.OPERATOR_DIRECTORY;
+import static org.elasticsearch.reservedstate.service.FileSettingsService.SETTINGS_FILE_NAME;
 
 /**
  * Initializes SecurityManager with necessary permissions.
@@ -105,8 +103,17 @@ import static org.elasticsearch.bootstrap.FilePermissionUtils.addSingleFilePath;
  * Troubleshooting Security</a> for information.
  */
 final class Security {
+
+    static {
+        prepopulateSecurityCaller();
+    }
+
     /** no instantiation */
     private Security() {}
+
+    static void setSecurityManager(@SuppressWarnings("removal") SecurityManager sm) {
+        System.setSecurityManager(sm);
+    }
 
     /**
      * Initializes SecurityManager for the environment
@@ -114,43 +121,31 @@ final class Security {
      * @param environment configuration for generating dynamic permissions
      * @param filterBadDefaults true if we should filter out bad java defaults in the system policy.
      */
-    static void configure(Environment environment, boolean filterBadDefaults) throws IOException, NoSuchAlgorithmException {
-
+    static void configure(Environment environment, boolean filterBadDefaults, Path pidFile) throws IOException {
         // enable security policy: union of template and environment-based paths, and possibly plugin permissions
-        Map<String, URL> codebases = getCodebaseJarMap(JarHell.parseClassPath());
-        Policy.setPolicy(new ESPolicy(codebases, createPermissions(environment), getPluginPermissions(environment), filterBadDefaults));
+        Map<String, URL> codebases = PolicyUtil.getCodebaseJarMap(JarHell.parseModulesAndClassPath());
+        Policy mainPolicy = PolicyUtil.readPolicy(ESPolicy.class.getResource(POLICY_RESOURCE), codebases);
+        Map<URL, Policy> pluginPolicies = getPluginAndModulePermissions(environment);
+        Policy.setPolicy(
+            new ESPolicy(
+                mainPolicy,
+                createPermissions(environment, pidFile),
+                pluginPolicies,
+                filterBadDefaults,
+                createRecursiveDataPathPermission(environment),
+                readSecuredFiles(environment, mainPolicy, codebases.values(), pluginPolicies)
+            )
+        );
 
         // enable security manager
-        final String[] classesThatCanExit =
-                new String[]{
-                        // SecureSM matches class names as regular expressions so we escape the $ that arises from the nested class name
-                        ElasticsearchUncaughtExceptionHandler.PrivilegedHaltAction.class.getName().replace("$", "\\$"),
-                        Command.class.getName()};
-        System.setSecurityManager(new SecureSM(classesThatCanExit));
+        final String[] classesThatCanExit = new String[] {
+            // SecureSM matches class names as regular expressions so we escape the $ that arises from the nested class name
+            ElasticsearchUncaughtExceptionHandler.PrivilegedHaltAction.class.getName().replace("$", "\\$"),
+            Bootstrap.class.getName() };
+        setSecurityManager(new SecureSM(classesThatCanExit));
 
         // do some basic tests
         selfTest();
-    }
-
-    /**
-     * Return a map from codebase name to codebase url of jar codebases used by ES core.
-     */
-    @SuppressForbidden(reason = "find URL path")
-    static Map<String, URL> getCodebaseJarMap(Set<URL> urls) {
-        Map<String, URL> codebases = new LinkedHashMap<>(); // maintain order
-        for (URL url : urls) {
-            try {
-                String fileName = PathUtils.get(url.toURI()).getFileName().toString();
-                if (fileName.endsWith(".jar") == false) {
-                    // tests :(
-                    continue;
-                }
-                codebases.put(fileName, url);
-            } catch (URISyntaxException e) {
-                throw new RuntimeException(e);
-            }
-        }
-        return codebases;
     }
 
     /**
@@ -158,100 +153,98 @@ final class Security {
      * we look for matching plugins and set URLs to fit
      */
     @SuppressForbidden(reason = "proper use of URL")
-    static Map<String,Policy> getPluginPermissions(Environment environment) throws IOException, NoSuchAlgorithmException {
-        Map<String,Policy> map = new HashMap<>();
-        // collect up set of plugins and modules by listing directories.
-        Set<Path> pluginsAndModules = new LinkedHashSet<>(PluginsService.findPluginDirs(environment.pluginsFile()));
-        pluginsAndModules.addAll(PluginsService.findPluginDirs(environment.modulesFile()));
+    static Map<URL, Policy> getPluginAndModulePermissions(Environment environment) throws IOException {
+        Map<URL, Policy> map = new HashMap<>();
+        Consumer<PluginPolicyInfo> addPolicy = pluginPolicy -> {
+            if (pluginPolicy == null) {
+                return;
+            }
 
-        // now process each one
-        for (Path plugin : pluginsAndModules) {
-            Path policyFile = plugin.resolve(PluginInfo.ES_PLUGIN_POLICY);
-            if (Files.exists(policyFile)) {
-                // first get a list of URLs for the plugins' jars:
-                // we resolve symlinks so map is keyed on the normalize codebase name
-                Set<URL> codebases = new LinkedHashSet<>(); // order is already lost, but some filesystems have it
-                try (DirectoryStream<Path> jarStream = Files.newDirectoryStream(plugin, "*.jar")) {
-                    for (Path jar : jarStream) {
-                        URL url = jar.toRealPath().toUri().toURL();
-                        if (codebases.add(url) == false) {
-                            throw new IllegalStateException("duplicate module/plugin: " + url);
-                        }
-                    }
-                }
-
-                // parse the plugin's policy file into a set of permissions
-                Policy policy = readPolicy(policyFile.toUri().toURL(), getCodebaseJarMap(codebases));
-
-                // consult this policy for each of the plugin's jars:
-                for (URL url : codebases) {
-                    if (map.put(url.getFile(), policy) != null) {
-                        // just be paranoid ok?
-                        throw new IllegalStateException("per-plugin permissions already granted for jar file: " + url);
-                    }
+            // consult this policy for each of the plugin's jars:
+            for (URL jar : pluginPolicy.jars()) {
+                if (map.put(jar, pluginPolicy.policy()) != null) {
+                    // just be paranoid ok?
+                    throw new IllegalStateException("per-plugin permissions already granted for jar file: " + jar);
                 }
             }
+        };
+
+        for (Path plugin : PluginsUtils.findPluginDirs(environment.pluginsFile())) {
+            addPolicy.accept(PolicyUtil.getPluginPolicyInfo(plugin, environment.tmpFile()));
+        }
+        for (Path plugin : PluginsUtils.findPluginDirs(environment.modulesFile())) {
+            addPolicy.accept(PolicyUtil.getModulePolicyInfo(plugin, environment.tmpFile()));
         }
 
         return Collections.unmodifiableMap(map);
     }
 
-    /**
-     * Reads and returns the specified {@code policyFile}.
-     * <p>
-     * Jar files listed in {@code codebases} location will be provided to the policy file via
-     * a system property of the short name: e.g. <code>${codebase.joda-convert-1.2.jar}</code>
-     * would map to full URL.
-     */
-    @SuppressForbidden(reason = "accesses fully qualified URLs to configure security")
-    static Policy readPolicy(URL policyFile, Map<String, URL> codebases) {
-        try {
-            List<String> propertiesSet = new ArrayList<>();
-            try {
-                // set codebase properties
-                for (Map.Entry<String,URL> codebase : codebases.entrySet()) {
-                    String name = codebase.getKey();
-                    URL url = codebase.getValue();
+    /** returns dynamic Permissions to configured paths and bind ports */
+    static Permissions createPermissions(Environment environment, Path pidFile) throws IOException {
+        Permissions policy = new Permissions();
+        addClasspathPermissions(policy);
+        addFilePermissions(policy, environment, pidFile);
+        addBindPermissions(policy, environment.settings());
+        return policy;
+    }
 
-                    // We attempt to use a versionless identifier for each codebase. This assumes a specific version
-                    // format in the jar filename. While we cannot ensure all jars in all plugins use this format, nonconformity
-                    // only means policy grants would need to include the entire jar filename as they always have before.
-                    String property = "codebase." + name;
-                    String aliasProperty = "codebase." + name.replaceFirst("-\\d+\\.\\d+.*\\.jar", "");
-                    if (aliasProperty.equals(property) == false) {
-                        propertiesSet.add(aliasProperty);
-                        String previous = System.setProperty(aliasProperty, url.toString());
-                        if (previous != null) {
-                            throw new IllegalStateException("codebase property already set: " + aliasProperty + " -> " + previous +
-                                                            ", cannot set to " + url.toString());
-                        }
-                    }
-                    propertiesSet.add(property);
-                    String previous = System.setProperty(property, url.toString());
-                    if (previous != null) {
-                        throw new IllegalStateException("codebase property already set: " + property + " -> " + previous +
-                                                        ", cannot set to " + url.toString());
-                    }
-                }
-                return Policy.getInstance("JavaPolicy", new URIParameter(policyFile.toURI()));
-            } finally {
-                // clear codebase properties
-                for (String property : propertiesSet) {
-                    System.clearProperty(property);
-                }
-            }
-        } catch (NoSuchAlgorithmException | URISyntaxException e) {
-            throw new IllegalArgumentException("unable to parse policy file `" + policyFile + "`", e);
+    private static List<FilePermission> createRecursiveDataPathPermission(Environment environment) throws IOException {
+        Permissions policy = new Permissions();
+        for (Path path : environment.dataFiles()) {
+            addDirectoryPath(policy, Environment.PATH_DATA_SETTING.getKey(), path, "read,readlink,write,delete", true);
+        }
+        return toFilePermissions(policy);
+    }
+
+    private static Map<String, Set<URL>> readSecuredFiles(
+        Environment environment,
+        Policy template,
+        Collection<URL> mainCodebases,
+        Map<URL, Policy> pluginPolicies
+    ) throws IOException {
+        Map<String, Set<URL>> securedFiles = new HashMap<>();
+
+        for (URL url : mainCodebases) {
+            PolicyUtil.getPolicyPermissions(url, template, environment.tmpFile())
+                .stream()
+                .flatMap(Security::extractSecuredFileName)
+                .map(environment.configFile()::resolve)
+                .forEach(f -> securedFiles.computeIfAbsent(f.toString(), k -> new HashSet<>()).add(url));
+        }
+
+        for (var pp : pluginPolicies.entrySet()) {
+            PolicyUtil.getPolicyPermissions(pp.getKey(), pp.getValue(), environment.tmpFile())
+                .stream()
+                .flatMap(Security::extractSecuredFileName)
+                .map(environment.configFile()::resolve)
+                .forEach(f -> securedFiles.computeIfAbsent(f.toString(), k -> new HashSet<>()).add(pp.getKey()));
+        }
+
+        // always add some config files as exclusive files that no one can access
+        // there's no reason for anyone to read these once the security manager is initialized
+        // so if something has tried to grant itself access, crash out with an error
+        addSpeciallySecuredFile(securedFiles, environment.configFile().resolve("elasticsearch.yml").toString());
+        addSpeciallySecuredFile(securedFiles, environment.configFile().resolve("jvm.options").toString());
+        addSpeciallySecuredFile(securedFiles, environment.configFile().resolve("jvm.options.d/-").toString());
+
+        return Collections.unmodifiableMap(securedFiles);
+    }
+
+    private static void addSpeciallySecuredFile(Map<String, Set<URL>> securedFiles, String path) {
+        Set<URL> attemptedToGrant = securedFiles.put(path, Set.of());
+        if (attemptedToGrant != null) {
+            throw new IllegalStateException(attemptedToGrant + " tried to grant access to special config file " + path);
         }
     }
 
-    /** returns dynamic Permissions to configured paths and bind ports */
-    static Permissions createPermissions(Environment environment) throws IOException {
-        Permissions policy = new Permissions();
-        addClasspathPermissions(policy);
-        addFilePermissions(policy, environment);
-        addBindPermissions(policy, environment.settings());
-        return policy;
+    private static Stream<String> extractSecuredFileName(Permission p) {
+        if (p instanceof SecuredFileAccessPermission) {
+            return Stream.of(p.getName());
+        }
+        if (p instanceof UnresolvedPermission up && up.getUnresolvedType().equals(SecuredFileAccessPermission.class.getCanonicalName())) {
+            return Stream.of(up.getUnresolvedName());
+        }
+        return Stream.empty();
     }
 
     /** Adds access to classpath jars/classes for jar hell scan, etc */
@@ -268,7 +261,7 @@ final class Security {
             }
             // resource itself
             if (Files.isDirectory(path)) {
-                addDirectoryPath(policy, "class.path", path, "read,readlink");
+                addDirectoryPath(policy, "class.path", path, "read,readlink", false);
             } else {
                 addSingleFilePath(policy, path, "read,readlink");
             }
@@ -278,23 +271,29 @@ final class Security {
     /**
      * Adds access to all configurable paths.
      */
-    static void addFilePermissions(Permissions policy, Environment environment) throws IOException {
+    static void addFilePermissions(Permissions policy, Environment environment, Path pidFile) throws IOException {
         // read-only dirs
-        addDirectoryPath(policy, Environment.PATH_HOME_SETTING.getKey(), environment.binFile(), "read,readlink");
-        addDirectoryPath(policy, Environment.PATH_HOME_SETTING.getKey(), environment.libFile(), "read,readlink");
-        addDirectoryPath(policy, Environment.PATH_HOME_SETTING.getKey(), environment.modulesFile(), "read,readlink");
-        addDirectoryPath(policy, Environment.PATH_HOME_SETTING.getKey(), environment.pluginsFile(), "read,readlink");
-        addDirectoryPath(policy, "path.conf'", environment.configFile(), "read,readlink");
+        addDirectoryPath(policy, Environment.PATH_HOME_SETTING.getKey(), environment.binFile(), "read,readlink", false);
+        addDirectoryPath(policy, Environment.PATH_HOME_SETTING.getKey(), environment.libFile(), "read,readlink", false);
+        addDirectoryPath(policy, Environment.PATH_HOME_SETTING.getKey(), environment.modulesFile(), "read,readlink", false);
+        addDirectoryPath(policy, Environment.PATH_HOME_SETTING.getKey(), environment.pluginsFile(), "read,readlink", false);
+        addDirectoryPath(policy, "path.conf", environment.configFile(), "read,readlink", false);
+
         // read-write dirs
-        addDirectoryPath(policy, "java.io.tmpdir", environment.tmpFile(), "read,readlink,write,delete");
-        addDirectoryPath(policy, Environment.PATH_LOGS_SETTING.getKey(), environment.logsFile(), "read,readlink,write,delete");
+        addDirectoryPath(policy, "java.io.tmpdir", environment.tmpFile(), "read,readlink,write,delete", false);
+        addDirectoryPath(policy, Environment.PATH_LOGS_SETTING.getKey(), environment.logsFile(), "read,readlink,write,delete", false);
         if (environment.sharedDataFile() != null) {
-            addDirectoryPath(policy, Environment.PATH_SHARED_DATA_SETTING.getKey(), environment.sharedDataFile(),
-                "read,readlink,write,delete");
+            addDirectoryPath(
+                policy,
+                Environment.PATH_SHARED_DATA_SETTING.getKey(),
+                environment.sharedDataFile(),
+                "read,readlink,write,delete",
+                false
+            );
         }
         final Set<Path> dataFilesPaths = new HashSet<>();
         for (Path path : environment.dataFiles()) {
-            addDirectoryPath(policy, Environment.PATH_DATA_SETTING.getKey(), path, "read,readlink,write,delete");
+            addDirectoryPath(policy, Environment.PATH_DATA_SETTING.getKey(), path, "read,readlink,write,delete", false);
             /*
              * We have to do this after adding the path because a side effect of that is that the directory is created; the Path#toRealPath
              * invocation will fail if the directory does not already exist. We use Path#toRealPath to follow symlinks and handle issues
@@ -302,7 +301,7 @@ final class Security {
              */
             try {
                 final Path realPath = path.toRealPath();
-                if (!dataFilesPaths.add(realPath)) {
+                if (dataFilesPaths.add(realPath) == false) {
                     throw new IllegalStateException("path [" + realPath + "] is duplicated by [" + path + "]");
                 }
             } catch (final IOException e) {
@@ -310,12 +309,15 @@ final class Security {
             }
         }
         for (Path path : environment.repoFiles()) {
-            addDirectoryPath(policy, Environment.PATH_REPO_SETTING.getKey(), path, "read,readlink,write,delete");
+            addDirectoryPath(policy, Environment.PATH_REPO_SETTING.getKey(), path, "read,readlink,write,delete", false);
         }
-        if (environment.pidFile() != null) {
+
+        if (pidFile != null) {
             // we just need permission to remove the file if its elsewhere.
-            addSingleFilePath(policy, environment.pidFile(), "delete");
+            addSingleFilePath(policy, pidFile, "delete");
         }
+        // we need to touch the operator/settings.json file when restoring from snapshots, on some OSs it needs file write permission
+        addSingleFilePath(policy, environment.configFile().resolve(OPERATOR_DIRECTORY).resolve(SETTINGS_FILE_NAME), "read,readlink,write");
     }
 
     /**
@@ -410,5 +412,64 @@ final class Security {
         } catch (SecurityException problem) {
             throw new SecurityException("Security misconfiguration: cannot access java.io.tmpdir", problem);
         }
+    }
+
+    /**
+     * Prepopulates the system's security manager callers map with this class as a caller.
+     * This is loathsome, but avoids the annoying warning message at run time.
+     * Returns true if the callers map has been populated.
+     */
+    static boolean prepopulateSecurityCaller() {
+        Field f;
+        try {
+            f = getDeclaredField(Class.forName("java.lang.System$CallersHolder", true, null), "callers");
+        } catch (NoSuchFieldException | ClassNotFoundException ignore) {
+            return false;
+        }
+        try {
+            Class<?> c = Class.forName("sun.misc.Unsafe");
+            MethodHandles.Lookup lookup = MethodHandles.privateLookupIn(c, MethodHandles.lookup());
+            VarHandle handle = lookup.findStaticVarHandle(c, "theUnsafe", c);
+            Object theUnsafe = handle.get();
+            MethodHandle mh = lookup.findVirtual(c, "staticFieldBase", methodType(Object.class, Field.class));
+            mh = mh.asType(mh.type().changeParameterType(0, Object.class));
+            Object base = mh.invokeExact(theUnsafe, f);
+            mh = lookup.findVirtual(c, "staticFieldOffset", methodType(long.class, Field.class));
+            mh = mh.asType(mh.type().changeParameterType(0, Object.class));
+            long offset = (long) mh.invokeExact(theUnsafe, f);
+            mh = lookup.findVirtual(c, "getObject", methodType(Object.class, Object.class, long.class));
+            mh = mh.asType(mh.type().changeParameterType(0, Object.class));
+            Object callers = (Object) mh.invokeExact(theUnsafe, base, offset);
+            if (Map.class.isAssignableFrom(callers.getClass())) {
+                @SuppressWarnings("unchecked")
+                Map<Class<?>, Boolean> map = Map.class.cast(callers);
+                map.put(org.elasticsearch.bootstrap.Security.class, true);
+                return true;
+            }
+        } catch (Throwable t) {
+            throw new ElasticsearchException(t);
+        }
+        return false;
+    }
+
+    @SuppressForbidden(reason = "access violation required")
+    private static Field getDeclaredField(Class<?> c, String name) throws NoSuchFieldException {
+        return c.getDeclaredField(name);
+    }
+
+    /**
+     * Assumes the given {@link Permissions} only contains {@link FilePermission} elements and returns them as
+     * a list.
+     *
+     * @param permissions permissions to unwrap
+     * @return list of file permissions found
+     */
+    static List<FilePermission> toFilePermissions(Permissions permissions) {
+        return permissions.elementsAsStream().map(p -> {
+            if (p instanceof FilePermission == false) {
+                throw new AssertionError("[" + p + "] was not a file permission");
+            }
+            return (FilePermission) p;
+        }).toList();
     }
 }

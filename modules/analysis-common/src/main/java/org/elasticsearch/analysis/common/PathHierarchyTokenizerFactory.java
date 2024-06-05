@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.analysis.common;
@@ -39,22 +28,22 @@ public class PathHierarchyTokenizerFactory extends AbstractTokenizerFactory {
     PathHierarchyTokenizerFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(indexSettings, settings, name);
         bufferSize = settings.getAsInt("buffer_size", 1024);
-        String delimiter = settings.get("delimiter");
-        if (delimiter == null) {
+        String delimiterString = settings.get("delimiter");
+        if (delimiterString == null) {
             this.delimiter = PathHierarchyTokenizer.DEFAULT_DELIMITER;
-        } else if (delimiter.length() != 1) {
+        } else if (delimiterString.length() != 1) {
             throw new IllegalArgumentException("delimiter must be a one char value");
         } else {
-            this.delimiter = delimiter.charAt(0);
+            this.delimiter = delimiterString.charAt(0);
         }
 
-        String replacement = settings.get("replacement");
-        if (replacement == null) {
+        String replacementString = settings.get("replacement");
+        if (replacementString == null) {
             this.replacement = this.delimiter;
-        } else if (replacement.length() != 1) {
+        } else if (replacementString.length() != 1) {
             throw new IllegalArgumentException("replacement must be a one char value");
         } else {
-            this.replacement = replacement.charAt(0);
+            this.replacement = replacementString.charAt(0);
         }
         this.skip = settings.getAsInt("skip", PathHierarchyTokenizer.DEFAULT_SKIP);
         this.reverse = settings.getAsBoolean("reverse", false);

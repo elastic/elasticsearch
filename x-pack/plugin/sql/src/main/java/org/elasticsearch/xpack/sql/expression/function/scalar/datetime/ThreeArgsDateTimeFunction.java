@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
@@ -53,9 +54,6 @@ public abstract class ThreeArgsDateTimeFunction extends ScalarFunction {
 
     @Override
     public final ThreeArgsDateTimeFunction replaceChildren(List<Expression> newChildren) {
-        if (newChildren.size() != 3) {
-            throw new IllegalArgumentException("expected [3] children but received [" + newChildren.size() + "]");
-        }
         return replaceChildren(newChildren.get(0), newChildren.get(1), newChildren.get(2));
     }
 
@@ -84,15 +82,24 @@ public abstract class ThreeArgsDateTimeFunction extends ScalarFunction {
 
     protected ScriptTemplate asScriptFrom(ScriptTemplate firstScript, ScriptTemplate secondScript, ScriptTemplate thirdScript) {
         return new ScriptTemplate(
-            formatTemplate("{sql}." + scriptMethodName() +
-                "(" + firstScript.template() + "," + secondScript.template() + "," + thirdScript.template() + ",{})"),
-            paramsBuilder()
-                .script(firstScript.params())
+            formatTemplate(
+                "{sql}."
+                    + scriptMethodName()
+                    + "("
+                    + firstScript.template()
+                    + ","
+                    + secondScript.template()
+                    + ","
+                    + thirdScript.template()
+                    + ",{})"
+            ),
+            paramsBuilder().script(firstScript.params())
                 .script(secondScript.params())
                 .script(thirdScript.params())
                 .variable(zoneId.getId())
                 .build(),
-            dataType());
+            dataType()
+        );
     }
 
     protected String scriptMethodName() {
@@ -112,7 +119,7 @@ public abstract class ThreeArgsDateTimeFunction extends ScalarFunction {
         if (o == null || getClass() != o.getClass()) {
             return false;
         }
-        if (!super.equals(o)) {
+        if (super.equals(o) == false) {
             return false;
         }
         ThreeArgsDateTimeFunction that = (ThreeArgsDateTimeFunction) o;

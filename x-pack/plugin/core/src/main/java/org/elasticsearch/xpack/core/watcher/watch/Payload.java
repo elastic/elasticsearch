@@ -1,17 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.watcher.watch;
 
-import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -28,14 +29,15 @@ public interface Payload extends ToXContentObject {
         private final Map<String, Object> data;
 
         public Simple() {
-            this(new HashMap<>());
+            this(Map.of());
         }
 
         public Simple(String key, Object value) {
-            this(new MapBuilder<String, Object>().put(key, value).map());
+            this(Map.of(key, value));
         }
 
         public Simple(Map<String, Object> data) {
+            CollectionUtils.ensureNoSelfReferences(data, "watcher action payload");
             this.data = data;
         }
 
@@ -56,7 +58,7 @@ public interface Payload extends ToXContentObject {
 
             Simple simple = (Simple) o;
 
-            if (!data.equals(simple.data)) return false;
+            if (data.equals(simple.data) == false) return false;
 
             return true;
         }
@@ -75,6 +77,10 @@ public interface Payload extends ToXContentObject {
     class XContent extends Simple {
         public XContent(ToXContentObject response, Params params) throws IOException {
             super(responseToData(response, params));
+        }
+
+        public XContent(ChunkedToXContentObject response, Params params) throws IOException {
+            this(ChunkedToXContentObject.wrapAsToXContentObject(response), params);
         }
     }
 }

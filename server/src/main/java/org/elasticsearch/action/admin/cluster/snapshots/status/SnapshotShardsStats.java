@@ -1,35 +1,19 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.cluster.snapshots.status;
 
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Collection;
-
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
  * Status of a snapshot shards
@@ -47,29 +31,24 @@ public class SnapshotShardsStats implements ToXContentObject {
         for (SnapshotIndexShardStatus shard : shards) {
             totalShards++;
             switch (shard.getStage()) {
-                case INIT:
-                    initializingShards++;
-                    break;
-                case STARTED:
-                    startedShards++;
-                    break;
-                case FINALIZE:
-                    finalizingShards++;
-                    break;
-                case DONE:
-                    doneShards++;
-                    break;
-                case FAILURE:
-                    failedShards++;
-                    break;
-                default:
-                    throw new IllegalArgumentException("Unknown stage type " + shard.getStage());
+                case INIT -> initializingShards++;
+                case STARTED -> startedShards++;
+                case FINALIZE -> finalizingShards++;
+                case DONE -> doneShards++;
+                case FAILURE -> failedShards++;
+                default -> throw new IllegalArgumentException("Unknown stage type " + shard.getStage());
             }
         }
     }
 
-    public SnapshotShardsStats(int initializingShards, int startedShards, int finalizingShards, int doneShards, int failedShards,
-                               int totalShards) {
+    public SnapshotShardsStats(
+        int initializingShards,
+        int startedShards,
+        int finalizingShards,
+        int doneShards,
+        int failedShards,
+        int totalShards
+    ) {
         this.initializingShards = initializingShards;
         this.startedShards = startedShards;
         this.finalizingShards = finalizingShards;
@@ -143,32 +122,6 @@ public class SnapshotShardsStats implements ToXContentObject {
         }
         builder.endObject();
         return builder;
-    }
-
-    static final ConstructingObjectParser<SnapshotShardsStats, Void> PARSER = new ConstructingObjectParser<>(
-        Fields.SHARDS_STATS, true,
-        (Object[] parsedObjects) -> {
-            int i = 0;
-            int initializingShards = (int) parsedObjects[i++];
-            int startedShards = (int) parsedObjects[i++];
-            int finalizingShards = (int) parsedObjects[i++];
-            int doneShards = (int) parsedObjects[i++];
-            int failedShards = (int) parsedObjects[i++];
-            int totalShards = (int) parsedObjects[i];
-            return new SnapshotShardsStats(initializingShards, startedShards, finalizingShards, doneShards, failedShards, totalShards);
-        }
-    );
-    static {
-        PARSER.declareInt(constructorArg(), new ParseField(Fields.INITIALIZING));
-        PARSER.declareInt(constructorArg(), new ParseField(Fields.STARTED));
-        PARSER.declareInt(constructorArg(), new ParseField(Fields.FINALIZING));
-        PARSER.declareInt(constructorArg(), new ParseField(Fields.DONE));
-        PARSER.declareInt(constructorArg(), new ParseField(Fields.FAILED));
-        PARSER.declareInt(constructorArg(), new ParseField(Fields.TOTAL));
-    }
-
-    public static SnapshotShardsStats fromXContent(XContentParser parser) throws IOException {
-        return PARSER.apply(parser, null);
     }
 
     @Override

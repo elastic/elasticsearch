@@ -7,24 +7,26 @@
 Returns documents that contain one or more *exact* terms in a provided field.
 
 The `terms` query is the same as the <<query-dsl-term-query, `term` query>>,
-except you can search for multiple values.
+except you can search for multiple values. A document will match if it contains
+at least one of the terms. To search for documents that contain more than one
+matching term, use the <<query-dsl-terms-set-query, `terms_set` query>>.
 
 [[terms-query-ex-request]]
 ==== Example request
 
-The following search returns documents where the `user` field contains `kimchy`
-or `elasticsearch`.
+The following search returns documents where the `user.id` field contains `kimchy`
+or `elkbee`.
 
 [source,console]
 ----
 GET /_search
 {
-    "query" : {
-        "terms" : {
-            "user" : ["kimchy", "elasticsearch"],
-            "boost" : 1.0 
-        }
+  "query": {
+    "terms": {
+      "user.id": [ "kimchy", "elkbee" ],
+      "boost": 1.0
     }
+  }
 }
 ----
 
@@ -67,7 +69,7 @@ increases the relevance score.
 
 [[query-dsl-terms-query-highlighting]]
 ===== Highlighting `terms` queries
-<<request-body-search-highlighting,Highlighting>> is best-effort only. {es} may not
+<<highlighting,Highlighting>> is best-effort only. {es} may not
 return highlight results for `terms` queries depending on:
 
 * Highlighter type
@@ -79,30 +81,35 @@ Terms lookup fetches the field values of an existing document. {es} then uses
 those values as search terms. This can be helpful when searching for a large set
 of terms.
 
-Because terms lookup fetches values from a document, the <<mapping-source-field,
-`_source`>> mapping field must be enabled to use terms lookup. The `_source`
-field is enabled by default.
+To run a terms lookup, the field's <<mapping-source-field,`_source`>> must be
+enabled. You cannot use {ccs} to run a terms lookup on a remote index.
 
 [NOTE]
 By default, {es} limits the `terms` query to a maximum of 65,536
 terms. This includes terms fetched using terms lookup. You can change
 this limit using the <<index-max-terms-count, `index.max_terms_count`>> setting.
 
+To reduce network traffic, a terms lookup will fetch the document's values from
+a shard on a local data node if possible. If the your terms data is not large,
+consider using an index with a single primary shard that's fully replicated
+across all applicable data nodes to minimize network traffic.
+
 To perform a terms lookup, use the following parameters.
 
 [[query-dsl-terms-lookup-params]]
 ====== Terms lookup parameters
+
 `index`::
-(Optional, string) Name of the index from which to fetch field values.
+(Required, string) Name of the index from which to fetch field values.
 
 `id`::
-(Optional, string) <<mapping-id-field,ID>> of the document from which to fetch
+(Required, string) <<mapping-id-field,ID>> of the document from which to fetch
 field values.
 
 `path`::
 +
 --
-(Optional, string) Name of the field from which to fetch field values. {es} uses
+(Required, string) Name of the field from which to fetch field values. {es} uses
 these values as search terms for the query.
 
 If the field values include an array of nested inner objects, you can access
@@ -117,7 +124,7 @@ when the document was indexed, this parameter is required.
 [[query-dsl-terms-lookup-example]]
 ====== Terms lookup example
 
-To see how terms lookup works, try the following example.  
+To see how terms lookup works, try the following example.
 
 . Create an index with a `keyword` field named `color`.
 +
@@ -125,13 +132,13 @@ To see how terms lookup works, try the following example.
 
 [source,console]
 ----
-PUT my_index
+PUT my-index-000001
 {
-    "mappings" : {
-        "properties" : {
-            "color" : { "type" : "keyword" }
-        }
+  "mappings": {
+    "properties": {
+      "color": { "type": "keyword" }
     }
+  }
 }
 ----
 --
@@ -143,7 +150,7 @@ PUT my_index
 
 [source,console]
 ----
-PUT my_index/_doc/1
+PUT my-index-000001/_doc/1
 {
   "color":   ["blue", "green"]
 }
@@ -158,7 +165,7 @@ field.
 
 [source,console]
 ----
-PUT my_index/_doc/2
+PUT my-index-000001/_doc/2
 {
   "color":   "blue"
 }
@@ -176,7 +183,7 @@ parameter so the response is more readable.
 
 [source,console]
 ----
-POST my_index/_refresh
+POST my-index-000001/_refresh
 ----
 // TEST[continued]
 
@@ -184,12 +191,12 @@ POST my_index/_refresh
 
 [source,console]
 ----
-GET my_index/_search?pretty
+GET my-index-000001/_search?pretty
 {
   "query": {
     "terms": {
         "color" : {
-            "index" : "my_index",
+            "index" : "my-index-000001",
             "id" : "2",
             "path" : "color"
         }
@@ -221,7 +228,7 @@ field, {es} returns both documents.
     "max_score" : 1.0,
     "hits" : [
       {
-        "_index" : "my_index",
+        "_index" : "my-index-000001",
         "_id" : "1",
         "_score" : 1.0,
         "_source" : {
@@ -232,7 +239,7 @@ field, {es} returns both documents.
         }
       },
       {
-        "_index" : "my_index",
+        "_index" : "my-index-000001",
         "_id" : "2",
         "_score" : 1.0,
         "_source" : {

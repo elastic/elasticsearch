@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.process.writer;
 
@@ -15,7 +16,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.List;
 
-
 public class LengthEncodedWriterTests extends ESTestCase {
     /**
      * Simple test push a list of records through the writer and
@@ -24,9 +24,9 @@ public class LengthEncodedWriterTests extends ESTestCase {
      */
     public void testLengthEncodedWriter() throws IOException {
         {
-            String[] header = {"one", "two", "three", "four", "five"};
-            String[] record1 = {"r1", "r2", "", "rrr4", "r5"};
-            String[] record2 = {"y1", "y2", "yy3", "yyy4", "y5"};
+            String[] header = { "one", "two", "three", "four", "five" };
+            String[] record1 = { "r1", "r2", "", "rrr4", "r5" };
+            String[] record2 = { "y1", "y2", "yy3", "yyy4", "y5" };
 
             ByteArrayOutputStream bos = new ByteArrayOutputStream(1024);
 
@@ -88,9 +88,9 @@ public class LengthEncodedWriterTests extends ESTestCase {
 
         // same again but using lists
         {
-            List<String> header = Arrays.asList(new String[]{"one", "two", "three", "four", "five"});
-            List<String> record1 = Arrays.asList(new String[]{"r1", "r2", "rr3", "rrr4", "r5"});
-            List<String> record2 = Arrays.asList(new String[]{"y1", "y2", "yy3", "yyy4", "y5"});
+            List<String> header = Arrays.asList(new String[] { "one", "two", "three", "four", "five" });
+            List<String> record1 = Arrays.asList(new String[] { "r1", "r2", "rr3", "rrr4", "r5" });
+            List<String> record2 = Arrays.asList(new String[] { "y1", "y2", "yy3", "yyy4", "y5" });
 
             ByteArrayOutputStream bos = new ByteArrayOutputStream(1024);
 
@@ -103,7 +103,6 @@ public class LengthEncodedWriterTests extends ESTestCase {
                 writer.writeRecord(record1);
                 writer.writeRecord(record2);
             }
-
 
             ByteBuffer bb = ByteBuffer.wrap(bos.toByteArray());
 
@@ -155,16 +154,14 @@ public class LengthEncodedWriterTests extends ESTestCase {
         }
     }
 
-
     /**
      * Test the writeField and writeNumFields methods of LengthEncodedWriter
      */
-    public void testLengthEncodedWriterIndividualRecords()
-            throws IOException {
+    public void testLengthEncodedWriterIndividualRecords() throws IOException {
         {
-            String[] header = {"one", "two", "three", "four", "five"};
-            String[] record1 = {"r1", "r2", "rr3", "rrr4", "r5"};
-            String[] record2 = {"y1", "y2", "yy3", "yyy4", "y5"};
+            String[] header = { "one", "two", "three", "four", "five" };
+            String[] record1 = { "r1", "r2", "rr3", "rrr4", "r5" };
+            String[] record2 = { "y1", "y2", "yy3", "yyy4", "y5" };
 
             ByteArrayOutputStream bos = new ByteArrayOutputStream(1024);
 

@@ -1,12 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.datafeed.extractor.aggregation;
 
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.rollup.action.RollupSearchAction;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
@@ -17,16 +18,22 @@ import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
  * stored and they are then processed in batches. Cancellation is supported between batches.
  * Note that this class is NOT thread-safe.
  */
-class RollupDataExtractor extends AbstractAggregationDataExtractor<RollupSearchAction.RequestBuilder> {
+class RollupDataExtractor extends AbstractAggregationDataExtractor {
 
     RollupDataExtractor(
-            Client client, AggregationDataExtractorContext dataExtractorContext, DatafeedTimingStatsReporter timingStatsReporter) {
+        Client client,
+        AggregationDataExtractorContext dataExtractorContext,
+        DatafeedTimingStatsReporter timingStatsReporter
+    ) {
         super(client, dataExtractorContext, timingStatsReporter);
     }
 
     @Override
     protected RollupSearchAction.RequestBuilder buildSearchRequest(SearchSourceBuilder searchSourceBuilder) {
-        SearchRequest searchRequest = new SearchRequest().indices(context.indices).source(searchSourceBuilder);
+        SearchRequest searchRequest = new SearchRequest().indices(context.queryContext.indices)
+            .indicesOptions(context.queryContext.indicesOptions)
+            .allowPartialSearchResults(false)
+            .source(searchSourceBuilder);
 
         return new RollupSearchAction.RequestBuilder(client, searchRequest);
     }

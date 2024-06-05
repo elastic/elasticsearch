@@ -1,282 +1,305 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.analysis.MockAnalyzer;
-import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValuesType;
-import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.SortedNumericDocValues;
-import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.RAMDirectory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.mapper.MapperService.MergeReason;
-import org.elasticsearch.index.mapper.ParseContext.Document;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.test.InternalSettingsPlugin;
-import org.junit.Before;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.script.BooleanFieldScript;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
-import java.util.Collection;
-import java.util.Collections;
+import java.util.List;
+import java.util.function.Function;
 
-import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
-public class BooleanFieldMapperTests extends ESSingleNodeTestCase {
-    private IndexService indexService;
-    private DocumentMapperParser parser;
+public class BooleanFieldMapperTests extends MapperTestCase {
 
-    @Before
-    public void setup() {
-        indexService = createIndex("test");
-        parser = indexService.mapperService().documentMapperParser();
+    @Override
+    protected Object getSampleValueForDocument() {
+        return true;
     }
 
     @Override
-    protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(InternalSettingsPlugin.class);
+    protected void minimalMapping(XContentBuilder b) throws IOException {
+        b.field("type", "boolean");
+    }
+
+    @Override
+    protected void registerParameters(ParameterChecker checker) throws IOException {
+        checker.registerConflictCheck("doc_values", b -> b.field("doc_values", false));
+        checker.registerConflictCheck("index", b -> b.field("index", false));
+        checker.registerConflictCheck("store", b -> b.field("store", true));
+        checker.registerConflictCheck("null_value", b -> b.field("null_value", true));
+    }
+
+    public void testExistsQueryDocValuesDisabled() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("doc_values", false);
+        }));
+        assertExistsQuery(mapperService);
+        assertParseMinimalWarnings();
+    }
+
+    public void testAggregationsDocValuesDisabled() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("doc_values", false);
+        }));
+        assertAggregatableConsistency(mapperService.fieldType("field"));
     }
 
     public void testDefaults() throws IOException {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("field").field("type", "boolean").endObject().endObject()
-                .endObject().endObject());
+        MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
+        ParsedDocument doc = mapperService.documentMapper().parse(source(this::writeField));
 
-        DocumentMapper defaultMapper = parser.parse("type", new CompressedXContent(mapping));
-
-        ParsedDocument doc = defaultMapper.parse(new SourceToParse("test", "1", BytesReference
-                .bytes(XContentFactory.jsonBuilder()
-                        .startObject()
-                        .field("field", true)
-                        .endObject()),
-                XContentType.JSON));
-
-        try (Directory dir = new RAMDirectory();
-             IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(new MockAnalyzer(random())))) {
-            w.addDocuments(doc.docs());
-            try (DirectoryReader reader = DirectoryReader.open(w)) {
-                final LeafReader leaf = reader.leaves().get(0).reader();
-                // boolean fields are indexed and have doc values by default
-                assertEquals(new BytesRef("T"), leaf.terms("field").iterator().next());
-                SortedNumericDocValues values = leaf.getSortedNumericDocValues("field");
-                assertNotNull(values);
-                assertTrue(values.advanceExact(0));
-                assertEquals(1, values.docValueCount());
-                assertEquals(1, values.nextValue());
-            }
-        }
+        withLuceneIndex(mapperService, iw -> iw.addDocument(doc.rootDoc()), reader -> {
+            final LeafReader leaf = reader.leaves().get(0).reader();
+            // boolean fields are indexed and have doc values by default
+            assertEquals(new BytesRef("T"), leaf.terms("field").iterator().next());
+            SortedNumericDocValues values = leaf.getSortedNumericDocValues("field");
+            assertNotNull(values);
+            assertTrue(values.advanceExact(0));
+            assertEquals(1, values.docValueCount());
+            assertEquals(1, values.nextValue());
+        });
     }
 
     public void testSerialization() throws IOException {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("field").field("type", "boolean").endObject().endObject()
-                .endObject().endObject());
 
-        DocumentMapper defaultMapper = parser.parse("type", new CompressedXContent(mapping));
+        DocumentMapper defaultMapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         Mapper mapper = defaultMapper.mappers().getMapper("field");
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
         mapper.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
-        assertEquals("{\"field\":{\"type\":\"boolean\"}}", Strings.toString(builder));
+        assertEquals("""
+            {"field":{"type":"boolean"}}""", Strings.toString(builder));
 
         // now change some parameters
-        mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("field")
-                    .field("type", "boolean")
-                    .field("doc_values", "false")
-                    .field("null_value", true)
-                .endObject().endObject()
-                .endObject().endObject());
-
-        defaultMapper = parser.parse("type", new CompressedXContent(mapping));
+        defaultMapper = createDocumentMapper(fieldMapping(b -> {
+            b.field("type", "boolean");
+            b.field("doc_values", false);
+            b.field("null_value", true);
+        }));
         mapper = defaultMapper.mappers().getMapper("field");
         builder = XContentFactory.jsonBuilder().startObject();
         mapper.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
-        assertEquals("{\"field\":{\"type\":\"boolean\",\"doc_values\":false,\"null_value\":true}}", Strings.toString(builder));
+        assertEquals("""
+            {"field":{"type":"boolean","doc_values":false,"null_value":true}}""", Strings.toString(builder));
     }
 
     public void testParsesBooleansStrict() throws IOException {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder()
-            .startObject()
-                .startObject("type")
-                    .startObject("properties")
-                        .startObject("field")
-                            .field("type", "boolean")
-                        .endObject()
-                    .endObject()
-                .endObject()
-            .endObject());
-        DocumentMapper defaultMapper = parser.parse("type", new CompressedXContent(mapping));
+        DocumentMapper defaultMapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         // omit "false"/"true" here as they should still be parsed correctly
-        String randomValue = randomFrom("off", "no", "0", "on", "yes", "1");
-        BytesReference source = BytesReference.bytes(XContentFactory.jsonBuilder()
-                .startObject()
-                    .field("field", randomValue)
-                .endObject());
-        MapperParsingException ex = expectThrows(MapperParsingException.class,
-                () -> defaultMapper.parse(new SourceToParse("test", "1", source, XContentType.JSON)));
-        assertEquals("failed to parse field [field] of type [boolean] in document with id '1'. " +
-            "Preview of field's value: '" + randomValue + "'", ex.getMessage());
+        for (String value : new String[] { "off", "no", "0", "on", "yes", "1" }) {
+            DocumentParsingException ex = expectThrows(
+                DocumentParsingException.class,
+                () -> defaultMapper.parse(source(b -> b.field("field", value)))
+            );
+            assertEquals(
+                "[1:10] failed to parse field [field] of type [boolean] in document with id '1'. "
+                    + "Preview of field's value: '"
+                    + value
+                    + "'",
+                ex.getMessage()
+            );
+        }
     }
-
 
     public void testParsesBooleansNestedStrict() throws IOException {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder()
-            .startObject()
-                .startObject("type")
-                    .startObject("properties")
-                        .startObject("field")
-                            .field("type", "boolean")
-                        .endObject()
-                    .endObject()
-                .endObject()
-            .endObject());
-        DocumentMapper defaultMapper = parser.parse("type", new CompressedXContent(mapping));
-        // omit "false"/"true" here as they should still be parsed correctly
-        String randomValue = "no";
-        BytesReference source = BytesReference.bytes(XContentFactory.jsonBuilder()
-            .startObject()
-                .startObject("field")
-                    .field("inner_field", randomValue)
-                .endObject()
-            .endObject());
-        MapperParsingException ex = expectThrows(MapperParsingException.class,
-                () -> defaultMapper.parse(new SourceToParse("test", "1", source, XContentType.JSON)));
-        assertEquals("failed to parse field [field] of type [boolean] in document with id '1'. " +
-            "Preview of field's value: '{inner_field=" + randomValue + "}'", ex.getMessage());
+        DocumentMapper defaultMapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+        DocumentParsingException ex = expectThrows(DocumentParsingException.class, () -> defaultMapper.parse(source(b -> {
+            b.startObject("field");
+            {
+                b.field("inner_field", "no");
+            }
+            b.endObject();
+        })));
+        assertEquals(
+            "[1:29] failed to parse field [field] of type [boolean] in document with id '1'. "
+                + "Preview of field's value: '{inner_field=no}'",
+            ex.getMessage()
+        );
     }
 
-
-
-
     public void testMultiFields() throws IOException {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties")
-                    .startObject("field")
-                        .field("type", "boolean")
-                        .startObject("fields")
-                            .startObject("as_string")
-                                .field("type", "keyword")
-                            .endObject()
-                        .endObject()
-                    .endObject().endObject()
-                .endObject().endObject());
-        DocumentMapper mapper = indexService.mapperService()
-            .merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
-        assertEquals(mapping, mapper.mappingSource().toString());
-        BytesReference source = BytesReference.bytes(XContentFactory.jsonBuilder()
-                .startObject()
-                    .field("field", false)
-                .endObject());
-        ParsedDocument doc = mapper.parse(new SourceToParse("test", "1", source, XContentType.JSON));
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+            b.field("type", "boolean");
+            b.startObject("fields");
+            {
+                b.startObject("as_string").field("type", "keyword").endObject();
+            }
+            b.endObject();
+        }));
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", false)));
         assertNotNull(doc.rootDoc().getField("field.as_string"));
     }
 
     public void testDocValues() throws Exception {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties")
-                .startObject("bool1")
-                    .field("type", "boolean")
-                .endObject()
-                .startObject("bool2")
-                    .field("type", "boolean")
-                    .field("index", false)
-                .endObject()
-                .startObject("bool3")
-                    .field("type", "boolean")
-                    .field("index", true)
-                .endObject()
-                .endObject()
-                .endObject().endObject());
 
-        DocumentMapper defaultMapper = indexService.mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
+        DocumentMapper defaultMapper = createDocumentMapper(mapping(b -> {
+            b.startObject("bool1").field("type", "boolean").endObject();
+            b.startObject("bool2");
+            {
+                b.field("type", "boolean");
+                b.field("index", false);
+            }
+            b.endObject();
+            b.startObject("bool3");
+            {
+                b.field("type", "boolean");
+                b.field("index", true);
+            }
+            b.endObject();
+        }));
 
-        ParsedDocument parsedDoc = defaultMapper.parse(new SourceToParse("test", "1", BytesReference
-                .bytes(XContentFactory.jsonBuilder()
-                        .startObject()
-                        .field("bool1", true)
-                        .field("bool2", true)
-                        .field("bool3", true)
-                        .endObject()),
-                XContentType.JSON));
-        Document doc = parsedDoc.rootDoc();
-        IndexableField[] fields = doc.getFields("bool1");
-        assertEquals(2, fields.length);
-        assertEquals(DocValuesType.NONE, fields[0].fieldType().docValuesType());
-        assertEquals(DocValuesType.SORTED_NUMERIC, fields[1].fieldType().docValuesType());
+        ParsedDocument parsedDoc = defaultMapper.parse(source(b -> {
+            b.field("bool1", true);
+            b.field("bool2", true);
+            b.field("bool3", true);
+        }));
+
+        LuceneDocument doc = parsedDoc.rootDoc();
+        List<IndexableField> fields = doc.getFields("bool1");
+        assertEquals(2, fields.size());
+        assertEquals(DocValuesType.NONE, fields.get(0).fieldType().docValuesType());
+        assertEquals(DocValuesType.SORTED_NUMERIC, fields.get(1).fieldType().docValuesType());
         fields = doc.getFields("bool2");
-        assertEquals(1, fields.length);
-        assertEquals(DocValuesType.SORTED_NUMERIC, fields[0].fieldType().docValuesType());
+        assertEquals(1, fields.size());
+        assertEquals(DocValuesType.SORTED_NUMERIC, fields.get(0).fieldType().docValuesType());
         fields = doc.getFields("bool3");
-        assertEquals(DocValuesType.NONE, fields[0].fieldType().docValuesType());
-        assertEquals(DocValuesType.SORTED_NUMERIC, fields[1].fieldType().docValuesType());
+        assertEquals(DocValuesType.NONE, fields.get(0).fieldType().docValuesType());
+        assertEquals(DocValuesType.SORTED_NUMERIC, fields.get(1).fieldType().docValuesType());
     }
 
-    public void testEmptyName() throws IOException {
-        // after 5.x
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("properties").startObject("").field("type", "boolean").endObject().endObject()
-            .endObject().endObject());
-
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> parser.parse("type", new CompressedXContent(mapping))
-        );
-        assertThat(e.getMessage(), containsString("name cannot be empty string"));
+    @Override
+    protected Object generateRandomInputValue(MappedFieldType ft) {
+        return switch (between(0, 3)) {
+            case 0 -> randomBoolean();
+            case 1 -> randomBoolean() ? "true" : "false";
+            case 2 -> randomBoolean() ? "true" : "";
+            case 3 -> randomBoolean() ? "true" : null;
+            default -> throw new IllegalStateException();
+        };
     }
 
-    public void testMeta() throws Exception {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
-                .startObject("properties").startObject("field").field("type", "boolean")
-                .field("meta", Collections.singletonMap("foo", "bar"))
-                .endObject().endObject().endObject().endObject());
+    public void testScriptAndPrecludedParameters() {
+        Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
+            b.field("type", "boolean");
+            b.field("script", "test");
+            b.field("null_value", true);
+        })));
+        assertThat(e.getMessage(), equalTo("Failed to parse mapping: Field [null_value] cannot be set in conjunction with field [script]"));
+    }
 
-        DocumentMapper mapper = indexService.mapperService().merge("_doc",
-                new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
-        assertEquals(mapping, mapper.mappingSource().toString());
+    @Override
+    protected List<ExampleMalformedValue> exampleMalformedValues() {
+        return List.of(exampleMalformedValue("a").errorMatches("Failed to parse value [a] as only [true] or [false] are allowed."));
+    }
 
-        String mapping2 = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
-                .startObject("properties").startObject("field").field("type", "boolean")
-                .endObject().endObject().endObject().endObject());
-        mapper = indexService.mapperService().merge("_doc",
-                new CompressedXContent(mapping2), MergeReason.MAPPING_UPDATE);
-        assertEquals(mapping2, mapper.mappingSource().toString());
+    @Override
+    protected boolean supportsIgnoreMalformed() {
+        return true;
+    }
 
-        String mapping3 = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
-                .startObject("properties").startObject("field").field("type", "boolean")
-                .field("meta", Collections.singletonMap("baz", "quux"))
-                .endObject().endObject().endObject().endObject());
-        mapper = indexService.mapperService().merge("_doc",
-                new CompressedXContent(mapping3), MergeReason.MAPPING_UPDATE);
-        assertEquals(mapping3, mapper.mappingSource().toString());
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
+        return new SyntheticSourceSupport() {
+            Boolean nullValue = usually() ? null : randomBoolean();
+
+            @Override
+            public SyntheticSourceExample example(int maxVals) throws IOException {
+                if (randomBoolean()) {
+                    Tuple<Boolean, Boolean> v = generateValue();
+                    return new SyntheticSourceExample(v.v1(), v.v2(), this::mapping);
+                }
+                List<Tuple<Boolean, Boolean>> values = randomList(1, maxVals, this::generateValue);
+                List<Boolean> in = values.stream().map(Tuple::v1).toList();
+                List<Boolean> outList = values.stream().map(Tuple::v2).sorted().toList();
+                Object out = outList.size() == 1 ? outList.get(0) : outList;
+                return new SyntheticSourceExample(in, out, this::mapping);
+            }
+
+            private Tuple<Boolean, Boolean> generateValue() {
+                if (nullValue != null && randomBoolean()) {
+                    return Tuple.tuple(null, nullValue);
+                }
+                boolean b = randomBoolean();
+                return Tuple.tuple(b, b);
+            }
+
+            private void mapping(XContentBuilder b) throws IOException {
+                minimalMapping(b);
+                if (nullValue != null) {
+                    b.field("null_value", nullValue);
+                }
+                b.field("ignore_malformed", ignoreMalformed);
+            }
+
+            @Override
+            public List<SyntheticSourceInvalidExample> invalidExample() throws IOException {
+                return List.of(
+                    new SyntheticSourceInvalidExample(
+                        equalTo("field [field] of type [boolean] doesn't support synthetic source because it doesn't have doc values"),
+                        b -> b.field("type", "boolean").field("doc_values", false)
+                    )
+                );
+            }
+        };
+    }
+
+    @Override
+    protected Function<Object, Object> loadBlockExpected() {
+        // Just assert that we expect a boolean. Otherwise no munging.
+        return v -> (Boolean) v;
+    }
+
+    protected IngestScriptSupport ingestScriptSupport() {
+        return new IngestScriptSupport() {
+            @Override
+            protected BooleanFieldScript.Factory emptyFieldScript() {
+                return (fieldName, params, searchLookup, onScriptError) -> ctx -> new BooleanFieldScript(
+                    fieldName,
+                    params,
+                    searchLookup,
+                    OnScriptError.FAIL,
+                    ctx
+                ) {
+                    @Override
+                    public void execute() {}
+                };
+            }
+
+            @Override
+            protected BooleanFieldScript.Factory nonEmptyFieldScript() {
+                return (fieldName, params, searchLookup, onScriptError) -> ctx -> new BooleanFieldScript(
+                    fieldName,
+                    params,
+                    searchLookup,
+                    OnScriptError.FAIL,
+                    ctx
+                ) {
+                    @Override
+                    public void execute() {
+                        emit(true);
+                    }
+                };
+            }
+        };
     }
 }

@@ -30,11 +30,11 @@
 #
 # Path to directory where to store the data (separate multiple locations by comma):
 #
-${path.data}
+@path.data@
 #
 # Path to log files:
 #
-${path.logs}
+@path.logs@
 #
 # ----------------------------------- Memory -----------------------------------
 #
@@ -50,11 +50,13 @@ ${path.logs}
 #
 # ---------------------------------- Network -----------------------------------
 #
-# Set the bind address to a specific IP (IPv4 or IPv6):
+# By default Elasticsearch is only accessible on localhost. Set a different
+# address here to expose this node on the network:
 #
 #network.host: 192.168.0.1
 #
-# Set a custom port for HTTP:
+# By default Elasticsearch listens for HTTP traffic on the first free port it
+# finds starting at 9200. Set a specific HTTP port here:
 #
 #http.port: 9200
 #
@@ -73,16 +75,8 @@ ${path.logs}
 #
 # For more information, consult the discovery and cluster formation module documentation.
 #
-# ---------------------------------- Gateway -----------------------------------
-#
-# Block initial recovery after a full cluster restart until N nodes are started:
-#
-#gateway.recover_after_nodes: 3
-#
-# For more information, consult the gateway module documentation.
-#
 # ---------------------------------- Various -----------------------------------
 #
-# Require explicit names when deleting indices:
+# Allow wildcard deletion of indices:
 #
-#action.destructive_requires_name: true
+#action.destructive_requires_name: false

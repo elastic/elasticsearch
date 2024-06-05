@@ -1,17 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.sql.type;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.type.Converter;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypeConverter;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.literal.interval.Intervals;
 import org.elasticsearch.xpack.sql.util.DateUtils;
@@ -19,7 +20,6 @@ import org.elasticsearch.xpack.sql.util.DateUtils;
 import java.io.IOException;
 import java.time.OffsetTime;
 import java.time.ZonedDateTime;
-import java.time.format.DateTimeParseException;
 import java.util.function.Function;
 
 import static org.elasticsearch.xpack.ql.type.DataTypeConverter.DefaultConverter.BOOL_TO_INT;
@@ -30,10 +30,12 @@ import static org.elasticsearch.xpack.ql.type.DataTypeConverter.DefaultConverter
 import static org.elasticsearch.xpack.ql.type.DataTypeConverter.DefaultConverter.DATETIME_TO_INT;
 import static org.elasticsearch.xpack.ql.type.DataTypeConverter.DefaultConverter.DATETIME_TO_LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypeConverter.DefaultConverter.DATETIME_TO_SHORT;
+import static org.elasticsearch.xpack.ql.type.DataTypeConverter.DefaultConverter.DATETIME_TO_UNSIGNED_LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypeConverter.DefaultConverter.IDENTITY;
 import static org.elasticsearch.xpack.ql.type.DataTypeConverter.DefaultConverter.INTEGER_TO_LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypeConverter.DefaultConverter.RATIONAL_TO_LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypeConverter.DefaultConverter.TO_NULL;
+import static org.elasticsearch.xpack.ql.type.DataTypeConverter.DefaultConverter.fromString;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BYTE;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
@@ -45,13 +47,14 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.NULL;
 import static org.elasticsearch.xpack.ql.type.DataTypes.SHORT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
+import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.ql.type.DataTypes.isDateTime;
 import static org.elasticsearch.xpack.ql.type.DataTypes.isPrimitive;
 import static org.elasticsearch.xpack.ql.type.DataTypes.isString;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.DATE;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.TIME;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.isInterval;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.isYearMonthInterval;
-
 
 public final class SqlDataTypeConverter {
 
@@ -80,37 +83,32 @@ public final class SqlDataTypeConverter {
             return DATETIME;
         }
         if (left == TIME) {
-            if (right == DATE) {
-                return DATETIME;
-            }
             if (isInterval(right)) {
                 return left;
             }
         }
         if (right == TIME) {
-            if (left == DATE) {
+            if (isInterval(left)) {
+                return right;
+            }
+        }
+        if (isDateTime(left)) {
+            if (right == DATE || right == TIME) {
+                return DATETIME;
+            }
+            if (isInterval(right)) {
+                return DATETIME;
+            }
+        }
+        if (isDateTime(right)) {
+            if (left == DATE || left == TIME) {
                 return DATETIME;
             }
             if (isInterval(left)) {
-                return right;
+                return DATETIME;
             }
         }
-        if (left == DATETIME) {
-            if (right == DATE || right == TIME) {
-                return left;
-            }
-            if (isInterval(right)) {
-                return left;
-            }
-        }
-        if (right == DATETIME) {
-            if (left == DATE || left == TIME) {
-                return right;
-            }
-            if (isInterval(left)) {
-                return right;
-            }
-        }
+
         // Interval * integer is a valid operation
         if (isInterval(left)) {
             if (right.isInteger()) {
@@ -162,6 +160,9 @@ public final class SqlDataTypeConverter {
             if (to == KEYWORD || to == TEXT) {
                 return conversionToString(from);
             }
+            if (to == UNSIGNED_LONG) {
+                return conversionToUnsignedLong(from);
+            }
             if (to == LONG) {
                 return conversionToLong(from);
             }
@@ -190,7 +191,7 @@ public final class SqlDataTypeConverter {
         // fallback to default
         return DataTypeConverter.converterFor(from, to);
     }
-    
+
     private static Converter conversionToString(DataType from) {
         if (from == DATE) {
             return SqlConverter.DATE_TO_STRING;
@@ -200,7 +201,17 @@ public final class SqlDataTypeConverter {
         }
         return null;
     }
-    
+
+    private static Converter conversionToUnsignedLong(DataType from) {
+        if (from == DATE) {
+            return SqlConverter.DATE_TO_UNSIGNED_LONG;
+        }
+        if (from == TIME) {
+            return SqlConverter.TIME_TO_UNSIGNED_LONG;
+        }
+        return null;
+    }
+
     private static Converter conversionToLong(DataType from) {
         if (from == DATE) {
             return SqlConverter.DATE_TO_LONG;
@@ -292,7 +303,7 @@ public final class SqlDataTypeConverter {
         if (isString(from)) {
             return SqlConverter.STRING_TO_DATE;
         }
-        if (from == DATETIME) {
+        if (DataTypes.isDateTime(from)) {
             return SqlConverter.DATETIME_TO_DATE;
         }
         return null;
@@ -314,7 +325,7 @@ public final class SqlDataTypeConverter {
         if (from == DATE) {
             return SqlConverter.DATE_TO_TIME;
         }
-        if (from == DATETIME) {
+        if (DataTypes.isDateTime(from)) {
             return SqlConverter.DATETIME_TO_TIME;
         }
         return null;
@@ -347,7 +358,10 @@ public final class SqlDataTypeConverter {
     public enum SqlConverter implements Converter {
         DATE_TO_STRING(o -> DateUtils.toDateString((ZonedDateTime) o)),
         TIME_TO_STRING(o -> DateUtils.toTimeString((OffsetTime) o)),
-        
+
+        DATE_TO_UNSIGNED_LONG(delegate(DATETIME_TO_UNSIGNED_LONG)),
+        TIME_TO_UNSIGNED_LONG(fromTime(DataTypeConverter::safeToUnsignedLong)),
+
         DATE_TO_LONG(delegate(DATETIME_TO_LONG)),
         TIME_TO_LONG(fromTime(value -> value)),
 
@@ -385,7 +399,7 @@ public final class SqlDataTypeConverter {
         TIME_TO_BOOLEAN(fromTime(value -> value != 0));
 
         public static final String NAME = "dtc-sql";
-        
+
         private final Function<Object, Object> converter;
 
         SqlConverter(Function<Object, Object> converter) {
@@ -414,18 +428,6 @@ public final class SqlDataTypeConverter {
 
         private static Function<Object, Object> delegate(Converter converter) {
             return converter::convert;
-        }
-
-        private static Function<Object, Object> fromString(Function<String, Object> converter, String to) {
-            return (Object value) -> {
-                try {
-                    return converter.apply(value.toString());
-                } catch (NumberFormatException e) {
-                    throw new QlIllegalArgumentException(e, "cannot cast [{}] to [{}]", value, to);
-                } catch (DateTimeParseException | IllegalArgumentException e) {
-                    throw new QlIllegalArgumentException(e, "cannot cast [{}] to [{}]: {}", value, to, e.getMessage());
-                }
-            };
         }
 
         @Override

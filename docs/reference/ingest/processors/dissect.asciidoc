@@ -1,9 +1,13 @@
 [[dissect-processor]]
-=== Dissect Processor
+=== Dissect processor
+++++
+<titleabbrev>Dissect</titleabbrev>
+++++
+
 
 Similar to the <<grok-processor,Grok Processor>>, dissect also extracts structured fields out of a single text field
-within a document.  However unlike the <<grok-processor,Grok Processor>>, dissect does not use
-https://en.wikipedia.org/wiki/Regular_expression[Regular Expressions]. This allows dissect's syntax to be simple and for
+within a document. However unlike the <<grok-processor,Grok Processor>>, dissect does not use
+{wikipedia}/Regular_expression[Regular Expressions]. This allows dissect's syntax to be simple and for
 some cases faster than the <<grok-processor,Grok Processor>>.
 
 Dissect matches a single text field against a defined pattern.
@@ -40,14 +44,16 @@ and result in a document with the following fields:
 --------------------------------------------------
 // NOTCONSOLE
 
-A dissect pattern is defined by the parts of the string that will be discarded. In the example above the first part
-to be discarded is a single space. Dissect finds this space, then assigns the value of `clientip` is everything up
+// tag::intro-example-explanation[]
+A dissect pattern is defined by the parts of the string that will be discarded. In the previous example, the first part
+to be discarded is a single space. Dissect finds this space, then assigns the value of `clientip` everything up
 until that space.
-Later dissect matches the `[` and then `]` and then assigns `@timestamp` to everything in-between `[` and `]`.
-Paying special attention the parts of the string to discard will help build successful dissect patterns.
+Next, dissect matches the `[` and then `]` and then assigns `@timestamp` to everything in-between `[` and `]`.
+Paying special attention to the parts of the string to discard will help build successful dissect patterns.
+// end::intro-example-explanation[]
 
 Successful matches require all keys in a pattern to have a value. If any of the `%{keyname}` defined in the pattern do
-not have a value, then an exception is thrown and may be handled by the <<handling-failure-in-pipelines,on_failure>> directive.
+not have a value, then an exception is thrown and may be handled by the <<handling-pipeline-failures,`on_failure`>> directive.
 An empty key `%{}` or a <<dissect-modifier-named-skip-key, named skip key>> can be used to match values, but exclude the value from
 the final document. All matched values are represented as string data types. The <<convert-processor, convert processor>>
 may be used to convert to expected data type.
@@ -81,9 +87,11 @@ include::common-options.asciidoc[]
 
 [[dissect-key-modifiers]]
 ==== Dissect key modifiers
+// tag::dissect-key-modifiers[]
 Key modifiers can change the default behavior for dissection. Key modifiers may be found on the left or right
 of the `%{keyname}` always inside the `%{` and `}`. For example `%{+keyname ->}` has the append and right padding
 modifiers.
+// end::dissect-key-modifiers[]
 
 [[dissect-key-modifiers-table]]
 .Dissect Key Modifiers
@@ -100,6 +108,7 @@ modifiers.
 [[dissect-modifier-skip-right-padding]]
 ===== Right padding modifier (`->`)
 
+// tag::dissect-modifier-skip-right-padding[]
 The algorithm that performs the dissection is very strict in that it requires all characters in the pattern to match
 the source string. For example, the pattern `%{fookey} %{barkey}` (1 space), will match the string "foo{nbsp}bar"
 (1 space), but will not match the string "foo{nbsp}{nbsp}bar" (2 spaces) since the pattern has only 1 space and the
@@ -113,6 +122,7 @@ Use the right padding modifier to allow for repetition of the characters after a
 
 The right padding modifier may be placed on any key with any other modifiers. It should always be the furthest right
 modifier. For example: `%{+keyname/1->}` and `%{->}`
+// end::dissect-modifier-skip-right-padding[]
 
 Right padding modifier example
 |======
@@ -123,7 +133,9 @@ Right padding modifier example
 * level = WARN
 |======
 
+// tag::dissect-modifier-empty-right-padding[]
 The right padding modifier may be used with an empty key to help skip unwanted data. For example, the same input string, but wrapped with brackets requires the use of an empty right padded key to achieve the same result.
+// end::dissect-modifier-empty-right-padding[]
 
 Right padding modifier with empty key example
 |======
@@ -137,9 +149,11 @@ Right padding modifier with empty key example
 [[append-modifier]]
 ===== Append modifier (`+`)
 [[dissect-modifier-append-key]]
+// tag::append-modifier[]
 Dissect supports appending two or more results together for the output.
 Values are appended left to right. An append separator can be specified.
 In this example the append_separator is defined as a space.
+// end::append-modifier[]
 
 Append modifier example
 |======
@@ -149,12 +163,15 @@ Append modifier example
 * name = john jacob jingleheimer schmidt
 |======
 
+
 [[append-order-modifier]]
 ===== Append with order modifier (`+` and `/n`)
 [[dissect-modifier-append-key-with-order]]
+// tag::append-order-modifier[]
 Dissect supports appending two or more results together for the output.
 Values are appended based on the order defined (`/n`). An append separator can be specified.
 In this example the append_separator is defined as a comma.
+// end::append-order-modifier[]
 
 Append with order modifier example
 |======
@@ -167,8 +184,10 @@ Append with order modifier example
 [[named-skip-key]]
 ===== Named skip key (`?`)
 [[dissect-modifier-named-skip-key]]
+// tag::named-skip-key[]
 Dissect supports ignoring matches in the final result. This can be done with an empty key `%{}`, but for readability
 it may be desired to give that empty key a name.
+// end::named-skip-key[]
 
 Named skip key modifier example
 |======
@@ -182,6 +201,7 @@ Named skip key modifier example
 [[reference-keys]]
 ===== Reference keys (`*` and `&`)
 [[dissect-modifier-reference-keys]]
+// tag::reference-keys[]
 Dissect support using parsed values as the key/value pairings for the structured content. Imagine a system that
 partially logs in key/value pairs. Reference keys allow you to maintain that key/value relationship.
 
@@ -190,8 +210,9 @@ Reference key modifier example
 | *Pattern* | `[%{ts}] [%{level}] %{*p1}:%{&p1} %{*p2}:%{&p2}`
 | *Input*   | [2018-08-10T17:15:42,466] [ERR] ip:1.2.3.4 error:REFUSED
 | *Result*  a|
-* ts = 1998-08-10T17:15:42,466
+* ts = 2018-08-10T17:15:42,466
 * level = ERR
 * ip = 1.2.3.4
 * error = REFUSED
 |======
+// end::reference-keys[]

@@ -1,8 +1,8 @@
 [[analysis-icu]]
-=== ICU Analysis Plugin
+=== ICU analysis plugin
 
 The ICU Analysis plugin integrates the Lucene ICU module into {es},
-adding extended Unicode support using the http://site.icu-project.org/[ICU]
+adding extended Unicode support using the https://icu.unicode.org/[ICU]
 libraries, including better analysis of Asian languages, Unicode
 normalization, Unicode-aware case folding, collation support, and
 transliteration.
@@ -12,7 +12,7 @@ transliteration.
 ================================================
 
 From time to time, the ICU library receives updates such as adding new
-characters and emojis, and improving collation (sort) orders.  These changes
+characters and emojis, and improving collation (sort) orders. These changes
 may or may not affect search and sort orders, depending on which characters
 sets you are using.
 
@@ -27,10 +27,10 @@ characters.
 include::install_remove.asciidoc[]
 
 [[analysis-icu-analyzer]]
-==== ICU Analyzer
+==== ICU analyzer
 
 The `icu_analyzer` analyzer performs basic normalization, tokenization and character folding, using the
-`icu_normalizer` char filter, `icu_tokenizer` and `icu_normalizer` token filter
+`icu_normalizer` char filter, `icu_tokenizer` and `icu_folding` token filter
 
 The following parameters are accepted:
 
@@ -38,26 +38,26 @@ The following parameters are accepted:
 
 `method`::
 
-    Normalization method.  Accepts `nfkc`, `nfc` or `nfkc_cf` (default)
+    Normalization method. Accepts `nfkc`, `nfc` or `nfkc_cf` (default)
 
 `mode`::
 
-    Normalization mode.  Accepts `compose` (default) or `decompose`.
+    Normalization mode. Accepts `compose` (default) or `decompose`.
 
 [[analysis-icu-normalization-charfilter]]
-==== ICU Normalization Character Filter
+==== ICU normalization character filter
 
 Normalizes characters as explained
-http://userguide.icu-project.org/transforms/normalization[here].
+https://unicode-org.github.io/icu/userguide/transforms/normalization/[here].
 It registers itself as the `icu_normalizer` character filter, which is
 available to all indices without any further configuration. The type of
 normalization can be specified with the `name` parameter, which accepts `nfc`,
-`nfkc`, and `nfkc_cf` (default).  Set the `mode` parameter to `decompose` to
+`nfkc`, and `nfkc_cf` (default). Set the `mode` parameter to `decompose` to
 convert `nfc` to `nfd` or `nfkc` to `nfkd` respectively:
 
 Which letters are normalized can be controlled by specifying the
 `unicode_set_filter` parameter, which accepts a
-http://icu-project.org/apiref/icu4j/com/ibm/icu/text/UnicodeSet.html[UnicodeSet].
+https://icu-project.org/apiref/icu4j/com/ibm/icu/text/UnicodeSet.html[UnicodeSet].
 
 Here are two examples, the default usage and a customised character filter:
 
@@ -100,10 +100,10 @@ PUT icu_sample
 <2> Uses the customized `nfd_normalizer` token filter, which is set to use `nfc` normalization with decomposition.
 
 [[analysis-icu-tokenizer]]
-==== ICU Tokenizer
+==== ICU tokenizer
 
 Tokenizes text into words on word boundaries, as defined in
-http://www.unicode.org/reports/tr29/[UAX #29: Unicode Text Segmentation].
+https://www.unicode.org/reports/tr29/[UAX #29: Unicode Text Segmentation].
 It behaves much like the {ref}/analysis-standard-tokenizer.html[`standard` tokenizer],
 but adds better support for some Asian languages by using a dictionary-based
 approach to identify words in Thai, Lao, Chinese, Japanese, and Korean, and
@@ -137,7 +137,7 @@ for a more detailed explanation.
 
 To add icu tokenizer rules, set the `rule_files` settings, which should contain a comma-separated list of
 `code:rulefile` pairs in the following format:
-http://unicode.org/iso15924/iso15924-codes.html[four-letter ISO 15924 script code],
+https://unicode.org/iso15924/iso15924-codes.html[four-letter ISO 15924 script code],
 followed by a colon, then a rule file name. Rule files are placed `ES_HOME/config` directory.
 
 As a demonstration of how the rule files can be used, save the following user file to `$ES_HOME/config/KeywordTokenizer.rbbi`:
@@ -153,24 +153,24 @@ Then create an analyzer to use this rule file as follows:
 --------------------------------------------------
 PUT icu_sample
 {
-    "settings": {
-        "index":{
-            "analysis":{
-                "tokenizer" : {
-                    "icu_user_file" : {
-                       "type" : "icu_tokenizer",
-                       "rule_files" : "Latn:KeywordTokenizer.rbbi"
-                    }
-                },
-                "analyzer" : {
-                    "my_analyzer" : {
-                        "type" : "custom",
-                        "tokenizer" : "icu_user_file"
-                    }
-                }
-            }
+  "settings": {
+    "index": {
+      "analysis": {
+        "tokenizer": {
+          "icu_user_file": {
+            "type": "icu_tokenizer",
+            "rule_files": "Latn:KeywordTokenizer.rbbi"
+          }
+        },
+        "analyzer": {
+          "my_analyzer": {
+            "type": "custom",
+            "tokenizer": "icu_user_file"
+          }
         }
+      }
     }
+  }
 }
 
 GET icu_sample/_analyze
@@ -199,10 +199,10 @@ The above `analyze` request returns the following:
 
 
 [[analysis-icu-normalization]]
-==== ICU Normalization Token Filter
+==== ICU normalization token filter
 
 Normalizes characters as explained
-http://userguide.icu-project.org/transforms/normalization[here]. It registers
+https://unicode-org.github.io/icu/userguide/transforms/normalization/[here]. It registers
 itself as the `icu_normalizer` token filter, which is available to all indices
 without any further configuration. The type of normalization can be specified
 with the `name` parameter, which accepts `nfc`, `nfkc`, and `nfkc_cf`
@@ -210,7 +210,7 @@ with the `name` parameter, which accepts `nfc`, `nfkc`, and `nfkc_cf`
 
 Which letters are normalized can be controlled by specifying the
 `unicode_set_filter` parameter, which accepts a
-http://icu-project.org/apiref/icu4j/com/ibm/icu/text/UnicodeSet.html[UnicodeSet].
+https://icu-project.org/apiref/icu4j/com/ibm/icu/text/UnicodeSet.html[UnicodeSet].
 
 You should probably prefer the <<analysis-icu-normalization-charfilter,Normalization character filter>>.
 
@@ -254,7 +254,7 @@ PUT icu_sample
 
 
 [[analysis-icu-folding]]
-==== ICU Folding Token Filter
+==== ICU folding token filter
 
 Case folding of Unicode characters based on `UTR#30`, like the
 {ref}/analysis-asciifolding-tokenfilter.html[ASCII-folding token filter]
@@ -287,7 +287,7 @@ no need to use Normalize character or token filter as well.
 
 Which letters are folded can be controlled by specifying the
 `unicode_set_filter` parameter, which accepts a
-http://icu-project.org/apiref/icu4j/com/ibm/icu/text/UnicodeSet.html[UnicodeSet].
+https://icu-project.org/apiref/icu4j/com/ibm/icu/text/UnicodeSet.html[UnicodeSet].
 
 The following example exempts Swedish characters from folding. It is important
 to note that both upper and lowercase forms should be specified, and that
@@ -324,16 +324,16 @@ PUT icu_sample
 
 
 [[analysis-icu-collation]]
-==== ICU Collation Token Filter
+==== ICU collation token filter
 
 [WARNING]
 ======
-This token filter has been deprecated since Lucene 5.0.  Please use
+This token filter has been deprecated since Lucene 5.0. Please use
 <<analysis-icu-collation-keyword-field, ICU Collation Keyword Field>>.
 ======
 
 [[analysis-icu-collation-keyword-field]]
-==== ICU Collation Keyword Field
+==== ICU collation keyword field
 
 Collations are used for sorting documents in a language-specific word order.
 The `icu_collation_keyword` field type is available to all indices and will encode
@@ -348,7 +348,7 @@ Below is an example of how to set up a field for sorting German names in
 
 [source,console]
 --------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
     "properties": {
@@ -368,7 +368,7 @@ PUT my_index
   }
 }
 
-GET /my_index/_search <3>
+GET /my-index-000001/_search <3>
 {
   "query": {
     "match": {
@@ -385,7 +385,7 @@ GET /my_index/_search <3>
     a single token doc values, and applies the German ``phonebook'' order.
 <3> An example query which searches the `name` field and sorts on the `name.sort` field.
 
-===== Parameters for ICU Collation Keyword Fields
+===== Parameters for ICU collation keyword fields
 
 The following parameters are accepted by `icu_collation_keyword` fields:
 
@@ -404,7 +404,7 @@ The following parameters are accepted by `icu_collation_keyword` fields:
 `null_value`::
 
     Accepts a string value which is substituted for any explicit `null`
-    values.  Defaults to `null`, which means the field is treated as missing.
+    values. Defaults to `null`, which means the field is treated as missing.
 
 {ref}/ignore-above.html[`ignore_above`]::
 
@@ -433,8 +433,8 @@ The following parameters are accepted by `icu_collation_keyword` fields:
 The strength property determines the minimum level of difference considered
 significant during comparison. Possible values are : `primary`, `secondary`,
 `tertiary`, `quaternary` or `identical`. See the
-http://icu-project.org/apiref/icu4j/com/ibm/icu/text/Collator.html[ICU Collation documentation]
-for a more detailed  explanation for each value.  Defaults to `tertiary`
+https://icu-project.org/apiref/icu4j/com/ibm/icu/text/Collator.html[ICU Collation documentation]
+for a more detailed explanation for each value. Defaults to `tertiary`
 unless otherwise specified in the collation.
 
 `decomposition`::
@@ -442,7 +442,7 @@ unless otherwise specified in the collation.
 Possible values: `no` (default, but collation-dependent) or `canonical`.
 Setting this decomposition property to `canonical` allows the Collator to
 handle unnormalized text properly, producing the same results as if the text
-were normalized. If `no` is set, it is the user's responsibility to insure
+were normalized. If `no` is set, it is the user's responsibility to ensure
 that all text is already in the appropriate form before a comparison or before
 getting a CollationKey. Adjusting decomposition mode allows the user to select
 between faster and more complete collation behavior. Since a great many of the
@@ -483,19 +483,19 @@ Single character or contraction. Controls what is variable for `alternate`.
 
 `hiragana_quaternary_mode`::
 
-Possible values: `true` or `false`.  Distinguishing between Katakana and
+Possible values: `true` or `false`. Distinguishing between Katakana and
 Hiragana characters in `quaternary` strength.
 
 
 [[analysis-icu-transform]]
-==== ICU Transform Token Filter
+==== ICU transform token filter
 
 Transforms are used to process Unicode text in many different ways, such as
 case mapping, normalization, transliteration and bidirectional text handling.
 
 You can define which transformation you want to apply with the `id` parameter
 (defaults to `Null`), and specify text direction with the `dir` parameter
-which accepts `forward` (default) for LTR and `reverse` for RTL.  Custom
+which accepts `forward` (default) for LTR and `reverse` for RTL. Custom
 rulesets are not yet supported.
 
 For example:
@@ -554,4 +554,4 @@ GET icu_sample/_analyze
 <3> Returns `zdravstvujte`.
 <4> Returns `kon'nichiha`.
 
-For more documentation, Please see the http://userguide.icu-project.org/transforms/general[user guide of ICU Transform].
+For more documentation, Please see the https://unicode-org.github.io/icu/userguide/transforms/[user guide of ICU Transform].

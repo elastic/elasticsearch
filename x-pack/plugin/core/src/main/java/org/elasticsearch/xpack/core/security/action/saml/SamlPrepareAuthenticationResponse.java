@@ -1,12 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.action.saml;
 
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
@@ -16,14 +16,9 @@ import java.io.IOException;
  */
 public final class SamlPrepareAuthenticationResponse extends ActionResponse {
 
-    private String realmName;
-    private String requestId;
-    private String redirectUrl;
-
-    public SamlPrepareAuthenticationResponse(StreamInput in) throws IOException {
-        super(in);
-        redirectUrl = in.readString();
-    }
+    private final String realmName;
+    private final String requestId;
+    private final String redirectUrl;
 
     public SamlPrepareAuthenticationResponse(String realmName, String requestId, String redirectUrl) {
         this.realmName = realmName;
@@ -48,4 +43,4 @@ public final class SamlPrepareAuthenticationResponse extends ActionResponse {
         out.writeString(redirectUrl);
     }
 
-    }
+}

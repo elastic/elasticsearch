@@ -1,35 +1,28 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree;
 
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.Accountables;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.util.CachedSupplier;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults;
-import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
-import org.elasticsearch.xpack.core.ml.inference.results.RawInferenceResults;
-import org.elasticsearch.xpack.core.ml.inference.results.RegressionInferenceResults;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceHelpers;
+import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LenientlyParsedTrainedModel;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NullInferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.StrictlyParsedTrainedModel;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TargetType;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.core.ml.utils.MapHelper;
 
 import java.io.IOException;
 import java.util.ArrayDeque;
@@ -37,15 +30,11 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Queue;
 import java.util.Set;
 import java.util.stream.Collectors;
-
-import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceHelpers.classificationLabel;
 
 public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedModel, Accountable {
 
@@ -55,20 +44,16 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
 
     public static final ParseField FEATURE_NAMES = new ParseField("feature_names");
     public static final ParseField TREE_STRUCTURE = new ParseField("tree_structure");
-    public static final ParseField TARGET_TYPE = new ParseField("target_type");
     public static final ParseField CLASSIFICATION_LABELS = new ParseField("classification_labels");
 
     private static final ObjectParser<Tree.Builder, Void> LENIENT_PARSER = createParser(true);
     private static final ObjectParser<Tree.Builder, Void> STRICT_PARSER = createParser(false);
 
     private static ObjectParser<Tree.Builder, Void> createParser(boolean lenient) {
-        ObjectParser<Tree.Builder, Void> parser = new ObjectParser<>(
-            NAME.getPreferredName(),
-            lenient,
-            Tree.Builder::new);
+        ObjectParser<Tree.Builder, Void> parser = new ObjectParser<>(NAME.getPreferredName(), lenient, Tree.Builder::new);
         parser.declareStringArray(Tree.Builder::setFeatureNames, FEATURE_NAMES);
         parser.declareObjectArray(Tree.Builder::setNodes, (p, c) -> TreeNode.fromXContent(p, lenient), TREE_STRUCTURE);
-        parser.declareString(Tree.Builder::setTargetType, TARGET_TYPE);
+        parser.declareString(Tree.Builder::setTargetType, TargetType.TARGET_TYPE);
         parser.declareStringArray(Tree.Builder::setClassificationLabels, CLASSIFICATION_LABELS);
         return parser;
     }
@@ -85,29 +70,26 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
     private final List<TreeNode> nodes;
     private final TargetType targetType;
     private final List<String> classificationLabels;
-    private final CachedSupplier<Double> highestOrderCategory;
 
     Tree(List<String> featureNames, List<TreeNode> nodes, TargetType targetType, List<String> classificationLabels) {
         this.featureNames = Collections.unmodifiableList(ExceptionsHelper.requireNonNull(featureNames, FEATURE_NAMES));
-        if(ExceptionsHelper.requireNonNull(nodes, TREE_STRUCTURE).size() == 0) {
+        if (ExceptionsHelper.requireNonNull(nodes, TREE_STRUCTURE).size() == 0) {
             throw new IllegalArgumentException("[tree_structure] must not be empty");
         }
         this.nodes = Collections.unmodifiableList(nodes);
-        this.targetType = ExceptionsHelper.requireNonNull(targetType, TARGET_TYPE);
+        this.targetType = ExceptionsHelper.requireNonNull(targetType, TargetType.TARGET_TYPE);
         this.classificationLabels = classificationLabels == null ? null : Collections.unmodifiableList(classificationLabels);
-        this.highestOrderCategory = new CachedSupplier<>(() -> this.maxLeafValue());
     }
 
     public Tree(StreamInput in) throws IOException {
-        this.featureNames = Collections.unmodifiableList(in.readStringList());
-        this.nodes = Collections.unmodifiableList(in.readList(TreeNode::new));
+        this.featureNames = in.readCollectionAsImmutableList(StreamInput::readString);
+        this.nodes = in.readCollectionAsImmutableList(TreeNode::new);
         this.targetType = TargetType.fromStream(in);
         if (in.readBoolean()) {
-            this.classificationLabels = Collections.unmodifiableList(in.readStringList());
+            this.classificationLabels = in.readCollectionAsImmutableList(StreamInput::readString);
         } else {
             this.classificationLabels = null;
         }
-        this.highestOrderCategory = new CachedSupplier<>(() -> this.maxLeafValue());
     }
 
     @Override
@@ -115,86 +97,9 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
         return NAME.getPreferredName();
     }
 
-    public List<TreeNode> getNodes() {
-        return nodes;
-    }
-
-    @Override
-    public InferenceResults infer(Map<String, Object> fields, InferenceConfig config) {
-        if (config.isTargetTypeSupported(targetType) == false) {
-            throw ExceptionsHelper.badRequestException(
-                "Cannot infer using configuration for [{}] when model target_type is [{}]", config.getName(), targetType.toString());
-        }
-
-        List<Double> features = featureNames.stream()
-            .map(f -> InferenceHelpers.toDouble(MapHelper.dig(f, fields)))
-            .collect(Collectors.toList());
-        return infer(features, config);
-    }
-
-    private InferenceResults infer(List<Double> features, InferenceConfig config) {
-        TreeNode node = nodes.get(0);
-        while(node.isLeaf() == false) {
-            node = nodes.get(node.compare(features));
-        }
-        return buildResult(node.getLeafValue(), config);
-    }
-
-    private InferenceResults buildResult(Double value, InferenceConfig config) {
-        // Indicates that the config is useless and the caller just wants the raw value
-        if (config instanceof NullInferenceConfig) {
-            return new RawInferenceResults(value);
-        }
-        switch (targetType) {
-            case CLASSIFICATION:
-                ClassificationConfig classificationConfig = (ClassificationConfig) config;
-                Tuple<Integer, List<ClassificationInferenceResults.TopClassEntry>> topClasses = InferenceHelpers.topClasses(
-                    classificationProbability(value),
-                    classificationLabels,
-                    null,
-                    classificationConfig.getNumTopClasses());
-                return new ClassificationInferenceResults(value,
-                    classificationLabel(topClasses.v1(), classificationLabels),
-                    topClasses.v2(),
-                    config);
-            case REGRESSION:
-                return new RegressionInferenceResults(value, config);
-            default:
-                throw new UnsupportedOperationException("unsupported target_type [" + targetType + "] for inference on tree model");
-        }
-    }
-
-    /**
-     * Trace the route predicting on the feature vector takes.
-     * @param features  The feature vector
-     * @return The list of traversed nodes ordered from root to leaf
-     */
-    public List<TreeNode> trace(List<Double> features) {
-        List<TreeNode> visited = new ArrayList<>();
-        TreeNode node = nodes.get(0);
-        visited.add(node);
-        while(node.isLeaf() == false) {
-            node = nodes.get(node.compare(features));
-            visited.add(node);
-        }
-        return visited;
-    }
-
     @Override
     public TargetType targetType() {
         return targetType;
-    }
-
-    private List<Double> classificationProbability(double inferenceValue) {
-        // If we are classification, we should assume that the inference return value is whole.
-        assert inferenceValue == Math.rint(inferenceValue);
-        double maxCategory = this.highestOrderCategory.get();
-        // If we are classification, we should assume that the largest leaf value is whole.
-        assert maxCategory == Math.rint(maxCategory);
-        List<Double> list = new ArrayList<>(Collections.nCopies(Double.valueOf(maxCategory + 1).intValue(), 0.0));
-        // TODO, eventually have TreeNodes contain confidence levels
-        list.set(Double.valueOf(inferenceValue).intValue(), 1.0);
-        return list;
     }
 
     @Override
@@ -218,12 +123,12 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
         builder.startObject();
         builder.field(FEATURE_NAMES.getPreferredName(), featureNames);
         builder.field(TREE_STRUCTURE.getPreferredName(), nodes);
-        builder.field(TARGET_TYPE.getPreferredName(), targetType.toString());
-        if(classificationLabels != null) {
+        builder.field(TargetType.TARGET_TYPE.getPreferredName(), targetType.toString());
+        if (classificationLabels != null) {
             builder.field(CLASSIFICATION_LABELS.getPreferredName(), classificationLabels);
         }
         builder.endObject();
-        return  builder;
+        return builder;
     }
 
     @Override
@@ -253,32 +158,66 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
 
     @Override
     public void validate() {
-        if (featureNames.isEmpty()) {
-            throw ExceptionsHelper.badRequestException("[{}] must not be empty for tree model", FEATURE_NAMES.getPreferredName());
+        int maxFeatureIndex = maxFeatureIndex();
+        if (maxFeatureIndex >= featureNames.size()) {
+            throw ExceptionsHelper.badRequestException(
+                "feature index [{}] is out of bounds for the [{}] array",
+                maxFeatureIndex,
+                FEATURE_NAMES.getPreferredName()
+            );
+        }
+        if (nodes.size() > 1) {
+            if (featureNames.isEmpty()) {
+                throw ExceptionsHelper.badRequestException(
+                    "[{}] is empty and the tree has > 1 nodes; num nodes [{}]. " + "The model Must have features if tree is not a stump",
+                    FEATURE_NAMES.getPreferredName(),
+                    nodes.size()
+                );
+            }
         }
         checkTargetType();
         detectMissingNodes();
         detectCycle();
+        verifyLeafNodeUniformity();
     }
 
     @Override
     public long estimatedNumOperations() {
         // Grabbing the features from the doc + the depth of the tree
-        return (long)Math.ceil(Math.log(nodes.size())) + featureNames.size();
+        return (long) Math.ceil(Math.log(nodes.size())) + featureNames.size();
+    }
+
+    /**
+     * The highest index of a feature used any of the nodes.
+     * If no nodes use a feature return -1. This can only happen
+     * if the tree contains a single leaf node.
+     *
+     * @return The max or -1
+     */
+    int maxFeatureIndex() {
+        int maxFeatureIndex = -1;
+
+        for (TreeNode node : nodes) {
+            maxFeatureIndex = Math.max(maxFeatureIndex, node.getSplitFeature());
+        }
+
+        return maxFeatureIndex;
     }
 
     private void checkTargetType() {
         if (this.classificationLabels != null && this.targetType != TargetType.CLASSIFICATION) {
-            throw ExceptionsHelper.badRequestException(
-                "[target_type] should be [classification] if [classification_labels] are provided");
+            throw ExceptionsHelper.badRequestException("[target_type] should be [classification] if [classification_labels] are provided");
+        }
+        if (this.targetType != TargetType.CLASSIFICATION && this.nodes.stream().anyMatch(n -> n.getLeafValue().length > 1)) {
+            throw ExceptionsHelper.badRequestException("[target_type] should be [classification] if leaf nodes have multiple values");
         }
     }
 
     private void detectCycle() {
-        Set<Integer> visited = new HashSet<>(nodes.size());
+        Set<Integer> visited = Sets.newHashSetWithExpectedSize(nodes.size());
         Queue<Integer> toVisit = new ArrayDeque<>(nodes.size());
         toVisit.add(0);
-        while(toVisit.isEmpty() == false) {
+        while (toVisit.isEmpty() == false) {
             Integer nodeIdx = toVisit.remove();
             if (visited.contains(nodeIdx)) {
                 throw ExceptionsHelper.badRequestException("[tree] contains cycle at node {}", nodeIdx);
@@ -313,14 +252,21 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
         }
     }
 
-    private static boolean nodeMissing(int nodeIdx, List<TreeNode> nodes) {
-        return nodeIdx >= nodes.size();
+    private void verifyLeafNodeUniformity() {
+        Integer leafValueLengths = null;
+        for (TreeNode node : nodes) {
+            if (node.isLeaf()) {
+                if (leafValueLengths == null) {
+                    leafValueLengths = node.getLeafValue().length;
+                } else if (leafValueLengths != node.getLeafValue().length) {
+                    throw ExceptionsHelper.badRequestException("[tree.tree_structure] all leaf nodes must have the same number of values");
+                }
+            }
+        }
     }
 
-    private Double maxLeafValue() {
-        return targetType == TargetType.CLASSIFICATION ?
-            this.nodes.stream().filter(TreeNode::isLeaf).mapToDouble(TreeNode::getLeafValue).max().getAsDouble() :
-            null;
+    private static boolean nodeMissing(int nodeIdx, List<TreeNode> nodes) {
+        return nodeIdx >= nodes.size();
     }
 
     @Override
@@ -341,7 +287,15 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
         return Collections.unmodifiableCollection(accountables);
     }
 
-    public static class Builder {
+    @Override
+    public TransportVersion getMinimalCompatibilityVersion() {
+        if (nodes.stream().filter(TreeNode::isLeaf).anyMatch(t -> t.getLeafValue().length > 1)) {
+            return TransportVersions.V_7_7_0;
+        }
+        return TransportVersions.V_7_6_0;
+    }
+
+    public static final class Builder {
         private List<String> featureNames;
         private ArrayList<TreeNode.Builder> nodes;
         private int numNodes;
@@ -380,7 +334,6 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
             return setNodes(Arrays.asList(nodes));
         }
 
-
         public Builder setTargetType(TargetType targetType) {
             this.targetType = targetType;
             return this;
@@ -403,7 +356,7 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
          * @param decisionThreshold The decision threshold
          * @return The created node
          */
-        TreeNode.Builder addJunction(int nodeIndex, int featureIndex, boolean isDefaultLeft, double decisionThreshold) {
+        public TreeNode.Builder addJunction(int nodeIndex, int featureIndex, boolean isDefaultLeft, double decisionThreshold) {
             int leftChild = numNodes++;
             int rightChild = numNodes++;
             nodes.ensureCapacity(nodeIndex + 1);
@@ -433,7 +386,11 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
          * @param value     The prediction value
          * @return this
          */
-        Tree.Builder addLeaf(int nodeIndex, double value) {
+        public Tree.Builder addLeaf(int nodeIndex, double value) {
+            return addLeaf(nodeIndex, Arrays.asList(value));
+        }
+
+        public Tree.Builder addLeaf(int nodeIndex, List<Double> value) {
             for (int i = nodes.size(); i < nodeIndex + 1; i++) {
                 nodes.add(null);
             }
@@ -445,10 +402,12 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
             if (nodes.stream().anyMatch(Objects::isNull)) {
                 throw ExceptionsHelper.badRequestException("[tree] cannot contain null nodes");
             }
-            return new Tree(featureNames,
+            return new Tree(
+                featureNames,
                 nodes.stream().map(TreeNode.Builder::build).collect(Collectors.toList()),
                 targetType,
-                classificationLabels);
+                classificationLabels
+            );
         }
     }
 

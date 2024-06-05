@@ -1,65 +1,64 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.cluster.stats;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
 
 public class ClusterStatsNodeResponse extends BaseNodeResponse {
 
-    private NodeInfo nodeInfo;
-    private NodeStats nodeStats;
-    private ShardStats[] shardsStats;
+    private final NodeInfo nodeInfo;
+    private final NodeStats nodeStats;
+    private final ShardStats[] shardsStats;
     private ClusterHealthStatus clusterStatus;
+    private final SearchUsageStats searchUsageStats;
 
     public ClusterStatsNodeResponse(StreamInput in) throws IOException {
         super(in);
         clusterStatus = null;
         if (in.readBoolean()) {
-            clusterStatus = ClusterHealthStatus.fromValue(in.readByte());
+            clusterStatus = ClusterHealthStatus.readFrom(in);
         }
         this.nodeInfo = new NodeInfo(in);
         this.nodeStats = new NodeStats(in);
-        int size = in.readVInt();
-        shardsStats = new ShardStats[size];
-        for (int i = 0; i < size; i++) {
-            shardsStats[i] = new ShardStats(in);
+        shardsStats = in.readArray(ShardStats::new, ShardStats[]::new);
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_6_0)) {
+            searchUsageStats = new SearchUsageStats(in);
+        } else {
+            searchUsageStats = new SearchUsageStats();
         }
     }
 
-    public ClusterStatsNodeResponse(DiscoveryNode node, @Nullable ClusterHealthStatus clusterStatus,
-                                    NodeInfo nodeInfo, NodeStats nodeStats, ShardStats[] shardsStats) {
+    public ClusterStatsNodeResponse(
+        DiscoveryNode node,
+        @Nullable ClusterHealthStatus clusterStatus,
+        NodeInfo nodeInfo,
+        NodeStats nodeStats,
+        ShardStats[] shardsStats,
+        SearchUsageStats searchUsageStats
+    ) {
         super(node);
         this.nodeInfo = nodeInfo;
         this.nodeStats = nodeStats;
         this.shardsStats = shardsStats;
         this.clusterStatus = clusterStatus;
+        this.searchUsageStats = searchUsageStats;
     }
 
     public NodeInfo nodeInfo() {
@@ -82,8 +81,8 @@ public class ClusterStatsNodeResponse extends BaseNodeResponse {
         return this.shardsStats;
     }
 
-    public static ClusterStatsNodeResponse readNodeResponse(StreamInput in) throws IOException {
-        return new ClusterStatsNodeResponse(in);
+    public SearchUsageStats searchUsageStats() {
+        return searchUsageStats;
     }
 
     @Override
@@ -97,9 +96,9 @@ public class ClusterStatsNodeResponse extends BaseNodeResponse {
         }
         nodeInfo.writeTo(out);
         nodeStats.writeTo(out);
-        out.writeVInt(shardsStats.length);
-        for (ShardStats ss : shardsStats) {
-            ss.writeTo(out);
+        out.writeArray(shardsStats);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_6_0)) {
+            searchUsageStats.writeTo(out);
         }
     }
 }

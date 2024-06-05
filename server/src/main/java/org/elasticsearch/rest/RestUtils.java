@@ -1,33 +1,29 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.rest;
 
-import org.elasticsearch.common.Booleans;
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.path.PathTrie;
+import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Map;
+import java.util.Optional;
+import java.util.function.UnaryOperator;
 import java.util.regex.Pattern;
+
+import static org.elasticsearch.action.support.master.AcknowledgedRequest.DEFAULT_ACK_TIMEOUT;
+import static org.elasticsearch.rest.RestRequest.PATH_RESTRICTED;
 
 public class RestUtils {
 
@@ -36,12 +32,7 @@ public class RestUtils {
      */
     private static final boolean DECODE_PLUS_AS_SPACE = Booleans.parseBoolean(System.getProperty("es.rest.url_plus_as_space", "false"));
 
-    public static final PathTrie.Decoder REST_DECODER = new PathTrie.Decoder() {
-        @Override
-        public String decode(String value) {
-            return RestUtils.decodeComponent(value);
-        }
-    };
+    public static final UnaryOperator<String> REST_DECODER = RestUtils::decodeComponent;
 
     public static void decodeQueryString(String s, int fromIndex, Map<String, String> params) {
         if (fromIndex < 0) {
@@ -51,7 +42,7 @@ public class RestUtils {
             return;
         }
 
-        int queryStringLength = s.contains("#") ? s.indexOf("#") : s.length();
+        int queryStringLength = s.contains("#") ? s.indexOf('#') : s.length();
 
         String name = null;
         int pos = fromIndex; // Beginning of the unprocessed region
@@ -94,6 +85,9 @@ public class RestUtils {
     }
 
     private static void addParam(Map<String, String> params, String name, String value) {
+        if (PATH_RESTRICTED.equalsIgnoreCase(name)) {
+            throw new IllegalArgumentException("parameter [" + PATH_RESTRICTED + "] is reserved and may not set");
+        }
         params.put(name, value);
     }
 
@@ -143,7 +137,7 @@ public class RestUtils {
             return "";
         }
         final int size = s.length();
-        if (!decodingNeeded(s, size, plusAsSpace)) {
+        if (decodingNeeded(s, size, plusAsSpace) == false) {
             return s;
         }
         final byte[] buf = new byte[size];
@@ -189,9 +183,8 @@ public class RestUtils {
                     final char c2 = decodeHexNibble(s.charAt(++i));
                     if (c == Character.MAX_VALUE || c2 == Character.MAX_VALUE) {
                         throw new IllegalArgumentException(
-                            "invalid escape sequence `%" + s.charAt(i - 1)
-                                + s.charAt(i) + "' at index " + (i - 2)
-                                + " of: " + s);
+                            "invalid escape sequence `%" + s.charAt(i - 1) + s.charAt(i) + "' at index " + (i - 2) + " of: " + s
+                        );
                     }
                     c = (char) (c * 16 + c2);
                     // Fall through.
@@ -233,10 +226,10 @@ public class RestUtils {
             return null;
         }
         int len = corsSetting.length();
-        boolean isRegex = len > 2 &&  corsSetting.startsWith("/") && corsSetting.endsWith("/");
+        boolean isRegex = len > 2 && corsSetting.startsWith("/") && corsSetting.endsWith("/");
 
         if (isRegex) {
-            return Pattern.compile(corsSetting.substring(1, corsSetting.length()-1));
+            return Pattern.compile(corsSetting.substring(1, corsSetting.length() - 1));
         }
 
         return null;
@@ -253,9 +246,70 @@ public class RestUtils {
         if (Strings.isNullOrEmpty(corsSetting)) {
             return new String[0];
         }
-        return Arrays.asList(corsSetting.split(","))
-                     .stream()
-                     .map(String::trim)
-                     .toArray(size -> new String[size]);
+        return Arrays.stream(corsSetting.split(",")).map(String::trim).toArray(String[]::new);
+    }
+
+    /**
+     * Extract the trace id from the specified traceparent string.
+     * @see <a href="https://www.w3.org/TR/trace-context/#traceparent-header">W3 traceparent spec</a>
+     *
+     * @param traceparent   The value from the {@code traceparent} HTTP header
+     * @return  The trace id from the traceparent string, or {@code Optional.empty()} if it is not present.
+     */
+    public static Optional<String> extractTraceId(String traceparent) {
+        return traceparent != null && traceparent.length() >= 55 ? Optional.of(traceparent.substring(3, 35)) : Optional.empty();
+    }
+
+    /**
+     * The name of the common {@code ?master_timeout} query parameter.
+     */
+    public static final String REST_MASTER_TIMEOUT_PARAM = "master_timeout";
+
+    /**
+     * The default value for the common {@code ?master_timeout} query parameter.
+     */
+    public static final TimeValue REST_MASTER_TIMEOUT_DEFAULT = TimeValue.timeValueSeconds(30);
+
+    /**
+     * The name of the common {@code ?timeout} query parameter.
+     */
+    public static final String REST_TIMEOUT_PARAM = "timeout";
+
+    /**
+     * Extract the {@code ?master_timeout} parameter from the request, imposing the common default of {@code 30s} in case the parameter is
+     * missing.
+     *
+     * @param restRequest The request from which to extract the {@code ?master_timeout} parameter
+     * @return the timeout from the request, with a default of {@link #REST_MASTER_TIMEOUT_DEFAULT} ({@code 30s}) if the request does not
+     *         specify the parameter
+     */
+    public static TimeValue getMasterNodeTimeout(RestRequest restRequest) {
+        assert restRequest != null;
+        return restRequest.paramAsTime(REST_MASTER_TIMEOUT_PARAM, REST_MASTER_TIMEOUT_DEFAULT);
+    }
+
+    /**
+     * Extract the {@code ?timeout} parameter from the request, imposing the common default of {@code 30s} in case the parameter is
+     * missing.
+     *
+     * @param restRequest The request from which to extract the {@code ?timeout} parameter
+     * @return the timeout from the request, with a default of {@link AcknowledgedRequest#DEFAULT_ACK_TIMEOUT} ({@code 30s}) if the request
+     *         does not specify the parameter
+     */
+    public static TimeValue getAckTimeout(RestRequest restRequest) {
+        assert restRequest != null;
+        return restRequest.paramAsTime(REST_TIMEOUT_PARAM, DEFAULT_ACK_TIMEOUT);
+    }
+
+    /**
+     * Extract the {@code ?timeout} parameter from the request, returning null in case the parameter is missing.
+     *
+     * @param restRequest The request from which to extract the {@code ?timeout} parameter
+     * @return the timeout from the request, with a default of {@code null} if the request does not specify the parameter
+     */
+    @Nullable
+    public static TimeValue getTimeout(RestRequest restRequest) {
+        assert restRequest != null;
+        return restRequest.paramAsTime(REST_TIMEOUT_PARAM, null);
     }
 }

@@ -1,55 +1,89 @@
-import org.elasticsearch.gradle.info.BuildParams
-
+import org.elasticsearch.gradle.Version
+import org.elasticsearch.gradle.internal.info.BuildParams
+import org.elasticsearch.gradle.internal.doc.DocSnippetTask
 import static org.elasticsearch.gradle.testclusters.TestDistribution.DEFAULT
 
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 apply plugin: 'elasticsearch.docs-test'
+apply plugin: 'elasticsearch.rest-resources'
+
+ext.docsFileTree = fileTree(projectDir) {
+  include '**/*.asciidoc'
+  include '**/*.mdx'
+  // That is where the snippets go, not where they come from!
+  exclude 'build/**'
+  exclude 'build-idea/**'
+  exclude 'build-eclipse/**'
+  // Just syntax examples
+  exclude 'README.asciidoc'
+  // Broken code snippet tests
+  exclude 'reference/graph/explore.asciidoc'
+  // These files simply don't pass yet. We should figure out how to fix them.
+  exclude 'reference/watcher/reference/actions.asciidoc'
+  exclude 'reference/rest-api/security/ssl.asciidoc'
+  if (BuildParams.inFipsJvm) {
+    // We don't support this component in FIPS 140
+    exclude 'reference/ingest/processors/attachment.asciidoc'
+    // We can't conditionally control output, this would be missing the ingest-attachment component
+    exclude 'reference/cat/plugins.asciidoc'
+  }
+}
 
 /* List of files that have snippets that will not work until platinum tests can occur ... */
-buildRestTests.expectedUnconvertedCandidates = [
-  'reference/ml/anomaly-detection/transforms.asciidoc',
-  'reference/ml/anomaly-detection/apis/delete-calendar-event.asciidoc',
-  'reference/ml/anomaly-detection/apis/get-bucket.asciidoc',
-  'reference/ml/anomaly-detection/apis/get-category.asciidoc',
-  'reference/ml/anomaly-detection/apis/get-influencer.asciidoc',
-  'reference/ml/anomaly-detection/apis/get-job-stats.asciidoc',
-  'reference/ml/anomaly-detection/apis/get-job.asciidoc',
-  'reference/ml/anomaly-detection/apis/get-overall-buckets.asciidoc',
-  'reference/ml/anomaly-detection/apis/get-record.asciidoc',
-  'reference/ml/anomaly-detection/apis/get-snapshot.asciidoc',
-  'reference/ml/anomaly-detection/apis/post-data.asciidoc',
-  'reference/ml/anomaly-detection/apis/revert-snapshot.asciidoc',
-  'reference/ml/anomaly-detection/apis/update-snapshot.asciidoc',
-  'reference/ml/anomaly-detection/apis/update-job.asciidoc'
-]
+tasks.named("buildRestTests").configure {
+  getExpectedUnconvertedCandidates().addAll(
+          'reference/ml/anomaly-detection/ml-configuring-transform.asciidoc',
+          'reference/ml/anomaly-detection/apis/delete-calendar-event.asciidoc',
+          'reference/ml/anomaly-detection/apis/get-bucket.asciidoc',
+          'reference/ml/anomaly-detection/apis/get-category.asciidoc',
+          'reference/ml/anomaly-detection/apis/get-influencer.asciidoc',
+          'reference/ml/anomaly-detection/apis/get-job-stats.asciidoc',
+          'reference/ml/anomaly-detection/apis/get-job.asciidoc',
+          'reference/ml/anomaly-detection/apis/get-overall-buckets.asciidoc',
+          'reference/ml/anomaly-detection/apis/get-record.asciidoc',
+          'reference/ml/anomaly-detection/apis/get-snapshot.asciidoc',
+          'reference/ml/anomaly-detection/apis/post-data.asciidoc',
+          'reference/ml/anomaly-detection/apis/revert-snapshot.asciidoc',
+          'reference/ml/anomaly-detection/apis/update-snapshot.asciidoc',
+          'reference/ml/anomaly-detection/apis/update-job.asciidoc',
+          'reference/security/authentication/user-cache.asciidoc',
+          'reference/security/authorization/run-as-privilege.asciidoc',
+          'reference/security/ccs-clients-integrations/http.asciidoc',
+          'reference/rest-api/watcher/put-watch.asciidoc',
+          'reference/rest-api/watcher/stats.asciidoc',
+          'reference/watcher/example-watches/watching-time-series-data.asciidoc'
+  )
+}
 
-testClusters.integTest {
+restResources {
+  restApi {
+    include '*'
+  }
+}
+
+testClusters.matching { it.name == "yamlRestTest"}.configureEach {
   if (singleNode().testDistribution == DEFAULT) {
     setting 'xpack.license.self_generated.type', 'trial'
     setting 'indices.lifecycle.history_index_enabled', 'false'
-    if (BuildParams.isSnapshotBuild()) {
-      setting 'xpack.autoscaling.enabled', 'true'
-      setting 'xpack.eql.enabled', 'true'
+    keystorePassword 'keystore-password'
+    if (BuildParams.isSnapshotBuild() == false) {
+      requiresFeature 'es.failure_store_feature_flag_enabled', new Version(8, 12, 0)
     }
   }
+
+  // debug ccr test failures:
+  // https://github.com/elastic/elasticsearch/issues/95678
+  // https://github.com/elastic/elasticsearch/issues/94359
+  // https://github.com/elastic/elasticsearch/issues/96561
+  setting 'logger.org.elasticsearch.transport.SniffConnectionStrategy', 'DEBUG'
+  setting 'logger.org.elasticsearch.transport.RemoteClusterService', 'DEBUG'
 
   // enable regexes in painless so our tests don't complain about example snippets that use them
   setting 'script.painless.regex.enabled', 'true'
@@ -66,96 +100,271 @@ testClusters.integTest {
   configFile 'KeywordTokenizer.rbbi'
   extraConfigFile 'hunspell/en_US/en_US.aff', project(":server").file('src/test/resources/indices/analyze/conf_dir/hunspell/en_US/en_US.aff')
   extraConfigFile 'hunspell/en_US/en_US.dic', project(":server").file('src/test/resources/indices/analyze/conf_dir/hunspell/en_US/en_US.dic')
+  extraConfigFile 'httpCa.p12', file("./httpCa.p12")
+  extraConfigFile 'transport.p12', file("./transport.p12")
   // Whitelist reindexing from the local node so we can test it.
   setting 'reindex.remote.whitelist', '127.0.0.1:*'
 
+  extraConfigFile 'ingest-geoip/GeoLite2-City.mmdb', file("src/yamlRestTest/resources/GeoLite2-City.mmdb")
+  extraConfigFile 'ingest-geoip/GeoLite2-Country.mmdb', file("src/yamlRestTest/resources/GeoLite2-Country.mmdb")
+
   // TODO: remove this once cname is prepended to transport.publish_address by default in 8.0
   systemProperty 'es.transport.cname_in_publish_address', 'true'
-}
 
-// build the cluster with all plugins
-project.rootProject.subprojects.findAll { it.parent.path == ':plugins' }.each { subproj ->
-  /* Skip repositories. We just aren't going to be able to test them so it
-   * doesn't make sense to waste time installing them. */
-  if (subproj.path.startsWith(':plugins:repository-')) {
-    return
-  }
-  // Do not install ingest-attachment in a FIPS 140 JVM as this is not supported
-  if (subproj.path.startsWith(':plugins:ingest-attachment') && Boolean.parseBoolean(System.getProperty("tests.fips.enabled"))) {
-    return
-  }
-  // FIXME
-  subproj.afterEvaluate { // need to wait until the project has been configured
-    testClusters.integTest {
-      plugin file(subproj.bundlePlugin.archiveFile)
+  requiresFeature 'es.index_mode_feature_flag_registered', Version.fromString("8.0.0")
+  requiresFeature 'es.failure_store_feature_flag_enabled', Version.fromString("8.12.0")
+
+  // TODO Rene: clean up this kind of cross project file references
+  extraConfigFile 'op-jwks.json', project(':x-pack:test:idp-fixture').file("src/main/resources/oidc/op-jwks.json")
+  extraConfigFile 'idp-docs-metadata.xml', project(':x-pack:test:idp-fixture').file("src/main/resources/idp/shibboleth-idp/metadata/idp-docs-metadata.xml")
+  extraConfigFile 'testClient.crt', project(':x-pack:plugin:security').file("src/test/resources/org/elasticsearch/xpack/security/action/pki_delegation/testClient.crt")
+  setting 'xpack.security.enabled', 'true'
+  setting 'xpack.security.authc.api_key.enabled', 'true'
+  setting 'xpack.security.authc.token.enabled', 'true'
+  // disable the ILM history for doc tests to avoid potential lingering tasks that'd cause test flakiness
+  setting 'indices.lifecycle.history_index_enabled', 'false'
+  setting 'xpack.license.self_generated.type', 'trial'
+  setting 'xpack.security.authc.realms.file.file.order', '0'
+  setting 'xpack.security.authc.realms.native.native.order', '1'
+  setting 'xpack.security.authc.realms.oidc.oidc1.order', '2'
+  setting 'xpack.security.authc.realms.oidc.oidc1.op.issuer', 'http://127.0.0.1:8080'
+  setting 'xpack.security.authc.realms.oidc.oidc1.op.authorization_endpoint', "http://127.0.0.1:8080/c2id-login"
+  setting 'xpack.security.authc.realms.oidc.oidc1.op.token_endpoint', "http://127.0.0.1:8080/c2id/token"
+  setting 'xpack.security.authc.realms.oidc.oidc1.op.jwkset_path', 'op-jwks.json'
+  setting 'xpack.security.authc.realms.oidc.oidc1.rp.redirect_uri', 'https://my.fantastic.rp/cb'
+  setting 'xpack.security.authc.realms.oidc.oidc1.rp.client_id', 'elasticsearch-rp'
+  keystore 'xpack.security.authc.realms.oidc.oidc1.rp.client_secret', 'b07efb7a1cf6ec9462afe7b6d3ab55c6c7880262aa61ac28dded292aca47c9a2'
+  setting 'xpack.security.authc.realms.oidc.oidc1.rp.response_type', 'id_token'
+  setting 'xpack.security.authc.realms.oidc.oidc1.claims.principal', 'sub'
+  setting 'xpack.security.authc.realms.pki.pki1.order', '3'
+  setting 'xpack.security.authc.realms.pki.pki1.certificate_authorities', '[ "testClient.crt" ]'
+  setting 'xpack.security.authc.realms.pki.pki1.delegation.enabled', 'true'
+  setting 'xpack.security.authc.realms.saml.saml1.order', '4'
+  setting 'xpack.security.authc.realms.saml.saml1.sp.logout', 'https://kibana.org/logout'
+  setting 'xpack.security.authc.realms.saml.saml1.idp.entity_id', 'https://my-idp.org'
+  setting 'xpack.security.authc.realms.saml.saml1.idp.metadata.path', 'idp-docs-metadata.xml'
+  setting 'xpack.security.authc.realms.saml.saml1.sp.entity_id', 'https://kibana.org'
+  setting 'xpack.security.authc.realms.saml.saml1.sp.acs', 'https://kibana.org/api/security/saml/callback'
+  setting 'xpack.security.authc.realms.saml.saml1.attributes.principal', 'uid'
+  setting 'xpack.security.authc.realms.saml.saml1.attributes.name', 'urn:oid:2.5.4.3'
+
+  user username: 'test_admin'
+  user username: 'test_user'
+
+  // build the cluster with all plugins
+  project.rootProject.subprojects.findAll { it.parent.path == ':plugins' }.each { subproj ->
+    /* Skip repositories. We just aren't going to be able to test them so it
+     * doesn't make sense to waste time installing them.
+     */
+    if (subproj.path.startsWith(':plugins:repository-')) {
+      return
     }
-    tasks.integTest.dependsOn subproj.bundlePlugin
+    // Do not install ingest-attachment in a FIPS 140 JVM as this is not supported
+    if (subproj.path.startsWith(':modules:ingest-attachment') && BuildParams.inFipsJvm) {
+      return
+    }
+    plugin subproj.path
   }
 }
 
-buildRestTests.docs = fileTree(projectDir) {
-  // No snippets in here!
-  exclude 'build.gradle'
-  // That is where the snippets go, not where they come from!
-  exclude 'build'
-  exclude 'build-idea'
-  exclude 'build-eclipse'
-  // Just syntax examples
-  exclude 'README.asciidoc'
-  // Broken code snippet tests
-  exclude 'reference/graph/explore.asciidoc'
-  if (Boolean.parseBoolean(System.getProperty("tests.fips.enabled"))) {
-    // We don't install/support this plugin in FIPS 140
-    exclude 'plugins/ingest-attachment.asciidoc'
-    // We can't conditionally control output, this would be missing the ingest-attachment plugin
-    exclude 'reference/cat/plugins.asciidoc'
+tasks.named("yamlRestTest").configure {
+  doFirst {
+    delete("${buildDir}/cluster/shared/repo")
   }
 }
 
-listSnippets.docs = buildRestTests.docs
+tasks.named("forbiddenPatterns").configure {
+  exclude '**/*.mmdb'
+}
 
-listConsoleCandidates.docs = buildRestTests.docs
+tasks.withType(DocSnippetTask).configureEach {
+    docs = docsFileTree
+}
 
-Closure setupTwitter = { String name, int count ->
-  buildRestTests.setups[name] = '''
+Closure setupMyIndex = { String name, int count ->
+  tasks.named("buildRestTests").configure { buildRestTests ->
+    buildRestTests.setups[name] = '''
   - do:
         indices.create:
-          index: twitter
+          index: my-index-000001
           body:
             settings:
               number_of_shards: 1
               number_of_replicas: 1
             mappings:
               properties:
-                user:
-                  type: keyword
-                  doc_values: true
-                date:
+                "@timestamp":
                   type: date
-                likes:
-                  type: long
+                http:
+                  properties:
+                    request:
+                      properties:
+                        method:
+                          type: keyword
+                message:
+                  type: text
+                  fields:
+                    keyword:
+                      type: keyword
+                user:
+                  properties:
+                    id:
+                      type: keyword
+                      doc_values: true
   - do:
         bulk:
-          index: twitter
+          index: my-index-000001
           refresh: true
           body: |'''
-  for (int i = 0; i < count; i++) {
-    String user, text
-    if (i == 0) {
-      user = 'kimchy'
-      text = 'trying out Elasticsearch'
-    } else {
-      user = 'test'
-      text = "some message with the number $i"
+    for (int i = 0; i < count; i++) {
+      String ip, user_id
+      if (i == 0) {
+        ip = '127.0.0.1'
+        user_id = 'kimchy'
+      } else {
+        ip = '10.42.42.42'
+        user_id = 'elkbee'
+      }
+      buildRestTests.setups[name] += """
+            { "index":{"_id": "$i"} }
+            { "@timestamp": "2099-11-15T14:12:12", "http": { "request": { "method": "get" }, "response": { "bytes": 1070000, "status_code": 200 }, "version": "1.1" }, "message": "GET /search HTTP/1.1 200 1070000", "source": { "ip": "$ip" }, "user": { "id": "$user_id" } }"""
     }
-    buildRestTests.setups[name] += """
-            {"index":{"_id": "$i"}}
-            {"user": "$user", "message": "$text", "date": "2009-11-15T14:12:12", "likes": $i}"""
   }
 }
-setupTwitter('twitter', 5)
-setupTwitter('big_twitter', 120)
-setupTwitter('huge_twitter', 1200)
+setupMyIndex('my_index', 5)
+setupMyIndex('my_index_big', 120)
+setupMyIndex('my_index_huge', 1200)
+
+tasks.named("buildRestTests").configure {buildRestTests ->
+
+setups['my_data_stream_template'] = '''
+  - do:
+      indices.put_index_template:
+        name: my-data-stream-template
+        body: |
+          {
+            "index_patterns": [ "my-data-stream*" ],
+            "data_stream": { },
+            "priority": 500
+          }
+'''
+
+setups['my_data_stream'] = setups['my_data_stream_template'] + '''
+  - do:
+      raw:
+        method: PUT
+        path: '_data_stream/my-data-stream'
+'''
+
+teardowns['data_stream_cleanup'] = '''
+  - do:
+      raw:
+        method: DELETE
+        path: '_data_stream/*'
+  - is_true: acknowledged
+  - do:
+      raw:
+        method: DELETE
+        path: '_index_template/*'
+  - is_true: acknowledged
+'''
+
+// Used for TSDS examples
+setups['tsds_template'] = '''
+  - do:
+      indices.put_index_template:
+        name: my-weather-sensor-index-template
+        body: |
+          {
+            "index_patterns": [ "metrics-weather_sensors-*" ],
+            "data_stream": { },
+            "template": {
+              "settings": {
+                "index.mode": "time_series",
+                "index.routing_path": [ "sensor_id", "location" ]
+              },
+              "mappings": {
+                "properties": {
+                  "sensor_id": {
+                    "type": "keyword",
+                    "time_series_dimension": true
+                  },
+                  "location": {
+                    "type": "keyword",
+                    "time_series_dimension": true
+                  }
+                }
+              }
+            },
+            "priority": 500
+          }
+'''
+
+setups['tsds'] = setups['tsds_template'] + '''
+  - do:
+      raw:
+        method: PUT
+        path: '_data_stream/metrics-weather_sensors-dev'
+'''
+
+teardowns['tsds_cleanup'] = '''
+  - do:
+      raw:
+        method: DELETE
+        path: '_data_stream/*'
+  - is_true: acknowledged
+  - do:
+      raw:
+        method: DELETE
+        path: '_index_template/*'
+  - is_true: acknowledged
+'''
+
+// Used for several full-text search and agg examples
+buildRestTests.setups['messages'] = '''
+  - do:
+        indices.create:
+          index: my-index-000001
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 1
+  - do:
+        bulk:
+          index: my-index-000001
+          refresh: true
+          body: |
+            {"index":{"_id": "0"}}
+            {"message": "trying out Elasticsearch", "context": "foo"}
+            {"index":{"_id": "1"}}
+            {"message": "some message with the number 1", "context": "bar"}
+            {"index":{"_id": "2"}}
+            {"message": "some message with the number 2", "context": "bar"}
+            {"index":{"_id": "3"}}
+            {"message": "some message with the number 3", "context": "bar"}
+            {"index":{"_id": "4"}}
+            {"message": "some message with the number 4", "context": "bar"}
+'''
+
+// Used for EQL
+setups['sec_logs'] = setups['my_data_stream'] + '''
+  - do:
+        bulk:
+          index: my-data-stream
+          refresh: true
+          body: |
+            {"create":{}}
+            {"@timestamp": "2099-12-06T11:04:05.000Z", "event": { "category": "process", "id": "edwCRnyD", "sequence": 1 }, "process": { "pid": 2012, "name": "cmd.exe", "executable": "C:\\\\Windows\\\\System32\\\\cmd.exe" }}
+            {"create":{}}
+            {"@timestamp": "2099-12-06T11:04:07.000Z", "event": { "category": "file", "id": "dGCHwoeS", "sequence": 2 }, "file": { "accessed": "2099-12-07T11:07:08.000Z", "name": "cmd.exe", "path": "C:\\\\Windows\\\\System32\\\\cmd.exe", "type": "file", "size": 16384 }, "process": { "pid": 2012, "name": "cmd.exe", "executable": "C:\\\\Windows\\\\System32\\\\cmd.exe" }}
+            {"create":{}}
+            {"@timestamp": "2099-12-07T11:06:07.000Z", "event": { "category": "process", "id": "cMyt5SZ2", "sequence": 3 }, "process": { "pid": 2012, "name": "cmd.exe", "executable": "C:\\\\Windows\\\\System32\\\\cmd.exe" } }
+            {"create":{}}
+            {"@timestamp": "2099-12-07T11:07:09.000Z", "event": { "category": "process", "id": "aR3NWVOs", "sequence": 4 }, "process": { "pid": 2012, "name": "regsvr32.exe", "command_line": "regsvr32.exe  /s /u /i:https://...RegSvr32.sct scrobj.dll", "executable": "C:\\\\Windows\\\\System32\\\\regsvr32.exe" }}
+            {"create":{}}
+            {"@timestamp": "2099-12-07T11:07:10.000Z", "event": { "category": "file", "id": "tZ1NWVOs", "sequence": 5 }, "process": { "pid": 2012, "name": "regsvr32.exe", "executable": "C:\\\\Windows\\\\System32\\\\regsvr32.exe" }, "file": { "path": "C:\\\\Windows\\\\System32\\\\scrobj.dll", "name": "scrobj.dll" }}
+            {"create":{}}
+            {"@timestamp": "2099-12-07T11:07:10.000Z", "event": { "category": "process", "id": "GTSmSqgz0U", "sequence": 6, "type": "termination" }, "process": { "pid": 2012, "name": "regsvr32.exe", "executable": "C:\\\\Windows\\\\System32\\\\regsvr32.exe" }}'''
 
 buildRestTests.setups['host'] = '''
   # Fetch the http host. We use the host of the master because we know there will always be a master.
@@ -276,50 +485,6 @@ buildRestTests.setups['user_hits'] = '''
             {"index":{}}
             {"timestamp": "2019-01-03T13:00:00", "user_id": "4"}'''
 
-
-// Dummy bank account data used by getting-started.asciidoc
-buildRestTests.setups['bank'] = '''
-  - do:
-        indices.create:
-          index: bank
-          body:
-            settings:
-              number_of_shards: 5
-              number_of_routing_shards: 5
-  - do:
-        bulk:
-          index: bank
-          refresh: true
-          body: |
-#bank_data#
-'''
-/* Load the actual accounts only if we're going to use them. This complicates
- * dependency checking but that is a small price to pay for not building a
- * 400kb string every time we start the build. */
-File accountsFile = new File("$projectDir/src/test/resources/accounts.json")
-buildRestTests.inputs.file(accountsFile)
-buildRestTests.doFirst {
-  String accounts = accountsFile.getText('UTF-8')
-  // Indent like a yaml test needs
-  accounts = accounts.replaceAll('(?m)^', '            ')
-  buildRestTests.setups['bank'] =
-    buildRestTests.setups['bank'].replace('#bank_data#', accounts)
-}
-
-// Used by index boost doc
-buildRestTests.setups['index_boost'] = '''
-  - do:
-      indices.create:
-          index:  index1
-  - do:
-      indices.create:
-          index:  index2
-
-  - do:
-      indices.put_alias:
-        index: index1
-        name: alias1
-'''
 // Used by sampler and diversified-sampler aggregation docs
 buildRestTests.setups['stackoverflow'] = '''
   - do:
@@ -388,6 +553,9 @@ buildRestTests.setups['news'] = '''
                   type: keyword
                 content:
                   type: text
+                  copy_to: custom_all
+                custom_all:
+                  type: text
   - do:
         bulk:
           index: news
@@ -447,14 +615,6 @@ buildRestTests.setups['exams'] = '''
             {"index":{}}
             {"grade": 50, "weight": 3}'''
 
-buildRestTests.setups['stored_example_script'] = '''
-  # Simple script to load a field. Not really a good example, but a simple one.
-  - do:
-      put_script:
-        id: "my_script"
-        body: { "script": { "lang": "painless", "source": "doc[params.field].value" } }
-  - match: { acknowledged: true }
-'''
 
 buildRestTests.setups['stored_scripted_metric_script'] = '''
   - do:
@@ -530,6 +690,41 @@ for (int i = 0; i < 100; i++) {
             {"index":{}}
             {"load_time": "$value"}"""
 }
+
+// Used by t_test aggregations
+buildRestTests.setups['node_upgrade'] = '''
+  - do:
+        indices.create:
+          index: node_upgrade
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 1
+            mappings:
+              properties:
+                group:
+                  type: keyword
+                startup_time_before:
+                  type: long
+                startup_time_after:
+                  type: long
+  - do:
+        bulk:
+          index: node_upgrade
+          refresh: true
+          body: |
+            {"index":{}}
+            {"group": "A", "startup_time_before": 102, "startup_time_after": 89}
+            {"index":{}}
+            {"group": "A", "startup_time_before": 99, "startup_time_after": 93}
+            {"index":{}}
+            {"group": "A", "startup_time_before": 111, "startup_time_after": 72}
+            {"index":{}}
+            {"group": "B", "startup_time_before": 97, "startup_time_after": 98}
+            {"index":{}}
+            {"group": "B", "startup_time_before": 101, "startup_time_after": 102}
+            {"index":{}}
+            {"group": "B", "startup_time_before": 99, "startup_time_after": 98}'''
 
 // Used by iprange agg
 buildRestTests.setups['iprange'] = '''
@@ -650,6 +845,18 @@ buildRestTests.setups['library'] = '''
 buildRestTests.setups['sensor_rollup_job'] = '''
   - do:
       indices.create:
+        index: dummy-rollup-index
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            _meta:
+              _rollup:
+                my-id: {}
+
+  - do:
+      indices.create:
         index: sensor-1
         body:
           settings:
@@ -698,6 +905,18 @@ buildRestTests.setups['sensor_rollup_job'] = '''
             }
 '''
 buildRestTests.setups['sensor_started_rollup_job'] = '''
+  - do:
+      indices.create:
+        index: dummy-rollup-index
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            _meta:
+              _rollup:
+                my-id: {}
+
   - do:
       indices.create:
         index: sensor-1
@@ -772,6 +991,28 @@ buildRestTests.setups['sensor_started_rollup_job'] = '''
 '''
 
 buildRestTests.setups['sensor_index'] = '''
+  - do:
+      indices.create:
+        index: dummy-rollup-index
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            _meta:
+              _rollup:
+                my-id:
+                  id: my-id
+                  index_pattern: "dummy-index-*"
+                  rollup_index: "dummy-rollup-index"
+                  cron: "*/30 * * * * ?"
+                  page_size: 1000
+                  groups:
+                    date_histogram:
+                      field: timestamp
+                      fixed_interval: 1h
+                      delay: 7d
+
   - do:
       indices.create:
         index: sensor-1
@@ -937,7 +1178,7 @@ buildRestTests.setups['farequote_index'] = '''
                   airline:
                      type: keyword
                   doc_count:
-                     type: integer       
+                     type: integer
 '''
 buildRestTests.setups['farequote_data'] = buildRestTests.setups['farequote_index'] + '''
   - do:
@@ -949,7 +1190,7 @@ buildRestTests.setups['farequote_data'] = buildRestTests.setups['farequote_index
             {"airline":"JZA","responsetime":990.4628,"time":"2016-02-07T00:00:00+0000", "doc_count": 5}
             {"index": {"_id":"2"}}
             {"airline":"JBU","responsetime":877.5927,"time":"2016-02-07T00:00:00+0000", "doc_count": 23}
-            {"index": {"_id":"3"}}            
+            {"index": {"_id":"3"}}
             {"airline":"KLM","responsetime":1355.4812,"time":"2016-02-07T00:00:00+0000", "doc_count": 42}
 '''
 buildRestTests.setups['farequote_job'] = buildRestTests.setups['farequote_data'] + '''
@@ -981,6 +1222,39 @@ buildRestTests.setups['farequote_datafeed'] = buildRestTests.setups['farequote_j
           "job_id":"farequote",
           "indexes":"farequote"
           }
+'''
+buildRestTests.setups['categorize_text'] = '''
+  - do:
+        indices.create:
+          index: log-messages
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 0
+            mappings:
+              properties:
+                time:
+                  type: date
+                message:
+                  type: text
+
+  - do:
+        bulk:
+          index: log-messages
+          refresh: true
+          body: |
+            {"index": {"_id":"1"}}
+            {"time":"2016-02-07T00:01:00+0000", "message": "2016-02-07T00:00:00+0000 Node 3 shutting down"}
+            {"index": {"_id":"2"}}
+            {"time":"2016-02-07T00:02:00+0000", "message": "2016-02-07T00:00:00+0000 Node 5 starting up"}
+            {"index": {"_id":"3"}}
+            {"time":"2016-02-07T00:03:00+0000", "message": "2016-02-07T00:00:00+0000 Node 4 shutting down"}
+            {"index": {"_id":"4"}}
+            {"time":"2016-02-08T00:01:00+0000", "message": "2016-02-08T00:00:00+0000 Node 5 shutting down"}
+            {"index": {"_id":"5"}}
+            {"time":"2016-02-08T00:02:00+0000", "message": "2016-02-08T00:00:00+0000 User foo_325 logging on"}
+            {"index": {"_id":"6"}}
+            {"time":"2016-02-08T00:04:00+0000", "message": "2016-02-08T00:00:00+0000 User foo_864 logged off"}
 '''
 buildRestTests.setups['server_metrics_index'] = '''
   - do:
@@ -1108,7 +1382,7 @@ buildRestTests.setups['server_metrics_openjob'] = buildRestTests.setups['server_
 buildRestTests.setups['server_metrics_openjob-raw'] = buildRestTests.setups['server_metrics_datafeed-raw'] + '''
   - do:
       raw:
-        method: POST 
+        method: POST
         path: _ml/anomaly_detectors/total-requests/_open
 '''
 buildRestTests.setups['server_metrics_startdf'] = buildRestTests.setups['server_metrics_openjob'] + '''
@@ -1144,7 +1418,7 @@ buildRestTests.setups['calendar_outages_addjob'] = buildRestTests.setups['server
            "job_ids": ["total-requests"]
            }
 '''
-buildRestTests.setups['calendar_outages_addevent'] = buildRestTests.setups['calendar_outages_addjob'] + '''
+setups['calendar_outages_addevent'] = setups['calendar_outages_addjob'] + '''
   - do:
        ml.post_calendar_events:
          calendar_id: "planned-outages"
@@ -1157,7 +1431,7 @@ buildRestTests.setups['calendar_outages_addevent'] = buildRestTests.setups['cale
 '''
 
 // used by median absolute deviation aggregation
-buildRestTests.setups['reviews'] = '''
+setups['reviews'] = '''
   - do:
         indices.create:
           index: reviews
@@ -1181,7 +1455,7 @@ buildRestTests.setups['reviews'] = '''
             {"index": {"_id": "2"}}
             {"product": "widget-foo", "rating": 5}
 '''
-buildRestTests.setups['remote_cluster'] = buildRestTests.setups['host'] + '''
+setups['remote_cluster'] = setups['host'] + '''
   - do:
       cluster.put_settings:
         body:
@@ -1189,7 +1463,8 @@ buildRestTests.setups['remote_cluster'] = buildRestTests.setups['host'] + '''
             cluster.remote.remote_cluster.seeds: $transport_host
 '''
 
-buildRestTests.setups['remote_cluster_and_leader_index'] = buildRestTests.setups['remote_cluster'] + '''
+
+setups['remote_cluster_and_leader_index'] = setups['remote_cluster'] + '''
   - do:
       indices.create:
         index: leader_index
@@ -1200,7 +1475,31 @@ buildRestTests.setups['remote_cluster_and_leader_index'] = buildRestTests.setups
             index.soft_deletes.enabled: true
 '''
 
-buildRestTests.setups['seats'] = '''
+setups['remote_cluster_and_leader_index_and_follower_index'] = setups['remote_cluster_and_leader_index'] + '''
+  - do:
+      raw:
+        method: PUT
+        path: 'follower_index/_ccr/follow'
+        wait_for_active_shards: 1
+        body: |
+          {
+            "remote_cluster" : "remote_cluster",
+            "leader_index" : "leader_index"
+          }
+  - is_true: follow_index_created
+  - is_true: follow_index_shards_acked
+  - is_true: index_following_started
+'''
+
+teardowns['pause_follow'] = '''
+  - do:
+      raw:
+        method: POST
+        path: 'follower_index/_ccr/pause_follow'
+  - is_true: acknowledged
+'''
+
+setups['seats'] = '''
   - do:
         indices.create:
           index: seats
@@ -1212,6 +1511,14 @@ buildRestTests.setups['seats'] = '''
               properties:
                 theatre:
                   type: keyword
+                play:
+                  type: keyword
+                actors:
+                  type: keyword
+                date:
+                  type: keyword
+                time:
+                  type: keyword
                 cost:
                   type: long
                 row:
@@ -1220,20 +1527,54 @@ buildRestTests.setups['seats'] = '''
                   type: long
                 sold:
                   type: boolean
+                datetime:
+                  type: date
+
+  - do:
+      raw:
+        method: PUT
+        path: "_ingest/pipeline/seats"
+        body: |
+          {
+            "description": "update datetime for seats",
+            "processors": [
+              {
+                "script": {
+                  "source": "String[] dateSplit = ctx.date.splitOnToken('-'); String year = dateSplit[0].trim(); String month = dateSplit[1].trim(); if (month.length() == 1) { month = '0' + month; } String day = dateSplit[2].trim(); if (day.length() == 1) { day = '0' + day; } boolean pm = ctx.time.substring(ctx.time.length() - 2).equals('PM'); String[] timeSplit = ctx.time.substring(0, ctx.time.length() - 2).splitOnToken(':'); int hours = Integer.parseInt(timeSplit[0].trim()); int minutes = Integer.parseInt(timeSplit[1].trim()); if (pm) { hours += 12; } String dts = year + '-' + month + '-' + day + 'T' + (hours < 10 ? '0' + hours : '' + hours) + ':' + (minutes < 10 ? '0' + minutes : '' + minutes) + ':00+08:00'; ZonedDateTime dt = ZonedDateTime.parse(dts, DateTimeFormatter.ISO_OFFSET_DATE_TIME); ctx.datetime = dt.getLong(ChronoField.INSTANT_SECONDS)*1000L;"
+                }
+              }
+            ]
+          }
   - do:
         bulk:
           index: seats
+          pipeline: seats
           refresh: true
           body: |
             {"index":{"_id": "1"}}
-            {"theatre": "Skyline", "cost": 37, "row": 1, "number": 7, "sold": false}
+            {"theatre": "Skyline", "play": "Rent", "actors": ["James Holland", "Krissy Smith", "Joe Muir", "Ryan Earns"], "date": "2021-4-1", "time": "3:00PM", "cost": 37, "row": 1, "number": 7, "sold": false}
             {"index":{"_id": "2"}}
-            {"theatre": "Graye", "cost": 30, "row": 3, "number": 5, "sold": false}
+            {"theatre": "Graye", "play": "Rent", "actors": ["Dave Christmas"], "date": "2021-4-1", "time": "3:00PM", "cost": 30, "row": 3, "number": 5, "sold": false}
             {"index":{"_id": "3"}}
-            {"theatre": "Graye", "cost": 33, "row": 2, "number": 6, "sold": false}
+            {"theatre": "Graye", "play": "Rented", "actors": ["Dave Christmas"], "date": "2021-4-1", "time": "3:00PM", "cost": 33, "row": 2, "number": 6, "sold": false}
             {"index":{"_id": "4"}}
-            {"theatre": "Skyline", "cost": 20, "row": 5, "number": 2, "sold": false}'''
-buildRestTests.setups['kibana_sample_data_ecommerce'] = '''
+            {"theatre": "Skyline", "play": "Rented", "actors": ["James Holland", "Krissy Smith", "Joe Muir", "Ryan Earns"], "date": "2021-4-1", "time": "3:00PM", "cost": 20, "row": 5, "number": 2, "sold": false}
+            {"index":{"_id": "5"}}
+            {"theatre": "Down Port", "play": "Pick It Up", "actors": ["Joel Madigan", "Jessica Brown", "Baz Knight", "Jo Hangum", "Rachel Grass", "Phoebe Miller"], "date": "2018-4-2", "time": "8:00PM", "cost": 27.5, "row": 3, "number": 2, "sold": false}
+            {"index":{"_id": "6"}}
+            {"theatre": "Down Port", "play": "Harriot", "actors": ["Phoebe Miller", "Sarah Notch", "Brayden Green", "Joshua Iller", "Jon Hittle", "Rob Kettleman", "Laura Conrad", "Simon Hower", "Nora Blue", "Mike Candlestick", "Jacey Bell"], "date": "2018-8-7", "time": "8:00PM", "cost": 30.0, "row": 1, "number": 10, "sold": false}
+            {"index":{"_id": "7"}}
+            {"theatre": "Skyline", "play": "Auntie Jo", "actors": ["Jo Hangum", "Jon Hittle", "Rob Kettleman", "Laura Conrad", "Simon Hower", "Nora Blue"], "date": "2018-10-2", "time": "5:40PM", "cost": 22.5, "row": 7, "number": 10, "sold": false}
+            {"index":{"_id": "8"}}
+            {"theatre": "Skyline", "play": "Test Run", "actors": ["Joe Muir", "Ryan Earns", "Joel Madigan", "Jessica Brown"], "date": "2018-8-5", "time": "7:30PM", "cost": 17.5, "row": 11, "number": 12, "sold": true}
+            {"index":{"_id": "9"}}
+            {"theatre": "Skyline", "play": "Sunnyside Down", "actors": ["Krissy Smith", "Joe Muir", "Ryan Earns", "Nora Blue", "Mike Candlestick", "Jacey Bell"], "date": "2018-6-12", "time": "4:00PM", "cost": 21.25, "row": 8, "number": 15, "sold": true}
+            {"index":{"_id": "10"}}
+            {"theatre": "Graye", "play": "Line and Single", "actors": ["Nora Blue", "Mike Candlestick"], "date": "2018-6-5", "time": "2:00PM", "cost": 30.0, "row": 1, "number": 2, "sold": false}
+            {"index":{"_id":"11"}}
+            {"theatre": "Graye", "play": "Hamilton", "actors": ["Lin-Manuel Miranda", "Leslie Odom Jr."] ,"date":"2018-6-5", "time": "2:00PM", "cost": 5000.0, "row":1, "number": 20, "sold": true}
+            '''
+setups['kibana_sample_data_ecommerce'] = '''
   - do:
         indices.create:
           index: kibana_sample_data_ecommerce
@@ -1241,8 +1582,12 @@ buildRestTests.setups['kibana_sample_data_ecommerce'] = '''
             settings:
               number_of_shards: 1
               number_of_replicas: 0
+            mappings:
+              properties:
+                order_date:
+                  type: date
 '''
-buildRestTests.setups['add_timestamp_pipeline'] = '''
+setups['add_timestamp_pipeline'] = '''
   - do:
       ingest.put_pipeline:
         id: "add_timestamp_pipeline"
@@ -1258,7 +1603,7 @@ buildRestTests.setups['add_timestamp_pipeline'] = '''
             ]
           }
 '''
-buildRestTests.setups['simple_kibana_continuous_pivot'] = buildRestTests.setups['kibana_sample_data_ecommerce'] + buildRestTests.setups['add_timestamp_pipeline']  + '''
+setups['simple_kibana_continuous_pivot'] = setups['kibana_sample_data_ecommerce'] + setups['add_timestamp_pipeline']  + '''
   - do:
       raw:
         method: PUT
@@ -1305,7 +1650,16 @@ buildRestTests.setups['simple_kibana_continuous_pivot'] = buildRestTests.setups[
             }
           }
 '''
-buildRestTests.setups['setup_logdata'] = '''
+setups['setup_houseprices'] = '''
+  - do:
+        indices.create:
+          index: houses_sold_last_10_yrs
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 1
+'''
+setups['setup_logdata'] = '''
   - do:
         indices.create:
           index: logdata
@@ -1327,13 +1681,13 @@ buildRestTests.setups['setup_logdata'] = '''
             {"index":{}}
             {"grade": 50, "weight": 3}
 '''
-buildRestTests.setups['logdata_job'] = buildRestTests.setups['setup_logdata'] + '''
+setups['logdata_job'] = setups['setup_logdata'] + '''
   - do:
       ml.put_data_frame_analytics:
         id: "loganalytics"
         body:  >
           {
-            "source": { 
+            "source": {
               "index": "logdata"
               },
             "dest": {
@@ -1345,7 +1699,7 @@ buildRestTests.setups['logdata_job'] = buildRestTests.setups['setup_logdata'] + 
           }
 '''
 // Used by snapshot lifecycle management docs
-buildRestTests.setups['setup-repository'] = '''
+setups['setup-repository'] = '''
   - do:
       snapshot.create_repository:
         repository: my_repository
@@ -1354,3 +1708,316 @@ buildRestTests.setups['setup-repository'] = '''
           settings:
             location: buildDir/cluster/shared/repo
 '''
+
+// Used by snapshot restore docs
+setups['setup-snapshots'] = setups['setup-repository'] + '''
+  - do:
+      bulk:
+        index: my-index
+        refresh: true
+        body: |
+          {"index":{"_id": "0"}}
+          {"message": "trying out Elasticsearch", "context": "foo"}
+  - do:
+      bulk:
+        index: logs-my_app-default
+        refresh: true
+        body: |
+          {"create":{"_id": "0"}}
+          {"message": "trying out Elasticsearch", "context": "foo"}
+  - do:
+      snapshot.create:
+        repository: my_repository
+        snapshot: my_snapshot_2099.05.06
+        wait_for_completion: true
+'''
+
+// Fake sec logs data used by EQL search
+  setups['atomic_red_regsvr32'] = setups['my_data_stream'] + '''
+  - do:
+        bulk:
+          index: my-data-stream
+          refresh: true
+          body: |
+#atomic_red_data#
+'''
+
+  setups['my_inactive_watch'] = '''
+  - do:
+      watcher.put_watch:
+        id: "my_watch"
+        active: false
+        body:  >
+          {
+            "trigger": {
+              "schedule": {
+                "hourly": {
+                  "minute": [ 0, 5 ]
+                }
+              }
+            },
+            "input": {
+              "simple": {
+                "payload": {
+                  "send": "yes"
+                }
+              }
+            },
+            "condition": {
+              "always": {}
+            },
+            "actions": {
+              "test_index": {
+                "index": {
+                  "index": "test"
+                }
+              }
+            }
+          }
+  - match: { _id: "my_watch" }
+'''
+
+  setups['my_active_watch'] = setups['my_inactive_watch'].replace(
+        'active: false', 'active: true')
+
+  setups['role_mapping'] = '''
+  - do:
+        security.put_role_mapping:
+         name: "mapping1"
+         body:  >
+            {
+               "enabled": true,
+               "roles": [ "user" ],
+               "rules": { "field": { "username": "*" } }
+            }
+'''
+
+  setups['admin_role'] = '''
+  - do:
+      security.put_role:
+        name: "my_admin_role"
+        body: >
+          {
+            "description": "Grants full access to all management features within the cluster.",
+            "cluster": ["all"],
+            "indices": [
+              {"names": ["index1", "index2" ], "privileges": ["all"], "field_security" : {"grant" : [ "title", "body" ]}}
+              ],
+            "run_as": [ "other_user" ],
+            "metadata" : {"version": 1}
+          }
+'''
+  setups['jacknich_user'] = '''
+  - do:
+      security.put_user:
+        username: "jacknich"
+        body:  >
+          {
+            "password" : "l0ng-r4nd0m-p@ssw0rd",
+            "roles" : [ "admin", "other_role1" ],
+            "full_name" : "Jack Nicholson",
+            "email" : "jacknich@example.com",
+            "metadata" : { "intelligence" : 7 }
+          }
+  - do:
+      security.activate_user_profile:
+        body: >
+          {
+            "grant_type": "password",
+            "username": "jacknich",
+            "password" : "l0ng-r4nd0m-p@ssw0rd"
+          }
+'''
+  setups['sandrakn_user'] = '''
+  - do:
+      security.put_user:
+        username: "sandrakn"
+        body:  >
+          {
+            "password" : "l0ng-r4nd0m-p@ssw0rd",
+            "roles" : [ "admin", "other_role1" ],
+            "full_name" : "Sandra Knight",
+            "email" : "sandrakn@example.com",
+            "metadata" : { "intelligence" : 7 }
+          }
+  - do:
+      security.activate_user_profile:
+        body: >
+          {
+            "grant_type": "password",
+            "username": "sandrakn",
+            "password" : "l0ng-r4nd0m-p@ssw0rd"
+          }
+
+'''
+  setups['app0102_privileges'] = '''
+  - do:
+        security.put_privileges:
+          body: >
+            {
+              "myapp": {
+                "read": {
+                  "application": "myapp",
+                  "name": "read",
+                  "actions": [
+                    "data:read/*",
+                    "action:login" ],
+                  "metadata": {
+                    "description": "Read access to myapp"
+                  }
+                }
+              }
+            }
+'''
+  setups['service_token42'] = '''
+  - do:
+      security.create_service_token:
+        namespace: elastic
+        service: fleet-server
+        name: token42
+'''
+  setups['user_profiles'] = '''
+  - do:
+      security.put_user:
+        username: "jacknich"
+        body:  >
+          {
+            "password" : "l0ng-r4nd0m-p@ssw0rd",
+            "roles" : [ "admin", "other_role1" ],
+            "full_name" : "Jack Nicholson",
+            "email" : "jacknich@example.com"
+          }
+  - do:
+      security.put_user:
+        username: "jackrea"
+        body:  >
+          {
+            "password" : "l0ng-r4nd0m-p@ssw0rd",
+            "roles" : [ "admin" ],
+            "full_name" : "Jack Reacher",
+            "email" : "jackrea@example.com"
+          }
+  - do:
+      security.put_user:
+        username: "jackspa"
+        body:  >
+          {
+            "password" : "l0ng-r4nd0m-p@ssw0rd",
+            "roles" : [ "user" ],
+            "full_name" : "Jack Sparrow",
+            "email" : "jackspa@example.com"
+          }
+  - do:
+      security.activate_user_profile:
+        body: >
+          {
+            "grant_type": "password",
+            "username": "jacknich",
+            "password" : "l0ng-r4nd0m-p@ssw0rd"
+          }
+  - do:
+      security.activate_user_profile:
+        body: >
+          {
+            "grant_type": "password",
+            "username": "jackrea",
+            "password" : "l0ng-r4nd0m-p@ssw0rd"
+          }
+  - do:
+      security.activate_user_profile:
+        body: >
+          {
+            "grant_type": "password",
+            "username": "jackspa",
+            "password" : "l0ng-r4nd0m-p@ssw0rd"
+          }
+  # jacknich
+  - do:
+      security.update_user_profile_data:
+        uid: "u_79HkWkwmnBH5gqFKwoxggWPjEBOur1zLPXQPEl1VBW0_0"
+        body: >
+          {
+            "labels": {
+              "direction": "north"
+            },
+            "data": {
+              "app1": {
+                "key1": "value1"
+              }
+            }
+          }
+  # jackrea
+  - do:
+      security.update_user_profile_data:
+        uid: "u_P_0BMHgaOK3p7k-PFWUCbw9dQ-UFjt01oWJ_Dp2PmPc_0"
+        body: >
+          {
+            "labels": {
+              "direction": "west"
+            }
+          }
+  # jackspa
+  - do:
+      security.update_user_profile_data:
+        uid: "u_8RKO7AKfEbSiIHZkZZ2LJy2MUSDPWDr3tMI_CkIGApU_0"
+        body: >
+          {
+            "labels": {
+              "direction": "south"
+            }
+          }
+'''
+
+  // fake data used by the correlation bucket agg
+  buildRestTests.setups['correlate_latency'] = '''
+  - do:
+        indices.create:
+          index: correlate_latency
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 0
+            mappings:
+              properties:
+                latency:
+                  type: double
+                version:
+                  type: keyword
+  - do:
+        bulk:
+          index: correlate_latency
+          refresh: true
+          body: |'''
+
+
+  for (int i = 100; i < 200; i++) {
+    def value = i
+    if (i % 10) {
+      value = i * 10
+    }
+    buildRestTests.setups['correlate_latency'] += """
+            {"index":{}}
+            {"latency": "$value", "version": "1.0"}"""
+  }
+  for (int i = 0; i < 100; i++) {
+    def value = i
+    if (i % 10) {
+      value = i * 10
+    }
+    buildRestTests.setups['correlate_latency'] += """
+            {"index":{}}
+            {"latency": "$value", "version": "2.0"}"""
+  }
+
+  /* Load the actual events only if we're going to use them. */
+  File atomicRedRegsvr32File = new File("$projectDir/src/yamlRestTest/resources/normalized-T1117-AtomicRed-regsvr32.json")
+  inputs.file(atomicRedRegsvr32File)
+
+  doFirst {
+    String events = atomicRedRegsvr32File.getText('UTF-8')
+    // Indent like a yaml test needs
+    events = events.replaceAll('(?m)^', '            ')
+    setups['atomic_red_regsvr32'] =
+    setups['atomic_red_regsvr32'].replace('#atomic_red_data#', events)
+  }
+}

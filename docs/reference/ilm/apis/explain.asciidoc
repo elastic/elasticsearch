@@ -1,17 +1,18 @@
 [role="xpack"]
-[testenv="basic"]
 [[ilm-explain-lifecycle]]
 === Explain lifecycle API
 ++++
 <titleabbrev>Explain lifecycle</titleabbrev>
 ++++
 
-Shows an index's current lifecycle status.
+Retrieves the current lifecycle status for one or more indices. For data
+streams, the API retrieves the current lifecycle status for the stream's backing
+indices.
 
 [[ilm-explain-lifecycle-request]]
 ==== {api-request-title}
 
-`GET <index>/_ilm/explain`
+`GET <target>/_ilm/explain`
 
 [[ilm-explain-lifecycle-prereqs]]
 ==== {api-prereq-title}
@@ -31,27 +32,29 @@ about any failures.
 [[ilm-explain-lifecycle-path-params]]
 ==== {api-path-parms-title}
 
-`<index>`::
-  (Required, string) Identifier for the index.
+`<target>`::
+(Required, string) Comma-separated list of data streams, indices, and aliases to
+target. Supports wildcards (`*`).To target all data streams and indices, use `*`
+or `_all`.
 
 [[ilm-explain-lifecycle-query-params]]
 ==== {api-query-parms-title}
 
 `only_managed`::
-  (Optional, boolean) Filters the returned indices to only indices that are managed by
-  ILM.
+  (Optional, Boolean) Filters the returned indices to only indices that are managed by
+  {ilm-init}.
 
 `only_errors`::
-  (Optional, boolean) Filters the returned indices to only indices that are managed by
-  ILM and are in an error state, either due to an encountering an error while
+  (Optional, Boolean) Filters the returned indices to only indices that are managed by
+  {ilm-init} and are in an error state, either due to an encountering an error while
   executing the policy, or attempting to use a policy that does not exist.
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
 [[ilm-explain-lifecycle-example]]
 ==== {api-examples-title}
 
-The following example retrieves the lifecycle state of `my_index`:
+The following example retrieves the lifecycle state of `my-index-000001`:
 
 //////////////////////////
 
@@ -79,7 +82,7 @@ PUT _ilm/policy/my_policy
   }
 }
 
-PUT my_index
+PUT my-index-000001
 {
   "settings": {
     "index.lifecycle.name": "my_policy",
@@ -95,43 +98,54 @@ GET /_cluster/health?wait_for_status=green&timeout=10s
 
 [source,console]
 --------------------------------------------------
-GET my_index/_ilm/explain
+GET my-index-000001/_ilm/explain?human
 --------------------------------------------------
 // TEST[continued]
 
-When management of the index is first taken over by ILM, `explain` shows
+When management of the index is first taken over by {ilm-init}, `explain` shows
 that the index is managed and in the `new` phase:
 
 [source,console-result]
 --------------------------------------------------
 {
   "indices": {
-    "my_index": {
-      "index": "my_index",
-      "managed": true, <1>
-      "policy": "my_policy", <2>
-      "lifecycle_date_millis": 1538475653281, <3>
-      "age": "15s", <4>
+    "my-index-000001": {
+      "index": "my-index-000001",
+      "index_creation_date_millis": 1538475653281,        <1>
+      "index_creation_date": "2018-10-15T13:45:21.981Z",
+      "time_since_index_creation": "15s",                 <2>
+      "managed": true,                                    <3>
+      "policy": "my_policy",                              <4>
+      "lifecycle_date_millis": 1538475653281,             <5>
+      "lifecycle_date": "2018-10-15T13:45:21.981Z",
+      "age": "15s",                                       <6>
       "phase": "new",
-      "phase_time_millis": 1538475653317, <5>
-      "action": "complete",
-      "action_time_millis": 1538475653317, <6>
+      "phase_time_millis": 1538475653317,                 <7>
+      "phase_time": "2018-10-15T13:45:22.577Z",
+      "action": "complete"
+      "action_time_millis": 1538475653317,                <8>
+      "action_time": "2018-10-15T13:45:22.577Z",
       "step": "complete",
-      "step_time_millis": 1538475653317 <7>
+      "step_time_millis": 1538475653317,                  <9>
+      "step_time": "2018-10-15T13:45:22.577Z"
     }
   }
 }
 --------------------------------------------------
 // TESTRESPONSE[skip:no way to know if we will get this response immediately]
 
-<1> Shows if the index is being managed by ILM. If the index is not managed by
-ILM the other fields will not be shown
-<2> The name of the policy which ILM is using for this index
-<3> The timestamp used for the `min_age`
-<4> The age of the index (used for calculating when to enter the next phase)
-<5> When the index entered the current phase
-<6> When the index entered the current action
-<7> When the index entered the current step
+<1> When the index was created, this timestamp is used to determine when to
+rollover
+<2> The time since the index creation (used for calculating when to rollover
+the index via the `max_age`)
+<3> Shows if the index is being managed by {ilm-init}. If the index is not managed by
+{ilm-init} the other fields will not be shown
+<4> The name of the policy which {ilm-init} is using for this index
+<5> The timestamp used for the `min_age`
+<6> The age of the index (used for calculating when to enter the next phase)
+<7> When the index entered the current phase
+<8> When the index entered the current action
+<9> When the index entered the current step
 
 Once the policy is running on the index, the response includes a
 `phase_execution` object that shows the definition of the current phase.
@@ -144,6 +158,8 @@ phase completes.
   "indices": {
     "test-000069": {
       "index": "test-000069",
+      "index_creation_date_millis": 1538475653281,
+      "time_since_index_creation": "25.14s",
       "managed": true,
       "policy": "my_lifecycle3",
       "lifecycle_date_millis": 1538475653281,
@@ -164,13 +180,15 @@ phase completes.
           "min_age": "0ms",
           "actions": {
             "rollover": {
-              "max_age": "30s"
+              "max_age": "30s",
+              "max_primary_shard_docs": 200000000, <2>
+              "min_docs": 1
             }
           }
         },
-        "version": 3, <2>
-        "modified_date": "2018-10-15T13:21:41.576Z", <3>
-        "modified_date_in_millis": 1539609701576 <4>
+        "version": 3, <3>
+        "modified_date": "2018-10-15T13:21:41.576Z", <4>
+        "modified_date_in_millis": 1539609701576 <5>
       }
     }
   }
@@ -180,9 +198,10 @@ phase completes.
 
 <1> The JSON phase definition loaded from the specified policy when the index
 entered this phase
-<2> The version of the policy that was loaded
-<3> The date the loaded policy was last modified
-<4> The epoch time when the loaded policy was last modified
+<2> The rollover action includes the default `max_primary_shard_docs` and `min_docs` conditions. See <<ilm-rollover-options,ILM Rollover Options>> for more information.
+<3> The version of the policy that was loaded
+<4> The date the loaded policy was last modified
+<5> The epoch time when the loaded policy was last modified
 
 If {ilm-init} is waiting for a step to complete, the response includes status
 information for the step that's being performed on the index.
@@ -193,6 +212,8 @@ information for the step that's being performed on the index.
   "indices": {
     "test-000020": {
       "index": "test-000020",
+      "index_creation_date_millis": 1538475653281,
+      "time_since_index_creation": "4.12m",
       "managed": true,
       "policy": "my_lifecycle3",
       "lifecycle_date_millis": 1538475653281,
@@ -211,7 +232,7 @@ information for the step that's being performed on the index.
         "message": "Waiting for all shard copies to be active",
         "shards_left_to_allocate": -1,
         "all_shards_active": false,
-        "actual_replicas": 2
+        "number_of_replicas": 2
       },
       "phase_execution": {
         "policy": "my_lifecycle3",
@@ -257,6 +278,8 @@ the case.
   "indices": {
     "test-000056": {
       "index": "test-000056",
+      "index_creation_date_millis": 1538475653281,
+      "time_since_index_creation": "50.1d",
       "managed": true,
       "policy": "my_lifecycle3",
       "lifecycle_date_millis": 1538475653281,
@@ -302,7 +325,7 @@ the case.
 
 <1> The step that caused the error
 <2> Indicates if retrying the failed step can overcome the error. If this
-is true, ILM will retry the failed step automatically.
+is true, {ilm-init} will retry the failed step automatically.
 <3> Shows the number of attempted automatic retries to execute the failed
 step.
 <4> What went wrong

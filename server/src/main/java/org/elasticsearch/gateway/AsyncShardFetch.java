@@ -1,26 +1,13 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.gateway;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -30,13 +17,15 @@ import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.transport.ReceiveTimeoutTransportException;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -45,8 +34,11 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptySet;
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * Allows to asynchronously fetch shard related data from other nodes for allocation, without blocking
@@ -58,30 +50,24 @@ import static java.util.Collections.emptySet;
  */
 public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Releasable {
 
-    /**
-     * An action that lists the relevant shard data that needs to be fetched.
-     */
-    public interface Lister<NodesResponse extends BaseNodesResponse<NodeResponse>, NodeResponse extends BaseNodeResponse> {
-        void list(ShardId shardId, @Nullable String customDataPath, DiscoveryNode[] nodes, ActionListener<NodesResponse> listener);
-    }
-
     protected final Logger logger;
     protected final String type;
     protected final ShardId shardId;
     protected final String customDataPath;
-    private final Lister<BaseNodesResponse<T>, T> action;
-    private final Map<String, NodeEntry<T>> cache = new HashMap<>();
+    private final Map<String, NodeEntry<T>> cache;
     private final Set<String> nodesToIgnore = new HashSet<>();
     private final AtomicLong round = new AtomicLong();
     private boolean closed;
+    private volatile int fetchingCount;
 
-    protected AsyncShardFetch(Logger logger, String type, ShardId shardId, String customDataPath,
-                              Lister<? extends BaseNodesResponse<T>, T> action) {
+    @SuppressWarnings("unchecked")
+    protected AsyncShardFetch(Logger logger, String type, ShardId shardId, String customDataPath, int expectedSize) {
         this.logger = logger;
         this.type = type;
         this.shardId = Objects.requireNonNull(shardId);
         this.customDataPath = Objects.requireNonNull(customDataPath);
-        this.action = (Lister<BaseNodesResponse<T>, T>) action;
+        this.fetchingCount = 0;
+        this.cache = Maps.newHashMapWithExpectedSize(expectedSize);
     }
 
     @Override
@@ -92,14 +78,8 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
     /**
      * Returns the number of async fetches that are currently ongoing.
      */
-    public synchronized int getNumberOfInFlightFetches() {
-        int count = 0;
-        for (NodeEntry<T> nodeEntry : cache.values()) {
-            if (nodeEntry.isFetching()) {
-                count++;
-            }
-        }
-        return count;
+    public int getNumberOfInFlightFetches() {
+        return fetchingCount;
     }
 
     /**
@@ -122,20 +102,25 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
             final long fetchingRound = round.incrementAndGet();
             for (NodeEntry<T> nodeEntry : nodesToFetch) {
                 nodeEntry.markAsFetching(fetchingRound);
+                fetchingCount++;
             }
-            DiscoveryNode[] discoNodesToFetch = nodesToFetch.stream().map(NodeEntry::getNodeId).map(nodes::get)
+            DiscoveryNode[] discoNodesToFetch = nodesToFetch.stream()
+                .map(NodeEntry::getNodeId)
+                .map(nodes::get)
                 .toArray(DiscoveryNode[]::new);
             asyncFetch(discoNodesToFetch, fetchingRound);
         }
 
+        assert assertFetchingCountConsistent();
+
         // if we are still fetching, return null to indicate it
-        if (hasAnyNodeFetching(cache)) {
+        if (hasAnyNodeFetching()) {
             return new FetchResult<>(shardId, null, emptySet());
         } else {
             // nothing to fetch, yay, build the return value
             Map<DiscoveryNode, T> fetchData = new HashMap<>();
             Set<String> failedNodes = new HashSet<>();
-            for (Iterator<Map.Entry<String, NodeEntry<T>>> it = cache.entrySet().iterator(); it.hasNext(); ) {
+            for (Iterator<Map.Entry<String, NodeEntry<T>>> it = cache.entrySet().iterator(); it.hasNext();) {
                 Map.Entry<String, NodeEntry<T>> entry = it.next();
                 String nodeId = entry.getKey();
                 NodeEntry<T> nodeEntry = entry.getValue();
@@ -187,15 +172,27 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
                 if (nodeEntry != null) {
                     if (nodeEntry.getFetchingRound() != fetchingRound) {
                         assert nodeEntry.getFetchingRound() > fetchingRound : "node entries only replaced by newer rounds";
-                        logger.trace("{} received response for [{}] from node {} for an older fetching round (expected: {} but was: {})",
-                            shardId, nodeEntry.getNodeId(), type, nodeEntry.getFetchingRound(), fetchingRound);
+                        logger.trace(
+                            "{} received response for [{}] from node {} for an older fetching round (expected: {} but was: {})",
+                            shardId,
+                            nodeEntry.getNodeId(),
+                            type,
+                            nodeEntry.getFetchingRound(),
+                            fetchingRound
+                        );
                     } else if (nodeEntry.isFailed()) {
-                        logger.trace("{} node {} has failed for [{}] (failure [{}])", shardId, nodeEntry.getNodeId(), type,
-                            nodeEntry.getFailure());
+                        logger.trace(
+                            "{} node {} has failed for [{}] (failure [{}])",
+                            shardId,
+                            nodeEntry.getNodeId(),
+                            type,
+                            nodeEntry.getFailure()
+                        );
                     } else {
                         // if the entry is there, for the right fetching round and not marked as failed already, process it
                         logger.trace("{} marking {} as done for [{}], result is [{}]", shardId, nodeEntry.getNodeId(), type, response);
                         nodeEntry.doneFetching(response);
+                        fetchingCount--;
                     }
                 }
             }
@@ -207,26 +204,37 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
                 if (nodeEntry != null) {
                     if (nodeEntry.getFetchingRound() != fetchingRound) {
                         assert nodeEntry.getFetchingRound() > fetchingRound : "node entries only replaced by newer rounds";
-                        logger.trace("{} received failure for [{}] from node {} for an older fetching round (expected: {} but was: {})",
-                            shardId, nodeEntry.getNodeId(), type, nodeEntry.getFetchingRound(), fetchingRound);
+                        logger.trace(
+                            "{} received failure for [{}] from node {} for an older fetching round (expected: {} but was: {})",
+                            shardId,
+                            nodeEntry.getNodeId(),
+                            type,
+                            nodeEntry.getFetchingRound(),
+                            fetchingRound
+                        );
                     } else if (nodeEntry.isFailed() == false) {
                         // if the entry is there, for the right fetching round and not marked as failed already, process it
                         Throwable unwrappedCause = ExceptionsHelper.unwrapCause(failure.getCause());
                         // if the request got rejected or timed out, we need to try it again next time...
-                        if (unwrappedCause instanceof EsRejectedExecutionException ||
-                            unwrappedCause instanceof ReceiveTimeoutTransportException ||
-                            unwrappedCause instanceof ElasticsearchTimeoutException) {
+                        if (unwrappedCause instanceof EsRejectedExecutionException
+                            || unwrappedCause instanceof ReceiveTimeoutTransportException
+                            || unwrappedCause instanceof ElasticsearchTimeoutException) {
                             nodeEntry.restartFetching();
+                            fetchingCount--;
                         } else {
-                            logger.warn(() -> new ParameterizedMessage("{}: failed to list shard for {} on node [{}]",
-                                shardId, type, failure.nodeId()), failure);
+                            logger.warn(
+                                () -> format("%s: failed to list shard for %s on node [%s]", shardId, type, failure.nodeId()),
+                                failure
+                            );
                             nodeEntry.doneFetching(failure.getCause());
+                            fetchingCount--;
                         }
                     }
                 }
             }
         }
         reroute(shardId, "post_response");
+        assert assertFetchingCountConsistent();
     }
 
     /**
@@ -238,7 +246,11 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
      * Clear cache for node, ensuring next fetch will fetch a fresh copy.
      */
     synchronized void clearCacheForNode(String nodeId) {
-        cache.remove(nodeId);
+        NodeEntry<T> nodeEntry = cache.remove(nodeId);
+        if (nodeEntry != null && nodeEntry.fetching) {
+            fetchingCount--;
+        }
+        assert assertFetchingCountConsistent();
     }
 
     /**
@@ -247,14 +259,25 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
      */
     private void fillShardCacheWithDataNodes(Map<String, NodeEntry<T>> shardCache, DiscoveryNodes nodes) {
         // verify that all current data nodes are there
-        for (ObjectObjectCursor<String, DiscoveryNode> cursor : nodes.getDataNodes()) {
-            DiscoveryNode node = cursor.value;
+        for (Map.Entry<String, DiscoveryNode> cursor : nodes.getDataNodes().entrySet()) {
+            DiscoveryNode node = cursor.getValue();
             if (shardCache.containsKey(node.getId()) == false) {
                 shardCache.put(node.getId(), new NodeEntry<T>(node.getId()));
             }
         }
         // remove nodes that are not longer part of the data nodes set
-        shardCache.keySet().removeIf(nodeId -> !nodes.nodeExists(nodeId));
+        for (Iterator<Map.Entry<String, NodeEntry<T>>> iterator = shardCache.entrySet().iterator(); iterator.hasNext();) {
+            Map.Entry<String, NodeEntry<T>> entry = iterator.next();
+            String nodeId = entry.getKey();
+            NodeEntry<T> nodeEntry = entry.getValue();
+            if (nodes.nodeExists(nodeId) == false) {
+                if (nodeEntry.fetching) {
+                    fetchingCount--;
+                }
+                iterator.remove();
+            }
+        }
+        assert assertFetchingCountConsistent();
     }
 
     /**
@@ -274,13 +297,8 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
     /**
      * Are there any nodes that are fetching data?
      */
-    private boolean hasAnyNodeFetching(Map<String, NodeEntry<T>> shardCache) {
-        for (NodeEntry<T> nodeEntry : shardCache.values()) {
-            if (nodeEntry.isFetching()) {
-                return true;
-            }
-        }
-        return false;
+    private boolean hasAnyNodeFetching() {
+        return fetchingCount != 0;
     }
 
     /**
@@ -289,22 +307,41 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
     // visible for testing
     void asyncFetch(final DiscoveryNode[] nodes, long fetchingRound) {
         logger.trace("{} fetching [{}] from {}", shardId, type, nodes);
-        action.list(shardId, customDataPath, nodes, new ActionListener<BaseNodesResponse<T>>() {
+        list(shardId, customDataPath, nodes, new ActionListener<>() {
             @Override
             public void onResponse(BaseNodesResponse<T> response) {
+                assert assertSameNodes(response);
                 processAsyncFetch(response.getNodes(), response.failures(), fetchingRound);
             }
 
             @Override
             public void onFailure(Exception e) {
                 List<FailedNodeException> failures = new ArrayList<>(nodes.length);
-                for (final DiscoveryNode node: nodes) {
+                for (final DiscoveryNode node : nodes) {
                     failures.add(new FailedNodeException(node.getId(), "total failure in fetching", e));
                 }
                 processAsyncFetch(null, failures, fetchingRound);
             }
+
+            private boolean assertSameNodes(BaseNodesResponse<T> response) {
+                final Map<String, DiscoveryNode> nodesById = Arrays.stream(nodes)
+                    .collect(Collectors.toMap(DiscoveryNode::getEphemeralId, Function.identity()));
+                for (T nodeResponse : response.getNodes()) {
+                    final DiscoveryNode responseNode = nodeResponse.getNode();
+                    final DiscoveryNode localNode = nodesById.get(responseNode.getEphemeralId());
+                    assert localNode == responseNode : "not reference equal: " + localNode + " vs " + responseNode;
+                }
+                return true;
+            }
         });
     }
+
+    protected abstract void list(
+        ShardId shardId,
+        @Nullable String customDataPath,
+        DiscoveryNode[] nodes,
+        ActionListener<BaseNodesResponse<T>> listener
+    );
 
     /**
      * The result of a fetch operation. Make sure to first check {@link #hasData()} before
@@ -426,5 +463,11 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
         long getFetchingRound() {
             return fetchingRound;
         }
+    }
+
+    private boolean assertFetchingCountConsistent() {
+        assert Thread.holdsLock(this);
+        assert fetchingCount == cache.values().stream().filter(NodeEntry::isFetching).count();
+        return true;
     }
 }

@@ -1,0 +1,10 @@
+apply plugin: 'elasticsearch.internal-java-rest-test'
+
+dependencies {
+  javaRestTestImplementation project(path: xpackModule('eql:qa:common'))
+}
+
+tasks.named('javaRestTest') {
+  usesDefaultDistribution()
+  maxParallelForks = 1
+}

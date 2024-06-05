@@ -1,61 +1,62 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.http.netty4;
 
 import io.netty.channel.Channel;
+
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.concurrent.CompletableContext;
+import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpResponse;
-import org.elasticsearch.transport.netty4.Netty4TcpChannel;
 
 import java.net.InetSocketAddress;
+import java.net.SocketAddress;
+
+import static org.elasticsearch.transport.netty4.Netty4Utils.addListener;
+import static org.elasticsearch.transport.netty4.Netty4Utils.safeWriteAndFlush;
 
 public class Netty4HttpChannel implements HttpChannel {
 
     private final Channel channel;
-    private final CompletableContext<Void> closeContext = new CompletableContext<>();
+    private final ListenableFuture<Void> closeContext = new ListenableFuture<>();
 
     Netty4HttpChannel(Channel channel) {
         this.channel = channel;
-        Netty4TcpChannel.addListener(this.channel.closeFuture(), closeContext);
+        addListener(this.channel.closeFuture(), closeContext);
     }
 
     @Override
     public void sendResponse(HttpResponse response, ActionListener<Void> listener) {
-        channel.writeAndFlush(response, Netty4TcpChannel.addPromise(listener, channel));
+        safeWriteAndFlush(channel, response, listener);
     }
 
     @Override
     public InetSocketAddress getLocalAddress() {
-        return (InetSocketAddress) channel.localAddress();
+        return castAddressOrNull(channel.localAddress());
     }
 
     @Override
     public InetSocketAddress getRemoteAddress() {
-        return (InetSocketAddress) channel.remoteAddress();
+        return castAddressOrNull(channel.remoteAddress());
+    }
+
+    private static InetSocketAddress castAddressOrNull(SocketAddress socketAddress) {
+        if (socketAddress instanceof InetSocketAddress) {
+            return (InetSocketAddress) socketAddress;
+        } else {
+            return null;
+        }
     }
 
     @Override
     public void addCloseListener(ActionListener<Void> listener) {
-        closeContext.addListener(ActionListener.toBiConsumer(listener));
+        closeContext.addListener(listener);
     }
 
     @Override
@@ -74,9 +75,6 @@ public class Netty4HttpChannel implements HttpChannel {
 
     @Override
     public String toString() {
-        return "Netty4HttpChannel{" +
-            "localAddress=" + getLocalAddress() +
-            ", remoteAddress=" + getRemoteAddress() +
-            '}';
+        return "Netty4HttpChannel{" + "localAddress=" + getLocalAddress() + ", remoteAddress=" + getRemoteAddress() + '}';
     }
 }

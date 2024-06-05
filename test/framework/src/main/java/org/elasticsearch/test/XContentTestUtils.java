@@ -1,38 +1,32 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.test;
 
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.DeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.test.rest.yaml.ObjectPath;
+import org.elasticsearch.test.rest.ObjectPath;
+import org.elasticsearch.xcontent.DeprecationHandler;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Deque;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -42,22 +36,36 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static com.carrotsearch.randomizedtesting.generators.RandomStrings.randomAsciiOfLength;
-import static org.elasticsearch.common.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.elasticsearch.common.xcontent.XContentHelper.createParser;
+import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 
 public final class XContentTestUtils {
     private XContentTestUtils() {
 
     }
 
+    public static Map<String, Object> convertToMap(ChunkedToXContent chunkedToXContent) throws IOException {
+        return convertToMap(ChunkedToXContent.wrapAsToXContent(chunkedToXContent));
+    }
+
     public static Map<String, Object> convertToMap(ToXContent part) throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder();
-        builder.startObject();
-        part.toXContent(builder, EMPTY_PARAMS);
-        builder.endObject();
+        if (part.isFragment()) {
+            builder.startObject();
+            part.toXContent(builder, EMPTY_PARAMS);
+            builder.endObject();
+        } else {
+            part.toXContent(builder, EMPTY_PARAMS);
+        }
         return XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType()).v2();
     }
 
+    public static BytesReference convertToXContent(Map<String, ?> map, XContentType xContentType) throws IOException {
+        try (XContentBuilder builder = XContentFactory.contentBuilder(xContentType)) {
+            builder.map(map);
+            return BytesReference.bytes(builder);
+        }
+    }
 
     /**
      * Compares two maps generated from XContentObjects. The order of elements in arrays is ignored.
@@ -125,7 +133,7 @@ public final class XContentTestUtils {
             if (second instanceof Map) {
                 return differenceBetweenMapsIgnoringArrayOrder(path, (Map<String, Object>) first, (Map<String, Object>) second);
             } else {
-                return path + ": the second element is not a map (got " + second +")";
+                return path + ": the second element is not a map (got " + second + ")";
             }
         } else {
             if (first.equals(second)) {
@@ -180,15 +188,25 @@ public final class XContentTestUtils {
      * }
      * </pre>
      */
-    public static BytesReference insertRandomFields(XContentType contentType, BytesReference xContent, Predicate<String> excludeFilter,
-            Random random) throws IOException {
+    public static BytesReference insertRandomFields(
+        XContentType contentType,
+        BytesReference xContent,
+        Predicate<String> excludeFilter,
+        Random random
+    ) throws IOException {
         List<String> insertPaths;
 
         // we can use NamedXContentRegistry.EMPTY here because we only traverse the xContent once and don't use it
-        try (XContentParser parser = createParser(NamedXContentRegistry.EMPTY,
-            DeprecationHandler.THROW_UNSUPPORTED_OPERATION, xContent, contentType)) {
+        try (
+            XContentParser parser = createParser(
+                NamedXContentRegistry.EMPTY,
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                xContent,
+                contentType
+            )
+        ) {
             parser.nextToken();
-            List<String> possiblePaths = XContentTestUtils.getInsertPaths(parser, new Stack<>());
+            List<String> possiblePaths = XContentTestUtils.getInsertPaths(parser, new ArrayDeque<>());
             if (excludeFilter == null) {
                 insertPaths = possiblePaths;
             } else {
@@ -209,8 +227,15 @@ public final class XContentTestUtils {
                 }
             }
         };
-        return BytesReference.bytes(XContentTestUtils
-                .insertIntoXContent(contentType.xContent(), xContent, insertPaths, () -> randomAsciiOfLength(random, 10), value));
+        return BytesReference.bytes(
+            XContentTestUtils.insertIntoXContent(
+                contentType.xContent(),
+                xContent,
+                insertPaths,
+                () -> randomAsciiOfLength(random, 10),
+                value
+            )
+        );
     }
 
     /**
@@ -245,20 +270,20 @@ public final class XContentTestUtils {
      *  <li>"foo3.foo4</li>
      * </ul>
      */
-    static List<String> getInsertPaths(XContentParser parser, Stack<String> currentPath) throws IOException {
-        assert parser.currentToken() == XContentParser.Token.START_OBJECT || parser.currentToken() == XContentParser.Token.START_ARRAY :
-            "should only be called when new objects or arrays start";
+    static List<String> getInsertPaths(XContentParser parser, Deque<String> currentPath) throws IOException {
+        assert parser.currentToken() == XContentParser.Token.START_OBJECT || parser.currentToken() == XContentParser.Token.START_ARRAY
+            : "should only be called when new objects or arrays start";
         List<String> validPaths = new ArrayList<>();
         // parser.currentName() can be null for root object and unnamed objects in arrays
         if (parser.currentName() != null) {
             // dots in randomized field names need to be escaped, we use that character as the path separator
-            currentPath.push(parser.currentName().replaceAll("\\.", "\\\\."));
+            currentPath.addLast(parser.currentName().replace(".", "\\."));
         }
         if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
-            validPaths.add(String.join(".", currentPath.toArray(new String[currentPath.size()])));
+            validPaths.add(String.join(".", currentPath));
             while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
                 if (parser.currentToken() == XContentParser.Token.START_OBJECT
-                        || parser.currentToken() == XContentParser.Token.START_ARRAY) {
+                    || parser.currentToken() == XContentParser.Token.START_ARRAY) {
                     validPaths.addAll(getInsertPaths(parser, currentPath));
                 }
             }
@@ -266,16 +291,16 @@ public final class XContentTestUtils {
             int itemCount = 0;
             while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
                 if (parser.currentToken() == XContentParser.Token.START_OBJECT
-                        || parser.currentToken() == XContentParser.Token.START_ARRAY) {
-                    currentPath.push(Integer.toString(itemCount));
+                    || parser.currentToken() == XContentParser.Token.START_ARRAY) {
+                    currentPath.addLast(Integer.toString(itemCount));
                     validPaths.addAll(getInsertPaths(parser, currentPath));
-                    currentPath.pop();
+                    currentPath.removeLast();
                 }
                 itemCount++;
             }
         }
         if (parser.currentName() != null) {
-            currentPath.pop();
+            currentPath.removeLast();
         }
         return validPaths;
     }
@@ -286,13 +311,53 @@ public final class XContentTestUtils {
      * {@link ObjectPath}.
      * The key/value arguments can suppliers that either return fixed or random values.
      */
-    public static XContentBuilder insertIntoXContent(XContent xContent, BytesReference original, List<String> paths, Supplier<String> key,
-            Supplier<Object> value) throws IOException {
+    public static XContentBuilder insertIntoXContent(
+        XContent xContent,
+        BytesReference original,
+        List<String> paths,
+        Supplier<String> key,
+        Supplier<Object> value
+    ) throws IOException {
         ObjectPath object = ObjectPath.createFromXContent(xContent, original);
         for (String path : paths) {
             Map<String, Object> insertMap = object.evaluate(path);
             insertMap.put(key.get(), value.get());
         }
         return object.toXContentBuilder(xContent);
+    }
+
+    public static JsonMapView createJsonMapView(InputStream inputStream) {
+        final Map<String, Object> responseMap = XContentHelper.convertToMap(JsonXContent.jsonXContent, inputStream, true);
+
+        return new JsonMapView(responseMap);
+    }
+
+    public static class JsonMapView {
+        private final Map<String, Object> map;
+
+        public JsonMapView(Map<String, Object> map) {
+            this.map = map;
+        }
+
+        @SuppressWarnings("unchecked")
+        public <T> T get(String path) {
+            String[] keys = path.split("\\.");
+            Object context = map;
+            for (String key : keys) {
+                if (context instanceof Map) {
+                    context = ((Map<String, Object>) context).get(key);
+                } else if (context instanceof List) {
+                    context = ((List<Object>) context).get(Integer.parseInt(key));
+                } else {
+                    return null; // node does not exist
+                }
+            }
+            return (T) context;
+        }
+
+        @Override
+        public String toString() {
+            return "JsonMapView{map=" + map + '}';
+        }
     }
 }

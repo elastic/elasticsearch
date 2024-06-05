@@ -1,0 +1,66 @@
+[role="xpack"]
+[[active-directory-realm]]
+=== Active Directory user authentication
+
+You can configure {stack} {security-features} to communicate with Active
+Directory to authenticate users. See <<ad-realm-configuration>>.
+
+The {security-features} use LDAP to communicate with Active Directory, so
+`active_directory` realms are similar to <<ldap-realm, `ldap` realms>>. Like
+LDAP directories, Active Directory stores users and groups hierarchically. The
+directory's hierarchy is built from containers such as the _organizational unit_
+(`ou`), _organization_ (`o`), and _domain component_ (`dc`).
+
+The path to an entry is a _Distinguished Name_ (DN) that uniquely identifies a
+user or group. User and group names typically have attributes such as a
+_common name_ (`cn`) or _unique ID_ (`uid`). A DN is specified as a string, for
+example `"cn=admin,dc=example,dc=com"` (white spaces are ignored).
+
+The {security-features} supports only Active Directory security groups. You
+cannot map distribution groups to roles.
+
+NOTE: When you use Active Directory for authentication, the username entered by
+      the user is expected to match the `sAMAccountName` or `userPrincipalName`,
+      not the common name.
+
+The Active Directory realm authenticates users using an LDAP bind request. After
+authenticating the user, the realm then searches to find the user's entry in
+Active Directory. Once the user has been found, the Active Directory realm then
+retrieves the user's group memberships from the `tokenGroups` attribute on the
+user's entry in Active Directory.
+
+[[ad-realm-configuration]]
+==== Configuring an Active Directory realm
+
+include::configuring-active-directory-realm.asciidoc[]
+
+[[ad-user-metadata]]
+==== User metadata in Active Directory realms
+When a user is authenticated via an Active Directory realm, the following
+properties are populated in the user's _metadata_:
+
+|=======================
+| Field               | Description
+| `ldap_dn`           | The distinguished name of the user.
+| `ldap_groups`       | The distinguished name of each of the groups that were
+                        resolved for the user (regardless of whether those
+                        groups were mapped to a role).
+|=======================
+
+This metadata is returned in the
+<<security-api-authenticate,authenticate API>> and can be used with
+<<templating-role-query, templated queries>> in roles.
+
+Additional metadata can be extracted from the Active Directory server by configuring
+the `metadata` setting on the Active Directory realm.
+
+[[ad-load-balancing]]
+==== Load balancing and failover
+The `load_balance.type` setting can be used at the realm level to configure how
+the {security-features} should interact with multiple Active Directory servers.
+Two modes of operation are supported: failover and load balancing.
+
+See
+<<load-balancing>>.
+
+include::../securing-communications/tls-ad.asciidoc[]

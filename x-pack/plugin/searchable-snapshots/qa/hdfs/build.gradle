@@ -1,0 +1,33 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+import org.elasticsearch.gradle.internal.info.BuildParams
+
+apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: 'elasticsearch.rest-resources'
+apply plugin: 'elasticsearch.internal-available-ports'
+
+dependencies {
+  clusterPlugins project(':plugins:repository-hdfs')
+  javaRestTestImplementation(testArtifact(project(xpackModule('searchable-snapshots'))))
+  javaRestTestImplementation project(path: ':test:fixtures:hdfs-fixture', configuration:"shadowedHdfs2")
+  javaRestTestImplementation project(':test:fixtures:krb5kdc-fixture')
+  javaRestTestRuntimeOnly "com.google.guava:guava:16.0.1"
+  javaRestTestRuntimeOnly "commons-cli:commons-cli:1.2"
+}
+
+restResources {
+  restApi {
+    include 'indices', 'search', 'bulk', 'snapshot', 'nodes', '_common', 'searchable_snapshots'
+  }
+}
+
+tasks.named("javaRestTest").configure {
+  usesDefaultDistribution()
+  BuildParams.withFipsEnabledOnly(it)
+  jvmArgs '--add-exports', 'java.security.jgss/sun.security.krb5=ALL-UNNAMED'
+}

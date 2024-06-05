@@ -1,27 +1,17 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.translog;
 
 import org.apache.lucene.util.Counter;
-import org.elasticsearch.Assertions;
-import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.core.Assertions;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -45,18 +35,7 @@ public final class TranslogDeletionPolicy {
      * translog generation
      */
     private final Map<Long, Counter> translogRefCounts = new HashMap<>();
-
-    /**
-     * the translog generation that is requires to properly recover from the oldest non deleted
-     * {@link org.apache.lucene.index.IndexCommit}.
-     */
-    private long minTranslogGenerationForRecovery = 1;
-
-    /**
-     * This translog generation is used to calculate the number of uncommitted operations since the last index commit.
-     */
-    private long translogGenerationOfLastCommit = 1;
-
+    private long localCheckpointOfSafeCommit = SequenceNumbers.NO_OPS_PERFORMED;
 
     public TranslogDeletionPolicy() {
         if (Assertions.ENABLED) {
@@ -66,23 +45,18 @@ public final class TranslogDeletionPolicy {
         }
     }
 
-    public synchronized void setMinTranslogGenerationForRecovery(long newGen) {
-        if (newGen < minTranslogGenerationForRecovery || newGen > translogGenerationOfLastCommit) {
-            throw new IllegalArgumentException("Invalid minTranslogGenerationForRecovery can't go backwards; new [" + newGen + "]," +
-                "current [" + minTranslogGenerationForRecovery + "], lastGen [" + translogGenerationOfLastCommit + "]");
+    public synchronized void setLocalCheckpointOfSafeCommit(long newCheckpoint) {
+        if (newCheckpoint < this.localCheckpointOfSafeCommit) {
+            throw new IllegalArgumentException(
+                "local checkpoint of the safe commit can't go backwards: "
+                    + "current ["
+                    + this.localCheckpointOfSafeCommit
+                    + "] new ["
+                    + newCheckpoint
+                    + "]"
+            );
         }
-        minTranslogGenerationForRecovery = newGen;
-    }
-
-    /**
-     * Sets the translog generation of the last index commit.
-     */
-    public synchronized void setTranslogGenerationOfLastCommit(long lastGen) {
-        if (lastGen < translogGenerationOfLastCommit || lastGen < minTranslogGenerationForRecovery) {
-            throw new IllegalArgumentException("Invalid translogGenerationOfLastCommit; new [" + lastGen + "]," +
-                "current [" + translogGenerationOfLastCommit + "], minRequiredGen [" + minTranslogGenerationForRecovery + "]");
-        }
-        translogGenerationOfLastCommit = lastGen;
+        this.localCheckpointOfSafeCommit = newCheckpoint;
     }
 
     /**
@@ -132,27 +106,17 @@ public final class TranslogDeletionPolicy {
     }
 
     /**
-     * returns the minimum translog generation that is still required by the system. Any generation below
-     * the returned value may be safely deleted
+     * Returns the minimum translog generation that is still required by the locks (via {@link #acquireTranslogGen(long)}.
      */
-    synchronized long minTranslogGenRequired() {
-        return Math.min(getMinTranslogGenRequiredByLocks(), minTranslogGenerationForRecovery);
-    }
-
-    private long getMinTranslogGenRequiredByLocks() {
+    synchronized long getMinTranslogGenRequiredByLocks() {
         return translogRefCounts.keySet().stream().reduce(Math::min).orElse(Long.MAX_VALUE);
     }
 
-    /** returns the translog generation that will be used as a basis of a future store/peer recovery */
-    public synchronized long getMinTranslogGenerationForRecovery() {
-        return minTranslogGenerationForRecovery;
-    }
-
     /**
-     * Returns a translog generation that will be used to calculate the number of uncommitted operations since the last index commit.
+     * Returns the local checkpoint of the safe commit. This value is used to calculate the min required generation for recovery.
      */
-    public synchronized long getTranslogGenerationOfLastCommit() {
-        return translogGenerationOfLastCommit;
+    public synchronized long getLocalCheckpointOfSafeCommit() {
+        return localCheckpointOfSafeCommit;
     }
 
     synchronized long getTranslogRefCount(long gen) {

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.engine;
@@ -34,7 +23,6 @@ import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
-import org.apache.lucene.index.ShuffleForcedMergePolicy;
 import org.apache.lucene.index.StandardDirectoryReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -42,8 +30,9 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.util.NullInfoStream;
 import org.apache.lucene.util.InfoStream;
-import org.apache.lucene.util.NullInfoStream;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -55,9 +44,14 @@ public class RecoverySourcePruneMergePolicyTests extends ESTestCase {
 
     public void testPruneAll() throws IOException {
         try (Directory dir = newDirectory()) {
+            boolean pruneIdField = randomBoolean();
             IndexWriterConfig iwc = newIndexWriterConfig();
-            RecoverySourcePruneMergePolicy mp = new RecoverySourcePruneMergePolicy("extra_source", MatchNoDocsQuery::new,
-                newLogMergePolicy());
+            RecoverySourcePruneMergePolicy mp = new RecoverySourcePruneMergePolicy(
+                "extra_source",
+                pruneIdField,
+                MatchNoDocsQuery::new,
+                newLogMergePolicy()
+            );
             iwc.setMergePolicy(new ShuffleForcedMergePolicy(mp));
             try (IndexWriter writer = new IndexWriter(dir, iwc)) {
                 for (int i = 0; i < 20; i++) {
@@ -65,6 +59,7 @@ public class RecoverySourcePruneMergePolicyTests extends ESTestCase {
                         writer.flush();
                     }
                     Document doc = new Document();
+                    doc.add(new StoredField(IdFieldMapper.NAME, "_id"));
                     doc.add(new StoredField("source", "hello world"));
                     doc.add(new StoredField("extra_source", "hello world"));
                     doc.add(new NumericDocValuesField("extra_source", 1));
@@ -75,8 +70,14 @@ public class RecoverySourcePruneMergePolicyTests extends ESTestCase {
                 try (DirectoryReader reader = DirectoryReader.open(writer)) {
                     for (int i = 0; i < reader.maxDoc(); i++) {
                         Document document = reader.document(i);
-                        assertEquals(1, document.getFields().size());
-                        assertEquals("source", document.getFields().get(0).name());
+                        if (pruneIdField) {
+                            assertEquals(1, document.getFields().size());
+                            assertEquals("source", document.getFields().get(0).name());
+                        } else {
+                            assertEquals(2, document.getFields().size());
+                            assertEquals(IdFieldMapper.NAME, document.getFields().get(0).name());
+                            assertEquals("source", document.getFields().get(1).name());
+                        }
                     }
                     assertEquals(1, reader.leaves().size());
                     LeafReader leafReader = reader.leaves().get(0).reader();
@@ -84,32 +85,32 @@ public class RecoverySourcePruneMergePolicyTests extends ESTestCase {
                     if (extra_source != null) {
                         assertEquals(DocIdSetIterator.NO_MORE_DOCS, extra_source.nextDoc());
                     }
-                    if (leafReader instanceof CodecReader && reader instanceof StandardDirectoryReader) {
-                        CodecReader codecReader = (CodecReader) leafReader;
-                        StandardDirectoryReader sdr = (StandardDirectoryReader) reader;
+                    if (leafReader instanceof CodecReader codecReader && reader instanceof StandardDirectoryReader sdr) {
                         SegmentInfos segmentInfos = sdr.getSegmentInfos();
-                        MergePolicy.MergeSpecification forcedMerges = mp.findForcedDeletesMerges(segmentInfos,
+                        MergePolicy.MergeSpecification forcedMerges = mp.findForcedDeletesMerges(
+                            segmentInfos,
                             new MergePolicy.MergeContext() {
-                            @Override
-                            public int numDeletesToMerge(SegmentCommitInfo info) {
-                                return info.info.maxDoc() - 1;
-                            }
+                                @Override
+                                public int numDeletesToMerge(SegmentCommitInfo info) {
+                                    return info.info.maxDoc() - 1;
+                                }
 
-                            @Override
-                            public int numDeletedDocs(SegmentCommitInfo info) {
-                                return info.info.maxDoc() - 1;
-                            }
+                                @Override
+                                public int numDeletedDocs(SegmentCommitInfo info) {
+                                    return info.info.maxDoc() - 1;
+                                }
 
-                            @Override
-                            public InfoStream getInfoStream() {
-                                return new NullInfoStream();
-                            }
+                                @Override
+                                public InfoStream getInfoStream() {
+                                    return new NullInfoStream();
+                                }
 
-                            @Override
-                            public Set<SegmentCommitInfo> getMergingSegments() {
-                                return Collections.emptySet();
+                                @Override
+                                public Set<SegmentCommitInfo> getMergingSegments() {
+                                    return Collections.emptySet();
+                                }
                             }
-                        });
+                        );
                         // don't wrap if there is nothing to do
                         assertSame(codecReader, forcedMerges.merges.get(0).wrapForMerge(codecReader));
                     }
@@ -118,18 +119,25 @@ public class RecoverySourcePruneMergePolicyTests extends ESTestCase {
         }
     }
 
-
     public void testPruneSome() throws IOException {
         try (Directory dir = newDirectory()) {
+            boolean pruneIdField = randomBoolean();
             IndexWriterConfig iwc = newIndexWriterConfig();
-            iwc.setMergePolicy(new RecoverySourcePruneMergePolicy("extra_source",
-                () -> new TermQuery(new Term("even", "true")), iwc.getMergePolicy()));
+            iwc.setMergePolicy(
+                new RecoverySourcePruneMergePolicy(
+                    "extra_source",
+                    pruneIdField,
+                    () -> new TermQuery(new Term("even", "true")),
+                    iwc.getMergePolicy()
+                )
+            );
             try (IndexWriter writer = new IndexWriter(dir, iwc)) {
                 for (int i = 0; i < 20; i++) {
                     if (i > 0 && randomBoolean()) {
                         writer.flush();
                     }
                     Document doc = new Document();
+                    doc.add(new StoredField(IdFieldMapper.NAME, "_id"));
                     doc.add(new StringField("even", Boolean.toString(i % 2 == 0), Field.Store.YES));
                     doc.add(new StoredField("source", "hello world"));
                     doc.add(new StoredField("extra_source", "hello world"));
@@ -147,12 +155,13 @@ public class RecoverySourcePruneMergePolicyTests extends ESTestCase {
                         Set<String> collect = document.getFields().stream().map(IndexableField::name).collect(Collectors.toSet());
                         assertTrue(collect.contains("source"));
                         assertTrue(collect.contains("even"));
-                        if (collect.size() == 3) {
+                        if (collect.size() == 4) {
                             assertTrue(collect.contains("extra_source"));
+                            assertTrue(collect.contains(IdFieldMapper.NAME));
                             assertEquals("true", document.getField("even").stringValue());
                             assertEquals(i, extra_source.nextDoc());
                         } else {
-                            assertEquals(2, document.getFields().size());
+                            assertEquals(pruneIdField ? 2 : 3, document.getFields().size());
                         }
                     }
                     assertEquals(DocIdSetIterator.NO_MORE_DOCS, extra_source.nextDoc());
@@ -164,8 +173,7 @@ public class RecoverySourcePruneMergePolicyTests extends ESTestCase {
     public void testPruneNone() throws IOException {
         try (Directory dir = newDirectory()) {
             IndexWriterConfig iwc = newIndexWriterConfig();
-            iwc.setMergePolicy(new RecoverySourcePruneMergePolicy("extra_source",
-                () -> new MatchAllDocsQuery(), iwc.getMergePolicy()));
+            iwc.setMergePolicy(new RecoverySourcePruneMergePolicy("extra_source", false, MatchAllDocsQuery::new, iwc.getMergePolicy()));
             try (IndexWriter writer = new IndexWriter(dir, iwc)) {
                 for (int i = 0; i < 20; i++) {
                     if (i > 0 && randomBoolean()) {

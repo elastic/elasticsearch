@@ -1,26 +1,27 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.transform.transforms;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 
 import java.io.IOException;
 import java.util.function.Predicate;
 
-import static org.elasticsearch.xpack.core.transform.transforms.TransformProgressTests.randomTransformProgress;
 import static org.elasticsearch.xpack.core.transform.transforms.NodeAttributeTests.randomNodeAttributes;
+import static org.elasticsearch.xpack.core.transform.transforms.TransformProgressTests.randomTransformProgress;
 
-public class TransformStateTests extends AbstractSerializingTestCase<TransformState> {
+public class TransformStateTests extends AbstractXContentSerializingTestCase<TransformState> {
 
     public static TransformState randomTransformState() {
         return new TransformState(
@@ -31,7 +32,8 @@ public class TransformStateTests extends AbstractSerializingTestCase<TransformSt
             randomBoolean() ? null : randomAlphaOfLength(10),
             randomBoolean() ? null : randomTransformProgress(),
             randomBoolean() ? null : randomNodeAttributes(),
-            randomBoolean()
+            randomBoolean(),
+            randomBoolean() ? null : AuthorizationStateTests.randomAuthorizationState()
         );
     }
 
@@ -46,6 +48,11 @@ public class TransformStateTests extends AbstractSerializingTestCase<TransformSt
     }
 
     @Override
+    protected TransformState mutateInstance(TransformState instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Reader<TransformState> instanceReader() {
         return TransformState::new;
     }
@@ -57,7 +64,7 @@ public class TransformStateTests extends AbstractSerializingTestCase<TransformSt
 
     @Override
     protected Predicate<String> getRandomFieldsExcludeFilter() {
-        return field -> !field.isEmpty();
+        return field -> field.isEmpty() == false;
     }
 
     public void testBackwardsSerialization() throws IOException {
@@ -69,15 +76,28 @@ public class TransformStateTests extends AbstractSerializingTestCase<TransformSt
             randomBoolean() ? null : randomAlphaOfLength(10),
             randomBoolean() ? null : randomTransformProgress(),
             randomBoolean() ? null : randomNodeAttributes(),
-            false
-        ); // Will be false after BWC deserialization
+            false,
+            randomBoolean() ? null : AuthorizationStateTests.randomAuthorizationState()
+        );
+        // auth_state will be null after BWC deserialization
+        TransformState expectedState = new TransformState(
+            state.getTaskState(),
+            state.getIndexerState(),
+            state.getPosition(),
+            state.getCheckpoint(),
+            state.getReason(),
+            state.getProgress(),
+            state.getNode(),
+            state.shouldStopAtNextCheckpoint(),
+            null
+        );
         try (BytesStreamOutput output = new BytesStreamOutput()) {
-            output.setVersion(Version.V_7_5_0);
+            output.setTransportVersion(TransportVersions.V_7_5_0);
             state.writeTo(output);
             try (StreamInput in = output.bytes().streamInput()) {
-                in.setVersion(Version.V_7_5_0);
+                in.setTransportVersion(TransportVersions.V_7_5_0);
                 TransformState streamedState = new TransformState(in);
-                assertEquals(state, streamedState);
+                assertEquals(expectedState, streamedState);
             }
         }
     }

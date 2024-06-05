@@ -1,150 +1,201 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.action.admin.indices.rollover;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.HashMap;
+import java.util.Collection;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
- * Request class to swap index under an alias upon satisfying conditions
- *
+ * Request class to swap index under an alias or increment data stream generation upon satisfying conditions
+ * <p>
  * Note: there is a new class with the same name for the Java HLRC that uses a typeless format.
  * Any changes done to this class should also go to that client class.
  */
 public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implements IndicesRequest {
 
-    private static final ObjectParser<RolloverRequest, Void> PARSER = new ObjectParser<>("rollover");
-    private static final ObjectParser<Map<String, Condition<?>>, Void> CONDITION_PARSER = new ObjectParser<>("conditions");
+    private static final ObjectParser<RolloverRequest, Boolean> PARSER = new ObjectParser<>("rollover");
 
     private static final ParseField CONDITIONS = new ParseField("conditions");
-    private static final ParseField MAX_AGE_CONDITION = new ParseField(MaxAgeCondition.NAME);
-    private static final ParseField MAX_DOCS_CONDITION = new ParseField(MaxDocsCondition.NAME);
-    private static final ParseField MAX_SIZE_CONDITION = new ParseField(MaxSizeCondition.NAME);
 
     static {
-        CONDITION_PARSER.declareString((conditions, s) ->
-                conditions.put(MaxAgeCondition.NAME, new MaxAgeCondition(TimeValue.parseTimeValue(s, MaxAgeCondition.NAME))),
-                MAX_AGE_CONDITION);
-        CONDITION_PARSER.declareLong((conditions, value) ->
-                conditions.put(MaxDocsCondition.NAME, new MaxDocsCondition(value)), MAX_DOCS_CONDITION);
-        CONDITION_PARSER.declareString((conditions, s) ->
-                conditions.put(MaxSizeCondition.NAME, new MaxSizeCondition(ByteSizeValue.parseBytesSizeValue(s, MaxSizeCondition.NAME))),
-                MAX_SIZE_CONDITION);
-
-        PARSER.declareField((parser, request, context) -> CONDITION_PARSER.parse(parser, request.conditions, null),
-            CONDITIONS, ObjectParser.ValueType.OBJECT);
-        PARSER.declareField((parser, request, context) -> request.createIndexRequest.settings(parser.map()),
-            CreateIndexRequest.SETTINGS, ObjectParser.ValueType.OBJECT);
+        PARSER.declareField(
+            (parser, request, context) -> request.setConditions(RolloverConditions.fromXContent(parser)),
+            CONDITIONS,
+            ObjectParser.ValueType.OBJECT
+        );
+        PARSER.declareField(
+            (parser, request, context) -> request.createIndexRequest.settings(parser.map()),
+            CreateIndexRequest.SETTINGS,
+            ObjectParser.ValueType.OBJECT
+        );
+        PARSER.declareField((parser, request, includeTypeName) -> {
+            if (includeTypeName) {
+                // expecting one type only
+                for (Map.Entry<String, Object> mappingsEntry : parser.map().entrySet()) {
+                    @SuppressWarnings("unchecked")
+                    final Map<String, Object> value = (Map<String, Object>) mappingsEntry.getValue();
+                    request.createIndexRequest.mapping(value);
+                }
+            } else {
+                // a type is not included, add a dummy _doc type
+                Map<String, Object> mappings = parser.map();
+                if (MapperService.isMappingSourceTyped(MapperService.SINGLE_MAPPING_NAME, mappings)) {
+                    throw new IllegalArgumentException(
+                        "The mapping definition cannot be nested under a type "
+                            + "["
+                            + MapperService.SINGLE_MAPPING_NAME
+                            + "] unless include_type_name is set to true."
+                    );
+                }
+                request.createIndexRequest.mapping(mappings);
+            }
+        }, CreateIndexRequest.MAPPINGS.forRestApiVersion(RestApiVersion.equalTo(RestApiVersion.V_7)), ObjectParser.ValueType.OBJECT);
         PARSER.declareField((parser, request, context) -> {
             // a type is not included, add a dummy _doc type
             Map<String, Object> mappings = parser.map();
             if (MapperService.isMappingSourceTyped(MapperService.SINGLE_MAPPING_NAME, mappings)) {
+
                 throw new IllegalArgumentException("The mapping definition cannot be nested under a type");
             }
             request.createIndexRequest.mapping(mappings);
-        }, CreateIndexRequest.MAPPINGS, ObjectParser.ValueType.OBJECT);
-        PARSER.declareField((parser, request, context) -> request.createIndexRequest.aliases(parser.map()),
-            CreateIndexRequest.ALIASES, ObjectParser.ValueType.OBJECT);
+        }, CreateIndexRequest.MAPPINGS.forRestApiVersion(RestApiVersion.onOrAfter(RestApiVersion.V_8)), ObjectParser.ValueType.OBJECT);
+
+        PARSER.declareField(
+            (parser, request, context) -> request.createIndexRequest.aliases(parser.map()),
+            CreateIndexRequest.ALIASES,
+            ObjectParser.ValueType.OBJECT
+        );
     }
 
-    private String alias;
+    private String rolloverTarget;
     private String newIndexName;
     private boolean dryRun;
-    private Map<String, Condition<?>> conditions = new HashMap<>(2);
-    //the index name "_na_" is never read back, what matters are settings, mappings and aliases
+    private boolean lazy;
+    private RolloverConditions conditions = new RolloverConditions();
+    // the index name "_na_" is never read back, what matters are settings, mappings and aliases
     private CreateIndexRequest createIndexRequest = new CreateIndexRequest("_na_");
+    private IndicesOptions indicesOptions = IndicesOptions.strictSingleIndexNoExpandForbidClosed();
 
     public RolloverRequest(StreamInput in) throws IOException {
         super(in);
-        alias = in.readString();
+        rolloverTarget = in.readString();
         newIndexName = in.readOptionalString();
         dryRun = in.readBoolean();
-        int size = in.readVInt();
-        for (int i = 0; i < size; i++) {
-            Condition<?> condition = in.readNamedWriteable(Condition.class);
-            this.conditions.put(condition.name, condition);
-        }
+        conditions = new RolloverConditions(in);
         createIndexRequest = new CreateIndexRequest(in);
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
+            lazy = in.readBoolean();
+        } else {
+            lazy = false;
+        }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.FAILURE_STORE_ROLLOVER)) {
+            indicesOptions = IndicesOptions.readIndicesOptions(in);
+        }
     }
 
-    RolloverRequest() {}
+    RolloverRequest() {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
+    }
 
-    public RolloverRequest(String alias, String newIndexName) {
-        this.alias = alias;
+    public RolloverRequest(String rolloverTarget, String newIndexName) {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
+        this.rolloverTarget = rolloverTarget;
         this.newIndexName = newIndexName;
     }
 
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = createIndexRequest.validate();
-        if (alias == null) {
-            validationException = addValidationError("index alias is missing", validationException);
+        if (rolloverTarget == null) {
+            validationException = addValidationError("rollover target is missing", validationException);
         }
+
+        // if the request has any conditions, then at least one condition must be a max_* condition
+        if (conditions.hasMinConditions() && conditions.hasMaxConditions() == false) {
+            validationException = addValidationError(
+                "at least one max_* rollover condition must be set when using min_* conditions",
+                validationException
+            );
+        }
+
+        var failureStoreOptions = indicesOptions.failureStoreOptions();
+        if (failureStoreOptions.includeRegularIndices() && failureStoreOptions.includeFailureIndices()) {
+            validationException = addValidationError(
+                "rollover cannot be applied to both regular and failure indices at the same time",
+                validationException
+            );
+        }
+
         return validationException;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeString(alias);
+        out.writeString(rolloverTarget);
         out.writeOptionalString(newIndexName);
         out.writeBoolean(dryRun);
-        out.writeVInt(conditions.size());
-        for (Condition<?> condition : conditions.values()) {
-            out.writeNamedWriteable(condition);
-        }
+        conditions.writeTo(out);
         createIndexRequest.writeTo(out);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
+            out.writeBoolean(lazy);
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.FAILURE_STORE_ROLLOVER)) {
+            indicesOptions.writeIndicesOptions(out);
+        }
     }
 
     @Override
     public String[] indices() {
-        return new String[] {alias};
+        return new String[] { rolloverTarget };
     }
 
     @Override
     public IndicesOptions indicesOptions() {
-        return IndicesOptions.strictSingleIndexNoExpandForbidClosed();
+        return indicesOptions;
+    }
+
+    public void setIndicesOptions(IndicesOptions indicesOptions) {
+        this.indicesOptions = indicesOptions;
+    }
+
+    @Override
+    public boolean includeDataStreams() {
+        return true;
     }
 
     /**
-     * Sets the alias to rollover to another index
+     * Sets the rollover target to rollover to another index
      */
-    public void setAlias(String alias) {
-        this.alias = alias;
+    public void setRolloverTarget(String rolloverTarget) {
+        this.rolloverTarget = rolloverTarget;
     }
 
     /**
@@ -153,6 +204,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
     public void setNewIndexName(String newIndexName) {
         this.newIndexName = newIndexName;
     }
+
     /**
      * Sets if the rollover should not be executed when conditions are met
      */
@@ -168,53 +220,57 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
     }
 
     /**
-     * Adds condition to check if the index is at least <code>age</code> old
+     * Sets the conditions that need to be met for the index to roll over
      */
-    public void addMaxIndexAgeCondition(TimeValue age) {
-        MaxAgeCondition maxAgeCondition = new MaxAgeCondition(age);
-        if (this.conditions.containsKey(maxAgeCondition.name)) {
-            throw new IllegalArgumentException(maxAgeCondition.name + " condition is already set");
-        }
-        this.conditions.put(maxAgeCondition.name, maxAgeCondition);
+    public void setConditions(RolloverConditions conditions) {
+        this.conditions = conditions;
     }
 
     /**
-     * Adds condition to check if the index has at least <code>numDocs</code>
+     * Sets if an unconditional rollover should wait for a document to come before it gets executed
      */
-    public void addMaxIndexDocsCondition(long numDocs) {
-        MaxDocsCondition maxDocsCondition = new MaxDocsCondition(numDocs);
-        if (this.conditions.containsKey(maxDocsCondition.name)) {
-            throw new IllegalArgumentException(maxDocsCondition.name + " condition is already set");
-        }
-        this.conditions.put(maxDocsCondition.name, maxDocsCondition);
+    public void lazy(boolean lazy) {
+        this.lazy = lazy;
     }
-
-    /**
-     * Adds a size-based condition to check if the index size is at least <code>size</code>.
-     */
-    public void addMaxIndexSizeCondition(ByteSizeValue size) {
-        MaxSizeCondition maxSizeCondition = new MaxSizeCondition(size);
-        if (this.conditions.containsKey(maxSizeCondition.name)) {
-            throw new IllegalArgumentException(maxSizeCondition + " condition is already set");
-        }
-        this.conditions.put(maxSizeCondition.name, maxSizeCondition);
-    }
-
 
     public boolean isDryRun() {
         return dryRun;
     }
 
-    public Map<String, Condition<?>> getConditions() {
+    public RolloverConditions getConditions() {
         return conditions;
     }
 
-    public String getAlias() {
-        return alias;
+    public Collection<Condition<?>> getConditionValues() {
+        return conditions.getConditions().values();
+    }
+
+    public String getRolloverTarget() {
+        return rolloverTarget;
     }
 
     public String getNewIndexName() {
         return newIndexName;
+    }
+
+    public boolean isLazy() {
+        return lazy;
+    }
+
+    /**
+     * Given the results of evaluating each individual condition, determine whether the rollover request should proceed -- that is,
+     * whether the conditions are met.
+     *
+     * If there are no conditions at all, then the request is unconditional (i.e. a command), and the conditions are met.
+     *
+     * If the request has conditions, then all min_* conditions and at least one max_* condition must have a true result.
+     *
+     * @param conditionResults a map of individual conditions and their associated evaluation results
+     *
+     * @return where the conditions for rollover are satisfied or not
+     */
+    public boolean areConditionsMet(Map<String, Boolean> conditionResults) {
+        return conditions.areConditionsMet(conditionResults);
     }
 
     /**
@@ -225,7 +281,35 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
     }
 
     // param isTypeIncluded decides how mappings should be parsed from XContent
-    public void fromXContent(XContentParser parser) throws IOException {
-        PARSER.parse(parser, this, null);
+    public void fromXContent(boolean isTypeIncluded, XContentParser parser) throws IOException {
+        PARSER.parse(parser, this, isTypeIncluded);
+    }
+
+    @Override
+    public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+        return new CancellableTask(id, type, action, "", parentTaskId, headers);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        RolloverRequest that = (RolloverRequest) o;
+        return dryRun == that.dryRun
+            && lazy == that.lazy
+            && Objects.equals(rolloverTarget, that.rolloverTarget)
+            && Objects.equals(newIndexName, that.newIndexName)
+            && Objects.equals(conditions, that.conditions)
+            && Objects.equals(createIndexRequest, that.createIndexRequest)
+            && Objects.equals(indicesOptions, that.indicesOptions);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(rolloverTarget, newIndexName, dryRun, conditions, createIndexRequest, lazy, indicesOptions);
     }
 }

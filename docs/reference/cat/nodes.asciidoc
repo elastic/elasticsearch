@@ -4,6 +4,13 @@
 <titleabbrev>cat nodes</titleabbrev>
 ++++
 
+[IMPORTANT]
+====
+cat APIs are only intended for human consumption using the command line or {kib}
+console. They are _not_ intended for use by applications. For application
+consumption, use the <<cluster-nodes-info,nodes info API>>.
+====
+
 Returns information about a cluster's nodes.
 
 [[cat-nodes-api-request]]
@@ -11,18 +18,24 @@ Returns information about a cluster's nodes.
 
 `GET /_cat/nodes`
 
+[[cat-nodes-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `monitor` or
+`manage` <<privileges-list-cluster,cluster privilege>> to use this API.
+
 [[cat-nodes-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=bytes]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=bytes]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=http-format]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=http-format]
 
 `full_id`::
-(Optional, boolean) If `true`, return the full node ID.  If `false`, return the
+(Optional, Boolean) If `true`, return the full node ID. If `false`, return the
 shortened node ID. Defaults to `false`.
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-h]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=cat-h]
 +
 --
 If you do not specify which columns to include, the API returns the default columns in the order listed below. If you explicitly specify one or more columns, it only returns the specified columns.
@@ -35,6 +48,9 @@ Valid columns are:
 `heap.percent`, `hp`, `heapPercent`::
 (Default) Maximum configured heap, such as `7`.
 
+`heap.max`, `hm`, `heapMax`::
+(Default) Total heap, such as `4gb`.
+
 `ram.percent`, `rp`, `ramPercent`::
 (Default) Used total memory percentage, such as `47`.
 
@@ -42,9 +58,20 @@ Valid columns are:
 (Default) Used file descriptors percentage, such as `1`.
 
 `node.role`, `r`, `role`, `nodeRole`::
-(Default) Roles of the node. Returned values include `d` (data node), `i`
-(ingest node), `m` (master-eligible node), `l` (machine learning node), `v`
-(voting-only node), and `-` (coordinating node only).
+(Default) Roles of the node. Returned values include
+`c` (cold node),
+`d` (data node),
+`f` (frozen node),
+`h` (hot node),
+`i` (ingest node),
+`l` (machine learning node),
+`m` (master-eligible node),
+`r` (remote cluster client node),
+`s` (content node),
+`t` ({transform} node),
+`v` (voting-only node),
+`w` (warm node), and
+`-` (coordinating node only).
 +
 For example, `dim` indicates a master-eligible data and ingest node. See
 <<modules-node>>.
@@ -122,6 +149,9 @@ Node uptime, such as `17.3m`.
 `completion.size`, `cs`, `completionSize`::
 Size of completion, such as `0b`.
 
+`dense_vector.value_count`, `dvc`, `denseVectorCount`::
+Number of indexed dense vector.
+
 `fielddata.memory_size`, `fm`, `fielddataMemory`::
 Used fielddata cache memory, such as `0b`.
 
@@ -133,6 +163,12 @@ Used query cache memory, such as `0b`.
 
 `query_cache.evictions`, `qce`, `queryCacheEvictions`::
 Query cache evictions, such as `0`.
+
+`query_cache.hit_count`, `qchc`, `queryCacheHitCount`::
+Query cache hit count, such as `0`.
+
+`query_cache.miss_count`, `qcmc`, `queryCacheMissCount`::
+Query cache miss count, such as `0`.
 
 `request_cache.memory_size`, `rcm`, `requestCacheMemory`::
 Used request cache memory, such as `0b`.
@@ -281,18 +317,28 @@ Time spent in suggest, such as `0`.
 
 `suggest.total`, `suto`, `suggestTotal`::
 Number of suggest operations, such as `0`.
+
+`shard_stats.total_count`, `sstc`, `shards`, `shardStatsTotalCount`::
+Number of shards assigned.
+
+`mappings.total_count`, `mtc`, `mappingsTotalCount`::
+Number of mappings, including <<runtime,runtime>> and <<object,object>> fields.
+
+`mappings.total_estimated_overhead_in_bytes`, `mteo`, `mappingsTotalEstimatedOverheadInBytes`::
+Estimated heap overhead, in bytes, of mappings on this node, which allows for 1KiB of heap for every mapped field.
 --
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=help]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=help]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=master-timeout]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-s]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=cat-s]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=time]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=time]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-v]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=cat-v]
 
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=include-unloaded-segments]
 
 [[cat-nodes-api-example]]
 ==== {api-examples-title}
@@ -302,7 +348,7 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-v]
 
 [source,console]
 --------------------------------------------------
-GET /_cat/nodes?v
+GET /_cat/nodes?v=true
 --------------------------------------------------
 
 The API returns the following response:
@@ -330,7 +376,7 @@ The following API request returns the `id`, `ip`, `port`, `v` (version), and `m`
 
 [source,console]
 --------------------------------------------------
-GET /_cat/nodes?v&h=id,ip,port,v,m
+GET /_cat/nodes?v=true&h=id,ip,port,v,m
 --------------------------------------------------
 
 The API returns the following response:

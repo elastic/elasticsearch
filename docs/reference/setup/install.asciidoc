@@ -1,17 +1,30 @@
 [[install-elasticsearch]]
 == Installing Elasticsearch
 
-[float]
-=== Hosted Elasticsearch
+[discrete]
+[[hosted-elasticsearch-service]]
+=== Hosted Elasticsearch Service
 
-You can run Elasticsearch on your own hardware, or use our
-https://www.elastic.co/cloud/elasticsearch-service[hosted Elasticsearch Service]
-on Elastic Cloud. The Elasticsearch Service is available on both AWS and GCP.
-https://www.elastic.co/cloud/elasticsearch-service/signup[Try out the
-Elasticsearch Service for free].
+{ecloud} offers all of the features of {es}, {kib}, and  Elastic’s {observability}, {ents}, and {elastic-sec} solutions as a hosted service 
+available on AWS, GCP, and Azure. 
 
-[float]
-=== Installing Elasticsearch Yourself
+To set up Elasticsearch in {ecloud}, sign up for a {ess-trial}[free {ecloud} trial].
+
+[discrete]
+[[elasticsearch-deployment-options]]
+=== Self-managed {es} options
+
+If you want to install and manage {es} yourself, you can:
+
+* Run {es} using a <<elasticsearch-install-packages,Linux, MacOS, or Windows install package>>.
+* Run {es} in a <<elasticsearch-docker-images,Docker container>>. 
+* Set up and manage {es}, {kib}, {agent}, and the rest of the Elastic Stack on Kubernetes with {eck-ref}[{eck}].
+
+TIP: To try out Elasticsearch on your own machine, we recommend using Docker and running both Elasticsearch and Kibana. For more information, see <<run-elasticsearch-locally,Run Elasticsearch locally>>. Please note that this setup is *not suitable for production use*.
+
+[discrete]
+[[elasticsearch-install-packages]]
+=== Elasticsearch install packages
 
 Elasticsearch is provided in the following package formats:
 
@@ -31,7 +44,7 @@ The `zip` archive is suitable for installation on Windows.
 `deb`::
 
 The `deb` package is suitable for Debian, Ubuntu, and other Debian-based
-systems.  Debian packages may be downloaded from the Elasticsearch website or
+systems. Debian packages may be downloaded from the Elasticsearch website or
 from our Debian repository.
 +
 <<deb>>
@@ -39,44 +52,58 @@ from our Debian repository.
 `rpm`::
 
 The `rpm` package is suitable for installation on Red Hat, Centos, SLES,
-OpenSuSE and other RPM-based systems.  RPMs may be downloaded from the
+OpenSuSE and other RPM-based systems. RPMs may be downloaded from the
 Elasticsearch website or from our RPM repository.
 +
 <<rpm>>
 
-`msi`::
+TIP: For a step-by-step example of setting up the {stack} on your own premises, try out our tutorial: {stack-ref}/installing-stack-demo-self.html[Installing a self-managed Elastic Stack].
 
-beta[] The `msi` package is suitable for installation on Windows 64-bit systems with at least
-.NET 4.5 framework installed, and is the easiest choice for getting started with
-Elasticsearch on Windows. MSIs may be downloaded from the Elasticsearch website.
-+
-<<windows>>
+[discrete]
+[[elasticsearch-docker-images]]
+=== Elasticsearch container images
 
+You can also run {es} inside a container image.
+
+[horizontal]
 `docker`::
 
-Images are available for running Elasticsearch as Docker containers. They may be
-downloaded from the Elastic Docker Registry.
+Docker container images may be downloaded from the Elastic Docker Registry.
 +
 {ref}/docker.html[Install {es} with Docker]
 
-`brew`::
+[discrete]
+[[jvm-version]]
+=== Java (JVM) Version
 
-Formulae are available from the Elastic Homebrew tap for installing
-{es} on macOS with the Homebrew package manager.
-+
-{ref}/brew.html[Install {es} on macOS with Homebrew]
+{es} is built using Java, and includes a bundled version of
+https://openjdk.java.net[OpenJDK] from the JDK maintainers (GPLv2+CE) within
+each distribution. The bundled JVM is the recommended JVM.
 
-[float]
-[[config-mgmt-tools]]
-=== Configuration Management Tools
+To use your own version of Java, set the `ES_JAVA_HOME` environment variable.
+If you must use a version of Java that is different from the bundled JVM, it is
+best to use the latest release of a link:/support/matrix[supported]
+https://www.oracle.com/technetwork/java/eol-135779.html[LTS version of Java].
+{es} is closely coupled to certain OpenJDK-specific features, so it may not
+work correctly with other JVMs. {es} will refuse to start if a known-bad
+version of Java is used.
 
-We also provide the following configuration management tools to help with
-large deployments:
+If you use a JVM other than the bundled one, you are responsible for reacting
+to announcements related to its security issues and bug fixes, and must
+yourself determine whether each update is necessary or not. In contrast, the
+bundled JVM is treated as an integral part of {es}, which means that Elastic
+takes responsibility for keeping it up to date. Security issues and bugs within
+the bundled JVM are treated as if they were within {es} itself.
 
-[horizontal]
-Puppet:: https://github.com/elastic/puppet-elasticsearch[puppet-elasticsearch]
-Chef::   https://github.com/elastic/cookbook-elasticsearch[cookbook-elasticsearch]
-Ansible:: https://github.com/elastic/ansible-elasticsearch[ansible-elasticsearch]
+The bundled JVM is located within the `jdk` subdirectory of the {es} home
+directory. You may remove this directory if using your own JVM.
+
+[discrete]
+[[jvm-agents]]
+=== JVM and Java agents
+
+Don't use third-party Java agents that attach to the JVM. These agents
+can reduce {es} performance, including freezing or crashing nodes.
 
 
 include::install/targz.asciidoc[]
@@ -87,8 +114,4 @@ include::install/deb.asciidoc[]
 
 include::install/rpm.asciidoc[]
 
-include::install/windows.asciidoc[]
-
 include::install/docker.asciidoc[]
-
-include::install/brew.asciidoc[]

@@ -1,39 +1,31 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.rankeval;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.MultiSearchResponse.Item;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.TemplateScript;
@@ -41,6 +33,9 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -49,6 +44,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.createParser;
 import static org.elasticsearch.index.rankeval.RatedRequest.validateEvaluatedQuery;
@@ -70,14 +66,25 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
     private final Client client;
     private final ScriptService scriptService;
     private final NamedXContentRegistry namedXContentRegistry;
+    private final Predicate<NodeFeature> clusterSupportsFeature;
 
     @Inject
-    public TransportRankEvalAction(ActionFilters actionFilters, Client client, TransportService transportService,
-                                   ScriptService scriptService, NamedXContentRegistry namedXContentRegistry) {
-        super(RankEvalAction.NAME, transportService, actionFilters,
-              (Writeable.Reader<RankEvalRequest>) RankEvalRequest::new);
+    public TransportRankEvalAction(
+        ActionFilters actionFilters,
+        Client client,
+        TransportService transportService,
+        ScriptService scriptService,
+        NamedXContentRegistry namedXContentRegistry,
+        ClusterService clusterService,
+        FeatureService featureService
+    ) {
+        super(RankEvalPlugin.ACTION.name(), transportService, actionFilters, RankEvalRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.scriptService = scriptService;
         this.namedXContentRegistry = namedXContentRegistry;
+        this.clusterSupportsFeature = f -> {
+            ClusterState state = clusterService.state();
+            return state.clusterRecovered() && featureService.clusterHasFeature(state, f);
+        };
         this.client = client;
     }
 
@@ -104,9 +111,15 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
                 String templateId = ratedRequest.getTemplateId();
                 TemplateScript.Factory templateScript = scriptsWithoutParams.get(templateId);
                 String resolvedRequest = templateScript.newInstance(params).execute();
-                try (XContentParser subParser = createParser(namedXContentRegistry,
-                    LoggingDeprecationHandler.INSTANCE, new BytesArray(resolvedRequest), XContentType.JSON)) {
-                    evaluationRequest = SearchSourceBuilder.fromXContent(subParser, false);
+                try (
+                    XContentParser subParser = createParser(
+                        namedXContentRegistry,
+                        LoggingDeprecationHandler.INSTANCE,
+                        new BytesArray(resolvedRequest),
+                        XContentType.JSON
+                    )
+                ) {
+                    evaluationRequest = new SearchSourceBuilder().parseXContent(subParser, false, clusterSupportsFeature);
                     // check for parts that should not be part of a ranking evaluation request
                     validateEvaluatedQuery(evaluationRequest);
                 } catch (IOException e) {
@@ -133,21 +146,31 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
             msearchRequest.add(searchRequest);
         }
         assert ratedRequestsInSearch.size() == msearchRequest.requests().size();
-        client.multiSearch(msearchRequest, new RankEvalActionListener(listener, metric,
-                ratedRequestsInSearch.toArray(new RatedRequest[ratedRequestsInSearch.size()]), errors));
+        client.multiSearch(
+            msearchRequest,
+            new RankEvalActionListener(
+                listener,
+                metric,
+                ratedRequestsInSearch.toArray(new RatedRequest[ratedRequestsInSearch.size()]),
+                errors
+            )
+        );
     }
 
-    class RankEvalActionListener implements ActionListener<MultiSearchResponse> {
+    static class RankEvalActionListener extends DelegatingActionListener<MultiSearchResponse, RankEvalResponse> {
 
-        private final ActionListener<RankEvalResponse> listener;
         private final RatedRequest[] specifications;
 
         private final Map<String, Exception> errors;
         private final EvaluationMetric metric;
 
-        RankEvalActionListener(ActionListener<RankEvalResponse> listener, EvaluationMetric metric, RatedRequest[] specifications,
-                Map<String, Exception> errors) {
-            this.listener = listener;
+        RankEvalActionListener(
+            ActionListener<RankEvalResponse> listener,
+            EvaluationMetric metric,
+            RatedRequest[] specifications,
+            Map<String, Exception> errors
+        ) {
+            super(listener);
             this.metric = metric;
             this.errors = errors;
             this.specifications = specifications;
@@ -156,7 +179,7 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
         @Override
         public void onResponse(MultiSearchResponse multiSearchResponse) {
             int responsePosition = 0;
-            Map<String, EvalQueryQuality> responseDetails = new HashMap<>(specifications.length);
+            Map<String, EvalQueryQuality> responseDetails = Maps.newMapWithExpectedSize(specifications.length);
             for (Item response : multiSearchResponse.getResponses()) {
                 RatedRequest specification = specifications[responsePosition];
                 if (response.isFailure() == false) {
@@ -168,12 +191,7 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
                 }
                 responsePosition++;
             }
-            listener.onResponse(new RankEvalResponse(this.metric.combine(responseDetails.values()), responseDetails, this.errors));
-        }
-
-        @Override
-        public void onFailure(Exception exception) {
-            listener.onFailure(exception);
+            delegate.onResponse(new RankEvalResponse(this.metric.combine(responseDetails.values()), responseDetails, this.errors));
         }
     }
 }

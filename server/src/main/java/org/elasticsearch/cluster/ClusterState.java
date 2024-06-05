@@ -1,130 +1,182 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster;
 
-import com.carrotsearch.hppc.cursors.IntObjectCursor;
-import com.carrotsearch.hppc.cursors.ObjectCursor;
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
-import org.elasticsearch.cluster.coordination.CoordinationMetaData;
-import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfigExclusion;
-import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfiguration;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
-import org.elasticsearch.cluster.metadata.MappingMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.coordination.ClusterStatePublisher;
+import org.elasticsearch.cluster.coordination.CoordinationMetadata;
+import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfigExclusion;
+import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
+import org.elasticsearch.cluster.coordination.NoMasterBlockService;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
-import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
-import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterService;
+import org.elasticsearch.cluster.version.CompatibilityVersions;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.discovery.Discovery;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContent;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
-import java.util.Locale;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.stream.StreamSupport;
+import java.util.TreeSet;
+import java.util.concurrent.Executor;
+import java.util.function.Consumer;
+import java.util.function.Function;
+
+import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 
 /**
- * Represents the current state of the cluster.
+ * Represents the state of the cluster, held in memory on all nodes in the cluster with updates coordinated by the elected master.
  * <p>
- * The cluster state object is immutable with the exception of the {@link RoutingNodes} structure, which is
- * built on demand from the {@link RoutingTable}.
- * The cluster state can be updated only on the master node. All updates are performed by on a
- * single thread and controlled by the {@link ClusterService}. After every update the
- * {@link Discovery#publish} method publishes a new version of the cluster state to all other nodes in the
- * cluster. The actual publishing mechanism is delegated to the {@link Discovery#publish} method and depends on
- * the type of discovery.
+ * Conceptually immutable, but in practice it has a few components like {@link RoutingNodes} which are pure functions of the immutable state
+ * but are expensive to compute so they are built on-demand if needed.
  * <p>
- * The cluster state implements the {@link Diffable} interface in order to support publishing of cluster state
- * differences instead of the entire state on each change. The publishing mechanism should only send differences
- * to a node if this node was present in the previous version of the cluster state. If a node was
- * not present in the previous version of the cluster state, this node is unlikely to have the previous cluster
- * state version and should be sent a complete version. In order to make sure that the differences are applied to the
- * correct version of the cluster state, each cluster state version update generates {@link #stateUUID} that uniquely
- * identifies this version of the state. This uuid is verified by the {@link ClusterStateDiff#apply} method to
- * make sure that the correct diffs are applied. If uuids don’t match, the {@link ClusterStateDiff#apply} method
- * throws the {@link IncompatibleClusterStateVersionException}, which causes the publishing mechanism to send
- * a full version of the cluster state to the node on which this exception was thrown.
+ * The {@link Metadata} portion is written to disk on each update so it persists across full-cluster restarts. The rest of this data is
+ * maintained only in-memory and resets back to its initial state on a full-cluster restart, but it is held on all nodes so it persists
+ * across master elections (and therefore is preserved in a rolling restart).
+ * <p>
+ * Updates are triggered by submitting tasks to the {@link MasterService} on the elected master, typically using a {@link
+ * TransportMasterNodeAction} to route a request to the master on which the task is submitted via a queue obtained with {@link
+ * ClusterService#createTaskQueue}, which has an associated priority. Submitted tasks have an associated
+ * timeout. Tasks are processed in priority order, so a flood of higher-priority tasks can starve lower-priority ones from running.
+ * Therefore, avoid priorities other than {@link Priority#NORMAL} where possible. Tasks associated with client actions should typically have
+ * a timeout, or otherwise be sensitive to client cancellations, to avoid surprises caused by the execution of stale tasks long after they
+ * are submitted (since clients themselves tend to time out). In contrast, internal tasks can reasonably have an infinite timeout,
+ * especially if a timeout would simply trigger a retry.
+ * <p>
+ * Tasks that share the same {@link ClusterStateTaskExecutor} instance are processed as a batch. Each batch of tasks yields a new {@link
+ * ClusterState} which is published to the cluster by {@link ClusterStatePublisher#publish}. Publication usually works by sending a diff,
+ * computed via the {@link Diffable} interface, rather than the full state, although it will fall back to sending the full state if the
+ * receiving node is new or it has missed out on an intermediate state for some reason. States and diffs are published using the transport
+ * protocol, i.e. the {@link Writeable} interface and friends.
+ * <p>
+ * When committed, the new state is <i>applied</i> which exposes it to the node via {@link ClusterStateApplier} and {@link
+ * ClusterStateListener} callbacks registered with the {@link ClusterApplierService}. The new state is also made available via {@link
+ * ClusterService#state()}. The appliers are notified (in no particular order) before {@link ClusterService#state()} is updated, and the
+ * listeners are notified (in no particular order) afterwards. Cluster state updates run in sequence, one-by-one, so they can be a
+ * performance bottleneck. See the JavaDocs on the linked classes and methods for more details.
+ * <p>
+ * Cluster state updates can be used to trigger various actions via a {@link ClusterStateListener} rather than using a timer.
+ * <p>
+ * Implements {@link ChunkedToXContent} to be exposed in REST APIs (e.g. {@code GET _cluster/state} and {@code POST _cluster/reroute}) and
+ * to be indexed by monitoring, mostly just for diagnostics purposes. The {@link XContent} representation does not need to be 100% faithful
+ * since we never reconstruct a cluster state from its XContent representation, but the more faithful it is the more useful it is for
+ * diagnostics. Note that the {@link XContent} representation of the {@link Metadata} portion does have to be faithful (in {@link
+ * Metadata.XContentContext#GATEWAY} context) since this is how it persists across full cluster restarts.
+ * <p>
+ * Security-sensitive data such as passwords or private keys should not be stored in the cluster state, since the contents of the cluster
+ * state are exposed in various APIs.
  */
-public class ClusterState implements ToXContentFragment, Diffable<ClusterState> {
+public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
 
-    public static final ClusterState EMPTY_STATE = builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).build();
+    public static final ClusterState EMPTY_STATE = builder(ClusterName.DEFAULT).build();
 
-    public interface Custom extends NamedDiffable<Custom>, ToXContentFragment {
+    public interface Custom extends NamedDiffable<Custom>, ChunkedToXContent {
 
         /**
-         * Returns <code>true</code> iff this {@link Custom} is private to the cluster and should never be send to a client.
+         * Returns <code>true</code> iff this {@link Custom} is private to the cluster and should never be sent to a client.
          * The default is <code>false</code>;
          */
         default boolean isPrivate() {
             return false;
         }
 
+        /**
+         * Serialize this {@link Custom} for diagnostic purposes, exposed by the <pre>GET _cluster/state</pre> API etc. The XContent
+         * representation does not need to be 100% faithful since we never reconstruct a cluster state from its XContent representation, but
+         * the more faithful it is the more useful it is for diagnostics.
+         */
+        @Override
+        Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params);
     }
 
     private static final NamedDiffableValueSerializer<Custom> CUSTOM_VALUE_SERIALIZER = new NamedDiffableValueSerializer<>(Custom.class);
+
+    private static final DiffableUtils.ValueSerializer<String, CompatibilityVersions> COMPATIBILITY_VERSIONS_VALUE_SERIALIZER =
+        new DiffableUtils.NonDiffableValueSerializer<>() {
+            @Override
+            public void write(CompatibilityVersions value, StreamOutput out) throws IOException {
+                value.writeTo(out);
+            }
+
+            @Override
+            public CompatibilityVersions read(StreamInput in, String key) throws IOException {
+                return CompatibilityVersions.readVersion(in);
+            }
+        };
 
     public static final String UNKNOWN_UUID = "_na_";
 
     public static final long UNKNOWN_VERSION = -1;
 
+    /**
+     * Monotonically increasing on (and therefore uniquely identifies) <i>committed</i> states. However sometimes a state is created/applied
+     * without committing it, for instance to add a {@link NoMasterBlockService#getNoMasterBlock}.
+     */
     private final long version;
 
+    /**
+     * Uniquely identifies this state, even if the state is not committed.
+     */
     private final String stateUUID;
 
+    /**
+     * Describes the location (and state) of all shards, used for routing actions such as searches to the relevant shards.
+     */
     private final RoutingTable routingTable;
 
     private final DiscoveryNodes nodes;
 
-    private final MetaData metaData;
+    private final Map<String, CompatibilityVersions> compatibilityVersions;
+    private final CompatibilityVersions minVersions;
+
+    private final ClusterFeatures clusterFeatures;
+
+    private final Metadata metadata;
 
     private final ClusterBlocks blocks;
 
-    private final ImmutableOpenMap<String, Custom> customs;
+    private final Map<String, Custom> customs;
 
     private final ClusterName clusterName;
 
@@ -134,26 +186,70 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
     private volatile RoutingNodes routingNodes;
 
     public ClusterState(long version, String stateUUID, ClusterState state) {
-        this(state.clusterName, version, stateUUID, state.metaData(), state.routingTable(), state.nodes(), state.blocks(),
-                state.customs(), false);
+        this(
+            state.clusterName,
+            version,
+            stateUUID,
+            state.metadata(),
+            state.routingTable(),
+            state.nodes(),
+            state.compatibilityVersions,
+            state.clusterFeatures(),
+            state.blocks(),
+            state.customs(),
+            false,
+            state.routingNodes
+        );
     }
 
-    public ClusterState(ClusterName clusterName, long version, String stateUUID, MetaData metaData, RoutingTable routingTable,
-                        DiscoveryNodes nodes, ClusterBlocks blocks, ImmutableOpenMap<String, Custom> customs,
-                        boolean wasReadFromDiff) {
+    public ClusterState(
+        ClusterName clusterName,
+        long version,
+        String stateUUID,
+        Metadata metadata,
+        RoutingTable routingTable,
+        DiscoveryNodes nodes,
+        Map<String, CompatibilityVersions> compatibilityVersions,
+        ClusterFeatures clusterFeatures,
+        ClusterBlocks blocks,
+        Map<String, Custom> customs,
+        boolean wasReadFromDiff,
+        @Nullable RoutingNodes routingNodes
+    ) {
         this.version = version;
         this.stateUUID = stateUUID;
         this.clusterName = clusterName;
-        this.metaData = metaData;
+        this.metadata = metadata;
         this.routingTable = routingTable;
         this.nodes = nodes;
+        this.compatibilityVersions = Map.copyOf(compatibilityVersions);
+        this.clusterFeatures = clusterFeatures;
         this.blocks = blocks;
         this.customs = customs;
         this.wasReadFromDiff = wasReadFromDiff;
+        this.routingNodes = routingNodes;
+        assert assertConsistentRoutingNodes(routingTable, nodes, routingNodes);
+        this.minVersions = blocks.hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK)
+            ? new CompatibilityVersions(TransportVersions.MINIMUM_COMPATIBLE, Map.of()) // empty map because cluster state is unknown
+            : CompatibilityVersions.minimumVersions(compatibilityVersions.values());
+    }
+
+    private static boolean assertConsistentRoutingNodes(
+        RoutingTable routingTable,
+        DiscoveryNodes nodes,
+        @Nullable RoutingNodes routingNodes
+    ) {
+        if (routingNodes == null) {
+            return true;
+        }
+        final RoutingNodes expected = RoutingNodes.immutable(routingTable, nodes);
+        assert routingNodes.equals(expected)
+            : "RoutingNodes [" + routingNodes + "] are not consistent with this cluster state [" + expected + "]";
+        return true;
     }
 
     public long term() {
-        return coordinationMetaData().term();
+        return coordinationMetadata().term();
     }
 
     public long version() {
@@ -180,16 +276,53 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         return nodes();
     }
 
-    public MetaData metaData() {
-        return this.metaData;
+    /**
+     * Returns the set of nodes that should be exposed to things like REST handlers that behave differently depending on the nodes in the
+     * cluster and their versions. Specifically, if the cluster has properly formed then this is the nodes in the last-applied cluster
+     * state, but if the cluster has not properly formed then no nodes are returned.
+     *
+     * @return the nodes in the cluster if the cluster has properly formed, otherwise an empty set of nodes.
+     */
+    public DiscoveryNodes nodesIfRecovered() {
+        return blocks.hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK) ? DiscoveryNodes.EMPTY_NODES : nodes;
     }
 
-    public MetaData getMetaData() {
-        return metaData();
+    public boolean clusterRecovered() {
+        return blocks.hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK) == false;
     }
 
-    public CoordinationMetaData coordinationMetaData() {
-        return metaData.coordinationMetaData();
+    public Map<String, CompatibilityVersions> compatibilityVersions() {
+        return this.compatibilityVersions;
+    }
+
+    public boolean hasMixedSystemIndexVersions() {
+        return compatibilityVersions.values()
+            .stream()
+            .anyMatch(e -> e.systemIndexMappingsVersion().equals(minVersions.systemIndexMappingsVersion()) == false);
+    }
+
+    public TransportVersion getMinTransportVersion() {
+        return this.minVersions.transportVersion();
+    }
+
+    public Map<String, SystemIndexDescriptor.MappingsVersion> getMinSystemIndexMappingVersions() {
+        return this.minVersions.systemIndexMappingsVersion();
+    }
+
+    public ClusterFeatures clusterFeatures() {
+        return clusterFeatures;
+    }
+
+    public Metadata metadata() {
+        return this.metadata;
+    }
+
+    public Metadata getMetadata() {
+        return metadata();
+    }
+
+    public CoordinationMetadata coordinationMetadata() {
+        return metadata.coordinationMetadata();
     }
 
     public RoutingTable routingTable() {
@@ -208,11 +341,11 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         return blocks;
     }
 
-    public ImmutableOpenMap<String, Custom> customs() {
+    public Map<String, Custom> customs() {
         return this.customs;
     }
 
-    public ImmutableOpenMap<String, Custom> getCustoms() {
+    public Map<String, Custom> getCustoms() {
         return this.customs;
     }
 
@@ -221,82 +354,168 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         return (T) customs.get(type);
     }
 
+    @SuppressWarnings("unchecked")
+    public <T extends Custom> T custom(String type, T defaultValue) {
+        return (T) customs.getOrDefault(type, defaultValue);
+    }
+
     public ClusterName getClusterName() {
         return this.clusterName;
     }
 
     public VotingConfiguration getLastAcceptedConfiguration() {
-        return coordinationMetaData().getLastAcceptedConfiguration();
+        return coordinationMetadata().getLastAcceptedConfiguration();
     }
 
     public VotingConfiguration getLastCommittedConfiguration() {
-        return coordinationMetaData().getLastCommittedConfiguration();
+        return coordinationMetadata().getLastCommittedConfiguration();
     }
 
     public Set<VotingConfigExclusion> getVotingConfigExclusions() {
-        return coordinationMetaData().getVotingConfigExclusions();
+        return coordinationMetadata().getVotingConfigExclusions();
     }
 
     /**
      * Returns a built (on demand) routing nodes view of the routing table.
      */
     public RoutingNodes getRoutingNodes() {
-        if (routingNodes != null) {
-            return routingNodes;
+        RoutingNodes r = routingNodes;
+        if (r != null) {
+            return r;
         }
-        routingNodes = new RoutingNodes(this);
-        return routingNodes;
+        r = buildRoutingNodes();
+        return r;
+    }
+
+    private synchronized RoutingNodes buildRoutingNodes() {
+        RoutingNodes r = routingNodes;
+        if (r != null) {
+            return r;
+        }
+        r = RoutingNodes.immutable(routingTable, nodes);
+        routingNodes = r;
+        return r;
+    }
+
+    /**
+     * Returns a fresh mutable copy of the routing nodes view.
+     */
+    public RoutingNodes mutableRoutingNodes() {
+        final RoutingNodes nodes = this.routingNodes;
+        // use the cheaper copy constructor if we already computed the routing nodes for this state.
+        if (nodes != null) {
+            return nodes.mutableCopy();
+        }
+        // we don't have any routing nodes for this state, likely because it's a temporary state in the reroute logic, don't compute an
+        // immutable copy that will never be used and instead directly build a mutable copy
+        return RoutingNodes.mutable(routingTable, this.nodes);
+    }
+
+    /**
+     * Initialize data structures that lazy computed for this instance in the background by using the giving executor.
+     * @param executor executor to run initialization tasks on
+     */
+    public void initializeAsync(Executor executor) {
+        if (routingNodes == null) {
+            executor.execute(new Runnable() {
+                @Override
+                public void run() {
+                    getRoutingNodes();
+                }
+
+                @Override
+                public String toString() {
+                    return "async initialization of routing nodes for cluster state " + version();
+                }
+            });
+        }
+        if (metadata.indicesLookupInitialized() == false) {
+            executor.execute(new Runnable() {
+                @Override
+                public void run() {
+                    metadata.getIndicesLookup();
+                }
+
+                @Override
+                public String toString() {
+                    return "async initialization of indices lookup for cluster state " + version();
+                }
+            });
+        }
     }
 
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
         final String TAB = "   ";
-        sb.append("cluster uuid: ").append(metaData.clusterUUID())
-            .append(" [committed: ").append(metaData.clusterUUIDCommitted()).append("]").append("\n");
+        sb.append("cluster uuid: ")
+            .append(metadata.clusterUUID())
+            .append(" [committed: ")
+            .append(metadata.clusterUUIDCommitted())
+            .append("]")
+            .append("\n");
         sb.append("version: ").append(version).append("\n");
         sb.append("state uuid: ").append(stateUUID).append("\n");
         sb.append("from_diff: ").append(wasReadFromDiff).append("\n");
-        sb.append("meta data version: ").append(metaData.version()).append("\n");
+        sb.append("meta data version: ").append(metadata.version()).append("\n");
         sb.append(TAB).append("coordination_metadata:\n");
-        sb.append(TAB).append(TAB).append("term: ").append(coordinationMetaData().term()).append("\n");
-        sb.append(TAB).append(TAB)
-                .append("last_committed_config: ").append(coordinationMetaData().getLastCommittedConfiguration()).append("\n");
-        sb.append(TAB).append(TAB)
-                .append("last_accepted_config: ").append(coordinationMetaData().getLastAcceptedConfiguration()).append("\n");
-        sb.append(TAB).append(TAB)
-                .append("voting tombstones: ").append(coordinationMetaData().getVotingConfigExclusions()).append("\n");
-        for (IndexMetaData indexMetaData : metaData) {
-            sb.append(TAB).append(indexMetaData.getIndex());
-            sb.append(": v[").append(indexMetaData.getVersion())
-                    .append("], mv[").append(indexMetaData.getMappingVersion())
-                    .append("], sv[").append(indexMetaData.getSettingsVersion())
-                    .append("], av[").append(indexMetaData.getAliasesVersion())
-                    .append("]\n");
-            for (int shard = 0; shard < indexMetaData.getNumberOfShards(); shard++) {
+        sb.append(TAB).append(TAB).append("term: ").append(coordinationMetadata().term()).append("\n");
+        sb.append(TAB)
+            .append(TAB)
+            .append("last_committed_config: ")
+            .append(coordinationMetadata().getLastCommittedConfiguration())
+            .append("\n");
+        sb.append(TAB)
+            .append(TAB)
+            .append("last_accepted_config: ")
+            .append(coordinationMetadata().getLastAcceptedConfiguration())
+            .append("\n");
+        sb.append(TAB).append(TAB).append("voting tombstones: ").append(coordinationMetadata().getVotingConfigExclusions()).append("\n");
+        for (IndexMetadata indexMetadata : metadata) {
+            sb.append(TAB).append(indexMetadata.getIndex());
+            sb.append(": v[")
+                .append(indexMetadata.getVersion())
+                .append("], mv[")
+                .append(indexMetadata.getMappingVersion())
+                .append("], sv[")
+                .append(indexMetadata.getSettingsVersion())
+                .append("], av[")
+                .append(indexMetadata.getAliasesVersion())
+                .append("]\n");
+            for (int shard = 0; shard < indexMetadata.getNumberOfShards(); shard++) {
                 sb.append(TAB).append(TAB).append(shard).append(": ");
-                sb.append("p_term [").append(indexMetaData.primaryTerm(shard)).append("], ");
-                sb.append("isa_ids ").append(indexMetaData.inSyncAllocationIds(shard)).append("\n");
+                sb.append("p_term [").append(indexMetadata.primaryTerm(shard)).append("], ");
+                sb.append("isa_ids ").append(indexMetadata.inSyncAllocationIds(shard)).append("\n");
             }
         }
-        if (metaData.customs().isEmpty() == false) {
+        if (metadata.customs().isEmpty() == false) {
             sb.append("metadata customs:\n");
-            for (final ObjectObjectCursor<String, MetaData.Custom> cursor : metaData.customs()) {
-                final String type = cursor.key;
-                final MetaData.Custom custom = cursor.value;
+            for (final Map.Entry<String, Metadata.Custom> cursor : metadata.customs().entrySet()) {
+                final String type = cursor.getKey();
+                final Metadata.Custom custom = cursor.getValue();
                 sb.append(TAB).append(type).append(": ").append(custom);
             }
             sb.append("\n");
         }
         sb.append(blocks());
         sb.append(nodes());
+        if (compatibilityVersions.isEmpty() == false) {
+            sb.append("node versions:\n");
+            for (var tv : compatibilityVersions.entrySet()) {
+                sb.append(TAB).append(tv.getKey()).append(": ").append(tv.getValue()).append("\n");
+            }
+        }
+        sb.append("cluster features:\n");
+        for (var nf : getNodeFeatures(clusterFeatures).entrySet()) {
+            sb.append(TAB).append(nf.getKey()).append(": ").append(new TreeSet<>(nf.getValue())).append("\n");
+        }
         sb.append(routingTable());
         sb.append(getRoutingNodes());
         if (customs.isEmpty() == false) {
             sb.append("customs:\n");
-            for (ObjectObjectCursor<String, Custom> cursor : customs) {
-                final String type = cursor.key;
-                final Custom custom = cursor.value;
+            for (Map.Entry<String, Custom> cursor : customs.entrySet()) {
+                final String type = cursor.getKey();
+                final Custom custom = cursor.getValue();
                 sb.append(TAB).append(type).append(": ").append(custom);
             }
         }
@@ -310,7 +529,8 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
      * In essence that means that all the changes from the other cluster state are also reflected by the current one
      */
     public boolean supersedes(ClusterState other) {
-        return this.nodes().getMasterNodeId() != null && this.nodes().getMasterNodeId().equals(other.nodes().getMasterNodeId())
+        return this.nodes().getMasterNodeId() != null
+            && this.nodes().getMasterNodeId().equals(other.nodes().getMasterNodeId())
             && this.version() > other.version();
 
     }
@@ -325,7 +545,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         ROUTING_NODES("routing_nodes"),
         CUSTOMS("customs");
 
-        private static Map<String, Metric> valueToEnum;
+        private static final Map<String, Metric> valueToEnum;
 
         static {
             valueToEnum = new HashMap<>();
@@ -350,7 +570,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
                 }
                 Metric m = valueToEnum.get(metric);
                 if (m == null) {
-                    if (!ignoreUnknown) {
+                    if (ignoreUnknown == false) {
                         throw new IllegalArgumentException("Unknown metric [" + metric + "]");
                     }
                 } else {
@@ -366,209 +586,162 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         }
     }
 
+    private static <T> Iterator<ToXContent> chunkedSection(
+        boolean condition,
+        ToXContent before,
+        Iterator<T> items,
+        Function<T, Iterator<ToXContent>> fn,
+        ToXContent after
+    ) {
+        return condition
+            ? Iterators.concat(Iterators.single(before), Iterators.flatMap(items, fn::apply), Iterators.single(after))
+            : Collections.emptyIterator();
+    }
+
     @Override
-    @SuppressWarnings("unchecked")
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        EnumSet<Metric> metrics = Metric.parseString(params.param("metric", "_all"), true);
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params outerParams) {
+        final var metrics = Metric.parseString(outerParams.param("metric", "_all"), true);
 
-        // always provide the cluster_uuid as part of the top-level response (also part of the metadata response)
-        builder.field("cluster_uuid", metaData().clusterUUID());
+        return Iterators.concat(
 
-        if (metrics.contains(Metric.VERSION)) {
-            builder.field("version", version);
-            builder.field("state_uuid", stateUUID);
-        }
+            // header chunk
+            Iterators.single(((builder, params) -> {
+                // always provide the cluster_uuid as part of the top-level response (also part of the metadata response)
+                builder.field("cluster_uuid", metadata().clusterUUID());
 
-        if (metrics.contains(Metric.MASTER_NODE)) {
-            builder.field("master_node", nodes().getMasterNodeId());
-        }
-
-        if (metrics.contains(Metric.BLOCKS)) {
-            builder.startObject("blocks");
-
-            if (!blocks().global().isEmpty()) {
-                builder.startObject("global");
-                for (ClusterBlock block : blocks().global()) {
-                    block.toXContent(builder, params);
+                // state version info
+                if (metrics.contains(Metric.VERSION)) {
+                    builder.field("version", version);
+                    builder.field("state_uuid", stateUUID);
                 }
-                builder.endObject();
-            }
 
-            if (!blocks().indices().isEmpty()) {
-                builder.startObject("indices");
-                for (ObjectObjectCursor<String, Set<ClusterBlock>> entry : blocks().indices()) {
-                    builder.startObject(entry.key);
-                    for (ClusterBlock block : entry.value) {
+                // master node
+                if (metrics.contains(Metric.MASTER_NODE)) {
+                    builder.field("master_node", nodes().getMasterNodeId());
+                }
+
+                return builder;
+            })),
+
+            // blocks
+            chunkedSection(metrics.contains(Metric.BLOCKS), (builder, params) -> {
+                builder.startObject("blocks");
+                if (blocks().global().isEmpty() == false) {
+                    builder.startObject("global");
+                    for (ClusterBlock block : blocks().global()) {
                         block.toXContent(builder, params);
                     }
                     builder.endObject();
                 }
-                builder.endObject();
-            }
-
-            builder.endObject();
-        }
-
-        // nodes
-        if (metrics.contains(Metric.NODES)) {
-            builder.startObject("nodes");
-            for (DiscoveryNode node : nodes) {
-                node.toXContent(builder, params);
-            }
-            builder.endObject();
-        }
-
-        // meta data
-        if (metrics.contains(Metric.METADATA)) {
-            builder.startObject("metadata");
-            builder.field("cluster_uuid", metaData().clusterUUID());
-
-            builder.startObject("cluster_coordination");
-            coordinationMetaData().toXContent(builder, params);
-            builder.endObject();
-
-            builder.startObject("templates");
-            for (ObjectCursor<IndexTemplateMetaData> cursor : metaData().templates().values()) {
-                IndexTemplateMetaData templateMetaData = cursor.value;
-                builder.startObject(templateMetaData.name());
-
-                builder.field("index_patterns", templateMetaData.patterns());
-                builder.field("order", templateMetaData.order());
-
-                builder.startObject("settings");
-                Settings settings = templateMetaData.settings();
-                settings.toXContent(builder, params);
-                builder.endObject();
-
-                builder.startObject("mappings");
-                for (ObjectObjectCursor<String, CompressedXContent> cursor1 : templateMetaData.mappings()) {
-                    Map<String, Object> mapping = XContentHelper.convertToMap(new BytesArray(cursor1.value.uncompressed()), false).v2();
-                    if (mapping.size() == 1 && mapping.containsKey(cursor1.key)) {
-                        // the type name is the root value, reduce it
-                        mapping = (Map<String, Object>) mapping.get(cursor1.key);
-                    }
-                    builder.field(cursor1.key);
-                    builder.map(mapping);
+                if (blocks().indices().isEmpty() == false) {
+                    builder.startObject("indices");
                 }
-                builder.endObject();
-
-
-                builder.endObject();
-            }
-            builder.endObject();
-
-            builder.startObject("indices");
-            for (IndexMetaData indexMetaData : metaData()) {
-                builder.startObject(indexMetaData.getIndex().getName());
-
-                builder.field("state", indexMetaData.getState().toString().toLowerCase(Locale.ENGLISH));
-
-                builder.startObject("settings");
-                Settings settings = indexMetaData.getSettings();
-                settings.toXContent(builder, params);
-                builder.endObject();
-
-                builder.startObject("mappings");
-                MappingMetaData mmd = indexMetaData.mapping();
-                if (mmd != null) {
-                    Map<String, Object> mapping = XContentHelper
-                            .convertToMap(new BytesArray(mmd.source().uncompressed()), false).v2();
-                    if (mapping.size() == 1 && mapping.containsKey(mmd.type())) {
-                        // the type name is the root value, reduce it
-                        mapping = (Map<String, Object>) mapping.get(mmd.type());
-                    }
-                    builder.field(mmd.type());
-                    builder.map(mapping);
+                return builder;
+            }, blocks.indices().entrySet().iterator(), entry -> Iterators.single((builder, params) -> {
+                builder.startObject(entry.getKey());
+                for (ClusterBlock block : entry.getValue()) {
+                    block.toXContent(builder, params);
                 }
-                builder.endObject();
-
-                builder.startArray("aliases");
-                for (ObjectCursor<String> cursor : indexMetaData.getAliases().keys()) {
-                    builder.value(cursor.value);
+                return builder.endObject();
+            }), (builder, params) -> {
+                if (blocks().indices().isEmpty() == false) {
+                    builder.endObject();
                 }
-                builder.endArray();
+                return builder.endObject();
+            }),
 
-                builder.startObject(IndexMetaData.KEY_PRIMARY_TERMS);
-                for (int shard = 0; shard < indexMetaData.getNumberOfShards(); shard++) {
-                    builder.field(Integer.toString(shard), indexMetaData.primaryTerm(shard));
-                }
-                builder.endObject();
+            // nodes
+            chunkedSection(
+                metrics.contains(Metric.NODES),
+                (builder, params) -> builder.startObject("nodes"),
+                nodes.iterator(),
+                Iterators::single,
+                (builder, params) -> builder.endObject()
+            ),
 
-                builder.startObject(IndexMetaData.KEY_IN_SYNC_ALLOCATIONS);
-                for (IntObjectCursor<Set<String>> cursor : indexMetaData.getInSyncAllocationIds()) {
-                    builder.startArray(String.valueOf(cursor.key));
-                    for (String allocationId : cursor.value) {
-                        builder.value(allocationId);
-                    }
-                    builder.endArray();
-                }
-                builder.endObject();
+            // per-node version information
+            chunkedSection(
+                metrics.contains(Metric.NODES),
+                (builder, params) -> builder.startArray("nodes_versions"),
+                compatibilityVersions.entrySet().iterator(),
+                e -> Iterators.single((builder, params) -> {
+                    builder.startObject().field("node_id", e.getKey());
+                    e.getValue().toXContent(builder, params);
+                    return builder.endObject();
+                }),
+                (builder, params) -> builder.endArray()
+            ),
 
-                // index metadata
-                builder.endObject();
-            }
-            builder.endObject();
+            // per-node feature information
+            metrics.contains(Metric.NODES)
+                ? Iterators.concat(
+                    Iterators.<ToXContent>single((b, p) -> b.field("nodes_features")),
+                    clusterFeatures.toXContentChunked(outerParams)
+                )
+                : Collections.emptyIterator(),
 
-            for (ObjectObjectCursor<String, MetaData.Custom> cursor : metaData.customs()) {
-                builder.startObject(cursor.key);
-                cursor.value.toXContent(builder, params);
-                builder.endObject();
-            }
+            // metadata
+            metrics.contains(Metric.METADATA) ? metadata.toXContentChunked(outerParams) : Collections.emptyIterator(),
 
-            builder.endObject();
-        }
+            // routing table
+            chunkedSection(
+                metrics.contains(Metric.ROUTING_TABLE),
+                (builder, params) -> builder.startObject("routing_table").startObject("indices"),
+                routingTable().iterator(),
+                indexRoutingTable -> {
+                    Iterator<Iterator<ToXContent>> input = Iterators.forRange(0, indexRoutingTable.size(), shardId -> {
+                        final var indexShardRoutingTable = indexRoutingTable.shard(shardId);
+                        return Iterators.concat(
+                            Iterators.single(
+                                (builder, params) -> builder.startArray(Integer.toString(indexShardRoutingTable.shardId().id()))
+                            ),
+                            Iterators.forRange(
+                                0,
+                                indexShardRoutingTable.size(),
+                                copy -> (builder, params) -> indexShardRoutingTable.shard(copy).toXContent(builder, params)
+                            ),
+                            Iterators.single((builder, params) -> builder.endArray())
+                        );
+                    });
+                    return Iterators.concat(
+                        Iterators.single(
+                            (builder, params) -> builder.startObject(indexRoutingTable.getIndex().getName()).startObject("shards")
+                        ),
+                        Iterators.flatMap(input, Function.identity()),
+                        Iterators.single((builder, params) -> builder.endObject().endObject())
+                    );
+                },
+                (builder, params) -> builder.endObject().endObject()
+            ),
 
-        // routing table
-        if (metrics.contains(Metric.ROUTING_TABLE)) {
-            builder.startObject("routing_table");
-            builder.startObject("indices");
-            for (IndexRoutingTable indexRoutingTable : routingTable()) {
-                builder.startObject(indexRoutingTable.getIndex().getName());
-                builder.startObject("shards");
-                for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
-                    builder.startArray(Integer.toString(indexShardRoutingTable.shardId().id()));
-                    for (ShardRouting shardRouting : indexShardRoutingTable) {
-                        shardRouting.toXContent(builder, params);
-                    }
-                    builder.endArray();
-                }
-                builder.endObject();
-                builder.endObject();
-            }
-            builder.endObject();
-            builder.endObject();
-        }
+            // routing nodes
+            chunkedSection(
+                metrics.contains(Metric.ROUTING_NODES),
+                (builder, params) -> builder.startObject("routing_nodes").startArray("unassigned"),
+                getRoutingNodes().unassigned().iterator(),
+                Iterators::single,
+                (builder, params) -> builder.endArray() // no endObject() here, continued in next chunkedSection()
+            ),
+            chunkedSection(
+                metrics.contains(Metric.ROUTING_NODES),
+                (builder, params) -> builder.startObject("nodes"),
+                getRoutingNodes().iterator(),
+                routingNode -> Iterators.concat(
+                    ChunkedToXContentHelper.startArray(routingNode.nodeId() == null ? "null" : routingNode.nodeId()),
+                    routingNode.iterator(),
+                    ChunkedToXContentHelper.endArray()
+                ),
+                (builder, params) -> builder.endObject().endObject()
+            ),
 
-        // routing nodes
-        if (metrics.contains(Metric.ROUTING_NODES)) {
-            builder.startObject("routing_nodes");
-            builder.startArray("unassigned");
-            for (ShardRouting shardRouting : getRoutingNodes().unassigned()) {
-                shardRouting.toXContent(builder, params);
-            }
-            builder.endArray();
-
-            builder.startObject("nodes");
-            for (RoutingNode routingNode : getRoutingNodes()) {
-                builder.startArray(routingNode.nodeId() == null ? "null" : routingNode.nodeId());
-                for (ShardRouting shardRouting : routingNode) {
-                    shardRouting.toXContent(builder, params);
-                }
-                builder.endArray();
-            }
-            builder.endObject();
-
-            builder.endObject();
-        }
-        if (metrics.contains(Metric.CUSTOMS)) {
-            for (ObjectObjectCursor<String, Custom> cursor : customs) {
-                builder.startObject(cursor.key);
-                cursor.value.toXContent(builder, params);
-                builder.endObject();
-            }
-        }
-
-        return builder;
+            // customs
+            metrics.contains(Metric.CUSTOMS)
+                ? Iterators.flatMap(
+                    customs.entrySet().iterator(),
+                    cursor -> ChunkedToXContentHelper.wrapWithObject(cursor.getKey(), cursor.getValue().toXContentChunked(outerParams))
+                )
+                : Collections.emptyIterator()
+        );
     }
 
     public static Builder builder(ClusterName clusterName) {
@@ -579,31 +752,55 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         return new Builder(state);
     }
 
+    public ClusterState copyAndUpdate(Consumer<Builder> updater) {
+        var builder = builder(this);
+        updater.accept(builder);
+        return builder.build();
+    }
+
+    public ClusterState copyAndUpdateMetadata(Consumer<Metadata.Builder> updater) {
+        return copyAndUpdate(builder -> builder.metadata(metadata().copyAndUpdate(updater)));
+    }
+
+    @SuppressForbidden(reason = "directly reading ClusterState#clusterFeatures")
+    private static Map<String, Set<String>> getNodeFeatures(ClusterFeatures features) {
+        return features.nodeFeatures();
+    }
+
     public static class Builder {
+
+        private ClusterState previous;
 
         private final ClusterName clusterName;
         private long version = 0;
         private String uuid = UNKNOWN_UUID;
-        private MetaData metaData = MetaData.EMPTY_META_DATA;
+        private Metadata metadata = Metadata.EMPTY_METADATA;
         private RoutingTable routingTable = RoutingTable.EMPTY_ROUTING_TABLE;
         private DiscoveryNodes nodes = DiscoveryNodes.EMPTY_NODES;
+        private final Map<String, CompatibilityVersions> compatibilityVersions;
+        private final Map<String, Set<String>> nodeFeatures;
         private ClusterBlocks blocks = ClusterBlocks.EMPTY_CLUSTER_BLOCK;
         private final ImmutableOpenMap.Builder<String, Custom> customs;
         private boolean fromDiff;
 
         public Builder(ClusterState state) {
+            this.previous = state;
             this.clusterName = state.clusterName;
             this.version = state.version();
             this.uuid = state.stateUUID();
             this.nodes = state.nodes();
+            this.compatibilityVersions = new HashMap<>(state.compatibilityVersions);
+            this.nodeFeatures = new HashMap<>(getNodeFeatures(state.clusterFeatures()));
             this.routingTable = state.routingTable();
-            this.metaData = state.metaData();
+            this.metadata = state.metadata();
             this.blocks = state.blocks();
             this.customs = ImmutableOpenMap.builder(state.customs());
             this.fromDiff = false;
         }
 
         public Builder(ClusterName clusterName) {
+            this.compatibilityVersions = new HashMap<>();
+            this.nodeFeatures = new HashMap<>();
             customs = ImmutableOpenMap.builder();
             this.clusterName = clusterName;
         }
@@ -621,17 +818,65 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
             return nodes;
         }
 
+        public Builder putCompatibilityVersions(
+            String nodeId,
+            TransportVersion transportVersion,
+            Map<String, SystemIndexDescriptor.MappingsVersion> systemIndexMappingsVersions
+        ) {
+            return putCompatibilityVersions(
+                nodeId,
+                new CompatibilityVersions(Objects.requireNonNull(transportVersion, nodeId), systemIndexMappingsVersions)
+            );
+        }
+
+        public Builder putCompatibilityVersions(String nodeId, CompatibilityVersions versions) {
+            compatibilityVersions.put(nodeId, versions);
+            return this;
+        }
+
+        public Builder nodeIdsToCompatibilityVersions(Map<String, CompatibilityVersions> versions) {
+            versions.forEach((key, value) -> Objects.requireNonNull(value, key));
+            // remove all versions not present in the new map
+            this.compatibilityVersions.keySet().retainAll(versions.keySet());
+            this.compatibilityVersions.putAll(versions);
+            return this;
+        }
+
+        public Map<String, CompatibilityVersions> compatibilityVersions() {
+            return Collections.unmodifiableMap(this.compatibilityVersions);
+        }
+
+        public Builder nodeFeatures(ClusterFeatures features) {
+            this.nodeFeatures.clear();
+            this.nodeFeatures.putAll(getNodeFeatures(features));
+            return this;
+        }
+
+        public Builder nodeFeatures(Map<String, Set<String>> nodeFeatures) {
+            this.nodeFeatures.clear();
+            this.nodeFeatures.putAll(nodeFeatures);
+            return this;
+        }
+
+        public Map<String, Set<String>> nodeFeatures() {
+            return Collections.unmodifiableMap(this.nodeFeatures);
+        }
+
+        public Builder routingTable(RoutingTable.Builder routingTableBuilder) {
+            return routingTable(routingTableBuilder.build());
+        }
+
         public Builder routingTable(RoutingTable routingTable) {
             this.routingTable = routingTable;
             return this;
         }
 
-        public Builder metaData(MetaData.Builder metaDataBuilder) {
-            return metaData(metaDataBuilder.build());
+        public Builder metadata(Metadata.Builder metadataBuilder) {
+            return metadata(metadataBuilder.build());
         }
 
-        public Builder metaData(MetaData metaData) {
-            this.metaData = metaData;
+        public Builder metadata(Metadata metadata) {
+            this.metadata = metadata;
             return this;
         }
 
@@ -670,14 +915,16 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
             return this;
         }
 
-        public Builder customs(ImmutableOpenMap<String, Custom> customs) {
-            StreamSupport.stream(customs.spliterator(), false).forEach(cursor -> Objects.requireNonNull(cursor.value, cursor.key));
-            this.customs.putAll(customs);
+        public Builder customs(Map<String, Custom> customs) {
+            customs.forEach((key, value) -> Objects.requireNonNull(value, key));
+            this.customs.putAllFromMap(customs);
             return this;
         }
 
-        public Builder fromDiff(boolean fromDiff) {
-            this.fromDiff = fromDiff;
+        // set previous cluster state that this builder is created from during diff application
+        private Builder fromDiff(ClusterState previous) {
+            this.fromDiff = true;
+            this.previous = previous;
             return this;
         }
 
@@ -685,7 +932,37 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
             if (UNKNOWN_UUID.equals(uuid)) {
                 uuid = UUIDs.randomBase64UUID();
             }
-            return new ClusterState(clusterName, version, uuid, metaData, routingTable, nodes, blocks, customs.build(), fromDiff);
+            final RoutingNodes routingNodes;
+            if (previous != null && routingTable.indicesRouting() == previous.routingTable.indicesRouting() && nodes == previous.nodes) {
+                // routing table contents and nodes haven't changed so we can try to reuse the previous state's routing nodes which are
+                // expensive to compute
+                routingNodes = previous.routingNodes;
+            } else {
+                routingNodes = null;
+            }
+
+            // ensure every node in the cluster has a feature set
+            // nodes can be null in some tests
+            if (nodes != null) {
+                for (DiscoveryNode node : nodes) {
+                    nodeFeatures.putIfAbsent(node.getId(), Set.of());
+                }
+            }
+
+            return new ClusterState(
+                clusterName,
+                version,
+                uuid,
+                metadata,
+                routingTable,
+                nodes,
+                compatibilityVersions,
+                new ClusterFeatures(nodeFeatures),
+                blocks,
+                customs.build(),
+                fromDiff,
+                routingNodes
+            );
         }
 
         public static byte[] toBytes(ClusterState state) throws IOException {
@@ -719,19 +996,53 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         Builder builder = new Builder(clusterName);
         builder.version = in.readLong();
         builder.uuid = in.readString();
-        builder.metaData = MetaData.readFrom(in);
+        builder.metadata = Metadata.readFrom(in);
         builder.routingTable = RoutingTable.readFrom(in);
         builder.nodes = DiscoveryNodes.readFrom(in, localNode);
-        builder.blocks = new ClusterBlocks(in);
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
+            builder.nodeIdsToCompatibilityVersions(in.readMap(CompatibilityVersions::readVersion));
+        } else {
+            // this clusterstate is from a pre-8.8.0 node
+            // infer the versions from discoverynodes for now
+            // leave mappings versions empty
+            builder.nodes()
+                .getNodes()
+                .values()
+                .forEach(n -> builder.putCompatibilityVersions(n.getId(), inferTransportVersion(n), Map.of()));
+        }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
+            builder.nodeFeatures(ClusterFeatures.readFrom(in));
+        }
+        builder.blocks = ClusterBlocks.readFrom(in);
         int customSize = in.readVInt();
         for (int i = 0; i < customSize; i++) {
-            Custom customIndexMetaData = in.readNamedWriteable(Custom.class);
-            builder.putCustom(customIndexMetaData.getWriteableName(), customIndexMetaData);
+            Custom customIndexMetadata = in.readNamedWriteable(Custom.class);
+            builder.putCustom(customIndexMetadata.getWriteableName(), customIndexMetadata);
         }
-        if (in.getVersion().before(Version.V_8_0_0)) {
+        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             in.readVInt(); // used to be minimumMasterNodesOnPublishingMaster, which was used in 7.x for BWC with 6.x
         }
         return builder.build();
+    }
+
+    /**
+     * If the cluster state does not contain transport version information, this is the version
+     * that is inferred for all nodes on version 8.8.0 or above.
+     */
+    public static final TransportVersion INFERRED_TRANSPORT_VERSION = TransportVersions.V_8_8_0;
+
+    public static final Version VERSION_INTRODUCING_TRANSPORT_VERSIONS = Version.V_8_8_0;
+
+    private static TransportVersion inferTransportVersion(DiscoveryNode node) {
+        TransportVersion tv;
+        if (node.getVersion().before(VERSION_INTRODUCING_TRANSPORT_VERSIONS)) {
+            // 1-to-1 mapping between Version and TransportVersion
+            tv = TransportVersion.fromId(node.getPre811VersionId().getAsInt());
+        } else {
+            // use the lowest value it could be for now
+            tv = INFERRED_TRANSPORT_VERSION;
+        }
+        return tv;
     }
 
     @Override
@@ -739,24 +1050,18 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         clusterName.writeTo(out);
         out.writeLong(version);
         out.writeString(stateUUID);
-        metaData.writeTo(out);
+        metadata.writeTo(out);
         routingTable.writeTo(out);
         nodes.writeTo(out);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
+            out.writeMap(compatibilityVersions, (streamOutput, versions) -> versions.writeTo(streamOutput));
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
+            clusterFeatures.writeTo(out);
+        }
         blocks.writeTo(out);
-        // filter out custom states not supported by the other node
-        int numberOfCustoms = 0;
-        for (final ObjectCursor<Custom> cursor : customs.values()) {
-            if (VersionedNamedWriteable.shouldSerialize(out, cursor.value)) {
-                numberOfCustoms++;
-            }
-        }
-        out.writeVInt(numberOfCustoms);
-        for (final ObjectCursor<Custom> cursor : customs.values()) {
-            if (VersionedNamedWriteable.shouldSerialize(out, cursor.value)) {
-                out.writeNamedWriteable(cursor.value);
-            }
-        }
-        if (out.getVersion().before(Version.V_8_0_0)) {
+        VersionedNamedWriteable.writeVersionedWritables(out, customs);
+        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             out.writeVInt(-1); // used to be minimumMasterNodesOnPublishingMaster, which was used in 7.x for BWC with 6.x
         }
     }
@@ -775,11 +1080,15 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
 
         private final Diff<DiscoveryNodes> nodes;
 
-        private final Diff<MetaData> metaData;
+        @Nullable
+        private final Diff<Map<String, CompatibilityVersions>> versions;
+        private final Diff<ClusterFeatures> features;
+
+        private final Diff<Metadata> metadata;
 
         private final Diff<ClusterBlocks> blocks;
 
-        private final Diff<ImmutableOpenMap<String, Custom>> customs;
+        private final Diff<Map<String, Custom>> customs;
 
         ClusterStateDiff(ClusterState before, ClusterState after) {
             fromUuid = before.stateUUID;
@@ -788,7 +1097,14 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
             clusterName = after.clusterName;
             routingTable = after.routingTable.diff(before.routingTable);
             nodes = after.nodes.diff(before.nodes);
-            metaData = after.metaData.diff(before.metaData);
+            versions = DiffableUtils.diff(
+                before.compatibilityVersions,
+                after.compatibilityVersions,
+                DiffableUtils.getStringKeySerializer(),
+                COMPATIBILITY_VERSIONS_VALUE_SERIALIZER
+            );
+            features = after.clusterFeatures.diff(before.clusterFeatures);
+            metadata = after.metadata.diff(before.metadata);
             blocks = after.blocks.diff(before.blocks);
             customs = DiffableUtils.diff(before.customs, after.customs, DiffableUtils.getStringKeySerializer(), CUSTOM_VALUE_SERIALIZER);
         }
@@ -800,10 +1116,24 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
             toVersion = in.readLong();
             routingTable = RoutingTable.readDiffFrom(in);
             nodes = DiscoveryNodes.readDiffFrom(in, localNode);
-            metaData = MetaData.readDiffFrom(in);
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0) && in.readBoolean()) {
+                versions = DiffableUtils.readJdkMapDiff(
+                    in,
+                    DiffableUtils.getStringKeySerializer(),
+                    COMPATIBILITY_VERSIONS_VALUE_SERIALIZER
+                );
+            } else {
+                versions = null;   // infer at application time
+            }
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
+                features = ClusterFeatures.readDiffFrom(in);
+            } else {
+                features = null;    // fill in when nodes re-register with a master that understands features
+            }
+            metadata = Metadata.readDiffFrom(in);
             blocks = ClusterBlocks.readDiffFrom(in);
-            customs = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), CUSTOM_VALUE_SERIALIZER);
-            if (in.getVersion().before(Version.V_8_0_0)) {
+            customs = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(), CUSTOM_VALUE_SERIALIZER);
+            if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
                 in.readVInt(); // used to be minimumMasterNodesOnPublishingMaster, which was used in 7.x for BWC with 6.x
             }
         }
@@ -816,10 +1146,16 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
             out.writeLong(toVersion);
             routingTable.writeTo(out);
             nodes.writeTo(out);
-            metaData.writeTo(out);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
+                out.writeOptionalWriteable(versions);
+            }
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
+                features.writeTo(out);
+            }
+            metadata.writeTo(out);
             blocks.writeTo(out);
             customs.writeTo(out);
-            if (out.getVersion().before(Version.V_8_0_0)) {
+            if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
                 out.writeVInt(-1); // used to be minimumMasterNodesOnPublishingMaster, which was used in 7.x for BWC with 6.x
             }
         }
@@ -838,10 +1174,23 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
             builder.version(toVersion);
             builder.routingTable(routingTable.apply(state.routingTable));
             builder.nodes(nodes.apply(state.nodes));
-            builder.metaData(metaData.apply(state.metaData));
+            if (versions != null) {
+                builder.nodeIdsToCompatibilityVersions(this.versions.apply(state.compatibilityVersions));
+            } else {
+                // infer the versions from discoverynodes for now
+                // leave mappings versions empty
+                builder.nodes()
+                    .getNodes()
+                    .values()
+                    .forEach(n -> builder.putCompatibilityVersions(n.getId(), inferTransportVersion(n), Map.of()));
+            }
+            if (features != null) {
+                builder.nodeFeatures(this.features.apply(state.clusterFeatures));
+            }
+            builder.metadata(metadata.apply(state.metadata));
             builder.blocks(blocks.apply(state.blocks));
             builder.customs(customs.apply(state.customs));
-            builder.fromDiff(true);
+            builder.fromDiff(state);
             return builder.build();
         }
     }

@@ -1,0 +1,90 @@
+[role="xpack"]
+[[schedule-yearly]]
+==== {watcher} yearly schedule
+++++
+<titleabbrev>Yearly schedule</titleabbrev>
+++++
+
+A <<trigger-schedule,`schedule`>> that triggers at a specific day and time
+every year. To use the `yearly` schedule, you specify the month, day, and time
+(or months, days, and times) when you want the scheduler to start the watch
+execution with the `in`, `on`, and `at` attributes.
+
+You can specify the month by name, abbreviation, or number:
+
+* `january`, `february`, `march`, `april`, `may`, `june`, `july`,
+  `august`, `september`, `october`, `november` and `december`
+
+* `jan`, `feb`, `mar`, `apr`, `may`, `jun`, `jul`, `aug`,
+  `sep`, `oct`, `nov` and `dec`
+
+* `1`, `2`, `3`, `4`, `5`, `6`, `7`, `8`, `9`, `10`, `11` and `12`
+
+You specify the day of month as a numeric value between `1` and `31` (inclusive).
+The Times are specified in the form `HH:mm` on a 24-hour clock. You can also use
+the reserved values `midnight` and `noon` for `00:00` and `12:00`.
+
+===== Configuring a yearly schedule
+
+To configure a once a year schedule, you specify the month with the `in` attribute,
+the day with the  `on` attribute, and the time with the `at` attribute. For
+example, the following `yearly` schedule triggers once a year at noon on January
+10th:
+
+[source,js]
+--------------------------------------------------
+{
+  "trigger" : {
+    "schedule" : {
+      "yearly" : { "in" : "january", "on" : 10, "at" : "noon" }
+    }
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+NOTE: You can also specify the month, day, and time with the `month`, `day`, and
+      `time` attributes, they are interchangeable with `in`, `on`, and `at`.
+
+===== Configuring a multiple times yearly schedule
+
+To configure a `yearly` schedule that triggers multiple times a year, you can
+specify an array of month, day, and time values. For example, the following
+`yearly` schedule triggers twice a year: at noon on January 10th, and at 5:00 PM
+on July 20th.
+
+[source,js]
+--------------------------------------------------
+{
+  "trigger" : {
+    "schedule" : {
+      "yearly" : [
+        { "in" : "january", "on" : 10, "at" : "noon" },
+        { "in" : "july", "on" : 20, "at" : "17:00" }
+      ]
+    }
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+Alternatively, you can specify the months, days, and times in an object that has
+`in`, `on`, and `minute` attributes that contain an array of values. For example,
+the following `yearly` schedule triggers at 12:00 AM and 12:00 PM on January 10th,
+January 20th, December 10th, and December 20th.
+
+[source,js]
+--------------------------------------------------
+{
+  "trigger" : {
+    "schedule" : {
+      "yearly" : {
+        "in" : [ "jan", "dec" ],
+        "on" : [ 10, 20 ],
+        "at" : [ "midnight", "noon" ]
+      }
+    }
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE

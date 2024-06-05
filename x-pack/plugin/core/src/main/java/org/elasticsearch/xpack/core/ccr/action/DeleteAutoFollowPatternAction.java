@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ccr.action;
 
@@ -11,6 +12,7 @@ import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.TimeValue;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -23,14 +25,15 @@ public class DeleteAutoFollowPatternAction extends ActionType<AcknowledgedRespon
     public static final DeleteAutoFollowPatternAction INSTANCE = new DeleteAutoFollowPatternAction();
 
     private DeleteAutoFollowPatternAction() {
-        super(NAME, AcknowledgedResponse::new);
+        super(NAME);
     }
 
     public static class Request extends AcknowledgedRequest<Request> {
 
         private final String name;
 
-        public Request(String name) {
+        public Request(TimeValue masterNodeTimeout, TimeValue ackTimeout, String name) {
+            super(masterNodeTimeout, ackTimeout);
             this.name = name;
         }
 

@@ -1,27 +1,18 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.test.fixture;
 
 import com.sun.net.httpserver.HttpServer;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.io.PathUtils;
+
+import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.SuppressForbidden;
+import org.junit.rules.ExternalResource;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -50,7 +41,7 @@ import static java.util.Collections.singletonMap;
  * Base class for test fixtures that requires a {@link HttpServer} to work.
  */
 @SuppressForbidden(reason = "uses httpserver by design")
-public abstract class AbstractHttpFixture {
+public abstract class AbstractHttpFixture extends ExternalResource {
 
     protected static final Map<String, String> TEXT_PLAIN_CONTENT_TYPE = contentType("text/plain; charset=utf-8");
     protected static final Map<String, String> JSON_CONTENT_TYPE = contentType("application/json; charset=utf-8");
@@ -61,95 +52,127 @@ public abstract class AbstractHttpFixture {
     private final AtomicLong requests = new AtomicLong(0);
 
     /** Current working directory of the fixture **/
-    private final Path workingDirectory;
+    private Path workingDirectory;
+    private int port;
+    private HttpServer httpServer;
 
     protected AbstractHttpFixture(final String workingDir) {
+        this(workingDir, 0);
+    }
+
+    protected AbstractHttpFixture(final String workingDir, int port) {
+        this.port = port;
         this.workingDirectory = PathUtils.get(Objects.requireNonNull(workingDir));
     }
 
+    public AbstractHttpFixture() {}
+
     /**
-     * Opens a {@link HttpServer} and start listening on a random port.
+     * Opens a {@link HttpServer} and start listening on a provided or random port.
      */
     public final void listen() throws IOException, InterruptedException {
-        final InetSocketAddress socketAddress = new InetSocketAddress(InetAddress.getLoopbackAddress(), 0);
-        final HttpServer httpServer = HttpServer.create(socketAddress, 0);
+        listen(InetAddress.getLoopbackAddress(), true);
+    }
 
+    /**
+     * Opens a {@link HttpServer} and start listening on a provided or random port.
+     */
+    public final void listen(InetAddress inetAddress, boolean exposePidAndPort) throws IOException, InterruptedException {
+        final InetSocketAddress socketAddress = new InetSocketAddress(inetAddress, port);
+        listenAndWait(socketAddress, exposePidAndPort);
+    }
+
+    public final void listenAndWait(InetSocketAddress socketAddress, boolean exposePidAndPort) throws IOException, InterruptedException {
         try {
+            listen(socketAddress, exposePidAndPort);
+            // Wait to be killed
+            Thread.sleep(Long.MAX_VALUE);
+        } finally {
+            stop();
+        }
+    }
+
+    public final void listen(InetSocketAddress socketAddress, boolean exposePidAndPort) throws IOException, InterruptedException {
+        httpServer = HttpServer.create(socketAddress, 0);
+        if (exposePidAndPort) {
             /// Writes the PID of the current Java process in a `pid` file located in the working directory
             writeFile(workingDirectory, "pid", ManagementFactory.getRuntimeMXBean().getName().split("@")[0]);
 
             final String addressAndPort = addressToString(httpServer.getAddress());
             // Writes the address and port of the http server in a `ports` file located in the working directory
             writeFile(workingDirectory, "ports", addressAndPort);
+        }
 
-            httpServer.createContext("/", exchange -> {
-                try {
-                    Response response;
+        httpServer.createContext("/", exchange -> {
+            try {
+                Response response;
 
-                    // Check if this is a request made by the AntFixture
-                    final String userAgent = exchange.getRequestHeaders().getFirst("User-Agent");
-                    if (userAgent != null
-                        && userAgent.startsWith("Apache Ant")
-                        && "GET".equals(exchange.getRequestMethod())
-                        && "/".equals(exchange.getRequestURI().getPath())) {
-                        response = new Response(200, TEXT_PLAIN_CONTENT_TYPE, "OK".getBytes(UTF_8));
+                // Check if this is a request made by the AntFixture
+                final String userAgent = exchange.getRequestHeaders().getFirst("User-Agent");
+                if (userAgent != null
+                    && userAgent.startsWith("Apache Ant")
+                    && "GET".equals(exchange.getRequestMethod())
+                    && "/".equals(exchange.getRequestURI().getPath())) {
+                    response = new Response(200, TEXT_PLAIN_CONTENT_TYPE, "OK".getBytes(UTF_8));
 
-                    } else {
-                        try {
-                            final long requestId = requests.getAndIncrement();
-                            final String method = exchange.getRequestMethod();
+                } else {
+                    try {
+                        final long requestId = requests.getAndIncrement();
+                        final String method = exchange.getRequestMethod();
 
-
-                            final Map<String, String> headers = new HashMap<>();
-                            for (Map.Entry<String, List<String>> header : exchange.getRequestHeaders().entrySet()) {
-                                headers.put(header.getKey(), exchange.getRequestHeaders().getFirst(header.getKey()));
-                            }
-
-                            final ByteArrayOutputStream body = new ByteArrayOutputStream();
-                            try (InputStream requestBody = exchange.getRequestBody()) {
-                                final byte[] buffer = new byte[1024];
-                                int i;
-                                while ((i = requestBody.read(buffer, 0, buffer.length)) != -1) {
-                                    body.write(buffer, 0, i);
-                                }
-                                body.flush();
-                            }
-
-                            final Request request = new Request(requestId, method, exchange.getRequestURI(), headers, body.toByteArray());
-                            response = handle(request);
-
-                        } catch (Exception e) {
-                            final String error = e.getMessage() != null ? e.getMessage() : "Exception when processing the request";
-                            response = new Response(500, singletonMap("Content-Type", "text/plain; charset=utf-8"), error.getBytes(UTF_8));
+                        final Map<String, String> headers = new HashMap<>();
+                        for (Map.Entry<String, List<String>> header : exchange.getRequestHeaders().entrySet()) {
+                            headers.put(header.getKey(), exchange.getRequestHeaders().getFirst(header.getKey()));
                         }
-                    }
 
-                    if (response == null) {
-                        response = new Response(400, TEXT_PLAIN_CONTENT_TYPE, EMPTY_BYTE);
-                    }
+                        final ByteArrayOutputStream body = new ByteArrayOutputStream();
+                        try (InputStream requestBody = exchange.getRequestBody()) {
+                            final byte[] buffer = new byte[1024];
+                            int i;
+                            while ((i = requestBody.read(buffer, 0, buffer.length)) != -1) {
+                                body.write(buffer, 0, i);
+                            }
+                            body.flush();
+                        }
 
-                    response.headers.forEach((k, v) -> exchange.getResponseHeaders().put(k, singletonList(v)));
-                    if (response.body.length > 0) {
-                        exchange.sendResponseHeaders(response.status, response.body.length);
-                        exchange.getResponseBody().write(response.body);
-                    } else {
-                        exchange.sendResponseHeaders(response.status, -1);
+                        final Request request = new Request(requestId, method, exchange.getRequestURI(), headers, body.toByteArray());
+                        response = handle(request);
+
+                    } catch (Exception e) {
+                        final String error = e.getMessage() != null ? e.getMessage() : "Exception when processing the request";
+                        response = new Response(500, singletonMap("Content-Type", "text/plain; charset=utf-8"), error.getBytes(UTF_8));
                     }
-                } finally {
-                    exchange.close();
                 }
-            });
-            httpServer.start();
 
-            // Wait to be killed
-            Thread.sleep(Long.MAX_VALUE);
+                if (response == null) {
+                    response = new Response(400, TEXT_PLAIN_CONTENT_TYPE, EMPTY_BYTE);
+                }
 
-        } finally {
+                response.headers.forEach((k, v) -> exchange.getResponseHeaders().put(k, singletonList(v)));
+                if (response.body.length > 0) {
+                    exchange.sendResponseHeaders(response.status, response.body.length);
+                    exchange.getResponseBody().write(response.body);
+                } else {
+                    exchange.sendResponseHeaders(response.status, -1);
+                }
+            } finally {
+                exchange.close();
+            }
+        });
+        httpServer.start();
+    }
+
+    protected abstract Response handle(Request request) throws IOException;
+
+    protected void stop() {
+        if (httpServer != null) {
             httpServer.stop(0);
         }
     }
 
-    protected abstract Response handle(Request request) throws IOException;
+    public String getAddress() {
+        return "http://127.0.0.1:" + httpServer.getAddress().getPort();
+    }
 
     @FunctionalInterface
     public interface RequestHandler {
@@ -159,28 +182,12 @@ public abstract class AbstractHttpFixture {
     /**
      * Represents an HTTP Response.
      */
-    protected static class Response {
+    protected record Response(int status, Map<String, String> headers, byte[] body) {
 
-        private final int status;
-        private final Map<String, String> headers;
-        private final byte[] body;
-
-        public Response(final int status, final Map<String, String> headers, final byte[] body) {
+        public Response(int status, Map<String, String> headers, byte[] body) {
             this.status = status;
             this.headers = Objects.requireNonNull(headers);
             this.body = Objects.requireNonNull(body);
-        }
-
-        public int getStatus() {
-            return status;
-        }
-
-        public Map<String, String> getHeaders() {
-            return headers;
-        }
-
-        public byte[] getBody() {
-            return body;
         }
 
         public String getContentType() {
@@ -190,15 +197,6 @@ public abstract class AbstractHttpFixture {
                 }
             }
             return null;
-        }
-
-        @Override
-        public String toString() {
-            return "Response{" +
-                "status=" + status +
-                ", headers=" + headers +
-                ", body=" + new String(body, UTF_8) +
-                '}';
         }
     }
 
@@ -218,13 +216,13 @@ public abstract class AbstractHttpFixture {
             this.id = id;
             this.method = Objects.requireNonNull(method);
             this.uri = Objects.requireNonNull(uri);
-            this.headers =  Objects.requireNonNull(headers);
-            this.body =  Objects.requireNonNull(body);
+            this.headers = Objects.requireNonNull(headers);
+            this.body = Objects.requireNonNull(body);
 
             final Map<String, String> params = new HashMap<>();
             if (uri.getQuery() != null && uri.getQuery().length() > 0) {
                 for (String param : uri.getQuery().split("&")) {
-                    int i = param.indexOf("=");
+                    int i = param.indexOf('=');
                     if (i > 0) {
                         params.put(param.substring(0, i), param.substring(i + 1));
                     } else {
@@ -283,13 +281,19 @@ public abstract class AbstractHttpFixture {
 
         @Override
         public String toString() {
-            return "Request{" +
-                "method='" + method + '\'' +
-                ", uri=" + uri +
-                ", parameters=" + parameters +
-                ", headers=" + headers +
-                ", body=" + body +
-                '}';
+            return "Request{"
+                + "method='"
+                + method
+                + '\''
+                + ", uri="
+                + uri
+                + ", parameters="
+                + parameters
+                + ", headers="
+                + headers
+                + ", body="
+                + body
+                + '}';
         }
     }
 

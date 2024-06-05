@@ -1,32 +1,23 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 public class JsonProcessorFactoryTests extends ESTestCase {
 
@@ -39,7 +30,7 @@ public class JsonProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("field", randomField);
         config.put("target_field", randomTargetField);
-        JsonProcessor jsonProcessor = FACTORY.create(null, processorTag, config);
+        JsonProcessor jsonProcessor = FACTORY.create(null, processorTag, null, config);
         assertThat(jsonProcessor.getTag(), equalTo(processorTag));
         assertThat(jsonProcessor.getField(), equalTo(randomField));
         assertThat(jsonProcessor.getTargetField(), equalTo(randomTargetField));
@@ -51,7 +42,7 @@ public class JsonProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("field", randomField);
         config.put("add_to_root", true);
-        JsonProcessor jsonProcessor = FACTORY.create(null, processorTag, config);
+        JsonProcessor jsonProcessor = FACTORY.create(null, processorTag, null, config);
         assertThat(jsonProcessor.getTag(), equalTo(processorTag));
         assertThat(jsonProcessor.getField(), equalTo(randomField));
         assertThat(jsonProcessor.getTargetField(), equalTo(randomField));
@@ -63,7 +54,7 @@ public class JsonProcessorFactoryTests extends ESTestCase {
         String randomField = randomAlphaOfLength(10);
         Map<String, Object> config = new HashMap<>();
         config.put("field", randomField);
-        JsonProcessor jsonProcessor = FACTORY.create(null, processorTag, config);
+        JsonProcessor jsonProcessor = FACTORY.create(null, processorTag, null, config);
         assertThat(jsonProcessor.getTag(), equalTo(processorTag));
         assertThat(jsonProcessor.getField(), equalTo(randomField));
         assertThat(jsonProcessor.getTargetField(), equalTo(randomField));
@@ -72,9 +63,34 @@ public class JsonProcessorFactoryTests extends ESTestCase {
     public void testCreateWithMissingField() throws Exception {
         Map<String, Object> config = new HashMap<>();
         String processorTag = randomAlphaOfLength(10);
-        ElasticsearchException exception = expectThrows(ElasticsearchParseException.class,
-            () -> FACTORY.create(null, processorTag, config));
+        ElasticsearchException exception = expectThrows(
+            ElasticsearchParseException.class,
+            () -> FACTORY.create(null, processorTag, null, config)
+        );
         assertThat(exception.getMessage(), equalTo("[field] required property is missing"));
+    }
+
+    public void testCreateWithStrictParsingParameter() throws Exception {
+        String fieldName = randomAlphaOfLength(10);
+        String processorTag = randomAlphaOfLength(10);
+        IngestDocument document = new IngestDocument("_index", "_id", 1, null, null, Map.of(fieldName, "123 \"foo\""));
+
+        {
+            Map<String, Object> strictConfig = new HashMap<>();
+            strictConfig.put("field", fieldName);
+            JsonProcessor strictProcessor = FACTORY.create(null, processorTag, null, strictConfig);
+            IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> strictProcessor.execute(document));
+            assertThat(exception.getMessage(), containsString("is not valid JSON and the strict_json_parsing parameter is true"));
+        }
+
+        {
+            Map<String, Object> lenientConfig = new HashMap<>();
+            lenientConfig.put("field", fieldName);
+            lenientConfig.put("strict_json_parsing", false);
+            JsonProcessor lenientProcessor = FACTORY.create(null, processorTag, null, lenientConfig);
+            IngestDocument result = lenientProcessor.execute(document);
+            assertThat(result.getSource().get(fieldName), equalTo(123));
+        }
     }
 
     public void testCreateWithBothTargetFieldAndAddToRoot() throws Exception {
@@ -84,8 +100,56 @@ public class JsonProcessorFactoryTests extends ESTestCase {
         config.put("field", randomField);
         config.put("target_field", randomTargetField);
         config.put("add_to_root", true);
-        ElasticsearchException exception = expectThrows(ElasticsearchParseException.class,
-            () -> FACTORY.create(null, randomAlphaOfLength(10), config));
+        ElasticsearchException exception = expectThrows(
+            ElasticsearchParseException.class,
+            () -> FACTORY.create(null, randomAlphaOfLength(10), null, config)
+        );
         assertThat(exception.getMessage(), equalTo("[target_field] Cannot set a target field while also setting `add_to_root` to true"));
+    }
+
+    public void testReplaceMergeStrategy() throws Exception {
+        JsonProcessor jsonProcessor = getJsonProcessorWithMergeStrategy(null, true);
+        assertThat(jsonProcessor.getAddToRootConflictStrategy(), equalTo(JsonProcessor.ConflictStrategy.REPLACE));
+
+        jsonProcessor = getJsonProcessorWithMergeStrategy("replace", true);
+        assertThat(jsonProcessor.getAddToRootConflictStrategy(), equalTo(JsonProcessor.ConflictStrategy.REPLACE));
+    }
+
+    public void testRecursiveMergeStrategy() throws Exception {
+        JsonProcessor jsonProcessor = getJsonProcessorWithMergeStrategy("merge", true);
+        assertThat(jsonProcessor.getAddToRootConflictStrategy(), equalTo(JsonProcessor.ConflictStrategy.MERGE));
+    }
+
+    public void testMergeStrategyWithoutAddToRoot() throws Exception {
+        ElasticsearchException exception = expectThrows(
+            ElasticsearchParseException.class,
+            () -> getJsonProcessorWithMergeStrategy("replace", false)
+        );
+        assertThat(
+            exception.getMessage(),
+            equalTo("[add_to_root_conflict_strategy] Cannot set `add_to_root_conflict_strategy` if `add_to_root` is false")
+        );
+    }
+
+    public void testUnknownMergeStrategy() throws Exception {
+        ElasticsearchException exception = expectThrows(
+            ElasticsearchParseException.class,
+            () -> getJsonProcessorWithMergeStrategy("foo", true)
+        );
+        assertThat(
+            exception.getMessage(),
+            equalTo("[add_to_root_conflict_strategy] conflict strategy [foo] not supported, cannot convert field.")
+        );
+    }
+
+    private JsonProcessor getJsonProcessorWithMergeStrategy(String mergeStrategy, boolean addToRoot) throws Exception {
+        String randomField = randomAlphaOfLength(10);
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", randomField);
+        config.put("add_to_root", addToRoot);
+        if (mergeStrategy != null) {
+            config.put("add_to_root_conflict_strategy", mergeStrategy);
+        }
+        return FACTORY.create(null, randomAlphaOfLength(10), null, config);
     }
 }

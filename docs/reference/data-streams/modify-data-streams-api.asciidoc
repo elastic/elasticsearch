@@ -1,0 +1,78 @@
+[[modify-data-streams-api]]
+=== Modify data streams API
+++++
+<titleabbrev>Modify data streams</titleabbrev>
+++++
+
+Performs one or more data stream modification actions in a single atomic
+operation.
+
+[source,console]
+----
+POST _data_stream/_modify
+{
+  "actions": [
+    {
+      "remove_backing_index": {
+        "data_stream": "my-logs",
+        "index": ".ds-my-logs-2099.01.01-000001"
+      }
+    },
+    {
+      "add_backing_index": {
+        "data_stream": "my-logs",
+        "index": "index-to-add"
+      }
+    }
+  ]
+}
+----
+// TEST[skip:cannot determine backing index name]
+
+[[modify-data-streams-api-request]]
+==== {api-request-title}
+
+`POST /_data_stream/_modify`
+
+[role="child_attributes"]
+[[modify-data-streams-api-request-body]]
+==== {api-request-body-title}
+
+`actions`::
+(Required, array of objects) Actions to perform.
++
+.Properties of `actions` objects
+[%collapsible%open]
+====
+`<action>`::
+(Required, object) The key is the action type. At least one action is required.
++
+.Valid `<action>` keys
+[%collapsible%open]
+=====
+`add_backing_index`::
+Adds an existing index as a backing index for a data stream. The index is
+hidden as part of this operation.
+
+WARNING: Adding indices with the `add_backing_index` action
+can potentially result in improper data stream behavior.
+This should be considered an expert level API.
+
+`remove_backing_index`::
+Removes a backing index from a data stream. The index is unhidden
+as part of this operation. A data stream's write index cannot be removed.
+
+=====
++
+The object body contains options for the action.
++
+.Properties of `<action>`
+[%collapsible%open]
+=====
+`data_stream`::
+(Required*, string) Data stream targeted by the action.
+
+`index`::
+(Required*, string) Index for the action.
+=====
+====

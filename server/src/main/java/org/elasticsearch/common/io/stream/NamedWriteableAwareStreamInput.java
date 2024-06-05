@@ -1,25 +1,18 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.io.stream;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 
 /**
  * Wraps a {@link StreamInput} and associates it with a {@link NamedWriteableRegistry}
@@ -40,16 +33,42 @@ public class NamedWriteableAwareStreamInput extends FilterStreamInput {
     }
 
     @Override
-    public <C extends NamedWriteable> C readNamedWriteable(@SuppressWarnings("unused") Class<C> categoryClass,
-                                                           @SuppressWarnings("unused") String name) throws IOException {
+    public <T extends NamedWriteable> List<T> readNamedWriteableCollectionAsList(Class<T> categoryClass) throws IOException {
+        int count = readArraySize();
+        if (count == 0) {
+            return Collections.emptyList();
+        }
+        final Map<String, Writeable.Reader<?>> readers = namedWriteableRegistry.getReaders(categoryClass);
+        List<T> builder = new ArrayList<>(count);
+        for (int i = 0; i < count; i++) {
+            final String name = readString();
+            builder.add(NamedWriteableRegistry.getReader(categoryClass, name, readers).read(this));
+        }
+        return builder;
+    }
+
+    @Override
+    public <C extends NamedWriteable> C readNamedWriteable(
+        @SuppressWarnings("unused") Class<C> categoryClass,
+        @SuppressWarnings("unused") String name
+    ) throws IOException {
         Writeable.Reader<? extends C> reader = namedWriteableRegistry.getReader(categoryClass, name);
         C c = reader.read(this);
         if (c == null) {
-            throw new IOException(
-                "Writeable.Reader [" + reader + "] returned null which is not allowed and probably means it screwed up the stream.");
+            throwOnNullRead(reader);
         }
-        assert name.equals(c.getWriteableName()) : c + " claims to have a different name [" + c.getWriteableName()
-            + "] than it was read from [" + name + "].";
+        assert assertNameMatches(name, c);
         return c;
+    }
+
+    private static <C extends NamedWriteable> boolean assertNameMatches(String name, C c) {
+        assert name.equals(c.getWriteableName())
+            : c + " claims to have a different name [" + c.getWriteableName() + "] than it was read from [" + name + "].";
+        return true;
+    }
+
+    @Override
+    public NamedWriteableRegistry namedWriteableRegistry() {
+        return namedWriteableRegistry;
     }
 }

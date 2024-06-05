@@ -1,58 +1,60 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.rest.results;
 
-import org.apache.logging.log4j.LogManager;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.ml.action.GetBucketsAction;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.results.Result;
-import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
+import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
+import static org.elasticsearch.xpack.ml.MachineLearning.PRE_V7_BASE_PATH;
 
+@ServerlessScope(Scope.INTERNAL)
 public class RestGetBucketsAction extends BaseRestHandler {
 
-    private static final DeprecationLogger deprecationLogger =
-        new DeprecationLogger(LogManager.getLogger(RestGetBucketsAction.class));
-
-    public RestGetBucketsAction(RestController controller) {
-        // TODO: remove deprecated endpoint in 8.0.0
-        controller.registerWithDeprecatedHandler(
-            GET, MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName()
-                + "}/results/buckets/{" + Result.TIMESTAMP.getPreferredName() + "}", this,
-            GET, MachineLearning.PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName()
-                + "}/results/buckets/{" + Result.TIMESTAMP.getPreferredName() + "}", deprecationLogger);
-        controller.registerWithDeprecatedHandler(
-            POST, MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName()
-                + "}/results/buckets/{" + Result.TIMESTAMP.getPreferredName() + "}", this,
-            POST, MachineLearning.PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName()
-                + "}/results/buckets/{" + Result.TIMESTAMP.getPreferredName() + "}", deprecationLogger);
-
-        controller.registerWithDeprecatedHandler(
-            GET, MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName()
-                + "}/results/buckets", this,
-            GET, MachineLearning.PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName()
-                + "}/results/buckets", deprecationLogger);
-        controller.registerWithDeprecatedHandler(
-            POST, MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName()
-                + "}/results/buckets", this,
-            POST, MachineLearning.PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName()
-                + "}/results/buckets", deprecationLogger);
+    @Override
+    public List<Route> routes() {
+        return List.of(
+            Route.builder(GET, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/results/buckets/{" + Result.TIMESTAMP + "}")
+                .replaces(
+                    GET,
+                    PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/results/buckets/{" + Result.TIMESTAMP + "}",
+                    RestApiVersion.V_7
+                )
+                .build(),
+            Route.builder(POST, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/results/buckets/{" + Result.TIMESTAMP + "}")
+                .replaces(
+                    POST,
+                    PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/results/buckets/{" + Result.TIMESTAMP + "}",
+                    RestApiVersion.V_7
+                )
+                .build(),
+            Route.builder(GET, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/results/buckets")
+                .replaces(GET, PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/results/buckets", RestApiVersion.V_7)
+                .build(),
+            Route.builder(POST, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/results/buckets")
+                .replaces(POST, PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/results/buckets", RestApiVersion.V_7)
+                .build()
+        );
     }
 
     @Override
@@ -70,7 +72,7 @@ public class RestGetBucketsAction extends BaseRestHandler {
             request = GetBucketsAction.Request.parseRequest(jobId, parser);
 
             // A timestamp in the URL overrides any timestamp that may also have been set in the body
-            if (!Strings.isNullOrEmpty(timestamp)) {
+            if (Strings.isNullOrEmpty(timestamp) == false) {
                 request.setTimestamp(timestamp);
             }
         } else {
@@ -78,14 +80,17 @@ public class RestGetBucketsAction extends BaseRestHandler {
 
             // Check if the REST param is set first so mutually exclusive
             // options will cause an error if set
-            if (!Strings.isNullOrEmpty(timestamp)) {
+            if (Strings.isNullOrEmpty(timestamp) == false) {
                 request.setTimestamp(timestamp);
             }
             // multiple bucket options
             if (restRequest.hasParam(PageParams.FROM.getPreferredName()) || restRequest.hasParam(PageParams.SIZE.getPreferredName())) {
                 request.setPageParams(
-                        new PageParams(restRequest.paramAsInt(PageParams.FROM.getPreferredName(), PageParams.DEFAULT_FROM),
-                                restRequest.paramAsInt(PageParams.SIZE.getPreferredName(), PageParams.DEFAULT_SIZE)));
+                    new PageParams(
+                        restRequest.paramAsInt(PageParams.FROM.getPreferredName(), PageParams.DEFAULT_FROM),
+                        restRequest.paramAsInt(PageParams.SIZE.getPreferredName(), PageParams.DEFAULT_SIZE)
+                    )
+                );
             }
             if (restRequest.hasParam(GetBucketsAction.Request.START.getPreferredName())) {
                 request.setStart(restRequest.param(GetBucketsAction.Request.START.getPreferredName()));
@@ -95,13 +100,15 @@ public class RestGetBucketsAction extends BaseRestHandler {
             }
             if (restRequest.hasParam(GetBucketsAction.Request.ANOMALY_SCORE.getPreferredName())) {
                 request.setAnomalyScore(
-                        Double.parseDouble(restRequest.param(GetBucketsAction.Request.ANOMALY_SCORE.getPreferredName(), "0.0")));
+                    Double.parseDouble(restRequest.param(GetBucketsAction.Request.ANOMALY_SCORE.getPreferredName(), "0.0"))
+                );
             }
             if (restRequest.hasParam(GetBucketsAction.Request.SORT.getPreferredName())) {
                 request.setSort(restRequest.param(GetBucketsAction.Request.SORT.getPreferredName()));
             }
-            request.setDescending(restRequest.paramAsBoolean(GetBucketsAction.Request.DESCENDING.getPreferredName(),
-                    request.isDescending()));
+            request.setDescending(
+                restRequest.paramAsBoolean(GetBucketsAction.Request.DESCENDING.getPreferredName(), request.isDescending())
+            );
 
             // single and multiple bucket options
             request.setExpand(restRequest.paramAsBoolean(GetBucketsAction.Request.EXPAND.getPreferredName(), false));

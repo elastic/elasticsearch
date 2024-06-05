@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.index.engine;
 
@@ -23,16 +12,13 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Map;
-
-import static java.util.Map.entry;
+import java.util.Objects;
 
 /** a class the returns dynamic information with respect to the last commit point of this shard */
 public final class CommitStats implements Writeable, ToXContentFragment {
@@ -52,21 +38,28 @@ public final class CommitStats implements Writeable, ToXContentFragment {
     }
 
     CommitStats(StreamInput in) throws IOException {
-        final int length = in.readVInt();
-        final var entries = new ArrayList<Map.Entry<String, String>>(length);
-        for (int i = length; i > 0; i--) {
-            entries.add(entry(in.readString(), in.readString()));
-        }
-        userData = Maps.ofEntries(entries);
+        userData = in.readImmutableMap(StreamInput::readString);
         generation = in.readLong();
         id = in.readOptionalString();
         numDocs = in.readInt();
     }
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        CommitStats that = (CommitStats) o;
+        return userData.equals(that.userData) && generation == that.generation && Objects.equals(id, that.id) && numDocs == that.numDocs;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(userData, generation, id, numDocs);
+    }
+
     public static CommitStats readOptionalCommitStatsFrom(StreamInput in) throws IOException {
         return in.readOptionalWriteable(CommitStats::new);
     }
-
 
     public Map<String, String> getUserData() {
         return userData;
@@ -90,11 +83,7 @@ public final class CommitStats implements Writeable, ToXContentFragment {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(userData.size());
-        for (Map.Entry<String, String> entry : userData.entrySet()) {
-            out.writeString(entry.getKey());
-            out.writeString(entry.getValue());
-        }
+        out.writeMap(userData, StreamOutput::writeString);
         out.writeLong(generation);
         out.writeOptionalString(id);
         out.writeInt(numDocs);

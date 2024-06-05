@@ -1,5 +1,3 @@
-[role="xpack"]
-[testenv="gold+"]
 [[certgen]]
 == elasticsearch-certgen
 
@@ -10,7 +8,7 @@ authorities (CA), certificate signing requests (CSR), and signed certificates
 for use with the Elastic Stack. Though this command is deprecated, you do not
 need to replace CAs, CSRs, or certificates that it created.
 
-[float]
+[discrete]
 === Synopsis
 
 [source,shell]
@@ -23,7 +21,7 @@ bin/elasticsearch-certgen
 ([-s, --silent] | [-v, --verbose])
 --------------------------------------------------
 
-[float]
+[discrete]
 === Description
 
 By default, the command runs in interactive mode and you are prompted for
@@ -54,7 +52,8 @@ organization-specific certificate authority to obtain signed certificates. The
 signed certificates must be in PEM format to work with the {stack}
 {security-features}.
 
-[float]
+[discrete]
+[[certgen-parameters]]
 === Parameters
 
 `--cert <cert_file>`:: Specifies to generate new instance certificates and keys
@@ -103,10 +102,10 @@ which can be blank. This parameter cannot be used with the `-csr` parameter.
 
 `-v, --verbose`:: Shows verbose output.
 
-[float]
+[discrete]
 === Examples
 
-[float]
+[discrete]
 [[certgen-silent]]
 ==== Using `elasticsearch-certgen` in Silent Mode
 

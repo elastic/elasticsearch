@@ -1,27 +1,25 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.rollup.action;
 
-
 import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.rollup.RollupField;
 
 import java.io.IOException;
@@ -39,7 +37,7 @@ public class GetRollupIndexCapsAction extends ActionType<GetRollupIndexCapsActio
     private static final ParseField INDICES_OPTIONS = new ParseField("indices_options");
 
     private GetRollupIndexCapsAction() {
-        super(NAME, GetRollupIndexCapsAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends ActionRequest implements IndicesRequest.Replaceable, ToXContentFragment {
@@ -74,13 +72,18 @@ public class GetRollupIndexCapsAction extends ActionType<GetRollupIndexCapsActio
         }
 
         @Override
-        public IndicesRequest indices(String... indices) {
+        public IndicesRequest indices(@SuppressWarnings("HiddenField") String... indices) {
             Objects.requireNonNull(indices, "indices must not be null");
             for (String index : indices) {
                 Objects.requireNonNull(index, "index must not be null");
             }
             this.indices = indices;
             return this;
+        }
+
+        @Override
+        public boolean includeDataStreams() {
+            return true;
         }
 
         @Override
@@ -116,15 +119,7 @@ public class GetRollupIndexCapsAction extends ActionType<GetRollupIndexCapsActio
                 return false;
             }
             Request other = (Request) obj;
-            return Arrays.equals(indices, other.indices)
-                && Objects.equals(options, other.options);
-        }
-    }
-
-    public static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
-
-        protected RequestBuilder(ElasticsearchClient client, GetRollupIndexCapsAction action) {
-            super(client, action, new Request());
+            return Arrays.equals(indices, other.indices) && Objects.equals(options, other.options);
         }
     }
 
@@ -140,17 +135,13 @@ public class GetRollupIndexCapsAction extends ActionType<GetRollupIndexCapsActio
             this.jobs = Objects.requireNonNull(jobs);
         }
 
-        Response(StreamInput in) throws IOException {
-            jobs = in.readMap(StreamInput::readString, RollableIndexCaps::new);
-        }
-
         public Map<String, RollableIndexCaps> getJobs() {
             return jobs;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeMap(jobs, StreamOutput::writeString, (out1, value) -> value.writeTo(out1));
+            out.writeMap(jobs, StreamOutput::writeWriteable);
         }
 
         @Override

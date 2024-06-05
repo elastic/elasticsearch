@@ -1,42 +1,39 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.rest.action.cat;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Table;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.recycler.Recycler;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.rest.AbstractRestChannel;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
+import org.elasticsearch.xcontent.XContentType;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.rest.action.cat.RestTable.buildDisplayHeaders;
 import static org.elasticsearch.rest.action.cat.RestTable.buildResponse;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.equalToIgnoringCase;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.not;
 
@@ -50,18 +47,30 @@ public class RestTableTests extends ESTestCase {
     private static final String ACCEPT = "Accept";
     private static final String TEXT_PLAIN = "text/plain; charset=UTF-8";
     private static final String TEXT_TABLE_BODY = "foo foo foo foo foo foo foo foo\n";
-    private static final String JSON_TABLE_BODY = "[{\"bulk.foo\":\"foo\",\"bulk.bar\":\"foo\",\"aliasedBulk\":\"foo\"," +
-            "\"aliasedSecondBulk\":\"foo\",\"unmatched\":\"foo\"," +
-            "\"invalidAliasesBulk\":\"foo\",\"timestamp\":\"foo\",\"epoch\":\"foo\"}]";
-    private static final String YAML_TABLE_BODY = "---\n" +
-            "- bulk.foo: \"foo\"\n" +
-            "  bulk.bar: \"foo\"\n" +
-            "  aliasedBulk: \"foo\"\n" +
-            "  aliasedSecondBulk: \"foo\"\n" +
-            "  unmatched: \"foo\"\n" +
-            "  invalidAliasesBulk: \"foo\"\n" +
-            "  timestamp: \"foo\"\n" +
-            "  epoch: \"foo\"\n";
+    private static final String JSON_TABLE_BODY = """
+        [
+          {
+            "bulk.foo": "foo",
+            "bulk.bar": "foo",
+            "aliasedBulk": "foo",
+            "aliasedSecondBulk": "foo",
+            "unmatched": "foo",
+            "invalidAliasesBulk": "foo",
+            "timestamp": "foo",
+            "epoch": "foo"
+          }
+        ]""";
+    private static final String YAML_TABLE_BODY = """
+        ---
+        - bulk.foo: "foo"
+          bulk.bar: "foo"
+          aliasedBulk: "foo"
+          aliasedSecondBulk: "foo"
+          unmatched: "foo"
+          invalidAliasesBulk: "foo"
+          timestamp: "foo"
+          epoch: "foo"
+        """;
     private Table table;
     private FakeRestRequest restRequest;
 
@@ -104,37 +113,31 @@ public class RestTableTests extends ESTestCase {
     }
 
     public void testThatWeUseTheAcceptHeaderJson() throws Exception {
-        assertResponse(Collections.singletonMap(ACCEPT, Collections.singletonList(APPLICATION_JSON)),
-                APPLICATION_JSON,
-                JSON_TABLE_BODY);
+        assertResponse(
+            Collections.singletonMap(ACCEPT, Collections.singletonList(APPLICATION_JSON)),
+            APPLICATION_JSON,
+            XContentHelper.stripWhitespace(JSON_TABLE_BODY)
+        );
     }
 
     public void testThatWeUseTheAcceptHeaderYaml() throws Exception {
-        assertResponse(Collections.singletonMap(ACCEPT, Collections.singletonList(APPLICATION_YAML)),
-                APPLICATION_YAML,
-                YAML_TABLE_BODY);
+        assertResponse(Collections.singletonMap(ACCEPT, Collections.singletonList(APPLICATION_YAML)), APPLICATION_YAML, YAML_TABLE_BODY);
     }
 
     public void testThatWeUseTheAcceptHeaderSmile() throws Exception {
-        assertResponseContentType(Collections.singletonMap(ACCEPT, Collections.singletonList(APPLICATION_SMILE)),
-                APPLICATION_SMILE);
+        assertResponseContentType(Collections.singletonMap(ACCEPT, Collections.singletonList(APPLICATION_SMILE)), APPLICATION_SMILE);
     }
 
     public void testThatWeUseTheAcceptHeaderCbor() throws Exception {
-        assertResponseContentType(Collections.singletonMap(ACCEPT, Collections.singletonList(APPLICATION_CBOR)),
-                APPLICATION_CBOR);
+        assertResponseContentType(Collections.singletonMap(ACCEPT, Collections.singletonList(APPLICATION_CBOR)), APPLICATION_CBOR);
     }
 
     public void testThatWeUseTheAcceptHeaderText() throws Exception {
-        assertResponse(Collections.singletonMap(ACCEPT, Collections.singletonList(TEXT_PLAIN)),
-                TEXT_PLAIN,
-                TEXT_TABLE_BODY);
+        assertResponse(Collections.singletonMap(ACCEPT, Collections.singletonList(TEXT_PLAIN)), TEXT_PLAIN, TEXT_TABLE_BODY);
     }
 
     public void testIgnoreContentType() throws Exception {
-        assertResponse(Collections.singletonMap(CONTENT_TYPE, Collections.singletonList(APPLICATION_JSON)),
-                TEXT_PLAIN,
-                TEXT_TABLE_BODY);
+        assertResponse(Collections.singletonMap(CONTENT_TYPE, Collections.singletonList(APPLICATION_JSON)), TEXT_PLAIN, TEXT_TABLE_BODY);
     }
 
     public void testThatDisplayHeadersWithoutTimestamp() throws Exception {
@@ -154,24 +157,28 @@ public class RestTableTests extends ESTestCase {
         table.addCell("compare");
         table.endHeaders();
 
-        for (Integer i : Arrays.asList(1,2,1)) {
+        for (Integer i : Arrays.asList(1, 2, 1)) {
             table.startRow();
             table.addCell(i);
             table.endRow();
         }
 
-        RestTable.TableIndexComparator comparator = new RestTable.TableIndexComparator(table,
-            Collections.singletonList(new RestTable.ColumnOrderElement("compare", false)));
-        assertTrue(comparator.compare(0,1) < 0);
-        assertTrue(comparator.compare(0,2) == 0);
-        assertTrue(comparator.compare(1,2) > 0);
+        RestTable.TableIndexComparator comparator = new RestTable.TableIndexComparator(
+            table,
+            Collections.singletonList(new RestTable.ColumnOrderElement("compare", false))
+        );
+        assertTrue(comparator.compare(0, 1) < 0);
+        assertTrue(comparator.compare(0, 2) == 0);
+        assertTrue(comparator.compare(1, 2) > 0);
 
-        RestTable.TableIndexComparator reverseComparator = new RestTable.TableIndexComparator(table,
-            Collections.singletonList(new RestTable.ColumnOrderElement("compare", true)));
+        RestTable.TableIndexComparator reverseComparator = new RestTable.TableIndexComparator(
+            table,
+            Collections.singletonList(new RestTable.ColumnOrderElement("compare", true))
+        );
 
-        assertTrue(reverseComparator.compare(0,1) > 0);
-        assertTrue(reverseComparator.compare(0,2) == 0);
-        assertTrue(reverseComparator.compare(1,2) < 0);
+        assertTrue(reverseComparator.compare(0, 1) > 0);
+        assertTrue(reverseComparator.compare(0, 2) == 0);
+        assertTrue(reverseComparator.compare(1, 2) < 0);
     }
 
     public void testRowOutOfBounds() {
@@ -179,11 +186,11 @@ public class RestTableTests extends ESTestCase {
         table.startHeaders();
         table.addCell("compare");
         table.endHeaders();
-        RestTable.TableIndexComparator comparator = new RestTable.TableIndexComparator(table,
-            Collections.singletonList(new RestTable.ColumnOrderElement("compare", false)));
-        Error e = expectThrows(AssertionError.class, () -> {
-            comparator.compare(0,1);
-        });
+        RestTable.TableIndexComparator comparator = new RestTable.TableIndexComparator(
+            table,
+            Collections.singletonList(new RestTable.ColumnOrderElement("compare", false))
+        );
+        Error e = expectThrows(AssertionError.class, () -> { comparator.compare(0, 1); });
         assertEquals("Invalid comparison of indices (0, 1): Table has 0 rows.", e.getMessage());
     }
 
@@ -193,7 +200,7 @@ public class RestTableTests extends ESTestCase {
         table.addCell("compare");
         table.endHeaders();
         restRequest.params().put("s", "notaheader");
-        Exception e = expectThrows(UnsupportedOperationException.class, () -> RestTable.getRowOrder(table, restRequest));
+        Exception e = expectThrows(IllegalArgumentException.class, () -> RestTable.getRowOrder(table, restRequest));
         assertEquals("Unable to sort by unknown sort key `notaheader`", e.getMessage());
     }
 
@@ -202,7 +209,7 @@ public class RestTableTests extends ESTestCase {
         table.startHeaders();
         table.addCell("compare", "alias:c;");
         table.endHeaders();
-        List<Integer> comparisonList = Arrays.asList(3,1,2);
+        List<Integer> comparisonList = Arrays.asList(3, 1, 2);
         for (int i = 0; i < comparisonList.size(); i++) {
             table.startRow();
             table.addCell(comparisonList.get(i));
@@ -210,7 +217,7 @@ public class RestTableTests extends ESTestCase {
         }
         restRequest.params().put("s", "c");
         List<Integer> rowOrder = RestTable.getRowOrder(table, restRequest);
-        assertEquals(Arrays.asList(1,2,0), rowOrder);
+        assertEquals(Arrays.asList(1, 2, 0), rowOrder);
     }
 
     public void testReversedSort() {
@@ -226,7 +233,7 @@ public class RestTableTests extends ESTestCase {
         }
         restRequest.params().put("s", "reversed:desc");
         List<Integer> rowOrder = RestTable.getRowOrder(table, restRequest);
-        assertEquals(Arrays.asList(2,1,0), rowOrder);
+        assertEquals(Arrays.asList(2, 1, 0), rowOrder);
     }
 
     public void testMultiSort() {
@@ -245,11 +252,121 @@ public class RestTableTests extends ESTestCase {
         }
         restRequest.params().put("s", "compare,second.compare");
         List<Integer> rowOrder = RestTable.getRowOrder(table, restRequest);
-        assertEquals(Arrays.asList(2,1,0), rowOrder);
+        assertEquals(Arrays.asList(2, 1, 0), rowOrder);
 
         restRequest.params().put("s", "compare:desc,second.compare");
         rowOrder = RestTable.getRowOrder(table, restRequest);
-        assertEquals(Arrays.asList(1,0,2), rowOrder);
+        assertEquals(Arrays.asList(1, 0, 2), rowOrder);
+    }
+
+    public void testFormattedDouble() {
+        Table table = new Table();
+        table.startHeaders();
+        table.addCell("number");
+        table.endHeaders();
+        List<Integer> comparisonList = Arrays.asList(10, 9, 11);
+        for (int i = 0; i < comparisonList.size(); i++) {
+            table.startRow();
+            table.addCell(RestTable.FormattedDouble.format2DecimalPlaces(comparisonList.get(i)));
+            table.endRow();
+        }
+        restRequest.params().put("s", "number");
+        List<Integer> rowOrder = RestTable.getRowOrder(table, restRequest);
+        assertEquals(Arrays.asList(1, 0, 2), rowOrder);
+
+        restRequest.params().put("s", "number:desc");
+        rowOrder = RestTable.getRowOrder(table, restRequest);
+        assertEquals(Arrays.asList(2, 0, 1), rowOrder);
+    }
+
+    public void testPlainTextChunking() throws Exception {
+        final var cells = randomArray(8, 8, String[]::new, () -> randomAlphaOfLengthBetween(1, 5));
+        final var expectedRow = String.join(" ", cells) + "\n";
+
+        // OutputStreamWriter has an 8kiB buffer so all chunks are at least that big
+        final var bufferSize = ByteSizeUnit.KB.toIntBytes(8);
+        final var rowLength = expectedRow.length();
+        final var expectedRowsPerChunk = 1 + bufferSize / rowLength; // end chunk after first row which overflows the buffer
+        final var expectedChunkSize = expectedRowsPerChunk * rowLength;
+
+        final var rowCount = between(expectedRowsPerChunk + 1, expectedRowsPerChunk * 10);
+        final var expectedChunkCount = 1 + (rowCount * rowLength - 1) / expectedChunkSize; // ceil(rowCount * rowLength / expectedChunkSize)
+        assertThat(expectedChunkCount, greaterThan(1));
+
+        final var expectedBody = new StringBuilder();
+        for (int i = 0; i < rowCount; i++) {
+            table.startRow();
+            for (final var cell : cells) {
+                table.addCell(cell);
+            }
+            table.endRow();
+            expectedBody.append(expectedRow);
+        }
+
+        final var request = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(
+            Collections.singletonMap(ACCEPT, Collections.singletonList(TEXT_PLAIN))
+        ).build();
+
+        final var response = buildResponse(table, new AbstractRestChannel(request, true) {
+            @Override
+            public void sendResponse(RestResponse response) {}
+        });
+
+        final var bodyChunks = getBodyChunks(response, bufferSize);
+        assertEquals("chunk count", expectedChunkCount, bodyChunks.size());
+        assertEquals("first chunk size", expectedChunkSize, bodyChunks.get(0).length());
+        assertEquals("body contents", expectedBody.toString(), String.join("", bodyChunks));
+    }
+
+    public void testEmptyTable() throws Exception {
+        final var request = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(
+            Collections.singletonMap(ACCEPT, Collections.singletonList(TEXT_PLAIN))
+        ).build();
+
+        final var response = buildResponse(table, new AbstractRestChannel(request, true) {
+            @Override
+            public void sendResponse(RestResponse response) {}
+        });
+
+        assertFalse(response.isChunked());
+        assertThat(response.content().length(), equalTo(0));
+    }
+
+    public void testXContentChunking() throws Exception {
+        final var jsonTableRow = JSON_TABLE_BODY.substring(1, JSON_TABLE_BODY.length() - 2).replaceAll("\\s+", "");
+        final var expectedBody = new StringBuilder("[");
+        final var rowCount = between(10000, 20000);
+        for (int i = 0; i < rowCount; i++) {
+            if (i != 0) {
+                expectedBody.append(",");
+            }
+            table.startRow();
+            table.addCell("foo");
+            table.addCell("foo");
+            table.addCell("foo");
+            table.addCell("foo");
+            table.addCell("foo");
+            table.addCell("foo");
+            table.addCell("foo");
+            table.addCell("foo");
+            table.endRow();
+            expectedBody.append(jsonTableRow);
+        }
+        expectedBody.append("]");
+
+        final var request = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(
+            Collections.singletonMap(ACCEPT, Collections.singletonList(APPLICATION_JSON))
+        ).build();
+
+        final var response = buildResponse(table, new AbstractRestChannel(request, true) {
+            @Override
+            public void sendResponse(RestResponse response) {}
+        });
+
+        // layers of buffering make it hard to be precise here:
+        final var bodyChunks = getBodyChunks(response, 8192);
+        assertEquals(expectedBody.toString(), String.join("", bodyChunks));
+        assertThat(bodyChunks.size(), greaterThan(1));
     }
 
     private RestResponse assertResponseContentType(Map<String, List<String>> headers, String mediaType) throws Exception {
@@ -266,17 +383,66 @@ public class RestTableTests extends ESTestCase {
         table.endRow();
         RestResponse response = buildResponse(table, new AbstractRestChannel(requestWithAcceptHeader, true) {
             @Override
-            public void sendResponse(RestResponse response) {
-            }
+            public void sendResponse(RestResponse response) {}
         });
-
-        assertThat(response.contentType(), equalTo(mediaType));
+        String actualWithoutWhitespaces = mediaType.replaceAll("\\s+", "");
+        String expectedWithoutWhitespaces = response.contentType().replaceAll("\\s+", "");
+        assertThat(expectedWithoutWhitespaces, equalToIgnoringCase(actualWithoutWhitespaces));
         return response;
     }
 
     private void assertResponse(Map<String, List<String>> headers, String mediaType, String body) throws Exception {
         RestResponse response = assertResponseContentType(headers, mediaType);
-        assertThat(response.content().utf8ToString(), equalTo(body));
+        assertTrue(response.isChunked());
+        assertThat(String.join("", getBodyChunks(response, between(1, 1024))), equalTo(body));
+    }
+
+    private static List<String> getBodyChunks(RestResponse response, final int pageSize) throws IOException {
+        assertTrue(response.isChunked());
+
+        final var openPages = new AtomicInteger();
+        final var recycler = new Recycler<BytesRef>() {
+            @Override
+            public V<BytesRef> obtain() {
+                openPages.incrementAndGet();
+                return new V<>() {
+                    final BytesRef page = new BytesRef(new byte[pageSize], 0, pageSize);
+
+                    @Override
+                    public BytesRef v() {
+                        return page;
+                    }
+
+                    @Override
+                    public boolean isRecycled() {
+                        return false;
+                    }
+
+                    @Override
+                    public void close() {
+                        openPages.decrementAndGet();
+                    }
+                };
+            }
+
+            @Override
+            public int pageSize() {
+                return pageSize;
+            }
+        };
+
+        final var bodyChunks = new ArrayList<String>();
+        final var firstBodyPart = response.chunkedContent();
+
+        while (firstBodyPart.isPartComplete() == false) {
+            try (var chunk = firstBodyPart.encodeChunk(pageSize, recycler)) {
+                assertThat(chunk.length(), greaterThan(0));
+                bodyChunks.add(chunk.utf8ToString());
+            }
+        }
+        assertTrue(firstBodyPart.isLastPart());
+        assertEquals(0, openPages.get());
+        return bodyChunks;
     }
 
     private List<String> getHeaderNames(List<RestTable.DisplayHeader> headers) {

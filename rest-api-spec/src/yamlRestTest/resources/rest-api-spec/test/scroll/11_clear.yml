@@ -1,0 +1,121 @@
+---
+"Clear scroll":
+  - do:
+      indices.create:
+          index:  test_scroll
+  - do:
+      index:
+          index:  test_scroll
+          id:     "42"
+          body:   { foo: bar }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_scroll
+        scroll: 1m
+        body:
+          query:
+            match_all: {}
+
+  - set: {_scroll_id: scroll_id1}
+
+  - do:
+      clear_scroll:
+        scroll_id: $scroll_id1
+
+  - do:
+      catch: missing
+      scroll:
+        rest_total_hits_as_int: true
+        scroll_id: $scroll_id1
+
+  - do:
+        catch: missing
+        clear_scroll:
+          scroll_id: $scroll_id1
+
+---
+"Body params with array param override query string":
+  - do:
+      indices.create:
+          index:  test_scroll
+  - do:
+      index:
+          index:  test_scroll
+          id:     "42"
+          body:   { foo: bar }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_scroll
+        scroll: 1m
+        body:
+          query:
+            match_all: {}
+
+  - set: {_scroll_id: scroll_id1}
+
+  - do:
+      clear_scroll:
+        scroll_id: "invalid_scroll_id"
+        body: { "scroll_id": [ "$scroll_id1" ]}
+
+  - do:
+      catch: missing
+      scroll:
+        rest_total_hits_as_int: true
+        scroll_id: $scroll_id1
+
+  - do:
+        catch: missing
+        clear_scroll:
+          scroll_id: $scroll_id1
+
+---
+"Body params with string param scroll id override query string":
+  - do:
+      indices.create:
+          index:  test_scroll
+  - do:
+      index:
+          index:  test_scroll
+          id:     "42"
+          body:   { foo: bar }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_scroll
+        scroll: 1m
+        body:
+          query:
+            match_all: {}
+
+  - set: {_scroll_id: scroll_id1}
+
+  - do:
+      clear_scroll:
+        scroll_id: "invalid_scroll_id"
+        body: { "scroll_id": "$scroll_id1" }
+
+  - do:
+      catch: missing
+      scroll:
+        rest_total_hits_as_int: true
+        scroll_id: $scroll_id1
+
+  - do:
+        catch: missing
+        clear_scroll:
+          scroll_id: $scroll_id1

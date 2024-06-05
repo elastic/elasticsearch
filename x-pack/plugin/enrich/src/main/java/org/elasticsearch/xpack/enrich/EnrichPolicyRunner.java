@@ -1,63 +1,80 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.enrich;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
-import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
-import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.admin.indices.segments.IndexSegments;
 import org.elasticsearch.action.admin.indices.segments.IndexShardSegments;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsRequest;
 import org.elasticsearch.action.admin.indices.segments.ShardSegments;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.action.bulk.BulkItemResponse;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.FilterClient;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.AliasMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.iterable.Iterables;
+import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
-import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequest;
+import org.elasticsearch.index.reindex.ScrollableHitSource;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyStatus;
+import org.elasticsearch.xpack.enrich.action.EnrichReindexAction;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
-import java.util.function.LongSupplier;
+import java.util.stream.Collectors;
+
+import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.core.ClientHelper.ENRICH_ORIGIN;
 
 public class EnrichPolicyRunner implements Runnable {
 
@@ -75,9 +92,10 @@ public class EnrichPolicyRunner implements Runnable {
     private final ExecuteEnrichPolicyTask task;
     private final ActionListener<ExecuteEnrichPolicyStatus> listener;
     private final ClusterService clusterService;
+    private final IndicesService indicesService;
     private final Client client;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
-    private final LongSupplier nowSupplier;
+    private final String enrichIndexName;
     private final int fetchSize;
     private final int maxForceMergeAttempts;
 
@@ -87,50 +105,53 @@ public class EnrichPolicyRunner implements Runnable {
         ExecuteEnrichPolicyTask task,
         ActionListener<ExecuteEnrichPolicyStatus> listener,
         ClusterService clusterService,
+        IndicesService indicesService,
         Client client,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        LongSupplier nowSupplier,
+        String enrichIndexName,
         int fetchSize,
         int maxForceMergeAttempts
     ) {
-        this.policyName = policyName;
-        this.policy = policy;
-        this.task = task;
-        this.listener = listener;
-        this.clusterService = clusterService;
-        this.client = client;
-        this.indexNameExpressionResolver = indexNameExpressionResolver;
-        this.nowSupplier = nowSupplier;
+        this.policyName = Objects.requireNonNull(policyName);
+        this.policy = Objects.requireNonNull(policy);
+        this.task = Objects.requireNonNull(task);
+        this.listener = Objects.requireNonNull(listener);
+        this.clusterService = Objects.requireNonNull(clusterService);
+        this.indicesService = indicesService;
+        this.client = wrapClient(client, policyName, task, clusterService);
+        this.indexNameExpressionResolver = Objects.requireNonNull(indexNameExpressionResolver);
+        this.enrichIndexName = enrichIndexName;
         this.fetchSize = fetchSize;
         this.maxForceMergeAttempts = maxForceMergeAttempts;
     }
 
     @Override
     public void run() {
-        logger.info("Policy [{}]: Running enrich policy", policyName);
-        task.setStatus(new ExecuteEnrichPolicyStatus(ExecuteEnrichPolicyStatus.PolicyPhases.RUNNING));
-        // Collect the source index information
-        final String[] sourceIndices = policy.getIndices().toArray(new String[0]);
-        logger.debug("Policy [{}]: Checking source indices [{}]", policyName, sourceIndices);
-        GetIndexRequest getIndexRequest = new GetIndexRequest().indices(sourceIndices);
-        client.admin().indices().getIndex(getIndexRequest, new ActionListener<>() {
-            @Override
-            public void onResponse(GetIndexResponse getIndexResponse) {
+        try {
+            logger.info("Policy [{}]: Running enrich policy", policyName);
+            task.setStatus(new ExecuteEnrichPolicyStatus(ExecuteEnrichPolicyStatus.PolicyPhases.RUNNING));
+            // Collect the source index information
+            final String[] sourceIndices = policy.getIndices().toArray(new String[0]);
+            logger.debug("Policy [{}]: Checking source indices [{}]", policyName, sourceIndices);
+            GetIndexRequest getIndexRequest = new GetIndexRequest().indices(sourceIndices);
+            // This call does not set the origin to ensure that the user executing the policy has permission to access the source index
+            client.admin().indices().getIndex(getIndexRequest, listener.delegateFailureAndWrap((l, getIndexResponse) -> {
                 validateMappings(getIndexResponse);
-                prepareAndCreateEnrichIndex();
-            }
+                prepareAndCreateEnrichIndex(toMappings(getIndexResponse));
+            }));
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
+    }
 
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
-            }
-        });
+    private static List<Map<String, Object>> toMappings(GetIndexResponse response) {
+        return response.mappings().values().stream().map(MappingMetadata::getSourceAsMap).collect(Collectors.toList());
     }
 
     private Map<String, Object> getMappings(final GetIndexResponse getIndexResponse, final String sourceIndexName) {
-        ImmutableOpenMap<String, MappingMetaData> mappings = getIndexResponse.mappings();
-        MappingMetaData indexMapping = mappings.get(sourceIndexName);
-        if (indexMapping == MappingMetaData.EMPTY_MAPPINGS) {
+        Map<String, MappingMetadata> mappings = getIndexResponse.mappings();
+        MappingMetadata indexMapping = mappings.get(sourceIndexName);
+        if (indexMapping == MappingMetadata.EMPTY_MAPPINGS) {
             throw new ElasticsearchException(
                 "Enrich policy execution for [{}] failed. No mapping available on source [{}] included in [{}]",
                 policyName,
@@ -167,9 +188,9 @@ public class EnrichPolicyRunner implements Runnable {
         }
         // Validate the key and values
         try {
-            validateField(mapping, policy.getMatchField(), true);
+            validateAndGetMappingTypeAndFormat(mapping, policy.getMatchField(), true);
             for (String valueFieldName : policy.getEnrichFields()) {
-                validateField(mapping, valueFieldName, false);
+                validateAndGetMappingTypeAndFormat(mapping, valueFieldName, false);
             }
         } catch (ElasticsearchException e) {
             throw new ElasticsearchException(
@@ -181,11 +202,64 @@ public class EnrichPolicyRunner implements Runnable {
         }
     }
 
-    private static void validateField(Map<?, ?> properties, String fieldName, boolean fieldRequired) {
+    private record MappingTypeAndFormat(String type, String format) {
+
+    }
+
+    private static MappingTypeAndFormat validateAndGetMappingTypeAndFormat(
+        String fieldName,
+        EnrichPolicy policy,
+        boolean strictlyRequired,
+        List<Map<String, Object>> sourceMappings
+    ) {
+        var fieldMappings = sourceMappings.stream()
+            .map(mapping -> validateAndGetMappingTypeAndFormat(mapping, fieldName, strictlyRequired))
+            .filter(Objects::nonNull)
+            .toList();
+        Set<String> types = fieldMappings.stream().map(tf -> tf.type).collect(Collectors.toSet());
+        if (types.size() > 1) {
+            if (strictlyRequired) {
+                throw new ElasticsearchException(
+                    "Multiple distinct mapping types for field '{}' - indices({})  types({})",
+                    fieldName,
+                    Strings.collectionToCommaDelimitedString(policy.getIndices()),
+                    Strings.collectionToCommaDelimitedString(types)
+                );
+            }
+            return null;
+        }
+        if (types.isEmpty()) {
+            return null;
+        }
+        Set<String> formats = fieldMappings.stream().map(tf -> tf.format).filter(Objects::nonNull).collect(Collectors.toSet());
+        if (formats.size() > 1) {
+            if (strictlyRequired) {
+                throw new ElasticsearchException(
+                    "Multiple distinct formats specified for field '{}' - indices({})  format entries({})",
+                    policy.getMatchField(),
+                    Strings.collectionToCommaDelimitedString(policy.getIndices()),
+                    Strings.collectionToCommaDelimitedString(formats)
+                );
+            }
+            return null;
+        }
+        return new MappingTypeAndFormat(Iterables.get(types, 0), formats.isEmpty() ? null : Iterables.get(formats, 0));
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T> T extractValues(Map<String, Object> properties, String path) {
+        return (T) properties.get(path);
+    }
+
+    private static MappingTypeAndFormat validateAndGetMappingTypeAndFormat(
+        Map<String, Object> properties,
+        String fieldName,
+        boolean fieldRequired
+    ) {
         assert Strings.isEmpty(fieldName) == false : "Field name cannot be null or empty";
         String[] fieldParts = fieldName.split("\\.");
         StringBuilder parent = new StringBuilder();
-        Map<?, ?> currentField = properties;
+        Map<String, Object> currentField = properties;
         boolean onRoot = true;
         for (String fieldPart : fieldParts) {
             // Ensure that the current field is of object type only (not a nested type or a non compound field)
@@ -198,7 +272,7 @@ public class EnrichPolicyRunner implements Runnable {
                     type
                 );
             }
-            Map<?, ?> currentProperties = ((Map<?, ?>) currentField.get("properties"));
+            Map<String, Object> currentProperties = extractValues(currentField, "properties");
             if (currentProperties == null) {
                 if (fieldRequired) {
                     throw new ElasticsearchException(
@@ -207,10 +281,10 @@ public class EnrichPolicyRunner implements Runnable {
                         onRoot ? "root" : parent.toString()
                     );
                 } else {
-                    return;
+                    return null;
                 }
             }
-            currentField = ((Map<?, ?>) currentProperties.get(fieldPart));
+            currentField = extractValues(currentProperties, fieldPart);
             if (currentField == null) {
                 if (fieldRequired) {
                     throw new ElasticsearchException(
@@ -220,7 +294,7 @@ public class EnrichPolicyRunner implements Runnable {
                         onRoot ? "root" : parent.toString()
                     );
                 } else {
-                    return;
+                    return null;
                 }
             }
             if (onRoot) {
@@ -230,20 +304,72 @@ public class EnrichPolicyRunner implements Runnable {
             }
             parent.append(fieldPart);
         }
+        if (currentField == null) {
+            return null;
+        }
+        final String type = (String) currentField.getOrDefault("type", "object");
+        final String format = (String) currentField.get("format");
+        return new MappingTypeAndFormat(type, format);
     }
 
-    private XContentBuilder resolveEnrichMapping(final EnrichPolicy policy) {
-        // Currently the only supported policy type is EnrichPolicy.MATCH_TYPE, which is a keyword type
-        final String keyType;
-        final CheckedFunction<XContentBuilder, XContentBuilder, IOException> matchFieldMapping;
-        if (EnrichPolicy.MATCH_TYPE.equals(policy.getType())) {
-            matchFieldMapping = (builder) -> builder.field("type", "keyword").field("doc_values", false);
-            // No need to also configure index_options, because keyword type defaults to 'docs'.
-        } else if (EnrichPolicy.GEO_MATCH_TYPE.equals(policy.getType())) {
-            matchFieldMapping = (builder) -> builder.field("type", "geo_shape");
-        } else {
-            throw new ElasticsearchException("Unrecognized enrich policy type [{}]", policy.getType());
+    static final Set<String> RANGE_TYPES = Set.of("integer_range", "float_range", "long_range", "double_range", "ip_range", "date_range");
+
+    static Map<String, Object> mappingForMatchField(EnrichPolicy policy, List<Map<String, Object>> sourceMappings) {
+        MappingTypeAndFormat typeAndFormat = validateAndGetMappingTypeAndFormat(policy.getMatchField(), policy, true, sourceMappings);
+        if (typeAndFormat == null) {
+            throw new ElasticsearchException(
+                "Match field '{}' doesn't have a correct mapping type for policy type '{}'",
+                policy.getMatchField(),
+                policy.getType()
+            );
         }
+        return switch (policy.getType()) {
+            case EnrichPolicy.MATCH_TYPE -> Map.of("type", "keyword", "doc_values", false);
+            case EnrichPolicy.GEO_MATCH_TYPE -> Map.of("type", "geo_shape");
+            case EnrichPolicy.RANGE_TYPE -> {
+                if (RANGE_TYPES.contains(typeAndFormat.type) == false) {
+                    throw new ElasticsearchException(
+                        "Field '{}' has type [{}] which doesn't appear to be a range type",
+                        policy.getMatchField(),
+                        typeAndFormat.type
+                    );
+                }
+                Map<String, Object> mapping = Maps.newMapWithExpectedSize(3);
+                mapping.put("type", typeAndFormat.type);
+                mapping.put("doc_values", false);
+                if (typeAndFormat.format != null) {
+                    mapping.put("format", typeAndFormat.format);
+                }
+                yield mapping;
+            }
+            default -> throw new ElasticsearchException("Unrecognized enrich policy type [{}]", policy.getType());
+        };
+    }
+
+    private XContentBuilder createEnrichMapping(List<Map<String, Object>> sourceMappings) {
+        Map<String, Map<String, Object>> fieldMappings = new HashMap<>();
+        Map<String, Object> mappingForMatchField = mappingForMatchField(policy, sourceMappings);
+        MapperService mapperService = createMapperServiceForValidation(indicesService, enrichIndexName);
+        for (String enrichField : policy.getEnrichFields()) {
+            if (enrichField.equals(policy.getMatchField())) {
+                mappingForMatchField = new HashMap<>(mappingForMatchField);
+                mappingForMatchField.remove("doc_values"); // enable doc_values
+            } else {
+                var typeAndFormat = validateAndGetMappingTypeAndFormat(enrichField, policy, false, sourceMappings);
+                if (typeAndFormat != null) {
+                    Map<String, Object> mapping = Maps.newMapWithExpectedSize(3);
+                    mapping.put("type", typeAndFormat.type);
+                    if (typeAndFormat.format != null) {
+                        mapping.put("format", typeAndFormat.format);
+                    }
+                    if (isIndexableField(mapperService, enrichField, typeAndFormat.type, mapping)) {
+                        mapping.put("index", false);
+                    }
+                    fieldMappings.put(enrichField, mapping);
+                }
+            }
+        }
+        fieldMappings.put(policy.getMatchField(), mappingForMatchField);
 
         // Enable _source on enrich index. Explicitly mark key mapping type.
         try {
@@ -260,9 +386,7 @@ public class EnrichPolicyRunner implements Runnable {
                     builder.endObject();
                     builder.startObject("properties");
                     {
-                        builder.startObject(policy.getMatchField());
-                        matchFieldMapping.apply(builder);
-                        builder.endObject();
+                        builder.mapContents(fieldMappings);
                     }
                     builder.endObject();
                     builder.startObject("_meta");
@@ -283,9 +407,34 @@ public class EnrichPolicyRunner implements Runnable {
         }
     }
 
-    private void prepareAndCreateEnrichIndex() {
-        long nowTimestamp = nowSupplier.getAsLong();
-        String enrichIndexName = EnrichPolicy.getBaseName(policyName) + "-" + nowTimestamp;
+    private static MapperService createMapperServiceForValidation(IndicesService indicesService, String index) {
+        try {
+            final Settings idxSettings = Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
+                .build();
+            IndexMetadata indexMetadata = IndexMetadata.builder(index).settings(idxSettings).numberOfShards(1).numberOfReplicas(0).build();
+            return indicesService.createIndexMapperServiceForValidation(indexMetadata);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    static boolean isIndexableField(MapperService mapperService, String field, String type, Map<String, Object> properties) {
+        var withIndexParameter = new HashMap<>(properties);
+        withIndexParameter.put("index", false);
+        Mapper.TypeParser parser = mapperService.getMapperRegistry().getMapperParser(type, IndexVersion.current());
+        try {
+            parser.parse(field, withIndexParameter, mapperService.parserContext());
+            return withIndexParameter.containsKey("index") == false;
+        } catch (MapperParsingException e) {
+            // hitting the mapper parsing exception means this field doesn't accept `index:false`.
+            assert e.getMessage().contains("unknown parameter [index]") : e;
+            return false;
+        }
+    }
+
+    private void prepareAndCreateEnrichIndex(List<Map<String, Object>> mappings) {
         Settings enrichIndexSettings = Settings.builder()
             .put("index.number_of_shards", 1)
             .put("index.number_of_replicas", 0)
@@ -295,35 +444,23 @@ public class EnrichPolicyRunner implements Runnable {
             .put("index.warmer.enabled", false)
             .build();
         CreateIndexRequest createEnrichIndexRequest = new CreateIndexRequest(enrichIndexName, enrichIndexSettings);
-        createEnrichIndexRequest.mapping(resolveEnrichMapping(policy));
+        createEnrichIndexRequest.mapping(createEnrichMapping(mappings));
         logger.debug("Policy [{}]: Creating new enrich index [{}]", policyName, enrichIndexName);
-        client.admin().indices().create(createEnrichIndexRequest, new ActionListener<>() {
-            @Override
-            public void onResponse(CreateIndexResponse createIndexResponse) {
-                prepareReindexOperation(enrichIndexName);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
-            }
-        });
+        enrichOriginClient().admin()
+            .indices()
+            .create(
+                createEnrichIndexRequest,
+                listener.delegateFailure((l, createIndexResponse) -> prepareReindexOperation(enrichIndexName))
+            );
     }
 
     private void prepareReindexOperation(final String destinationIndexName) {
         // Check to make sure that the enrich pipeline exists, and create it if it is missing.
         if (EnrichPolicyReindexPipeline.exists(clusterService.state()) == false) {
-            EnrichPolicyReindexPipeline.create(client, new ActionListener<>() {
-                @Override
-                public void onResponse(AcknowledgedResponse acknowledgedResponse) {
-                    transferDataToEnrichIndex(destinationIndexName);
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e);
-                }
-            });
+            EnrichPolicyReindexPipeline.create(
+                enrichOriginClient(),
+                listener.delegateFailure((l, r) -> transferDataToEnrichIndex(destinationIndexName))
+            );
         } else {
             transferDataToEnrichIndex(destinationIndexName);
         }
@@ -347,14 +484,52 @@ public class EnrichPolicyRunner implements Runnable {
         reindexRequest.getDestination().source(new BytesArray(new byte[0]), XContentType.SMILE);
         reindexRequest.getDestination().routing("discard");
         reindexRequest.getDestination().setPipeline(EnrichPolicyReindexPipeline.pipelineName());
-        client.execute(ReindexAction.INSTANCE, reindexRequest, new ActionListener<>() {
+
+        client.execute(EnrichReindexAction.INSTANCE, reindexRequest, new DelegatingActionListener<>(listener) {
             @Override
             public void onResponse(BulkByScrollResponse bulkByScrollResponse) {
                 // Do we want to fail the request if there were failures during the reindex process?
                 if (bulkByScrollResponse.getBulkFailures().size() > 0) {
-                    listener.onFailure(new ElasticsearchException("Encountered bulk failures during reindex process"));
+                    logger.warn(
+                        "Policy [{}]: encountered [{}] bulk failures. Turn on DEBUG logging for details.",
+                        policyName,
+                        bulkByScrollResponse.getBulkFailures().size()
+                    );
+                    if (logger.isDebugEnabled()) {
+                        for (BulkItemResponse.Failure failure : bulkByScrollResponse.getBulkFailures()) {
+                            logger.debug(
+                                () -> format(
+                                    "Policy [%s]: bulk index failed for index [%s], id [%s]",
+                                    policyName,
+                                    failure.getIndex(),
+                                    failure.getId()
+                                ),
+                                failure.getCause()
+                            );
+                        }
+                    }
+                    delegate.onFailure(new ElasticsearchException("Encountered bulk failures during reindex process"));
                 } else if (bulkByScrollResponse.getSearchFailures().size() > 0) {
-                    listener.onFailure(new ElasticsearchException("Encountered search failures during reindex process"));
+                    logger.warn(
+                        "Policy [{}]: encountered [{}] search failures. Turn on DEBUG logging for details.",
+                        policyName,
+                        bulkByScrollResponse.getSearchFailures().size()
+                    );
+                    if (logger.isDebugEnabled()) {
+                        for (ScrollableHitSource.SearchFailure failure : bulkByScrollResponse.getSearchFailures()) {
+                            logger.debug(
+                                () -> format(
+                                    "Policy [%s]: search failed for index [%s], shard [%s] on node [%s]",
+                                    policyName,
+                                    failure.getIndex(),
+                                    failure.getShardId(),
+                                    failure.getNodeId()
+                                ),
+                                failure.getReason()
+                            );
+                        }
+                    }
+                    delegate.onFailure(new ElasticsearchException("Encountered search failures during reindex process"));
                 } else {
                     logger.info(
                         "Policy [{}]: Transferred [{}] documents to enrich index [{}]",
@@ -364,11 +539,6 @@ public class EnrichPolicyRunner implements Runnable {
                     );
                     forceMergeEnrichIndex(destinationIndexName, 1);
                 }
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
             }
         });
     }
@@ -381,114 +551,136 @@ public class EnrichPolicyRunner implements Runnable {
             attempt,
             maxForceMergeAttempts
         );
-        client.admin().indices().forceMerge(new ForceMergeRequest(destinationIndexName).maxNumSegments(1), new ActionListener<>() {
-            @Override
-            public void onResponse(ForceMergeResponse forceMergeResponse) {
-                refreshEnrichIndex(destinationIndexName, attempt);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
-            }
-        });
+        enrichOriginClient().admin()
+            .indices()
+            .forceMerge(
+                new ForceMergeRequest(destinationIndexName).maxNumSegments(1),
+                listener.delegateFailure((l, r) -> refreshEnrichIndex(destinationIndexName, attempt))
+            );
     }
 
     private void refreshEnrichIndex(final String destinationIndexName, final int attempt) {
         logger.debug("Policy [{}]: Refreshing enrich index [{}]", policyName, destinationIndexName);
-        client.admin().indices().refresh(new RefreshRequest(destinationIndexName), new ActionListener<>() {
-            @Override
-            public void onResponse(RefreshResponse refreshResponse) {
-                ensureSingleSegment(destinationIndexName, attempt);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
-            }
-        });
+        enrichOriginClient().admin()
+            .indices()
+            .refresh(
+                new RefreshRequest(destinationIndexName),
+                listener.delegateFailure((l, r) -> ensureSingleSegment(destinationIndexName, attempt))
+            );
     }
 
     protected void ensureSingleSegment(final String destinationIndexName, final int attempt) {
-        client.admin().indices().segments(new IndicesSegmentsRequest(destinationIndexName), new ActionListener<>() {
-            @Override
-            public void onResponse(IndicesSegmentResponse indicesSegmentResponse) {
-                IndexSegments indexSegments = indicesSegmentResponse.getIndices().get(destinationIndexName);
-                if (indexSegments == null) {
-                    throw new ElasticsearchException(
-                        "Could not locate segment information for newly created index [{}]",
-                        destinationIndexName
-                    );
-                }
-                Map<Integer, IndexShardSegments> indexShards = indexSegments.getShards();
-                assert indexShards.size() == 1 : "Expected enrich index to contain only one shard";
-                ShardSegments[] shardSegments = indexShards.get(0).getShards();
-                assert shardSegments.length == 1 : "Expected enrich index to contain no replicas at this point";
-                ShardSegments primarySegments = shardSegments[0];
-                if (primarySegments.getSegments().size() > 1) {
-                    int nextAttempt = attempt + 1;
-                    if (nextAttempt > maxForceMergeAttempts) {
-                        listener.onFailure(
-                            new ElasticsearchException(
-                                "Force merging index [{}] attempted [{}] times but did not result in one segment.",
-                                destinationIndexName,
-                                attempt,
-                                maxForceMergeAttempts
-                            )
+        enrichOriginClient().admin()
+            .indices()
+            .segments(new IndicesSegmentsRequest(destinationIndexName), new DelegatingActionListener<>(listener) {
+                @Override
+                public void onResponse(IndicesSegmentResponse indicesSegmentResponse) {
+                    IndexSegments indexSegments = indicesSegmentResponse.getIndices().get(destinationIndexName);
+                    if (indexSegments == null) {
+                        throw new ElasticsearchException(
+                            "Could not locate segment information for newly created index [{}]",
+                            destinationIndexName
                         );
-                    } else {
-                        logger.debug(
-                            "Policy [{}]: Force merge result contains more than one segment [{}], retrying (attempt {}/{})",
-                            policyName,
-                            primarySegments.getSegments().size(),
-                            nextAttempt,
-                            maxForceMergeAttempts
-                        );
-                        forceMergeEnrichIndex(destinationIndexName, nextAttempt);
                     }
-                } else {
-                    // Force merge down to one segment successful
-                    setIndexReadOnly(destinationIndexName);
+                    Map<Integer, IndexShardSegments> indexShards = indexSegments.getShards();
+                    assert indexShards.size() == 1 : "Expected enrich index to contain only one shard";
+                    ShardSegments[] shardSegments = indexShards.get(0).shards();
+                    assert shardSegments.length == 1 : "Expected enrich index to contain no replicas at this point";
+                    ShardSegments primarySegments = shardSegments[0];
+                    if (primarySegments.getSegments().size() > 1) {
+                        int nextAttempt = attempt + 1;
+                        if (nextAttempt > maxForceMergeAttempts) {
+                            delegate.onFailure(
+                                new ElasticsearchException(
+                                    "Force merging index [{}] attempted [{}] times but did not result in one segment.",
+                                    destinationIndexName,
+                                    attempt,
+                                    maxForceMergeAttempts
+                                )
+                            );
+                        } else {
+                            logger.debug(
+                                "Policy [{}]: Force merge result contains more than one segment [{}], retrying (attempt {}/{})",
+                                policyName,
+                                primarySegments.getSegments().size(),
+                                nextAttempt,
+                                maxForceMergeAttempts
+                            );
+                            forceMergeEnrichIndex(destinationIndexName, nextAttempt);
+                        }
+                    } else {
+                        // Force merge down to one segment successful
+                        setIndexReadOnly(destinationIndexName);
+                    }
                 }
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
-            }
-        });
+            });
     }
 
     private void setIndexReadOnly(final String destinationIndexName) {
         logger.debug("Policy [{}]: Setting new enrich index [{}] to be read only", policyName, destinationIndexName);
         UpdateSettingsRequest request = new UpdateSettingsRequest(destinationIndexName).setPreserveExisting(true)
             .settings(Settings.builder().put("index.auto_expand_replicas", "0-all").put("index.blocks.write", "true"));
-        client.admin().indices().updateSettings(request, new ActionListener<>() {
-            @Override
-            public void onResponse(AcknowledgedResponse acknowledgedResponse) {
-                waitForIndexGreen(destinationIndexName);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
-            }
-        });
+        enrichOriginClient().admin()
+            .indices()
+            .updateSettings(request, listener.delegateFailure((l, r) -> waitForIndexGreen(destinationIndexName)));
     }
 
     private void waitForIndexGreen(final String destinationIndexName) {
         ClusterHealthRequest request = new ClusterHealthRequest(destinationIndexName).waitForGreenStatus();
-        client.admin().cluster().health(request, new ActionListener<>() {
-            @Override
-            public void onResponse(ClusterHealthResponse clusterHealthResponse) {
-                updateEnrichPolicyAlias(destinationIndexName);
-            }
+        enrichOriginClient().admin()
+            .cluster()
+            .health(request, listener.delegateFailureAndWrap((l, r) -> updateEnrichPolicyAlias(destinationIndexName)));
+    }
 
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
+    /**
+     * Ensures that the index we are about to promote at the end of a policy execution exists, is intact, and has not been damaged
+     * during the policy execution. In some cases, it is possible for the index being constructed to be deleted during the policy execution
+     * and recreated with invalid mappings/data. We validate that the mapping exists and that it contains the expected meta fields on it to
+     * guard against accidental removal and recreation during policy execution.
+     */
+    private void validateIndexBeforePromotion(String destinationIndexName, ClusterState clusterState) {
+        IndexMetadata destinationIndex = clusterState.metadata().index(destinationIndexName);
+        if (destinationIndex == null) {
+            throw new IndexNotFoundException(
+                "was not able to promote it as part of executing enrich policy [" + policyName + "]",
+                destinationIndexName
+            );
+        }
+        MappingMetadata mapping = destinationIndex.mapping();
+        if (mapping == null) {
+            throw new ResourceNotFoundException(
+                "Could not locate mapping for enrich index [{}] while completing [{}] policy run",
+                destinationIndexName,
+                policyName
+            );
+        }
+        Map<String, Object> mappingSource = mapping.sourceAsMap();
+        Object meta = mappingSource.get("_meta");
+        if (meta instanceof Map<?, ?> metaMap) {
+            Object policyNameMetaField = metaMap.get(ENRICH_POLICY_NAME_FIELD_NAME);
+            if (policyNameMetaField == null) {
+                throw new ElasticsearchException(
+                    "Could not verify enrich index [{}] metadata before completing [{}] policy run: policy name meta field missing",
+                    destinationIndexName,
+                    policyName
+                );
+            } else if (policyName.equals(policyNameMetaField) == false) {
+                throw new ElasticsearchException(
+                    "Could not verify enrich index [{}] metadata before completing [{}] policy run: policy name meta field does not "
+                        + "match expected value of [{}], was [{}]",
+                    destinationIndexName,
+                    policyName,
+                    policyName,
+                    policyNameMetaField.toString()
+                );
             }
-        });
+        } else {
+            throw new ElasticsearchException(
+                "Could not verify enrich index [{}] metadata before completing [{}] policy run: mapping meta field missing",
+                destinationIndexName,
+                policyName
+            );
+        }
     }
 
     private void updateEnrichPolicyAlias(final String destinationIndexName) {
@@ -496,27 +688,54 @@ public class EnrichPolicyRunner implements Runnable {
         logger.debug("Policy [{}]: Promoting new enrich index [{}] to alias [{}]", policyName, destinationIndexName, enrichIndexBase);
         GetAliasesRequest aliasRequest = new GetAliasesRequest(enrichIndexBase);
         ClusterState clusterState = clusterService.state();
-        String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(clusterState, aliasRequest);
-        ImmutableOpenMap<String, List<AliasMetaData>> aliases = clusterState.metaData().findAliases(aliasRequest, concreteIndices);
+        validateIndexBeforePromotion(destinationIndexName, clusterState);
+        String[] concreteIndices = indexNameExpressionResolver.concreteIndexNamesWithSystemIndexAccess(clusterState, aliasRequest);
+        String[] aliases = aliasRequest.aliases();
         IndicesAliasesRequest aliasToggleRequest = new IndicesAliasesRequest();
-        String[] indices = aliases.keys().toArray(String.class);
+        String[] indices = clusterState.metadata().findAliases(aliases, concreteIndices).keySet().toArray(new String[0]);
         if (indices.length > 0) {
             aliasToggleRequest.addAliasAction(IndicesAliasesRequest.AliasActions.remove().indices(indices).alias(enrichIndexBase));
         }
         aliasToggleRequest.addAliasAction(IndicesAliasesRequest.AliasActions.add().index(destinationIndexName).alias(enrichIndexBase));
-        client.admin().indices().aliases(aliasToggleRequest, new ActionListener<>() {
-            @Override
-            public void onResponse(AcknowledgedResponse acknowledgedResponse) {
-                logger.info("Policy [{}]: Policy execution complete", policyName);
-                ExecuteEnrichPolicyStatus completeStatus = new ExecuteEnrichPolicyStatus(ExecuteEnrichPolicyStatus.PolicyPhases.COMPLETE);
-                task.setStatus(completeStatus);
-                listener.onResponse(completeStatus);
-            }
+        enrichOriginClient().admin().indices().aliases(aliasToggleRequest, listener.safeMap(r -> {
+            logger.info("Policy [{}]: Policy execution complete", policyName);
+            ExecuteEnrichPolicyStatus completeStatus = new ExecuteEnrichPolicyStatus(ExecuteEnrichPolicyStatus.PolicyPhases.COMPLETE);
+            task.setStatus(completeStatus);
+            return completeStatus;
+        }));
+    }
+
+    /**
+     * Use this client to access information at the access level of the Enrich plugin, rather than at the access level of the user.
+     * For example, use this client to access system indices (such as `.enrich*` indices).
+     */
+    private Client enrichOriginClient() {
+        return new OriginSettingClient(client, ENRICH_ORIGIN);
+    }
+
+    private static Client wrapClient(Client in, String policyName, ExecuteEnrichPolicyTask task, ClusterService clusterService) {
+        // Filter client in order to:
+        // 1) Check on transport action call that policy runner does whether the task has been cancelled
+        // 2) Set the enrich policy task as parent task, so if other API calls (e.g. reindex) are cancellable then
+        // the corresponding tasks of these API calls get cancelled as well.
+        return new FilterClient(in) {
 
             @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
+            protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                ActionType<Response> action,
+                Request request,
+                ActionListener<Response> listener
+            ) {
+                String requestStep = request.getClass().getSimpleName();
+                task.setStep(requestStep);
+                if (task.isCancelled()) {
+                    String message = "cancelled policy execution [" + policyName + "], status [" + Strings.toString(task.getStatus()) + "]";
+                    listener.onFailure(new TaskCancelledException(message));
+                    return;
+                }
+                request.setParentTask(clusterService.localNode().getId(), task.getId());
+                super.doExecute(action, request, listener);
             }
-        });
+        };
     }
 }

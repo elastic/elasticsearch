@@ -1,126 +1,111 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.license;
 
-import org.elasticsearch.client.Request;
-import org.elasticsearch.client.Response;
-import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.client.RestClient;
-import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.protocol.xpack.XPackInfoResponse;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.transport.Netty4Plugin;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 
-import java.io.InputStreamReader;
-import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Set;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
+import static org.elasticsearch.test.NodeRoles.addRoles;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
 @ESIntegTestCase.ClusterScope(scope = SUITE)
 public class StartBasicLicenseTests extends AbstractLicensesIntegrationTestCase {
 
     @Override
-    protected boolean addMockHttpTransport() {
-        return false; // enable http
-    }
-
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal))
-                .put("node.data", true)
-                .put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "basic").build();
+            .put(addRoles(super.nodeSettings(nodeOrdinal, otherSettings), Set.of(DiscoveryNodeRole.DATA_ROLE)))
+            .put(LicenseSettings.SELF_GENERATED_LICENSE_TYPE.getKey(), "basic")
+            .build();
     }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(LocalStateCompositeXPackPlugin.class, Netty4Plugin.class);
+        return Arrays.asList(LocalStateCompositeXPackPlugin.class);
     }
 
     public void testStartBasicLicense() throws Exception {
-        LicensingClient licensingClient = new LicensingClient(client());
-        License license = TestUtils.generateSignedLicense("trial",  License.VERSION_CURRENT, -1, TimeValue.timeValueHours(24));
-        licensingClient.preparePutLicense(license).get();
+        generateAndPutTestLicense();
 
-        assertBusy(() -> {
-            GetLicenseResponse getLicenseResponse = licensingClient.prepareGetLicense().get();
-            assertEquals("trial", getLicenseResponse.license().type());
-        });
+        assertBusy(() -> assertEquals("trial", getLicense().license().type()));
 
-        // Testing that you can start a basic license when you have no license
-        if (randomBoolean()) {
-            licensingClient.prepareDeleteLicense().get();
-            assertNull(licensingClient.prepareGetLicense().get().license());
-        }
+        assertTrue(getBasicStatus().isEligibleToStartBasic());
 
-        RestClient restClient = getRestClient();
-        Response response = restClient.performRequest(new Request("GET", "/_license/basic_status"));
-        String body = Streams.copyToString(new InputStreamReader(response.getEntity().getContent(), StandardCharsets.UTF_8));
-        assertEquals(200, response.getStatusLine().getStatusCode());
-        assertEquals("{\"eligible_to_start_basic\":true}", body);
+        PostStartBasicResponse startResponse = startBasic(true);
+        assertTrue(startResponse.isAcknowledged());
+        assertTrue(startResponse.getStatus().isBasicStarted());
 
-        Request ackRequest = new Request("POST", "/_license/start_basic");
-        ackRequest.addParameter("acknowledge", "true");
-        Response response2 = restClient.performRequest(ackRequest);
-        String body2 = Streams.copyToString(new InputStreamReader(response2.getEntity().getContent(), StandardCharsets.UTF_8));
-        assertEquals(200, response2.getStatusLine().getStatusCode());
-        assertTrue(body2.contains("\"acknowledged\":true"));
-        assertTrue(body2.contains("\"basic_was_started\":true"));
+        assertBusy(() -> assertEquals("basic", getLicense().license().type()));
 
-        assertBusy(() -> {
-            GetLicenseResponse currentLicense = licensingClient.prepareGetLicense().get();
-            assertEquals("basic", currentLicense.license().type());
-        });
+        long expirationMillis = getLicense().license().expiryDate();
+        assertEquals(LicenseSettings.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS, expirationMillis);
 
-        long expirationMillis = licensingClient.prepareGetLicense().get().license().expiryDate();
-        assertEquals(LicenseService.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS, expirationMillis);
+        GetLicenseResponse licenseResponse = getLicense();
+        assertEquals("basic", licenseResponse.license().type());
+        assertEquals(XPackInfoResponse.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS, licenseResponse.license().expiryDate());
 
-        Response response3 = restClient.performRequest(new Request("GET", "/_license"));
-        String body3 = Streams.copyToString(new InputStreamReader(response3.getEntity().getContent(), StandardCharsets.UTF_8));
-        assertTrue(body3.contains("\"type\" : \"basic\""));
-        assertFalse(body3.contains("expiry_date"));
-        assertFalse(body3.contains("expiry_date_in_millis"));
+        assertFalse(getBasicStatus().isEligibleToStartBasic());
 
-        Response response4 = restClient.performRequest(new Request("GET", "/_license/basic_status"));
-        String body4 = Streams.copyToString(new InputStreamReader(response4.getEntity().getContent(), StandardCharsets.UTF_8));
-        assertEquals(200, response3.getStatusLine().getStatusCode());
-        assertEquals("{\"eligible_to_start_basic\":false}", body4);
-
-        ResponseException ex = expectThrows(ResponseException.class,
-                () -> restClient.performRequest(new Request("POST", "/_license/start_basic")));
-        Response response5 = ex.getResponse();
-        String body5 = Streams.copyToString(new InputStreamReader(response5.getEntity().getContent(), StandardCharsets.UTF_8));
-        assertEquals(403, response5.getStatusLine().getStatusCode());
-        assertTrue(body5.contains("\"basic_was_started\":false"));
-        assertTrue(body5.contains("\"acknowledged\":true"));
-        assertTrue(body5.contains("\"error_message\":\"Operation failed: Current license is basic.\""));
+        PostStartBasicResponse response5 = startBasic(true);
+        assertEquals(403, response5.status().getStatus());
+        assertFalse(response5.getStatus().isBasicStarted());
+        assertTrue(response5.isAcknowledged());
+        assertEquals("Operation failed: Current license is basic.", response5.getStatus().getErrorMessage());
     }
 
     public void testUnacknowledgedStartBasicLicense() throws Exception {
-        LicensingClient licensingClient = new LicensingClient(client());
-        License license = TestUtils.generateSignedLicense("trial",  License.VERSION_CURRENT, -1, TimeValue.timeValueHours(24));
-        licensingClient.preparePutLicense(license).get();
+        generateAndPutTestLicense();
 
-        assertBusy(() -> {
-            GetLicenseResponse getLicenseResponse = licensingClient.prepareGetLicense().get();
-            assertEquals("trial", getLicenseResponse.license().type());
-        });
+        assertBusy(() -> assertEquals("trial", getLicense().license().type()));
 
-        Response response2 = getRestClient().performRequest(new Request("POST", "/_license/start_basic"));
-        String body2 = Streams.copyToString(new InputStreamReader(response2.getEntity().getContent(), StandardCharsets.UTF_8));
-        assertEquals(200, response2.getStatusLine().getStatusCode());
-        assertTrue(body2.contains("\"acknowledged\":false"));
-        assertTrue(body2.contains("\"basic_was_started\":false"));
-        assertTrue(body2.contains("\"error_message\":\"Operation failed: Needs acknowledgement.\""));
-        assertTrue(body2.contains("\"message\":\"This license update requires acknowledgement. To acknowledge the license, " +
-                "please read the following messages and call /start_basic again, this time with the \\\"acknowledge=true\\\""));
+        PostStartBasicResponse response = startBasic(false);
+        assertEquals(200, response.status().getStatus());
+        assertFalse(response.isAcknowledged());
+        assertFalse(response.getStatus().isBasicStarted());
+        assertEquals("Operation failed: Needs acknowledgement.", response.getStatus().getErrorMessage());
+        assertEquals(
+            "This license update requires acknowledgement. To acknowledge the license, "
+                + "please read the following messages and call /start_basic again, this time with the \"acknowledge=true\" parameter:",
+            response.getAcknowledgeMessage()
+        );
+    }
+
+    private static GetBasicStatusResponse getBasicStatus() {
+        return safeGet(clusterAdmin().execute(GetBasicStatusAction.INSTANCE, new GetBasicStatusRequest(TEST_REQUEST_TIMEOUT)));
+    }
+
+    private static PostStartBasicResponse startBasic(boolean acknowledged) {
+        return safeGet(
+            clusterAdmin().execute(
+                PostStartBasicAction.INSTANCE,
+                new PostStartBasicRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).acknowledge(acknowledged)
+            )
+        );
+    }
+
+    private static void generateAndPutTestLicense() throws Exception {
+        final var license = TestUtils.generateSignedLicense("trial", License.VERSION_CURRENT, -1, TimeValue.timeValueHours(24));
+        assertAcked(
+            safeGet(
+                client().execute(
+                    PutLicenseAction.INSTANCE,
+                    new PutLicenseRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).license(license).acknowledge(randomBoolean())
+                )
+            )
+        );
     }
 }

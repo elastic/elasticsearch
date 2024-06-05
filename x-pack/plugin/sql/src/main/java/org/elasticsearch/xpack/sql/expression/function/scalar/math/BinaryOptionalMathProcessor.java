@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.sql.expression.function.scalar.math;
@@ -9,6 +10,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.math;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.math.Maths;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 
 import java.io.IOException;
@@ -19,20 +21,11 @@ import java.util.function.BiFunction;
  * Processor for binary mathematical operations that have a second optional parameter.
  */
 public class BinaryOptionalMathProcessor implements Processor {
-    
+
     public enum BinaryOptionalMathOperation implements BiFunction<Number, Number, Number> {
 
-        ROUND((l, r) -> {
-            double tenAtScale = Math.pow(10., r.longValue());
-            double middleResult = l.doubleValue() * tenAtScale;
-            int sign = middleResult > 0 ? 1 : -1;
-            return Math.round(Math.abs(middleResult)) / tenAtScale * sign;
-        }),
-        TRUNCATE((l, r) -> {
-            double tenAtScale = Math.pow(10., r.longValue());
-            double g = l.doubleValue() * tenAtScale;
-            return (((l.doubleValue() < 0) ? Math.ceil(g) : Math.floor(g)) / tenAtScale);
-        });
+        ROUND((n, precision) -> Maths.round(n, precision.longValue())),
+        TRUNCATE((n, precision) -> Maths.truncate(n, precision));
 
         private final BiFunction<Number, Number, Number> process;
 
@@ -45,12 +38,12 @@ public class BinaryOptionalMathProcessor implements Processor {
             if (left == null) {
                 return null;
             }
-            if (!(left instanceof Number)) {
+            if ((left instanceof Number) == false) {
                 throw new SqlIllegalArgumentException("A number is required; received [{}]", left);
             }
 
             if (right != null) {
-                if (!(right instanceof Number)) {
+                if ((right instanceof Number) == false) {
                     throw new SqlIllegalArgumentException("A number is required; received [{}]", right);
                 }
                 if (right instanceof Float || right instanceof Double) {
@@ -59,7 +52,7 @@ public class BinaryOptionalMathProcessor implements Processor {
             } else {
                 right = 0;
             }
-            
+
             return process.apply(left, right);
         }
     }
@@ -96,12 +89,12 @@ public class BinaryOptionalMathProcessor implements Processor {
         if (left == null) {
             return null;
         }
-        if (!(left instanceof Number)) {
+        if ((left instanceof Number) == false) {
             throw new SqlIllegalArgumentException("A number is required; received [{}]", left);
         }
 
         if (right != null) {
-            if (!(right instanceof Number)) {
+            if ((right instanceof Number) == false) {
                 throw new SqlIllegalArgumentException("A number is required; received [{}]", right);
             }
             if (right instanceof Float || right instanceof Double) {
@@ -113,36 +106,36 @@ public class BinaryOptionalMathProcessor implements Processor {
 
         return operation().apply((Number) left, (Number) right);
     }
-    
+
     @Override
     public boolean equals(Object obj) {
         if (this == obj) {
             return true;
         }
-        
+
         if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
-        
+
         BinaryOptionalMathProcessor other = (BinaryOptionalMathProcessor) obj;
         return Objects.equals(left(), other.left())
-                && Objects.equals(right(), other.right())
-                && Objects.equals(operation(), other.operation());
+            && Objects.equals(right(), other.right())
+            && Objects.equals(operation(), other.operation());
     }
-    
+
     @Override
     public int hashCode() {
         return Objects.hash(left(), right(), operation());
     }
-    
+
     public Processor left() {
         return left;
     }
-    
+
     public Processor right() {
         return right;
     }
-    
+
     public BinaryOptionalMathOperation operation() {
         return operation;
     }

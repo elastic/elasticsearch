@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.metadata;
@@ -43,13 +32,14 @@ public class DiffableStringMap extends AbstractMap<String, String> implements Di
 
     private final Map<String, String> innerMap;
 
-    DiffableStringMap(final Map<String, String> map) {
-        this.innerMap = Collections.unmodifiableMap(map);
+    @SuppressWarnings("unchecked")
+    public static DiffableStringMap readFrom(StreamInput in) throws IOException {
+        final Map<String, String> map = (Map) in.readGenericMap();
+        return map.isEmpty() ? EMPTY : new DiffableStringMap(map);
     }
 
-    @SuppressWarnings("unchecked")
-    DiffableStringMap(final StreamInput in) throws IOException {
-        this((Map<String, String>) (Map) in.readMap());
+    DiffableStringMap(final Map<String, String> map) {
+        this.innerMap = Collections.unmodifiableMap(map);
     }
 
     @Override
@@ -58,18 +48,56 @@ public class DiffableStringMap extends AbstractMap<String, String> implements Di
     }
 
     @Override
+    public String get(Object key) {
+        return innerMap.get(key);
+    }
+
+    @Override
+    public boolean containsKey(Object key) {
+        return innerMap.containsKey(key);
+    }
+
+    @Override
     @SuppressWarnings("unchecked")
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap((Map<String, Object>) (Map) innerMap);
+        out.writeGenericMap((Map<String, Object>) (Map) innerMap);
     }
 
     @Override
     public Diff<DiffableStringMap> diff(DiffableStringMap previousState) {
-        return new DiffableStringMapDiff(previousState, this);
+        if (equals(previousState)) {
+            return DiffableStringMapDiff.EMPTY;
+        }
+        final List<String> tempDeletes = new ArrayList<>();
+        for (String key : previousState.keySet()) {
+            if (containsKey(key) == false) {
+                tempDeletes.add(key);
+            }
+        }
+
+        final Map<String, String> tempUpserts = new HashMap<>();
+        for (Map.Entry<String, String> partIter : entrySet()) {
+            String beforePart = previousState.get(partIter.getKey());
+            if (beforePart == null) {
+                tempUpserts.put(partIter.getKey(), partIter.getValue());
+            } else if (partIter.getValue().equals(beforePart) == false) {
+                tempUpserts.put(partIter.getKey(), partIter.getValue());
+            }
+        }
+        return getDiff(tempDeletes, tempUpserts);
     }
 
     public static Diff<DiffableStringMap> readDiffFrom(StreamInput in) throws IOException {
-        return new DiffableStringMapDiff(in);
+        final List<String> deletes = in.readStringCollectionAsList();
+        final Map<String, String> upserts = in.readMap(StreamInput::readString);
+        return getDiff(deletes, upserts);
+    }
+
+    private static Diff<DiffableStringMap> getDiff(List<String> deletes, Map<String, String> upserts) {
+        if (deletes.isEmpty() && upserts.isEmpty()) {
+            return DiffableStringMapDiff.EMPTY;
+        }
+        return new DiffableStringMapDiff(deletes, upserts);
     }
 
     /**
@@ -77,52 +105,26 @@ public class DiffableStringMap extends AbstractMap<String, String> implements Di
      */
     public static class DiffableStringMapDiff implements Diff<DiffableStringMap> {
 
-        public static final DiffableStringMapDiff EMPTY = new DiffableStringMapDiff(DiffableStringMap.EMPTY, DiffableStringMap.EMPTY);
+        public static final DiffableStringMapDiff EMPTY = new DiffableStringMapDiff(List.of(), Map.of()) {
+            @Override
+            public DiffableStringMap apply(DiffableStringMap part) {
+                return part;
+            }
+        };
 
         private final List<String> deletes;
         private final Map<String, String> upserts; // diffs also become upserts
 
-        private DiffableStringMapDiff(DiffableStringMap before, DiffableStringMap after) {
-            final List<String> tempDeletes = new ArrayList<>();
-            final Map<String, String> tempUpserts = new HashMap<>();
-            for (String key : before.keySet()) {
-                if (after.containsKey(key) == false) {
-                    tempDeletes.add(key);
-                }
-            }
-
-            for (Map.Entry<String, String> partIter : after.entrySet()) {
-                String beforePart = before.get(partIter.getKey());
-                if (beforePart == null) {
-                    tempUpserts.put(partIter.getKey(), partIter.getValue());
-                } else if (partIter.getValue().equals(beforePart) == false) {
-                    tempUpserts.put(partIter.getKey(), partIter.getValue());
-                }
-            }
-            deletes = tempDeletes;
-            upserts = tempUpserts;
-        }
-
-        private DiffableStringMapDiff(StreamInput in) throws IOException {
-            deletes = new ArrayList<>();
-            upserts = new HashMap<>();
-            int deletesCount = in.readVInt();
-            for (int i = 0; i < deletesCount; i++) {
-                deletes.add(in.readString());
-            }
-            int upsertsCount = in.readVInt();
-            for (int i = 0; i < upsertsCount; i++) {
-                String key = in.readString();
-                String newValue = in.readString();
-                upserts.put(key, newValue);
-            }
+        private DiffableStringMapDiff(List<String> deletes, Map<String, String> upserts) {
+            this.deletes = deletes;
+            this.upserts = upserts;
         }
 
         public List<String> getDeletes() {
             return deletes;
         }
 
-        public Map<String, Diff<String>> getDiffs() {
+        public static Map<String, Diff<String>> getDiffs() {
             return Collections.emptyMap();
         }
 
@@ -132,15 +134,8 @@ public class DiffableStringMap extends AbstractMap<String, String> implements Di
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeVInt(deletes.size());
-            for (String delete : deletes) {
-                out.writeString(delete);
-            }
-            out.writeVInt(upserts.size());
-            for (Map.Entry<String, String> entry : upserts.entrySet()) {
-                out.writeString(entry.getKey());
-                out.writeString(entry.getValue());
-            }
+            out.writeStringCollection(deletes);
+            out.writeMap(upserts, StreamOutput::writeString);
         }
 
         @Override
@@ -152,9 +147,7 @@ public class DiffableStringMap extends AbstractMap<String, String> implements Di
             }
             assert getDiffs().size() == 0 : "there should never be diffs for DiffableStringMap";
 
-            for (Map.Entry<String, String> upsert : upserts.entrySet()) {
-                builder.put(upsert.getKey(), upsert.getValue());
-            }
+            builder.putAll(upserts);
             return new DiffableStringMap(builder);
         }
     }

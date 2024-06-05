@@ -1,167 +1,108 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
+
 package org.elasticsearch.transport;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.compress.CompressorFactory;
-import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Releasable;
 
-import java.io.Closeable;
 import java.io.IOException;
+import java.util.Objects;
 
-public abstract class InboundMessage extends NetworkMessage implements Closeable {
+public class InboundMessage extends AbstractRefCounted {
 
-    private final StreamInput streamInput;
+    private final Header header;
+    private final ReleasableBytesReference content;
+    private final Exception exception;
+    private final boolean isPing;
+    private Releasable breakerRelease;
+    private StreamInput streamInput;
 
-    InboundMessage(ThreadContext threadContext, Version version, byte status, long requestId, StreamInput streamInput) {
-        super(threadContext, version, status, requestId);
-        this.streamInput = streamInput;
+    public InboundMessage(Header header, ReleasableBytesReference content, Releasable breakerRelease) {
+        this.header = header;
+        this.content = content;
+        this.breakerRelease = breakerRelease;
+        this.exception = null;
+        this.isPing = false;
     }
 
-    StreamInput getStreamInput() {
+    public InboundMessage(Header header, Exception exception) {
+        this.header = header;
+        this.content = null;
+        this.breakerRelease = null;
+        this.exception = exception;
+        this.isPing = false;
+    }
+
+    public InboundMessage(Header header, boolean isPing) {
+        this.header = header;
+        this.content = null;
+        this.breakerRelease = null;
+        this.exception = null;
+        this.isPing = isPing;
+    }
+
+    public Header getHeader() {
+        return header;
+    }
+
+    public int getContentLength() {
+        if (content == null) {
+            return 0;
+        } else {
+            return content.length();
+        }
+    }
+
+    public Exception getException() {
+        return exception;
+    }
+
+    public boolean isPing() {
+        return isPing;
+    }
+
+    public boolean isShortCircuit() {
+        return exception != null;
+    }
+
+    public Releasable takeBreakerReleaseControl() {
+        final Releasable toReturn = breakerRelease;
+        breakerRelease = null;
+        return Objects.requireNonNullElse(toReturn, () -> {});
+    }
+
+    public StreamInput openOrGetStreamInput() throws IOException {
+        assert isPing == false && content != null;
+        assert hasReferences();
+        if (streamInput == null) {
+            streamInput = content.streamInput();
+            streamInput.setTransportVersion(header.getVersion());
+        }
         return streamInput;
     }
 
-    static class Reader {
-
-        private final Version version;
-        private final NamedWriteableRegistry namedWriteableRegistry;
-        private final ThreadContext threadContext;
-
-        Reader(Version version, NamedWriteableRegistry namedWriteableRegistry, ThreadContext threadContext) {
-            this.version = version;
-            this.namedWriteableRegistry = namedWriteableRegistry;
-            this.threadContext = threadContext;
-        }
-
-        InboundMessage deserialize(BytesReference reference) throws IOException {
-            StreamInput streamInput = reference.streamInput();
-            boolean success = false;
-            try (ThreadContext.StoredContext existing = threadContext.stashContext()) {
-                long requestId = streamInput.readLong();
-                byte status = streamInput.readByte();
-                Version remoteVersion = Version.fromId(streamInput.readInt());
-                final boolean isHandshake = TransportStatus.isHandshake(status);
-                ensureVersionCompatibility(remoteVersion, version, isHandshake);
-
-                if (remoteVersion.onOrAfter(TcpHeader.VERSION_WITH_HEADER_SIZE)) {
-                    // Consume the variable header size
-                    streamInput.readInt();
-                } else {
-                    streamInput = decompressingStream(status, remoteVersion, streamInput);
-                }
-
-                threadContext.readHeaders(streamInput);
-
-                InboundMessage message;
-                if (TransportStatus.isRequest(status)) {
-                    if (remoteVersion.before(Version.V_8_0_0)) {
-                        // discard features
-                        streamInput.readStringArray();
-                    }
-                    final String action = streamInput.readString();
-
-                    if (remoteVersion.onOrAfter(TcpHeader.VERSION_WITH_HEADER_SIZE)) {
-                        streamInput = decompressingStream(status, remoteVersion, streamInput);
-                    }
-                    streamInput = namedWriteableStream(streamInput, remoteVersion);
-                    message = new Request(threadContext, remoteVersion, status, requestId, action, streamInput);
-                } else {
-                    if (remoteVersion.onOrAfter(TcpHeader.VERSION_WITH_HEADER_SIZE)) {
-                        streamInput = decompressingStream(status, remoteVersion, streamInput);
-                    }
-                    streamInput = namedWriteableStream(streamInput, remoteVersion);
-                    message = new Response(threadContext, remoteVersion, status, requestId, streamInput);
-                }
-                success = true;
-                return message;
-            } finally {
-                if (success == false) {
-                    IOUtils.closeWhileHandlingException(streamInput);
-                }
-            }
-        }
-
-        static StreamInput decompressingStream(byte status, Version remoteVersion, StreamInput streamInput) throws IOException {
-            if (TransportStatus.isCompress(status) && streamInput.available() > 0) {
-                try {
-                    StreamInput decompressor = CompressorFactory.COMPRESSOR.streamInput(streamInput);
-                    decompressor.setVersion(remoteVersion);
-                    return decompressor;
-                } catch (IllegalArgumentException e) {
-                    throw new IllegalStateException("stream marked as compressed, but is missing deflate header");
-                }
-            } else {
-                return streamInput;
-            }
-        }
-
-        private StreamInput namedWriteableStream(StreamInput delegate, Version remoteVersion) {
-            NamedWriteableAwareStreamInput streamInput = new NamedWriteableAwareStreamInput(delegate, namedWriteableRegistry);
-            streamInput.setVersion(remoteVersion);
-            return streamInput;
-        }
+    @Override
+    public String toString() {
+        return "InboundMessage{" + header + "}";
     }
 
     @Override
-    public void close() throws IOException {
-        streamInput.close();
-    }
-
-    private static void ensureVersionCompatibility(Version version, Version currentVersion, boolean isHandshake) {
-        // for handshakes we are compatible with N-2 since otherwise we can't figure out our initial version
-        // since we are compatible with N-1 and N+1 so we always send our minCompatVersion as the initial version in the
-        // handshake. This looks odd but it's required to establish the connection correctly we check for real compatibility
-        // once the connection is established
-        final Version compatibilityVersion = isHandshake ? currentVersion.minimumCompatibilityVersion() : currentVersion;
-        if (version.isCompatible(compatibilityVersion) == false) {
-            final Version minCompatibilityVersion = isHandshake ? compatibilityVersion : compatibilityVersion.minimumCompatibilityVersion();
-            String msg = "Received " + (isHandshake ? "handshake " : "") + "message from unsupported version: [";
-            throw new IllegalStateException(msg + version + "] minimal compatible version is: [" + minCompatibilityVersion + "]");
-        }
-    }
-
-    public static class Request extends InboundMessage {
-
-        private final String actionName;
-
-        Request(ThreadContext threadContext, Version version, byte status, long requestId, String actionName,
-                StreamInput streamInput) {
-            super(threadContext, version, status, requestId, streamInput);
-            this.actionName = actionName;
-        }
-
-        String getActionName() {
-            return actionName;
-        }
-
-    }
-
-    public static class Response extends InboundMessage {
-
-        Response(ThreadContext threadContext, Version version, byte status, long requestId, StreamInput streamInput) {
-            super(threadContext, version, status, requestId, streamInput);
+    protected void closeInternal() {
+        try {
+            IOUtils.close(streamInput, content, breakerRelease);
+        } catch (Exception e) {
+            assert false : e;
+            throw new ElasticsearchException(e);
         }
     }
 }

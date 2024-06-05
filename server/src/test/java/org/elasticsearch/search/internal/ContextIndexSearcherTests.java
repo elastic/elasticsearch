@@ -1,32 +1,22 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.internal;
 
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.codecs.StoredFieldsReader;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.FilterLeafReader;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReader;
@@ -34,58 +24,80 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.BulkScorer;
+import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.ConstantScoreScorer;
+import org.apache.lucene.search.ConstantScoreWeight;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.IndexSearcher.LeafSlice;
+import org.apache.lucene.search.KnnFloatVectorQuery;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.TotalHitCountCollectorManager;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.CombinedBitSet;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.SparseFixedBitSet;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
+import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.lucene.util.CombinedBitSet;
+import org.elasticsearch.lucene.util.MatchAllBitSet;
+import org.elasticsearch.search.aggregations.BucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.IdentityHashMap;
+import java.util.List;
 import java.util.Set;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadPoolExecutor;
 
 import static org.elasticsearch.search.internal.ContextIndexSearcher.intersectScorerAndBitSet;
+import static org.elasticsearch.search.internal.ExitableDirectoryReader.ExitableLeafReader;
+import static org.elasticsearch.search.internal.ExitableDirectoryReader.ExitablePointValues;
+import static org.elasticsearch.search.internal.ExitableDirectoryReader.ExitableTerms;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class ContextIndexSearcherTests extends ESTestCase {
     public void testIntersectScorerAndRoleBits() throws Exception {
         final Directory directory = newDirectory();
-        IndexWriter iw = new IndexWriter(
-            directory,
-            new IndexWriterConfig(new StandardAnalyzer()).setMergePolicy(NoMergePolicy.INSTANCE)
-        );
+        IndexWriter iw = new IndexWriter(directory, new IndexWriterConfig(new StandardAnalyzer()).setMergePolicy(NoMergePolicy.INSTANCE));
 
         Document document = new Document();
         document.add(new StringField("field1", "value1", Field.Store.NO));
@@ -111,16 +123,19 @@ public class ContextIndexSearcherTests extends ESTestCase {
         iw.deleteDocuments(new Term("field1", "value3"));
         iw.close();
         DirectoryReader directoryReader = DirectoryReader.open(directory);
-        IndexSearcher searcher = new IndexSearcher(directoryReader);
+        IndexSearcher searcher = newSearcher(directoryReader);
         Weight weight = searcher.createWeight(
             new BoostQuery(new ConstantScoreQuery(new TermQuery(new Term("field2", "value1"))), 3f),
-            ScoreMode.COMPLETE, 1f);
+            ScoreMode.COMPLETE,
+            1f
+        );
 
-        LeafReaderContext leaf = directoryReader.leaves().get(0);
+        LeafReaderContext leaf = searcher.getIndexReader().leaves().get(0);
 
         CombinedBitSet bitSet = new CombinedBitSet(query(leaf, "field1", "value1"), leaf.reader().getLiveDocs());
         LeafCollector leafCollector = new LeafBucketCollector() {
             Scorable scorer;
+
             @Override
             public void setScorer(Scorable scorer) throws IOException {
                 this.scorer = scorer;
@@ -141,7 +156,7 @@ public class ContextIndexSearcherTests extends ESTestCase {
                 assertThat(doc, equalTo(1));
             }
         };
-        intersectScorerAndBitSet(weight.scorer(leaf), bitSet, leafCollector,  () -> {});
+        intersectScorerAndBitSet(weight.scorer(leaf), bitSet, leafCollector, () -> {});
 
         bitSet = new CombinedBitSet(query(leaf, "field1", "value3"), leaf.reader().getLiveDocs());
         leafCollector = new LeafBucketCollector() {
@@ -150,7 +165,7 @@ public class ContextIndexSearcherTests extends ESTestCase {
                 fail("docId [" + doc + "] should have been deleted");
             }
         };
-        intersectScorerAndBitSet(weight.scorer(leaf), bitSet, leafCollector,  () -> {});
+        intersectScorerAndBitSet(weight.scorer(leaf), bitSet, leafCollector, () -> {});
 
         bitSet = new CombinedBitSet(query(leaf, "field1", "value4"), leaf.reader().getLiveDocs());
         leafCollector = new LeafBucketCollector() {
@@ -159,10 +174,90 @@ public class ContextIndexSearcherTests extends ESTestCase {
                 assertThat(doc, equalTo(3));
             }
         };
-        intersectScorerAndBitSet(weight.scorer(leaf), bitSet, leafCollector,  () -> {});
+        intersectScorerAndBitSet(weight.scorer(leaf), bitSet, leafCollector, () -> {});
 
         directoryReader.close();
         directory.close();
+    }
+
+    private int indexDocs(Directory directory) throws IOException {
+        try (
+            RandomIndexWriter iw = new RandomIndexWriter(
+                random(),
+                directory,
+                new IndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE)
+            )
+        ) {
+            final int numDocs = randomIntBetween(500, 1000);
+            for (int i = 0; i < numDocs; i++) {
+                Document document = new Document();
+                document.add(new StringField("field", "value", Field.Store.NO));
+                iw.addDocument(document);
+                if (rarely()) {
+                    iw.flush();
+                }
+            }
+            return numDocs;
+        }
+    }
+
+    /**
+     * Check that knn queries rewrite parallelizes on the number of segments
+     */
+    public void testConcurrentRewrite() throws Exception {
+        ThreadPoolExecutor executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(randomIntBetween(2, 5));
+        try (Directory directory = newDirectory()) {
+            indexDocs(directory);
+            try (DirectoryReader directoryReader = DirectoryReader.open(directory)) {
+                ContextIndexSearcher searcher = new ContextIndexSearcher(
+                    directoryReader,
+                    IndexSearcher.getDefaultSimilarity(),
+                    IndexSearcher.getDefaultQueryCache(),
+                    IndexSearcher.getDefaultQueryCachingPolicy(),
+                    randomBoolean(),
+                    executor,
+                    // create as many slices as possible
+                    Integer.MAX_VALUE,
+                    1
+                );
+                int numSegments = directoryReader.getContext().leaves().size();
+                KnnFloatVectorQuery vectorQuery = new KnnFloatVectorQuery("float_vector", new float[] { 0, 0, 0 }, 10, null);
+                vectorQuery.rewrite(searcher);
+                assertBusy(() -> assertEquals(numSegments, executor.getCompletedTaskCount()));
+            }
+        } finally {
+            terminate(executor);
+        }
+    }
+
+    /**
+     * Test that collection starts one task per slice, all offloaded to the separate executor, none executed in the caller thread
+     */
+    public void testConcurrentCollection() throws Exception {
+        ThreadPoolExecutor executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(randomIntBetween(2, 5));
+        try (Directory directory = newDirectory()) {
+            int numDocs = indexDocs(directory);
+            try (DirectoryReader directoryReader = DirectoryReader.open(directory)) {
+                ContextIndexSearcher searcher = new ContextIndexSearcher(
+                    directoryReader,
+                    IndexSearcher.getDefaultSimilarity(),
+                    IndexSearcher.getDefaultQueryCache(),
+                    IndexSearcher.getDefaultQueryCachingPolicy(),
+                    randomBoolean(),
+                    executor,
+                    // create as many slices as possible
+                    Integer.MAX_VALUE,
+                    1
+                );
+                Integer totalHits = searcher.search(new MatchAllDocsQuery(), new TotalHitCountCollectorManager());
+                assertEquals(numDocs, totalHits.intValue());
+                int numExpectedTasks = ContextIndexSearcher.computeSlices(searcher.getIndexReader().leaves(), Integer.MAX_VALUE, 1).length;
+                // check that each slice goes to the executor, no matter the queue size or the number of slices
+                assertBusy(() -> assertEquals(numExpectedTasks, executor.getCompletedTaskCount()));
+            }
+        } finally {
+            terminate(executor);
+        }
     }
 
     public void testContextIndexSearcherSparseNoDeletions() throws IOException {
@@ -191,6 +286,8 @@ public class ContextIndexSearcherTests extends ESTestCase {
         doc.add(fooField);
         StringField deleteField = new StringField("delete", "no", Field.Store.NO);
         doc.add(deleteField);
+        IntPoint pointField = new IntPoint("point", 1, 2);
+        doc.add(pointField);
         w.addDocument(doc);
         if (deletions) {
             // add a document that matches foo:bar but will be deleted
@@ -220,22 +317,43 @@ public class ContextIndexSearcherTests extends ESTestCase {
 
             }
         };
-        DirectoryReader reader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(w),
-            new ShardId(settings.getIndex(), 0));
+        DirectoryReader reader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(w), new ShardId(settings.getIndex(), 0));
         BitsetFilterCache cache = new BitsetFilterCache(settings, listener);
         Query roleQuery = new TermQuery(new Term("allowed", "yes"));
         BitSet bitSet = cache.getBitSetProducer(roleQuery).getBitSet(reader.leaves().get(0));
         if (sparse) {
             assertThat(bitSet, instanceOf(SparseFixedBitSet.class));
         } else {
-            assertThat(bitSet, instanceOf(FixedBitSet.class));
+            assertThat(bitSet, anyOf(instanceOf(FixedBitSet.class), instanceOf(MatchAllBitSet.class)));
         }
 
         DocumentSubsetDirectoryReader filteredReader = new DocumentSubsetDirectoryReader(reader, cache, roleQuery);
 
-        ContextIndexSearcher searcher = new ContextIndexSearcher(filteredReader, IndexSearcher.getDefaultSimilarity(),
-            IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy());
-        searcher.setCheckCancelled(() -> {});
+        ContextIndexSearcher searcher = new ContextIndexSearcher(
+            filteredReader,
+            IndexSearcher.getDefaultSimilarity(),
+            IndexSearcher.getDefaultQueryCache(),
+            IndexSearcher.getDefaultQueryCachingPolicy(),
+            true
+        );
+
+        for (LeafReaderContext context : searcher.getIndexReader().leaves()) {
+            assertThat(context.reader(), instanceOf(SequentialStoredFieldsLeafReader.class));
+            SequentialStoredFieldsLeafReader lf = (SequentialStoredFieldsLeafReader) context.reader();
+            assertNotNull(lf.getSequentialStoredFieldsReader());
+        }
+        // Assert wrapping
+        assertEquals(ExitableDirectoryReader.class, searcher.getIndexReader().getClass());
+        for (LeafReaderContext lrc : searcher.getIndexReader().leaves()) {
+            assertEquals(ExitableLeafReader.class, lrc.reader().getClass());
+            assertNotEquals(ExitableTerms.class, lrc.reader().terms("foo").getClass());
+            assertNotEquals(ExitablePointValues.class, lrc.reader().getPointValues("point").getClass());
+        }
+        searcher.addQueryCancellation(() -> {});
+        for (LeafReaderContext lrc : searcher.getIndexReader().leaves()) {
+            assertEquals(ExitableTerms.class, lrc.reader().terms("foo").getClass());
+            assertEquals(ExitablePointValues.class, lrc.reader().getPointValues("point").getClass());
+        }
 
         // Searching a non-existing term will trigger a null scorer
         assertEquals(0, searcher.count(new TermQuery(new Term("non_existing_field", "non_existing_value"))));
@@ -253,6 +371,248 @@ public class ContextIndexSearcherTests extends ESTestCase {
         IOUtils.close(reader, w, dir);
     }
 
+    public void testComputeSlices() throws IOException {
+        Directory dir = newDirectory();
+        RandomIndexWriter w = new RandomIndexWriter(random(), dir);
+        int numDocs = rarely() ? randomIntBetween(0, 1000) : randomIntBetween(1000, 25000);
+        Document doc = new Document();
+        for (int i = 0; i < numDocs; i++) {
+            w.addDocument(doc);
+        }
+        DirectoryReader reader = w.getReader();
+        List<LeafReaderContext> contexts = reader.leaves();
+        int iter = randomIntBetween(16, 64);
+        for (int i = 0; i < iter; i++) {
+            int numThreads = randomIntBetween(1, 16);
+            LeafSlice[] slices = ContextIndexSearcher.computeSlices(contexts, numThreads, 1);
+            assertSlices(slices, numDocs, numThreads);
+        }
+        // expect exception for numThreads < 1
+        int numThreads = randomIntBetween(-16, 0);
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> ContextIndexSearcher.computeSlices(contexts, numThreads, 1)
+        );
+        assertThat(ex.getMessage(), equalTo("maxSliceNum must be >= 1 (got " + numThreads + ")"));
+        IOUtils.close(reader, w, dir);
+    }
+
+    private static void assertSlices(LeafSlice[] slices, int numDocs, int numThreads) {
+        // checks that the number of slices is not bigger than the number of available threads
+        // and each slice contains at least 10% of the data (which means the max number of slices is 10)
+        int sumDocs = 0;
+        assertThat(slices.length, lessThanOrEqualTo(numThreads));
+        for (LeafSlice slice : slices) {
+            int sliceDocs = Arrays.stream(slice.leaves).mapToInt(l -> l.reader().maxDoc()).sum();
+            assertThat(sliceDocs, greaterThanOrEqualTo((int) (0.1 * numDocs)));
+            sumDocs += sliceDocs;
+        }
+        assertThat(sumDocs, equalTo(numDocs));
+    }
+
+    public void testExitableTermsMinAndMax() throws IOException {
+        Directory dir = newDirectory();
+        IndexWriter w = new IndexWriter(dir, newIndexWriterConfig(null));
+        Document doc = new Document();
+        StringField fooField = new StringField("foo", "bar", Field.Store.NO);
+        doc.add(fooField);
+        w.addDocument(doc);
+        w.flush();
+
+        DirectoryReader directoryReader = DirectoryReader.open(w);
+        for (LeafReaderContext lfc : directoryReader.leaves()) {
+            Terms terms = lfc.reader().terms("foo");
+            FilterLeafReader.FilterTerms filterTerms = new ExitableTerms(terms, new ExitableDirectoryReader.QueryCancellation() {
+                @Override
+                public boolean isEnabled() {
+                    return false;
+                }
+
+                @Override
+                public void checkCancelled() {
+
+                }
+            }) {
+                @Override
+                public TermsEnum iterator() {
+                    fail("Retrieving min and max should retrieve values from block tree instead of iterating");
+                    return null;
+                }
+            };
+            assertEquals("bar", filterTerms.getMin().utf8ToString());
+            assertEquals("bar", filterTerms.getMax().utf8ToString());
+        }
+        w.close();
+        directoryReader.close();
+        dir.close();
+    }
+
+    public void testReduceIsCalledOnTimeout() throws IOException {
+        try (Directory dir = newDirectory()) {
+            indexDocs(dir);
+            ThreadPoolExecutor executor = null;
+            try (DirectoryReader directoryReader = DirectoryReader.open(dir)) {
+                if (randomBoolean()) {
+                    executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(randomIntBetween(2, 5));
+                }
+                ContextIndexSearcher contextIndexSearcher = new ContextIndexSearcher(
+                    directoryReader,
+                    IndexSearcher.getDefaultSimilarity(),
+                    IndexSearcher.getDefaultQueryCache(),
+                    IndexSearcher.getDefaultQueryCachingPolicy(),
+                    true,
+                    executor,
+                    executor == null ? -1 : executor.getMaximumPoolSize(),
+                    1
+                );
+                boolean[] called = new boolean[1];
+                CollectorManager<Collector, Void> manager = new CollectorManager<>() {
+                    @Override
+                    public Collector newCollector() {
+                        return BucketCollector.NO_OP_COLLECTOR;
+                    }
+
+                    @Override
+                    public Void reduce(Collection<Collector> collectors) {
+                        called[0] = true;
+                        return null;
+                    }
+                };
+                contextIndexSearcher.search(new TestQuery() {
+                    @Override
+                    public Query rewrite(IndexSearcher indexSearcher) throws IOException {
+                        if (randomBoolean()) {
+                            contextIndexSearcher.throwTimeExceededException();
+                        }
+                        return super.rewrite(indexSearcher);
+                    }
+
+                    @Override
+                    public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) {
+                        if (randomBoolean()) {
+                            contextIndexSearcher.throwTimeExceededException();
+                        }
+                        return new ConstantScoreWeight(this, boost) {
+                            @Override
+                            public Scorer scorer(LeafReaderContext context) {
+                                contextIndexSearcher.throwTimeExceededException();
+                                return new ConstantScoreScorer(this, score(), scoreMode, DocIdSetIterator.all(context.reader().maxDoc()));
+                            }
+
+                            @Override
+                            public boolean isCacheable(LeafReaderContext ctx) {
+                                return false;
+                            }
+                        };
+                    }
+                }, manager);
+                assertTrue(contextIndexSearcher.timeExceeded());
+                assertThat(called[0], equalTo(true));
+            } finally {
+                if (executor != null) {
+                    terminate(executor);
+                }
+            }
+        }
+    }
+
+    public void testTimeoutOnRewriteStandalone() throws IOException {
+        try (Directory dir = newDirectory()) {
+            indexDocs(dir);
+            ThreadPoolExecutor executor = null;
+            try (DirectoryReader directoryReader = DirectoryReader.open(dir)) {
+                if (randomBoolean()) {
+                    executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(randomIntBetween(2, 5));
+                }
+                ContextIndexSearcher contextIndexSearcher = new ContextIndexSearcher(
+                    directoryReader,
+                    IndexSearcher.getDefaultSimilarity(),
+                    IndexSearcher.getDefaultQueryCache(),
+                    IndexSearcher.getDefaultQueryCachingPolicy(),
+                    true,
+                    executor,
+                    executor == null ? -1 : executor.getMaximumPoolSize(),
+                    1
+                );
+                TestQuery testQuery = new TestQuery() {
+                    @Override
+                    public Query rewrite(IndexSearcher indexSearcher) {
+                        contextIndexSearcher.throwTimeExceededException();
+                        assert false;
+                        return null;
+                    }
+                };
+                Query rewrite = contextIndexSearcher.rewrite(testQuery);
+                assertThat(rewrite, instanceOf(MatchNoDocsQuery.class));
+                assertEquals("MatchNoDocsQuery(\"rewrite timed out\")", rewrite.toString());
+                assertTrue(contextIndexSearcher.timeExceeded());
+            } finally {
+                if (executor != null) {
+                    terminate(executor);
+                }
+            }
+        }
+    }
+
+    public void testTimeoutOnRewriteDuringSearch() throws IOException {
+        try (Directory dir = newDirectory()) {
+            indexDocs(dir);
+            ThreadPoolExecutor executor = null;
+            try (DirectoryReader directoryReader = DirectoryReader.open(dir)) {
+                if (randomBoolean()) {
+                    executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(randomIntBetween(2, 5));
+                }
+                ContextIndexSearcher contextIndexSearcher = new ContextIndexSearcher(
+                    directoryReader,
+                    IndexSearcher.getDefaultSimilarity(),
+                    IndexSearcher.getDefaultQueryCache(),
+                    IndexSearcher.getDefaultQueryCachingPolicy(),
+                    true,
+                    executor,
+                    executor == null ? -1 : executor.getMaximumPoolSize(),
+                    1
+                );
+                TestQuery testQuery = new TestQuery() {
+                    @Override
+                    public Query rewrite(IndexSearcher indexSearcher) {
+                        contextIndexSearcher.throwTimeExceededException();
+                        assert false;
+                        return null;
+                    }
+                };
+                Integer hitCount = contextIndexSearcher.search(testQuery, new TotalHitCountCollectorManager());
+                assertEquals(0, hitCount.intValue());
+                assertTrue(contextIndexSearcher.timeExceeded());
+            } finally {
+                if (executor != null) {
+                    terminate(executor);
+                }
+            }
+        }
+    }
+
+    private static class TestQuery extends Query {
+        @Override
+        public String toString(String field) {
+            return "query";
+        }
+
+        @Override
+        public void visit(QueryVisitor visitor) {
+            visitor.visitLeaf(this);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            return sameClassAs(o);
+        }
+
+        @Override
+        public int hashCode() {
+            return classHash();
+        }
+    }
+
     private SparseFixedBitSet query(LeafReaderContext leaf, String field, String value) throws IOException {
         SparseFixedBitSet sparseFixedBitSet = new SparseFixedBitSet(leaf.reader().maxDoc());
         TermsEnum tenum = leaf.reader().terms(field).iterator();
@@ -263,11 +623,11 @@ public class ContextIndexSearcherTests extends ESTestCase {
         return sparseFixedBitSet;
     }
 
-    private static class DocumentSubsetDirectoryReader extends FilterDirectoryReader {
+    public static class DocumentSubsetDirectoryReader extends FilterDirectoryReader {
         private final BitsetFilterCache bitsetFilterCache;
         private final Query roleQuery;
 
-        DocumentSubsetDirectoryReader(DirectoryReader in, BitsetFilterCache bitsetFilterCache, Query roleQuery) throws IOException {
+        public DocumentSubsetDirectoryReader(DirectoryReader in, BitsetFilterCache bitsetFilterCache, Query roleQuery) throws IOException {
             super(in, new SubReaderWrapper() {
                 @Override
                 public LeafReader wrap(LeafReader reader) {
@@ -287,14 +647,13 @@ public class ContextIndexSearcherTests extends ESTestCase {
             return new DocumentSubsetDirectoryReader(in, bitsetFilterCache, roleQuery);
         }
 
-
         @Override
         public CacheHelper getReaderCacheHelper() {
             return in.getReaderCacheHelper();
         }
     }
 
-    private static class DocumentSubsetReader extends FilterLeafReader {
+    private static class DocumentSubsetReader extends SequentialStoredFieldsLeafReader {
         private final BitSet roleQueryBits;
         private final int numDocs;
 
@@ -339,6 +698,11 @@ public class ContextIndexSearcherTests extends ESTestCase {
             }
         }
 
+        @Override
+        protected StoredFieldsReader doGetSequentialStoredFieldsReader(StoredFieldsReader reader) {
+            return reader;
+        }
+
         private static int computeNumDocs(LeafReader reader, BitSet roleQueryBits) {
             final Bits liveDocs = reader.getLiveDocs();
             if (roleQueryBits == null) {
@@ -375,11 +739,6 @@ public class ContextIndexSearcherTests extends ESTestCase {
         }
 
         @Override
-        public void extractTerms(Set<Term> terms) {
-            weight.extractTerms(terms);
-        }
-
-        @Override
         public Explanation explain(LeafReaderContext context, int doc) throws IOException {
             return weight.explain(context, doc);
         }
@@ -391,8 +750,7 @@ public class ContextIndexSearcherTests extends ESTestCase {
         }
 
         @Override
-        public BulkScorer bulkScorer(LeafReaderContext context)
-            throws IOException {
+        public BulkScorer bulkScorer(LeafReaderContext context) throws IOException {
             assertTrue(seenLeaves.add(context.reader().getCoreCacheHelper().getKey()));
             return weight.bulkScorer(context);
         }
@@ -417,12 +775,12 @@ public class ContextIndexSearcherTests extends ESTestCase {
         }
 
         @Override
-        public Query rewrite(IndexReader reader) throws IOException {
-            Query queryRewritten = query.rewrite(reader);
+        public Query rewrite(IndexSearcher searcher) throws IOException {
+            Query queryRewritten = query.rewrite(searcher);
             if (query != queryRewritten) {
                 return new CreateScorerOnceQuery(queryRewritten);
             }
-            return super.rewrite(reader);
+            return super.rewrite(searcher);
         }
 
         @Override
@@ -438,6 +796,11 @@ public class ContextIndexSearcherTests extends ESTestCase {
         @Override
         public int hashCode() {
             return 31 * classHash() + query.hashCode();
+        }
+
+        @Override
+        public void visit(QueryVisitor visitor) {
+            visitor.visitLeaf(this);
         }
     }
 }

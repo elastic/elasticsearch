@@ -1,39 +1,26 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.pipeline;
 
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -84,13 +71,6 @@ public class SerialDiffPipelineAggregationBuilder extends AbstractPipelineAggreg
     }
 
     /**
-     * Gets the lag to use when calculating the serial difference.
-     */
-    public int lag() {
-        return lag;
-    }
-
-    /**
      * Sets the format to use on the output of this aggregation.
      */
     public SerialDiffPipelineAggregationBuilder format(String format) {
@@ -99,13 +79,6 @@ public class SerialDiffPipelineAggregationBuilder extends AbstractPipelineAggreg
         }
         this.format = format;
         return this;
-    }
-
-    /**
-     * Gets the format to use on the output of this aggregation.
-     */
-    public String format() {
-        return format;
     }
 
     /**
@@ -119,13 +92,6 @@ public class SerialDiffPipelineAggregationBuilder extends AbstractPipelineAggreg
         return this;
     }
 
-    /**
-     * Gets the GapPolicy to use on the output of this aggregation.
-     */
-    public GapPolicy gapPolicy() {
-        return gapPolicy;
-    }
-
     protected DocValueFormat formatter() {
         if (format != null) {
             return new DocValueFormat.Decimal(format);
@@ -135,14 +101,13 @@ public class SerialDiffPipelineAggregationBuilder extends AbstractPipelineAggreg
     }
 
     @Override
-    protected PipelineAggregator createInternal(Map<String, Object> metaData) {
-        return new SerialDiffPipelineAggregator(name, bucketsPaths, formatter(), gapPolicy, lag, metaData);
+    protected PipelineAggregator createInternal(Map<String, Object> metadata) {
+        return new SerialDiffPipelineAggregator(name, bucketsPaths, formatter(), gapPolicy, lag, metadata);
     }
-    
+
     @Override
-    public void doValidate(AggregatorFactory parent, Collection<AggregationBuilder> aggFactories,
-            Collection<PipelineAggregationBuilder> pipelineAggregatoractories) {        
-        validateSequentiallyOrderedParentAggs(parent, NAME, name);
+    protected void validate(ValidationContext context) {
+        context.validateParentAggSequentiallyOrdered(NAME, name);
     }
 
     @Override
@@ -174,21 +139,31 @@ public class SerialDiffPipelineAggregationBuilder extends AbstractPipelineAggreg
                 } else if (GAP_POLICY.match(currentFieldName, parser.getDeprecationHandler())) {
                     gapPolicy = GapPolicy.parse(parser.text(), parser.getTokenLocation());
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(),
-                            "Unknown key for a " + token + " in [" + reducerName + "]: [" + currentFieldName + "].");
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        "Unknown key for a " + token + " in [" + reducerName + "]: [" + currentFieldName + "]."
+                    );
                 }
             } else if (token == XContentParser.Token.VALUE_NUMBER) {
                 if (LAG.match(currentFieldName, parser.getDeprecationHandler())) {
                     lag = parser.intValue(true);
                     if (lag <= 0) {
-                        throw new ParsingException(parser.getTokenLocation(),
-                                "Lag must be a positive, non-zero integer.  Value supplied was" +
-                                lag + " in [" + reducerName + "]: ["
-                                        + currentFieldName + "].");
+                        throw new ParsingException(
+                            parser.getTokenLocation(),
+                            "Lag must be a positive, non-zero integer.  Value supplied was"
+                                + lag
+                                + " in ["
+                                + reducerName
+                                + "]: ["
+                                + currentFieldName
+                                + "]."
+                        );
                     }
-                }  else {
-                    throw new ParsingException(parser.getTokenLocation(),
-                            "Unknown key for a " + token + " in [" + reducerName + "]: [" + currentFieldName + "].");
+                } else {
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        "Unknown key for a " + token + " in [" + reducerName + "]: [" + currentFieldName + "]."
+                    );
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if (BUCKETS_PATH.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -199,22 +174,28 @@ public class SerialDiffPipelineAggregationBuilder extends AbstractPipelineAggreg
                     }
                     bucketsPaths = paths.toArray(new String[paths.size()]);
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(),
-                            "Unknown key for a " + token + " in [" + reducerName + "]: [" + currentFieldName + "].");
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        "Unknown key for a " + token + " in [" + reducerName + "]: [" + currentFieldName + "]."
+                    );
                 }
             } else {
-                throw new ParsingException(parser.getTokenLocation(), "Unexpected token " + token + " in [" + reducerName + "].",
-                        parser.getTokenLocation());
+                throw new ParsingException(
+                    parser.getTokenLocation(),
+                    "Unexpected token " + token + " in [" + reducerName + "].",
+                    parser.getTokenLocation()
+                );
             }
         }
 
         if (bucketsPaths == null) {
-            throw new ParsingException(parser.getTokenLocation(),
-                    "Missing required field [" + BUCKETS_PATH.getPreferredName() + "] for derivative aggregation [" + reducerName + "]");
+            throw new ParsingException(
+                parser.getTokenLocation(),
+                "Missing required field [" + BUCKETS_PATH.getPreferredName() + "] for derivative aggregation [" + reducerName + "]"
+            );
         }
 
-        SerialDiffPipelineAggregationBuilder factory =
-                new SerialDiffPipelineAggregationBuilder(reducerName, bucketsPaths[0]);
+        SerialDiffPipelineAggregationBuilder factory = new SerialDiffPipelineAggregationBuilder(reducerName, bucketsPaths[0]);
         if (lag != null) {
             factory.lag(lag);
         }
@@ -238,13 +219,16 @@ public class SerialDiffPipelineAggregationBuilder extends AbstractPipelineAggreg
         if (obj == null || getClass() != obj.getClass()) return false;
         if (super.equals(obj) == false) return false;
         SerialDiffPipelineAggregationBuilder other = (SerialDiffPipelineAggregationBuilder) obj;
-        return Objects.equals(format, other.format)
-                && Objects.equals(gapPolicy, other.gapPolicy)
-                && Objects.equals(lag, other.lag);
+        return Objects.equals(format, other.format) && Objects.equals(gapPolicy, other.gapPolicy) && Objects.equals(lag, other.lag);
     }
 
     @Override
     public String getWriteableName() {
         return NAME;
+    }
+
+    @Override
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.ZERO;
     }
 }

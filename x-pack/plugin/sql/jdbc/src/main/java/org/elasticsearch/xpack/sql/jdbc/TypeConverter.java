@@ -1,21 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.jdbc;
 
-import org.elasticsearch.geometry.utils.StandardValidator;
-import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.xpack.sql.proto.StringUtils;
 
-import java.io.IOException;
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.sql.Date;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
 import java.sql.Time;
 import java.sql.Timestamp;
-import java.text.ParseException;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -55,8 +54,6 @@ import static org.elasticsearch.xpack.sql.jdbc.JdbcDateUtils.timeAsTime;
  */
 final class TypeConverter {
 
-    private static WellKnownText WKT = new WellKnownText(true, new StandardValidator(true));
-
     private TypeConverter() {}
 
     /**
@@ -86,10 +83,14 @@ final class TypeConverter {
     }
 
     /**
-     * Converts millisecond after epoc to timestamp
+     * Converts millisecond after epoch to timestamp
      */
-    static Timestamp convertTimestamp(Long millis, Calendar cal) {
-        return dateTimeConvert(millis, cal, c -> new Timestamp(c.getTimeInMillis()));
+    static Timestamp convertTimestamp(Long millis, int nanos, Calendar cal) {
+        Timestamp ts = dateTimeConvert(millis, cal, c -> new Timestamp(c.getTimeInMillis()));
+        if (ts != null) {
+            ts.setNanos(nanos);
+        }
+        return ts;
     }
 
     private static <T> T dateTimeConvert(Long millis, Calendar c, Function<Calendar, T> creator) {
@@ -105,8 +106,6 @@ final class TypeConverter {
         }
     }
 
-
-
     static long convertFromCalendarToUTC(long value, Calendar cal) {
         if (cal == null) {
             return value;
@@ -114,9 +113,8 @@ final class TypeConverter {
         Calendar c = (Calendar) cal.clone();
         c.setTimeInMillis(value);
 
-        ZonedDateTime convertedDateTime = ZonedDateTime
-                .ofInstant(c.toInstant(), c.getTimeZone().toZoneId())
-                .withZoneSameLocal(ZoneOffset.UTC);
+        ZonedDateTime convertedDateTime = ZonedDateTime.ofInstant(c.toInstant(), c.getTimeZone().toZoneId())
+            .withZoneSameLocal(ZoneOffset.UTC);
 
         return convertedDateTime.toInstant().toEpochMilli();
     }
@@ -160,6 +158,9 @@ final class TypeConverter {
         if (type == Long.class) {
             return (T) asLong(val, columnType, typeString);
         }
+        if (type == BigInteger.class) {
+            return (T) asBigInteger(val, columnType, typeString);
+        }
         if (type == Float.class) {
             return (T) asFloat(val, columnType, typeString);
         }
@@ -177,6 +178,9 @@ final class TypeConverter {
         }
         if (type == byte[].class) {
             return (T) asByteArray(val, columnType, typeString);
+        }
+        if (type == BigDecimal.class) {
+            return (T) asBigDecimal(val, columnType, typeString);
         }
         //
         // JDK 8 types
@@ -219,6 +223,8 @@ final class TypeConverter {
                 return ((Number) v).intValue();
             case LONG:
                 return ((Number) v).longValue();
+            case UNSIGNED_LONG:
+                return asBigInteger(v, columnType, typeString);
             case HALF_FLOAT:
             case SCALED_FLOAT:
             case DOUBLE:
@@ -249,12 +255,8 @@ final class TypeConverter {
             case GEO_POINT:
             case GEO_SHAPE:
             case SHAPE:
-                try {
-                    return WKT.fromWKT(v.toString());
-                } catch (IOException | ParseException ex) {
-                    throw new SQLException("Cannot parse geo_shape", ex);
-                }
             case IP:
+            case VERSION:
                 return v.toString();
             default:
                 throw new SQLException("Unexpected column type [" + typeString + "]");
@@ -303,9 +305,8 @@ final class TypeConverter {
     }
 
     private static <T> T failConversion(Object value, EsType columnType, String typeString, Class<T> target, Exception e)
-            throws SQLException {
-        String message = format(Locale.ROOT, "Unable to convert value [%.128s] of type [%s] to [%s]", value, columnType,
-                typeString);
+        throws SQLException {
+        String message = format(Locale.ROOT, "Unable to convert value [%.128s] of type [%s] to [%s]", value, columnType, typeString);
         throw e != null ? new SQLException(message, e) : new SQLException(message);
     }
 
@@ -316,11 +317,12 @@ final class TypeConverter {
             case SHORT:
             case INTEGER:
             case LONG:
+            case UNSIGNED_LONG:
             case FLOAT:
             case HALF_FLOAT:
             case SCALED_FLOAT:
             case DOUBLE:
-                return Boolean.valueOf(Integer.signum(((Number) val).intValue()) != 0);
+                return Boolean.valueOf(((Number) val).doubleValue() != 0);
             case KEYWORD:
             case TEXT:
                 return Boolean.valueOf((String) val);
@@ -338,6 +340,8 @@ final class TypeConverter {
             case INTEGER:
             case LONG:
                 return safeToByte(((Number) val).longValue());
+            case UNSIGNED_LONG:
+                return safeToByte(asBigInteger(val, columnType, typeString));
             case FLOAT:
             case HALF_FLOAT:
             case SCALED_FLOAT:
@@ -365,6 +369,8 @@ final class TypeConverter {
             case INTEGER:
             case LONG:
                 return safeToShort(((Number) val).longValue());
+            case UNSIGNED_LONG:
+                return safeToShort(asBigInteger(val, columnType, typeString));
             case FLOAT:
             case HALF_FLOAT:
             case SCALED_FLOAT:
@@ -391,6 +397,8 @@ final class TypeConverter {
             case INTEGER:
             case LONG:
                 return safeToInt(((Number) val).longValue());
+            case UNSIGNED_LONG:
+                return safeToInt(asBigInteger(val, columnType, typeString));
             case FLOAT:
             case HALF_FLOAT:
             case SCALED_FLOAT:
@@ -417,16 +425,18 @@ final class TypeConverter {
             case INTEGER:
             case LONG:
                 return Long.valueOf(((Number) val).longValue());
+            case UNSIGNED_LONG:
+                return safeToLong(asBigInteger(val, columnType, typeString));
             case FLOAT:
             case HALF_FLOAT:
             case SCALED_FLOAT:
             case DOUBLE:
                 return safeToLong(((Number) val).doubleValue());
-            //TODO: should we support conversion to TIMESTAMP?
-            //The spec says that getLong() should support the following types conversions:
-            //TINYINT, SMALLINT, INTEGER, BIGINT, REAL, FLOAT, DOUBLE, DECIMAL, NUMERIC, BIT, BOOLEAN, CHAR, VARCHAR, LONGVARCHAR
-            //case TIMESTAMP:
-            //    return ((Number) val).longValue();
+            // TODO: should we support conversion to TIMESTAMP?
+            // The spec says that getLong() should support the following types conversions:
+            // TINYINT, SMALLINT, INTEGER, BIGINT, REAL, FLOAT, DOUBLE, DECIMAL, NUMERIC, BIT, BOOLEAN, CHAR, VARCHAR, LONGVARCHAR
+            // case TIMESTAMP:
+            // return ((Number) val).longValue();
             case KEYWORD:
             case TEXT:
                 try {
@@ -449,6 +459,8 @@ final class TypeConverter {
             case INTEGER:
             case LONG:
                 return Float.valueOf(((Number) val).longValue());
+            case UNSIGNED_LONG:
+                return asBigInteger(val, columnType, typeString).floatValue();
             case FLOAT:
             case HALF_FLOAT:
             case SCALED_FLOAT:
@@ -475,6 +487,8 @@ final class TypeConverter {
             case INTEGER:
             case LONG:
                 return Double.valueOf(((Number) val).longValue());
+            case UNSIGNED_LONG:
+                return asBigInteger(val, columnType, typeString).doubleValue();
             case FLOAT:
             case HALF_FLOAT:
             case SCALED_FLOAT:
@@ -529,6 +543,65 @@ final class TypeConverter {
         throw new SQLFeatureNotSupportedException();
     }
 
+    private static BigInteger asBigInteger(Object val, EsType columnType, String typeString) throws SQLException {
+        switch (columnType) {
+            case BOOLEAN:
+                return ((Boolean) val).booleanValue() ? BigInteger.ONE : BigInteger.ZERO;
+            case BYTE:
+            case SHORT:
+            case INTEGER:
+            case LONG:
+                return BigInteger.valueOf(((Number) val).longValue());
+            case FLOAT:
+            case HALF_FLOAT:
+            case SCALED_FLOAT:
+            case DOUBLE:
+                return BigDecimal.valueOf(((Number) val).doubleValue()).toBigInteger();
+            // Aggs can return floats dressed as UL types (bugUrl="https://github.com/elastic/elasticsearch/issues/65413")
+            case UNSIGNED_LONG:
+            case KEYWORD:
+            case TEXT:
+                try {
+                    return new BigDecimal(val.toString()).toBigInteger();
+                } catch (NumberFormatException e) {
+                    return failConversion(val, columnType, typeString, BigInteger.class, e);
+                }
+            default:
+        }
+        return failConversion(val, columnType, typeString, BigInteger.class);
+    }
+
+    private static BigDecimal asBigDecimal(Object val, EsType columnType, String typeString) throws SQLException {
+        switch (columnType) {
+            case BOOLEAN:
+                return (Boolean) val ? BigDecimal.ONE : BigDecimal.ZERO;
+            case BYTE:
+            case SHORT:
+            case INTEGER:
+            case LONG:
+                return BigDecimal.valueOf(((Number) val).longValue());
+            case UNSIGNED_LONG:
+                return new BigDecimal(asBigInteger(val, columnType, typeString));
+            case FLOAT:
+            case HALF_FLOAT:
+                // floats are passed in as doubles here, so we need to dip into string to keep original float's (reduced) precision.
+                return new BigDecimal(String.valueOf(((Number) val).floatValue()));
+            case DOUBLE:
+            case SCALED_FLOAT:
+                return BigDecimal.valueOf(((Number) val).doubleValue());
+            case KEYWORD:
+            case TEXT:
+                try {
+                    return new BigDecimal((String) val);
+                } catch (NumberFormatException nfe) {
+                    return failConversion(val, columnType, typeString, BigDecimal.class, nfe);
+                }
+                // TODO: should we implement numeric - interval types conversions too; ever needed? ODBC does mandate it
+                // https://docs.microsoft.com/en-us/sql/odbc/reference/appendixes/converting-data-from-c-to-sql-data-types
+        }
+        return failConversion(val, columnType, typeString, BigDecimal.class);
+    }
+
     private static LocalDate asLocalDate(Object val, EsType columnType, String typeString) throws SQLException {
         throw new SQLFeatureNotSupportedException();
     }
@@ -549,28 +622,60 @@ final class TypeConverter {
         throw new SQLFeatureNotSupportedException();
     }
 
-    private static byte safeToByte(long x) throws SQLException {
+    private static byte safeToByte(Number n) throws SQLException {
+        if (n instanceof BigInteger) {
+            try {
+                return ((BigInteger) n).byteValueExact();
+            } catch (ArithmeticException ae) {
+                throw new SQLException(format(Locale.ROOT, "Numeric %s out of range", n));
+            }
+        }
+        long x = n.longValue();
         if (x > Byte.MAX_VALUE || x < Byte.MIN_VALUE) {
-            throw new SQLException(format(Locale.ROOT, "Numeric %s out of range", Long.toString(x)));
+            throw new SQLException(format(Locale.ROOT, "Numeric %s out of range", n));
         }
         return (byte) x;
     }
 
-    private static short safeToShort(long x) throws SQLException {
+    private static short safeToShort(Number n) throws SQLException {
+        if (n instanceof BigInteger) {
+            try {
+                return ((BigInteger) n).shortValueExact();
+            } catch (ArithmeticException ae) {
+                throw new SQLException(format(Locale.ROOT, "Numeric %s out of range", n));
+            }
+        }
+        long x = n.longValue();
         if (x > Short.MAX_VALUE || x < Short.MIN_VALUE) {
-            throw new SQLException(format(Locale.ROOT, "Numeric %s out of range", Long.toString(x)));
+            throw new SQLException(format(Locale.ROOT, "Numeric %s out of range", n));
         }
         return (short) x;
     }
 
-    private static int safeToInt(long x) throws SQLException {
+    private static int safeToInt(Number n) throws SQLException {
+        if (n instanceof BigInteger) {
+            try {
+                return ((BigInteger) n).intValueExact();
+            } catch (ArithmeticException ae) {
+                throw new SQLException(format(Locale.ROOT, "Numeric %s out of range", n));
+            }
+        }
+        long x = n.longValue();
         if (x > Integer.MAX_VALUE || x < Integer.MIN_VALUE) {
-            throw new SQLException(format(Locale.ROOT, "Numeric %s out of range", Long.toString(x)));
+            throw new SQLException(format(Locale.ROOT, "Numeric %s out of range", n));
         }
         return (int) x;
     }
 
-    private static long safeToLong(double x) throws SQLException {
+    private static long safeToLong(Number n) throws SQLException {
+        if (n instanceof BigInteger) {
+            try {
+                return ((BigInteger) n).longValueExact();
+            } catch (ArithmeticException ae) {
+                throw new SQLException(format(Locale.ROOT, "Numeric %s out of range", n));
+            }
+        }
+        double x = n.doubleValue();
         if (x > Long.MAX_VALUE || x < Long.MIN_VALUE) {
             throw new SQLException(format(Locale.ROOT, "Numeric %s out of range", Double.toString(x)));
         }

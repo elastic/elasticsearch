@@ -1,28 +1,20 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.painless.lookup;
+
+import org.elasticsearch.painless.spi.annotation.InjectConstantAnnotation;
 
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 /**
  * PainlessLookupUtility contains methods shared by {@link PainlessLookupBuilder}, {@link PainlessLookup}, and other classes within
@@ -72,7 +64,7 @@ import java.util.Objects;
  * </ul>
  */
 public final class PainlessLookupUtility {
-    
+
     /**
      * The name for an anonymous class.
      */
@@ -110,9 +102,9 @@ public final class PainlessLookupUtility {
             int typeNameLength = canonicalTypeName.length();
 
             while (arrayIndex < typeNameLength) {
-                if (canonicalTypeName.charAt(arrayIndex) == '[' &&
-                    ++arrayIndex < typeNameLength  &&
-                    canonicalTypeName.charAt(arrayIndex++) == ']') {
+                if (canonicalTypeName.charAt(arrayIndex) == '['
+                    && ++arrayIndex < typeNameLength
+                    && canonicalTypeName.charAt(arrayIndex++) == ']') {
                     ++arrayDimensions;
                 } else {
                     return null;
@@ -123,7 +115,7 @@ public final class PainlessLookupUtility {
             type = DEF_CLASS_NAME.equals(canonicalTypeName) ? def.class : canonicalClassNamesToClasses.get(canonicalTypeName);
 
             if (type != null) {
-                char arrayBraces[] = new char[arrayDimensions];
+                char[] arrayBraces = new char[arrayDimensions];
                 Arrays.fill(arrayBraces, '[');
                 String javaTypeName = new String(arrayBraces);
 
@@ -183,24 +175,7 @@ public final class PainlessLookupUtility {
      * of classes or a mixed list of classes and types to a list of canonical type names as a string as well.
      */
     public static String typesToCanonicalTypeNames(List<Class<?>> types) {
-        StringBuilder typesStringBuilder = new StringBuilder("[");
-
-        int anyTypesSize = types.size();
-        int anyTypesIndex = 0;
-
-        for (Class<?> painlessType : types) {
-            String canonicalTypeName = typeToCanonicalTypeName(painlessType);
-
-            typesStringBuilder.append(canonicalTypeName);
-
-            if (++anyTypesIndex < anyTypesSize) {
-                typesStringBuilder.append(",");
-            }
-        }
-
-        typesStringBuilder.append("]");
-
-        return typesStringBuilder.toString();
+        return types.stream().map(PainlessLookupUtility::typeToCanonicalTypeName).collect(Collectors.joining(",", "[", "]"));
     }
 
     /**
@@ -328,15 +303,15 @@ public final class PainlessLookupUtility {
      * where {@code true} is returned if the type is a constant type and {@code false} otherwise.
      */
     public static boolean isConstantType(Class<?> type) {
-        return type == boolean.class ||
-               type == byte.class    ||
-               type == short.class   ||
-               type == char.class    ||
-               type == int.class     ||
-               type == long.class    ||
-               type == float.class   ||
-               type == double.class  ||
-               type == String.class;
+        return type == boolean.class
+            || type == byte.class
+            || type == short.class
+            || type == char.class
+            || type == int.class
+            || type == long.class
+            || type == float.class
+            || type == double.class
+            || type == String.class;
     }
 
     /**
@@ -359,7 +334,41 @@ public final class PainlessLookupUtility {
     public static String buildPainlessFieldKey(String fieldName) {
         return fieldName;
     }
-    
+
+    /**
+     * Constructs an array of injectable constants for a specific {@link PainlessMethod}
+     * derived from an {@link org.elasticsearch.painless.spi.annotation.InjectConstantAnnotation}.
+     */
+    public static Object[] buildInjections(PainlessMethod painlessMethod, Map<String, Object> constants) {
+        InjectConstantAnnotation injects = (InjectConstantAnnotation) painlessMethod.annotations().get(InjectConstantAnnotation.class);
+        if (injects == null) {
+            return new Object[0];
+        }
+
+        List<String> names = injects.injects();
+        Object[] injections = new Object[names.size()];
+
+        for (int i = 0; i < names.size(); i++) {
+            String name = names.get(i);
+            Object constant = constants.get(name);
+
+            if (constant == null) {
+                throw new IllegalStateException(
+                    "constant ["
+                        + name
+                        + "] not found for injection into method "
+                        + "["
+                        + buildPainlessMethodKey(painlessMethod.javaMethod().getName(), painlessMethod.typeParameters().size())
+                        + "]"
+                );
+            }
+
+            injections[i] = constant;
+        }
+
+        return injections;
+    }
+
     private PainlessLookupUtility() {
 
     }

@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[slm-api-execute-retention]]
 === Execute snapshot retention policy API
 ++++

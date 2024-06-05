@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job.persistence;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -73,19 +74,29 @@ public class StateStreamer {
             try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(ML_ORIGIN)) {
                 SearchResponse stateResponse = client.prepareSearch(indexName)
                     .setSize(1)
-                    .setQuery(QueryBuilders.idsQuery().addIds(stateDocId)).get();
-                if (stateResponse.getHits().getHits().length == 0) {
-                    LOGGER.error("Expected {} documents for model state for {} snapshot {} but failed to find {}",
-                            modelSnapshot.getSnapshotDocCount(), jobId, modelSnapshot.getSnapshotId(), stateDocId);
-                    break;
+                    .setQuery(QueryBuilders.idsQuery().addIds(stateDocId))
+                    .get();
+                try {
+                    if (stateResponse.getHits().getHits().length == 0) {
+                        LOGGER.error(
+                            "Expected {} documents for model state for {} snapshot {} but failed to find {}",
+                            modelSnapshot.getSnapshotDocCount(),
+                            jobId,
+                            modelSnapshot.getSnapshotId(),
+                            stateDocId
+                        );
+                        break;
+                    }
+                    writeStateToStream(stateResponse.getHits().getAt(0).getSourceRef(), restoreStream);
+                } finally {
+                    stateResponse.decRef();
                 }
-                writeStateToStream(stateResponse.getHits().getAt(0).getSourceRef(), restoreStream);
             }
         }
 
         // Secondly try to restore categorizer state. This must come after model state because that's
-        // the order the C++ process expects.  There are no snapshots for this, so the IDs simply
-        // count up until a document is not found.  It's NOT an error to have no categorizer state.
+        // the order the C++ process expects. There are no snapshots for this, so the IDs simply
+        // count up until a document is not found. It's NOT an error to have no categorizer state.
         int docNum = 0;
         while (true) {
             if (isCancelled) {
@@ -99,11 +110,16 @@ public class StateStreamer {
             try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(ML_ORIGIN)) {
                 SearchResponse stateResponse = client.prepareSearch(indexName)
                     .setSize(1)
-                    .setQuery(QueryBuilders.idsQuery().addIds(docId)).get();
-                if (stateResponse.getHits().getHits().length == 0) {
-                    break;
+                    .setQuery(QueryBuilders.idsQuery().addIds(docId))
+                    .get();
+                try {
+                    if (stateResponse.getHits().getHits().length == 0) {
+                        break;
+                    }
+                    writeStateToStream(stateResponse.getHits().getAt(0).getSourceRef(), restoreStream);
+                } finally {
+                    stateResponse.decRef();
                 }
-                writeStateToStream(stateResponse.getHits().getAt(0).getSourceRef(), restoreStream);
             }
         }
 

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.support.single.instance;
@@ -39,8 +28,12 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.CapturingTransport;
@@ -60,6 +53,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
@@ -81,7 +75,7 @@ public class TransportInstanceSingleOperationActionTests extends ESTestCase {
         public Request() {}
 
         public Request(StreamInput in) throws IOException {
-            super(in);
+            super(null, in);
         }
     }
 
@@ -99,11 +93,22 @@ public class TransportInstanceSingleOperationActionTests extends ESTestCase {
     class TestTransportInstanceSingleOperationAction extends TransportInstanceSingleOperationAction<Request, Response> {
         private final Map<ShardId, Object> shards = new HashMap<>();
 
-        TestTransportInstanceSingleOperationAction(String actionName, TransportService transportService,
-                                                   ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                                   Writeable.Reader<Request> request) {
-            super(actionName, THREAD_POOL, TransportInstanceSingleOperationActionTests.this.clusterService, transportService,
-                actionFilters, indexNameExpressionResolver, request);
+        TestTransportInstanceSingleOperationAction(
+            String actionName,
+            TransportService transportService,
+            ActionFilters actionFilters,
+            IndexNameExpressionResolver indexNameExpressionResolver,
+            Writeable.Reader<Request> request
+        ) {
+            super(
+                actionName,
+                THREAD_POOL,
+                TransportInstanceSingleOperationActionTests.this.clusterService,
+                transportService,
+                actionFilters,
+                indexNameExpressionResolver,
+                request
+            );
         }
 
         public Map<ShardId, Object> getResults() {
@@ -111,8 +116,8 @@ public class TransportInstanceSingleOperationActionTests extends ESTestCase {
         }
 
         @Override
-        protected String executor() {
-            return ThreadPool.Names.SAME;
+        protected Executor executor(ShardId shardId) {
+            return EsExecutors.DIRECT_EXECUTOR_SERVICE;
         }
 
         @Override
@@ -126,8 +131,7 @@ public class TransportInstanceSingleOperationActionTests extends ESTestCase {
         }
 
         @Override
-        protected void resolveRequest(ClusterState state, Request request) {
-        }
+        protected void resolveRequest(ClusterState state, Request request) {}
 
         @Override
         protected ShardIterator shards(ClusterState clusterState, Request request) {
@@ -135,7 +139,11 @@ public class TransportInstanceSingleOperationActionTests extends ESTestCase {
         }
     }
 
-    class MyResolver extends IndexNameExpressionResolver {
+    static class MyResolver extends IndexNameExpressionResolver {
+        MyResolver() {
+            super(new ThreadContext(Settings.EMPTY), EmptySystemIndices.INSTANCE);
+        }
+
         @Override
         public String[] concreteIndexNames(ClusterState state, IndicesRequest request) {
             return request.indices();
@@ -153,16 +161,22 @@ public class TransportInstanceSingleOperationActionTests extends ESTestCase {
         super.setUp();
         transport = new CapturingTransport();
         clusterService = createClusterService(THREAD_POOL);
-        transportService = transport.createTransportService(clusterService.getSettings(), THREAD_POOL,
-            TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> clusterService.localNode(), null, Collections.emptySet());
+        transportService = transport.createTransportService(
+            clusterService.getSettings(),
+            THREAD_POOL,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            x -> clusterService.localNode(),
+            null,
+            Collections.emptySet()
+        );
         transportService.start();
         transportService.acceptIncomingRequests();
         action = new TestTransportInstanceSingleOperationAction(
-                "indices:admin/test",
-                transportService,
-                new ActionFilters(new HashSet<>()),
-                new MyResolver(),
-                Request::new
+            "indices:admin/test",
+            transportService,
+            new ActionFilters(new HashSet<>()),
+            new MyResolver(),
+            Request::new
         );
     }
 
@@ -185,7 +199,7 @@ public class TransportInstanceSingleOperationActionTests extends ESTestCase {
         Request request = new Request();
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
         ClusterBlocks.Builder block = ClusterBlocks.builder()
-                .addGlobalBlock(new ClusterBlock(1, "", false, true, false, RestStatus.SERVICE_UNAVAILABLE, ClusterBlockLevel.ALL));
+            .addGlobalBlock(new ClusterBlock(1, "", false, true, false, RestStatus.SERVICE_UNAVAILABLE, ClusterBlockLevel.ALL));
         setState(clusterService, ClusterState.builder(clusterService.state()).blocks(block));
         try {
             action.new AsyncSingleAction(request, listener).start();
@@ -206,7 +220,7 @@ public class TransportInstanceSingleOperationActionTests extends ESTestCase {
         setState(clusterService, ClusterStateCreationUtils.state("test", randomBoolean(), ShardRoutingState.STARTED));
         action.new AsyncSingleAction(request, listener).start();
         assertThat(transport.capturedRequests().length, equalTo(1));
-        transport.handleResponse(transport.capturedRequests()[0].requestId, new Response());
+        transport.handleResponse(transport.capturedRequests()[0].requestId(), new Response());
         listener.get();
     }
 
@@ -218,11 +232,13 @@ public class TransportInstanceSingleOperationActionTests extends ESTestCase {
 
         action.new AsyncSingleAction(request, listener).start();
         assertThat(transport.capturedRequests().length, equalTo(1));
-        long requestId = transport.capturedRequests()[0].requestId;
+        long requestId = transport.capturedRequests()[0].requestId();
         transport.clear();
         // this should not trigger retry or anything and the listener should report exception immediately
-        transport.handleRemoteError(requestId, new TransportException("a generic transport exception",
-            new Exception("generic test exception")));
+        transport.handleRemoteError(
+            requestId,
+            new TransportException("a generic transport exception", new Exception("generic test exception"))
+        );
 
         try {
             // result should return immediately
@@ -249,7 +265,7 @@ public class TransportInstanceSingleOperationActionTests extends ESTestCase {
         setState(clusterService, ClusterStateCreationUtils.state("test", local, ShardRoutingState.STARTED));
         // this time it should work
         assertThat(transport.capturedRequests().length, equalTo(1));
-        transport.handleResponse(transport.capturedRequests()[0].requestId, new Response());
+        transport.handleResponse(transport.capturedRequests()[0].requestId(), new Response());
         listener.get();
     }
 
@@ -261,14 +277,14 @@ public class TransportInstanceSingleOperationActionTests extends ESTestCase {
         setState(clusterService, ClusterStateCreationUtils.state("test", local, ShardRoutingState.STARTED));
         action.new AsyncSingleAction(request, listener).start();
         assertThat(transport.capturedRequests().length, equalTo(1));
-        long requestId = transport.capturedRequests()[0].requestId;
+        long requestId = transport.capturedRequests()[0].requestId();
         transport.clear();
         DiscoveryNode node = clusterService.state().getNodes().getLocalNode();
         transport.handleLocalError(requestId, new ConnectTransportException(node, "test exception"));
         // trigger cluster state observer
         setState(clusterService, ClusterStateCreationUtils.state("test", local, ShardRoutingState.STARTED));
         assertThat(transport.capturedRequests().length, equalTo(1));
-        transport.handleResponse(transport.capturedRequests()[0].requestId, new Response());
+        transport.handleResponse(transport.capturedRequests()[0].requestId(), new Response());
         listener.get();
     }
 
@@ -279,7 +295,7 @@ public class TransportInstanceSingleOperationActionTests extends ESTestCase {
         setState(clusterService, ClusterStateCreationUtils.state("test", randomBoolean(), ShardRoutingState.STARTED));
         action.new AsyncSingleAction(request, listener).start();
         assertThat(transport.capturedRequests().length, equalTo(1));
-        long requestId = transport.capturedRequests()[0].requestId;
+        long requestId = transport.capturedRequests()[0].requestId();
         transport.clear();
         DiscoveryNode node = clusterService.state().getNodes().getLocalNode();
         transport.handleLocalError(requestId, new ConnectTransportException(node, "test exception"));
@@ -288,7 +304,7 @@ public class TransportInstanceSingleOperationActionTests extends ESTestCase {
         assertBusy(() -> assertThat(transport.capturedRequests().length, equalTo(1)));
 
         // let it fail the second time too
-        requestId = transport.capturedRequests()[0].requestId;
+        requestId = transport.capturedRequests()[0].requestId();
         transport.handleLocalError(requestId, new ConnectTransportException(node, "test exception"));
         try {
             // result should return immediately
@@ -305,11 +321,11 @@ public class TransportInstanceSingleOperationActionTests extends ESTestCase {
 
     public void testUnresolvableRequestDoesNotHang() throws InterruptedException, ExecutionException, TimeoutException {
         action = new TestTransportInstanceSingleOperationAction(
-                "indices:admin/test_unresolvable",
-                transportService,
-                new ActionFilters(new HashSet<>()),
-                new MyResolver(),
-                Request::new
+            "indices:admin/test_unresolvable",
+            transportService,
+            new ActionFilters(new HashSet<>()),
+            new MyResolver(),
+            Request::new
         ) {
             @Override
             protected void resolveRequest(ClusterState state, Request request) {

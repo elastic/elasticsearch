@@ -20,6 +20,16 @@ setup:
           }
 
   - do:
+      index:
+        index: bwc_ml_classification_job_source
+        body: >
+          {
+            "numeric_field_1": 1.0,
+            "foo": "a",
+            "user": "Kimchy"
+          }
+
+  - do:
       indices.refresh:
         index: bwc_ml_*
 
@@ -64,3 +74,26 @@ setup:
             }
           }
   - match: { id: "old_cluster_regression_job" }
+
+---
+"Put classification job on the old cluster":
+
+  - do:
+      ml.put_data_frame_analytics:
+        id: "old_cluster_classification_job"
+        body: >
+          {
+            "source": {
+              "index": "bwc_ml_classification_job_source",
+              "query": {"term" : { "user.keyword" : "Kimchy" }}
+            },
+            "dest": {
+              "index": "old_cluster_classification_job_results"
+            },
+            "analysis": {
+              "classification":{
+                "dependent_variable": "foo"
+              }
+            }
+          }
+  - match: { id: "old_cluster_classification_job" }

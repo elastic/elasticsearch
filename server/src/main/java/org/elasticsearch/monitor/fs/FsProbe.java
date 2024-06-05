@@ -1,38 +1,24 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.monitor.fs;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.cluster.ClusterInfo;
-import org.elasticsearch.cluster.DiskUsage;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.env.NodeEnvironment.NodePath;
+import org.elasticsearch.env.NodeEnvironment.DataPath;
 
 import java.io.IOException;
+import java.nio.file.FileStore;
 import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -40,6 +26,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
+import static org.elasticsearch.core.Strings.format;
 
 public class FsProbe {
 
@@ -51,11 +39,11 @@ public class FsProbe {
         this.nodeEnv = nodeEnv;
     }
 
-    public FsInfo stats(FsInfo previous, @Nullable ClusterInfo clusterInfo) throws IOException {
-        if (!nodeEnv.hasNodeFile()) {
+    public FsInfo stats(FsInfo previous) throws IOException {
+        if (nodeEnv.hasNodeFile() == false) {
             return new FsInfo(System.currentTimeMillis(), null, new FsInfo.Path[0]);
         }
-        NodePath[] dataLocations = nodeEnv.nodePaths();
+        DataPath[] dataLocations = nodeEnv.dataPaths();
         FsInfo.Path[] paths = new FsInfo.Path[dataLocations.length];
         for (int i = 0; i < dataLocations.length; i++) {
             paths[i] = getFSInfo(dataLocations[i]);
@@ -70,13 +58,7 @@ public class FsProbe {
             }
             ioStats = ioStats(devicesNumbers, previous);
         }
-        DiskUsage leastDiskEstimate = null;
-        DiskUsage mostDiskEstimate = null;
-        if (clusterInfo != null) {
-            leastDiskEstimate = clusterInfo.getNodeLeastAvailableDiskUsages().get(nodeEnv.nodeId());
-            mostDiskEstimate = clusterInfo.getNodeMostAvailableDiskUsages().get(nodeEnv.nodeId());
-        }
-        return new FsInfo(System.currentTimeMillis(), ioStats, paths, leastDiskEstimate, mostDiskEstimate);
+        return new FsInfo(System.currentTimeMillis(), ioStats, paths);
     }
 
     final FsInfo.IoStats ioStats(final Set<Tuple<Integer, Integer>> devicesNumbers, final FsInfo previous) {
@@ -92,12 +74,12 @@ public class FsProbe {
             List<FsInfo.DeviceStats> devicesStats = new ArrayList<>();
 
             List<String> lines = readProcDiskStats();
-            if (!lines.isEmpty()) {
+            if (lines.isEmpty() == false) {
                 for (String line : lines) {
                     String fields[] = line.trim().split("\\s+");
                     final int majorDeviceNumber = Integer.parseInt(fields[0]);
                     final int minorDeviceNumber = Integer.parseInt(fields[1]);
-                    if (!devicesNumbers.contains(Tuple.tuple(majorDeviceNumber, minorDeviceNumber))) {
+                    if (devicesNumbers.contains(Tuple.tuple(majorDeviceNumber, minorDeviceNumber)) == false) {
                         continue;
                     }
                     final String deviceName = fields[2];
@@ -105,16 +87,18 @@ public class FsProbe {
                     final long sectorsRead = Long.parseLong(fields[5]);
                     final long writesCompleted = Long.parseLong(fields[7]);
                     final long sectorsWritten = Long.parseLong(fields[9]);
-                    final FsInfo.DeviceStats deviceStats =
-                            new FsInfo.DeviceStats(
-                                    majorDeviceNumber,
-                                    minorDeviceNumber,
-                                    deviceName,
-                                    readsCompleted,
-                                    sectorsRead,
-                                    writesCompleted,
-                                    sectorsWritten,
-                                    deviceMap.get(Tuple.tuple(majorDeviceNumber, minorDeviceNumber)));
+                    final long ioTime = Long.parseLong(fields[12]);
+                    final FsInfo.DeviceStats deviceStats = new FsInfo.DeviceStats(
+                        majorDeviceNumber,
+                        minorDeviceNumber,
+                        deviceName,
+                        readsCompleted,
+                        sectorsRead,
+                        writesCompleted,
+                        sectorsWritten,
+                        ioTime,
+                        deviceMap.get(Tuple.tuple(majorDeviceNumber, minorDeviceNumber))
+                    );
                     devicesStats.add(deviceStats);
                 }
             }
@@ -123,8 +107,7 @@ public class FsProbe {
         } catch (Exception e) {
             // do not fail Elasticsearch if something unexpected
             // happens here
-            logger.debug(() -> new ParameterizedMessage(
-                    "unexpected exception processing /proc/diskstats for devices {}", devicesNumbers), e);
+            logger.debug(() -> format("unexpected exception processing /proc/diskstats for devices %s", devicesNumbers), e);
             return null;
         }
     }
@@ -146,19 +129,23 @@ public class FsProbe {
         return bytes;
     }
 
-    public static FsInfo.Path getFSInfo(NodePath nodePath) throws IOException {
+    public static FsInfo.Path getFSInfo(DataPath dataPath) throws IOException {
         FsInfo.Path fsPath = new FsInfo.Path();
-        fsPath.path = nodePath.path.toString();
+        fsPath.path = dataPath.path.toString();
 
-        // NOTE: we use already cached (on node startup) FileStore and spins
+        // NOTE: we use already cached (on node startup) FileStore
         // since recomputing these once per second (default) could be costly,
         // and they should not change:
-        fsPath.total = adjustForHugeFilesystems(nodePath.fileStore.getTotalSpace());
-        fsPath.free = adjustForHugeFilesystems(nodePath.fileStore.getUnallocatedSpace());
-        fsPath.available = adjustForHugeFilesystems(nodePath.fileStore.getUsableSpace());
-        fsPath.type = nodePath.fileStore.type();
-        fsPath.mount = nodePath.fileStore.toString();
+        fsPath.total = getTotal(dataPath.fileStore);
+        fsPath.free = adjustForHugeFilesystems(dataPath.fileStore.getUnallocatedSpace());
+        fsPath.available = adjustForHugeFilesystems(dataPath.fileStore.getUsableSpace());
+        fsPath.type = dataPath.fileStore.type();
+        fsPath.mount = dataPath.fileStore.toString();
         return fsPath;
+    }
+
+    public static long getTotal(FileStore fileStore) throws IOException {
+        return adjustForHugeFilesystems(fileStore.getTotalSpace());
     }
 
 }

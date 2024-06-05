@@ -1,25 +1,13 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.analysis;
 
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.ar.ArabicAnalyzer;
 import org.apache.lucene.analysis.bg.BulgarianAnalyzer;
@@ -52,24 +40,33 @@ import org.apache.lucene.analysis.no.NorwegianAnalyzer;
 import org.apache.lucene.analysis.pt.PortugueseAnalyzer;
 import org.apache.lucene.analysis.ro.RomanianAnalyzer;
 import org.apache.lucene.analysis.ru.RussianAnalyzer;
+import org.apache.lucene.analysis.sr.SerbianAnalyzer;
 import org.apache.lucene.analysis.sv.SwedishAnalyzer;
 import org.apache.lucene.analysis.th.ThaiAnalyzer;
 import org.apache.lucene.analysis.tr.TurkishAnalyzer;
-import org.apache.lucene.util.Version;
+import org.apache.lucene.analysis.util.CSVUtil;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.synonyms.PagedResult;
+import org.elasticsearch.synonyms.SynonymRule;
+import org.elasticsearch.synonyms.SynonymsManagementAPIService;
 
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.Reader;
+import java.io.StringReader;
 import java.nio.charset.CharacterCodingException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.AccessControlException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -79,24 +76,17 @@ import static java.util.Map.entry;
 
 public class Analysis {
 
-    public static Version parseAnalysisVersion(Settings indexSettings, Settings settings, Logger logger) {
-        // check for explicit version on the specific analyzer component
+    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(Analysis.class);
+
+    public static void checkForDeprecatedVersion(String name, Settings settings) {
         String sVersion = settings.get("version");
         if (sVersion != null) {
-            return Lucene.parseVersion(sVersion, Version.LATEST, logger);
+            DEPRECATION_LOGGER.warn(
+                DeprecationCategory.ANALYSIS,
+                "analyzer.version",
+                "Setting [version] on analysis component [" + name + "] has no effect and is deprecated"
+            );
         }
-        // check for explicit version on the index itself as default for all analysis components
-        sVersion = indexSettings.get("index.analysis.version");
-        if (sVersion != null) {
-            return Lucene.parseVersion(sVersion, Version.LATEST, logger);
-        }
-        // resolve the analysis version based on the version the index was created with
-        return org.elasticsearch.Version.indexCreated(indexSettings).luceneVersion;
-    }
-
-    public static boolean isNoStopwords(Settings settings) {
-        String value = settings.get("stopwords");
-        return value != null && "_none_".equals(value);
     }
 
     public static CharArraySet parseStemExclusion(Settings settings, CharArraySet defaultStemExclusion) {
@@ -114,43 +104,51 @@ public class Analysis {
     }
 
     private static final Map<String, Set<?>> NAMED_STOP_WORDS = Map.ofEntries(
-            entry("_arabic_", ArabicAnalyzer.getDefaultStopSet()),
-            entry("_armenian_", ArmenianAnalyzer.getDefaultStopSet()),
-            entry("_basque_", BasqueAnalyzer.getDefaultStopSet()),
-            entry("_bengali_", BengaliAnalyzer.getDefaultStopSet()),
-            entry("_brazilian_", BrazilianAnalyzer.getDefaultStopSet()),
-            entry("_bulgarian_", BulgarianAnalyzer.getDefaultStopSet()),
-            entry("_catalan_", CatalanAnalyzer.getDefaultStopSet()),
-            entry("_czech_", CzechAnalyzer.getDefaultStopSet()),
-            entry("_danish_", DanishAnalyzer.getDefaultStopSet()),
-            entry("_dutch_", DutchAnalyzer.getDefaultStopSet()),
-            entry("_english_", EnglishAnalyzer.getDefaultStopSet()),
-            entry("_estonian_", EstonianAnalyzer.getDefaultStopSet()),
-            entry("_finnish_", FinnishAnalyzer.getDefaultStopSet()),
-            entry("_french_", FrenchAnalyzer.getDefaultStopSet()),
-            entry("_galician_", GalicianAnalyzer.getDefaultStopSet()),
-            entry("_german_", GermanAnalyzer.getDefaultStopSet()),
-            entry("_greek_", GreekAnalyzer.getDefaultStopSet()),
-            entry("_hindi_", HindiAnalyzer.getDefaultStopSet()),
-            entry("_hungarian_", HungarianAnalyzer.getDefaultStopSet()),
-            entry("_indonesian_", IndonesianAnalyzer.getDefaultStopSet()),
-            entry("_irish_", IrishAnalyzer.getDefaultStopSet()),
-            entry("_italian_", ItalianAnalyzer.getDefaultStopSet()),
-            entry("_latvian_", LatvianAnalyzer.getDefaultStopSet()),
-            entry("_lithuanian_", LithuanianAnalyzer.getDefaultStopSet()),
-            entry("_norwegian_", NorwegianAnalyzer.getDefaultStopSet()),
-            entry("_persian_", PersianAnalyzer.getDefaultStopSet()),
-            entry("_portuguese_", PortugueseAnalyzer.getDefaultStopSet()),
-            entry("_romanian_", RomanianAnalyzer.getDefaultStopSet()),
-            entry("_russian_", RussianAnalyzer.getDefaultStopSet()),
-            entry("_sorani_", SoraniAnalyzer.getDefaultStopSet()),
-            entry("_spanish_", SpanishAnalyzer.getDefaultStopSet()),
-            entry("_swedish_", SwedishAnalyzer.getDefaultStopSet()),
-            entry("_thai_", ThaiAnalyzer.getDefaultStopSet()),
-            entry("_turkish_", TurkishAnalyzer.getDefaultStopSet()));
+        entry("_arabic_", ArabicAnalyzer.getDefaultStopSet()),
+        entry("_armenian_", ArmenianAnalyzer.getDefaultStopSet()),
+        entry("_basque_", BasqueAnalyzer.getDefaultStopSet()),
+        entry("_bengali_", BengaliAnalyzer.getDefaultStopSet()),
+        entry("_brazilian_", BrazilianAnalyzer.getDefaultStopSet()),
+        entry("_bulgarian_", BulgarianAnalyzer.getDefaultStopSet()),
+        entry("_catalan_", CatalanAnalyzer.getDefaultStopSet()),
+        entry("_czech_", CzechAnalyzer.getDefaultStopSet()),
+        entry("_danish_", DanishAnalyzer.getDefaultStopSet()),
+        entry("_dutch_", DutchAnalyzer.getDefaultStopSet()),
+        entry("_english_", EnglishAnalyzer.getDefaultStopSet()),
+        entry("_estonian_", EstonianAnalyzer.getDefaultStopSet()),
+        entry("_finnish_", FinnishAnalyzer.getDefaultStopSet()),
+        entry("_french_", FrenchAnalyzer.getDefaultStopSet()),
+        entry("_galician_", GalicianAnalyzer.getDefaultStopSet()),
+        entry("_german_", GermanAnalyzer.getDefaultStopSet()),
+        entry("_greek_", GreekAnalyzer.getDefaultStopSet()),
+        entry("_hindi_", HindiAnalyzer.getDefaultStopSet()),
+        entry("_hungarian_", HungarianAnalyzer.getDefaultStopSet()),
+        entry("_indonesian_", IndonesianAnalyzer.getDefaultStopSet()),
+        entry("_irish_", IrishAnalyzer.getDefaultStopSet()),
+        entry("_italian_", ItalianAnalyzer.getDefaultStopSet()),
+        entry("_latvian_", LatvianAnalyzer.getDefaultStopSet()),
+        entry("_lithuanian_", LithuanianAnalyzer.getDefaultStopSet()),
+        entry("_norwegian_", NorwegianAnalyzer.getDefaultStopSet()),
+        entry("_persian_", PersianAnalyzer.getDefaultStopSet()),
+        entry("_portuguese_", PortugueseAnalyzer.getDefaultStopSet()),
+        entry("_romanian_", RomanianAnalyzer.getDefaultStopSet()),
+        entry("_russian_", RussianAnalyzer.getDefaultStopSet()),
+        entry("_serbian_", SerbianAnalyzer.getDefaultStopSet()),
+        entry("_sorani_", SoraniAnalyzer.getDefaultStopSet()),
+        entry("_spanish_", SpanishAnalyzer.getDefaultStopSet()),
+        entry("_swedish_", SwedishAnalyzer.getDefaultStopSet()),
+        entry("_thai_", ThaiAnalyzer.getDefaultStopSet()),
+        entry("_turkish_", TurkishAnalyzer.getDefaultStopSet())
+    );
 
-    public static CharArraySet parseWords(Environment env, Settings settings, String name, CharArraySet defaultWords,
-                                          Map<String, Set<?>> namedWords, boolean ignoreCase) {
+    public static CharArraySet parseWords(
+        Environment env,
+        Settings settings,
+        String name,
+        CharArraySet defaultWords,
+        Map<String, Set<?>> namedWords,
+        boolean ignoreCase
+    ) {
         String value = settings.get(name);
         if (value != null) {
             if ("_none_".equals(value)) {
@@ -175,8 +173,7 @@ public class Analysis {
         return parseWords(env, settings, "articles", null, null, articlesCase);
     }
 
-    public static CharArraySet parseStopWords(Environment env, Settings settings,
-                                              CharArraySet defaultStopWords) {
+    public static CharArraySet parseStopWords(Environment env, Settings settings, CharArraySet defaultStopWords) {
         boolean stopwordsCase = settings.getAsBoolean("stopwords_case", false);
         return parseStopWords(env, settings, defaultStopWords, stopwordsCase);
     }
@@ -227,8 +224,13 @@ public class Analysis {
      * @throws IllegalArgumentException
      *          If the word list cannot be found at either key.
      */
-    public static List<String> getWordList(Environment env, Settings settings,
-                                           String settingPath, String settingList, boolean removeComments) {
+    public static List<String> getWordList(
+        Environment env,
+        Settings settings,
+        String settingPath,
+        String settingList,
+        boolean removeComments
+    ) {
         String wordListPath = settings.get(settingPath, null);
 
         if (wordListPath == null) {
@@ -245,13 +247,63 @@ public class Analysis {
         try {
             return loadWordList(path, removeComments);
         } catch (CharacterCodingException ex) {
-            String message = String.format(Locale.ROOT,
+            String message = Strings.format(
                 "Unsupported character encoding detected while reading %s: %s - files must be UTF-8 encoded",
-                settingPath, path.toString());
+                settingPath,
+                path
+            );
             throw new IllegalArgumentException(message, ex);
         } catch (IOException ioe) {
-            String message = String.format(Locale.ROOT, "IOException while reading %s: %s", settingPath, path.toString());
+            String message = Strings.format("IOException while reading %s: %s", settingPath, path);
             throw new IllegalArgumentException(message, ioe);
+        } catch (AccessControlException ace) {
+            throw new IllegalArgumentException(Strings.format("Access denied trying to read file %s: %s", settingPath, path), ace);
+        }
+    }
+
+    public static List<String> getWordList(
+        Environment env,
+        Settings settings,
+        String settingPath,
+        String settingList,
+        boolean removeComments,
+        boolean checkDuplicate
+    ) {
+        final List<String> ruleList = getWordList(env, settings, settingPath, settingList, removeComments);
+        if (ruleList != null && ruleList.isEmpty() == false && checkDuplicate) {
+            checkDuplicateRules(ruleList);
+        }
+        return ruleList;
+    }
+
+    /**
+     * This method checks for any duplicate rules in the provided ruleList. Each rule in the list is parsed with CSVUtil.parse
+     * to separate the rule into individual components, represented as a String array. Only the first component from each rule
+     * is considered in the duplication check.
+     *
+     * The method will ignore any line that starts with a '#' character, treating it as a comment.
+     *
+     * The check is performed by adding the first component of each rule into a HashSet (dup), which does not allow duplicates.
+     * If the addition to the HashSet returns false, it means that item was already present in the set, indicating a duplicate.
+     * In such a case, an IllegalArgumentException is thrown specifying the duplicate term and the line number in the original list.
+     *
+     * @param ruleList The list of rules to check for duplicates.
+     * @throws IllegalArgumentException If a duplicate rule is found.
+     */
+    private static void checkDuplicateRules(List<String> ruleList) {
+        Set<String> dup = new HashSet<>();
+        int lineNum = 0;
+        for (String line : ruleList) {
+            // ignore comments
+            if (line.startsWith("#") == false) {
+                String[] values = CSVUtil.parse(line);
+                if (dup.add(values[0]) == false) {
+                    throw new IllegalArgumentException(
+                        "Found duplicate term [" + values[0] + "] in user dictionary " + "at line [" + lineNum + "]"
+                    );
+                }
+            }
+            ++lineNum;
         }
     }
 
@@ -276,9 +328,7 @@ public class Analysis {
      * @throws IllegalArgumentException
      *          If the Reader can not be instantiated.
      */
-    public static Reader getReaderFromFile(Environment env, Settings settings, String settingPrefix) {
-        String filePath = settings.get(settingPrefix, null);
-
+    public static Reader getReaderFromFile(Environment env, String filePath, String settingPrefix) {
         if (filePath == null) {
             return null;
         }
@@ -286,14 +336,30 @@ public class Analysis {
         try {
             return Files.newBufferedReader(path, StandardCharsets.UTF_8);
         } catch (CharacterCodingException ex) {
-            String message = String.format(Locale.ROOT,
+            String message = String.format(
+                Locale.ROOT,
                 "Unsupported character encoding detected while reading %s_path: %s files must be UTF-8 encoded",
-                settingPrefix, path.toString());
+                settingPrefix,
+                path.toString()
+            );
             throw new IllegalArgumentException(message, ex);
         } catch (IOException ioe) {
             String message = String.format(Locale.ROOT, "IOException while reading %s_path: %s", settingPrefix, path.toString());
             throw new IllegalArgumentException(message, ioe);
         }
+    }
+
+    public static Reader getReaderFromIndex(String synonymsSet, SynonymsManagementAPIService synonymsManagementAPIService) {
+        final PlainActionFuture<PagedResult<SynonymRule>> synonymsLoadingFuture = new PlainActionFuture<>();
+        synonymsManagementAPIService.getSynonymSetRules(synonymsSet, 0, 10_000, synonymsLoadingFuture);
+        PagedResult<SynonymRule> results = synonymsLoadingFuture.actionGet();
+
+        SynonymRule[] synonymRules = results.pageResults();
+        StringBuilder sb = new StringBuilder();
+        for (SynonymRule synonymRule : synonymRules) {
+            sb.append(synonymRule.synonyms()).append(System.lineSeparator());
+        }
+        return new StringReader(sb.toString());
     }
 
 }

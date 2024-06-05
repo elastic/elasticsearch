@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations;
@@ -22,12 +11,13 @@ package org.elasticsearch.search.aggregations;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.CumulativeSumPipelineAggregationBuilder;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParser;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -39,7 +29,7 @@ import java.util.Set;
 import static java.util.Collections.emptyList;
 import static org.hamcrest.Matchers.equalTo;
 
-public class AggregatorFactoriesBuilderTests extends AbstractSerializingTestCase<AggregatorFactories.Builder> {
+public class AggregatorFactoriesBuilderTests extends AbstractXContentSerializingTestCase<Builder> {
 
     private NamedWriteableRegistry namedWriteableRegistry;
     private NamedXContentRegistry namedXContentRegistry;
@@ -96,6 +86,11 @@ public class AggregatorFactoriesBuilderTests extends AbstractSerializingTestCase
     }
 
     @Override
+    protected Builder mutateInstance(Builder instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Reader<Builder> instanceReader() {
         return AggregatorFactories.Builder::new;
     }
@@ -134,22 +129,56 @@ public class AggregatorFactoriesBuilderTests extends AbstractSerializingTestCase
         assertNotEquals(builder1.hashCode(), builder2.hashCode());
     }
 
+    public void testForceExcludedDocs() {
+        // simple
+        AggregatorFactories.Builder builder = new AggregatorFactories.Builder();
+        TermsAggregationBuilder termsAggregationBuilder = AggregationBuilders.terms("myterms");
+        builder.addAggregator(termsAggregationBuilder);
+        assertFalse(termsAggregationBuilder.excludeDeletedDocs());
+        assertFalse(builder.hasZeroMinDocTermsAggregation());
+        termsAggregationBuilder.minDocCount(0);
+        assertTrue(builder.hasZeroMinDocTermsAggregation());
+        builder.forceTermsAggsToExcludeDeletedDocs();
+        assertTrue(termsAggregationBuilder.excludeDeletedDocs());
+
+        // nested
+        AggregatorFactories.Builder nested = new AggregatorFactories.Builder();
+        boolean hasZeroMinDocTermsAggregation = false;
+        for (int i = 0; i <= randomIntBetween(1, 10); i++) {
+            AggregationBuilder agg = getRandomAggregation();
+            nested.addAggregator(agg);
+            if (randomBoolean()) {
+                hasZeroMinDocTermsAggregation = true;
+                agg.subAggregation(termsAggregationBuilder);
+            }
+        }
+        if (hasZeroMinDocTermsAggregation) {
+            assertTrue(nested.hasZeroMinDocTermsAggregation());
+            nested.forceTermsAggsToExcludeDeletedDocs();
+            for (AggregationBuilder agg : nested.getAggregatorFactories()) {
+                if (agg instanceof TermsAggregationBuilder) {
+                    assertTrue(((TermsAggregationBuilder) agg).excludeDeletedDocs());
+                }
+            }
+        } else {
+            assertFalse(nested.hasZeroMinDocTermsAggregation());
+        }
+    }
+
     private static AggregationBuilder getRandomAggregation() {
         // just a couple of aggregations, sufficient for the purpose of this test
         final int randomAggregatorPoolSize = 4;
-        switch (randomIntBetween(1, randomAggregatorPoolSize)) {
-        case 1:
-            return AggregationBuilders.avg(randomAlphaOfLengthBetween(3, 10));
-        case 2:
-            return AggregationBuilders.min(randomAlphaOfLengthBetween(3, 10));
-        case 3:
-            return AggregationBuilders.max(randomAlphaOfLengthBetween(3, 10));
-        case 4:
-            return AggregationBuilders.sum(randomAlphaOfLengthBetween(3, 10));
-        }
+        return switch (randomIntBetween(1, randomAggregatorPoolSize)) {
+            case 1 -> AggregationBuilders.avg(randomAlphaOfLengthBetween(3, 10)).field("foo");
+            case 2 -> AggregationBuilders.min(randomAlphaOfLengthBetween(3, 10)).field("foo");
+            case 3 -> AggregationBuilders.max(randomAlphaOfLengthBetween(3, 10)).field("foo");
+            case 4 -> AggregationBuilders.sum(randomAlphaOfLengthBetween(3, 10)).field("foo");
+            default ->
 
-        // never reached
-        return null;
+                // never reached
+                null;
+        };
+
     }
 
     private static PipelineAggregationBuilder getRandomPipelineAggregation() {

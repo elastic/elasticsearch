@@ -1,0 +1,287 @@
+import org.elasticsearch.gradle.internal.info.BuildParams
+apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.publish'
+apply plugin: 'elasticsearch.internal-cluster-test'
+esplugin {
+  name 'x-pack-identity-provider'
+  description 'Elasticsearch Expanded Pack Plugin - Identity Provider'
+  classname 'org.elasticsearch.xpack.idp.IdentityProviderPlugin'
+  extendedPlugins = ['x-pack-core']
+}
+
+base {
+  archivesName = 'x-pack-identity-provider'
+}
+
+dependencies {
+  compileOnly project(path: xpackModule('core'))
+
+  // the following are all SAML dependencies - might as well download the whole internet
+  api "org.opensaml:opensaml-core:${versions.opensaml}"
+  api "org.opensaml:opensaml-saml-api:${versions.opensaml}"
+  api "org.opensaml:opensaml-saml-impl:${versions.opensaml}"
+  api "org.opensaml:opensaml-messaging-api:${versions.opensaml}"
+  api "org.opensaml:opensaml-messaging-impl:${versions.opensaml}"
+  api project(path: ':x-pack:libs:es-opensaml-security-api', configuration: 'shadow')
+  api "org.opensaml:opensaml-security-impl:${versions.opensaml}"
+  api "org.opensaml:opensaml-profile-api:${versions.opensaml}"
+  api "org.opensaml:opensaml-profile-impl:${versions.opensaml}"
+  api "org.opensaml:opensaml-xmlsec-api:${versions.opensaml}"
+  api "org.opensaml:opensaml-xmlsec-impl:${versions.opensaml}"
+  api "org.opensaml:opensaml-soap-api:${versions.opensaml}"
+  api "org.opensaml:opensaml-soap-impl:${versions.opensaml}"
+  api "org.opensaml:opensaml-storage-api:${versions.opensaml}"
+  api "org.opensaml:opensaml-storage-impl:${versions.opensaml}"
+  api "net.shibboleth.utilities:java-support:8.4.0"
+  api "com.google.code.findbugs:jsr305:3.0.2"
+  api "org.apache.santuario:xmlsec:2.3.4"
+  api "io.dropwizard.metrics:metrics-core:4.1.4"
+  api ( "org.cryptacular:cryptacular:1.2.5") {
+      exclude group: 'org.bouncycastle'
+  }
+
+  api "org.slf4j:slf4j-api:${versions.slf4j}"
+  runtimeOnly "org.slf4j:slf4j-nop:${versions.slf4j}"
+  //  runtimeOnly("org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}") https://github.com/elastic/elasticsearch/issues/93714
+  api "org.apache.httpcomponents:httpclient:${versions.httpclient}"
+  api "org.apache.httpcomponents:httpcore:${versions.httpcore}"
+  api "org.apache.httpcomponents:httpasyncclient:${versions.httpasyncclient}"
+  api "org.apache.httpcomponents:httpcore-nio:${versions.httpcore}"
+  api "org.apache.httpcomponents:httpclient-cache:${versions.httpclient}"
+  runtimeOnly 'com.google.guava:guava:32.0.1-jre'
+  runtimeOnly 'com.google.guava:failureaccess:1.0.1'
+  runtimeOnly "commons-codec:commons-codec:${versions.commonscodec}"
+
+  testImplementation "org.elasticsearch:mocksocket:${versions.mocksocket}"
+  testImplementation(testArtifact(project(xpackModule('core'))))
+  // So that we can extend LocalStateCompositeXPackPlugin
+  testImplementation(testArtifact(project(xpackModule('security'))))
+  testImplementation project(':modules:lang-mustache')
+  internalClusterTestImplementation project(":modules:analysis-common")
+
+}
+
+tasks.named("dependencyLicenses").configure {
+  mapping from: /java-support|opensaml-.*/, to: 'shibboleth'
+  mapping from: /http.*/, to: 'httpclient'
+  mapping from: /bc.*/, to: 'bouncycastle'
+  mapping from: /failureaccess.*/, to: 'guava'
+}
+
+tasks.named("forbiddenPatterns").configure {
+  exclude '**/*.key'
+  exclude '**/*.p12'
+  exclude '**/*.der'
+  exclude '**/*.zip'
+}
+
+tasks.named('forbiddenApisMain').configure {
+  signaturesFiles += files('forbidden/xml-signatures.txt')
+}
+
+// classes are missing, e.g. com.ibm.icu.lang.UCharacter
+tasks.named("thirdPartyAudit").configure {
+    ignoreMissingClasses(
+        // SAML dependencies
+        // [missing classes] Some cli utilities that we don't use depend on these missing JCommander classes
+        'com.beust.jcommander.JCommander',
+        'com.beust.jcommander.converters.BaseConverter',
+        // [missing classes] Shibboleth + OpenSAML have servlet support that we don't use
+        'javax.servlet.AsyncContext',
+        'javax.servlet.DispatcherType',
+        'javax.servlet.Filter',
+        'javax.servlet.FilterChain',
+        'javax.servlet.FilterConfig',
+        'javax.servlet.RequestDispatcher',
+        'javax.servlet.ServletContext',
+        'javax.servlet.ServletInputStream',
+        'javax.servlet.ServletOutputStream',
+        'javax.servlet.ServletRequest',
+        'javax.servlet.ServletResponse',
+        'javax.servlet.http.Cookie',
+        'javax.servlet.http.HttpServletRequest',
+        'javax.servlet.http.HttpServletResponse',
+        'javax.servlet.http.HttpServletResponseWrapper',
+        'javax.servlet.http.HttpSession',
+        'javax.servlet.http.HttpUpgradeHandler',
+        'javax.servlet.http.Part',
+        // [missing classes] Shibboleth + OpenSAML have velocity support that we don't use
+        'org.apache.velocity.VelocityContext',
+        'org.apache.velocity.app.VelocityEngine',
+        'org.apache.velocity.context.Context',
+        'org.apache.velocity.runtime.resource.loader.StringResourceLoader',
+        'org.apache.velocity.runtime.resource.util.StringResourceRepository',
+        // [missing classes] OpenSAML storage has an optional LDAP storage impl
+        'org.ldaptive.AttributeModification',
+        'org.ldaptive.AttributeModificationType',
+        'org.ldaptive.Connection',
+        'org.ldaptive.DeleteOperation',
+        'org.ldaptive.LdapAttribute',
+        'org.ldaptive.LdapEntry',
+        'org.ldaptive.LdapException',
+        'org.ldaptive.ModifyOperation',
+        'org.ldaptive.Response',
+        'org.ldaptive.ResultCode',
+        'org.ldaptive.SearchOperation',
+        'org.ldaptive.SearchRequest',
+        'org.ldaptive.SearchResult',
+        'org.ldaptive.ext.MergeOperation',
+        'org.ldaptive.ext.MergeRequest',
+        'org.ldaptive.pool.ConnectionPool',
+        'org.ldaptive.pool.PooledConnectionFactory',
+        // [missing classes] OpenSAML storage has an optional JSON-backed storage impl
+        'javax.json.Json',
+        'javax.json.JsonNumber',
+        'javax.json.JsonObject',
+        'javax.json.JsonReader',
+        'javax.json.JsonValue$ValueType',
+        'javax.json.JsonValue',
+        'javax.json.stream.JsonGenerator',
+        // [missing classes] OpenSAML storage has an optional JPA storage impl
+        'javax.persistence.EntityManager',
+        'javax.persistence.EntityManagerFactory',
+        'javax.persistence.EntityTransaction',
+        'javax.persistence.LockModeType',
+        'javax.persistence.Query',
+        // [missing classes] OpenSAML storage and HttpClient cache have optional memcache support
+        'net.spy.memcached.CASResponse',
+        'net.spy.memcached.CASValue',
+        'net.spy.memcached.MemcachedClient',
+        'net.spy.memcached.MemcachedClientIF',
+        'net.spy.memcached.CachedData',
+        'net.spy.memcached.internal.OperationFuture',
+        'net.spy.memcached.transcoders.Transcoder',
+        // [missing classes] Http Client cache has optional ehcache support
+        'net.sf.ehcache.Ehcache',
+        'net.sf.ehcache.Element',
+        // Bouncycastle is an optional dependency for apache directory, cryptacular and opensaml packages. We
+        // acknowledge them here instead of adding bouncy castle as a compileOnly dependency
+        'org.bouncycastle.asn1.ASN1Encodable',
+        'org.bouncycastle.asn1.ASN1InputStream',
+        'org.bouncycastle.asn1.ASN1Integer',
+        'org.bouncycastle.asn1.ASN1ObjectIdentifier',
+        'org.bouncycastle.asn1.ASN1OctetString',
+        'org.bouncycastle.asn1.ASN1Primitive',
+        'org.bouncycastle.asn1.ASN1Sequence',
+        'org.bouncycastle.asn1.ASN1TaggedObject',
+        // 'org.bouncycastle.asn1.DEROctetString',
+        'org.bouncycastle.asn1.pkcs.EncryptedPrivateKeyInfo',
+        'org.bouncycastle.asn1.pkcs.EncryptionScheme',
+        'org.bouncycastle.asn1.pkcs.KeyDerivationFunc',
+        'org.bouncycastle.asn1.pkcs.PBEParameter',
+        'org.bouncycastle.asn1.pkcs.PBES2Parameters',
+        'org.bouncycastle.asn1.pkcs.PBKDF2Params',
+        'org.bouncycastle.asn1.pkcs.PKCSObjectIdentifiers',
+        'org.bouncycastle.asn1.pkcs.PrivateKeyInfo',
+        'org.bouncycastle.asn1.x500.AttributeTypeAndValue',
+        'org.bouncycastle.asn1.x500.RDN',
+        'org.bouncycastle.asn1.x500.X500Name',
+        'org.bouncycastle.asn1.x509.AccessDescription',
+        'org.bouncycastle.asn1.x509.AlgorithmIdentifier',
+        'org.bouncycastle.asn1.x509.AuthorityKeyIdentifier',
+        'org.bouncycastle.asn1.x509.BasicConstraints',
+        'org.bouncycastle.asn1.x509.DistributionPoint',
+        'org.bouncycastle.asn1.x509.Extension',
+        'org.bouncycastle.asn1.x509.GeneralName',
+        'org.bouncycastle.asn1.x509.GeneralNames',
+        'org.bouncycastle.asn1.x509.GeneralNamesBuilder',
+        'org.bouncycastle.asn1.x509.KeyPurposeId',
+        'org.bouncycastle.asn1.x509.KeyUsage',
+        'org.bouncycastle.asn1.x509.PolicyInformation',
+        'org.bouncycastle.asn1.x509.SubjectKeyIdentifier',
+        'org.bouncycastle.asn1.x509.SubjectPublicKeyInfo',
+        // 'org.bouncycastle.asn1.x9.DomainParameters',
+        // 'org.bouncycastle.asn1.x9.ECNamedCurveTable',
+        'org.bouncycastle.asn1.x9.X9ECParameters',
+        'org.bouncycastle.cert.X509v3CertificateBuilder',
+        'org.bouncycastle.cert.jcajce.JcaX509CertificateConverter',
+        'org.bouncycastle.cert.jcajce.JcaX509ExtensionUtils',
+        'org.bouncycastle.crypto.BlockCipher',
+        'org.bouncycastle.crypto.BufferedBlockCipher',
+        'org.bouncycastle.crypto.CipherParameters',
+        'org.bouncycastle.crypto.Digest',
+        'org.bouncycastle.crypto.PBEParametersGenerator',
+        'org.bouncycastle.crypto.StreamCipher',
+        'org.bouncycastle.crypto.agreement.kdf.ConcatenationKDFGenerator',
+        // 'org.bouncycastle.crypto.ec.CustomNamedCurves',
+        'org.bouncycastle.crypto.modes.AEADBlockCipher',
+        'org.bouncycastle.crypto.paddings.BlockCipherPadding',
+        'org.bouncycastle.crypto.paddings.PaddedBufferedBlockCipher',
+        'org.bouncycastle.crypto.generators.BCrypt',
+        'org.bouncycastle.crypto.generators.OpenSSLPBEParametersGenerator',
+        'org.bouncycastle.crypto.generators.PKCS5S1ParametersGenerator',
+        'org.bouncycastle.crypto.generators.PKCS5S2ParametersGenerator',
+        'org.bouncycastle.crypto.macs.HMac',
+        'org.bouncycastle.crypto.params.AsymmetricKeyParameter',
+        'org.bouncycastle.crypto.params.DSAKeyParameters',
+        'org.bouncycastle.crypto.params.DSAParameters',
+        'org.bouncycastle.crypto.params.DSAPrivateKeyParameters',
+        'org.bouncycastle.crypto.params.DSAPublicKeyParameters',
+        'org.bouncycastle.crypto.params.ECDomainParameters',
+        'org.bouncycastle.crypto.params.ECKeyParameters',
+        'org.bouncycastle.crypto.params.ECPrivateKeyParameters',
+        'org.bouncycastle.crypto.params.ECPublicKeyParameters',
+        // 'org.bouncycastle.crypto.params.KDFParameters',
+        'org.bouncycastle.crypto.params.KeyParameter',
+        'org.bouncycastle.crypto.params.RSAKeyParameters',
+        'org.bouncycastle.crypto.params.RSAPrivateCrtKeyParameters',
+        'org.bouncycastle.crypto.prng.EntropySource',
+        'org.bouncycastle.crypto.prng.SP800SecureRandom',
+        'org.bouncycastle.crypto.prng.SP800SecureRandomBuilder',
+        'org.bouncycastle.crypto.prng.drbg.SP80090DRBG',
+        'org.bouncycastle.crypto.signers.DSASigner',
+        'org.bouncycastle.crypto.signers.ECDSASigner',
+        'org.bouncycastle.crypto.signers.RSADigestSigner',
+        'org.bouncycastle.crypto.util.PrivateKeyFactory',
+        'org.bouncycastle.crypto.util.PrivateKeyInfoFactory',
+        'org.bouncycastle.crypto.util.PublicKeyFactory',
+        'org.bouncycastle.crypto.util.SubjectPublicKeyInfoFactory',
+        'org.bouncycastle.jcajce.provider.asymmetric.dsa.KeyPairGeneratorSpi',
+        'org.bouncycastle.jcajce.provider.asymmetric.ec.KeyPairGeneratorSpi$EC',
+        'org.bouncycastle.jcajce.provider.asymmetric.rsa.KeyPairGeneratorSpi',
+        'org.bouncycastle.jcajce.provider.asymmetric.util.EC5Util',
+        'org.bouncycastle.jcajce.provider.asymmetric.util.ECUtil',
+        // 'org.bouncycastle.jce.ECNamedCurveTable',
+        // 'org.bouncycastle.jce.spec.ECNamedCurveParameterSpec',
+        'org.bouncycastle.math.ec.ECFieldElement',
+        'org.bouncycastle.math.ec.ECPoint',
+        'org.bouncycastle.openssl.jcajce.JcaPEMWriter',
+        'org.bouncycastle.operator.jcajce.JcaContentSignerBuilder',
+        'org.bouncycastle.util.Arrays',
+        'org.bouncycastle.util.io.Streams'
+    )
+
+  ignoreViolations(
+    // Guava uses internal java api: sun.misc.Unsafe
+    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
+    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$1',
+    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$2',
+    'com.google.common.hash.Striped64',
+    'com.google.common.hash.Striped64$1',
+    'com.google.common.hash.Striped64$Cell',
+    'com.google.common.cache.Striped64',
+    'com.google.common.cache.Striped64$1',
+    'com.google.common.cache.Striped64$Cell',
+    'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
+    'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
+    'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper',
+    'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1',
+  )
+}
+
+tasks.named("thirdPartyAudit").configure {
+  ignoreMissingClasses(
+          'javax.xml.bind.JAXBContext',
+          'javax.xml.bind.JAXBElement',
+          'javax.xml.bind.JAXBException',
+          'javax.xml.bind.Unmarshaller',
+          'javax.xml.bind.UnmarshallerHandler',
+  )
+}
+
+addQaCheckDependencies(project)
+
+if (BuildParams.inFipsJvm) {
+  // We don't support the IDP in FIPS-140 mode, so no need to run tests
+  tasks.named("test").configure { enabled = false }
+}

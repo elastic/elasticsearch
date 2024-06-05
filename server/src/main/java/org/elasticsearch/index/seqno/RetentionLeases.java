@@ -1,43 +1,32 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.seqno;
 
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.gateway.MetaDataStateFormat;
+import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.gateway.MetadataStateFormat;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 /**
  * Represents a versioned collection of retention leases. We version the collection of retention leases to ensure that sync requests that
@@ -101,7 +90,7 @@ public class RetentionLeases implements ToXContentFragment, Writeable {
      * @return the retention leases
      */
     public Collection<RetentionLease> leases() {
-        return Collections.unmodifiableCollection(leases.values());
+        return leases.values();
     }
 
     /**
@@ -137,7 +126,7 @@ public class RetentionLeases implements ToXContentFragment, Writeable {
      * @param version the version of this retention lease collection
      * @param leases  the retention leases
      */
-    public RetentionLeases(final long primaryTerm, final long version, final Collection<RetentionLease> leases) {
+    public RetentionLeases(final long primaryTerm, final long version, final List<RetentionLease> leases) {
         if (primaryTerm <= 0) {
             throw new IllegalArgumentException("primary term must be positive but was [" + primaryTerm + "]");
         }
@@ -147,7 +136,30 @@ public class RetentionLeases implements ToXContentFragment, Writeable {
         Objects.requireNonNull(leases);
         this.primaryTerm = primaryTerm;
         this.version = version;
-        this.leases = Collections.unmodifiableMap(toMap(leases));
+        final int leasesCount = leases.size();
+        switch (leasesCount) {
+            case 0 -> this.leases = Map.of();
+            case 1 -> {
+                final RetentionLease lease = leases.get(0);
+                this.leases = Map.of(lease.id(), lease);
+            }
+            default -> {
+                // use a linked hash map to preserve order
+                final LinkedHashMap<String, RetentionLease> map = Maps.newLinkedHashMapWithExpectedSize(leasesCount);
+                for (RetentionLease lease : leases) {
+                    final RetentionLease existing = map.put(lease.id(), lease);
+                    if (existing != null) {
+                        throwOnIdCollision(existing, lease);
+                    }
+                }
+                this.leases = Collections.unmodifiableMap(map);
+            }
+        }
+    }
+
+    private static void throwOnIdCollision(RetentionLease existing, RetentionLease added) {
+        assert existing.id().equals(added.id()) : "expected [" + existing.id() + "] to equal [" + added.id() + "]";
+        throw new IllegalStateException("duplicate retention lease ID [" + existing.id() + "]");
     }
 
     /**
@@ -160,7 +172,22 @@ public class RetentionLeases implements ToXContentFragment, Writeable {
     public RetentionLeases(final StreamInput in) throws IOException {
         primaryTerm = in.readVLong();
         version = in.readVLong();
-        leases = Collections.unmodifiableMap(toMap(in.readList(RetentionLease::new)));
+        final int leasesCount = in.readVInt();
+        switch (leasesCount) {
+            case 0 -> leases = Map.of();
+            case 1 -> {
+                final RetentionLease lease = new RetentionLease(in);
+                leases = Map.of(lease.id(), lease);
+            }
+            default -> {
+                final Map<String, RetentionLease> m = Maps.newLinkedHashMapWithExpectedSize(leasesCount);
+                for (int i = 0; i < leasesCount; i++) {
+                    final RetentionLease lease = new RetentionLease(in);
+                    m.put(lease.id(), lease);
+                }
+                leases = Collections.unmodifiableMap(m);
+            }
+        }
     }
 
     /**
@@ -183,8 +210,9 @@ public class RetentionLeases implements ToXContentFragment, Writeable {
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<RetentionLeases, Void> PARSER = new ConstructingObjectParser<>(
-            "retention_leases",
-            (a) -> new RetentionLeases((Long) a[0], (Long) a[1], (Collection<RetentionLease>) a[2]));
+        "retention_leases",
+        (a) -> new RetentionLeases((Long) a[0], (Long) a[1], (List<RetentionLease>) a[2])
+    );
 
     static {
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), PRIMARY_TERM_FIELD);
@@ -207,8 +235,8 @@ public class RetentionLeases implements ToXContentFragment, Writeable {
     }
 
     /**
-     * Parses a retention leases collection from {@link org.elasticsearch.common.xcontent.XContent}. This method assumes that the retention
-     * leases were converted to {@link org.elasticsearch.common.xcontent.XContent} via {@link #toXContent(XContentBuilder, Params)}.
+     * Parses a retention leases collection from {@link org.elasticsearch.xcontent.XContent}. This method assumes that the retention
+     * leases were converted to {@link org.elasticsearch.xcontent.XContent} via {@link #toXContent(XContentBuilder, Params)}.
      *
      * @param parser the parser
      * @return a retention leases collection
@@ -217,7 +245,7 @@ public class RetentionLeases implements ToXContentFragment, Writeable {
         return PARSER.apply(parser, null);
     }
 
-    static final MetaDataStateFormat<RetentionLeases> FORMAT = new MetaDataStateFormat<>("retention-leases-") {
+    static final MetadataStateFormat<RetentionLeases> FORMAT = new MetadataStateFormat<>("retention-leases-") {
 
         @Override
         public void toXContent(final XContentBuilder builder, final RetentionLeases retentionLeases) throws IOException {
@@ -236,9 +264,7 @@ public class RetentionLeases implements ToXContentFragment, Writeable {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         final RetentionLeases that = (RetentionLeases) o;
-        return primaryTerm == that.primaryTerm &&
-                version == that.version &&
-                Objects.equals(leases, that.leases);
+        return primaryTerm == that.primaryTerm && version == that.version && Objects.equals(leases, that.leases);
     }
 
     @Override
@@ -248,31 +274,7 @@ public class RetentionLeases implements ToXContentFragment, Writeable {
 
     @Override
     public String toString() {
-        return "RetentionLeases{" +
-                "primaryTerm=" + primaryTerm +
-                ", version=" + version +
-                ", leases=" + leases +
-                '}';
-    }
-
-    /**
-     * A utility method to convert retention leases to a map from retention lease ID to retention lease.
-     *
-     * @param leases the retention leases
-     * @return the map from retention lease ID to retention lease
-     */
-    private static Map<String, RetentionLease> toMap(final Collection<RetentionLease> leases) {
-        // use a linked hash map to preserve order
-        return leases.stream()
-                .collect(Collectors.toMap(
-                        RetentionLease::id,
-                        Function.identity(),
-                        (left, right) -> {
-                            assert left.id().equals(right.id()) : "expected [" + left.id() + "] to equal [" + right.id() + "]";
-                            throw new IllegalStateException("duplicate retention lease ID [" + left.id() + "]");
-                        },
-                        LinkedHashMap::new));
+        return "RetentionLeases{primaryTerm=" + primaryTerm + ", version=" + version + ", leases=" + leases + '}';
     }
 
 }
-

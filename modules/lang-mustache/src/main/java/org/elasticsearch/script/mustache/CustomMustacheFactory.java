@@ -1,25 +1,13 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.script.mustache;
 
-import com.fasterxml.jackson.core.io.JsonStringEncoder;
 import com.github.mustachejava.Code;
 import com.github.mustachejava.DefaultMustacheFactory;
 import com.github.mustachejava.DefaultMustacheVisitor;
@@ -30,10 +18,11 @@ import com.github.mustachejava.TemplateContext;
 import com.github.mustachejava.codes.DefaultMustache;
 import com.github.mustachejava.codes.IterableCode;
 import com.github.mustachejava.codes.WriteCode;
-import org.apache.lucene.search.highlight.DefaultEncoder;
+
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonStringEncoder;
 
 import java.io.IOException;
 import java.io.StringWriter;
@@ -50,31 +39,55 @@ import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-public class CustomMustacheFactory extends DefaultMustacheFactory {
+public final class CustomMustacheFactory extends DefaultMustacheFactory {
+    static final String V7_JSON_MEDIA_TYPE_WITH_CHARSET = "application/json; charset=UTF-8";
+    static final String JSON_MEDIA_TYPE_WITH_CHARSET = "application/json;charset=utf-8";
+    static final String JSON_MEDIA_TYPE = "application/json";
+    static final String PLAIN_TEXT_MEDIA_TYPE = "text/plain";
+    static final String X_WWW_FORM_URLENCODED_MEDIA_TYPE = "application/x-www-form-urlencoded";
 
-    static final String JSON_MIME_TYPE_WITH_CHARSET = "application/json; charset=UTF-8";
-    static final String JSON_MIME_TYPE = "application/json";
-    static final String PLAIN_TEXT_MIME_TYPE = "text/plain";
-    static final String X_WWW_FORM_URLENCODED_MIME_TYPE = "application/x-www-form-urlencoded";
-
-    private static final String DEFAULT_MIME_TYPE = JSON_MIME_TYPE;
+    private static final String DEFAULT_MEDIA_TYPE = JSON_MEDIA_TYPE;
+    private static final boolean DEFAULT_DETECT_MISSING_PARAMS = false;
 
     private static final Map<String, Supplier<Encoder>> ENCODERS = Map.of(
-            JSON_MIME_TYPE_WITH_CHARSET, JsonEscapeEncoder::new,
-            JSON_MIME_TYPE, JsonEscapeEncoder::new,
-            PLAIN_TEXT_MIME_TYPE, DefaultEncoder::new,
-            X_WWW_FORM_URLENCODED_MIME_TYPE, UrlEncoder::new);
+        V7_JSON_MEDIA_TYPE_WITH_CHARSET,
+        JsonEscapeEncoder::new,
+        JSON_MEDIA_TYPE_WITH_CHARSET,
+        JsonEscapeEncoder::new,
+        JSON_MEDIA_TYPE,
+        JsonEscapeEncoder::new,
+        PLAIN_TEXT_MEDIA_TYPE,
+        DefaultEncoder::new,
+        X_WWW_FORM_URLENCODED_MEDIA_TYPE,
+        UrlEncoder::new
+    );
 
     private final Encoder encoder;
 
-    public CustomMustacheFactory(String mimeType) {
-        super();
-        setObjectHandler(new CustomReflectionObjectHandler());
-        this.encoder = createEncoder(mimeType);
+    /**
+     * Initializes a CustomMustacheFactory object with a specified mediaType.
+     *
+     * @deprecated Use {@link #builder()} instead to retrieve a {@link Builder} object that can be used to create a factory.
+     */
+    @Deprecated
+    public CustomMustacheFactory(String mediaType) {
+        this(mediaType, DEFAULT_DETECT_MISSING_PARAMS);
     }
 
+    /**
+     * Default constructor for the factory.
+     *
+     * @deprecated Use {@link #builder()} instead to retrieve a {@link Builder} object that can be used to create a factory.
+     */
+    @Deprecated
     public CustomMustacheFactory() {
-        this(DEFAULT_MIME_TYPE);
+        this(DEFAULT_MEDIA_TYPE, DEFAULT_DETECT_MISSING_PARAMS);
+    }
+
+    private CustomMustacheFactory(String mediaType, boolean detectMissingParams) {
+        super();
+        setObjectHandler(new CustomReflectionObjectHandler(detectMissingParams));
+        this.encoder = createEncoder(mediaType);
     }
 
     @Override
@@ -86,10 +99,10 @@ public class CustomMustacheFactory extends DefaultMustacheFactory {
         }
     }
 
-    static Encoder createEncoder(String mimeType) {
-        final Supplier<Encoder> supplier = ENCODERS.get(mimeType);
+    static Encoder createEncoder(String mediaType) {
+        final Supplier<Encoder> supplier = ENCODERS.get(mediaType);
         if (supplier == null) {
-            throw new IllegalArgumentException("No encoder found for MIME type [" + mimeType + "]");
+            throw new IllegalArgumentException("No encoder found for media type [" + mediaType + "]");
         }
         return supplier.get();
     }
@@ -97,6 +110,10 @@ public class CustomMustacheFactory extends DefaultMustacheFactory {
     @Override
     public MustacheVisitor createMustacheVisitor() {
         return new CustomMustacheVisitor(this);
+    }
+
+    public static Builder builder() {
+        return new Builder();
     }
 
     class CustomMustacheVisitor extends DefaultMustacheVisitor {
@@ -264,7 +281,7 @@ public class CustomMustacheFactory extends DefaultMustacheFactory {
 
     static class CustomJoinerCode extends JoinerCode {
 
-        private static final Pattern PATTERN = Pattern.compile("^(?:" + CODE + " delimiter='(.*)')$");
+        private static final Pattern PATTERN = Pattern.compile("^" + CODE + " delimiter='(.*)'$");
 
         CustomJoinerCode(TemplateContext tc, DefaultMustacheFactory df, Mustache mustache, String variable) {
             super(tc, df, mustache, extractDelimiter(variable));
@@ -361,7 +378,37 @@ public class CustomMustacheFactory extends DefaultMustacheFactory {
 
         @Override
         public void encode(String s, Writer writer) throws IOException {
-            writer.write(URLEncoder.encode(s, StandardCharsets.UTF_8.name()));
+            writer.write(URLEncoder.encode(s, StandardCharsets.UTF_8));
+        }
+    }
+
+    /**
+     * Build a new {@link CustomMustacheFactory} object.
+     */
+    public static class Builder {
+        private String mediaType = DEFAULT_MEDIA_TYPE;
+        private boolean detectMissingParams = DEFAULT_DETECT_MISSING_PARAMS;
+
+        private Builder() {}
+
+        public Builder mediaType(String mediaType) {
+            this.mediaType = mediaType;
+            return this;
+        }
+
+        /**
+         * Sets the behavior for handling missing parameters during template execution.
+         *
+         * @param detectMissingParams If true, an exception is thrown when executing the template with missing parameters.
+         *                            If false, the template gracefully handles missing parameters without throwing an exception.
+         */
+        public Builder detectMissingParams(boolean detectMissingParams) {
+            this.detectMissingParams = detectMissingParams;
+            return this;
+        }
+
+        public CustomMustacheFactory build() {
+            return new CustomMustacheFactory(mediaType, detectMissingParams);
         }
     }
 }

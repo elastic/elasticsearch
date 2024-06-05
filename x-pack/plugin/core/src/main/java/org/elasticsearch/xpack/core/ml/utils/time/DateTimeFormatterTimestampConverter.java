@@ -1,11 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.utils.time;
 
-import org.elasticsearch.cli.SuppressForbidden;
+import org.elasticsearch.core.SuppressForbidden;
 
 import java.time.DateTimeException;
 import java.time.Instant;
@@ -18,6 +19,7 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
 import java.time.temporal.ChronoField;
 import java.time.temporal.TemporalAccessor;
+import java.util.Locale;
 
 /**
  * <p> This class implements {@link TimestampConverter} using the {@link DateTimeFormatter}
@@ -48,11 +50,10 @@ public class DateTimeFormatterTimestampConverter implements TimestampConverter {
      * (e.g. contains a date but not a time)
      */
     public static TimestampConverter ofPattern(String pattern, ZoneId defaultTimezone) {
-        DateTimeFormatter formatter = new DateTimeFormatterBuilder()
-                .parseLenient()
-                .appendPattern(pattern)
-                .parseDefaulting(ChronoField.YEAR_OF_ERA, LocalDate.now(defaultTimezone).getYear())
-                .toFormatter();
+        DateTimeFormatter formatter = new DateTimeFormatterBuilder().parseLenient()
+            .appendPattern(pattern)
+            .parseDefaulting(ChronoField.YEAR_OF_ERA, LocalDate.now(defaultTimezone).getYear())
+            .toFormatter(Locale.ROOT);
 
         String formattedTime = formatter.format(ZonedDateTime.ofInstant(Instant.ofEpochSecond(0), ZoneOffset.UTC));
         try {
@@ -60,13 +61,11 @@ public class DateTimeFormatterTimestampConverter implements TimestampConverter {
             boolean hasTimeZone = parsed.isSupported(ChronoField.INSTANT_SECONDS);
             if (hasTimeZone) {
                 Instant.from(parsed);
-            }
-            else {
+            } else {
                 LocalDateTime.from(parsed);
             }
             return new DateTimeFormatterTimestampConverter(formatter, hasTimeZone, defaultTimezone);
-        }
-        catch (DateTimeException e) {
+        } catch (DateTimeException e) {
             throw new IllegalArgumentException("Timestamp cannot be derived from pattern: " + pattern, e);
         }
     }

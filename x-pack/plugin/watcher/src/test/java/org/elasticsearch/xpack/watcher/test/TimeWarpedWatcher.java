@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.test;
 
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.plugins.ReloadablePlugin;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.ssl.SSLService;
@@ -29,19 +31,19 @@ import java.util.concurrent.BlockingQueue;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 
-public class TimeWarpedWatcher extends LocalStateCompositeXPackPlugin {
+public class TimeWarpedWatcher extends LocalStateCompositeXPackPlugin implements ReloadablePlugin {
     private static final Logger logger = LogManager.getLogger(TimeWarpedWatcher.class);
 
     // use a single clock across all nodes using this plugin, this lets keep it static
     private static final ClockMock clock = new ClockMock();
+    private final Watcher watcher;
 
     public TimeWarpedWatcher(final Settings settings, final Path configPath) throws Exception {
         super(settings, configPath);
         logger.info("using time warped watchers plugin");
 
         TimeWarpedWatcher thisVar = this;
-
-        plugins.add(new Watcher(settings) {
+        this.watcher = new Watcher(settings) {
             @Override
             protected SSLService getSslService() {
                 return thisVar.getSslService();
@@ -58,7 +60,7 @@ public class TimeWarpedWatcher extends LocalStateCompositeXPackPlugin {
             }
 
             @Override
-            protected TriggerEngine getTriggerEngine(Clock clock, ScheduleRegistry scheduleRegistry){
+            protected TriggerEngine<?, ?> getTriggerEngine(Clock clock, ScheduleRegistry scheduleRegistry) {
                 return new ScheduleTriggerEngineMock(scheduleRegistry, clock);
             }
 
@@ -68,10 +70,16 @@ public class TimeWarpedWatcher extends LocalStateCompositeXPackPlugin {
             }
 
             @Override
-            protected Consumer<Iterable<TriggerEvent>> getTriggerEngineListener(ExecutionService executionService){
+            protected Consumer<Iterable<TriggerEvent>> getTriggerEngineListener(ExecutionService executionService) {
                 return new SyncTriggerEventConsumer(executionService);
             }
-        });
+        };
+        plugins.add(watcher);
+    }
+
+    @Override
+    public void reload(Settings settings) throws Exception {
+        this.watcher.reload(settings);
     }
 
     public static class SameThreadExecutor implements WatchExecutor {

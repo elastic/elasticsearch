@@ -1,28 +1,63 @@
-// Subprojects aren't published so do not assemble
-gradle.projectsEvaluated {
-  subprojects {
-    Task assemble = project.tasks.findByName('assemble')
-    if (assemble) {
-      assemble.enabled = false
+import org.elasticsearch.gradle.VersionProperties
+
+buildscript {
+  repositories {
+    maven {
+      url = 'https://snapshots.elastic.co/maven/'
     }
+    mavenCentral()
+  }
+  dependencies {
+    classpath "org.elasticsearch.gradle:build-tools:${elasticsearchVersion}"
   }
 }
 
-configure(project('painless-whitelist')) {
-  configurations.all {
-    resolutionStrategy.dependencySubstitution {
-      substitute module('org.elasticsearch.plugin:elasticsearch-scripting-painless-spi') with project(':modules:lang-painless:spi')
-      substitute module('org.elasticsearch.test:logger-usage') with project(':test:logger-usage')
+subprojects {
+  apply plugin: 'java'
+
+  java {
+    sourceCompatibility = 17
+    targetCompatibility = 17
+  }
+
+  repositories {
+    // Only necessary when building plugins against SNAPSHOT versions of Elasticsearch
+    maven {
+      url = 'https://snapshots.elastic.co/maven/'
+      mavenContent {
+        if (gradle.includedBuilds) {
+          // When building in a composite, restrict this to only resolve the Java REST client
+          includeModule 'co.elastic.clients', 'elasticsearch-java'
+        }
+      }
     }
+    if (gradle.includedBuilds.isEmpty()) {
+      maven {
+        url = "https://artifacts-snapshot.elastic.co/elasticsearch/${elasticsearchVersion}/maven"
+        mavenContent {
+          includeModule 'org.elasticsearch', 'elasticsearch'
+        }
+      }
+    }
+
+    // Same for Lucene, add the snapshot repo based on the currently used Lucene version
+    def luceneVersion = VersionProperties.getLucene()
+    if (luceneVersion.contains('-snapshot')) {
+      def matcher = luceneVersion =~ /[0-9\.]+-snapshot-([a-z0-9]+)/
+      assert matcher.matches(): "Invalid Lucene snapshot version '${luceneVersion}'"
+      maven {
+        url = "https://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/${matcher.group(1)}"
+      }
+    }
+
+    mavenCentral()
   }
 }
 
-configure(project('security-authorization-engine')) {
-  configurations.all {
-    resolutionStrategy.dependencySubstitution {
-      substitute module('org.elasticsearch.plugin:x-pack-core') with project(':x-pack:plugin:core')
-      substitute module('org.elasticsearch.client:elasticsearch-rest-high-level-client') with project(':client:rest-high-level')
-      substitute module('org.elasticsearch.test:logger-usage') with project(':test:logger-usage')
-    }
-  }
+tasks.register('check') {
+  dependsOn subprojects.collect { it.tasks.named('check') }
+}
+
+tasks.register('precommit') {
+  dependsOn subprojects.collect { it.tasks.named('classes') }
 }

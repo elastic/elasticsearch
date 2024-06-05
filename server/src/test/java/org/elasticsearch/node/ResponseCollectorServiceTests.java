@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.node;
@@ -22,7 +11,7 @@ package org.elasticsearch.node;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -50,9 +39,12 @@ public class ResponseCollectorServiceTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         threadpool = new TestThreadPool("response_collector_tests");
-        clusterService = new ClusterService(Settings.EMPTY,
-                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                threadpool);
+        clusterService = new ClusterService(
+            Settings.EMPTY,
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            threadpool,
+            null
+        );
         collector = new ResponseCollectorService(clusterService);
     }
 
@@ -75,7 +67,7 @@ public class ResponseCollectorServiceTests extends ESTestCase {
      * Test that concurrently adding values and removing nodes does not cause exceptions
      */
     public void testConcurrentAddingAndRemoving() throws Exception {
-        String[] nodes = new String[] {"a", "b", "c", "d"};
+        String[] nodes = new String[] { "a", "b", "c", "d" };
 
         final CountDownLatch latch = new CountDownLatch(5);
 
@@ -90,7 +82,12 @@ public class ResponseCollectorServiceTests extends ESTestCase {
                 if (randomBoolean()) {
                     collector.removeNode(randomFrom(nodes));
                 }
-                collector.addNodeStatistics(randomFrom(nodes), randomIntBetween(1,100), randomIntBetween(1,100), randomIntBetween(1,100));
+                collector.addNodeStatistics(
+                    randomFrom(nodes),
+                    randomIntBetween(1, 100),
+                    randomIntBetween(1, 100),
+                    randomIntBetween(1, 100)
+                );
             }
         };
 
@@ -121,15 +118,19 @@ public class ResponseCollectorServiceTests extends ESTestCase {
     }
 
     public void testNodeRemoval() throws Exception {
-        collector.addNodeStatistics("node1", randomIntBetween(1,100), randomIntBetween(1,100), randomIntBetween(1,100));
-        collector.addNodeStatistics("node2", randomIntBetween(1,100), randomIntBetween(1,100), randomIntBetween(1,100));
+        collector.addNodeStatistics("node1", randomIntBetween(1, 100), randomIntBetween(1, 100), randomIntBetween(1, 100));
+        collector.addNodeStatistics("node2", randomIntBetween(1, 100), randomIntBetween(1, 100), randomIntBetween(1, 100));
 
-        ClusterState previousState = ClusterState.builder(new ClusterName("cluster")).nodes(DiscoveryNodes.builder()
-                .add(DiscoveryNode.createLocal(Settings.EMPTY, new TransportAddress(TransportAddress.META_ADDRESS, 9200), "node1"))
-                .add(DiscoveryNode.createLocal(Settings.EMPTY, new TransportAddress(TransportAddress.META_ADDRESS, 9201), "node2")))
-                .build();
-        ClusterState newState = ClusterState.builder(previousState).nodes(DiscoveryNodes.builder(previousState.nodes())
-                .remove("node2")).build();
+        ClusterState previousState = ClusterState.builder(new ClusterName("cluster"))
+            .nodes(
+                DiscoveryNodes.builder()
+                    .add(DiscoveryNodeUtils.create("node1", new TransportAddress(TransportAddress.META_ADDRESS, 9200)))
+                    .add(DiscoveryNodeUtils.create("node2", new TransportAddress(TransportAddress.META_ADDRESS, 9201)))
+            )
+            .build();
+        ClusterState newState = ClusterState.builder(previousState)
+            .nodes(DiscoveryNodes.builder(previousState.nodes()).remove("node2"))
+            .build();
         ClusterChangedEvent event = new ClusterChangedEvent("test", newState, previousState);
 
         collector.clusterChanged(event);

@@ -1,28 +1,17 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.cluster.storedscripts;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.ScriptContextInfo.ScriptMethodInfo.ParameterInfo;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -31,7 +20,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-public class ScriptParameterInfoSerializingTests extends AbstractSerializingTestCase<ParameterInfo> {
+public class ScriptParameterInfoSerializingTests extends AbstractXContentSerializingTestCase<ParameterInfo> {
     private static int minLength = 1;
     private static int maxLength = 8;
     private static String baseType = "type-";
@@ -53,7 +42,7 @@ public class ScriptParameterInfoSerializingTests extends AbstractSerializingTest
     }
 
     @Override
-    protected ParameterInfo mutateInstance(ParameterInfo instance) throws IOException {
+    protected ParameterInfo mutateInstance(ParameterInfo instance) {
         return mutate(instance);
     }
 
@@ -65,8 +54,8 @@ public class ScriptParameterInfoSerializingTests extends AbstractSerializingTest
     }
 
     static List<ParameterInfo> mutateOne(List<ParameterInfo> instances) {
-        if (instances.size() == 0) {
-            return Collections.unmodifiableList(List.of(randomInstance()));
+        if (instances.isEmpty()) {
+            return List.of(randomInstance());
         }
         ArrayList<ParameterInfo> mutated = new ArrayList<>(instances);
         int mutateIndex = randomIntBetween(0, instances.size() - 1);
@@ -88,10 +77,7 @@ public class ScriptParameterInfoSerializingTests extends AbstractSerializingTest
         for (int i = 0; i < size; i++) {
             String suffix = randomValueOtherThanMany(suffixes::contains, () -> randomAlphaOfLengthBetween(minLength, maxLength));
             suffixes.add(suffix);
-            instances.add(new ParameterInfo(
-                baseType + randomAlphaOfLengthBetween(minLength, maxLength),
-                baseName + suffix
-            ));
+            instances.add(new ParameterInfo(baseType + randomAlphaOfLengthBetween(minLength, maxLength), baseName + suffix));
         }
         return Collections.unmodifiableList(instances);
     }

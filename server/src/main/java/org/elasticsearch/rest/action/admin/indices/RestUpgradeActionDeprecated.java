@@ -1,52 +1,38 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.rest.action.admin.indices;
 
-import org.apache.logging.log4j.LogManager;
-import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeRequest;
-import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.rest.RestResponse;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Locale;
 
+import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestUpgradeActionDeprecated extends BaseRestHandler {
-
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
-        LogManager.getLogger(RestUpgradeActionDeprecated.class));
-
     public static final String UPGRADE_API_DEPRECATION_MESSAGE =
         "The _upgrade API is no longer useful and will be removed. Instead, see _reindex API.";
 
-    public RestUpgradeActionDeprecated(RestController controller) {
-        controller.registerAsDeprecatedHandler(POST, "/_upgrade", this,
-            UPGRADE_API_DEPRECATION_MESSAGE, deprecationLogger);
-        controller.registerAsDeprecatedHandler(POST, "/{index}/_upgrade", this,
-            UPGRADE_API_DEPRECATION_MESSAGE, deprecationLogger);
+    @Override
+    public List<Route> routes() {
+        return List.of(
+            Route.builder(POST, "/_upgrade").deprecated(UPGRADE_API_DEPRECATION_MESSAGE, RestApiVersion.V_7).build(),
+            Route.builder(POST, "/{index}/_upgrade").deprecated(UPGRADE_API_DEPRECATION_MESSAGE, RestApiVersion.V_7).build(),
+            Route.builder(GET, "/_upgrade").deprecated(UPGRADE_API_DEPRECATION_MESSAGE, RestApiVersion.V_7).build(),
+            Route.builder(GET, "/{index}/_upgrade").deprecated(UPGRADE_API_DEPRECATION_MESSAGE, RestApiVersion.V_7).build()
+        );
     }
 
     @Override
@@ -56,9 +42,23 @@ public class RestUpgradeActionDeprecated extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        UpgradeRequest upgradeReq = new UpgradeRequest(Strings.splitStringByCommaToArray(request.param("index")));
-        upgradeReq.indicesOptions(IndicesOptions.fromRequest(request, upgradeReq.indicesOptions()));
-        upgradeReq.upgradeOnlyAncientSegments(request.paramAsBoolean("only_ancient_segments", false));
-        return channel -> client.admin().indices().upgrade(upgradeReq, new RestToXContentListener<>(channel));
+        request.param("index");
+        final UpgradeActionDeprecatedException exception = new UpgradeActionDeprecatedException(request);
+        return channel -> channel.sendResponse(new RestResponse(channel, exception));
+    }
+
+    public static class UpgradeActionDeprecatedException extends IllegalArgumentException {
+        private final String path;
+        private final RestRequest.Method method;
+
+        public UpgradeActionDeprecatedException(RestRequest restRequest) {
+            this.path = restRequest.path();
+            this.method = restRequest.method();
+        }
+
+        @Override
+        public final String getMessage() {
+            return String.format(Locale.ROOT, "Upgrade action %s %s was removed, use _reindex API instead", method, path);
+        }
     }
 }

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.cluster.settings;
@@ -24,36 +13,56 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.util.List;
 import java.util.Set;
 import java.util.function.Predicate;
 
-public class ClusterUpdateSettingsResponseTests extends AbstractSerializingTestCase<ClusterUpdateSettingsResponse> {
+import static org.elasticsearch.action.support.master.AcknowledgedResponse.declareAcknowledgedField;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+
+public class ClusterUpdateSettingsResponseTests extends AbstractXContentSerializingTestCase<ClusterUpdateSettingsResponse> {
+
+    private static final ConstructingObjectParser<ClusterUpdateSettingsResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "cluster_update_settings_response",
+        true,
+        args -> new ClusterUpdateSettingsResponse((boolean) args[0], (Settings) args[1], (Settings) args[2])
+    );
+    static {
+        declareAcknowledgedField(PARSER);
+        PARSER.declareObject(constructorArg(), (p, c) -> Settings.fromXContent(p), ClusterUpdateSettingsResponse.TRANSIENT);
+        PARSER.declareObject(constructorArg(), (p, c) -> Settings.fromXContent(p), ClusterUpdateSettingsResponse.PERSISTENT);
+    }
 
     @Override
     protected ClusterUpdateSettingsResponse doParseInstance(XContentParser parser) {
-        return ClusterUpdateSettingsResponse.fromXContent(parser);
+        return PARSER.apply(parser, null);
     }
 
     @Override
     protected ClusterUpdateSettingsResponse mutateInstance(ClusterUpdateSettingsResponse response) {
         int i = randomIntBetween(0, 2);
-        switch(i) {
-            case 0:
-                return new ClusterUpdateSettingsResponse(response.isAcknowledged() == false,
-                        response.transientSettings, response.persistentSettings);
-            case 1:
-                return new ClusterUpdateSettingsResponse(response.isAcknowledged(), mutateSettings(response.transientSettings),
-                        response.persistentSettings);
-            case 2:
-                return new ClusterUpdateSettingsResponse(response.isAcknowledged(), response.transientSettings,
-                        mutateSettings(response.persistentSettings));
-            default:
-                throw new UnsupportedOperationException();
-        }
+        return switch (i) {
+            case 0 -> new ClusterUpdateSettingsResponse(
+                response.isAcknowledged() == false,
+                response.transientSettings,
+                response.persistentSettings
+            );
+            case 1 -> new ClusterUpdateSettingsResponse(
+                response.isAcknowledged(),
+                mutateSettings(response.transientSettings),
+                response.persistentSettings
+            );
+            case 2 -> new ClusterUpdateSettingsResponse(
+                response.isAcknowledged(),
+                response.transientSettings,
+                mutateSettings(response.persistentSettings)
+            );
+            default -> throw new UnsupportedOperationException();
+        };
     }
 
     private static Settings mutateSettings(Settings settings) {

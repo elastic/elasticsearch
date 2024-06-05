@@ -1,29 +1,19 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.codec;
 
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.Codec;
-import org.apache.lucene.codecs.lucene50.Lucene50StoredFieldsFormat.Mode;
-import org.apache.lucene.codecs.lucene84.Lucene84Codec;
-import org.elasticsearch.common.Nullable;
+import org.apache.lucene.codecs.lucene99.Lucene99Codec;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.FeatureFlag;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.codec.zstd.Zstd814StoredFieldsFormat;
 import org.elasticsearch.index.mapper.MapperService;
 
 import java.util.HashMap;
@@ -37,24 +27,40 @@ import java.util.Map;
  */
 public class CodecService {
 
+    public static final FeatureFlag ZSTD_STORED_FIELDS_FEATURE_FLAG = new FeatureFlag("zstd_stored_fields");
+
     private final Map<String, Codec> codecs;
 
     public static final String DEFAULT_CODEC = "default";
+    public static final String LEGACY_DEFAULT_CODEC = "legacy_default"; // escape hatch
     public static final String BEST_COMPRESSION_CODEC = "best_compression";
+    public static final String LEGACY_BEST_COMPRESSION_CODEC = "legacy_best_compression"; // escape hatch
+
     /** the raw unfiltered lucene default. useful for testing */
     public static final String LUCENE_DEFAULT_CODEC = "lucene_default";
 
-    public CodecService(@Nullable MapperService mapperService, Logger logger) {
+    public CodecService(@Nullable MapperService mapperService, BigArrays bigArrays) {
         final var codecs = new HashMap<String, Codec>();
-        if (mapperService == null) {
-            codecs.put(DEFAULT_CODEC, new Lucene84Codec());
-            codecs.put(BEST_COMPRESSION_CODEC, new Lucene84Codec(Mode.BEST_COMPRESSION));
+
+        Codec legacyBestSpeedCodec = new LegacyPerFieldMapperCodec(Lucene99Codec.Mode.BEST_SPEED, mapperService, bigArrays);
+        if (ZSTD_STORED_FIELDS_FEATURE_FLAG.isEnabled()) {
+            codecs.put(DEFAULT_CODEC, new PerFieldMapperCodec(Zstd814StoredFieldsFormat.Mode.BEST_SPEED, mapperService, bigArrays));
         } else {
-            codecs.put(DEFAULT_CODEC,
-                    new PerFieldMappingPostingFormatCodec(Mode.BEST_SPEED, mapperService, logger));
-            codecs.put(BEST_COMPRESSION_CODEC,
-                    new PerFieldMappingPostingFormatCodec(Mode.BEST_COMPRESSION, mapperService, logger));
+            codecs.put(DEFAULT_CODEC, legacyBestSpeedCodec);
         }
+        codecs.put(LEGACY_DEFAULT_CODEC, legacyBestSpeedCodec);
+
+        Codec legacyBestCompressionCodec = new LegacyPerFieldMapperCodec(Lucene99Codec.Mode.BEST_COMPRESSION, mapperService, bigArrays);
+        if (ZSTD_STORED_FIELDS_FEATURE_FLAG.isEnabled()) {
+            codecs.put(
+                BEST_COMPRESSION_CODEC,
+                new PerFieldMapperCodec(Zstd814StoredFieldsFormat.Mode.BEST_COMPRESSION, mapperService, bigArrays)
+            );
+        } else {
+            codecs.put(BEST_COMPRESSION_CODEC, legacyBestCompressionCodec);
+        }
+        codecs.put(LEGACY_BEST_COMPRESSION_CODEC, legacyBestCompressionCodec);
+
         codecs.put(LUCENE_DEFAULT_CODEC, Codec.getDefault());
         for (String codec : Codec.availableCodecs()) {
             codecs.put(codec, Codec.forName(codec));

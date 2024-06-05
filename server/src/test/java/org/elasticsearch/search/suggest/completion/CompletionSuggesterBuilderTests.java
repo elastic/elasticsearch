@@ -1,27 +1,18 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.suggest.completion;
 
+import org.apache.lucene.analysis.core.SimpleAnalyzer;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.index.analysis.AnalyzerScope;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.CompletionFieldMapper.CompletionFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.suggest.AbstractSuggestionBuilderTestCase;
@@ -32,6 +23,7 @@ import org.elasticsearch.search.suggest.completion.context.ContextMapping;
 import org.elasticsearch.search.suggest.completion.context.ContextMapping.InternalQueryContext;
 import org.elasticsearch.search.suggest.completion.context.ContextMappings;
 import org.elasticsearch.search.suggest.completion.context.GeoQueryContext;
+import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -82,18 +74,10 @@ public class CompletionSuggesterBuilderTests extends AbstractSuggestionBuilderTe
         CompletionSuggestionBuilder testBuilder = new CompletionSuggestionBuilder(randomAlphaOfLengthBetween(2, 20));
         setCommonPropertiesOnRandomBuilder(testBuilder);
         switch (randomIntBetween(0, 3)) {
-            case 0:
-                testBuilder.prefix(randomAlphaOfLength(10));
-                break;
-            case 1:
-                testBuilder.prefix(randomAlphaOfLength(10), FuzzyOptionsTests.randomFuzzyOptions());
-                break;
-            case 2:
-                testBuilder.prefix(randomAlphaOfLength(10), randomFrom(Fuzziness.ZERO, Fuzziness.ONE, Fuzziness.TWO));
-                break;
-            case 3:
-                testBuilder.regex(randomAlphaOfLength(10), RegexOptionsTests.randomRegexOptions());
-                break;
+            case 0 -> testBuilder.prefix(randomAlphaOfLength(10));
+            case 1 -> testBuilder.prefix(randomAlphaOfLength(10), FuzzyOptionsTests.randomFuzzyOptions());
+            case 2 -> testBuilder.prefix(randomAlphaOfLength(10), randomFrom(Fuzziness.ZERO, Fuzziness.ONE, Fuzziness.TWO));
+            case 3 -> testBuilder.regex(randomAlphaOfLength(10), RegexOptionsTests.randomRegexOptions());
         }
         Map<String, List<? extends ToXContent>> contextMap = new HashMap<>();
         if (randomBoolean()) {
@@ -129,43 +113,37 @@ public class CompletionSuggesterBuilderTests extends AbstractSuggestionBuilderTe
     @Override
     protected void mutateSpecificParameters(CompletionSuggestionBuilder builder) throws IOException {
         switch (randomIntBetween(0, 5)) {
-            case 0:
+            case 0 -> {
                 int nCatContext = randomIntBetween(1, 5);
                 List<CategoryQueryContext> contexts = new ArrayList<>(nCatContext);
                 for (int i = 0; i < nCatContext; i++) {
                     contexts.add(CategoryQueryContextTests.randomCategoryQueryContext());
                 }
                 builder.contexts(Collections.singletonMap(randomAlphaOfLength(10), contexts));
-                break;
-            case 1:
+            }
+            case 1 -> {
                 int nGeoContext = randomIntBetween(1, 5);
                 List<GeoQueryContext> geoContexts = new ArrayList<>(nGeoContext);
                 for (int i = 0; i < nGeoContext; i++) {
                     geoContexts.add(GeoQueryContextTests.randomGeoQueryContext());
                 }
                 builder.contexts(Collections.singletonMap(randomAlphaOfLength(10), geoContexts));
-                break;
-            case 2:
-                builder.prefix(randomAlphaOfLength(10), FuzzyOptionsTests.randomFuzzyOptions());
-                break;
-            case 3:
-                builder.prefix(randomAlphaOfLength(10), randomFrom(Fuzziness.ZERO, Fuzziness.ONE, Fuzziness.TWO));
-                break;
-            case 4:
-                builder.regex(randomAlphaOfLength(10), RegexOptionsTests.randomRegexOptions());
-                break;
-            case 5:
-                builder.skipDuplicates(!builder.skipDuplicates);
-                break;
-            default:
-                throw new IllegalStateException("should not through");
+            }
+            case 2 -> builder.prefix(randomAlphaOfLength(10), FuzzyOptionsTests.randomFuzzyOptions());
+            case 3 -> builder.prefix(randomAlphaOfLength(10), randomFrom(Fuzziness.ZERO, Fuzziness.ONE, Fuzziness.TWO));
+            case 4 -> builder.regex(randomAlphaOfLength(10), RegexOptionsTests.randomRegexOptions());
+            case 5 -> builder.skipDuplicates(builder.skipDuplicates == false);
+            default -> throw new IllegalStateException("should not through");
         }
     }
 
     @Override
     protected MappedFieldType mockFieldType(String fieldName) {
-        CompletionFieldType completionFieldType = new CompletionFieldType();
-        completionFieldType.setName(fieldName);
+        CompletionFieldType completionFieldType = new CompletionFieldType(
+            fieldName,
+            new NamedAnalyzer("fieldSearchAnalyzer", AnalyzerScope.INDEX, new SimpleAnalyzer()),
+            Collections.emptyMap()
+        );
         completionFieldType.setContextMappings(new ContextMappings(contextMappings));
         return completionFieldType;
     }
@@ -175,11 +153,14 @@ public class CompletionSuggesterBuilderTests extends AbstractSuggestionBuilderTe
         assertThat(context, instanceOf(CompletionSuggestionContext.class));
         assertThat(context.getSuggester(), instanceOf(CompletionSuggester.class));
         CompletionSuggestionContext completionSuggestionCtx = (CompletionSuggestionContext) context;
-        assertThat(completionSuggestionCtx.getFieldType(), instanceOf(CompletionFieldType.class) );
+        assertThat(completionSuggestionCtx.getFieldType(), instanceOf(CompletionFieldType.class));
         assertEquals(builder.fuzzyOptions, completionSuggestionCtx.getFuzzyOptions());
         Map<String, List<InternalQueryContext>> parsedContextBytes;
-        parsedContextBytes = CompletionSuggestionBuilder.parseContextBytes(builder.contextBytes, xContentRegistry(),
-                new ContextMappings(contextMappings));
+        parsedContextBytes = CompletionSuggestionBuilder.parseContextBytes(
+            builder.contextBytes,
+            parserConfig(),
+            new ContextMappings(contextMappings)
+        );
         Map<String, List<InternalQueryContext>> queryContexts = completionSuggestionCtx.getQueryContexts();
         assertEquals(parsedContextBytes.keySet(), queryContexts.keySet());
         for (String contextName : queryContexts.keySet()) {

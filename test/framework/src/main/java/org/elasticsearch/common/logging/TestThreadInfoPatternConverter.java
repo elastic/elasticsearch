@@ -1,27 +1,12 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.logging;
-
-import java.util.Arrays;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.config.plugins.Plugin;
@@ -30,21 +15,24 @@ import org.apache.logging.log4j.core.pattern.LogEventPatternConverter;
 import org.apache.logging.log4j.core.pattern.PatternConverter;
 import org.elasticsearch.test.ESIntegTestCase;
 
+import java.util.Arrays;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
 /**
  * Converts {@code %test_thread_info} in log4j patterns into information
  * based on the loggin thread's name. If that thread is part of an
  * {@link ESIntegTestCase} then this information is the node name.
  */
 @Plugin(category = PatternConverter.CATEGORY, name = "TestInfoPatternConverter")
-@ConverterKeys({"test_thread_info"})
+@ConverterKeys({ "test_thread_info" })
 public class TestThreadInfoPatternConverter extends LogEventPatternConverter {
     /**
      * Called by log4j2 to initialize this converter.
      */
     public static TestThreadInfoPatternConverter newInstance(final String[] options) {
         if (options.length > 0) {
-            throw new IllegalArgumentException("no options supported but options provided: "
-                    + Arrays.toString(options));
+            throw new IllegalArgumentException("no options supported but options provided: " + Arrays.toString(options));
         }
         return new TestThreadInfoPatternConverter();
     }
@@ -61,14 +49,10 @@ public class TestThreadInfoPatternConverter extends LogEventPatternConverter {
         }
     }
 
-    private static final Pattern ELASTICSEARCH_THREAD_NAME_PATTERN =
-            Pattern.compile("elasticsearch\\[(.+)\\]\\[.+\\].+");
-    private static final Pattern TEST_THREAD_NAME_PATTERN =
-            Pattern.compile("TEST-.+\\.(.+)-seed#\\[.+\\]");
-    private static final Pattern TEST_SUITE_INIT_THREAD_NAME_PATTERN =
-            Pattern.compile("SUITE-.+-worker");
-    private static final Pattern NOT_YET_NAMED_NODE_THREAD_NAME_PATTERN =
-            Pattern.compile("test_SUITE-CHILD_VM.+cluster\\[T#(.+)\\]");
+    private static final Pattern ELASTICSEARCH_THREAD_NAME_PATTERN = Pattern.compile("elasticsearch\\[(.+)\\]\\[.+\\].+");
+    private static final Pattern TEST_THREAD_NAME_PATTERN = Pattern.compile("TEST-.+\\.(.+)-seed#\\[.+\\]");
+    private static final Pattern TEST_SUITE_INIT_THREAD_NAME_PATTERN = Pattern.compile("SUITE-.+-worker");
+    private static final Pattern NOT_YET_NAMED_NODE_THREAD_NAME_PATTERN = Pattern.compile("test_SUITE-CHILD_VM.+cluster\\[T#(.+)\\]");
 
     static String threadInfo(String threadName) {
         Matcher m = ELASTICSEARCH_THREAD_NAME_PATTERN.matcher(threadName);

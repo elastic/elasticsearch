@@ -1,0 +1,5 @@
+pr: 105501
+summary: Support non-keyword dimensions as routing fields in TSDB
+area: TSDB
+type: enhancement
+issues: []

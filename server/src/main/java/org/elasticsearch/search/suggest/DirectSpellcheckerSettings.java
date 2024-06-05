@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.suggest;
 
@@ -28,20 +17,20 @@ import org.apache.lucene.util.automaton.LevenshteinAutomata;
 
 import java.util.Comparator;
 
-public class DirectSpellcheckerSettings  {
+public class DirectSpellcheckerSettings {
 
     // NB: If this changes, make sure to change the default in TermBuilderSuggester
-    public static SuggestMode DEFAULT_SUGGEST_MODE = SuggestMode.SUGGEST_WHEN_NOT_IN_INDEX;
-    public static float DEFAULT_ACCURACY = 0.5f;
-    public static SortBy DEFAULT_SORT = SortBy.SCORE;
+    public static final SuggestMode DEFAULT_SUGGEST_MODE = SuggestMode.SUGGEST_WHEN_NOT_IN_INDEX;
+    public static final float DEFAULT_ACCURACY = 0.5f;
+    public static final SortBy DEFAULT_SORT = SortBy.SCORE;
     // NB: If this changes, make sure to change the default in TermBuilderSuggester
-    public static StringDistance DEFAULT_STRING_DISTANCE = DirectSpellChecker.INTERNAL_LEVENSHTEIN;
-    public static int DEFAULT_MAX_EDITS = LevenshteinAutomata.MAXIMUM_SUPPORTED_DISTANCE;
-    public static int DEFAULT_MAX_INSPECTIONS = 5;
-    public static float DEFAULT_MAX_TERM_FREQ = 0.01f;
-    public static int DEFAULT_PREFIX_LENGTH = 1;
-    public static int DEFAULT_MIN_WORD_LENGTH = 4;
-    public static float DEFAULT_MIN_DOC_FREQ = 0f;
+    public static final StringDistance DEFAULT_STRING_DISTANCE = DirectSpellChecker.INTERNAL_LEVENSHTEIN;
+    public static final int DEFAULT_MAX_EDITS = LevenshteinAutomata.MAXIMUM_SUPPORTED_DISTANCE;
+    public static final int DEFAULT_MAX_INSPECTIONS = 5;
+    public static final float DEFAULT_MAX_TERM_FREQ = 0.01f;
+    public static final int DEFAULT_PREFIX_LENGTH = 1;
+    public static final int DEFAULT_MIN_WORD_LENGTH = 4;
+    public static final float DEFAULT_MIN_DOC_FREQ = 0f;
 
     private SuggestMode suggestMode = DEFAULT_SUGGEST_MODE;
     private float accuracy = DEFAULT_ACCURACY;
@@ -141,17 +130,10 @@ public class DirectSpellcheckerSettings  {
 
         DirectSpellChecker directSpellChecker = new DirectSpellChecker();
         directSpellChecker.setAccuracy(accuracy());
-        Comparator<SuggestWord> comparator;
-        switch (sort()) {
-            case SCORE:
-                comparator = SCORE_COMPARATOR;
-                break;
-            case FREQUENCY:
-                comparator = LUCENE_FREQUENCY;
-                break;
-            default:
-                throw new IllegalArgumentException("Illegal suggest sort: " + sort());
-        }
+        Comparator<SuggestWord> comparator = switch (sort()) {
+            case SCORE -> SCORE_COMPARATOR;
+            case FREQUENCY -> LUCENE_FREQUENCY;
+        };
         directSpellChecker.setComparator(comparator);
         directSpellChecker.setDistance(stringDistance());
         directSpellChecker.setMaxEdits(maxEdits());
@@ -166,18 +148,28 @@ public class DirectSpellcheckerSettings  {
 
     @Override
     public String toString() {
-        return "[" +
-                   "suggestMode=" + suggestMode +
-                   ",sort=" + sort +
-                   ",stringDistance=" + stringDistance +
-                   ",accuracy=" + accuracy +
-                   ",maxEdits=" + maxEdits +
-                   ",maxInspections=" + maxInspections +
-                   ",maxTermFreq=" + maxTermFreq +
-                   ",prefixLength=" + prefixLength +
-                   ",minWordLength=" + minWordLength +
-                   ",minDocFreq=" + minDocFreq +
-               "]";
+        return "["
+            + "suggestMode="
+            + suggestMode
+            + ",sort="
+            + sort
+            + ",stringDistance="
+            + stringDistance
+            + ",accuracy="
+            + accuracy
+            + ",maxEdits="
+            + maxEdits
+            + ",maxInspections="
+            + maxInspections
+            + ",maxTermFreq="
+            + maxTermFreq
+            + ",prefixLength="
+            + prefixLength
+            + ",minWordLength="
+            + minWordLength
+            + ",minDocFreq="
+            + minDocFreq
+            + "]";
     }
 
 }

@@ -1,31 +1,24 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.rest;
 
+import org.elasticsearch.core.Strings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.rest.FakeRestRequest;
 
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Pattern;
 
+import static org.elasticsearch.rest.RestRequest.PATH_RESTRICTED;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -45,7 +38,7 @@ public class RestUtilsTests extends ESTestCase {
         assertThat(params.get("test"), equalTo("value"));
 
         params.clear();
-        uri = String.format(Locale.ROOT, "something?test=value%ctest1=value1", randomDelimiter());
+        uri = Strings.format("something?test=value%ctest1=value1", randomDelimiter());
         RestUtils.decodeQueryString(uri, uri.indexOf('?') + 1, params);
         assertThat(params.size(), equalTo(2));
         assertThat(params.get("test"), equalTo("value"));
@@ -70,12 +63,12 @@ public class RestUtilsTests extends ESTestCase {
         assertThat(params.size(), equalTo(0));
 
         params.clear();
-        uri = String.format(Locale.ROOT, "something?%c", randomDelimiter());
+        uri = Strings.format("something?%c", randomDelimiter());
         RestUtils.decodeQueryString(uri, uri.indexOf('?') + 1, params);
         assertThat(params.size(), equalTo(0));
 
         params.clear();
-        uri = String.format(Locale.ROOT, "something?p=v%c%cp1=v1", randomDelimiter(), randomDelimiter());
+        uri = Strings.format("something?p=v%c%cp1=v1", randomDelimiter(), randomDelimiter());
         RestUtils.decodeQueryString(uri, uri.indexOf('?') + 1, params);
         assertThat(params.size(), equalTo(2));
         assertThat(params.get("p"), equalTo("v"));
@@ -87,7 +80,7 @@ public class RestUtilsTests extends ESTestCase {
         assertThat(params.size(), equalTo(0));
 
         params.clear();
-        uri = String.format(Locale.ROOT, "something?%c=", randomDelimiter());
+        uri = Strings.format("something?%c=", randomDelimiter());
         RestUtils.decodeQueryString(uri, uri.indexOf('?') + 1, params);
         assertThat(params.size(), equalTo(0));
 
@@ -98,14 +91,14 @@ public class RestUtilsTests extends ESTestCase {
         assertThat(params.get("a"), equalTo(""));
 
         params.clear();
-        uri = String.format(Locale.ROOT, "something?p=v%ca", randomDelimiter());
+        uri = Strings.format("something?p=v%ca", randomDelimiter());
         RestUtils.decodeQueryString(uri, uri.indexOf('?') + 1, params);
         assertThat(params.size(), equalTo(2));
         assertThat(params.get("a"), equalTo(""));
         assertThat(params.get("p"), equalTo("v"));
 
         params.clear();
-        uri = String.format(Locale.ROOT, "something?p=v%ca%cp1=v1", randomDelimiter(), randomDelimiter());
+        uri = Strings.format("something?p=v%ca%cp1=v1", randomDelimiter(), randomDelimiter());
         RestUtils.decodeQueryString(uri, uri.indexOf('?') + 1, params);
         assertThat(params.size(), equalTo(3));
         assertThat(params.get("a"), equalTo(""));
@@ -113,7 +106,7 @@ public class RestUtilsTests extends ESTestCase {
         assertThat(params.get("p1"), equalTo("v1"));
 
         params.clear();
-        uri = String.format(Locale.ROOT, "something?p=v%ca%cb%cp1=v1", randomDelimiter(), randomDelimiter(), randomDelimiter());
+        uri = Strings.format("something?p=v%ca%cb%cp1=v1", randomDelimiter(), randomDelimiter(), randomDelimiter());
         RestUtils.decodeQueryString(uri, uri.indexOf('?') + 1, params);
         assertThat(params.size(), equalTo(4));
         assertThat(params.get("a"), equalTo(""));
@@ -126,10 +119,21 @@ public class RestUtilsTests extends ESTestCase {
         assertCorsSettingRegex("/foo/", Pattern.compile("foo"));
         assertCorsSettingRegex("/.*/", Pattern.compile(".*"));
         assertCorsSettingRegex("/https?:\\/\\/localhost(:[0-9]+)?/", Pattern.compile("https?:\\/\\/localhost(:[0-9]+)?"));
-        assertCorsSettingRegexMatches("/https?:\\/\\/localhost(:[0-9]+)?/", true, "http://localhost:9200", "http://localhost:9215",
-                "https://localhost:9200", "https://localhost");
-        assertCorsSettingRegexMatches("/https?:\\/\\/localhost(:[0-9]+)?/", false, "htt://localhost:9200", "http://localhost:9215/foo",
-                "localhost:9215");
+        assertCorsSettingRegexMatches(
+            "/https?:\\/\\/localhost(:[0-9]+)?/",
+            true,
+            "http://localhost:9200",
+            "http://localhost:9215",
+            "https://localhost:9200",
+            "https://localhost"
+        );
+        assertCorsSettingRegexMatches(
+            "/https?:\\/\\/localhost(:[0-9]+)?/",
+            false,
+            "htt://localhost:9200",
+            "http://localhost:9215/foo",
+            "localhost:9215"
+        );
         assertCorsSettingRegexIsNull("//");
         assertCorsSettingRegexIsNull("/");
         assertCorsSettingRegexIsNull("/foo");
@@ -143,15 +147,26 @@ public class RestUtilsTests extends ESTestCase {
 
         // This is a valid URL
         String uri = String.format(
-                Locale.ROOT,
-                host + "/:@-._~!$%c'()*+,=;:@-._~!$%c'()*+,=:@-._~!$%c'()*+,==?/?:@-._~!$'()*+,=/?:@-._~!$'()*+,==#/?:@-._~!$%c'()*+,;=",
-                randomDelimiter(),
-                randomDelimiter(),
-                randomDelimiter(),
-                randomDelimiter());
+            Locale.ROOT,
+            host + "/:@-._~!$%c'()*+,=;:@-._~!$%c'()*+,=:@-._~!$%c'()*+,==?/?:@-._~!$'()*+,=/?:@-._~!$'()*+,==#/?:@-._~!$%c'()*+,;=",
+            randomDelimiter(),
+            randomDelimiter(),
+            randomDelimiter(),
+            randomDelimiter()
+        );
         RestUtils.decodeQueryString(uri, uri.indexOf('?') + 1, params);
         assertThat(params.get("/?:@-._~!$'()* ,"), equalTo("/?:@-._~!$'()* ,=="));
         assertThat(params.size(), equalTo(1));
+    }
+
+    public void testReservedParameters() {
+        Map<String, String> params = new HashMap<>();
+        String uri = "something?" + PATH_RESTRICTED + "=value";
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> RestUtils.decodeQueryString(uri, uri.indexOf('?') + 1, params)
+        );
+        assertEquals(exception.getMessage(), "parameter [" + PATH_RESTRICTED + "] is reserved and may not set");
     }
 
     private void assertCorsSettingRegexIsNull(String settingsValue) {
@@ -162,11 +177,53 @@ public class RestUtilsTests extends ESTestCase {
         assertThat(RestUtils.checkCorsSettingForRegex(settingsValue).toString(), is(pattern.toString()));
     }
 
-    private void assertCorsSettingRegexMatches(String settingsValue, boolean expectMatch, String ... candidates) {
+    private void assertCorsSettingRegexMatches(String settingsValue, boolean expectMatch, String... candidates) {
         Pattern pattern = RestUtils.checkCorsSettingForRegex(settingsValue);
         for (String candidate : candidates) {
-            assertThat(String.format(Locale.ROOT, "Expected pattern %s to match against %s: %s", settingsValue, candidate, expectMatch),
-                    pattern.matcher(candidate).matches(), is(expectMatch));
+            assertThat(
+                Strings.format("Expected pattern %s to match against %s: %s", settingsValue, candidate, expectMatch),
+                pattern.matcher(candidate).matches(),
+                is(expectMatch)
+            );
         }
+    }
+
+    public void testGetMasterNodeTimeout() {
+        assertEquals(
+            TimeValue.timeValueSeconds(30),
+            RestUtils.getMasterNodeTimeout(new FakeRestRequest.Builder(xContentRegistry()).build())
+        );
+
+        final var timeout = randomTimeValue();
+        assertEquals(
+            timeout,
+            RestUtils.getMasterNodeTimeout(
+                new FakeRestRequest.Builder(xContentRegistry()).withParams(Map.of("master_timeout", timeout.getStringRep())).build()
+            )
+        );
+    }
+
+    public void testGetTimeout() {
+        assertNull(RestUtils.getTimeout(new FakeRestRequest.Builder(xContentRegistry()).build()));
+
+        final var timeout = randomTimeValue();
+        assertEquals(
+            timeout,
+            RestUtils.getTimeout(
+                new FakeRestRequest.Builder(xContentRegistry()).withParams(Map.of("timeout", timeout.getStringRep())).build()
+            )
+        );
+    }
+
+    public void testGetAckTimeout() {
+        assertEquals(TimeValue.timeValueSeconds(30), RestUtils.getAckTimeout(new FakeRestRequest.Builder(xContentRegistry()).build()));
+
+        final var timeout = randomTimeValue();
+        assertEquals(
+            timeout,
+            RestUtils.getAckTimeout(
+                new FakeRestRequest.Builder(xContentRegistry()).withParams(Map.of("timeout", timeout.getStringRep())).build()
+            )
+        );
     }
 }

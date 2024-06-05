@@ -1,93 +1,129 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.ilm;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 
 import java.util.Objects;
-
-import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
+import java.util.function.BiFunction;
 
 /**
  * Copies the execution state data from one index to another, typically after a
- * new index has been created. Useful for actions such as shrink.
+ * new index has been created. As part of the execution state copy it will set the target index
+ * "current step" to the provided target next step {@link org.elasticsearch.xpack.core.ilm.Step.StepKey}.
+ *
+ * Useful for actions such as shrink.
  */
 public class CopyExecutionStateStep extends ClusterStateActionStep {
     public static final String NAME = "copy-execution-state";
 
     private static final Logger logger = LogManager.getLogger(CopyExecutionStateStep.class);
 
-    private String shrunkIndexPrefix;
+    private final BiFunction<String, LifecycleExecutionState, String> targetIndexNameSupplier;
+    private final StepKey targetNextStepKey;
+    private final SetOnce<String> calculatedTargetIndexName = new SetOnce<>();
 
-
-    public CopyExecutionStateStep(StepKey key, StepKey nextStepKey, String shrunkIndexPrefix) {
+    public CopyExecutionStateStep(
+        StepKey key,
+        StepKey nextStepKey,
+        BiFunction<String, LifecycleExecutionState, String> targetIndexNameSupplier,
+        StepKey targetNextStepKey
+    ) {
         super(key, nextStepKey);
-        this.shrunkIndexPrefix = shrunkIndexPrefix;
+        this.targetIndexNameSupplier = targetIndexNameSupplier;
+        this.targetNextStepKey = targetNextStepKey;
     }
 
-    String getShrunkIndexPrefix() {
-        return shrunkIndexPrefix;
+    @Override
+    public boolean isRetryable() {
+        return true;
+    }
+
+    BiFunction<String, LifecycleExecutionState, String> getTargetIndexNameSupplier() {
+        return targetIndexNameSupplier;
+    }
+
+    StepKey getTargetNextStepKey() {
+        return targetNextStepKey;
+    }
+
+    @Override
+    public Tuple<String, StepKey> indexForAsyncInvocation() {
+        assert calculatedTargetIndexName.get() != null : "attempted to retrieve the index for async invocation before it was set";
+        return new Tuple<>(calculatedTargetIndexName.get(), targetNextStepKey);
     }
 
     @Override
     public ClusterState performAction(Index index, ClusterState clusterState) {
-        IndexMetaData indexMetaData = clusterState.metaData().index(index);
-        if (indexMetaData == null) {
+        IndexMetadata indexMetadata = clusterState.metadata().index(index);
+        if (indexMetadata == null) {
             // Index must have been since deleted, ignore it
-            logger.debug("[{}] lifecycle action for index [{}] executed but index no longer exists", getKey().getAction(), index.getName());
+            logger.debug("[{}] lifecycle action for index [{}] executed but index no longer exists", getKey().action(), index.getName());
             return clusterState;
         }
-        // get source index
-        String indexName = indexMetaData.getIndex().getName();
-        // get target shrink index
-        String targetIndexName = shrunkIndexPrefix + indexName;
-        IndexMetaData targetIndexMetaData = clusterState.metaData().index(targetIndexName);
+        // get target index
+        LifecycleExecutionState lifecycleState = indexMetadata.getLifecycleExecutionState();
+        String targetIndexName = targetIndexNameSupplier.apply(index.getName(), lifecycleState);
+        calculatedTargetIndexName.set(targetIndexName);
+        IndexMetadata targetIndexMetadata = clusterState.metadata().index(targetIndexName);
 
-        if (targetIndexMetaData == null) {
-            logger.warn("[{}] index [{}] unable to copy execution state to target index [{}] as target index does not exist",
-                getKey().getAction(), index.getName(), targetIndexName);
-            throw new IllegalStateException("unable to copy execution state from [" + index.getName() +
-                "] to [" + targetIndexName + "] as target index does not exist");
+        if (targetIndexMetadata == null) {
+            logger.warn(
+                "[{}] index [{}] unable to copy execution state to target index [{}] as target index does not exist",
+                getKey().action(),
+                index.getName(),
+                targetIndexName
+            );
+            throw new IllegalStateException(
+                "unable to copy execution state from [" + index.getName() + "] to [" + targetIndexName + "] as target index does not exist"
+            );
         }
 
-        LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(indexMetaData);
-        String phase = lifecycleState.getPhase();
-        String action = lifecycleState.getAction();
-        long lifecycleDate = lifecycleState.getLifecycleDate();
+        String phase = targetNextStepKey.phase();
+        String action = targetNextStepKey.action();
+        String step = targetNextStepKey.name();
 
-        LifecycleExecutionState.Builder relevantTargetCustomData = LifecycleExecutionState.builder();
-        relevantTargetCustomData.setIndexCreationDate(lifecycleDate);
-        relevantTargetCustomData.setPhase(phase);
-        relevantTargetCustomData.setAction(action);
-        relevantTargetCustomData.setStep(ShrunkenIndexCheckStep.NAME);
+        LifecycleExecutionState.Builder newLifecycleState = LifecycleExecutionState.builder(lifecycleState);
+        // Override the phase, action, and step for the target next StepKey
+        newLifecycleState.setPhase(phase);
+        newLifecycleState.setAction(action);
+        newLifecycleState.setStep(step);
 
-        MetaData.Builder newMetaData = MetaData.builder(clusterState.getMetaData())
-            .put(IndexMetaData.builder(targetIndexMetaData)
-                .putCustom(ILM_CUSTOM_METADATA_KEY, relevantTargetCustomData.build().asMap()));
-
-        return ClusterState.builder(clusterState).metaData(newMetaData).build();
+        return LifecycleExecutionStateUtils.newClusterStateWithLifecycleState(
+            clusterState,
+            targetIndexMetadata.getIndex(),
+            newLifecycleState.build()
+        );
     }
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        if (!super.equals(o)) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         CopyExecutionStateStep that = (CopyExecutionStateStep) o;
-        return Objects.equals(shrunkIndexPrefix, that.shrunkIndexPrefix);
+        return super.equals(o)
+            && Objects.equals(targetIndexNameSupplier, that.targetIndexNameSupplier)
+            && Objects.equals(targetNextStepKey, that.targetNextStepKey);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), shrunkIndexPrefix);
+        return Objects.hash(super.hashCode(), targetIndexNameSupplier, targetNextStepKey);
     }
 }

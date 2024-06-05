@@ -1,22 +1,24 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
@@ -41,10 +43,19 @@ public class TransportDeleteFilterAction extends HandledTransportAction<DeleteFi
     private final JobConfigProvider jobConfigProvider;
 
     @Inject
-    public TransportDeleteFilterAction(TransportService transportService,
-                                       ActionFilters actionFilters, Client client,
-                                       JobConfigProvider jobConfigProvider) {
-        super(DeleteFilterAction.NAME, transportService, actionFilters, DeleteFilterAction.Request::new);
+    public TransportDeleteFilterAction(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        Client client,
+        JobConfigProvider jobConfigProvider
+    ) {
+        super(
+            DeleteFilterAction.NAME,
+            transportService,
+            actionFilters,
+            DeleteFilterAction.Request::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
         this.client = client;
         this.jobConfigProvider = jobConfigProvider;
     }
@@ -52,19 +63,16 @@ public class TransportDeleteFilterAction extends HandledTransportAction<DeleteFi
     @Override
     protected void doExecute(Task task, DeleteFilterAction.Request request, ActionListener<AcknowledgedResponse> listener) {
         final String filterId = request.getFilterId();
-        jobConfigProvider.findJobsWithCustomRules(ActionListener.wrap(
-                jobs-> {
-                    List<String> currentlyUsedBy = findJobsUsingFilter(jobs, filterId);
-                    if (!currentlyUsedBy.isEmpty()) {
-                        listener.onFailure(ExceptionsHelper.conflictStatusException(
-                                Messages.getMessage(Messages.FILTER_CANNOT_DELETE, filterId, currentlyUsedBy)));
-                    } else {
-                        deleteFilter(filterId, listener);
-                    }
-                },
-                listener::onFailure
-            )
-        );
+        jobConfigProvider.findJobsWithCustomRules(listener.delegateFailureAndWrap((delegate, jobs) -> {
+            List<String> currentlyUsedBy = findJobsUsingFilter(jobs, filterId);
+            if (currentlyUsedBy.isEmpty() == false) {
+                delegate.onFailure(
+                    ExceptionsHelper.conflictStatusException(Messages.getMessage(Messages.FILTER_CANNOT_DELETE, filterId, currentlyUsedBy))
+                );
+            } else {
+                deleteFilter(filterId, delegate);
+            }
+        }));
     }
 
     private static List<String> findJobsUsingFilter(List<Job> jobs, String filterId) {
@@ -82,19 +90,24 @@ public class TransportDeleteFilterAction extends HandledTransportAction<DeleteFi
     }
 
     private void deleteFilter(String filterId, ActionListener<AcknowledgedResponse> listener) {
-        DeleteRequest deleteRequest = new DeleteRequest(MlMetaIndex.INDEX_NAME, MlFilter.documentId(filterId));
+        DeleteRequest deleteRequest = new DeleteRequest(MlMetaIndex.indexName(), MlFilter.documentId(filterId));
         BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
         bulkRequestBuilder.add(deleteRequest);
         bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-        executeAsyncWithOrigin(client, ML_ORIGIN, BulkAction.INSTANCE, bulkRequestBuilder.request(),
+        executeAsyncWithOrigin(
+            client,
+            ML_ORIGIN,
+            TransportBulkAction.TYPE,
+            bulkRequestBuilder.request(),
             new ActionListener<BulkResponse>() {
                 @Override
                 public void onResponse(BulkResponse bulkResponse) {
                     if (bulkResponse.getItems()[0].status() == RestStatus.NOT_FOUND) {
-                        listener.onFailure(new ResourceNotFoundException("Could not delete filter with ID [" + filterId
-                            + "] because it does not exist"));
+                        listener.onFailure(
+                            new ResourceNotFoundException("Could not delete filter with ID [" + filterId + "] because it does not exist")
+                        );
                     } else {
-                        listener.onResponse(new AcknowledgedResponse(true));
+                        listener.onResponse(AcknowledgedResponse.TRUE);
                     }
                 }
 
@@ -102,6 +115,7 @@ public class TransportDeleteFilterAction extends HandledTransportAction<DeleteFi
                 public void onFailure(Exception e) {
                     listener.onFailure(ExceptionsHelper.serverError("Could not delete filter with ID [" + filterId + "]", e));
                 }
-            });
+            }
+        );
     }
 }

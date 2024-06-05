@@ -20,13 +20,11 @@ import org.elasticsearch.common.inject.Binder;
 import org.elasticsearch.common.inject.ConfigurationException;
 import org.elasticsearch.common.inject.Key;
 import org.elasticsearch.common.inject.Provider;
-import org.elasticsearch.common.inject.TypeLiteral;
 import org.elasticsearch.common.inject.binder.AnnotatedBindingBuilder;
 import org.elasticsearch.common.inject.spi.Element;
 import org.elasticsearch.common.inject.spi.InjectionPoint;
 import org.elasticsearch.common.inject.spi.Message;
 
-import java.lang.annotation.Annotation;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -38,42 +36,19 @@ import static java.util.Collections.emptySet;
  *
  * @author jessewilson@google.com (Jesse Wilson)
  */
-public class BindingBuilder<T> extends AbstractBindingBuilder<T>
-        implements AnnotatedBindingBuilder<T> {
+public class BindingBuilder<T> extends AbstractBindingBuilder<T> implements AnnotatedBindingBuilder<T> {
 
     public BindingBuilder(Binder binder, List<Element> elements, Object source, Key<T> key) {
         super(binder, elements, source, key);
     }
 
     @Override
-    public BindingBuilder<T> annotatedWith(Class<? extends Annotation> annotationType) {
-        annotatedWithInternal(annotationType);
-        return this;
-    }
-
-    @Override
-    public BindingBuilder<T> annotatedWith(Annotation annotation) {
-        annotatedWithInternal(annotation);
-        return this;
-    }
-
-    @Override
     public BindingBuilder<T> to(Class<? extends T> implementation) {
-        return to(Key.get(implementation));
-    }
-
-    @Override
-    public BindingBuilder<T> to(TypeLiteral<? extends T> implementation) {
-        return to(Key.get(implementation));
-    }
-
-    @Override
-    public BindingBuilder<T> to(Key<? extends T> linkedKey) {
+        Key<? extends T> linkedKey = Key.get(implementation);
         Objects.requireNonNull(linkedKey, "linkedKey");
         checkNotTargetted();
         BindingImpl<T> base = getBinding();
-        setBinding(new LinkedBindingImpl<>(
-                base.getSource(), base.getKey(), base.getScoping(), linkedKey));
+        setBinding(new LinkedBindingImpl<>(base.getSource(), base.getKey(), base.getScoping(), linkedKey));
         return this;
     }
 
@@ -85,7 +60,7 @@ public class BindingBuilder<T> extends AbstractBindingBuilder<T>
         Set<InjectionPoint> injectionPoints;
         if (instance != null) {
             try {
-                injectionPoints = InjectionPoint.forInstanceMethodsAndFields(instance.getClass());
+                injectionPoints = InjectionPoint.forInstanceMethods(instance.getClass());
             } catch (ConfigurationException e) {
                 for (Message message : e.getErrorMessages()) {
                     binder.addError(message);
@@ -98,8 +73,7 @@ public class BindingBuilder<T> extends AbstractBindingBuilder<T>
         }
 
         BindingImpl<T> base = getBinding();
-        setBinding(new InstanceBindingImpl<>(
-                base.getSource(), base.getKey(), base.getScoping(), injectionPoints, instance));
+        setBinding(new InstanceBindingImpl<>(base.getSource(), base.getKey(), base.getScoping(), injectionPoints, instance));
     }
 
     @Override
@@ -110,7 +84,7 @@ public class BindingBuilder<T> extends AbstractBindingBuilder<T>
         // lookup the injection points, adding any errors to the binder's errors list
         Set<InjectionPoint> injectionPoints;
         try {
-            injectionPoints = InjectionPoint.forInstanceMethodsAndFields(provider.getClass());
+            injectionPoints = InjectionPoint.forInstanceMethods(provider.getClass());
         } catch (ConfigurationException e) {
             for (Message message : e.getErrorMessages()) {
                 binder.addError(message);
@@ -119,24 +93,7 @@ public class BindingBuilder<T> extends AbstractBindingBuilder<T>
         }
 
         BindingImpl<T> base = getBinding();
-        setBinding(new ProviderInstanceBindingImpl<>(
-                base.getSource(), base.getKey(), base.getScoping(), injectionPoints, provider));
-        return this;
-    }
-
-    @Override
-    public BindingBuilder<T> toProvider(Class<? extends Provider<? extends T>> providerType) {
-        return toProvider(Key.get(providerType));
-    }
-
-    @Override
-    public BindingBuilder<T> toProvider(Key<? extends Provider<? extends T>> providerKey) {
-        Objects.requireNonNull(providerKey, "providerKey");
-        checkNotTargetted();
-
-        BindingImpl<T> base = getBinding();
-        setBinding(new LinkedProviderBindingImpl<>(
-                base.getSource(), base.getKey(), base.getScoping(), providerKey));
+        setBinding(new ProviderInstanceBindingImpl<>(base.getSource(), base.getKey(), base.getScoping(), injectionPoints, provider));
         return this;
     }
 

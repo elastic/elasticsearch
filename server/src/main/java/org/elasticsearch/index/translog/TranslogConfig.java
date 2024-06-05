@@ -1,24 +1,14 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.translog;
 
+import org.elasticsearch.common.io.DiskIoBufferPool;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -34,12 +24,18 @@ import java.nio.file.Path;
  */
 public final class TranslogConfig {
 
-    public static final ByteSizeValue DEFAULT_BUFFER_SIZE = new ByteSizeValue(8, ByteSizeUnit.KB);
-    private final BigArrays bigArrays;
-    private final IndexSettings indexSettings;
+    public static final ByteSizeValue DEFAULT_BUFFER_SIZE = new ByteSizeValue(1, ByteSizeUnit.MB);
+    public static final ByteSizeValue EMPTY_TRANSLOG_BUFFER_SIZE = ByteSizeValue.ofBytes(10);
+    public static final OperationListener NOOP_OPERATION_LISTENER = (d, s, l) -> {};
+
     private final ShardId shardId;
     private final Path translogPath;
+    private final IndexSettings indexSettings;
+    private final BigArrays bigArrays;
     private final ByteSizeValue bufferSize;
+    private final DiskIoBufferPool diskIoBufferPool;
+    private final OperationListener operationListener;
+    private final boolean fsync;
 
     /**
      * Creates a new TranslogConfig instance
@@ -49,15 +45,48 @@ public final class TranslogConfig {
      * @param bigArrays a bigArrays instance used for temporarily allocating write operations
      */
     public TranslogConfig(ShardId shardId, Path translogPath, IndexSettings indexSettings, BigArrays bigArrays) {
-        this(shardId, translogPath, indexSettings, bigArrays, DEFAULT_BUFFER_SIZE);
+        this(
+            shardId,
+            translogPath,
+            indexSettings,
+            bigArrays,
+            DEFAULT_BUFFER_SIZE,
+            DiskIoBufferPool.INSTANCE,
+            NOOP_OPERATION_LISTENER,
+            true
+        );
     }
 
-    TranslogConfig(ShardId shardId, Path translogPath, IndexSettings indexSettings, BigArrays bigArrays, ByteSizeValue bufferSize) {
+    public TranslogConfig(
+        ShardId shardId,
+        Path translogPath,
+        IndexSettings indexSettings,
+        BigArrays bigArrays,
+        ByteSizeValue bufferSize,
+        DiskIoBufferPool diskIoBufferPool,
+        OperationListener operationListener
+    ) {
+        this(shardId, translogPath, indexSettings, bigArrays, bufferSize, diskIoBufferPool, operationListener, true);
+    }
+
+    public TranslogConfig(
+        ShardId shardId,
+        Path translogPath,
+        IndexSettings indexSettings,
+        BigArrays bigArrays,
+        ByteSizeValue bufferSize,
+        DiskIoBufferPool diskIoBufferPool,
+        OperationListener operationListener,
+        boolean fsync
+    ) {
         this.bufferSize = bufferSize;
         this.indexSettings = indexSettings;
         this.shardId = shardId;
         this.translogPath = translogPath;
         this.bigArrays = bigArrays;
+        this.diskIoBufferPool = diskIoBufferPool;
+        this.operationListener = operationListener;
+        this.fsync = fsync;
     }
 
     /**
@@ -93,5 +122,24 @@ public final class TranslogConfig {
      */
     public ByteSizeValue getBufferSize() {
         return bufferSize;
+    }
+
+    /**
+     * {@link DiskIoBufferPool} for this engine. Used to allow custom pools in tests, always returns
+     * {@link DiskIoBufferPool#INSTANCE} in production.
+     */
+    public DiskIoBufferPool getDiskIoBufferPool() {
+        return diskIoBufferPool;
+    }
+
+    public OperationListener getOperationListener() {
+        return operationListener;
+    }
+
+    /**
+     * @return true if translog writes need to be followed by fsync
+     */
+    public boolean fsync() {
+        return fsync;
     }
 }

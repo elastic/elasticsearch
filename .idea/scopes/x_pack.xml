@@ -1,0 +1,3 @@
+<component name="DependencyValidationManager">
+  <scope name="x-pack" pattern="file[*.x-pack]:*/||file[*.x-pack*]:*//*" />
+</component>

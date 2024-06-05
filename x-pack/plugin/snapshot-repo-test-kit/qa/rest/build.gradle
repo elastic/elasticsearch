@@ -1,0 +1,32 @@
+import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
+
+apply plugin: 'elasticsearch.legacy-yaml-rest-test'
+apply plugin: 'elasticsearch.rest-resources'
+
+dependencies {
+  yamlRestTestImplementation testArtifact(project(xpackModule('snapshot-repo-test-kit')))
+}
+
+// TODO we want 3rd-party tests for other repository types too
+final File repoDir = file("$buildDir/testclusters/repo")
+
+tasks.named("yamlRestTest").configure {
+  nonInputProperties.systemProperty 'tests.path.repo', repoDir
+}
+
+testClusters.matching { it.name == "yamlRestTest" }.configureEach {
+  testDistribution = 'DEFAULT'
+  setting 'path.repo', repoDir.absolutePath, IGNORE_VALUE
+  setting 'xpack.security.enabled', 'false'
+}
+
+tasks.named('yamlRestTestTestingConventions').configure {
+  baseClass 'org.elasticsearch.repositories.blobstore.testkit.AbstractSnapshotRepoTestKitRestTestCase'
+  baseClass 'org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase'
+}
+
+restResources {
+  restApi {
+    include 'indices', 'search', 'bulk', 'snapshot', 'nodes', '_common', 'snapshot_repo_test_kit'
+  }
+}

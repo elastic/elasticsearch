@@ -1,15 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.trigger.schedule.support;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -21,7 +22,7 @@ import static org.elasticsearch.common.util.set.Sets.newHashSet;
 import static org.elasticsearch.xpack.core.watcher.support.Exceptions.illegalArgument;
 import static org.elasticsearch.xpack.watcher.support.Strings.join;
 
-public class MonthTimes implements Times {
+public final class MonthTimes implements Times {
 
     public static final String LAST = "last_day";
     public static final String FIRST = "first_day";
@@ -45,7 +46,7 @@ public class MonthTimes implements Times {
 
     void validate() {
         for (int day : days) {
-            if (day < 1 || day > 32) { //32 represents the last day of the month
+            if (day < 1 || day > 32) { // 32 represents the last day of the month
                 throw illegalArgument("invalid month day [{}]", day);
             }
         }
@@ -81,11 +82,9 @@ public class MonthTimes implements Times {
 
         MonthTimes that = (MonthTimes) o;
 
-        if (!Arrays.equals(days, that.days)) return false;
-        // order doesn't matter
-        if (!newHashSet(times).equals(newHashSet(that.times))) return false;
-
-        return true;
+        return Arrays.equals(days, that.days)
+            // order doesn't matter
+            && newHashSet(times).equals(newHashSet(that.times));
     }
 
     @Override
@@ -97,16 +96,11 @@ public class MonthTimes implements Times {
 
     @Override
     public String toString() {
-        return String.format(
-                Locale.ROOT,
-                "days [%s], times [%s]",
-                join(",", days),
-                Strings.arrayToCommaDelimitedString(times)
-        );
+        return String.format(Locale.ROOT, "days [%s], times [%s]", join(",", days), Strings.arrayToCommaDelimitedString(times));
     }
 
     public boolean contains(int day, DayTimes dayTimes) {
-        if (Arrays.binarySearch(days, day) == -1) { //days are already sorted
+        if (Arrays.binarySearch(days, day) == -1) { // days are already sorted
             return false;
         }
         for (DayTimes dayTimes1 : this.times()) {
@@ -162,8 +156,12 @@ public class MonthTimes implements Times {
                         daysSet.add(parseDayValue(parser, token));
                     }
                 } else {
-                    throw new ElasticsearchParseException("invalid month day value for [{}] field. expected string/number value or an " +
-                            "array of string/number values, but found [{}]", currentFieldName, token);
+                    throw new ElasticsearchParseException(
+                        "invalid month day value for [{}] field. expected string/number value or an "
+                            + "array of string/number values, but found [{}]",
+                        currentFieldName,
+                        token
+                    );
                 }
             } else if (TIME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                 if (token != XContentParser.Token.START_ARRAY) {
@@ -183,9 +181,8 @@ public class MonthTimes implements Times {
                 }
             }
         }
-        int[] days = daysSet.isEmpty() ? DEFAULT_DAYS : CollectionUtils.toArray(daysSet);
-        DayTimes[] times = timesSet.isEmpty() ? new DayTimes[] { new DayTimes(0, 0) } : timesSet.toArray(new DayTimes[timesSet.size()]);
-        return new MonthTimes(days, times);
+
+        return new MonthTimes(CollectionUtils.toArray(daysSet), timesSet.toArray(DayTimes[]::new));
     }
 
     static int parseDayValue(XContentParser parser, XContentParser.Token token) throws IOException {
@@ -214,8 +211,7 @@ public class MonthTimes implements Times {
         private final Set<Integer> days = new HashSet<>();
         private final Set<DayTimes> times = new HashSet<>();
 
-        private Builder() {
-        }
+        private Builder() {}
 
         public Builder on(int... days) {
             Arrays.stream(days).forEach(this.days::add);

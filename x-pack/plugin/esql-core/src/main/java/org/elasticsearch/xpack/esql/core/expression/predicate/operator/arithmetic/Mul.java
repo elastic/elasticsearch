@@ -10,7 +10,6 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 
@@ -33,7 +32,7 @@ public class Mul extends ArithmeticOperation implements BinaryComparisonInversib
         DataType r = right().dataType();
 
         // 1. both are numbers
-        if (DataTypes.isNullOrNumeric(l) && DataTypes.isNullOrNumeric(r)) {
+        if (DataType.isNullOrNumeric(l) && DataType.isNullOrNumeric(r)) {
             return TypeResolution.TYPE_RESOLVED;
         }
 

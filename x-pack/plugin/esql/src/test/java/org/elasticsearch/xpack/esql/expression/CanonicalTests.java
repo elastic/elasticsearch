@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mod;
@@ -167,7 +166,7 @@ public class CanonicalTests extends ESTestCase {
     }
 
     public void testLiteralHashSorting() throws Exception {
-        DataType type = randomFrom(DataTypes.types());
+        DataType type = randomFrom(DataType.types());
         List<Expression> list = randomList(10, 1024, () -> new Literal(EMPTY, randomInt(), type));
         List<Expression> shuffle = new ArrayList<>(list);
         Collections.shuffle(shuffle, random());
@@ -183,9 +182,9 @@ public class CanonicalTests extends ESTestCase {
     public void testInManual() throws Exception {
         FieldAttribute value = fieldAttribute();
 
-        Literal a = new Literal(EMPTY, 1, DataTypes.INTEGER);
-        Literal b = new Literal(EMPTY, 2, DataTypes.INTEGER);
-        Literal c = new Literal(EMPTY, 3, DataTypes.INTEGER);
+        Literal a = new Literal(EMPTY, 1, DataType.INTEGER);
+        Literal b = new Literal(EMPTY, 2, DataType.INTEGER);
+        Literal c = new Literal(EMPTY, 3, DataType.INTEGER);
 
         In in = new In(EMPTY, value, asList(a, b, c));
         In anotherIn = new In(EMPTY, value, asList(b, a, c));
@@ -196,7 +195,7 @@ public class CanonicalTests extends ESTestCase {
 
     public void testIn() throws Exception {
         FieldAttribute value = fieldAttribute();
-        List<Expression> list = randomList(randomInt(1024), () -> new Literal(EMPTY, randomInt(), DataTypes.INTEGER));
+        List<Expression> list = randomList(randomInt(1024), () -> new Literal(EMPTY, randomInt(), DataType.INTEGER));
         In in = new In(EMPTY, value, list);
         List<Expression> shuffledList = new ArrayList<>(list);
         Collections.shuffle(shuffledList, random());

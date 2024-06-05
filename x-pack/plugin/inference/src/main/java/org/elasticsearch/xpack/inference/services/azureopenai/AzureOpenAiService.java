@@ -135,7 +135,15 @@ public class AzureOpenAiService extends SenderService {
                 );
             }
             case COMPLETION -> {
-                return new AzureOpenAiCompletionModel(inferenceEntityId, taskType, NAME, serviceSettings, taskSettings, secretSettings);
+                return new AzureOpenAiCompletionModel(
+                    inferenceEntityId,
+                    taskType,
+                    NAME,
+                    serviceSettings,
+                    taskSettings,
+                    secretSettings,
+                    context
+                );
             }
             default -> throw new ElasticsearchStatusException(failureMessage, RestStatus.BAD_REQUEST);
         }

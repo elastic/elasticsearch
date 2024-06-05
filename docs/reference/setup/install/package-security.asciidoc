@@ -11,8 +11,9 @@ the `elastic` built-in superuser.
 and TLS is enabled and configured with these keys and certificates.
 
 The password and certificate and keys are output to your terminal.
+You can reset the password for the `elastic` user with the <<reset-password,`elasticsearch-reset-password`>> command.
 
-We recommend storing the `elastic` password as an environment variable in your shell. Example:
+We recommend storing the `elastic` password as an environment variable in your shell. For example:
 
 [source,sh]
 ----

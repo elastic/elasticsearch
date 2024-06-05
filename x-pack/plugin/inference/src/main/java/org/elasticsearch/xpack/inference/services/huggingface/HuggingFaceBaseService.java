@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
 import org.elasticsearch.xpack.inference.external.action.huggingface.HuggingFaceActionCreator;
 import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 
@@ -63,7 +64,8 @@ public abstract class HuggingFaceBaseService extends SenderService {
                 taskType,
                 serviceSettingsMap,
                 serviceSettingsMap,
-                TaskType.unsupportedTaskTypeErrorMsg(taskType, name())
+                TaskType.unsupportedTaskTypeErrorMsg(taskType, name()),
+                ConfigurationParseContext.REQUEST
             );
 
             throwIfNotEmptyMap(config, name());
@@ -90,7 +92,8 @@ public abstract class HuggingFaceBaseService extends SenderService {
             taskType,
             serviceSettingsMap,
             secretSettingsMap,
-            parsePersistedConfigErrorMsg(inferenceEntityId, name())
+            parsePersistedConfigErrorMsg(inferenceEntityId, name()),
+            ConfigurationParseContext.PERSISTENT
         );
     }
 
@@ -98,7 +101,14 @@ public abstract class HuggingFaceBaseService extends SenderService {
     public HuggingFaceModel parsePersistedConfig(String inferenceEntityId, TaskType taskType, Map<String, Object> config) {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
 
-        return createModel(inferenceEntityId, taskType, serviceSettingsMap, null, parsePersistedConfigErrorMsg(inferenceEntityId, name()));
+        return createModel(
+            inferenceEntityId,
+            taskType,
+            serviceSettingsMap,
+            null,
+            parsePersistedConfigErrorMsg(inferenceEntityId, name()),
+            ConfigurationParseContext.PERSISTENT
+        );
     }
 
     protected abstract HuggingFaceModel createModel(
@@ -106,7 +116,8 @@ public abstract class HuggingFaceBaseService extends SenderService {
         TaskType taskType,
         Map<String, Object> serviceSettings,
         Map<String, Object> secretSettings,
-        String failureMessage
+        String failureMessage,
+        ConfigurationParseContext context
     );
 
     @Override

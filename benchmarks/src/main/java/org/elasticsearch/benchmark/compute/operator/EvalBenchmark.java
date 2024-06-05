@@ -120,7 +120,7 @@ public class EvalBenchmark {
             case "add_double" -> {
                 FieldAttribute doubleField = doubleField();
                 yield EvalMapper.toEvaluator(
-                    new Add(Source.EMPTY, doubleField, new Literal(Source.EMPTY, 1D, DataTypes.DOUBLE)),
+                    new Add(Source.EMPTY, doubleField, new Literal(Source.EMPTY, 1D, DataType.DOUBLE)),
                     layout(doubleField)
                 ).get(driverContext);
             }
@@ -170,7 +170,7 @@ public class EvalBenchmark {
     }
 
     private static FieldAttribute doubleField() {
-        return new FieldAttribute(Source.EMPTY, "double", new EsField("double", DataTypes.DOUBLE, Map.of(), true));
+        return new FieldAttribute(Source.EMPTY, "double", new EsField("double", DataType.DOUBLE, Map.of(), true));
     }
 
     private static FieldAttribute intField() {

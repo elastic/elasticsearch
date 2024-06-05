@@ -19,7 +19,7 @@ import java.util.stream.LongStream;
 import static org.hamcrest.Matchers.contains;
 
 public class TopValuesListLongAggregatorFunctionTests extends AggregatorFunctionTestCase {
-    private static final int LIMIT = 3;
+    private static final int LIMIT = 100;
 
     @Override
     protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {

@@ -233,6 +233,43 @@ public class ProgressListenableActionFutureTests extends ESTestCase {
         assertThat(future.isDone(), is(true));
     }
 
+    public void testLongConsumerCalledOnProgressUpdate() {
+        // min length of 2 to have at least one progress update before reaching the end
+        long length = randomLongBetween(2L, ByteSizeUnit.TB.toBytes(1L));
+        long start = randomLongBetween(Long.MIN_VALUE, Long.MAX_VALUE - length);
+        long end = start + length;
+
+        var consumed = new HashSet<Long>();
+        var future = new ProgressListenableActionFuture(
+            start,
+            end,
+            p -> assertThat("LongConsumer should not consumed the same  value twice", consumed.add(p), equalTo(true))
+        );
+
+        long position = start;
+        for (int i = 0; i < 25 && position < end - 1L; i++) {
+            var progress = randomLongBetween(position + 1L, end - 1L);
+
+            var listener = new PlainActionFuture<Long>();
+            future.addListener(
+                ActionListener.runBefore(
+                    listener,
+                    () -> assertThat(
+                        "LongConsumer should have been called before listener completion",
+                        consumed.contains(progress),
+                        equalTo(true)
+                    )
+                ),
+                randomLongBetween(position + 1L, progress)
+            );
+            future.onProgress(progress);
+
+            assertThat(consumed.contains(progress), equalTo(true));
+            assertThat(listener.isDone(), equalTo(true));
+            position = progress;
+        }
+    }
+
     private static ProgressListenableActionFuture randomFuture() {
         final long delta = randomLongBetween(1L, ByteSizeUnit.TB.toBytes(1L));
         final long start = randomLongBetween(Long.MIN_VALUE, Long.MAX_VALUE - delta);

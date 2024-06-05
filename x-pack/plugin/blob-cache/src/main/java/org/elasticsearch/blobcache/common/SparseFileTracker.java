@@ -487,8 +487,12 @@ public class SparseFileTracker {
     private void updateCompletePointer(long value) {
         synchronized (ranges) {
             updateCompletePointerHoldingLock(value);
-            System.out.println(">>>>>>>>>>>>>>>>>>>>>>>>");
         }
+    }
+
+    // used in tests
+    long getComplete() {
+        return complete;
     }
 
     private boolean assertGapRangePending(Range gapRange) {

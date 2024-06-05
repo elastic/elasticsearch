@@ -9,28 +9,9 @@ package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.xpack.esql.core.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
-import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
-import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.expression.function.Function;
-import org.elasticsearch.xpack.esql.core.expression.predicate.Predicates;
-import org.elasticsearch.xpack.esql.core.expression.predicate.Range;
-import org.elasticsearch.xpack.esql.core.expression.predicate.logical.And;
-import org.elasticsearch.xpack.esql.core.expression.predicate.logical.BinaryLogic;
-import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Not;
-import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Or;
-import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.esql.core.plan.QueryPlan;
 import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -55,21 +36,7 @@ import org.elasticsearch.xpack.esql.plan.physical.RegexExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.RowExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 
-import java.time.ZoneId;
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-
 import static org.elasticsearch.xpack.esql.core.common.Failure.fail;
-import static org.elasticsearch.xpack.esql.core.expression.Literal.FALSE;
-import static org.elasticsearch.xpack.esql.core.expression.Literal.TRUE;
-import static org.elasticsearch.xpack.esql.core.expression.predicate.Predicates.combineOr;
-import static org.elasticsearch.xpack.esql.core.expression.predicate.Predicates.splitOr;
 
 class OptimizerRules {
 
@@ -180,112 +147,6 @@ class OptimizerRules {
                 }
             }
             return plan.references();
-        }
-    }
-
-    /**
-     * Combine disjunctions on the same field into an In expression.
-     * This rule looks for both simple equalities:
-     * 1. a == 1 OR a == 2 becomes a IN (1, 2)
-     * and combinations of In
-     * 2. a == 1 OR a IN (2) becomes a IN (1, 2)
-     * 3. a IN (1) OR a IN (2) becomes a IN (1, 2)
-     *
-     * This rule does NOT check for type compatibility as that phase has been
-     * already be verified in the analyzer.
-     */
-    public static class CombineDisjunctionsToIn extends org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.OptimizerExpressionRule<
-        Or> {
-        CombineDisjunctionsToIn() {
-            super(org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.TransformDirection.UP);
-        }
-
-        protected In createIn(Expression key, List<Expression> values, ZoneId zoneId) {
-            return new In(key.source(), key, values);
-        }
-
-        protected Equals createEquals(Expression k, Set<Expression> v, ZoneId finalZoneId) {
-            return new Equals(k.source(), k, v.iterator().next(), finalZoneId);
-        }
-
-        @Override
-        protected Expression rule(Or or) {
-            Expression e = or;
-            // look only at equals and In
-            List<Expression> exps = splitOr(e);
-
-            Map<Expression, Set<Expression>> found = new LinkedHashMap<>();
-            ZoneId zoneId = null;
-            List<Expression> ors = new LinkedList<>();
-
-            for (Expression exp : exps) {
-                if (exp instanceof Equals eq) {
-                    // consider only equals against foldables
-                    if (eq.right().foldable()) {
-                        found.computeIfAbsent(eq.left(), k -> new LinkedHashSet<>()).add(eq.right());
-                    } else {
-                        ors.add(exp);
-                    }
-                    if (zoneId == null) {
-                        zoneId = eq.zoneId();
-                    }
-                } else if (exp instanceof In in) {
-                    found.computeIfAbsent(in.value(), k -> new LinkedHashSet<>()).addAll(in.list());
-                    if (zoneId == null) {
-                        zoneId = in.zoneId();
-                    }
-                } else {
-                    ors.add(exp);
-                }
-            }
-
-            if (found.isEmpty() == false) {
-                // combine equals alongside the existing ors
-                final ZoneId finalZoneId = zoneId;
-                found.forEach(
-                    (k, v) -> { ors.add(v.size() == 1 ? createEquals(k, v, finalZoneId) : createIn(k, new ArrayList<>(v), finalZoneId)); }
-                );
-
-                // TODO: this makes a QL `or`, not an ESQL `or`
-                Expression combineOr = combineOr(ors);
-                // check the result semantically since the result might different in order
-                // but be actually the same which can trigger a loop
-                // e.g. a == 1 OR a == 2 OR null --> null OR a in (1,2) --> literalsOnTheRight --> cycle
-                if (e.semanticEquals(combineOr) == false) {
-                    e = combineOr;
-                }
-            }
-
-            return e;
-        }
-    }
-
-    /**
-     * This rule must always be placed after {@link org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.LiteralsOnTheRight}
-     * since it looks at TRUE/FALSE literals' existence on the right hand-side of the {@link Equals}/{@link NotEquals} expressions.
-     */
-    public static final class BooleanFunctionEqualsElimination extends
-        org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.OptimizerExpressionRule<BinaryComparison> {
-
-        BooleanFunctionEqualsElimination() {
-            super(org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.TransformDirection.UP);
-        }
-
-        @Override
-        protected Expression rule(BinaryComparison bc) {
-            if ((bc instanceof Equals || bc instanceof NotEquals) && bc.left() instanceof Function) {
-                // for expression "==" or "!=" TRUE/FALSE, return the expression itself or its negated variant
-
-                // TODO: Replace use of QL Not with ESQL Not
-                if (TRUE.equals(bc.right())) {
-                    return bc instanceof Equals ? bc.left() : new Not(bc.left().source(), bc.left());
-                }
-                if (FALSE.equals(bc.right())) {
-                    return bc instanceof Equals ? new Not(bc.left().source(), bc.left()) : bc.left();
-                }
-            }
-
-            return bc;
         }
     }
 

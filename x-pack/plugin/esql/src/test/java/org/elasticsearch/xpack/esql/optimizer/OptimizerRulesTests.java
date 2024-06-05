@@ -51,6 +51,8 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Les
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer.ReplaceRegexMatch;
+import org.elasticsearch.xpack.esql.optimizer.rules.BooleanFunctionEqualsElimination;
+import org.elasticsearch.xpack.esql.optimizer.rules.CombineDisjunctionsToIn;
 import org.elasticsearch.xpack.esql.optimizer.rules.PropagateEquals;
 
 import java.util.List;
@@ -189,7 +191,7 @@ public class OptimizerRulesTests extends ESTestCase {
         FieldAttribute fa = getFieldAttribute();
 
         Or or = new Or(EMPTY, equalsOf(fa, ONE), equalsOf(fa, TWO));
-        Expression e = new OptimizerRules.CombineDisjunctionsToIn().rule(or);
+        Expression e = new CombineDisjunctionsToIn().rule(or);
         assertEquals(In.class, e.getClass());
         In in = (In) e;
         assertEquals(fa, in.value());
@@ -200,7 +202,7 @@ public class OptimizerRulesTests extends ESTestCase {
         FieldAttribute fa = getFieldAttribute();
 
         Or or = new Or(EMPTY, equalsOf(fa, ONE), equalsOf(fa, ONE));
-        Expression e = new OptimizerRules.CombineDisjunctionsToIn().rule(or);
+        Expression e = new CombineDisjunctionsToIn().rule(or);
         assertEquals(Equals.class, e.getClass());
         Equals eq = (Equals) e;
         assertEquals(fa, eq.left());
@@ -211,7 +213,7 @@ public class OptimizerRulesTests extends ESTestCase {
         FieldAttribute fa = getFieldAttribute();
 
         Or or = new Or(EMPTY, equalsOf(fa, ONE), new In(EMPTY, fa, List.of(TWO)));
-        Expression e = new OptimizerRules.CombineDisjunctionsToIn().rule(or);
+        Expression e = new CombineDisjunctionsToIn().rule(or);
         assertEquals(In.class, e.getClass());
         In in = (In) e;
         assertEquals(fa, in.value());
@@ -222,7 +224,7 @@ public class OptimizerRulesTests extends ESTestCase {
         FieldAttribute fa = getFieldAttribute();
 
         Or or = new Or(EMPTY, equalsOf(fa, ONE), new In(EMPTY, fa, asList(ONE, TWO)));
-        Expression e = new OptimizerRules.CombineDisjunctionsToIn().rule(or);
+        Expression e = new CombineDisjunctionsToIn().rule(or);
         assertEquals(In.class, e.getClass());
         In in = (In) e;
         assertEquals(fa, in.value());
@@ -234,7 +236,7 @@ public class OptimizerRulesTests extends ESTestCase {
 
         Equals equals = equalsOf(fa, ONE);
         Or or = new Or(EMPTY, equals, new In(EMPTY, fa, List.of(ONE)));
-        Expression e = new OptimizerRules.CombineDisjunctionsToIn().rule(or);
+        Expression e = new CombineDisjunctionsToIn().rule(or);
         assertEquals(equals, e);
     }
 
@@ -243,7 +245,7 @@ public class OptimizerRulesTests extends ESTestCase {
 
         And and = new And(EMPTY, equalsOf(fa, ONE), equalsOf(fa, TWO));
         Filter dummy = new Filter(EMPTY, relation(), and);
-        LogicalPlan transformed = new OptimizerRules.CombineDisjunctionsToIn().apply(dummy);
+        LogicalPlan transformed = new CombineDisjunctionsToIn().apply(dummy);
         assertSame(dummy, transformed);
         assertEquals(and, ((Filter) transformed).condition());
     }
@@ -253,7 +255,7 @@ public class OptimizerRulesTests extends ESTestCase {
         FieldAttribute fieldTwo = TestUtils.getFieldAttribute("TWO");
 
         Or or = new Or(EMPTY, equalsOf(fieldOne, ONE), equalsOf(fieldTwo, TWO));
-        Expression e = new OptimizerRules.CombineDisjunctionsToIn().rule(or);
+        Expression e = new CombineDisjunctionsToIn().rule(or);
         assertEquals(or, e);
     }
 
@@ -262,7 +264,7 @@ public class OptimizerRulesTests extends ESTestCase {
 
         Or firstOr = new Or(EMPTY, new In(EMPTY, fa, List.of(ONE)), new In(EMPTY, fa, List.of(TWO)));
         Or secondOr = new Or(EMPTY, firstOr, new In(EMPTY, fa, List.of(THREE)));
-        Expression e = new OptimizerRules.CombineDisjunctionsToIn().rule(secondOr);
+        Expression e = new CombineDisjunctionsToIn().rule(secondOr);
         assertEquals(In.class, e.getClass());
         In in = (In) e;
         assertEquals(fa, in.value());
@@ -274,7 +276,7 @@ public class OptimizerRulesTests extends ESTestCase {
 
         Or firstOr = new Or(EMPTY, new In(EMPTY, fa, List.of(ONE)), lessThanOf(fa, TWO));
         Or secondOr = new Or(EMPTY, firstOr, new In(EMPTY, fa, List.of(THREE)));
-        Expression e = new OptimizerRules.CombineDisjunctionsToIn().rule(secondOr);
+        Expression e = new CombineDisjunctionsToIn().rule(secondOr);
         assertEquals(Or.class, e.getClass());
         Or or = (Or) e;
         assertEquals(or.left(), firstOr.right());
@@ -286,7 +288,7 @@ public class OptimizerRulesTests extends ESTestCase {
 
     // Test BooleanFunctionEqualsElimination
     public void testBoolEqualsSimplificationOnExpressions() {
-        OptimizerRules.BooleanFunctionEqualsElimination s = new OptimizerRules.BooleanFunctionEqualsElimination();
+        BooleanFunctionEqualsElimination s = new BooleanFunctionEqualsElimination();
         Expression exp = new GreaterThan(EMPTY, getFieldAttribute(), new Literal(EMPTY, 0, DataType.INTEGER), null);
 
         assertEquals(exp, s.rule(new Equals(EMPTY, exp, TRUE)));
@@ -295,7 +297,7 @@ public class OptimizerRulesTests extends ESTestCase {
     }
 
     public void testBoolEqualsSimplificationOnFields() {
-        OptimizerRules.BooleanFunctionEqualsElimination s = new OptimizerRules.BooleanFunctionEqualsElimination();
+        BooleanFunctionEqualsElimination s = new BooleanFunctionEqualsElimination();
 
         FieldAttribute field = getFieldAttribute();
 

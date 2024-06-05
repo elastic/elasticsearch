@@ -150,7 +150,7 @@ public class RankFeatureShardPhaseTests extends ESTestCase {
                         for (int i = 0; i < hits.getHits().length; i++) {
                             SearchHit hit = hits.getHits()[i];
                             rankFeatureDocs[i] = new RankFeatureDoc(hit.docId(), hit.getScore(), shardId);
-                            rankFeatureDocs[i].featureData(hit.getFields().get(field).getValue());
+                            rankFeatureDocs[i].docFeatures(field, hit.getFields().get(field).getValue());
                             rankFeatureDocs[i].rank = i + 1;
                         }
                         return new RankFeatureShardResult(rankFeatureDocs);
@@ -313,7 +313,7 @@ public class RankFeatureShardPhaseTests extends ESTestCase {
             assertNotNull(searchContext.rankFeatureResult().rankFeatureResult());
             for (RankFeatureDoc rankFeatureDoc : searchContext.rankFeatureResult().rankFeatureResult().shardResult().rankFeatureDocs) {
                 assertTrue(expectedFieldData.containsKey(rankFeatureDoc.doc));
-                assertEquals(rankFeatureDoc.featureData, expectedFieldData.get(rankFeatureDoc.doc));
+                assertEquals(rankFeatureDoc.docFeatures().get(fieldName), expectedFieldData.get(rankFeatureDoc.doc));
             }
         } finally {
             if (searchHits != null) {

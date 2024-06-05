@@ -613,7 +613,7 @@ public class FieldBasedRerankerIT extends ESIntegTestCase {
                         RankFeatureDoc[] rankFeatureDocs = new RankFeatureDoc[hits.getHits().length];
                         for (int i = 0; i < hits.getHits().length; i++) {
                             rankFeatureDocs[i] = new RankFeatureDoc(hits.getHits()[i].docId(), hits.getHits()[i].getScore(), shardId);
-                            rankFeatureDocs[i].featureData(hits.getHits()[i].field(field).getValue().toString());
+                            rankFeatureDocs[i].docFeatures(field, hits.getHits()[i].field(field).getValue().toString());
                         }
                         return new RankFeatureShardResult(rankFeatureDocs);
                     } catch (Exception ex) {
@@ -630,7 +630,7 @@ public class FieldBasedRerankerIT extends ESIntegTestCase {
                 protected void computeScores(RankFeatureDoc[] featureDocs, ActionListener<float[]> scoreListener) {
                     float[] scores = new float[featureDocs.length];
                     for (int i = 0; i < featureDocs.length; i++) {
-                        scores[i] = Float.parseFloat(featureDocs[i].featureData);
+                        scores[i] = Float.parseFloat((String) featureDocs[i].docFeatures().get(field));
                     }
                     scoreListener.onResponse(scores);
                 }

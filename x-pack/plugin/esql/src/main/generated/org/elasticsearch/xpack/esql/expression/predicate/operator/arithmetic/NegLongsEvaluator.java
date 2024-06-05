@@ -31,9 +31,9 @@ public final class NegLongsEvaluator implements EvalOperator.ExpressionEvaluator
 
   public NegLongsEvaluator(Source source, EvalOperator.ExpressionEvaluator v,
       DriverContext driverContext) {
-    this.warnings = new Warnings(source);
     this.v = v;
     this.driverContext = driverContext;
+    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override

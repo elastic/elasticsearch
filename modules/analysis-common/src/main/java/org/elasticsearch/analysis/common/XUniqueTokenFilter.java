@@ -32,10 +32,6 @@ class XUniqueTokenFilter extends TokenFilter {
     private final CharArraySet previous = new CharArraySet(8, false);
     private final boolean onlyOnSamePosition;
 
-    XUniqueTokenFilter(TokenStream in) {
-        this(in, false);
-    }
-
     XUniqueTokenFilter(TokenStream in, boolean onlyOnSamePosition) {
         super(in);
         this.onlyOnSamePosition = onlyOnSamePosition;
@@ -47,7 +43,7 @@ class XUniqueTokenFilter extends TokenFilter {
             final char term[] = termAttribute.buffer();
             final int length = termAttribute.length();
 
-            boolean duplicate;
+            final boolean duplicate;
             if (onlyOnSamePosition) {
                 final int posIncrement = posIncAttribute.getPositionIncrement();
                 if (posIncrement > 0) {
@@ -64,7 +60,7 @@ class XUniqueTokenFilter extends TokenFilter {
             System.arraycopy(term, 0, saved, 0, length);
             previous.add(saved);
 
-            if (!duplicate) {
+            if (duplicate == false) {
                 return true;
             }
         }

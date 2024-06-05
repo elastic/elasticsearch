@@ -32,7 +32,7 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.index.EsIndex;
 import org.elasticsearch.xpack.esql.core.index.IndexResolution;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
@@ -88,7 +88,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
     /**
      * Estimated size of a keyword field in bytes.
      */
-    private static final int KEYWORD_EST = EstimatesRowSize.estimateSize(DataTypes.KEYWORD);
+    private static final int KEYWORD_EST = EstimatesRowSize.estimateSize(DataType.KEYWORD);
 
     private TestPlannerOptimizer plannerOptimizer;
     private final EsqlConfiguration config;
@@ -127,8 +127,8 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
                 List.of("a", "b"),
                 Map.of("", "idx"),
                 Map.ofEntries(
-                    Map.entry("a", new EsField("a", DataTypes.INTEGER, Map.of(), true)),
-                    Map.entry("b", new EsField("b", DataTypes.LONG, Map.of(), true))
+                    Map.entry("a", new EsField("a", DataType.INTEGER, Map.of(), true)),
+                    Map.entry("b", new EsField("b", DataType.LONG, Map.of(), true))
                 )
             )
         );

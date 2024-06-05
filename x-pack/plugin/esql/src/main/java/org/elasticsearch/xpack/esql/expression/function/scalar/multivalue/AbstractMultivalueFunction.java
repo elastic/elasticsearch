@@ -19,6 +19,10 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFuncti
 
 /**
  * Base class for functions that reduce multivalued fields into single valued fields.
+ * <p>
+ *     We have a guide for writing these in the javadoc for
+ *     {@link org.elasticsearch.xpack.esql.expression.function.scalar}.
+ * </p>
  */
 public abstract class AbstractMultivalueFunction extends UnaryScalarFunction {
     protected AbstractMultivalueFunction(Source source, Expression field) {

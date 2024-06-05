@@ -17,7 +17,9 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiRateLimitServiceSettings;
+import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiService;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -55,10 +57,10 @@ public class AzureOpenAiCompletionServiceSettings extends FilteredXContentObject
      */
     private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(120);
 
-    public static AzureOpenAiCompletionServiceSettings fromMap(Map<String, Object> map) {
+    public static AzureOpenAiCompletionServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         ValidationException validationException = new ValidationException();
 
-        var settings = fromMap(map, validationException);
+        var settings = fromMap(map, validationException, context);
 
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
@@ -69,12 +71,19 @@ public class AzureOpenAiCompletionServiceSettings extends FilteredXContentObject
 
     private static AzureOpenAiCompletionServiceSettings.CommonFields fromMap(
         Map<String, Object> map,
-        ValidationException validationException
+        ValidationException validationException,
+        ConfigurationParseContext context
     ) {
         String resourceName = extractRequiredString(map, RESOURCE_NAME, ModelConfigurations.SERVICE_SETTINGS, validationException);
         String deploymentId = extractRequiredString(map, DEPLOYMENT_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
         String apiVersion = extractRequiredString(map, API_VERSION, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        RateLimitSettings rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException);
+        RateLimitSettings rateLimitSettings = RateLimitSettings.of(
+            map,
+            DEFAULT_RATE_LIMIT_SETTINGS,
+            validationException,
+            AzureOpenAiService.NAME,
+            context
+        );
 
         return new AzureOpenAiCompletionServiceSettings.CommonFields(resourceName, deploymentId, apiVersion, rateLimitSettings);
     }
@@ -137,7 +146,6 @@ public class AzureOpenAiCompletionServiceSettings extends FilteredXContentObject
         builder.startObject();
 
         toXContentFragmentOfExposedFields(builder, params);
-        rateLimitSettings.toXContent(builder, params);
 
         builder.endObject();
         return builder;
@@ -148,6 +156,7 @@ public class AzureOpenAiCompletionServiceSettings extends FilteredXContentObject
         builder.field(RESOURCE_NAME, resourceName);
         builder.field(DEPLOYMENT_ID, deploymentId);
         builder.field(API_VERSION, apiVersion);
+        rateLimitSettings.toXContent(builder, params);
 
         return builder;
     }

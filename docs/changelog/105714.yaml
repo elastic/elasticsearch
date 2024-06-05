@@ -1,5 +1,0 @@
-pr: 105714
-summary: Apply stricter Document Level Security (DLS) rules for terms aggregations when min_doc_count is set to 0.
-area: "Aggregations"
-type: bug
-issues: []

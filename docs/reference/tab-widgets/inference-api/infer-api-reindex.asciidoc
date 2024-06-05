@@ -131,3 +131,26 @@ might affect the throughput of the reindexing process. If this happens, change
 `size` to `3` or a similar value in magnitude.
 
 // end::azure-ai-studio[]
+
+// tag::mistral[]
+
+[source,console]
+----
+POST _reindex?wait_for_completion=false
+{
+  "source": {
+    "index": "test-data",
+    "size": 50 <1>
+  },
+  "dest": {
+    "index": "mistral-embeddings",
+    "pipeline": "mistral_embeddings"
+  }
+}
+----
+// TEST[skip:TBD]
+<1> The default batch size for reindexing is 1000. Reducing `size` to a smaller
+number makes the update of the reindexing process quicker which enables you to
+follow the progress closely and detect errors early.
+
+// end::mistral[]

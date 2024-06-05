@@ -66,8 +66,8 @@ public class EvaluatorImplementer {
         javax.lang.model.util.Types types,
         ExecutableElement processFunction,
         String extraName,
-        List<TypeMirror> warnExceptions)
-    {
+        List<TypeMirror> warnExceptions
+    ) {
         this.declarationType = (TypeElement) processFunction.getEnclosingElement();
         this.implementation = ClassName.get(
             elements.getPackageOf(declarationType).toString(),
@@ -121,11 +121,11 @@ public class EvaluatorImplementer {
     private MethodSpec ctor() {
         MethodSpec.Builder builder = MethodSpec.constructorBuilder().addModifiers(Modifier.PUBLIC);
         builder.addParameter(SOURCE, "source");
-        builder.addStatement("this.warnings = new Warnings(source)");
         processFunction.args.stream().forEach(a -> a.implementCtor(builder));
 
         builder.addParameter(DRIVER_CONTEXT, "driverContext");
         builder.addStatement("this.driverContext = driverContext");
+        builder.addStatement("this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source)");
         return builder.build();
     }
 
@@ -682,16 +682,27 @@ public class EvaluatorImplementer {
             }
             if (blockStyle && skipNull == false) {
                 if (componentType.equals(BYTES_REF)) {
-                    builder.addStatement("$LValues[i] = $L[i].isNull(p) ? null : $L[i].getBytesRef($L, $LScratch[i])",
-                        name, paramName(blockStyle), paramName(blockStyle), lookupVar, name);
+                    builder.addStatement(
+                        "$LValues[i] = $L[i].isNull(p) ? null : $L[i].getBytesRef($L, $LScratch[i])",
+                        name,
+                        paramName(blockStyle),
+                        paramName(blockStyle),
+                        lookupVar,
+                        name
+                    );
                 } else {
-                    builder.addStatement("$LValues[i] = $L[i].isNull(p) ? null : $L[i].$L($L)",
-                        name, paramName(blockStyle), paramName(blockStyle), getMethod(componentType), lookupVar);
+                    builder.addStatement(
+                        "$LValues[i] = $L[i].isNull(p) ? null : $L[i].$L($L)",
+                        name,
+                        paramName(blockStyle),
+                        paramName(blockStyle),
+                        getMethod(componentType),
+                        lookupVar
+                    );
                 }
             } else {
                 if (componentType.equals(BYTES_REF)) {
-                    builder.addStatement("$LValues[i] = $L[i].getBytesRef($L, $LScratch[i])",
-                        name, paramName(blockStyle), lookupVar, name);
+                    builder.addStatement("$LValues[i] = $L[i].getBytesRef($L, $LScratch[i])", name, paramName(blockStyle), lookupVar, name);
                 } else {
                     builder.addStatement("$LValues[i] = $L[i].$L($L)", name, paramName(blockStyle), getMethod(componentType), lookupVar);
                 }

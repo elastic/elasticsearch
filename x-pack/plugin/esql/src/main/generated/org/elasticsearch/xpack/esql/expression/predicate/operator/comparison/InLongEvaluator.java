@@ -35,10 +35,10 @@ public final class InLongEvaluator implements EvalOperator.ExpressionEvaluator {
 
   public InLongEvaluator(Source source, EvalOperator.ExpressionEvaluator lhs,
       EvalOperator.ExpressionEvaluator[] rhs, DriverContext driverContext) {
-    this.warnings = new Warnings(source);
     this.lhs = lhs;
     this.rhs = rhs;
     this.driverContext = driverContext;
+    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override

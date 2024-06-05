@@ -10,10 +10,6 @@ package org.elasticsearch.xpack.esql.expression.predicate.operator.comparison;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.data.BooleanBlock;
-import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.data.DoubleBlock;
-import org.elasticsearch.compute.data.IntBlock;
-import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -22,7 +18,6 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.operator.compariso
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions;
 import org.elasticsearch.xpack.esql.expression.function.Example;
@@ -36,6 +31,18 @@ import java.util.function.Function;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
+import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
+import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
+import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.ordinal;
 
 public class In extends org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.In implements EvaluatorMapper {
@@ -68,7 +75,8 @@ public class In extends org.elasticsearch.xpack.esql.core.expression.predicate.o
 
     @Override
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(
-        Function<Expression, EvalOperator.ExpressionEvaluator.Factory> toEvaluator) {
+        Function<Expression, EvalOperator.ExpressionEvaluator.Factory> toEvaluator
+    ) {
         var commonType = commonType();
         EvalOperator.ExpressionEvaluator.Factory lhs;
         EvalOperator.ExpressionEvaluator.Factory[] factories;
@@ -79,31 +87,25 @@ public class In extends org.elasticsearch.xpack.esql.core.expression.predicate.o
                 .toArray(EvalOperator.ExpressionEvaluator.Factory[]::new);
         } else {
             lhs = toEvaluator.apply(value());
-            factories = list().stream()
-                .map(e -> toEvaluator.apply(e))
-                .toArray(EvalOperator.ExpressionEvaluator.Factory[]::new);
+            factories = list().stream().map(e -> toEvaluator.apply(e)).toArray(EvalOperator.ExpressionEvaluator.Factory[]::new);
         }
 
-        if (commonType == DataTypes.BOOLEAN) {
+        if (commonType == BOOLEAN) {
             return new InBooleanEvaluator.Factory(source(), lhs, factories);
         }
-        if (commonType == DataTypes.DOUBLE) {
+        if (commonType == DOUBLE) {
             return new InDoubleEvaluator.Factory(source(), lhs, factories);
         }
-        if (commonType == DataTypes.INTEGER) {
+        if (commonType == INTEGER) {
             return new InIntEvaluator.Factory(source(), lhs, factories);
         }
-        if (commonType == DataTypes.LONG || commonType == DataTypes.DATETIME || commonType == DataTypes.UNSIGNED_LONG ) {
+        if (commonType == LONG || commonType == DATETIME || commonType == UNSIGNED_LONG) {
             return new InLongEvaluator.Factory(source(), lhs, factories);
         }
-        if (commonType == DataTypes.KEYWORD
-            || commonType == DataTypes.TEXT
-            || commonType == DataTypes.IP
-            || commonType == DataTypes.VERSION
-            || commonType == DataTypes.UNSUPPORTED) {
+        if (commonType == KEYWORD || commonType == TEXT || commonType == IP || commonType == VERSION || commonType == UNSUPPORTED) {
             return new InBytesRefEvaluator.Factory(source(), toEvaluator.apply(value()), factories);
         }
-        if (commonType == DataTypes.NULL) {
+        if (commonType == NULL) {
             return EvalOperator.CONSTANT_NULL_FACTORY;
         }
         throw EsqlIllegalArgumentException.illegalDataType(commonType);
@@ -112,7 +114,7 @@ public class In extends org.elasticsearch.xpack.esql.core.expression.predicate.o
     private DataType commonType() {
         DataType commonType = value().dataType();
         for (Expression e : list()) {
-            if (e.dataType() == DataTypes.NULL && value().dataType() != DataTypes.NULL) {
+            if (e.dataType() == NULL && value().dataType() != NULL) {
                 continue;
             }
             commonType = EsqlDataTypeRegistry.INSTANCE.commonType(commonType, e.dataType());
@@ -122,7 +124,7 @@ public class In extends org.elasticsearch.xpack.esql.core.expression.predicate.o
 
     @Override
     protected boolean areCompatible(DataType left, DataType right) {
-        if (left == DataTypes.UNSIGNED_LONG || right == DataTypes.UNSIGNED_LONG) {
+        if (left == UNSIGNED_LONG || right == UNSIGNED_LONG) {
             // automatic numerical conversions not applicable for UNSIGNED_LONG, see Verifier#validateUnsignedLongOperator().
             return left == right;
         }

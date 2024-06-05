@@ -13,7 +13,6 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.math.BigInteger;
@@ -72,11 +71,11 @@ public class MvMedianTests extends AbstractMultivalueFunctionTestCase {
         cases.add(
             new TestCaseSupplier(
                 "mv_median(<1, 2>)",
-                List.of(DataTypes.INTEGER),
+                List.of(DataType.INTEGER),
                 () -> new TestCaseSupplier.TestCase(
-                    List.of(new TestCaseSupplier.TypedData(List.of(1, 2), DataTypes.INTEGER, "field")),
+                    List.of(new TestCaseSupplier.TypedData(List.of(1, 2), DataType.INTEGER, "field")),
                     "MvMedian[field=Attribute[channel=0]]",
-                    DataTypes.INTEGER,
+                    DataType.INTEGER,
                     equalTo(1)
                 )
             )
@@ -84,11 +83,11 @@ public class MvMedianTests extends AbstractMultivalueFunctionTestCase {
         cases.add(
             new TestCaseSupplier(
                 "mv_median(<-1, -2>)",
-                List.of(DataTypes.INTEGER),
+                List.of(DataType.INTEGER),
                 () -> new TestCaseSupplier.TestCase(
-                    List.of(new TestCaseSupplier.TypedData(List.of(-1, -2), DataTypes.INTEGER, "field")),
+                    List.of(new TestCaseSupplier.TypedData(List.of(-1, -2), DataType.INTEGER, "field")),
                     "MvMedian[field=Attribute[channel=0]]",
-                    DataTypes.INTEGER,
+                    DataType.INTEGER,
                     equalTo(-2)
                 )
             )

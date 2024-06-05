@@ -62,6 +62,61 @@ public class RemoteClusterAwareClientTests extends ESTestCase {
         );
     }
 
+    public void testX() throws Exception {
+        List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
+        try (
+                MockTransportService seedTransport = startTransport("seed_node", knownNodes);
+                MockTransportService discoverableTransport = startTransport("discoverable_node", knownNodes)
+        ) {
+            knownNodes.add(seedTransport.getLocalDiscoNode());
+            knownNodes.add(discoverableTransport.getLocalDiscoNode());
+            Collections.shuffle(knownNodes, random());
+            Settings.Builder builder = Settings.builder();
+            builder.putList("cluster.remote.cluster1.seeds", seedTransport.getLocalDiscoNode().getAddress().toString());
+            try (
+                    MockTransportService service = MockTransportService.createNewService(
+                            builder.build(),
+                            VersionInformation.CURRENT,
+                            TransportVersion.current(),
+                            threadPool,
+                            null
+                    )
+            ) {
+                service.start();
+                service.acceptIncomingRequests();
+
+                final var client = new RemoteClusterAwareClient(
+                        service,
+                        "cluster1",
+                        threadPool.executor(TEST_THREAD_POOL_NAME),
+                        randomBoolean()
+                );
+                SearchShardsRequest searchShardsRequest = new SearchShardsRequest(
+                        new String[] { "test-index" },
+                        IndicesOptions.strictExpandOpen(),
+                        new MatchAllQueryBuilder(),
+                        null,
+                        null,
+                        randomBoolean(),
+                        null
+                );
+                final SearchShardsResponse searchShardsResponse = PlainActionFuture.get(
+                        future -> client.execute(
+                                TransportSearchShardsAction.REMOTE_TYPE,
+                                searchShardsRequest,
+                                ActionListener.runBefore(
+                                        future,
+                                        () -> assertTrue(Thread.currentThread().getName().contains('[' + TEST_THREAD_POOL_NAME + ']'))
+                                )
+                        ),
+                        10,
+                        TimeUnit.SECONDS
+                );
+                assertThat(searchShardsResponse.getNodes(), equalTo(knownNodes));
+            }
+        }
+    }
+
     public void testSearchShards() throws Exception {
         List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
         try (

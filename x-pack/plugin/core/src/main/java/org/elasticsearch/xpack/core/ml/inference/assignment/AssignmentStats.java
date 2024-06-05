@@ -423,6 +423,8 @@ public class AssignmentStats implements ToXContentObject, Writeable {
     @Nullable
     private final Integer numberOfAllocations;
     @Nullable
+    private final AutoscalingSettings autoscalingSettings;
+    @Nullable
     private final Integer queueCapacity;
     @Nullable
     private final ByteSizeValue cacheSize;
@@ -435,6 +437,7 @@ public class AssignmentStats implements ToXContentObject, Writeable {
         String modelId,
         @Nullable Integer threadsPerAllocation,
         @Nullable Integer numberOfAllocations,
+        @Nullable AutoscalingSettings autoscalingSettings,
         @Nullable Integer queueCapacity,
         @Nullable ByteSizeValue cacheSize,
         Instant startTime,
@@ -445,6 +448,7 @@ public class AssignmentStats implements ToXContentObject, Writeable {
         this.modelId = modelId;
         this.threadsPerAllocation = threadsPerAllocation;
         this.numberOfAllocations = numberOfAllocations;
+        this.autoscalingSettings = autoscalingSettings;
         this.queueCapacity = queueCapacity;
         this.startTime = Objects.requireNonNull(startTime);
         this.nodeStats = nodeStats;
@@ -458,6 +462,11 @@ public class AssignmentStats implements ToXContentObject, Writeable {
         modelId = in.readString();
         threadsPerAllocation = in.readOptionalVInt();
         numberOfAllocations = in.readOptionalVInt();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_AUTOSCALING)) {
+            autoscalingSettings = in.readOptionalWriteable(AutoscalingSettings::new);
+        } else {
+            autoscalingSettings = null;
+        }
         queueCapacity = in.readOptionalVInt();
         startTime = in.readInstant();
         nodeStats = in.readCollectionAsList(AssignmentStats.NodeStats::new);
@@ -497,6 +506,11 @@ public class AssignmentStats implements ToXContentObject, Writeable {
     @Nullable
     public Integer getNumberOfAllocations() {
         return numberOfAllocations;
+    }
+
+    @Nullable
+    public AutoscalingSettings getAutoscalingSettings() {
+        return autoscalingSettings;
     }
 
     @Nullable
@@ -575,6 +589,9 @@ public class AssignmentStats implements ToXContentObject, Writeable {
         if (numberOfAllocations != null) {
             builder.field(StartTrainedModelDeploymentAction.TaskParams.NUMBER_OF_ALLOCATIONS.getPreferredName(), numberOfAllocations);
         }
+        if (autoscalingSettings != null) {
+            builder.field(StartTrainedModelDeploymentAction.Request.AUTOSCALING_SETTINGS.getPreferredName(), autoscalingSettings);
+        }
         if (queueCapacity != null) {
             builder.field(StartTrainedModelDeploymentAction.TaskParams.QUEUE_CAPACITY.getPreferredName(), queueCapacity);
         }
@@ -630,6 +647,9 @@ public class AssignmentStats implements ToXContentObject, Writeable {
         out.writeString(modelId);
         out.writeOptionalVInt(threadsPerAllocation);
         out.writeOptionalVInt(numberOfAllocations);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_AUTOSCALING)) {
+            out.writeOptionalWriteable(autoscalingSettings);
+        }
         out.writeOptionalVInt(queueCapacity);
         out.writeInstant(startTime);
         out.writeCollection(nodeStats);
@@ -660,6 +680,7 @@ public class AssignmentStats implements ToXContentObject, Writeable {
             && Objects.equals(modelId, that.modelId)
             && Objects.equals(threadsPerAllocation, that.threadsPerAllocation)
             && Objects.equals(numberOfAllocations, that.numberOfAllocations)
+            && Objects.equals(autoscalingSettings, that.autoscalingSettings)
             && Objects.equals(queueCapacity, that.queueCapacity)
             && Objects.equals(startTime, that.startTime)
             && Objects.equals(state, that.state)
@@ -677,6 +698,7 @@ public class AssignmentStats implements ToXContentObject, Writeable {
             modelId,
             threadsPerAllocation,
             numberOfAllocations,
+            autoscalingSettings,
             queueCapacity,
             startTime,
             nodeStats,

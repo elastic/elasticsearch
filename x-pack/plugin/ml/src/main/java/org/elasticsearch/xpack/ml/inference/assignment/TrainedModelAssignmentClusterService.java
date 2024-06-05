@@ -14,6 +14,7 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -38,9 +39,11 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
+import org.elasticsearch.xpack.core.ml.action.CreateTrainedModelAssignmentAction;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateTrainedModelAssignmentRoutingInfoAction;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentState;
+import org.elasticsearch.xpack.core.ml.inference.assignment.AutoscalingSettings;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingInfo;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingState;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
@@ -393,7 +396,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
     }
 
     public void createNewModelAssignment(
-        StartTrainedModelDeploymentAction.TaskParams params,
+        CreateTrainedModelAssignmentAction.Request request,
         ActionListener<TrainedModelAssignment> listener
     ) {
         if (clusterService.state().getMinTransportVersion().before(DISTRIBUTED_MODEL_ALLOCATION_TRANSPORT_VERSION)) {
@@ -401,8 +404,8 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
                 new ElasticsearchStatusException(
                     "cannot create new assignment [{}] for model [{}] while cluster upgrade is in progress",
                     RestStatus.CONFLICT,
-                    params.getDeploymentId(),
-                    params.getModelId()
+                    request.getTaskParams().getDeploymentId(),
+                    request.getTaskParams().getModelId()
                 )
             );
             return;
@@ -413,20 +416,20 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
                 new ElasticsearchStatusException(
                     "cannot create new assignment [{}] for model [{}] while feature reset is in progress.",
                     RestStatus.CONFLICT,
-                    params.getDeploymentId(),
-                    params.getModelId()
+                    request.getTaskParams().getDeploymentId(),
+                    request.getTaskParams().getModelId()
                 )
             );
             return;
         }
 
-        rebalanceAssignments(clusterService.state(), Optional.of(params), "model deployment started", ActionListener.wrap(newMetadata -> {
-            TrainedModelAssignment assignment = newMetadata.getDeploymentAssignment(params.getDeploymentId());
+        rebalanceAssignments(clusterService.state(), Optional.of(request), "model deployment started", ActionListener.wrap(newMetadata -> {
+            TrainedModelAssignment assignment = newMetadata.getDeploymentAssignment(request.getTaskParams().getDeploymentId());
             if (assignment == null) {
                 // If we could not allocate the model anywhere then it is possible the assignment
                 // here is null. We should notify the listener of an empty assignment as the
                 // handling of this is done elsewhere with the wait-to-start predicate.
-                assignment = TrainedModelAssignment.Builder.empty(params).build();
+                assignment = TrainedModelAssignment.Builder.empty(request).build();
             }
             listener.onResponse(assignment);
         }, listener::onFailure));
@@ -509,6 +512,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
     private static ClusterState update(ClusterState currentState, TrainedModelAssignmentMetadata.Builder modelAssignments) {
         TrainedModelAssignmentMetadata previousMetadata = TrainedModelAssignmentMetadata.fromState(currentState);
         TrainedModelAssignmentMetadata updatedMetadata = modelAssignments.build();
+
         if (updatedMetadata.equals(previousMetadata)) {
             return currentState;
         } else {
@@ -528,13 +532,13 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         return ClusterState.builder(currentState).metadata(metadata).build();
     }
 
-    ClusterState createModelAssignment(ClusterState currentState, StartTrainedModelDeploymentAction.TaskParams params) throws Exception {
-        return update(currentState, rebalanceAssignments(currentState, Optional.of(params)));
+    ClusterState createModelAssignment(ClusterState currentState, CreateTrainedModelAssignmentAction.Request request) throws Exception {
+        return update(currentState, rebalanceAssignments(currentState, Optional.of(request)));
     }
 
     private void rebalanceAssignments(
         ClusterState clusterState,
-        Optional<StartTrainedModelDeploymentAction.TaskParams> modelToAdd,
+        Optional<CreateTrainedModelAssignmentAction.Request> createAssignmentRequest,
         String reason,
         ActionListener<TrainedModelAssignmentMetadata> listener
     ) {
@@ -544,7 +548,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
 
                 TrainedModelAssignmentMetadata.Builder rebalancedMetadata;
                 try {
-                    rebalancedMetadata = rebalanceAssignments(clusterState, modelToAdd);
+                    rebalancedMetadata = rebalanceAssignments(clusterState, createAssignmentRequest);
                 } catch (Exception e) {
                     listener.onFailure(e);
                     return;
@@ -561,7 +565,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
                         currentState = stopPlatformSpecificModelsInHeterogeneousClusters(
                             currentState,
                             mlNodesArchitectures,
-                            modelToAdd,
+                            createAssignmentRequest.map(CreateTrainedModelAssignmentAction.Request::getTaskParams),
                             clusterState
                         );
 
@@ -572,7 +576,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
                             return updatedState;
                         }
 
-                        rebalanceAssignments(currentState, modelToAdd, reason, listener);
+                        rebalanceAssignments(currentState, createAssignmentRequest, reason, listener);
                         return currentState;
                     }
 
@@ -639,7 +643,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
 
     private TrainedModelAssignmentMetadata.Builder rebalanceAssignments(
         ClusterState currentState,
-        Optional<StartTrainedModelDeploymentAction.TaskParams> modelToAdd
+        Optional<CreateTrainedModelAssignmentAction.Request> createAssignmentRequest
     ) throws Exception {
         List<DiscoveryNode> nodes = getAssignableNodes(currentState);
         logger.debug(() -> format("assignable nodes are %s", nodes.stream().map(DiscoveryNode::getId).toList()));
@@ -651,7 +655,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
             currentMetadata,
             nodeLoads,
             nodeAvailabilityZoneMapper.buildMlNodesByAvailabilityZone(currentState),
-            modelToAdd,
+            createAssignmentRequest,
             allocatedProcessorsScale,
             useNewMemoryFields
         );
@@ -668,8 +672,12 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
             rebalancer.rebalance()
         );
 
-        if (modelToAdd.isPresent()) {
-            checkModelIsFullyAllocatedIfScalingIsNotPossible(modelToAdd.get().getDeploymentId(), rebalanced, nodes);
+        if (createAssignmentRequest.isPresent()) {
+            checkModelIsFullyAllocatedIfScalingIsNotPossible(
+                createAssignmentRequest.get().getTaskParams().getDeploymentId(),
+                rebalanced,
+                nodes
+            );
         }
 
         return rebalanced;
@@ -795,14 +803,20 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
             || (smallestMLNode.isPresent() && smallestMLNode.getAsLong() < maxMLNodeSize);
     }
 
-    public void updateNumberOfAllocations(String deploymentId, int numberOfAllocations, ActionListener<TrainedModelAssignment> listener) {
-        updateNumberOfAllocations(clusterService.state(), deploymentId, numberOfAllocations, listener);
+    public void updateDeployment(
+        String deploymentId,
+        Integer numberOfAllocations,
+        AutoscalingSettings autoscalingSettings,
+        ActionListener<TrainedModelAssignment> listener
+    ) {
+        updateDeployment(clusterService.state(), deploymentId, numberOfAllocations, autoscalingSettings, listener);
     }
 
-    private void updateNumberOfAllocations(
+    private void updateDeployment(
         ClusterState clusterState,
         String deploymentId,
-        int numberOfAllocations,
+        Integer numberOfAllocations,
+        AutoscalingSettings autoscalingSettingsUpdates,
         ActionListener<TrainedModelAssignment> listener
     ) {
         TrainedModelAssignmentMetadata metadata = TrainedModelAssignmentMetadata.fromState(clusterState);
@@ -811,7 +825,23 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
             listener.onFailure(ExceptionsHelper.missingModelDeployment(deploymentId));
             return;
         }
-        if (existingAssignment.getTaskParams().getNumberOfAllocations() == numberOfAllocations) {
+        AutoscalingSettings autoscalingSettings;
+        if (autoscalingSettingsUpdates == null) {
+            autoscalingSettings = existingAssignment.getAutoscalingSettings();
+        } else if (autoscalingSettingsUpdates == AutoscalingSettings.RESET_PLACEHOLDER) {
+            autoscalingSettings = null;
+        } else {
+            autoscalingSettings = getUpdatedAutoscalingSettings(existingAssignment.getAutoscalingSettings(), autoscalingSettingsUpdates);
+            ActionRequestValidationException validationException = autoscalingSettings.validate();
+            if (validationException != null) {
+                listener.onFailure(validationException);
+                return;
+            }
+        }
+        boolean hasUpdates = (numberOfAllocations != null
+            && Objects.equals(numberOfAllocations, existingAssignment.getTaskParams().getNumberOfAllocations()) == false)
+            || Objects.equals(autoscalingSettings, existingAssignment.getAutoscalingSettings()) == false;
+        if (hasUpdates == false) {
             listener.onResponse(existingAssignment);
             return;
         }
@@ -828,7 +858,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         if (clusterState.getMinTransportVersion().before(DISTRIBUTED_MODEL_ALLOCATION_TRANSPORT_VERSION)) {
             listener.onFailure(
                 new ElasticsearchStatusException(
-                    "cannot update number_of_allocations for deployment with model id [{}] while cluster upgrade is in progress.",
+                    "cannot update deployment with model id [{}] while cluster upgrade is in progress.",
                     RestStatus.CONFLICT,
                     deploymentId
                 )
@@ -837,7 +867,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         }
 
         ActionListener<ClusterState> updatedStateListener = ActionListener.wrap(
-            updatedState -> submitUnbatchedTask("update model deployment number_of_allocations", new ClusterStateUpdateTask() {
+            updatedState -> submitUnbatchedTask("update model deployment", new ClusterStateUpdateTask() {
 
                 private volatile boolean isUpdated;
 
@@ -848,7 +878,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
                         return updatedState;
                     }
                     logger.debug(() -> format("[%s] Retrying update as cluster state has been modified", deploymentId));
-                    updateNumberOfAllocations(currentState, deploymentId, numberOfAllocations, listener);
+                    updateDeployment(currentState, deploymentId, numberOfAllocations, autoscalingSettings, listener);
                     return currentState;
                 }
 
@@ -877,38 +907,57 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
             listener::onFailure
         );
 
-        adjustNumberOfAllocations(clusterState, existingAssignment, numberOfAllocations, updatedStateListener);
+        updateAssignment(clusterState, existingAssignment, numberOfAllocations, autoscalingSettings, updatedStateListener);
     }
 
-    private void adjustNumberOfAllocations(
+    private AutoscalingSettings getUpdatedAutoscalingSettings(AutoscalingSettings original, AutoscalingSettings updates) {
+        return original == null ? updates : original.merge(updates);
+    }
+
+    private void updateAssignment(
         ClusterState clusterState,
         TrainedModelAssignment assignment,
-        int numberOfAllocations,
+        Integer numberOfAllocations,
+        AutoscalingSettings autoscalingSettings,
         ActionListener<ClusterState> listener
     ) {
         threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> {
-            if (numberOfAllocations > assignment.getTaskParams().getNumberOfAllocations()) {
-                increaseNumberOfAllocations(clusterState, assignment, numberOfAllocations, listener);
+            if (numberOfAllocations == null || numberOfAllocations == assignment.getTaskParams().getNumberOfAllocations()) {
+                updateAndKeepNumberOfAllocations(clusterState, assignment, autoscalingSettings, listener);
+            } else if (numberOfAllocations > assignment.getTaskParams().getNumberOfAllocations()) {
+                increaseNumberOfAllocations(clusterState, assignment, numberOfAllocations, autoscalingSettings, listener);
             } else {
-                decreaseNumberOfAllocations(clusterState, assignment, numberOfAllocations, listener);
+                decreaseNumberOfAllocations(clusterState, assignment, numberOfAllocations, autoscalingSettings, listener);
             }
         });
+    }
+
+    private void updateAndKeepNumberOfAllocations(
+        ClusterState clusterState,
+        TrainedModelAssignment assignment,
+        AutoscalingSettings autoscalingSettings,
+        ActionListener<ClusterState> listener
+    ) {
+        TrainedModelAssignment.Builder updatedAssignment = TrainedModelAssignment.Builder.fromAssignment(assignment).setAutoscalingSettings(autoscalingSettings);
+        TrainedModelAssignmentMetadata.Builder builder = TrainedModelAssignmentMetadata.builder(clusterState);
+        builder.updateAssignment(assignment.getDeploymentId(), updatedAssignment);
+        listener.onResponse(update(clusterState, builder));
     }
 
     private void increaseNumberOfAllocations(
         ClusterState clusterState,
         TrainedModelAssignment assignment,
         int numberOfAllocations,
+        AutoscalingSettings autoscalingSettings,
         ActionListener<ClusterState> listener
     ) {
         try {
+            TrainedModelAssignment.Builder updatedAssignment = TrainedModelAssignment.Builder.fromAssignment(assignment)
+                .setNumberOfAllocations(numberOfAllocations)
+                .setAutoscalingSettings(autoscalingSettings);
             final ClusterState updatedClusterState = update(
                 clusterState,
-                TrainedModelAssignmentMetadata.builder(clusterState)
-                    .updateAssignment(
-                        assignment.getDeploymentId(),
-                        TrainedModelAssignment.Builder.fromAssignment(assignment).setNumberOfAllocations(numberOfAllocations)
-                    )
+                TrainedModelAssignmentMetadata.builder(clusterState).updateAssignment(assignment.getDeploymentId(), updatedAssignment)
             );
             TrainedModelAssignmentMetadata.Builder rebalancedMetadata = rebalanceAssignments(updatedClusterState, Optional.empty());
             if (isScalingPossible(getAssignableNodes(clusterState)) == false
@@ -931,6 +980,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         ClusterState clusterState,
         TrainedModelAssignment assignment,
         int numberOfAllocations,
+        AutoscalingSettings autoscalingSettings,
         ActionListener<ClusterState> listener
     ) {
         TrainedModelAssignment.Builder updatedAssignment = numberOfAllocations < assignment.totalTargetAllocations()
@@ -938,7 +988,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
                 numberOfAllocations
             )
             : TrainedModelAssignment.Builder.fromAssignment(assignment).setNumberOfAllocations(numberOfAllocations);
-
+        updatedAssignment.setAutoscalingSettings(autoscalingSettings);
         // We have now reduced allocations to a number we can be sure it is satisfied
         // and thus we should clear the assignment reason.
         if (numberOfAllocations <= assignment.totalTargetAllocations()) {

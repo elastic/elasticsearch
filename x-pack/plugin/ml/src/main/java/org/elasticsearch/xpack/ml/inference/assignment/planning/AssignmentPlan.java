@@ -11,6 +11,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
+import org.elasticsearch.xpack.core.ml.inference.assignment.AutoscalingSettings;
 import org.elasticsearch.xpack.core.ml.inference.assignment.Priority;
 
 import java.util.ArrayList;
@@ -37,11 +38,11 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
         int threadsPerAllocation,
         Map<String, Integer> currentAllocationsByNodeId,
         int maxAssignedAllocations,
+        AutoscalingSettings autoscalingSettings,
         Priority priority,
         long perDeploymentMemoryBytes,
         long perAllocationMemoryBytes
     ) {
-
         public Deployment(
             String id,
             long modelBytes,
@@ -49,6 +50,7 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
             int threadsPerAllocation,
             Map<String, Integer> currentAllocationsByNodeId,
             int maxAssignedAllocations,
+            AutoscalingSettings autoscalingSettings,
             long perDeploymentMemoryBytes,
             long perAllocationMemoryBytes
         ) {
@@ -59,10 +61,15 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
                 threadsPerAllocation,
                 currentAllocationsByNodeId,
                 maxAssignedAllocations,
+                autoscalingSettings,
                 Priority.NORMAL,
                 perDeploymentMemoryBytes,
                 perAllocationMemoryBytes
             );
+        }
+
+        public AutoscalingSettings getAutoscalingSettings() {
+            return autoscalingSettings;
         }
 
         int getCurrentAssignedAllocations() {

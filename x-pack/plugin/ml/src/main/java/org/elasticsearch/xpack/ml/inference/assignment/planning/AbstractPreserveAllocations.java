@@ -60,6 +60,7 @@ abstract class AbstractPreserveAllocations {
             m.threadsPerAllocation(),
             calculateAllocationsPerNodeToPreserve(m),
             m.maxAssignedAllocations(),
+            m.getAutoscalingSettings(),
             m.perDeploymentMemoryBytes(),
             m.perAllocationMemoryBytes()
         );

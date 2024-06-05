@@ -83,6 +83,10 @@ public class AutoscalerService {
     }
 
     public void start() {
+        if (true) {
+            logger.error("NOT ENABLING AUTOSCALING FOR DEBUGGING!!");
+            return;
+        }
         if (isNlpEnabled == false) {
             return;
         }

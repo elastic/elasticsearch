@@ -23,6 +23,7 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.common.time.TimeUtils;
+import org.elasticsearch.xpack.core.ml.action.CreateTrainedModelAssignmentAction;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
@@ -52,6 +53,7 @@ public final class TrainedModelAssignment implements SimpleDiffable<TrainedModel
     private static final ParseField TASK_PARAMETERS = new ParseField("task_parameters");
     private static final ParseField START_TIME = new ParseField("start_time");
     private static final ParseField MAX_ASSIGNED_ALLOCATIONS = new ParseField("max_assigned_allocations");
+    public static final ParseField AUTOSCALING_SETTINGS = new ParseField("autoscaling_settings");
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<TrainedModelAssignment, Void> PARSER = new ConstructingObjectParser<>(
@@ -64,7 +66,8 @@ public final class TrainedModelAssignment implements SimpleDiffable<TrainedModel
             a[3] == null ? null : AssignmentState.fromString((String) a[3]),
             (String) a[4],
             (Instant) a[5],
-            (Integer) a[6]
+            (Integer) a[6],
+            (AutoscalingSettings) a[7]
         )
     );
     static {
@@ -88,6 +91,12 @@ public final class TrainedModelAssignment implements SimpleDiffable<TrainedModel
             ObjectParser.ValueType.VALUE
         );
         PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), MAX_ASSIGNED_ALLOCATIONS);
+        PARSER.declareObjectOrNull(
+            ConstructingObjectParser.optionalConstructorArg(),
+            (p, c) -> AutoscalingSettings.PARSER.parse(p, c).build(),
+            null,
+            AUTOSCALING_SETTINGS
+        );
     }
 
     private final StartTrainedModelDeploymentAction.TaskParams taskParams;
@@ -96,6 +105,7 @@ public final class TrainedModelAssignment implements SimpleDiffable<TrainedModel
     private final String reason;
     private final Instant startTime;
     private final int maxAssignedAllocations;
+    private final AutoscalingSettings autoscalingSettings;
 
     public static boolean useNewMemoryFields(TransportVersion minClusterVersion) {
         return minClusterVersion.onOrAfter(TransportVersions.V_8_11_X);
@@ -112,7 +122,8 @@ public final class TrainedModelAssignment implements SimpleDiffable<TrainedModel
         AssignmentState legacyAssignmentState,
         String reason,
         Instant startTime,
-        Integer maxAssignedAllocations
+        Integer maxAssignedAllocations,
+        AutoscalingSettings autoscalingSettings
     ) {
         this(
             taskParams,
@@ -120,7 +131,8 @@ public final class TrainedModelAssignment implements SimpleDiffable<TrainedModel
             Optional.ofNullable(assignmentState).orElse(legacyAssignmentState),
             reason,
             startTime,
-            maxAssignedAllocations
+            maxAssignedAllocations,
+            autoscalingSettings
         );
     }
 
@@ -130,7 +142,8 @@ public final class TrainedModelAssignment implements SimpleDiffable<TrainedModel
         AssignmentState assignmentState,
         String reason,
         Instant startTime,
-        Integer maxAssignedAllocations
+        Integer maxAssignedAllocations,
+        AutoscalingSettings autoscalingSettings
     ) {
         this.taskParams = ExceptionsHelper.requireNonNull(taskParams, TASK_PARAMETERS);
         this.nodeRoutingTable = ExceptionsHelper.requireNonNull(nodeRoutingTable, ROUTING_TABLE);
@@ -140,6 +153,7 @@ public final class TrainedModelAssignment implements SimpleDiffable<TrainedModel
         this.maxAssignedAllocations = maxAssignedAllocations == null
             ? totalCurrentAllocations()
             : Math.max(maxAssignedAllocations, totalCurrentAllocations());
+        this.autoscalingSettings = autoscalingSettings;
     }
 
     public TrainedModelAssignment(StreamInput in) throws IOException {
@@ -152,6 +166,11 @@ public final class TrainedModelAssignment implements SimpleDiffable<TrainedModel
             this.maxAssignedAllocations = in.readVInt();
         } else {
             this.maxAssignedAllocations = totalCurrentAllocations();
+        }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_AUTOSCALING)) {
+            this.autoscalingSettings = in.readOptionalWriteable(AutoscalingSettings::new);
+        } else {
+            this.autoscalingSettings = null;
         }
     }
 
@@ -265,6 +284,10 @@ public final class TrainedModelAssignment implements SimpleDiffable<TrainedModel
         return maxAssignedAllocations;
     }
 
+    public AutoscalingSettings getAutoscalingSettings() {
+        return autoscalingSettings;
+    }
+
     public boolean isSatisfied(Set<String> assignableNodeIds) {
         int allocations = nodeRoutingTable.entrySet()
             .stream()
@@ -301,12 +324,13 @@ public final class TrainedModelAssignment implements SimpleDiffable<TrainedModel
             && Objects.equals(reason, that.reason)
             && Objects.equals(assignmentState, that.assignmentState)
             && Objects.equals(startTime, that.startTime)
-            && maxAssignedAllocations == that.maxAssignedAllocations;
+            && maxAssignedAllocations == that.maxAssignedAllocations
+            && Objects.equals(autoscalingSettings, that.autoscalingSettings);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(nodeRoutingTable, taskParams, assignmentState, reason, startTime, maxAssignedAllocations);
+        return Objects.hash(nodeRoutingTable, taskParams, assignmentState, reason, startTime, maxAssignedAllocations, autoscalingSettings);
     }
 
     @Override
@@ -320,6 +344,7 @@ public final class TrainedModelAssignment implements SimpleDiffable<TrainedModel
         }
         builder.timeField(START_TIME.getPreferredName(), startTime);
         builder.field(MAX_ASSIGNED_ALLOCATIONS.getPreferredName(), maxAssignedAllocations);
+        builder.field(AUTOSCALING_SETTINGS.getPreferredName(), autoscalingSettings);
         builder.endObject();
         return builder;
     }
@@ -333,6 +358,9 @@ public final class TrainedModelAssignment implements SimpleDiffable<TrainedModel
         out.writeInstant(startTime);
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
             out.writeVInt(maxAssignedAllocations);
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_AUTOSCALING)) {
+            out.writeOptionalWriteable(autoscalingSettings);
         }
     }
 
@@ -355,6 +383,7 @@ public final class TrainedModelAssignment implements SimpleDiffable<TrainedModel
         private String reason;
         private Instant startTime;
         private int maxAssignedAllocations;
+        private AutoscalingSettings autoscalingSettings;
 
         public static Builder fromAssignment(TrainedModelAssignment assignment) {
             return new Builder(
@@ -363,12 +392,17 @@ public final class TrainedModelAssignment implements SimpleDiffable<TrainedModel
                 assignment.assignmentState,
                 assignment.reason,
                 assignment.startTime,
-                assignment.maxAssignedAllocations
+                assignment.maxAssignedAllocations,
+                assignment.autoscalingSettings
             );
         }
 
-        public static Builder empty(StartTrainedModelDeploymentAction.TaskParams taskParams) {
-            return new Builder(taskParams);
+        public static Builder empty(CreateTrainedModelAssignmentAction.Request request) {
+            return new Builder(request.getTaskParams(), request.getAutoscalingSettings());
+        }
+
+        public static Builder empty(StartTrainedModelDeploymentAction.TaskParams taskParams, AutoscalingSettings autoscalingSettings) {
+            return new Builder(taskParams, autoscalingSettings);
         }
 
         private Builder(
@@ -377,7 +411,8 @@ public final class TrainedModelAssignment implements SimpleDiffable<TrainedModel
             AssignmentState assignmentState,
             String reason,
             Instant startTime,
-            int maxAssignedAllocations
+            int maxAssignedAllocations,
+            AutoscalingSettings autoscalingSettings
         ) {
             this.taskParams = taskParams;
             this.nodeRoutingTable = new LinkedHashMap<>(nodeRoutingTable);
@@ -385,10 +420,11 @@ public final class TrainedModelAssignment implements SimpleDiffable<TrainedModel
             this.reason = reason;
             this.startTime = startTime;
             this.maxAssignedAllocations = maxAssignedAllocations;
+            this.autoscalingSettings = autoscalingSettings;
         }
 
-        private Builder(StartTrainedModelDeploymentAction.TaskParams taskParams) {
-            this(taskParams, new LinkedHashMap<>(), AssignmentState.STARTING, null, Instant.now(), 0);
+        private Builder(StartTrainedModelDeploymentAction.TaskParams taskParams, AutoscalingSettings autoscalingSettings) {
+            this(taskParams, new LinkedHashMap<>(), AssignmentState.STARTING, null, Instant.now(), 0, autoscalingSettings);
         }
 
         public Builder setStartTime(Instant startTime) {
@@ -398,6 +434,11 @@ public final class TrainedModelAssignment implements SimpleDiffable<TrainedModel
 
         public Builder setMaxAssignedAllocations(int maxAssignedAllocations) {
             this.maxAssignedAllocations = maxAssignedAllocations;
+            return this;
+        }
+
+        public Builder setAutoscalingSettings(AutoscalingSettings autoscalingSettings) {
+            this.autoscalingSettings = autoscalingSettings;
             return this;
         }
 
@@ -518,7 +559,15 @@ public final class TrainedModelAssignment implements SimpleDiffable<TrainedModel
         }
 
         public TrainedModelAssignment build() {
-            return new TrainedModelAssignment(taskParams, nodeRoutingTable, assignmentState, reason, startTime, maxAssignedAllocations);
+            return new TrainedModelAssignment(
+                taskParams,
+                nodeRoutingTable,
+                assignmentState,
+                reason,
+                startTime,
+                maxAssignedAllocations,
+                autoscalingSettings
+            );
         }
     }
 }

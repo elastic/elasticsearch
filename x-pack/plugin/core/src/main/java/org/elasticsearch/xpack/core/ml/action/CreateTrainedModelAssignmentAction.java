@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.ml.action;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
@@ -18,6 +19,7 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.ml.inference.assignment.AutoscalingSettings;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
@@ -34,15 +36,22 @@ public class CreateTrainedModelAssignmentAction extends ActionType<CreateTrained
 
     public static class Request extends MasterNodeRequest<Request> {
         private final StartTrainedModelDeploymentAction.TaskParams taskParams;
+        private final AutoscalingSettings autoscalingSettings;
 
-        public Request(StartTrainedModelDeploymentAction.TaskParams taskParams) {
+        public Request(StartTrainedModelDeploymentAction.TaskParams taskParams, AutoscalingSettings autoscalingSettings) {
             super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
             this.taskParams = ExceptionsHelper.requireNonNull(taskParams, "taskParams");
+            this.autoscalingSettings = autoscalingSettings;
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
             this.taskParams = new StartTrainedModelDeploymentAction.TaskParams(in);
+            if (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_AUTOSCALING)) {
+                this.autoscalingSettings = in.readOptionalWriteable(AutoscalingSettings::new);
+            } else {
+                this.autoscalingSettings = null;
+            }
         }
 
         @Override
@@ -54,6 +63,9 @@ public class CreateTrainedModelAssignmentAction extends ActionType<CreateTrained
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             taskParams.writeTo(out);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_AUTOSCALING)) {
+                out.writeOptionalWriteable(autoscalingSettings);
+            }
         }
 
         @Override
@@ -61,16 +73,20 @@ public class CreateTrainedModelAssignmentAction extends ActionType<CreateTrained
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return Objects.equals(taskParams, request.taskParams);
+            return Objects.equals(taskParams, request.taskParams) && Objects.equals(autoscalingSettings, request.autoscalingSettings);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(taskParams);
+            return Objects.hash(taskParams, autoscalingSettings);
         }
 
         public StartTrainedModelDeploymentAction.TaskParams getTaskParams() {
             return taskParams;
+        }
+
+        public AutoscalingSettings getAutoscalingSettings() {
+            return autoscalingSettings;
         }
     }
 

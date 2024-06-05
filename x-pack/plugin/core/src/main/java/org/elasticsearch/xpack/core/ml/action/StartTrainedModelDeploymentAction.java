@@ -30,7 +30,9 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AllocationStatus;
+import org.elasticsearch.xpack.core.ml.inference.assignment.AutoscalingSettings;
 import org.elasticsearch.xpack.core.ml.inference.assignment.Priority;
+import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.MlTaskParams;
@@ -40,7 +42,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.xpack.core.ml.MlTasks.trainedModelAssignmentTaskDescription;
 
 public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedModelAssignmentAction.Response> {
@@ -94,6 +95,7 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
         public static final ParseField QUEUE_CAPACITY = TaskParams.QUEUE_CAPACITY;
         public static final ParseField CACHE_SIZE = TaskParams.CACHE_SIZE;
         public static final ParseField PRIORITY = TaskParams.PRIORITY;
+        public static final ParseField AUTOSCALING_SETTINGS = TrainedModelAssignment.AUTOSCALING_SETTINGS;
 
         public static final ObjectParser<Request, Void> PARSER = new ObjectParser<>(NAME, Request::new);
 
@@ -112,6 +114,12 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
                 ObjectParser.ValueType.VALUE
             );
             PARSER.declareString(Request::setPriority, PRIORITY);
+            PARSER.declareObjectOrNull(
+                Request::setAutoscalingSettings,
+                (p, c) -> AutoscalingSettings.PARSER.parse(p, c).build(),
+                null,
+                AUTOSCALING_SETTINGS
+            );
         }
 
         public static Request parseRequest(String modelId, String deploymentId, XContentParser parser) {
@@ -136,6 +144,7 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
         private AllocationStatus.State waitForState = AllocationStatus.State.STARTED;
         private ByteSizeValue cacheSize;
         private int numberOfAllocations = 1;
+        private AutoscalingSettings autoscalingSettings = null;
         private int threadsPerAllocation = 1;
         private int queueCapacity = 1024;
         private Priority priority = Priority.NORMAL;
@@ -156,6 +165,11 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             timeout = in.readTimeValue();
             waitForState = in.readEnum(AllocationStatus.State.class);
             numberOfAllocations = in.readVInt();
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
+                this.deploymentId = in.readString();
+            } else {
+                this.deploymentId = modelId;
+            }
             threadsPerAllocation = in.readVInt();
             queueCapacity = in.readVInt();
             if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
@@ -165,12 +179,6 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
                 this.priority = in.readEnum(Priority.class);
             } else {
                 this.priority = Priority.NORMAL;
-            }
-
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-                this.deploymentId = in.readString();
-            } else {
-                this.deploymentId = modelId;
             }
         }
 
@@ -215,6 +223,14 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             this.numberOfAllocations = numberOfAllocations;
         }
 
+        public AutoscalingSettings getAutoscalingSettings() {
+            return autoscalingSettings;
+        }
+
+        public void setAutoscalingSettings(AutoscalingSettings autoscalingSettings) {
+            this.autoscalingSettings = autoscalingSettings;
+        }
+
         public int getThreadsPerAllocation() {
             return threadsPerAllocation;
         }
@@ -254,6 +270,9 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             out.writeTimeValue(timeout);
             out.writeEnum(waitForState);
             out.writeVInt(numberOfAllocations);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_AUTOSCALING)) {
+                out.writeOptionalWriteable(autoscalingSettings);
+            }
             out.writeVInt(threadsPerAllocation);
             out.writeVInt(queueCapacity);
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
@@ -275,6 +294,9 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             builder.field(TIMEOUT.getPreferredName(), timeout.getStringRep());
             builder.field(WAIT_FOR.getPreferredName(), waitForState);
             builder.field(NUMBER_OF_ALLOCATIONS.getPreferredName(), numberOfAllocations);
+            if (autoscalingSettings != null) {
+                builder.field(AUTOSCALING_SETTINGS.getPreferredName(), autoscalingSettings);
+            }
             builder.field(THREADS_PER_ALLOCATION.getPreferredName(), threadsPerAllocation);
             builder.field(QUEUE_CAPACITY.getPreferredName(), queueCapacity);
             if (cacheSize != null) {
@@ -301,6 +323,10 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             }
             if (threadsPerAllocation < 1) {
                 validationException.addValidationError("[" + THREADS_PER_ALLOCATION + "] must be a positive integer");
+            }
+            ActionRequestValidationException autoscaleException = autoscalingSettings == null ? null : autoscalingSettings.validate();
+            if (autoscaleException != null) {
+                validationException.addValidationErrors(autoscaleException.validationErrors());
             }
             if (threadsPerAllocation > MAX_THREADS_PER_ALLOCATION || isPowerOf2(threadsPerAllocation) == false) {
                 validationException.addValidationError(
@@ -339,6 +365,7 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
                 timeout,
                 waitForState,
                 numberOfAllocations,
+                autoscalingSettings,
                 threadsPerAllocation,
                 queueCapacity,
                 cacheSize,
@@ -361,6 +388,7 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
                 && Objects.equals(waitForState, other.waitForState)
                 && Objects.equals(cacheSize, other.cacheSize)
                 && numberOfAllocations == other.numberOfAllocations
+                && Objects.equals(autoscalingSettings, other.autoscalingSettings)
                 && threadsPerAllocation == other.threadsPerAllocation
                 && queueCapacity == other.queueCapacity
                 && priority == other.priority;
@@ -425,7 +453,7 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), THREADS_PER_ALLOCATION);
             PARSER.declareInt(ConstructingObjectParser.constructorArg(), QUEUE_CAPACITY);
             PARSER.declareField(
-                optionalConstructorArg(),
+                ConstructingObjectParser.optionalConstructorArg(),
                 (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), CACHE_SIZE.getPreferredName()),
                 CACHE_SIZE,
                 ObjectParser.ValueType.VALUE

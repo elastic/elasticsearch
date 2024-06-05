@@ -216,7 +216,10 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
             memoryTracker.refresh(
                 persistentTasks,
                 ActionListener.wrap(
-                    aVoid -> trainedModelAssignmentService.createNewModelAssignment(taskParams, waitForDeploymentToStart),
+                    aVoid -> trainedModelAssignmentService.createNewModelAssignment(
+                        new CreateTrainedModelAssignmentAction.Request(taskParams, request.getAutoscalingSettings()),
+                        waitForDeploymentToStart
+                    ),
                     listener::onFailure
                 )
             );

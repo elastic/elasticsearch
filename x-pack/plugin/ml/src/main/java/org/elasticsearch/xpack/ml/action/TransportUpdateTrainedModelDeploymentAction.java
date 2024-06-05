@@ -81,9 +81,10 @@ public class TransportUpdateTrainedModelDeploymentAction extends TransportMaster
             )
         );
 
-        trainedModelAssignmentClusterService.updateNumberOfAllocations(
+        trainedModelAssignmentClusterService.updateDeployment(
             request.getDeploymentId(),
             request.getNumberOfAllocations(),
+            request.getAutoscalingSettings(),
             ActionListener.wrap(updatedAssignment -> {
                 auditor.info(
                     request.getDeploymentId(),

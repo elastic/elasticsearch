@@ -839,6 +839,41 @@ emp_no:integer | full_name:keyword | full_name_2:keyword | job_positions:keyword
 10005          | Kyoichi Maliniak  | Maliniak,Kyoichi    | null                                                                   | [-2.14,13.07]                 | [-2.14,13.07]
 ;
 
+mvZipLiteralNullDelim
+required_capability: mv_sort
+
+FROM employees
+| EVAL full_name = mv_zip(first_name, last_name, null)
+| KEEP emp_no, full_name
+| SORT emp_no
+| LIMIT 5;
+
+emp_no:integer | full_name:keyword
+10001          | null
+10002          | null
+10003          | null
+10004          | null
+10005          | null
+;
+
+mvZipLiteralLongDelim
+required_capability: mv_sort
+
+FROM employees
+| EVAL full_name = mv_zip(first_name, last_name, " words words words ")
+| KEEP emp_no, full_name
+| SORT emp_no
+| LIMIT 5;
+
+emp_no:integer | full_name:keyword
+10001          | Georgi words words words Facello
+10002          | Bezalel words words words Simmel
+10003          | Parto words words words Bamford
+10004          | Chirstian words words words Koblick
+10005          | Kyoichi words words words Maliniak
+;
+
+
 showTextFields
 from hosts | sort description, card, ip0, ip1 | where host == "beta" | keep host, host_group, description;
 ignoreOrder:true

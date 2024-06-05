@@ -69,7 +69,7 @@ public class RankFeaturePhaseTests extends ESTestCase {
         defaultRankFeaturePhaseRankCoordinatorContext(DEFAULT_SIZE, DEFAULT_FROM, DEFAULT_RANK_WINDOW_SIZE)
     );
 
-    private record ExpectedRankFeatureDoc(int doc, int rank, float score, String docFeatures) {}
+    private record ExpectedRankFeatureDoc(int doc, int rank, float score, String featureData) {}
 
     public void testRankFeaturePhaseWith1Shard() {
         // request params used within SearchSourceBuilder and *RankContext classes
@@ -922,7 +922,7 @@ public class RankFeaturePhaseTests extends ESTestCase {
                     SearchHit hit = hits.getHits()[i];
                     rankFeatureDocs[i] = new RankFeatureDoc(hit.docId(), hit.getScore(), shardId);
                     rankFeatureDocs[i].score += 100f;
-                    rankFeatureDocs[i].docFeatures(field, "ranked_" + hit.docId());
+                    rankFeatureDocs[i].featureData("ranked_" + hit.docId());
                     rankFeatureDocs[i].rank = i + 1;
                 }
                 return new RankFeatureShardResult(rankFeatureDocs);
@@ -1135,11 +1135,7 @@ public class RankFeaturePhaseTests extends ESTestCase {
         };
     }
 
-    private void assertRankFeatureResults(
-        RankFeatureShardResult rankFeatureShardResult,
-        List<ExpectedRankFeatureDoc> expectedResults,
-        final String field
-    ) {
+    private void assertRankFeatureResults(RankFeatureShardResult rankFeatureShardResult, List<ExpectedRankFeatureDoc> expectedResults) {
         assertEquals(expectedResults.size(), rankFeatureShardResult.rankFeatureDocs.length);
         for (int i = 0; i < expectedResults.size(); i++) {
             ExpectedRankFeatureDoc expected = expectedResults.get(i);
@@ -1147,7 +1143,7 @@ public class RankFeaturePhaseTests extends ESTestCase {
             assertEquals(expected.doc, actual.doc);
             assertEquals(expected.rank, actual.rank);
             assertEquals(expected.score, actual.score, 10E-5);
-            assertEquals(expected.docFeatures, actual.docFeatures().get(field));
+            assertEquals(expected.featureData, actual.featureData);
         }
     }
 
@@ -1163,16 +1159,12 @@ public class RankFeaturePhaseTests extends ESTestCase {
     }
 
     private void assertShardResults(SearchPhaseResult shardResult, List<ExpectedRankFeatureDoc> expectedShardResults) {
-        assertShardResults(shardResult, expectedShardResults, DEFAULT_FIELD);
-    }
-
-    private void assertShardResults(SearchPhaseResult shardResult, List<ExpectedRankFeatureDoc> expectedShardResults, final String field) {
         assertTrue(shardResult instanceof RankFeatureResult);
         RankFeatureResult rankResult = (RankFeatureResult) shardResult;
         assertNotNull(rankResult.rankFeatureResult());
         assertNull(rankResult.queryResult());
         assertNotNull(rankResult.rankFeatureResult().shardResult());
         RankFeatureShardResult rankFeatureShardResult = rankResult.rankFeatureResult().shardResult();
-        assertRankFeatureResults(rankFeatureShardResult, expectedShardResults, field);
+        assertRankFeatureResults(rankFeatureShardResult, expectedShardResults);
     }
 }

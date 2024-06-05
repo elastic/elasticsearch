@@ -516,10 +516,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                                         for (int i = 0; i < hits.getHits().length; i++) {
                                             SearchHit hit = hits.getHits()[i];
                                             rankFeatureDocs[i] = new RankFeatureDoc(hit.docId(), hit.getScore(), shardId);
-                                            rankFeatureDocs[i].docFeatures(
-                                                rankFeatureFieldName,
-                                                hit.getFields().get(rankFeatureFieldName).getValue()
-                                            );
+                                            rankFeatureDocs[i].featureData(hit.getFields().get(rankFeatureFieldName).getValue());
                                             rankFeatureDocs[i].score = (numDocs - i) + randomFloat();
                                             rankFeatureDocs[i].rank = i + 1;
                                         }
@@ -551,7 +548,6 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             queryResult = (QuerySearchResult) queryPhaseResults.get();
 
             // these are the matched docs from the query phase
-            assert queryResult.getRankShardResult() != null;
             final TestRankDoc[] queryRankDocs = ((TestRankShardResult) queryResult.getRankShardResult()).testRankDocs;
 
             // assume that we have cut down to these from the coordinator node as the top-docs to run the rank feature phase upon
@@ -577,10 +573,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             assertEquals(sortedRankWindowDocs.size(), rankFeatureShardResult.rankFeatureDocs.length);
             for (int i = 0; i < sortedRankWindowDocs.size(); i++) {
                 assertEquals((long) sortedRankWindowDocs.get(i), rankFeatureShardResult.rankFeatureDocs[i].doc);
-                assertEquals(
-                    rankFeatureShardResult.rankFeatureDocs[i].docFeatures().get(rankFeatureFieldName),
-                    "aardvark_" + sortedRankWindowDocs.get(i)
-                );
+                assertEquals(rankFeatureShardResult.rankFeatureDocs[i].featureData, "aardvark_" + sortedRankWindowDocs.get(i));
             }
 
             List<Integer> globalTopKResults = randomNonEmptySubsetOf(
@@ -751,10 +744,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                                             for (int i = 0; i < hits.getHits().length; i++) {
                                                 SearchHit hit = hits.getHits()[i];
                                                 rankFeatureDocs[i] = new RankFeatureDoc(hit.docId(), hit.getScore(), shardId);
-                                                rankFeatureDocs[i].docFeatures(
-                                                    rankFeatureFieldName,
-                                                    hit.getFields().get(rankFeatureFieldName).getValue()
-                                                );
+                                                rankFeatureDocs[i].featureData(hit.getFields().get(rankFeatureFieldName).getValue());
                                                 rankFeatureDocs[i].score = randomFloat();
                                                 rankFeatureDocs[i].rank = i + 1;
                                             }
@@ -877,10 +867,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                                         for (int i = 0; i < hits.getHits().length; i++) {
                                             SearchHit hit = hits.getHits()[i];
                                             rankFeatureDocs[i] = new RankFeatureDoc(hit.docId(), hit.getScore(), shardId);
-                                            rankFeatureDocs[i].docFeatures(
-                                                rankFeatureFieldName,
-                                                hit.getFields().get(rankFeatureFieldName).getValue()
-                                            );
+                                            rankFeatureDocs[i].featureData(hit.getFields().get(rankFeatureFieldName).getValue());
                                             rankFeatureDocs[i].score = randomFloat();
                                             rankFeatureDocs[i].rank = i + 1;
                                         }
@@ -1136,10 +1123,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                                                 for (int i = 0; i < hits.getHits().length; i++) {
                                                     SearchHit hit = hits.getHits()[i];
                                                     rankFeatureDocs[i] = new RankFeatureDoc(hit.docId(), hit.getScore(), shardId);
-                                                    rankFeatureDocs[i].docFeatures(
-                                                        rankFeatureFieldName,
-                                                        hit.getFields().get(rankFeatureFieldName).getValue()
-                                                    );
+                                                    rankFeatureDocs[i].featureData(hit.getFields().get(rankFeatureFieldName).getValue());
                                                     rankFeatureDocs[i].score = randomFloat();
                                                     rankFeatureDocs[i].rank = i + 1;
                                                 }

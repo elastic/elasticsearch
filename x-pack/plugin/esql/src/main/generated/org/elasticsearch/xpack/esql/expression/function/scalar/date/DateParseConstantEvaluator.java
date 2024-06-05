@@ -35,10 +35,10 @@ public final class DateParseConstantEvaluator implements EvalOperator.Expression
 
   public DateParseConstantEvaluator(Source source, EvalOperator.ExpressionEvaluator val,
       DateFormatter formatter, DriverContext driverContext) {
-    this.warnings = new Warnings(source);
     this.val = val;
     this.formatter = formatter;
     this.driverContext = driverContext;
+    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override

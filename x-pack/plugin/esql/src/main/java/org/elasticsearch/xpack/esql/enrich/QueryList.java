@@ -26,15 +26,15 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.IntFunction;
 
-import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
-import static org.elasticsearch.xpack.ql.type.DataTypes.IP;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 
 /**
  * Generates a list of Lucene queries based on the input block.
@@ -156,6 +156,7 @@ abstract class QueryList {
                 }
                 case NULL -> offset -> null;
                 case DOC -> throw new EsqlIllegalArgumentException("can't read values from [doc] block");
+                case COMPOSITE -> throw new EsqlIllegalArgumentException("can't read values from [composite] block");
                 case UNKNOWN -> throw new EsqlIllegalArgumentException("can't read values from [" + block + "]");
             };
         }

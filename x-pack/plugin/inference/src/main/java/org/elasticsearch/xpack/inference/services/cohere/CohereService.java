@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
+import org.elasticsearch.xpack.inference.services.cohere.completion.CohereCompletionModel;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.cohere.rerank.CohereRerankModel;
@@ -49,6 +50,11 @@ import static org.elasticsearch.xpack.inference.services.cohere.CohereServiceFie
 
 public class CohereService extends SenderService {
     public static final String NAME = "cohere";
+
+    // TODO Batching - We'll instantiate a batching class within the services that want to support it and pass it through to
+    // the Cohere*RequestManager via the CohereActionCreator class
+    // The reason it needs to be done here is that the batching logic needs to hold state but the *RequestManagers are instantiated
+    // on every request
 
     public CohereService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents) {
         super(factory, serviceComponents);
@@ -130,6 +136,15 @@ public class CohereService extends SenderService {
                 context
             );
             case RERANK -> new CohereRerankModel(inferenceEntityId, taskType, NAME, serviceSettings, taskSettings, secretSettings, context);
+            case COMPLETION -> new CohereCompletionModel(
+                inferenceEntityId,
+                taskType,
+                NAME,
+                serviceSettings,
+                taskSettings,
+                secretSettings,
+                context
+            );
             default -> throw new ElasticsearchStatusException(failureMessage, RestStatus.BAD_REQUEST);
         };
     }

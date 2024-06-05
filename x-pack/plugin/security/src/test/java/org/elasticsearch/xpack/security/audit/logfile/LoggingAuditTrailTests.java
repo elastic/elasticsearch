@@ -37,6 +37,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.FakeRestRequest.Builder;
@@ -360,7 +361,8 @@ public class LoggingAuditTrailTests extends ESTestCase {
             securityIndexManager,
             clusterService,
             mock(CacheInvalidatorRegistry.class),
-            mock(ThreadPool.class)
+            mock(ThreadPool.class),
+            MeterRegistry.NOOP
         );
     }
 
@@ -3243,13 +3245,28 @@ public class LoggingAuditTrailTests extends ESTestCase {
                         {
                           "names": [
                             "logs*"
-                          ]
+                          ],
+                          "query": {
+                            "term": {
+                              "tag": 42
+                            }
+                          },
+                          "field_security": {
+                            "grant": [
+                              "*"
+                            ],
+                            "except": [
+                              "private"
+                            ]
+                          }
                         }
                       ]
                     }""",
                 "[{\"cluster\":[\"cross_cluster_search\",\"monitor_enrich\"],"
                     + "\"indices\":[{\"names\":[\"logs*\"],"
-                    + "\"privileges\":[\"read\",\"read_cross_cluster\",\"view_index_metadata\"]}],"
+                    + "\"privileges\":[\"read\",\"read_cross_cluster\",\"view_index_metadata\"],"
+                    + "\"field_security\":{\"grant\":[\"*\"],\"except\":[\"private\"]},"
+                    + "\"query\":\"{\\\"term\\\":{\\\"tag\\\":42}}\"}],"
                     + "\"applications\":[],\"run_as\":[]}]"
             ),
             new CrossClusterApiKeyAccessWithSerialization(
@@ -3275,20 +3292,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
                           {
                             "names": [
                               "logs*"
-                            ],
-                            "query": {
-                              "term": {
-                                "tag": 42
-                              }
-                            },
-                            "field_security": {
-                              "grant": [
-                                "*"
-                              ],
-                              "except": [
-                                "private"
-                              ]
-                            }
+                            ]
                           }
                         ],
                         "replication": [
@@ -3301,8 +3305,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
                         ]
                       }""",
                 "[{\"cluster\":[\"cross_cluster_search\",\"monitor_enrich\",\"cross_cluster_replication\"],"
-                    + "\"indices\":[{\"names\":[\"logs*\"],\"privileges\":[\"read\",\"read_cross_cluster\",\"view_index_metadata\"],"
-                    + "\"field_security\":{\"grant\":[\"*\"],\"except\":[\"private\"]},\"query\":\"{\\\"term\\\":{\\\"tag\\\":42}}\"},"
+                    + "\"indices\":[{\"names\":[\"logs*\"],\"privileges\":[\"read\",\"read_cross_cluster\",\"view_index_metadata\"]},"
                     + "{\"names\":[\"archive\"],\"privileges\":[\"cross_cluster_replication\",\"cross_cluster_replication_internal\"],"
                     + "\"allow_restricted_indices\":true}],\"applications\":[],\"run_as\":[]}]"
             )

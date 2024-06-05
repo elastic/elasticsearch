@@ -49,7 +49,7 @@ or `_all`.
   {ilm-init} and are in an error state, either due to an encountering an error while
   executing the policy, or attempting to use a policy that does not exist.
 
-include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
 [[ilm-explain-lifecycle-example]]
 ==== {api-examples-title}

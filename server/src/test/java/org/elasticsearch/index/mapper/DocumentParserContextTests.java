@@ -11,6 +11,10 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
+
+import java.io.IOException;
 
 import static org.hamcrest.Matchers.contains;
 
@@ -67,4 +71,14 @@ public class DocumentParserContextTests extends ESTestCase {
         assertThat(context.getIgnoredFields(), contains("keyword_field"));
     }
 
+    public void testSwitchParser() throws IOException {
+        var settings = Settings.builder().put("index.mapping.total_fields.limit", 1).build();
+        context = new TestDocumentParserContext(settings);
+        XContentParser parser = createParser(JsonXContent.jsonXContent, "{ \"foo\": \"bar\" }");
+        DocumentParserContext newContext = context.switchParser(parser);
+        assertNotEquals(context.parser(), newContext.parser());
+        assertEquals(context.indexSettings(), newContext.indexSettings());
+        assertEquals(parser, newContext.parser());
+        assertEquals("1", newContext.indexSettings().getSettings().get("index.mapping.total_fields.limit"));
+    }
 }

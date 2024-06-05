@@ -16,6 +16,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.ShapeType;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
@@ -30,6 +31,24 @@ import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.Order;
+import org.elasticsearch.xpack.esql.core.expression.function.FunctionRegistry;
+import org.elasticsearch.xpack.esql.core.expression.predicate.logical.And;
+import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Not;
+import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
+import org.elasticsearch.xpack.esql.core.index.EsIndex;
+import org.elasticsearch.xpack.esql.core.index.IndexResolution;
+import org.elasticsearch.xpack.esql.core.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.core.plan.logical.Limit;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
@@ -37,7 +56,6 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroid;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
-import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeoPoint;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialContains;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialDisjoint;
@@ -84,25 +102,6 @@ import org.elasticsearch.xpack.esql.querydsl.query.SpatialRelatesQuery;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.expression.Alias;
-import org.elasticsearch.xpack.ql.expression.Attribute;
-import org.elasticsearch.xpack.ql.expression.Expressions;
-import org.elasticsearch.xpack.ql.expression.FieldAttribute;
-import org.elasticsearch.xpack.ql.expression.Literal;
-import org.elasticsearch.xpack.ql.expression.MetadataAttribute;
-import org.elasticsearch.xpack.ql.expression.NamedExpression;
-import org.elasticsearch.xpack.ql.expression.Order;
-import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
-import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
-import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
-import org.elasticsearch.xpack.ql.index.EsIndex;
-import org.elasticsearch.xpack.ql.index.IndexResolution;
-import org.elasticsearch.xpack.ql.plan.logical.Filter;
-import org.elasticsearch.xpack.ql.plan.logical.Limit;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.elasticsearch.xpack.ql.type.EsField;
 import org.junit.Before;
 
 import java.util.Arrays;
@@ -123,16 +122,16 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.statsForMissingField;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.SerializationTestUtils.assertSerialization;
+import static org.elasticsearch.xpack.esql.core.expression.Expressions.name;
+import static org.elasticsearch.xpack.esql.core.expression.Expressions.names;
+import static org.elasticsearch.xpack.esql.core.expression.Order.OrderDirection.ASC;
+import static org.elasticsearch.xpack.esql.core.expression.function.scalar.FunctionTestUtils.l;
+import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.parser.ExpressionBuilder.MAX_EXPRESSION_DEPTH;
 import static org.elasticsearch.xpack.esql.parser.LogicalPlanBuilder.MAX_QUERY_DEPTH;
 import static org.elasticsearch.xpack.esql.plan.physical.AggregateExec.Mode.FINAL;
 import static org.elasticsearch.xpack.esql.plan.physical.AggregateExec.Mode.PARTIAL;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.CARTESIAN_POINT;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_POINT;
-import static org.elasticsearch.xpack.ql.expression.Expressions.name;
-import static org.elasticsearch.xpack.ql.expression.Expressions.names;
-import static org.elasticsearch.xpack.ql.expression.Order.OrderDirection.ASC;
-import static org.elasticsearch.xpack.ql.expression.function.scalar.FunctionTestUtils.l;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -149,7 +148,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     /**
      * Estimated size of a keyword field in bytes.
      */
-    private static final int KEYWORD_EST = EstimatesRowSize.estimateSize(DataTypes.KEYWORD);
+    private static final int KEYWORD_EST = EstimatesRowSize.estimateSize(DataType.KEYWORD);
 
     private EsqlParser parser;
     private LogicalPlanOptimizer logicalOptimizer;
@@ -240,8 +239,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 List.of("a", "b"),
                 Map.of("", "idx"),
                 Map.ofEntries(
-                    Map.entry("a", new EsField("a", DataTypes.INTEGER, Map.of(), true)),
-                    Map.entry("b", new EsField("b", DataTypes.LONG, Map.of(), true))
+                    Map.entry("a", new EsField("a", DataType.INTEGER, Map.of(), true)),
+                    Map.entry("b", new EsField("b", DataType.LONG, Map.of(), true))
                 )
             )
         );
@@ -254,10 +253,10 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 List.of("city", "airport", "region", "city_boundary"),
                 Map.of("", "airport_city_boundaries"),
                 Map.ofEntries(
-                    Map.entry("city", new EsField("city", DataTypes.KEYWORD, Map.of(), true)),
-                    Map.entry("airport", new EsField("airport", DataTypes.TEXT, Map.of(), false)),
-                    Map.entry("region", new EsField("region", DataTypes.TEXT, Map.of(), false)),
-                    Map.entry("city_boundary", new EsField("city_boundary", EsqlDataTypes.GEO_SHAPE, Map.of(), false))
+                    Map.entry("city", new EsField("city", DataType.KEYWORD, Map.of(), true)),
+                    Map.entry("airport", new EsField("airport", DataType.TEXT, Map.of(), false)),
+                    Map.entry("region", new EsField("region", DataType.TEXT, Map.of(), false)),
+                    Map.entry("city_boundary", new EsField("city_boundary", DataType.GEO_SHAPE, Map.of(), false))
                 )
             )
         );
@@ -269,7 +268,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 EnrichPolicy.MATCH_TYPE,
                 List.of("department"),
                 Map.of("", ".enrich-departments-1", "cluster_1", ".enrich-departments-2"),
-                Map.of("department", new EsField("department", DataTypes.KEYWORD, Map.of(), true))
+                Map.of("department", new EsField("department", DataType.KEYWORD, Map.of(), true))
             )
         );
         enrichResolution.addResolvedPolicy(
@@ -280,7 +279,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 EnrichPolicy.MATCH_TYPE,
                 List.of("department"),
                 Map.of("", ".enrich-departments-3"),
-                Map.of("department", new EsField("department", DataTypes.KEYWORD, Map.of(), true))
+                Map.of("department", new EsField("department", DataType.KEYWORD, Map.of(), true))
             )
         );
         enrichResolution.addResolvedPolicy(
@@ -291,7 +290,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 EnrichPolicy.MATCH_TYPE,
                 List.of("department"),
                 Map.of("cluster_1", ".enrich-departments-2"),
-                Map.of("department", new EsField("department", DataTypes.KEYWORD, Map.of(), true))
+                Map.of("department", new EsField("department", DataType.KEYWORD, Map.of(), true))
             )
         );
         enrichResolution.addResolvedPolicy(
@@ -302,7 +301,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 EnrichPolicy.MATCH_TYPE,
                 List.of("supervisor"),
                 Map.of("", ".enrich-supervisors-a", "cluster_1", ".enrich-supervisors-b"),
-                Map.of("supervisor", new EsField("supervisor", DataTypes.KEYWORD, Map.of(), true))
+                Map.of("supervisor", new EsField("supervisor", DataType.KEYWORD, Map.of(), true))
             )
         );
         enrichResolution.addResolvedPolicy(
@@ -313,7 +312,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 EnrichPolicy.MATCH_TYPE,
                 List.of("supervisor"),
                 Map.of("", ".enrich-supervisors-c"),
-                Map.of("supervisor", new EsField("supervisor", DataTypes.KEYWORD, Map.of(), true))
+                Map.of("supervisor", new EsField("supervisor", DataType.KEYWORD, Map.of(), true))
             )
         );
         enrichResolution.addResolvedPolicy(
@@ -324,7 +323,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 EnrichPolicy.MATCH_TYPE,
                 List.of("supervisor"),
                 Map.of("cluster_1", ".enrich-supervisors-b"),
-                Map.of("supervisor", new EsField("supervisor", DataTypes.KEYWORD, Map.of(), true))
+                Map.of("supervisor", new EsField("supervisor", DataType.KEYWORD, Map.of(), true))
             )
         );
         return enrichResolution;
@@ -2043,7 +2042,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         List<Attribute> emptyAttrList = List.of();
         var badPlan = verifiedPlan.transformDown(
             EsQueryExec.class,
-            node -> new EsSourceExec(node.source(), node.index(), emptyAttrList, node.query())
+            node -> new EsSourceExec(node.source(), node.index(), emptyAttrList, node.query(), IndexMode.STANDARD)
         );
 
         var e = expectThrows(VerificationException.class, () -> physicalPlanOptimizer.verify(badPlan));
@@ -2285,102 +2284,44 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      *           \_EsQueryExec[airports], query[][_doc{f}#26], limit[], sort[] estimatedRowSize[54]
      *
      * Note the FieldExtractExec has 'location' set for stats: FieldExtractExec[location{f}#9][location{f}#9]
+     *
+     * Also note that the type converting function is removed when it does not actually convert the type,
+     * ensuring that ReferenceAttributes are not created for the same field, and the optimization can still work.
      */
     public void testSpatialTypesAndStatsUseDocValues() {
-        var plan = this.physicalPlan("""
-            from airports
-            | stats centroid = st_centroid_agg(location)
-            """, airports);
+        for (String query : new String[] {
+            "from airports | stats centroid = st_centroid_agg(location)",
+            "from airports | stats centroid = st_centroid_agg(to_geopoint(location))",
+            "from airports | eval location = to_geopoint(location) | stats centroid = st_centroid_agg(location)" }) {
+            var plan = this.physicalPlan(query, airports);
 
-        var limit = as(plan, LimitExec.class);
-        var agg = as(limit.child(), AggregateExec.class);
-        // Before optimization the aggregation does not use doc-values
-        assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
+            var limit = as(plan, LimitExec.class);
+            var agg = as(limit.child(), AggregateExec.class);
+            // Before optimization the aggregation does not use doc-values
+            assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
 
-        var exchange = as(agg.child(), ExchangeExec.class);
-        var fragment = as(exchange.child(), FragmentExec.class);
-        var fAgg = as(fragment.fragment(), Aggregate.class);
-        as(fAgg.child(), EsRelation.class);
+            var exchange = as(agg.child(), ExchangeExec.class);
+            var fragment = as(exchange.child(), FragmentExec.class);
+            var fAgg = as(fragment.fragment(), Aggregate.class);
+            as(fAgg.child(), EsRelation.class);
 
-        // Now optimize the plan and assert the aggregation uses doc-values
-        var optimized = optimizedPlan(plan);
-        limit = as(optimized, LimitExec.class);
-        agg = as(limit.child(), AggregateExec.class);
-        // Above the exchange (in coordinator) the aggregation is not using doc-values
-        assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
-        exchange = as(agg.child(), ExchangeExec.class);
-        agg = as(exchange.child(), AggregateExec.class);
-        // below the exchange (in data node) the aggregation is using doc-values
-        assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, true);
-        var extract = as(agg.child(), FieldExtractExec.class);
-        source(extract.child());
-        assertTrue(
-            "Expect field attribute to be extracted as doc-values",
-            extract.attributesToExtract().stream().allMatch(attr -> extract.hasDocValuesAttribute(attr) && attr.dataType() == GEO_POINT)
-        );
-    }
-
-    /**
-     * Before local optimizations:
-     *
-     * LimitExec[1000[INTEGER]]
-     * \_AggregateExec[[],[SPATIALCENTROID(__centroid_SPATIALCENTROID@b54a93a7{r}#10) AS centroid],FINAL,null]
-     *   \_ExchangeExec[[xVal{r}#11, xDel{r}#12, yVal{r}#13, yDel{r}#14, count{r}#15],true]
-     *     \_FragmentExec[filter=null, estimatedRowSize=0, fragment=[
-     * Aggregate[[],[SPATIALCENTROID(__centroid_SPATIALCENTROID@b54a93a7{r}#10) AS centroid]]
-     * \_Eval[[TOGEOPOINT(location{f}#9) AS __centroid_SPATIALCENTROID@b54a93a7]]
-     *   \_EsRelation[airports][abbrev{f}#5, location{f}#9, name{f}#6, scalerank{f}..]]]
-     *
-     * After local optimizations:
-     *
-     * LimitExec[1000[INTEGER]]
-     * \_AggregateExec[[],[SPATIALCENTROID(__centroid_SPATIALCENTROID@ad2847b6{r}#10) AS centroid],FINAL,50]
-     *   \_ExchangeExec[[xVal{r}#11, xDel{r}#12, yVal{r}#13, yDel{r}#14, count{r}#15],true]
-     *     \_AggregateExec[[],[SPATIALCENTROID(__centroid_SPATIALCENTROID@ad2847b6{r}#10) AS centroid],PARTIAL,50]
-     *       \_EvalExec[[TOGEOPOINT(location{f}#9) AS __centroid_SPATIALCENTROID@ad2847b6]]
-     *         \_FieldExtractExec[location{f}#9][]
-     *           \_EsQueryExec[airports], query[][_doc{f}#28], limit[], sort[] estimatedRowSize[104]
-     *
-     * Note the FieldExtractExec has 'location' set for stats: FieldExtractExec[location{f}#9][location{f}#9]
-     */
-    public void testSpatialTypesAndStatsUseDocValuesNested() {
-        var plan = this.physicalPlan("""
-            from airports
-            | stats centroid = st_centroid_agg(to_geopoint(location))
-            """, airports);
-
-        var limit = as(plan, LimitExec.class);
-        var agg = as(limit.child(), AggregateExec.class);
-        // Before optimization the aggregation does not use doc-values
-        assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
-
-        var exchange = as(agg.child(), ExchangeExec.class);
-        var fragment = as(exchange.child(), FragmentExec.class);
-        var fAgg = as(fragment.fragment(), Aggregate.class);
-        var eval = as(fAgg.child(), Eval.class);
-        var toGeoPoint = as(eval.fields().get(0).child(), ToGeoPoint.class);
-        assertThat("Expected point field", toGeoPoint.field().dataType(), equalTo(GEO_POINT));
-        as(eval.child(), EsRelation.class);
-
-        // Now optimize the plan and assert the aggregation uses doc-values
-        var optimized = optimizedPlan(plan);
-        limit = as(optimized, LimitExec.class);
-        agg = as(limit.child(), AggregateExec.class);
-        // Above the exchange (in coordinator) the aggregation is not using doc-values
-        assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
-        exchange = as(agg.child(), ExchangeExec.class);
-        agg = as(exchange.child(), AggregateExec.class);
-        // TODO: Change this to expect to useDocValues for correctly nested reference attributes that relate to functions on fields
-        assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
-        var evalExec = as(agg.child(), EvalExec.class);
-        var extract = as(evalExec.child(), FieldExtractExec.class);
-        source(extract.child());
-        // TODO: update this test when we support nested fields in SpatialDocValuesExtraction
-        // assertTrue("Expect attributes field extract preference to be DOC_VALUES", extract.attributesToExtract().stream().allMatch(attr ->
-        // {
-        // MappedFieldType.FieldExtractPreference extractPreference = extract.extractPreference(attr);
-        // return extractPreference == DOC_VALUES && attr.dataType() == GEO_POINT;
-        // }));
+            // Now optimize the plan and assert the aggregation uses doc-values
+            var optimized = optimizedPlan(plan);
+            limit = as(optimized, LimitExec.class);
+            agg = as(limit.child(), AggregateExec.class);
+            // Above the exchange (in coordinator) the aggregation is not using doc-values
+            assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
+            exchange = as(agg.child(), ExchangeExec.class);
+            agg = as(exchange.child(), AggregateExec.class);
+            // below the exchange (in data node) the aggregation is using doc-values
+            assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, true);
+            var extract = as(agg.child(), FieldExtractExec.class);
+            source(extract.child());
+            assertTrue(
+                "Expect field attribute to be extracted as doc-values",
+                extract.attributesToExtract().stream().allMatch(attr -> extract.hasDocValuesAttribute(attr) && attr.dataType() == GEO_POINT)
+            );
+        }
     }
 
     /**

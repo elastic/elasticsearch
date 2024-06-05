@@ -7,15 +7,14 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar;
 
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
+import org.elasticsearch.xpack.esql.core.tree.Location;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Literal;
-import org.elasticsearch.xpack.ql.expression.TypeResolutions;
-import org.elasticsearch.xpack.ql.tree.Location;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.hamcrest.Matcher;
 
 import java.util.ArrayList;
@@ -63,15 +62,15 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
 
     private Set<DataType> withNullAndSorted(DataType[] validTypes) {
         Set<DataType> realValidTypes = new LinkedHashSet<>();
-        Arrays.stream(validTypes).sorted(Comparator.comparing(DataType::name)).forEach(realValidTypes::add);
-        realValidTypes.add(DataTypes.NULL);
+        Arrays.stream(validTypes).sorted(Comparator.comparing(DataType::nameUpper)).forEach(realValidTypes::add);
+        realValidTypes.add(DataType.NULL);
         return realValidTypes;
     }
 
     public Set<DataType> sortedTypesSet(DataType[] validTypes, DataType... additionalTypes) {
         Set<DataType> mergedSet = new LinkedHashSet<>();
         Stream.concat(Stream.of(validTypes), Stream.of(additionalTypes))
-            .sorted(Comparator.comparing(DataType::name))
+            .sorted(Comparator.comparing(DataType::nameUpper))
             .forEach(mergedSet::add);
         return mergedSet;
     }
@@ -80,26 +79,26 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
      * All integer types (long, int, short, byte). For passing to {@link #required} or {@link #optional}.
      */
     protected static DataType[] integers() {
-        return EsqlDataTypes.types().stream().filter(DataType::isInteger).toArray(DataType[]::new);
+        return DataType.types().stream().filter(DataType::isInteger).toArray(DataType[]::new);
     }
 
     /**
      * All rational types (double, float, whatever). For passing to {@link #required} or {@link #optional}.
      */
     protected static DataType[] rationals() {
-        return EsqlDataTypes.types().stream().filter(DataType::isRational).toArray(DataType[]::new);
+        return DataType.types().stream().filter(DataType::isRational).toArray(DataType[]::new);
     }
 
     /**
      * All numeric types (integers and rationals.) For passing to {@link #required} or {@link #optional}.
      */
     protected static DataType[] numerics() {
-        return EsqlDataTypes.types().stream().filter(DataType::isNumeric).toArray(DataType[]::new);
+        return DataType.types().stream().filter(DataType::isNumeric).toArray(DataType[]::new);
     }
 
     protected final DataType[] representableNumerics() {
         // TODO numeric should only include representable numbers but that is a change for a followup
-        return EsqlDataTypes.types().stream().filter(DataType::isNumeric).filter(EsqlDataTypes::isRepresentable).toArray(DataType[]::new);
+        return DataType.types().stream().filter(DataType::isNumeric).filter(EsqlDataTypes::isRepresentable).toArray(DataType[]::new);
     }
 
     protected record ArgumentSpec(boolean optional, Set<DataType> validTypes) {}
@@ -107,7 +106,7 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
     public final void testResolveType() {
         List<ArgumentSpec> specs = argSpec();
         for (int mutArg = 0; mutArg < specs.size(); mutArg++) {
-            for (DataType mutArgType : EsqlDataTypes.types()) {
+            for (DataType mutArgType : DataType.types()) {
                 List<Expression> args = new ArrayList<>(specs.size());
                 for (int arg = 0; arg < specs.size(); arg++) {
                     if (mutArg == arg) {
@@ -161,11 +160,11 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
     }
 
     private String expectedTypeName(Set<DataType> validTypes) {
-        List<DataType> withoutNull = validTypes.stream().filter(t -> t != DataTypes.NULL).toList();
+        List<DataType> withoutNull = validTypes.stream().filter(t -> t != DataType.NULL).toList();
         if (withoutNull.equals(Arrays.asList(strings()))) {
             return "string";
         }
-        if (withoutNull.equals(Arrays.asList(integers())) || withoutNull.equals(List.of(DataTypes.INTEGER))) {
+        if (withoutNull.equals(Arrays.asList(integers())) || withoutNull.equals(List.of(DataType.INTEGER))) {
             return "integer";
         }
         if (withoutNull.equals(Arrays.asList(rationals()))) {
@@ -174,14 +173,14 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
         if (withoutNull.equals(Arrays.asList(numerics())) || withoutNull.equals(Arrays.asList(representableNumerics()))) {
             return "numeric";
         }
-        if (withoutNull.equals(List.of(DataTypes.DATETIME))) {
+        if (withoutNull.equals(List.of(DataType.DATETIME))) {
             return "datetime";
         }
-        if (withoutNull.equals(List.of(DataTypes.IP))) {
+        if (withoutNull.equals(List.of(DataType.IP))) {
             return "ip";
         }
-        List<DataType> negations = Stream.concat(Stream.of(numerics()), Stream.of(EsqlDataTypes.DATE_PERIOD, EsqlDataTypes.TIME_DURATION))
-            .sorted(Comparator.comparing(DataType::name))
+        List<DataType> negations = Stream.concat(Stream.of(numerics()), Stream.of(DataType.DATE_PERIOD, DataType.TIME_DURATION))
+            .sorted(Comparator.comparing(DataType::nameUpper))
             .toList();
         if (withoutNull.equals(negations)) {
             return "numeric, date_period or time_duration";

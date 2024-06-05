@@ -10,6 +10,8 @@ Updates the fields related to the last sync of a connector.
 
 This action is used for analytics and monitoring.
 
+To get started with Connector APIs, check out the {enterprise-search-ref}/connectors-tutorial-api.html[tutorial^].
+
 [[update-connector-last-sync-api-request]]
 ==== {api-request-title}
 

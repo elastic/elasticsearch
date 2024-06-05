@@ -304,6 +304,29 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
         );
     }
 
+    public void testSkippingFieldsWhenVerboseIsFalse() {
+        var repos = appendToCopy(
+            randomList(1, 10, () -> createRepositoryMetadata("healthy-repo", false)),
+            createRepositoryMetadata("corrupted-repo", true)
+        );
+        var clusterState = createClusterStateWith(new RepositoriesMetadata(repos));
+        var service = createRepositoryIntegrityHealthIndicatorService(clusterState);
+
+        assertThat(
+            service.calculate(false, healthInfo),
+            equalTo(
+                new HealthIndicatorResult(
+                    NAME,
+                    YELLOW,
+                    "Detected [1] corrupted snapshot repository.",
+                    HealthIndicatorDetails.EMPTY,
+                    RepositoryIntegrityHealthIndicatorService.IMPACTS,
+                    List.of()
+                )
+            )
+        );
+    }
+
     private List<Diagnosis> createDiagnoses(
         List<RepositoryMetadata> repos,
         DiscoveryNodes nodes,

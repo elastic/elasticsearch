@@ -33,7 +33,7 @@
     </button>
     <button role="tab"
             aria-selected="false"
-            aria-controls="infer-api-reindex-mistral"
+            aria-controls="infer-api-reindex-mistral-tab"
             id="infer-api-reindex-mistral">
       Mistral
     </button>

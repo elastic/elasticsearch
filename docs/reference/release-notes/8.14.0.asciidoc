@@ -11,6 +11,8 @@ Also see <<breaking-changes-8.14,Breaking changes in 8.14>>.
 
 Security::
 * Prevent DLS/FLS if `replication` is assigned {es-pull}108600[#108600]
+* Apply stricter Document Level Security (DLS) rules for the validate query API with the rewrite parameter {es-pull}105709[#105709]
+* Apply stricter Document Level Security (DLS) rules for terms aggregations when min_doc_count is set to 0 {es-pull}105714[#105714]
 
 [[bug-8.14.0]]
 [float]
@@ -26,6 +28,7 @@ Application::
 * [Bugfix] Connector API - fix status serialisation issue in termquery {es-pull}108365[#108365]
 * [Connector API] Fix bug with filtering validation toXContent {es-pull}107467[#107467]
 * [Connector API] Fix bug with parsing *_doc_count nullable fields {es-pull}108854[#108854]
+* [Connector API] Fix bug with with wrong target index for access control sync {es-pull}109097[#109097]
 
 Authorization::
 * Users with monitor privileges can access async_search/status endpoint even when setting keep_alive {es-pull}107383[#107383]
@@ -96,6 +99,7 @@ Infra/Node Lifecycle::
 * Wait indefintely for http connections on shutdown by default {es-pull}106511[#106511]
 
 Infra/Scripting::
+* Guard against a null scorer in painless execute {es-pull}109048[#109048] (issue: {es-issue}43541[#43541])
 * Painless: Apply true regex limit factor with FIND and MATCH operation {es-pull}105670[#105670]
 
 Ingest Node::
@@ -116,8 +120,10 @@ Machine Learning::
 Mapping::
 * Dedupe terms in terms queries {es-pull}106381[#106381]
 * Extend support of `allowedFields` to `getMatchingFieldNames` and `getAllFields` {es-pull}106862[#106862]
+* Fix for raw mapping merge of fields named "properties" {es-pull}108867[#108867] (issue: {es-issue}108866[#108866])
 * Handle infinity during synthetic source construction for scaled float field {es-pull}107494[#107494] (issue: {es-issue}107101[#107101])
 * Handle pass-through subfields with deep nesting {es-pull}106767[#106767]
+* Wrap "Pattern too complex" exception into an `IllegalArgumentException` {es-pull}109173[#109173]
 
 Network::
 * Fix HTTP corner-case response leaks {es-pull}105617[#105617]
@@ -142,6 +148,7 @@ Security::
 * Fix field caps and field level security {es-pull}106731[#106731]
 
 Snapshot/Restore::
+* Fix double-pausing shard snapshot {es-pull}109148[#109148] (issue: {es-issue}109143[#109143])
 * Treat 404 as empty register in `AzureBlobStore` {es-pull}108900[#108900] (issue: {es-issue}108504[#108504])
 * `SharedBlobCacheService.maybeFetchRegion` should use `computeCacheFileRegionSize` {es-pull}106685[#106685]
 

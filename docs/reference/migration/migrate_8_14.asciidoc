@@ -42,6 +42,25 @@ Remove any document-level security (DLS) or field-level security (FLS) definitio
 
 
 [discrete]
+[[breaking_814_dls_changes]]
+==== Stricter Document Level Security (DLS)
+
+[[stricter_dls_814]]
+.Document Level Security (DLS) applies stricter checks for the validate query API and for terms aggregations when min_doc_count is set to 0.
+
+[%collapsible]
+====
+*Details* +
+When Document Level Security (DLS) is applied to terms aggregations and min_doc_count is set to 0, stricter security rules apply.
+
+When Document Level Security (DLS) is applied to the validate query API with the rewrite parameter, stricter security rules apply.
+
+*Impact* +
+If needed, test workflows with DLS enabled to ensure that the stricter security rules do not impact your application.
+====
+
+
+[discrete]
 [[deprecated-8.14]]
 === Deprecations
 

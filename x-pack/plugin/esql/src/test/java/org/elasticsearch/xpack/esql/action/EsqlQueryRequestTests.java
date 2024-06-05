@@ -149,41 +149,10 @@ public class EsqlQueryRequestTests extends ESTestCase {
             }""", "unknown field [asdf]");
     }
 
-    public void testAnyVersionIsValid() throws IOException {
-        String validVersionString = randomAlphaOfLength(5);
-
-        String json = String.format(Locale.ROOT, """
-            {
-                "version": "%s",
-                "query": "ROW x = 1"
-            }
-            """, validVersionString);
-
-        EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
-        assertNull(request.validate());
-
-        request = parseEsqlQueryRequestAsync(json);
-        assertNull(request.validate());
-    }
-
-    public void testMissingVersionIsValid() throws IOException {
-        String missingVersion = randomBoolean() ? "" : ", \"version\": \"\"";
-        String json = String.format(Locale.ROOT, """
-            {
-                "columnar": true,
-                "query": "row x = 1"
-                %s
-            }""", missingVersion);
-
-        EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
-        assertNull(request.validate());
-    }
-
     public void testMissingQueryIsNotValid() throws IOException {
         String json = """
             {
-                "columnar": true,
-                "version": "snapshot"
+                "columnar": true
             }""";
         EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
         assertNotNull(request.validate());

@@ -1,5 +1,11 @@
 pr: 105714
-summary: Cross check livedocs for terms aggs when index access control list is non-null
-area: "Aggregations"
-type: bug
+summary: Apply stricter Document Level Security (DLS) rules for terms aggregations when min_doc_count is set to 0.
+area: Security
+type: breaking
 issues: []
+breaking:
+  title: "Apply stricter Document Level Security (DLS) rules for terms aggregations when min_doc_count is set to 0"
+  area: REST API
+  details: When Document Level Security (DLS) is applied to terms aggregations and min_doc_count is set to 0, stricter security rules apply.
+  impact: If needed, test workflows with DLS enabled to ensure that the stricter security rules do not impact your application.
+  notable: false

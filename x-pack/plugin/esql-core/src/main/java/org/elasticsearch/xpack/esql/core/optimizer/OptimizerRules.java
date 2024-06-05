@@ -35,7 +35,7 @@ import org.elasticsearch.xpack.esql.core.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.core.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.core.rule.Rule;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.ReflectionUtils;
 
 import java.time.ZoneId;
@@ -130,7 +130,7 @@ public final class OptimizerRules {
                 }
 
                 if (FALSE.equals(l) || FALSE.equals(r)) {
-                    return new Literal(bc.source(), Boolean.FALSE, DataTypes.BOOLEAN);
+                    return new Literal(bc.source(), Boolean.FALSE, DataType.BOOLEAN);
                 }
                 if (l.semanticEquals(r)) {
                     return l;
@@ -160,7 +160,7 @@ public final class OptimizerRules {
 
             if (bc instanceof Or) {
                 if (TRUE.equals(l) || TRUE.equals(r)) {
-                    return new Literal(bc.source(), Boolean.TRUE, DataTypes.BOOLEAN);
+                    return new Literal(bc.source(), Boolean.TRUE, DataType.BOOLEAN);
                 }
 
                 if (FALSE.equals(l)) {
@@ -205,10 +205,10 @@ public final class OptimizerRules {
             Expression c = n.field();
 
             if (TRUE.semanticEquals(c)) {
-                return new Literal(n.source(), Boolean.FALSE, DataTypes.BOOLEAN);
+                return new Literal(n.source(), Boolean.FALSE, DataType.BOOLEAN);
             }
             if (FALSE.semanticEquals(c)) {
-                return new Literal(n.source(), Boolean.TRUE, DataTypes.BOOLEAN);
+                return new Literal(n.source(), Boolean.TRUE, DataType.BOOLEAN);
             }
 
             Expression negated = maybeSimplifyNegatable(c);
@@ -365,7 +365,7 @@ public final class OptimizerRules {
                 boolean nullLeft = Expressions.isNull(or.left());
                 boolean nullRight = Expressions.isNull(or.right());
                 if (nullLeft && nullRight) {
-                    return new Literal(binaryLogic.source(), null, DataTypes.NULL);
+                    return new Literal(binaryLogic.source(), null, DataType.NULL);
                 }
                 if (nullLeft) {
                     return or.right();
@@ -376,7 +376,7 @@ public final class OptimizerRules {
             }
             if (binaryLogic instanceof And and) {
                 if (Expressions.isNull(and.left()) || Expressions.isNull(and.right())) {
-                    return new Literal(binaryLogic.source(), null, DataTypes.NULL);
+                    return new Literal(binaryLogic.source(), null, DataType.NULL);
                 }
             }
             return binaryLogic;
@@ -471,11 +471,11 @@ public final class OptimizerRules {
         protected Expression tryReplaceIsNullIsNotNull(Expression e) {
             if (e instanceof IsNotNull isnn) {
                 if (isnn.field().nullable() == Nullability.FALSE) {
-                    return new Literal(e.source(), Boolean.TRUE, DataTypes.BOOLEAN);
+                    return new Literal(e.source(), Boolean.TRUE, DataType.BOOLEAN);
                 }
             } else if (e instanceof IsNull isn) {
                 if (isn.field().nullable() == Nullability.FALSE) {
-                    return new Literal(e.source(), Boolean.FALSE, DataTypes.BOOLEAN);
+                    return new Literal(e.source(), Boolean.FALSE, DataType.BOOLEAN);
                 }
             }
             return e;

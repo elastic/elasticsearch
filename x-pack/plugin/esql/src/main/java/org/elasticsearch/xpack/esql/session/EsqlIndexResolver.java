@@ -37,11 +37,11 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.DATETIME;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.KEYWORD;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.OBJECT;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.TEXT;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.UNSUPPORTED;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.DataType.OBJECT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
 
 public class EsqlIndexResolver {
     private final Client client;

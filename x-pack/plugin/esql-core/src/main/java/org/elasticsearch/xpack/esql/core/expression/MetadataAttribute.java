@@ -17,7 +17,6 @@ import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
 
 import java.io.IOException;
@@ -35,15 +34,15 @@ public class MetadataAttribute extends TypedAttribute {
 
     private static final Map<String, Tuple<DataType, Boolean>> ATTRIBUTES_MAP = Map.of(
         "_version",
-        tuple(DataTypes.LONG, false), // _version field is not searchable
+        tuple(DataType.LONG, false), // _version field is not searchable
         "_index",
-        tuple(DataTypes.KEYWORD, true),
+        tuple(DataType.KEYWORD, true),
         IdFieldMapper.NAME,
-        tuple(DataTypes.KEYWORD, false), // actually searchable, but fielddata access on the _id field is disallowed by default
+        tuple(DataType.KEYWORD, false), // actually searchable, but fielddata access on the _id field is disallowed by default
         IgnoredFieldMapper.NAME,
-        tuple(DataTypes.KEYWORD, true),
+        tuple(DataType.KEYWORD, true),
         SourceFieldMapper.NAME,
-        tuple(DataTypes.SOURCE, false)
+        tuple(DataType.SOURCE, false)
     );
 
     private final boolean searchable;
@@ -67,9 +66,9 @@ public class MetadataAttribute extends TypedAttribute {
     }
 
     @SuppressWarnings("unchecked")
-    public <S extends StreamInput & PlanStreamInput> MetadataAttribute(StreamInput in) throws IOException {
+    public MetadataAttribute(StreamInput in) throws IOException {
         /*
-         * The funny casting dance with `<S extends...>` and `(S) in` is required
+         * The funny casting dance with `(StreamInput & PlanStreamInput) in` is required
          * because we're in esql-core here and the real PlanStreamInput is in
          * esql-proper. And because NamedWriteableRegistry.Entry needs StreamInput,
          * not a PlanStreamInput. And we need PlanStreamInput to handle Source
@@ -77,12 +76,12 @@ public class MetadataAttribute extends TypedAttribute {
          * of esql-core.
          */
         this(
-            Source.readFrom((S) in),
+            Source.readFrom((StreamInput & PlanStreamInput) in),
             in.readString(),
             DataType.readFrom(in),
             in.readOptionalString(),
             in.readEnum(Nullability.class),
-            NameId.readFrom((S) in),
+            NameId.readFrom((StreamInput & PlanStreamInput) in),
             in.readBoolean(),
             in.readBoolean()
         );

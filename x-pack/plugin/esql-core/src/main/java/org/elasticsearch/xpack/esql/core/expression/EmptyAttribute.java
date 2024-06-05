@@ -11,7 +11,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 
 import java.io.IOException;
@@ -60,7 +59,7 @@ public class EmptyAttribute extends Attribute {
 
     @Override
     public DataType dataType() {
-        return DataTypes.NULL;
+        return DataType.NULL;
     }
 
     @Override

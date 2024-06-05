@@ -72,6 +72,7 @@ depend on what has been found and which properties were configured in `propertie
 `residential_proxy`, `domain`, `isp`, `isp_organization`, `mobile_country_code`, `mobile_network_code`, `user_type`, and
 `connection_type`. The fields actually added  depend on what has been found and which properties were configured in `properties`.
 
+preview::["Do not use the GeoIP2 Anonymous IP, GeoIP2 Connection Type, GeoIP2 Domain, GeoIP2 ISP, and GeoIP2 Enterprise databases in production environments. This functionality is in technical preview and may be changed or removed in a future release. Elastic will work to fix any issues, but features in technical preview are not subject to the support SLA of official GA features."]
 
 Here is an example that uses the default city database and adds the geographical information to the `geoip` field based on the `ip` field:
 

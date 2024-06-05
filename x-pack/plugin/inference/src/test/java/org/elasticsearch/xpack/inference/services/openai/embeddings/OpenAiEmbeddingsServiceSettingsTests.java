@@ -406,7 +406,7 @@ public class OpenAiEmbeddingsServiceSettingsTests extends AbstractWireSerializin
 
         assertThat(xContentResult, is("""
             {"model_id":"model","url":"url","organization_id":"org","similarity":"dot_product",""" + """
-            "dimensions":1,"max_input_tokens":2}"""));
+            "dimensions":1,"max_input_tokens":2,"rate_limit":{"requests_per_minute":3000}}"""));
     }
 
     public void testToFilteredXContent_WritesAllValues_WithSpecifiedRateLimit() throws IOException {
@@ -428,7 +428,7 @@ public class OpenAiEmbeddingsServiceSettingsTests extends AbstractWireSerializin
 
         assertThat(xContentResult, is("""
             {"model_id":"model","url":"url","organization_id":"org","similarity":"dot_product",""" + """
-            "dimensions":1,"max_input_tokens":2}"""));
+            "dimensions":1,"max_input_tokens":2,"rate_limit":{"requests_per_minute":2000}}"""));
     }
 
     @Override

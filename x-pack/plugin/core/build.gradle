@@ -191,5 +191,6 @@ tasks.register('testAutomatonPatterns', Test) {
 
 tasks.named('test').configure {
   exclude '**/AutomatonPatternsTests.class'
-  dependsOn testAutomatonPatterns //to ensure testAutomatonPatterns are run with the test task
 }
+
+tasks.named("check").configure { dependsOn "testAutomatonPatterns" }

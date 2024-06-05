@@ -22,7 +22,7 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.esql.core.plan.QueryPlan;
 import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
@@ -330,14 +330,14 @@ class OptimizerRules {
                 } else if (ex instanceof Equals otherEq) {
                     // equals on different values evaluate to FALSE
                     // ignore date/time fields as equality comparison might actually be a range check
-                    if (otherEq.right().foldable() && DataTypes.isDateTime(otherEq.left().dataType()) == false) {
+                    if (otherEq.right().foldable() && DataType.isDateTime(otherEq.left().dataType()) == false) {
                         for (BinaryComparison eq : equals) {
                             if (otherEq.left().semanticEquals(eq.left())) {
                                 Integer comp = BinaryComparison.compare(eq.right().fold(), otherEq.right().fold());
                                 if (comp != null) {
                                     // var cannot be equal to two different values at the same time
                                     if (comp != 0) {
-                                        return new Literal(and.source(), Boolean.FALSE, DataTypes.BOOLEAN);
+                                        return new Literal(and.source(), Boolean.FALSE, DataType.BOOLEAN);
                                     }
                                 }
                             }
@@ -383,7 +383,7 @@ class OptimizerRules {
                             compare > 0 ||
                             // eq matches the boundary but should not be included
                                 (compare == 0 && range.includeLower() == false))) {
-                                return new Literal(and.source(), Boolean.FALSE, DataTypes.BOOLEAN);
+                                return new Literal(and.source(), Boolean.FALSE, DataType.BOOLEAN);
                             }
                         }
                         if (range.upper().foldable()) {
@@ -393,7 +393,7 @@ class OptimizerRules {
                             compare < 0 ||
                             // eq matches the boundary but should not be included
                                 (compare == 0 && range.includeUpper() == false))) {
-                                return new Literal(and.source(), Boolean.FALSE, DataTypes.BOOLEAN);
+                                return new Literal(and.source(), Boolean.FALSE, DataType.BOOLEAN);
                             }
                         }
 
@@ -410,7 +410,7 @@ class OptimizerRules {
                         Integer comp = BinaryComparison.compare(eqValue, neq.right().fold());
                         if (comp != null) {
                             if (comp == 0) { // clashing and conflicting: a = 1 AND a != 1
-                                return new Literal(and.source(), Boolean.FALSE, DataTypes.BOOLEAN);
+                                return new Literal(and.source(), Boolean.FALSE, DataType.BOOLEAN);
                             } else { // clashing and redundant: a = 1 AND a != 2
                                 iter.remove();
                                 changed = true;
@@ -428,12 +428,12 @@ class OptimizerRules {
                             if (bc instanceof LessThan || bc instanceof LessThanOrEqual) { // a = 2 AND a </<= ?
                                 if ((compare == 0 && bc instanceof LessThan) || // a = 2 AND a < 2
                                     0 < compare) { // a = 2 AND a </<= 1
-                                    return new Literal(and.source(), Boolean.FALSE, DataTypes.BOOLEAN);
+                                    return new Literal(and.source(), Boolean.FALSE, DataType.BOOLEAN);
                                 }
                             } else if (bc instanceof GreaterThan || bc instanceof GreaterThanOrEqual) { // a = 2 AND a >/>= ?
                                 if ((compare == 0 && bc instanceof GreaterThan) || // a = 2 AND a > 2
                                     compare < 0) { // a = 2 AND a >/>= 3
-                                    return new Literal(and.source(), Boolean.FALSE, DataTypes.BOOLEAN);
+                                    return new Literal(and.source(), Boolean.FALSE, DataType.BOOLEAN);
                                 }
                             }
 

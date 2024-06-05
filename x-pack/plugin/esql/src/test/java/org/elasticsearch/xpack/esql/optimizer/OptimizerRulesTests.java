@@ -37,7 +37,7 @@ import org.elasticsearch.xpack.esql.core.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
@@ -70,11 +70,11 @@ import static org.hamcrest.Matchers.contains;
 
 public class OptimizerRulesTests extends ESTestCase {
     private static final Literal ZERO = new Literal(Source.EMPTY, 0, DataTypes.INTEGER);
-    private static final Literal ONE = new Literal(Source.EMPTY, 1, DataTypes.INTEGER);
-    private static final Literal TWO = new Literal(Source.EMPTY, 2, DataTypes.INTEGER);
-    private static final Literal THREE = new Literal(Source.EMPTY, 3, DataTypes.INTEGER);
-    private static final Literal FOUR = new Literal(Source.EMPTY, 4, DataTypes.INTEGER);
-    private static final Literal FIVE = new Literal(Source.EMPTY, 5, DataTypes.INTEGER);
+    private static final Literal ONE = new Literal(Source.EMPTY, 1, DataType.INTEGER);
+    private static final Literal TWO = new Literal(Source.EMPTY, 2, DataType.INTEGER);
+    private static final Literal THREE = new Literal(Source.EMPTY, 3, DataType.INTEGER);
+    private static final Literal FOUR = new Literal(Source.EMPTY, 4, DataType.INTEGER);
+    private static final Literal FIVE = new Literal(Source.EMPTY, 5, DataType.INTEGER);
     private static final Literal SIX = new Literal(Source.EMPTY, 6, DataTypes.INTEGER);
     private static final Expression DUMMY_EXPRESSION =
         new org.elasticsearch.xpack.esql.core.optimizer.OptimizerRulesTests.DummyBooleanExpression(EMPTY, 0);
@@ -291,7 +291,7 @@ public class OptimizerRulesTests extends ESTestCase {
     // Test BooleanFunctionEqualsElimination
     public void testBoolEqualsSimplificationOnExpressions() {
         OptimizerRules.BooleanFunctionEqualsElimination s = new OptimizerRules.BooleanFunctionEqualsElimination();
-        Expression exp = new GreaterThan(EMPTY, getFieldAttribute(), new Literal(EMPTY, 0, DataTypes.INTEGER), null);
+        Expression exp = new GreaterThan(EMPTY, getFieldAttribute(), new Literal(EMPTY, 0, DataType.INTEGER), null);
 
         assertEquals(exp, s.rule(new Equals(EMPTY, exp, TRUE)));
         // TODO: Replace use of QL Not with ESQL Not
@@ -335,8 +335,8 @@ public class OptimizerRulesTests extends ESTestCase {
     // 1 < a < 10 AND a == 10 -> FALSE
     public void testEliminateRangeByEqualsOutsideInterval() {
         FieldAttribute fa = getFieldAttribute();
-        Equals eq1 = equalsOf(fa, new Literal(EMPTY, 10, DataTypes.INTEGER));
-        Range r = rangeOf(fa, ONE, false, new Literal(EMPTY, 10, DataTypes.INTEGER), false);
+        Equals eq1 = equalsOf(fa, new Literal(EMPTY, 10, DataType.INTEGER));
+        Range r = rangeOf(fa, ONE, false, new Literal(EMPTY, 10, DataType.INTEGER), false);
 
         OptimizerRules.PropagateEquals rule = new OptimizerRules.PropagateEquals();
         Expression exp = rule.rule(new And(EMPTY, eq1, r));
@@ -451,7 +451,7 @@ public class OptimizerRulesTests extends ESTestCase {
         FieldAttribute fa = getFieldAttribute();
         Equals eq = equalsOf(fa, TWO);
         Range range = rangeOf(fa, ONE, false, THREE, false);
-        GreaterThan gt = greaterThanOf(fa, new Literal(EMPTY, 0, DataTypes.INTEGER));
+        GreaterThan gt = greaterThanOf(fa, new Literal(EMPTY, 0, DataType.INTEGER));
         NotEquals neq = notEqualsOf(fa, FOUR);
 
         OptimizerRules.PropagateEquals rule = new OptimizerRules.PropagateEquals();
@@ -590,7 +590,7 @@ public class OptimizerRulesTests extends ESTestCase {
 
     // a == 1 AND a == 2 -> nop for date/time fields
     public void testPropagateEquals_ignoreDateTimeFields() {
-        FieldAttribute fa = TestUtils.getFieldAttribute("a", DataTypes.DATETIME);
+        FieldAttribute fa = TestUtils.getFieldAttribute("a", DataType.DATETIME);
         Equals eq1 = equalsOf(fa, ONE);
         Equals eq2 = equalsOf(fa, TWO);
         And and = new And(EMPTY, eq1, eq2);
@@ -604,7 +604,7 @@ public class OptimizerRulesTests extends ESTestCase {
     public void testEliminateRangeByEqualsInInterval() {
         FieldAttribute fa = getFieldAttribute();
         Equals eq1 = equalsOf(fa, ONE);
-        Range r = rangeOf(fa, ONE, true, new Literal(EMPTY, 10, DataTypes.INTEGER), false);
+        Range r = rangeOf(fa, ONE, true, new Literal(EMPTY, 10, DataType.INTEGER), false);
 
         OptimizerRules.PropagateEquals rule = new OptimizerRules.PropagateEquals();
         Expression exp = rule.rule(new And(EMPTY, eq1, r));

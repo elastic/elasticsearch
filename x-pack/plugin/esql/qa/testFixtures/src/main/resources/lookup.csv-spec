@@ -163,7 +163,7 @@ aa:keyword | ab:keyword | na:integer | nb:integer
 bar        | bar        |       null |       null
 ;
 
-# Makes sure the LOOKUP squashes previous 
+// Makes sure the LOOKUP squashes previous names 
 doesNotDuplicateNames
 required_capability: lookup
 FROM employees
@@ -172,6 +172,7 @@ FROM employees
 | RENAME languages.long AS long
 | EVAL name = CONCAT(first_name, " ", last_name)
 | LOOKUP long_number_names ON long
+| RENAME long AS languages
 | KEEP emp_no, languages, name
 ;
 

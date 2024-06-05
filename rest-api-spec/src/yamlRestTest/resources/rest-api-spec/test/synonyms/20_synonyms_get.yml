@@ -56,11 +56,7 @@ setup:
           id: "test-id-2"
 
 ---
-"Pagination - invalid size":
-  - requires:
-      cluster_features: ["gte_v8.15.0"]
-      reason: Synonym size checks introduced in 8.15.0
-
+"Pagination - invalid size and from":
   - do:
       catch: bad_request
       synonyms.get_synonym:
@@ -71,7 +67,25 @@ setup:
       catch: bad_request
       synonyms.get_synonym:
         id: test-get-synonyms
+        from: -1
+
+---
+"Pagination - synonym max size exceeded":
+  - requires:
+      cluster_features: ["gte_v8.15.0"]
+      reason: Synonym size checks introduced in 8.15.0
+
+  - do:
+      catch: bad_request
+      synonyms.get_synonym:
+        id: test-get-synonyms
         size: 100001
+
+  - do:
+      catch: bad_request
+      synonyms.get_synonym:
+        id: test-get-synonyms
+        from: 100001
 
 ---
 "Pagination - from":
@@ -88,24 +102,6 @@ setup:
           id: "test-id-2"
         - synonyms: "test => check"
           id: "test-id-3"
-
----
-"Pagination - invalid from":
-  - requires:
-      cluster_features: ["gte_v8.15.0"]
-      reason: Synonym size checks introduced in 8.15.0
-
-  - do:
-      catch: bad_request
-      synonyms.get_synonym:
-        id: test-get-synonyms
-        from: -1
-
-  - do:
-      catch: bad_request
-      synonyms.get_synonym:
-        id: test-get-synonyms
-        from: 100001
 
 ---
 "Synonyms set with same IDs":

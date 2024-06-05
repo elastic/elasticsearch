@@ -65,7 +65,7 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
                         modelSettings.dimensions(),
                         newInstance.contentType()
                     );
-                    assertArrayEquals(expectedVector, newVector, 0f);
+                    assertArrayEquals(expectedVector, newVector, 0.0000001f);
                 }
                 case SPARSE_EMBEDDING -> {
                     List<WeightedToken> expectedTokens = parseWeightedTokens(

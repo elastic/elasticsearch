@@ -19,6 +19,7 @@ import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
+import org.elasticsearch.search.rank.RankBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
@@ -70,6 +71,8 @@ import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsTaskState;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeTaskParams;
 import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeTaskState;
+import org.elasticsearch.xpack.core.ml.rerank.TextSimilarityRankBuilder;
+import org.elasticsearch.xpack.core.ml.rerank.TextSimilarityRankRetrieverBuilder;
 import org.elasticsearch.xpack.core.ml.search.WeightedTokensQueryBuilder;
 import org.elasticsearch.xpack.core.monitoring.MonitoringFeatureSetUsage;
 import org.elasticsearch.xpack.core.rollup.RollupFeatureSetUsage;
@@ -304,7 +307,8 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, SearchPlu
                 PersistentTaskParams.class,
                 SecurityMigrationTaskParams.TASK_NAME,
                 SecurityMigrationTaskParams::new
-            )
+            ),
+            new NamedWriteableRegistry.Entry(RankBuilder.class, XPackField.TEXT_SIMILARITY_RERANKER, TextSimilarityRankBuilder::new)
         ).filter(Objects::nonNull).toList();
     }
 
@@ -402,4 +406,12 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, SearchPlu
             )
         );
     }
+
+    @Override
+    public List<RetrieverSpec<?>> getRetrievers() {
+        return List.of(
+            new RetrieverSpec<>(new ParseField(XPackField.TEXT_SIMILARITY_RERANKER), TextSimilarityRankRetrieverBuilder::fromXContent)
+        );
+    }
+
 }

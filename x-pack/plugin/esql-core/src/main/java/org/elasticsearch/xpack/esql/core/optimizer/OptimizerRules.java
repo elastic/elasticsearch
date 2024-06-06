@@ -60,18 +60,6 @@ import static org.elasticsearch.xpack.esql.core.util.CollectionUtils.combine;
 
 public final class OptimizerRules {
 
-    public static final class ConstantFolding extends OptimizerExpressionRule<Expression> {
-
-        public ConstantFolding() {
-            super(TransformDirection.DOWN);
-        }
-
-        @Override
-        public Expression rule(Expression e) {
-            return e.foldable() ? Literal.of(e) : e;
-        }
-    }
-
     /**
      * This rule must always be placed after {@link LiteralsOnTheRight}, since it looks at TRUE/FALSE literals' existence
      * on the right hand-side of the {@link Equals}/{@link NotEquals} expressions.

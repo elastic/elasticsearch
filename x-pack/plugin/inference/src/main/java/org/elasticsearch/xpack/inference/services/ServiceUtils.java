@@ -39,7 +39,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
 
-public class ServiceUtils {
+public final class ServiceUtils {
     /**
      * Remove the object from the map and cast to the expected type.
      * If the object cannot be cast to type an ElasticsearchStatusException
@@ -623,5 +623,9 @@ public class ServiceUtils {
     public static SecureString apiKey(@Nullable ApiKeySecrets secrets) {
         // To avoid a possible null pointer throughout the code we'll create a noop api key of an empty array
         return secrets == null ? new SecureString(new char[0]) : secrets.apiKey();
+    }
+
+    private ServiceUtils() {
+        throw new UnsupportedOperationException("ServiceUtils is a utility class and cannot be instantiated");
     }
 }

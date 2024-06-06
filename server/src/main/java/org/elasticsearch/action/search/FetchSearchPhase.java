@@ -141,7 +141,7 @@ final class FetchSearchPhase extends SearchPhase {
                     RankDocShardInfo rankDocs = rankDocsPerShard == null || rankDocsPerShard.get(i).isEmpty()
                         ? null
                         : new RankDocShardInfo(rankDocsPerShard.get(i));
-                    SearchPhaseResult shardPhaseResult = queryResults.get(i);
+                    SearchPhaseResult shardPhaseResult = searchPhaseShardResults.get(i);
                     if (entry == null) { // no results for this shard ID
                         if (shardPhaseResult != null) {
                             // if we got some hits from this shard we have to release the context there

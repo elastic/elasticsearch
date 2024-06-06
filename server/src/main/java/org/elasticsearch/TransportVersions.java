@@ -176,7 +176,15 @@ public class TransportVersions {
     public static final TransportVersion SPARSE_VECTOR_QUERY_ADDED = def(8_667_00_0);
     public static final TransportVersion ESQL_ADD_INDEX_MODE_TO_SOURCE = def(8_668_00_0);
     public static final TransportVersion GET_SHUTDOWN_STATUS_TIMEOUT = def(8_669_00_0);
-
+    public static final TransportVersion FAILURE_STORE_TELEMETRY = def(8_670_00_0);
+    public static final TransportVersion ADD_METADATA_FLATTENED_TO_ROLES = def(8_671_00_0);
+    public static final TransportVersion ML_INFERENCE_GOOGLE_AI_STUDIO_COMPLETION_ADDED = def(8_672_00_0);
+    public static final TransportVersion WATCHER_REQUEST_TIMEOUTS = def(8_673_00_0);
+    public static final TransportVersion ML_INFERENCE_ENHANCE_DELETE_ENDPOINT = def(8_674_00_0);
+    public static final TransportVersion ML_INFERENCE_GOOGLE_AI_STUDIO_EMBEDDINGS_ADDED = def(8_675_00_0);
+    public static final TransportVersion ADD_MISTRAL_EMBEDDINGS_INFERENCE = def(8_676_00_0);
+    public static final TransportVersion ML_CHUNK_INFERENCE_OPTION = def(8_677_00_0);
+    public static final TransportVersion RANK_FEATURE_PHASE_ADDED = def(8_678_00_0);
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

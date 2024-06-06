@@ -63,9 +63,11 @@ public final class RestFreezeIndexAction extends BaseRestHandler {
             });
         }
 
-        FreezeRequest freezeRequest = new FreezeRequest(Strings.splitStringByCommaToArray(request.param("index")));
-        freezeRequest.ackTimeout(getAckTimeout(request));
-        freezeRequest.masterNodeTimeout(getMasterNodeTimeout(request));
+        final var freezeRequest = new FreezeRequest(
+            getMasterNodeTimeout(request),
+            getAckTimeout(request),
+            Strings.splitStringByCommaToArray(request.param("index"))
+        );
         freezeRequest.indicesOptions(IndicesOptions.fromRequest(request, freezeRequest.indicesOptions()));
         String waitForActiveShards = request.param("wait_for_active_shards");
         if (waitForActiveShards != null) {

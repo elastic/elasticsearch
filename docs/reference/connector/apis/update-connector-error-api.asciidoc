@@ -8,6 +8,8 @@ preview::[]
 
 Updates the `error` field of a connector.
 
+To get started with Connector APIs, check out the {enterprise-search-ref}/connectors-tutorial-api.html[tutorial^].
+
 [[update-connector-error-api-request]]
 ==== {api-request-title}
 

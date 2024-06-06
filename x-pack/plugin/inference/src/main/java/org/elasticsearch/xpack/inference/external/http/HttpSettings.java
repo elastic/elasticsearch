@@ -14,6 +14,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 
 import java.util.List;
+import java.util.Objects;
 
 public class HttpSettings {
     // These settings are default scope for testing
@@ -29,7 +30,9 @@ public class HttpSettings {
     private volatile ByteSizeValue maxResponseSize;
 
     public HttpSettings(Settings settings, ClusterService clusterService) {
-        this.maxResponseSize = MAX_HTTP_RESPONSE_SIZE.get(settings);
+        Objects.requireNonNull(clusterService);
+        Objects.requireNonNull(settings);
+        maxResponseSize = MAX_HTTP_RESPONSE_SIZE.get(settings);
 
         clusterService.getClusterSettings().addSettingsUpdateConsumer(MAX_HTTP_RESPONSE_SIZE, this::setMaxResponseSize);
     }

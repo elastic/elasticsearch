@@ -36,7 +36,6 @@ import org.elasticsearch.search.rank.context.QueryPhaseRankCoordinatorContext;
 import org.elasticsearch.search.rank.context.QueryPhaseRankShardContext;
 import org.elasticsearch.search.rank.context.RankFeaturePhaseRankCoordinatorContext;
 import org.elasticsearch.search.rank.context.RankFeaturePhaseRankShardContext;
-import org.elasticsearch.search.rank.feature.RankFeatureShardResult;
 import org.elasticsearch.search.rank.rerank.AbstractRerankerIT;
 import org.elasticsearch.search.rank.rerank.ActionRequestRankFeaturePhaseRankCoordinatorContext;
 import org.elasticsearch.search.rank.rerank.RerankingQueryPhaseRankCoordinatorContext;
@@ -105,8 +104,7 @@ public class MockedRequestActionBasedRerankerIT extends AbstractRerankerIT {
                     RankBuilder.class,
                     THROWING_REQUEST_ACTION_BASED_RANK_BUILDER_NAME,
                     ThrowingMockRequestActionBasedRankBuilder::new
-                ),
-                new NamedWriteableRegistry.Entry(RankShardResult.class, "rank_feature_shard", RankFeatureShardResult::new)
+                )
             );
         }
 

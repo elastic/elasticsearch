@@ -360,8 +360,7 @@ public class FieldBasedRerankerIT extends AbstractRerankerIT {
         public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
             return List.of(
                 new NamedWriteableRegistry.Entry(RankBuilder.class, FIELD_BASED_RANK_BUILDER_NAME, FieldBasedRankBuilder::new),
-                new NamedWriteableRegistry.Entry(RankBuilder.class, THROWING_RANK_BUILDER_NAME, ThrowingRankBuilder::new),
-                new NamedWriteableRegistry.Entry(RankShardResult.class, "rank_feature_shard", RankFeatureShardResult::new)
+                new NamedWriteableRegistry.Entry(RankBuilder.class, THROWING_RANK_BUILDER_NAME, ThrowingRankBuilder::new)
             );
         }
 

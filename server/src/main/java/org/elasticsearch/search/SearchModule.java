@@ -226,7 +226,9 @@ import org.elasticsearch.search.fetch.subphase.highlight.HighlightPhase;
 import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
 import org.elasticsearch.search.fetch.subphase.highlight.PlainHighlighter;
 import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.search.rank.RankShardResult;
 import org.elasticsearch.search.rank.feature.RankFeatureShardPhase;
+import org.elasticsearch.search.rank.feature.RankFeatureShardResult;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
 import org.elasticsearch.search.rescore.RescorerBuilder;
 import org.elasticsearch.search.retriever.KnnRetrieverBuilder;
@@ -332,6 +334,7 @@ public class SearchModule {
         registerRetrieverParsers(plugins);
         registerQueryParsers(plugins);
         registerRescorers(plugins);
+        registerRankers();
         registerSorts();
         registerValueFormats();
         registerSignificanceHeuristics(plugins);
@@ -821,6 +824,12 @@ public class SearchModule {
     private void registerRescorers(List<SearchPlugin> plugins) {
         registerRescorer(new RescorerSpec<>(QueryRescorerBuilder.NAME, QueryRescorerBuilder::new, QueryRescorerBuilder::fromXContent));
         registerFromPlugin(plugins, SearchPlugin::getRescorers, this::registerRescorer);
+    }
+
+    private void registerRankers() {
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(RankShardResult.class, RankFeatureShardResult.NAME, RankFeatureShardResult::new)
+        );
     }
 
     private void registerRescorer(RescorerSpec<?> spec) {

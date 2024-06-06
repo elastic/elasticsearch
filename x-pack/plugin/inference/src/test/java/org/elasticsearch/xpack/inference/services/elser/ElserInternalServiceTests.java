@@ -25,6 +25,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.ChunkedSparseEmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.ErrorChunkedInferenceResults;
+import org.elasticsearch.xpack.core.ml.action.InferModelAction;
 import org.elasticsearch.xpack.core.ml.action.InferTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.inference.results.ChunkedTextExpansionResultsTests;
 import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
@@ -337,21 +338,16 @@ public class ElserInternalServiceTests extends ESTestCase {
         mlTrainedModelResults.add(ChunkedTextExpansionResultsTests.createRandomResults());
         mlTrainedModelResults.add(ChunkedTextExpansionResultsTests.createRandomResults());
         mlTrainedModelResults.add(new ErrorInferenceResults(new RuntimeException("boom")));
-        var response = new InferTrainedModelDeploymentAction.Response(mlTrainedModelResults);
+        var response = new InferModelAction.Response(mlTrainedModelResults, "foo", true);
 
         ThreadPool threadpool = new TestThreadPool("test");
         Client client = mock(Client.class);
         when(client.threadPool()).thenReturn(threadpool);
         doAnswer(invocationOnMock -> {
-            var listener = (ActionListener<InferTrainedModelDeploymentAction.Response>) invocationOnMock.getArguments()[2];
+            var listener = (ActionListener<InferModelAction.Response>) invocationOnMock.getArguments()[2];
             listener.onResponse(response);
             return null;
-        }).when(client)
-            .execute(
-                same(InferTrainedModelDeploymentAction.INSTANCE),
-                any(InferTrainedModelDeploymentAction.Request.class),
-                any(ActionListener.class)
-            );
+        }).when(client).execute(same(InferModelAction.INSTANCE), any(InferModelAction.Request.class), any(ActionListener.class));
 
         var model = new ElserInternalModel(
             "foo",

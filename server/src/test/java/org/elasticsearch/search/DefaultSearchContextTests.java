@@ -644,8 +644,8 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
         ToLongFunction<String> fieldCardinality = name -> -1;
         for (var resultsType : SearchService.ResultsType.values()) {
             switch (resultsType) {
-                case NONE, FETCH -> assertFalse(
-                    "NONE and FETCH phases do not support parallel collection.",
+                case NONE, RANK_FEATURE, FETCH -> assertFalse(
+                    "NONE, RANK_FEATURE, and FETCH phases do not support parallel collection.",
                     DefaultSearchContext.isParallelCollectionSupportedForResults(
                         resultsType,
                         searchSourceBuilderOrNull,

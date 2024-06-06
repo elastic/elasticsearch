@@ -162,7 +162,7 @@ public class ClusterRerouteTests extends ESAllocationTestCase {
     private void assertStateAndFailedAllocations(IndexRoutingTable indexRoutingTable, ShardRoutingState state, int failedAllocations) {
         assertThat(indexRoutingTable.size(), equalTo(1));
         assertThat(indexRoutingTable.shard(0).shard(0).state(), equalTo(state));
-        assertThat(indexRoutingTable.shard(0).shard(0).unassignedInfo().getNumFailedAllocations(), equalTo(failedAllocations));
+        assertThat(indexRoutingTable.shard(0).shard(0).unassignedInfo().failedAllocations(), equalTo(failedAllocations));
     }
 
     private ClusterState createInitialClusterState(AllocationService service) {

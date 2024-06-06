@@ -13,6 +13,7 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTests;
 
@@ -31,7 +32,10 @@ public class GoogleAiStudioCompletionServiceSettingsTests extends AbstractWireSe
     public void testFromMap_Request_CreatesSettingsCorrectly() {
         var model = "some model";
 
-        var serviceSettings = GoogleAiStudioCompletionServiceSettings.fromMap(new HashMap<>(Map.of(ServiceFields.MODEL_ID, model)));
+        var serviceSettings = GoogleAiStudioCompletionServiceSettings.fromMap(
+            new HashMap<>(Map.of(ServiceFields.MODEL_ID, model)),
+            ConfigurationParseContext.PERSISTENT
+        );
 
         assertThat(serviceSettings, is(new GoogleAiStudioCompletionServiceSettings(model, null)));
     }
@@ -45,18 +49,6 @@ public class GoogleAiStudioCompletionServiceSettingsTests extends AbstractWireSe
 
         assertThat(xContentResult, is("""
             {"model_id":"model","rate_limit":{"requests_per_minute":360}}"""));
-    }
-
-    public void testToFilteredXContent_WritesAllValues_Except_RateLimit() throws IOException {
-        var entity = new GoogleAiStudioCompletionServiceSettings("model", null);
-
-        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-        var filteredXContent = entity.getFilteredXContentObject();
-        filteredXContent.toXContent(builder, null);
-        String xContentResult = Strings.toString(builder);
-
-        assertThat(xContentResult, is("""
-            {"model_id":"model"}"""));
     }
 
     @Override

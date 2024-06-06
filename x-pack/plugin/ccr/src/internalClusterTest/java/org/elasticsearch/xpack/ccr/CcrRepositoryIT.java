@@ -553,7 +553,7 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
             if (RestoreInProgress.get(event.state()).isEmpty() == false && event.state().routingTable().hasIndex(followerIndex)) {
                 final IndexRoutingTable indexRoutingTable = event.state().routingTable().index(followerIndex);
                 for (ShardRouting shardRouting : indexRoutingTable.shardsWithState(ShardRoutingState.UNASSIGNED)) {
-                    if (shardRouting.unassignedInfo().getLastAllocationStatus() == AllocationStatus.FETCHING_SHARD_DATA) {
+                    if (shardRouting.unassignedInfo().lastAllocationStatus() == AllocationStatus.FETCHING_SHARD_DATA) {
                         try {
                             assertBusy(() -> {
                                 final Long snapshotShardSize = snapshotsInfoService.snapshotShardSizes().getShardSize(shardRouting);
@@ -644,7 +644,7 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
                         assertBusy(() -> {
                             List<Long> sizes = indexRoutingTable.shardsWithState(ShardRoutingState.UNASSIGNED)
                                 .stream()
-                                .filter(shard -> shard.unassignedInfo().getLastAllocationStatus() == AllocationStatus.FETCHING_SHARD_DATA)
+                                .filter(shard -> shard.unassignedInfo().lastAllocationStatus() == AllocationStatus.FETCHING_SHARD_DATA)
                                 .sorted(Comparator.comparingInt(ShardRouting::getId))
                                 .map(shard -> snapshotsInfoService.snapshotShardSizes().getShardSize(shard))
                                 .filter(Objects::nonNull)

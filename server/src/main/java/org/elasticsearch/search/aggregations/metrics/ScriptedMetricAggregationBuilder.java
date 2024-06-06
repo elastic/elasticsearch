@@ -25,6 +25,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -39,21 +40,56 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
     private static final ParseField REDUCE_SCRIPT_FIELD = new ParseField("reduce_script");
     private static final ParseField PARAMS_FIELD = new ParseField("params");
 
-    public static final ConstructingObjectParser<ScriptedMetricAggregationBuilder, String> PARSER = new ConstructingObjectParser<>(
-        NAME,
-        false,
-        (args, name) -> {
-            ScriptedMetricAggregationBuilder builder = new ScriptedMetricAggregationBuilder(name);
-            builder.mapScript((Script) args[0]);
-            return builder;
+    private static void validateScript(String scriptName, String aggName, Script script, List<String> allowedScripts) {
+        if (script == null) {
+            throw new IllegalArgumentException("[" + scriptName + "] must not be null: [" + aggName + "]");
         }
-    );
-    static {
-        Script.declareScript(PARSER, ScriptedMetricAggregationBuilder::initScript, INIT_SCRIPT_FIELD);
-        Script.declareScript(PARSER, constructorArg(), MAP_SCRIPT_FIELD);
-        Script.declareScript(PARSER, ScriptedMetricAggregationBuilder::combineScript, COMBINE_SCRIPT_FIELD);
-        Script.declareScript(PARSER, ScriptedMetricAggregationBuilder::reduceScript, REDUCE_SCRIPT_FIELD);
-        PARSER.declareObject(ScriptedMetricAggregationBuilder::params, (p, name) -> p.map(), PARAMS_FIELD);
+        if (allowedScripts.isEmpty() == false) {
+            if (allowedScripts.contains(script.getIdOrCode()) == false) {
+                throw new IllegalArgumentException("[" + scriptName + "] contains not allowed script: [" + aggName + "]");
+            }
+        }
+    }
+
+    private static void validateParams(Map<String, Object> params, String aggName) {
+        if (params == null) {
+            throw new IllegalArgumentException("[params] must not be null: [" + aggName + "]");
+        }
+    }
+
+    public static ConstructingObjectParser<ScriptedMetricAggregationBuilder, String> createParser(List<String> allowedScripts) {
+        ConstructingObjectParser<ScriptedMetricAggregationBuilder, String> parser = new ConstructingObjectParser<>(
+            NAME,
+            false,
+            (args, name) -> {
+                Script script = (Script) args[0];
+                validateScript(MAP_SCRIPT_FIELD.getPreferredName(), name, script, allowedScripts);
+                ScriptedMetricAggregationBuilder builder = new ScriptedMetricAggregationBuilder(name);
+                builder.mapScript(script);
+                return builder;
+            }
+        );
+
+        Script.declareScript(parser, (builder, script) -> {
+            validateScript(INIT_SCRIPT_FIELD.getPreferredName(), builder.name, script, allowedScripts);
+            builder.initScript(script);
+        }, INIT_SCRIPT_FIELD);
+        // TODO: Why do we use constructorArg() here, rather than being consistent with the other parsed fields?
+        Script.declareScript(parser, constructorArg(), MAP_SCRIPT_FIELD);
+        Script.declareScript(parser, (builder, script) -> {
+            validateScript(COMBINE_SCRIPT_FIELD.getPreferredName(), builder.name, script, allowedScripts);
+            builder.combineScript(script);
+        }, COMBINE_SCRIPT_FIELD);
+        Script.declareScript(parser, (builder, script) -> {
+            validateScript(REDUCE_SCRIPT_FIELD.getPreferredName(), builder.name, script, allowedScripts);
+            builder.reduceScript(script);
+        }, REDUCE_SCRIPT_FIELD);
+        parser.declareObject(ScriptedMetricAggregationBuilder::params, (p, name) -> {
+            validateParams(p.map(), name);
+            return p.map();
+        }, PARAMS_FIELD);
+
+        return parser;
     }
 
     private Script initScript;
@@ -120,9 +156,6 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
      * Set the {@code init} script.
      */
     public ScriptedMetricAggregationBuilder initScript(Script initScript) {
-        if (initScript == null) {
-            throw new IllegalArgumentException("[initScript] must not be null: [" + name + "]");
-        }
         this.initScript = initScript;
         return this;
     }
@@ -131,9 +164,6 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
      * Set the {@code map} script.
      */
     public ScriptedMetricAggregationBuilder mapScript(Script mapScript) {
-        if (mapScript == null) {
-            throw new IllegalArgumentException("[mapScript] must not be null: [" + name + "]");
-        }
         this.mapScript = mapScript;
         return this;
     }
@@ -142,9 +172,6 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
      * Set the {@code combine} script.
      */
     public ScriptedMetricAggregationBuilder combineScript(Script combineScript) {
-        if (combineScript == null) {
-            throw new IllegalArgumentException("[combineScript] must not be null: [" + name + "]");
-        }
         this.combineScript = combineScript;
         return this;
     }
@@ -153,9 +180,6 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
      * Set the {@code reduce} script.
      */
     public ScriptedMetricAggregationBuilder reduceScript(Script reduceScript) {
-        if (reduceScript == null) {
-            throw new IllegalArgumentException("[reduceScript] must not be null: [" + name + "]");
-        }
         this.reduceScript = reduceScript;
         return this;
     }
@@ -165,9 +189,6 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
      * {@code map} and {@code combine} phases.
      */
     public ScriptedMetricAggregationBuilder params(Map<String, Object> params) {
-        if (params == null) {
-            throw new IllegalArgumentException("[params] must not be null: [" + name + "]");
-        }
         this.params = params;
         return this;
     }

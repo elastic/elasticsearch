@@ -297,12 +297,12 @@ public class SearchModule {
         Setting.Property.NodeScope,
         // TODO: remove, only for testing
         Setting.Property.Dynamic
-        // TODO: Needed?
-        //Setting.Property.Final
-        // TODO: Potentially we could also the following, but that prevented
-        // ./gradlew run
-        // from working (node dies while waiting on ports).
-        //Setting.Property.Consistent
+    // TODO: Needed?
+    // Setting.Property.Final
+    // TODO: Potentially we could also the following, but that prevented
+    // ./gradlew run
+    // from working (node dies while waiting on ports).
+    // Setting.Property.Consistent
     );
 
     /**
@@ -666,7 +666,7 @@ public class SearchModule {
             new AggregationSpec(
                 ScriptedMetricAggregationBuilder.NAME,
                 ScriptedMetricAggregationBuilder::new,
-                ScriptedMetricAggregationBuilder.PARSER
+                ScriptedMetricAggregationBuilder.createParser(SCRIPTED_METRICS_AGG_ALLOWED_SCRIPTS_SETTING.get(settings))
             ).addResultReader(InternalScriptedMetric::new),
             builder
         );

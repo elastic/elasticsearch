@@ -58,7 +58,7 @@ import static org.elasticsearch.xpack.esql.core.util.CollectionUtils.combine;
 public final class OptimizerRules {
 
     /**
-     * This rule must always be placed after {@link LiteralsOnTheRight}, since it looks at TRUE/FALSE literals' existence
+     * This rule must always be placed after LiteralsOnTheRight, since it looks at TRUE/FALSE literals' existence
      * on the right hand-side of the {@link Equals}/{@link NotEquals} expressions.
      */
     public static final class BooleanFunctionEqualsElimination extends OptimizerExpressionRule<BinaryComparison> {

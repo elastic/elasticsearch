@@ -38,17 +38,19 @@ public class SynonymsManagementAPIServiceIT extends ESSingleNodeTestCase {
     }
 
     public void testCreateManySynonyms() throws InterruptedException {
-        CountDownLatch latch = new CountDownLatch(1);
+        CountDownLatch putLatch = new CountDownLatch(1);
+        String synonymSetId = randomIdentifier();
+        int rulesNumber = randomIntBetween(
+            SynonymsManagementAPIService.MAX_SYNONYMS_SETS / 2,
+            SynonymsManagementAPIService.MAX_SYNONYMS_SETS
+        );
         synonymsManagementAPIService.putSynonymsSet(
-            randomIdentifier(),
-            randomSynonymsSet(
-                randomIntBetween(SynonymsManagementAPIService.MAX_SYNONYMS_SETS / 2, SynonymsManagementAPIService.MAX_SYNONYMS_SETS),
-                SynonymsManagementAPIService.MAX_SYNONYMS_SETS
-            ),
+            synonymSetId,
+            randomSynonymsSet(rulesNumber, rulesNumber),
             new ActionListener<SynonymsManagementAPIService.SynonymsReloadResult>() {
                 @Override
                 public void onResponse(SynonymsManagementAPIService.SynonymsReloadResult synonymsReloadResult) {
-                    latch.countDown();
+                    putLatch.countDown();
                 }
 
                 @Override
@@ -58,7 +60,30 @@ public class SynonymsManagementAPIServiceIT extends ESSingleNodeTestCase {
             }
         );
 
-        latch.await(5, TimeUnit.SECONDS);
+        putLatch.await(5, TimeUnit.SECONDS);
+
+        CountDownLatch getLatch = new CountDownLatch(1);
+        // Also retrieve them
+        synonymsManagementAPIService.getSynonymSetRules(
+            synonymSetId,
+            0,
+            SynonymsManagementAPIService.MAX_SYNONYMS_SETS,
+            new ActionListener<PagedResult<SynonymRule>>() {
+                @Override
+                public void onResponse(PagedResult<SynonymRule> synonymRulePagedResult) {
+                    assertEquals(rulesNumber, synonymRulePagedResult.totalResults());
+                    assertEquals(rulesNumber, synonymRulePagedResult.pageResults().length);
+                    getLatch.countDown();
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    fail(e);
+                }
+            }
+        );
+
+        getLatch.await(5, TimeUnit.SECONDS);
     }
 
     public void testCreateTooManySynonymsAtOnce() throws InterruptedException {

@@ -4,6 +4,8 @@ import org.elasticsearch.gradle.internal.precommit.CheckForbiddenApisTask;
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
 apply plugin: 'elasticsearch.string-templates'
+apply plugin: 'elasticsearch.publish'
+
 esplugin {
   name 'x-pack-esql'
   description 'The plugin that powers ESQL for Elasticsearch'

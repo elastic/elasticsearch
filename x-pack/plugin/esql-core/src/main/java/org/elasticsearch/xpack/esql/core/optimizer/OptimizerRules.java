@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.Order;
-import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.SurrogateFunction;
 import org.elasticsearch.xpack.esql.core.expression.predicate.BinaryOperator;
@@ -26,10 +25,7 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNull;
-import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
-import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.In;
-import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.core.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.core.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
@@ -38,13 +34,10 @@ import org.elasticsearch.xpack.esql.core.rule.Rule;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.ReflectionUtils;
 
-import java.time.ZoneId;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.function.BiFunction;
 
@@ -69,33 +62,6 @@ public final class OptimizerRules {
         @Override
         public Expression rule(Expression e) {
             return e.foldable() ? Literal.of(e) : e;
-        }
-    }
-
-    /**
-     * This rule must always be placed after {@link LiteralsOnTheRight}, since it looks at TRUE/FALSE literals' existence
-     * on the right hand-side of the {@link Equals}/{@link NotEquals} expressions.
-     */
-    public static final class BooleanFunctionEqualsElimination extends OptimizerExpressionRule<BinaryComparison> {
-
-        public BooleanFunctionEqualsElimination() {
-            super(TransformDirection.UP);
-        }
-
-        @Override
-        protected Expression rule(BinaryComparison bc) {
-            if ((bc instanceof Equals || bc instanceof NotEquals) && bc.left() instanceof Function) {
-                // for expression "==" or "!=" TRUE/FALSE, return the expression itself or its negated variant
-
-                if (TRUE.equals(bc.right())) {
-                    return bc instanceof Equals ? bc.left() : new Not(bc.left().source(), bc.left());
-                }
-                if (FALSE.equals(bc.right())) {
-                    return bc instanceof Equals ? new Not(bc.left().source(), bc.left()) : bc.left();
-                }
-            }
-
-            return bc;
         }
     }
 
@@ -244,81 +210,6 @@ public final class OptimizerRules {
         @Override
         public BinaryOperator<?, ?, ?, ?> rule(BinaryOperator<?, ?, ?, ?> be) {
             return be.left() instanceof Literal && (be.right() instanceof Literal) == false ? be.swapLeftAndRight() : be;
-        }
-    }
-
-    /**
-     * Combine disjunctions on the same field into an In expression.
-     * This rule looks for both simple equalities:
-     * 1. a == 1 OR a == 2 becomes a IN (1, 2)
-     * and combinations of In
-     * 2. a == 1 OR a IN (2) becomes a IN (1, 2)
-     * 3. a IN (1) OR a IN (2) becomes a IN (1, 2)
-     *
-     * This rule does NOT check for type compatibility as that phase has been
-     * already be verified in the analyzer.
-     */
-    public static class CombineDisjunctionsToIn extends OptimizerExpressionRule<Or> {
-        public CombineDisjunctionsToIn() {
-            super(TransformDirection.UP);
-        }
-
-        @Override
-        protected Expression rule(Or or) {
-            Expression e = or;
-            // look only at equals and In
-            List<Expression> exps = splitOr(e);
-
-            Map<Expression, Set<Expression>> found = new LinkedHashMap<>();
-            ZoneId zoneId = null;
-            List<Expression> ors = new LinkedList<>();
-
-            for (Expression exp : exps) {
-                if (exp instanceof Equals eq) {
-                    // consider only equals against foldables
-                    if (eq.right().foldable()) {
-                        found.computeIfAbsent(eq.left(), k -> new LinkedHashSet<>()).add(eq.right());
-                    } else {
-                        ors.add(exp);
-                    }
-                    if (zoneId == null) {
-                        zoneId = eq.zoneId();
-                    }
-                } else if (exp instanceof In in) {
-                    found.computeIfAbsent(in.value(), k -> new LinkedHashSet<>()).addAll(in.list());
-                    if (zoneId == null) {
-                        zoneId = in.zoneId();
-                    }
-                } else {
-                    ors.add(exp);
-                }
-            }
-
-            if (found.isEmpty() == false) {
-                // combine equals alongside the existing ors
-                final ZoneId finalZoneId = zoneId;
-                found.forEach(
-                    (k, v) -> { ors.add(v.size() == 1 ? createEquals(k, v, finalZoneId) : createIn(k, new ArrayList<>(v), finalZoneId)); }
-                );
-
-                Expression combineOr = combineOr(ors);
-                // check the result semantically since the result might different in order
-                // but be actually the same which can trigger a loop
-                // e.g. a == 1 OR a == 2 OR null --> null OR a in (1,2) --> literalsOnTheRight --> cycle
-                if (e.semanticEquals(combineOr) == false) {
-                    e = combineOr;
-                }
-            }
-
-            return e;
-        }
-
-        protected Equals createEquals(Expression k, Set<Expression> v, ZoneId finalZoneId) {
-            return new Equals(k.source(), k, v.iterator().next(), finalZoneId);
-        }
-
-        protected In createIn(Expression key, List<Expression> values, ZoneId zoneId) {
-            return new In(key.source(), key, values, zoneId);
         }
     }
 

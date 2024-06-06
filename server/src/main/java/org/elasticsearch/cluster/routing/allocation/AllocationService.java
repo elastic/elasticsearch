@@ -215,7 +215,7 @@ public class AllocationService {
                         failedShard
                     );
                 }
-                int failedAllocations = failedShard.unassignedInfo() != null ? failedShard.unassignedInfo().failedAllocations() : 0;
+                int failedAllocations = failedShard.unassignedInfo() != null ? failedShard.unassignedInfo().failureCount() : 0;
                 final Set<String> failedNodeIds;
                 if (failedShard.unassignedInfo() != null) {
                     failedNodeIds = Sets.newHashSetWithExpectedSize(failedShard.unassignedInfo().failedNodeIds().size() + 1);
@@ -437,7 +437,7 @@ public class AllocationService {
                                 unassignedInfo.reason(),
                                 unassignedInfo.message(),
                                 unassignedInfo.failure(),
-                                unassignedInfo.failedAllocations(),
+                                unassignedInfo.failureCount(),
                                 unassignedInfo.unassignedTimeNanos(),
                                 unassignedInfo.unassignedTimeMillis(),
                                 false,

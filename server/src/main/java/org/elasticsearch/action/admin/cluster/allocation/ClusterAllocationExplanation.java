@@ -228,8 +228,8 @@ public final class ClusterAllocationExplanation implements ChunkedToXContentObje
         builder.startObject("unassigned_info");
         builder.field("reason", unassignedInfo.reason());
         builder.field("at", UnassignedInfo.DATE_TIME_FORMATTER.format(Instant.ofEpochMilli(unassignedInfo.unassignedTimeMillis())));
-        if (unassignedInfo.failedAllocations() > 0) {
-            builder.field("failed_allocation_attempts", unassignedInfo.failedAllocations());
+        if (unassignedInfo.failureCount() > 0) {
+            builder.field("failed_allocation_attempts", unassignedInfo.failureCount());
         }
         String details = unassignedInfo.details();
         if (details != null) {

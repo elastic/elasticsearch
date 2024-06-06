@@ -209,7 +209,7 @@ public class DelayedAllocationService extends AbstractLifecycleComponent impleme
                 logger.info(
                     "scheduling reroute for delayed shards in [{}] ({} delayed shards)",
                     nextDelay,
-                    UnassignedInfo.getNumberOfDelayedUnassigned(state)
+                    UnassignedInfo.numberOfDelayedUnassigned(state)
                 );
                 DelayedRerouteTask currentTask = delayedRerouteTask.getAndSet(newTask);
                 assert existingTask == currentTask || currentTask == null;

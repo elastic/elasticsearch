@@ -114,7 +114,7 @@ public class RestoreInProgressAllocationDeciderTests extends ESAllocationTestCas
                 currentInfo.reason(),
                 currentInfo.message(),
                 new IOException("i/o failure"),
-                currentInfo.failedAllocations(),
+                currentInfo.failureCount(),
                 currentInfo.unassignedTimeNanos(),
                 currentInfo.unassignedTimeMillis(),
                 currentInfo.delayed(),

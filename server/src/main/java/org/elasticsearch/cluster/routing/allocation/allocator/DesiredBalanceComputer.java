@@ -406,7 +406,7 @@ public class DesiredBalanceComputer {
             info.reason(),
             info.message(),
             info.failure(),
-            info.failedAllocations(),
+            info.failureCount(),
             info.unassignedTimeNanos(),
             info.unassignedTimeMillis(),
             info.delayed(),

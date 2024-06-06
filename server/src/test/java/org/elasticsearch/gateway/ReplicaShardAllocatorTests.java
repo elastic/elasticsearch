@@ -254,7 +254,7 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
             List<ShardRouting> unassignedShards = shardsWithState(allocation.routingNodes(), ShardRoutingState.UNASSIGNED);
             assertThat(unassignedShards, hasSize(1));
             assertThat(unassignedShards.get(0).shardId(), equalTo(shardId));
-            assertThat(unassignedShards.get(0).unassignedInfo().failedAllocations(), equalTo(0));
+            assertThat(unassignedShards.get(0).unassignedInfo().failureCount(), equalTo(0));
             assertThat(unassignedShards.get(0).unassignedInfo().failedNodeIds(), equalTo(failedNodeIds));
         } else {
             assertThat(allocation.routingNodesChanged(), equalTo(false));

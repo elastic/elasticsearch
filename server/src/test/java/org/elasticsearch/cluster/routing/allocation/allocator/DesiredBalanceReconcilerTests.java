@@ -138,7 +138,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
                         unassignedInfo.reason(),
                         unassignedInfo.message(),
                         unassignedInfo.failure(),
-                        unassignedInfo.failedAllocations(),
+                        unassignedInfo.failureCount(),
                         unassignedInfo.unassignedTimeNanos(),
                         unassignedInfo.unassignedTimeMillis(),
                         unassignedInfo.delayed(),

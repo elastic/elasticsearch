@@ -168,7 +168,7 @@ public final class ClusterShardHealth implements Writeable, ToXContentFragment {
         final UnassignedInfo unassignedInfo = shardRouting.unassignedInfo();
         RecoverySource.Type recoveryType = shardRouting.recoverySource().getType();
         if (unassignedInfo.lastAllocationStatus() != AllocationStatus.DECIDERS_NO
-            && unassignedInfo.failedAllocations() == 0
+            && unassignedInfo.failureCount() == 0
             && (recoveryType == RecoverySource.Type.EMPTY_STORE
                 || recoveryType == RecoverySource.Type.LOCAL_SHARDS
                 || recoveryType == RecoverySource.Type.SNAPSHOT)) {

@@ -142,7 +142,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
         assertThat(read.unassignedTimeMillis(), equalTo(meta.unassignedTimeMillis()));
         assertThat(read.message(), equalTo(meta.message()));
         assertThat(read.details(), equalTo(meta.details()));
-        assertThat(read.failedAllocations(), equalTo(meta.failedAllocations()));
+        assertThat(read.failureCount(), equalTo(meta.failureCount()));
         assertThat(read.failedNodeIds(), equalTo(meta.failedNodeIds()));
         assertThat(read.lastAllocatedNodeId(), equalTo(meta.lastAllocatedNodeId()));
     }
@@ -798,7 +798,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
             .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")))
             .build();
         clusterState = allocation.reroute(clusterState, "reroute", ActionListener.noop());
-        assertThat(UnassignedInfo.getNumberOfDelayedUnassigned(clusterState), equalTo(0));
+        assertThat(UnassignedInfo.numberOfDelayedUnassigned(clusterState), equalTo(0));
         // starting primaries
         clusterState = startInitializingShardsAndReroute(allocation, clusterState);
         // starting replicas
@@ -808,7 +808,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).remove("node2")).build();
         // make sure both replicas are marked as delayed (i.e. not reallocated)
         clusterState = allocation.disassociateDeadNodes(clusterState, true, "reroute");
-        assertThat(clusterState.toString(), UnassignedInfo.getNumberOfDelayedUnassigned(clusterState), equalTo(2));
+        assertThat(clusterState.toString(), UnassignedInfo.numberOfDelayedUnassigned(clusterState), equalTo(2));
     }
 
     public void testFindNextDelayedAllocation() {
@@ -848,7 +848,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
             .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")))
             .build();
         clusterState = allocation.reroute(clusterState, "reroute", ActionListener.noop());
-        assertThat(UnassignedInfo.getNumberOfDelayedUnassigned(clusterState), equalTo(0));
+        assertThat(UnassignedInfo.numberOfDelayedUnassigned(clusterState), equalTo(0));
         // starting primaries
         clusterState = startInitializingShardsAndReroute(allocation, clusterState);
         // starting replicas
@@ -924,8 +924,8 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
             summary,
             containsString("at[" + UnassignedInfo.DATE_TIME_FORMATTER.format(Instant.ofEpochMilli(info.unassignedTimeMillis())) + ']')
         );
-        if (info.failedAllocations() > 0) {
-            assertThat("failed_allocations", summary, containsString("failed_attempts[" + info.failedAllocations() + ']'));
+        if (info.failureCount() > 0) {
+            assertThat("failed_allocations", summary, containsString("failed_attempts[" + info.failureCount() + ']'));
         }
         if (info.failedNodeIds().isEmpty() == false) {
             assertThat("failed_nodes", summary, containsString("failed_nodes[" + info.failedNodeIds() + ']'));

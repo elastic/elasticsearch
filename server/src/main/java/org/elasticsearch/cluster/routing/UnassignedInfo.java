@@ -46,7 +46,7 @@ import static org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocat
  * @param reason why the shard is unassigned.
  * @param message optional details explaining the reasons.
  * @param failure additional failure exception details if exists.
- * @param failedAllocations number of previously failed allocations of this shard.
+ * @param failureCount number of previously failed allocations of this shard.
  * @param delayed true if allocation of this shard is delayed due to {@link #INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING}.
  * @param unassignedTimeMillis The timestamp in milliseconds when the shard became unassigned, based on System.currentTimeMillis().
  *                             Note, we use timestamp here since we want to make sure its preserved across node serializations.
@@ -67,7 +67,7 @@ public record UnassignedInfo(
     Reason reason,
     @Nullable String message,
     @Nullable Exception failure,
-    int failedAllocations,
+    int failureCount,
     long unassignedTimeNanos,
     long unassignedTimeMillis,
     boolean delayed,
@@ -285,8 +285,7 @@ public record UnassignedInfo(
         Objects.requireNonNull(reason);
         Objects.requireNonNull(lastAllocationStatus);
         failedNodeIds = Set.copyOf(failedNodeIds);
-        assert (failedAllocations > 0) == (reason == Reason.ALLOCATION_FAILED)
-            : "failedAllocations: " + failedAllocations + " for reason " + reason;
+        assert (failureCount > 0) == (reason == Reason.ALLOCATION_FAILED) : "failureCount: " + failureCount + " for reason " + reason;
         assert (message == null && failure != null) == false : "provide a message if a failure exception is provided";
         assert (delayed && reason != Reason.NODE_LEFT && reason != Reason.NODE_RESTARTING) == false
             : "shard can only be delayed if it is unassigned due to a node leaving";
@@ -306,7 +305,7 @@ public record UnassignedInfo(
         var delayed = in.readBoolean();
         var message = in.readOptionalString();
         var failure = in.readException();
-        var failedAllocations = in.readVInt();
+        var failureCount = in.readVInt();
         var lastAllocationStatus = AllocationStatus.readFrom(in);
         var failedNodeIds = in.readCollectionAsImmutableSet(StreamInput::readString);
         String lastAllocatedNodeId;
@@ -319,7 +318,7 @@ public record UnassignedInfo(
             reason,
             message,
             failure,
-            failedAllocations,
+            failureCount,
             unassignedTimeNanos,
             unassignedTimeMillis,
             delayed,
@@ -342,7 +341,7 @@ public record UnassignedInfo(
         out.writeBoolean(delayed);
         out.writeOptionalString(message);
         out.writeException(failure);
-        out.writeVInt(failedAllocations);
+        out.writeVInt(failureCount);
         lastAllocationStatus.writeTo(out);
         out.writeStringCollection(failedNodeIds);
         if (out.getTransportVersion().onOrAfter(VERSION_LAST_ALLOCATED_NODE_ADDED)) {
@@ -359,6 +358,19 @@ public record UnassignedInfo(
             return null;
         }
         return message + (failure == null ? "" : ", failure " + ExceptionsHelper.stackTrace(failure));
+    }
+
+    /**
+     * Returns the number of shards that are unassigned and currently being delayed.
+     */
+    public static int numberOfDelayedUnassigned(ClusterState state) {
+        int count = 0;
+        for (ShardRouting shard : state.getRoutingNodes().unassigned()) {
+            if (shard.unassignedInfo().delayed()) {
+                count++;
+            }
+        }
+        return count;
     }
 
     /**
@@ -380,19 +392,6 @@ public record UnassignedInfo(
             .orElse(indexLevelDelay);
         assert nanoTimeNow - unassignedTimeNanos >= 0;
         return Math.max(0L, delayTimeoutNanos - (nanoTimeNow - unassignedTimeNanos));
-    }
-
-    /**
-     * Returns the number of shards that are unassigned and currently being delayed.
-     */
-    public static int getNumberOfDelayedUnassigned(ClusterState state) {
-        int count = 0;
-        for (ShardRouting shard : state.getRoutingNodes().unassigned()) {
-            if (shard.unassignedInfo().delayed()) {
-                count++;
-            }
-        }
-        return count;
     }
 
     /**
@@ -425,8 +424,8 @@ public record UnassignedInfo(
         StringBuilder sb = new StringBuilder();
         sb.append("[reason=").append(reason).append("]");
         sb.append(", at[").append(DATE_TIME_FORMATTER.format(Instant.ofEpochMilli(unassignedTimeMillis))).append("]");
-        if (failedAllocations > 0) {
-            sb.append(", failed_attempts[").append(failedAllocations).append("]");
+        if (failureCount > 0) {
+            sb.append(", failed_attempts[").append(failureCount).append("]");
         }
         if (failedNodeIds.isEmpty() == false) {
             sb.append(", failed_nodes[").append(failedNodeIds).append("]");
@@ -453,8 +452,8 @@ public record UnassignedInfo(
         builder.startObject("unassigned_info");
         builder.field("reason", reason);
         builder.field("at", DATE_TIME_FORMATTER.format(Instant.ofEpochMilli(unassignedTimeMillis)));
-        if (failedAllocations > 0) {
-            builder.field("failed_attempts", failedAllocations);
+        if (failureCount > 0) {
+            builder.field("failed_attempts", failureCount);
         }
         if (failedNodeIds.isEmpty() == false) {
             builder.stringListField("failed_nodes", failedNodeIds);
@@ -470,60 +469,6 @@ public record UnassignedInfo(
         builder.field("allocation_status", lastAllocationStatus.value());
         builder.endObject();
         return builder;
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) {
-            return true;
-        }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-
-        UnassignedInfo that = (UnassignedInfo) o;
-
-        if (unassignedTimeMillis != that.unassignedTimeMillis) {
-            return false;
-        }
-        if (delayed != that.delayed) {
-            return false;
-        }
-        if (failedAllocations != that.failedAllocations) {
-            return false;
-        }
-        if (reason != that.reason) {
-            return false;
-        }
-        if (Objects.equals(message, that.message) == false) {
-            return false;
-        }
-        if (lastAllocationStatus != that.lastAllocationStatus) {
-            return false;
-        }
-        if (Objects.equals(failure, that.failure) == false) {
-            return false;
-        }
-
-        if (Objects.equals(lastAllocatedNodeId, that.lastAllocatedNodeId) == false) {
-            return false;
-        }
-
-        return failedNodeIds.equals(that.failedNodeIds);
-    }
-
-    @Override
-    public int hashCode() {
-        int result = reason.hashCode();
-        result = 31 * result + Boolean.hashCode(delayed);
-        result = 31 * result + Integer.hashCode(failedAllocations);
-        result = 31 * result + Long.hashCode(unassignedTimeMillis);
-        result = 31 * result + (message != null ? message.hashCode() : 0);
-        result = 31 * result + (failure != null ? failure.hashCode() : 0);
-        result = 31 * result + lastAllocationStatus.hashCode();
-        result = 31 * result + failedNodeIds.hashCode();
-        result = 31 * result + (lastAllocatedNodeId != null ? lastAllocatedNodeId.hashCode() : 0);
-        return result;
     }
 
 }

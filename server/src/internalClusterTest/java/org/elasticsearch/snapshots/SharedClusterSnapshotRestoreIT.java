@@ -580,7 +580,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         Consumer<UnassignedInfo> checkUnassignedInfo = unassignedInfo -> {
             assertThat(unassignedInfo.reason(), equalTo(UnassignedInfo.Reason.ALLOCATION_FAILED));
-            assertThat(unassignedInfo.failedAllocations(), anyOf(equalTo(maxRetries), equalTo(1)));
+            assertThat(unassignedInfo.failureCount(), anyOf(equalTo(maxRetries), equalTo(1)));
         };
 
         unrestorableUseCase(indexName, createIndexSettings, repositorySettings, Settings.EMPTY, checkUnassignedInfo, () -> {});

@@ -975,7 +975,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                         currInfo.reason(),
                         currInfo.message(),
                         currInfo.failure(),
-                        currInfo.failedAllocations(),
+                        currInfo.failureCount(),
                         currInfo.unassignedTimeNanos(),
                         currInfo.unassignedTimeMillis(),
                         currInfo.delayed(),
@@ -1283,7 +1283,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
             UnassignedInfo unassignedInfo = shardRouting.unassignedInfo();
             unassignedIterator.updateUnassigned(
                 new UnassignedInfo(
-                    unassignedInfo.failedAllocations() > 0 ? UnassignedInfo.Reason.MANUAL_ALLOCATION : unassignedInfo.reason(),
+                    unassignedInfo.failureCount() > 0 ? UnassignedInfo.Reason.MANUAL_ALLOCATION : unassignedInfo.reason(),
                     unassignedInfo.message(),
                     unassignedInfo.failure(),
                     0,

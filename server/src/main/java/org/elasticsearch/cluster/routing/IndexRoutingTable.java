@@ -577,7 +577,7 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable> {
                     unassignedInfo.reason(),
                     unassignedInfo.message(),
                     unassignedInfo.failure(),
-                    unassignedInfo.failedAllocations(),
+                    unassignedInfo.failureCount(),
                     unassignedInfo.unassignedTimeNanos(),
                     unassignedInfo.unassignedTimeMillis(),
                     unassignedInfo.delayed(),

@@ -67,7 +67,6 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.greaterThanOrEqualOf;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.lessThanOf;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.lessThanOrEqualOf;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.notEqualsOf;
-import static org.elasticsearch.xpack.esql.core.TestUtils.nullEqualsOf;
 import static org.elasticsearch.xpack.esql.core.TestUtils.of;
 import static org.elasticsearch.xpack.esql.core.TestUtils.rangeOf;
 import static org.elasticsearch.xpack.esql.core.TestUtils.relation;
@@ -105,8 +104,6 @@ public class OptimizerRulesTests extends ESTestCase {
         assertEquals(FALSE, new ConstantFolding().rule(greaterThanOf(TWO, THREE)).canonical());
         assertEquals(FALSE, new ConstantFolding().rule(greaterThanOrEqualOf(TWO, THREE)).canonical());
         assertEquals(FALSE, new ConstantFolding().rule(equalsOf(TWO, THREE)).canonical());
-        assertEquals(FALSE, new ConstantFolding().rule(nullEqualsOf(TWO, THREE)).canonical());
-        assertEquals(FALSE, new ConstantFolding().rule(nullEqualsOf(TWO, NULL)).canonical());
         assertEquals(TRUE, new ConstantFolding().rule(notEqualsOf(TWO, THREE)).canonical());
         assertEquals(TRUE, new ConstantFolding().rule(lessThanOrEqualOf(TWO, THREE)).canonical());
         assertEquals(TRUE, new ConstantFolding().rule(lessThanOf(TWO, THREE)).canonical());

@@ -12,7 +12,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
@@ -56,22 +56,22 @@ public class MulTests extends AbstractFunctionTestCase {
             )
         );
 
-        suppliers.add(new TestCaseSupplier("Double * Double", List.of(DataTypes.DOUBLE, DataTypes.DOUBLE), () -> {
+        suppliers.add(new TestCaseSupplier("Double * Double", List.of(DataType.DOUBLE, DataType.DOUBLE), () -> {
             double rhs = randomDouble();
             double lhs = randomDouble();
             return new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(lhs, DataTypes.DOUBLE, "lhs"),
-                    new TestCaseSupplier.TypedData(rhs, DataTypes.DOUBLE, "rhs")
+                    new TestCaseSupplier.TypedData(lhs, DataType.DOUBLE, "lhs"),
+                    new TestCaseSupplier.TypedData(rhs, DataType.DOUBLE, "rhs")
                 ),
                 "MulDoublesEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
-                DataTypes.DOUBLE,
+                DataType.DOUBLE,
                 equalTo(lhs * rhs)
             );
         }));
         suppliers.add(
             arithmeticExceptionOverflowCase(
-                DataTypes.INTEGER,
+                DataType.INTEGER,
                 () -> randomBoolean() ? Integer.MIN_VALUE : Integer.MAX_VALUE,
                 () -> randomIntBetween(2, Integer.MAX_VALUE),
                 "MulIntsEvaluator"
@@ -79,7 +79,7 @@ public class MulTests extends AbstractFunctionTestCase {
         );
         suppliers.add(
             arithmeticExceptionOverflowCase(
-                DataTypes.LONG,
+                DataType.LONG,
                 () -> randomBoolean() ? Long.MIN_VALUE : Long.MAX_VALUE,
                 () -> randomLongBetween(2L, Long.MAX_VALUE),
                 "MulLongsEvaluator"
@@ -87,7 +87,7 @@ public class MulTests extends AbstractFunctionTestCase {
         );
         suppliers.add(
             arithmeticExceptionOverflowCase(
-                DataTypes.UNSIGNED_LONG,
+                DataType.UNSIGNED_LONG,
                 () -> asLongUnsigned(UNSIGNED_LONG_MAX),
                 () -> asLongUnsigned(randomLongBetween(-Long.MAX_VALUE, Long.MAX_VALUE)),
                 "MulUnsignedLongsEvaluator"

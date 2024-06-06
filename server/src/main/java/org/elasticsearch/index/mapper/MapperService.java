@@ -8,6 +8,8 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.join.BitSetProducer;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
@@ -167,6 +169,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         Supplier<SearchExecutionContext> searchExecutionContextSupplier,
         IdFieldMapper idFieldMapper,
         ScriptCompiler scriptCompiler,
+        Function<Query, BitSetProducer> bitSetProducer,
         MapperMetrics mapperMetrics
     ) {
         this(
@@ -179,6 +182,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             searchExecutionContextSupplier,
             idFieldMapper,
             scriptCompiler,
+            bitSetProducer,
             mapperMetrics
         );
     }
@@ -194,6 +198,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         Supplier<SearchExecutionContext> searchExecutionContextSupplier,
         IdFieldMapper idFieldMapper,
         ScriptCompiler scriptCompiler,
+        Function<Query, BitSetProducer> bitSetProducer,
         MapperMetrics mapperMetrics
     ) {
         super(indexSettings);
@@ -210,7 +215,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             scriptCompiler,
             indexAnalyzers,
             indexSettings,
-            idFieldMapper
+            idFieldMapper,
+            bitSetProducer
         );
         this.documentParser = new DocumentParser(parserConfiguration, this.mappingParserContextSupplier.get());
         Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers = mapperRegistry.getMetadataMapperParsers(
@@ -480,8 +486,11 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                         if (baseMap.containsKey("subobjects")) {
                             mergedMappings.put("subobjects", baseMap.get("subobjects"));
                         }
-                        // recursively merge these two field mappings
-                        XContentHelper.merge(key, mergedMappings, mapToMerge, INSTANCE);
+                        // Recursively merge these two field mappings.
+                        // Since "key" is an arbitrary field name, for which we only need plain mapping subtrees merge, no need to pass it
+                        // to the recursion as it shouldn't affect the merge logic. Specifically, passing a parent may cause merge
+                        // failures of fields named "properties". See https://github.com/elastic/elasticsearch/issues/108866
+                        XContentHelper.merge(mergedMappings, mapToMerge, INSTANCE);
                         return mergedMappings;
                     } else {
                         // non-mergeable types - replace the entire mapping subtree for this field

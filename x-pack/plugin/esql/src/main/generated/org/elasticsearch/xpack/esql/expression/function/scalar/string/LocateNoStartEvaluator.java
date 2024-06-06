@@ -35,10 +35,10 @@ public final class LocateNoStartEvaluator implements EvalOperator.ExpressionEval
 
   public LocateNoStartEvaluator(Source source, EvalOperator.ExpressionEvaluator str,
       EvalOperator.ExpressionEvaluator substr, DriverContext driverContext) {
-    this.warnings = new Warnings(source);
     this.str = str;
     this.substr = substr;
     this.driverContext = driverContext;
+    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override

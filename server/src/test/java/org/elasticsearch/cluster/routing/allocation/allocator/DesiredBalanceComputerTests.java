@@ -167,7 +167,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                         .replicaShards()
                         .get(0)
                         .unassignedInfo()
-                        .getLastAllocationStatus() == UnassignedInfo.AllocationStatus.DECIDERS_NO ? 1 : 2
+                        .lastAllocationStatus() == UnassignedInfo.AllocationStatus.DECIDERS_NO ? 1 : 2
                 ),
                 new ShardId(index, 1),
                 new ShardAssignment(Set.of("node-0", "node-1"), 2, 0, 0)
@@ -198,7 +198,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                     Set.of("node-0"),
                     2,
                     1,
-                    originalReplicaShard.unassignedInfo().getLastAllocationStatus() == UnassignedInfo.AllocationStatus.DECIDERS_NO ? 0 : 1
+                    originalReplicaShard.unassignedInfo().lastAllocationStatus() == UnassignedInfo.AllocationStatus.DECIDERS_NO ? 0 : 1
                 ),
                 new ShardId(index, 1),
                 new ShardAssignment(Set.of("node-0", "node-1"), 2, 0, 0)
@@ -1301,20 +1301,20 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
             var unassignedInfo = shardRouting.unassignedInfo();
             return shardRouting.updateUnassigned(
                 new UnassignedInfo(
-                    unassignedInfo.getReason(),
-                    unassignedInfo.getMessage(),
-                    unassignedInfo.getFailure(),
-                    unassignedInfo.getNumFailedAllocations(),
-                    unassignedInfo.getUnassignedTimeInNanos(),
-                    unassignedInfo.getUnassignedTimeInMillis(),
-                    unassignedInfo.isDelayed(),
+                    unassignedInfo.reason(),
+                    unassignedInfo.message(),
+                    unassignedInfo.failure(),
+                    unassignedInfo.failedAllocations(),
+                    unassignedInfo.unassignedTimeNanos(),
+                    unassignedInfo.unassignedTimeMillis(),
+                    unassignedInfo.delayed(),
                     randomFrom(
                         UnassignedInfo.AllocationStatus.DECIDERS_NO,
                         UnassignedInfo.AllocationStatus.NO_ATTEMPT,
                         UnassignedInfo.AllocationStatus.DECIDERS_THROTTLED
                     ),
-                    unassignedInfo.getFailedNodeIds(),
-                    unassignedInfo.getLastAllocatedNodeId()
+                    unassignedInfo.failedNodeIds(),
+                    unassignedInfo.lastAllocatedNodeId()
                 ),
                 shardRouting.recoverySource()
             );

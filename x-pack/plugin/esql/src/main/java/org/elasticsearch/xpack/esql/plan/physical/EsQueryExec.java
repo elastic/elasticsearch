@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 
 import java.util.List;
@@ -29,13 +28,10 @@ import java.util.Map;
 import java.util.Objects;
 
 public class EsQueryExec extends LeafExec implements EstimatesRowSize {
-    public static final DataType DOC_DATA_TYPE = new DataType("_doc", Integer.BYTES * 3, false, false, false);
-    public static final DataType TSID_DATA_TYPE = new DataType("_tsid", Integer.MAX_VALUE, false, false, true);
-
-    static final EsField DOC_ID_FIELD = new EsField("_doc", DOC_DATA_TYPE, Map.of(), false);
-    static final EsField TSID_FIELD = new EsField("_tsid", TSID_DATA_TYPE, Map.of(), true);
-    static final EsField TIMESTAMP_FIELD = new EsField("@timestamp", DataTypes.DATETIME, Map.of(), true);
-    static final EsField INTERVAL_FIELD = new EsField("@timestamp_interval", DataTypes.DATETIME, Map.of(), true);
+    static final EsField DOC_ID_FIELD = new EsField("_doc", DataType.DOC_DATA_TYPE, Map.of(), false);
+    static final EsField TSID_FIELD = new EsField("_tsid", DataType.TSID_DATA_TYPE, Map.of(), true);
+    static final EsField TIMESTAMP_FIELD = new EsField("@timestamp", DataType.DATETIME, Map.of(), true);
+    static final EsField INTERVAL_FIELD = new EsField("@timestamp_interval", DataType.DATETIME, Map.of(), true);
 
     private final EsIndex index;
     private final IndexMode indexMode;
@@ -86,7 +82,7 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
 
     private static List<Attribute> sourceAttributes(Source source, IndexMode indexMode) {
         return switch (indexMode) {
-            case STANDARD -> List.of(new FieldAttribute(source, DOC_ID_FIELD.getName(), DOC_ID_FIELD));
+            case STANDARD, LOGS -> List.of(new FieldAttribute(source, DOC_ID_FIELD.getName(), DOC_ID_FIELD));
             case TIME_SERIES -> List.of(
                 new FieldAttribute(source, DOC_ID_FIELD.getName(), DOC_ID_FIELD),
                 new FieldAttribute(source, TSID_FIELD.getName(), TSID_FIELD),

@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.esql.core.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -31,7 +30,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 
 public class Substring extends EsqlScalarFunction implements OptionalArgument {
 
@@ -72,7 +71,7 @@ public class Substring extends EsqlScalarFunction implements OptionalArgument {
 
     @Override
     public DataType dataType() {
-        return DataTypes.KEYWORD;
+        return DataType.KEYWORD;
     }
 
     @Override
@@ -111,11 +110,11 @@ public class Substring extends EsqlScalarFunction implements OptionalArgument {
 
     @Evaluator
     static BytesRef process(BytesRef str, int start, int length) {
-        if (str.length == 0) {
-            return null;
-        }
         if (length < 0) {
             throw new IllegalArgumentException("Length parameter cannot be negative, found [" + length + "]");
+        }
+        if (str.length == 0) {
+            return str;
         }
         int codePointCount = UnicodeUtil.codePointCount(str);
         int indexStart = indexStart(codePointCount, start);

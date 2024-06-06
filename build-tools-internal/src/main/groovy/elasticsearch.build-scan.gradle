@@ -6,7 +6,10 @@
  * Side Public License, v 1.
  */
 
+import java.lang.management.ManagementFactory;
+import java.time.LocalDateTime;
 
+import org.elasticsearch.gradle.Architecture
 import org.elasticsearch.gradle.OS
 import org.elasticsearch.gradle.internal.info.BuildParams
 

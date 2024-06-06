@@ -132,8 +132,8 @@ class ProgressListenableActionFuture extends PlainActionFuture<Long> {
 
     @Override
     public void onResponse(Long result) {
-        if (result == null || result < start || end < result) {
-            assert false : start + " < " + result + " < " + end;
+        if (result == null || end != result) {
+            assert false : result + " != " + end;
             throw new IllegalArgumentException("Invalid completion value [start=" + start + ",end=" + end + ",response=" + result + ']');
         }
         ensureNotCompleted();

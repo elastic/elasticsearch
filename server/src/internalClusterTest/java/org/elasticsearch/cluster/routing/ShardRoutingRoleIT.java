@@ -114,7 +114,7 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
                 @Override
                 public Decision canForceAllocatePrimary(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
                     // once a primary is cancelled it _stays_ cancelled
-                    if (shardRouting.unassignedInfo().getReason() == UnassignedInfo.Reason.REROUTE_CANCELLED) {
+                    if (shardRouting.unassignedInfo().reason() == UnassignedInfo.Reason.REROUTE_CANCELLED) {
                         return Decision.NO;
                     }
                     return super.canForceAllocatePrimary(shardRouting, node, allocation);
@@ -450,7 +450,7 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
                         shardRouting.role().isPromotableToPrimary()
                             ? UnassignedInfo.Reason.REROUTE_CANCELLED
                             : UnassignedInfo.Reason.UNPROMOTABLE_REPLICA,
-                        shardRouting.unassignedInfo().getReason()
+                        shardRouting.unassignedInfo().reason()
                     );
                 }
             }

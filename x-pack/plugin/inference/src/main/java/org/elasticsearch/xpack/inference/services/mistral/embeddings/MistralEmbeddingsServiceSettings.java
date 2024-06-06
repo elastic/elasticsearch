@@ -18,6 +18,7 @@ import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.mistral.MistralService;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -59,7 +60,13 @@ public class MistralEmbeddingsServiceSettings extends FilteredXContentObject imp
             ModelConfigurations.SERVICE_SETTINGS,
             validationException
         );
-        RateLimitSettings rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException);
+        RateLimitSettings rateLimitSettings = RateLimitSettings.of(
+            map,
+            DEFAULT_RATE_LIMIT_SETTINGS,
+            validationException,
+            MistralService.NAME,
+            context
+        );
         Integer dims = removeAsType(map, DIMENSIONS, Integer.class);
 
         if (validationException.validationErrors().isEmpty() == false) {
@@ -141,7 +148,6 @@ public class MistralEmbeddingsServiceSettings extends FilteredXContentObject imp
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         this.toXContentFragmentOfExposedFields(builder, params);
-        rateLimitSettings.toXContent(builder, params);
         builder.endObject();
         return builder;
     }
@@ -159,6 +165,7 @@ public class MistralEmbeddingsServiceSettings extends FilteredXContentObject imp
         if (this.maxInputTokens != null) {
             builder.field(MAX_INPUT_TOKENS, this.maxInputTokens);
         }
+        rateLimitSettings.toXContent(builder, params);
 
         return builder;
     }

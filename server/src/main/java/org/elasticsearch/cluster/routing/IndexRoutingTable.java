@@ -574,15 +574,15 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable> {
             return previousNodes == null || previousNodes.size() <= shardCopy
                 ? unassignedInfo
                 : new UnassignedInfo(
-                    unassignedInfo.getReason(),
-                    unassignedInfo.getMessage(),
-                    unassignedInfo.getFailure(),
-                    unassignedInfo.getNumFailedAllocations(),
-                    unassignedInfo.getUnassignedTimeInNanos(),
-                    unassignedInfo.getUnassignedTimeInMillis(),
-                    unassignedInfo.isDelayed(),
-                    unassignedInfo.getLastAllocationStatus(),
-                    unassignedInfo.getFailedNodeIds(),
+                    unassignedInfo.reason(),
+                    unassignedInfo.message(),
+                    unassignedInfo.failure(),
+                    unassignedInfo.failedAllocations(),
+                    unassignedInfo.unassignedTimeNanos(),
+                    unassignedInfo.unassignedTimeMillis(),
+                    unassignedInfo.delayed(),
+                    unassignedInfo.lastAllocationStatus(),
+                    unassignedInfo.failedNodeIds(),
                     previousNodes.get(shardCopy)
                 );
         }

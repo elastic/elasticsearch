@@ -17,7 +17,6 @@ import java.util.List;
 import java.util.Map;
 
 public class NamedExpressions {
-
     /**
      * Calculates the actual output of a command given the new attributes plus the existing inputs that are emitted as outputs
      * @param fields the fields added by the command

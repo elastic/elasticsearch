@@ -89,15 +89,15 @@ public class EsqlQueryRequestTests extends ESTestCase {
 
         String paramsString = """
             ,"params":[ {"n1" : "8.15.0" }, { "n2" : 0.05 }, {"n3" : -799810013 },
-             {"n4" : "127.0.0.1"}, {"n5" : "esql"}, {"n6" : null}, {"n7" : false}] }""";
+             {"n4" : "127.0.0.1"}, {"n5" : "esql"}, {"n_6" : null}, {"n7_" : false}] }""";
         List<QueryParam> params = new ArrayList<>(4);
         params.add(new QueryParam("n1", "8.15.0", DataType.KEYWORD));
         params.add(new QueryParam("n2", 0.05, DataType.DOUBLE));
         params.add(new QueryParam("n3", -799810013, DataType.INTEGER));
         params.add(new QueryParam("n4", "127.0.0.1", DataType.KEYWORD));
         params.add(new QueryParam("n5", "esql", DataType.KEYWORD));
-        params.add(new QueryParam("n6", null, DataType.NULL));
-        params.add(new QueryParam("n7", false, DataType.BOOLEAN));
+        params.add(new QueryParam("n_6", null, DataType.NULL));
+        params.add(new QueryParam("n7_", false, DataType.BOOLEAN));
         String json = String.format(Locale.ROOT, """
             {
                 "query": "%s",

@@ -744,10 +744,10 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         } else {
             if (params.contains(nameOrPosition) == false) {
                 String message = "";
-                String[] names = params.namedParams().keySet().stream().toArray(String[]::new);
-                if (names.length > 0) {
+                List<String> potentialMatches = StringUtils.findSimilar(nameOrPosition, params.namedParams().keySet());
+                if (potentialMatches.size() > 0) {
                     message = ", did you mean "
-                        + (names.length == 1 ? "[" + names[0] + "]?" : "any of [" + String.join(", ", names) + "]?");
+                        + (potentialMatches.size() == 1 ? "[" + potentialMatches.get(0) + "]?" : "any of " + potentialMatches + "?");
                 }
                 params.addParsingErrors(new Failure(null, "Unknown query parameter [" + nameOrPosition + "]" + message));
             }

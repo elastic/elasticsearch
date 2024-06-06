@@ -161,3 +161,43 @@ setup:
   - match: { hits.hits.0._id: "3" }
   - match: { hits.hits.1._id: "2" }
   - match: { hits.hits.2._id: "1" }
+---
+"Dynamic dimensions for hex-encoded string":
+  - requires:
+      cluster_features: "gte_v8.15.0"
+      reason: 'hex encoding for byte vectors fixed in 8.15'
+
+  - do:
+      indices.create:
+        index: knn_hex_vector_index_dyn_dims
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              my_vector_byte:
+                type: dense_vector
+                index : false
+                element_type: byte
+              my_vector_byte_indexed:
+                type: dense_vector
+                index: true
+                element_type: byte
+                similarity : l2_norm
+
+  # [-128, 127, 10] - is encoded as '807f0a'
+  - do:
+      index:
+        index: knn_hex_vector_index_dyn_dims
+        id: "1"
+        body:
+          my_vector_byte: "807f0a"
+          my_vector_byte_indexed: "807f0a"
+
+  # assert the index is created with 3 dimensions
+  - do:
+      indices.get_mapping:
+        index: knn_hex_vector_index_dyn_dims
+
+  - match: { knn_hex_vector_index_dyn_dims.mappings.properties.my_vector_byte.dims: 3 }
+  - match: { knn_hex_vector_index_dyn_dims.mappings.properties.my_vector_byte_indexed.dims: 3 }

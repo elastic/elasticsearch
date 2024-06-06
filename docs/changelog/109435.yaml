@@ -1,0 +1,5 @@
+pr: 109435
+summary: Adding `ActionRequest-based` reranker
+area: Ranking
+type: enhancement
+issues: []

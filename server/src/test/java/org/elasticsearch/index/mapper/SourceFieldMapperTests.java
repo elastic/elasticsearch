@@ -243,6 +243,13 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
         assertEquals("{\"_source\":{\"mode\":\"synthetic\"}}", mapper.sourceMapper().toString());
     }
 
+    public void testSyntheticSourceWithLogsIndexMode() throws IOException {
+        XContentBuilder mapping = fieldMapping(b -> { b.field("type", "keyword"); });
+        DocumentMapper mapper = createLogsModeDocumentMapper(mapping);
+        assertTrue(mapper.sourceMapper().isSynthetic());
+        assertEquals("{\"_source\":{\"mode\":\"synthetic\"}}", mapper.sourceMapper().toString());
+    }
+
     public void testSupportsNonDefaultParameterValues() throws IOException {
         Settings settings = Settings.builder().put(SourceFieldMapper.LOSSY_PARAMETERS_ALLOWED_SETTING_NAME, false).build();
         {

@@ -24,9 +24,9 @@ import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 
 import org.apache.lucene.index.CorruptIndexException;
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
@@ -55,6 +55,7 @@ import org.elasticsearch.snapshots.mockstore.BlobStoreWrapper;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
@@ -133,7 +134,14 @@ public class CorruptionIT extends AbstractStatelessIntegTestCase {
      * Run indexing, searching, force merge and snapshotting operations on the cluster while
      * moving indexing and search shards around.
      */
-    @LuceneTestCase.AwaitsFix(bugUrl = "https://elasticco.atlassian.net/browse/ES-6563")
+    @TestLogging(
+        value = "co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService.shard_files_deletes:debug,"
+            + "co.elastic.elasticsearch.stateless.commits.StatelessCommitService:debug,"
+            + "co.elastic.elasticsearch.stateless.recovery:debug,"
+            + "org.elasticsearch.blobcache.shared.SharedBlobCacheService:warn," // disable logs of "No free regions ..."
+            + "org.elasticsearch.indices.recovery:debug",
+        reason = "log shard file operations on DEBUG level"
+    )
     public void testConcurrentOperations() throws Exception {
         startMasterOnlyNode();
         var smallCache = randomBoolean();
@@ -175,11 +183,10 @@ public class CorruptionIT extends AbstractStatelessIntegTestCase {
                     var docs = randomIntBetween(1, MAX_DOCS_PER_BULK);
                     IntStream.range(0, docs)
                         .forEach(
-                            i -> bulkRequest.add(
-                                new IndexRequest(indexName).source("field", randomUnicodeOfLengthBetween(100, 1024 * 1024))
-                            )
+                            i -> bulkRequest.add(new IndexRequest(indexName).source("field", randomUnicodeOfLengthBetween(100, 1024)))
                         );
-                    if (randomBoolean() && false) { // Do not update to avoid hitting https://elasticco.atlassian.net/browse/ES-6563
+                    // TODO: enable update once generational file issue is resolved ES-7496
+                    if (false && randomBoolean()) {
                         var updateCount = Math.min(existingDocIds.size(), randomIntBetween(1, MAX_DOCS_PER_BULK / 2));
                         var idsToUpdate = randomSubsetOf(updateCount, existingDocIds);
                         idsToUpdate.forEach(
@@ -189,12 +196,15 @@ public class CorruptionIT extends AbstractStatelessIntegTestCase {
                         );
                     }
                     Set<String> idsToDelete = new HashSet<>();
-                    if (randomBoolean() && false) { // Do not delete to avoid hitting https://elasticco.atlassian.net/browse/ES-6563
+                    // TODO: enable deletion once generational file issue is resolved ES-7496
+                    if (false && randomBoolean()) {
                         var deleteCount = Math.min(existingDocIds.size(), randomIntBetween(1, MAX_DOCS_PER_BULK / 2));
                         idsToDelete = new HashSet<>(randomSubsetOf(deleteCount, existingDocIds));
                         idsToDelete.forEach(id -> bulkRequest.add(new DeleteRequest(indexName, id)));
                     }
-                    bulkRequest.setRefreshPolicy(randomFrom(IMMEDIATE, WAIT_UNTIL, NONE)).setTimeout(timeValueSeconds(60));
+                    final WriteRequest.RefreshPolicy refreshPolicy = rarely() ? WAIT_UNTIL : randomFrom(IMMEDIATE, NONE);
+                    logger.info("--> indexing [{}] docs with refresh_policy [{}]", docs, refreshPolicy);
+                    bulkRequest.setRefreshPolicy(refreshPolicy).setTimeout(timeValueSeconds(60));
                     var bulkResponse = bulkRequest.get();
                     assertNoFailures(bulkResponse);
                     var ids = Arrays.stream(bulkResponse.getItems()).map(r -> r.getResponse().getId()).toList();
@@ -215,14 +225,17 @@ public class CorruptionIT extends AbstractStatelessIntegTestCase {
             var indexNodeRequired = randomFrom(indexNodes);
             try {
                 while (indexersRunning.getCount() > 0 && stop.get() == false) {
-                    if (randomBoolean()) {
+                    final boolean relocatingSearchShard = randomBoolean();
+                    if (relocatingSearchShard) {
                         searchNodeRequired = searchNodeRequired.equals(searchNodes.get(0)) ? searchNodes.get(1) : searchNodes.get(0);
-                        logger.info("--> Moving search shard to {}", searchNodeRequired);
+                        logger.info("--> Moving search shards to {}", searchNodeRequired);
                         updateIndexSettings(Settings.builder().put("index.routing.allocation.require._name", searchNodeRequired));
                     }
-                    if (randomBoolean()) {
+                    // TODO: ES-8602 - search shard recovery will be reinitialized if indexing shard also relocates
+                    // This makes the search shard temporarily unavailable which can trigger failures for search or refresh
+                    if (relocatingSearchShard == false && randomBoolean()) {
                         indexNodeRequired = indexNodeRequired.equals(indexNodes.get(0)) ? indexNodes.get(1) : indexNodes.get(0);
-                        logger.info("--> Moving index shard to {}", indexNodeRequired);
+                        logger.info("--> Moving index shards to {}", indexNodeRequired);
                         updateIndexSettings(Settings.builder().put("index.routing.allocation.require._name", indexNodeRequired));
                     }
                     ensureGreen(timeValueSeconds(TEST_HARDER ? 90 : 30), indexName);
@@ -252,6 +265,7 @@ public class CorruptionIT extends AbstractStatelessIntegTestCase {
                     if (randomBoolean()) {
                         logger.info("--> Force merging");
                         assertNoFailures(indicesAdmin().prepareForceMerge(indexName).get());
+                        logger.info("--> completed force merging");
                     }
                     safeSleep(randomLongBetween(FORCE_MERGE_SLEEP.v1(), FORCE_MERGE_SLEEP.v2()));
                 }
@@ -261,20 +275,21 @@ public class CorruptionIT extends AbstractStatelessIntegTestCase {
             }
         };
 
+        final String repoName = "test-repo";
         if (smallCache) {
             var repoSettings = Settings.builder()
                 .put(BlobStoreRepository.BUFFER_SIZE_SETTING.getKey(), "8k")
                 .put("location", randomRepoPath())
                 .put("compress", randomBoolean());
-            createRepository(logger, "test-repo", "fs", repoSettings, true);
+            createRepository(logger, repoName, "fs", repoSettings, true);
         } else {
-            createRepository(logger, "test-repo", "fs");
+            createRepository(logger, repoName, "fs");
         }
         Runnable snapshot = () -> {
             try {
                 var snapshotId = 0;
                 while (indexersRunning.getCount() > 0 && stop.get() == false) {
-                    createFullSnapshot(logger, "test-repo", "test-snap-" + snapshotId++);
+                    createFullSnapshot(logger, repoName, "test-snap-" + snapshotId++);
                     safeSleep(randomLongBetween(SNAPSHOT_SLEEP.v1(), SNAPSHOT_SLEEP.v2()));
                 }
             } catch (Throwable e) {
@@ -286,7 +301,8 @@ public class CorruptionIT extends AbstractStatelessIntegTestCase {
         var threads = new ArrayList<Thread>();
         threads.add(new Thread(updateAllocation));
         threads.add(new Thread(forceMerge));
-        threads.add(new Thread(snapshot));
+        // TODO: enable snapshot once ES-7909 is resolved
+        // threads.add(new Thread(snapshot));
         for (int i = 0; i < numberOfIndexers; i++) {
             threads.add(new Thread(indexer));
         }
@@ -297,7 +313,7 @@ public class CorruptionIT extends AbstractStatelessIntegTestCase {
         for (var thread : threads) {
             thread.join();
         }
-        createFullSnapshot(logger, "test-repo", "test-snap-final");
+        createFullSnapshot(logger, repoName, "test-snap-final");
         if (NETWORK_DISRUPTIONS) {
             networkDisruption.stopDisrupting();
         }

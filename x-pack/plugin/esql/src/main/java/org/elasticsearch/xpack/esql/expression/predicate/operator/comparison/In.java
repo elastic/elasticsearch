@@ -18,16 +18,18 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.operator.compariso
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cast;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
 import java.util.Arrays;
 import java.util.BitSet;
+import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
 import java.util.stream.IntStream;
@@ -48,7 +50,10 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.ordinal;
 
-public class In extends org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.In implements EvaluatorMapper {
+public class In extends EsqlScalarFunction {
+    private final Expression value;
+    private final List<Expression> list;
+
     @FunctionInfo(
         returnType = "boolean",
         description = "The `IN` operator allows testing whether a field or expression equals an element in a list of literals, "
@@ -56,12 +61,14 @@ public class In extends org.elasticsearch.xpack.esql.core.expression.predicate.o
         examples = @Example(file = "row", tag = "in-with-expressions")
     )
     public In(Source source, Expression value, List<Expression> list) {
-        super(source, value, list);
+        super(source, CollectionUtils.combine(list, value));
+        this.value = value;
+        this.list = list;
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, In::new, value(), list());
+        return NodeInfo.create(this, In::new, value, list);
     }
 
     @Override
@@ -73,15 +80,25 @@ public class In extends org.elasticsearch.xpack.esql.core.expression.predicate.o
     public boolean foldable() {
         // QL's In fold()s to null, if value() is null, but isn't foldable() unless all children are
         // TODO: update this null check in QL too?
-        return Expressions.isNull(value()) || super.foldable();
+        return Expressions.isNull(value)
+            || Expressions.foldable(children())
+            || (Expressions.foldable(list) && list.stream().allMatch(Expressions::isNull));
     }
 
     @Override
     public Object fold() {
-        if (Expressions.isNull(value()) || list().size() == 1 && Expressions.isNull(list().get(0))) {
+        if (Expressions.isNull(value) || list.stream().allMatch(e -> Expressions.isNull(e))) {
             return null;
         }
-        return EvaluatorMapper.super.fold();
+        return super.fold();
+    }
+
+    @Override
+    protected Expression canonicalize() {
+        // order values for commutative operators
+        List<Expression> canonicalValues = Expressions.canonicalize(list);
+        Collections.sort(canonicalValues, (l, r) -> Integer.compare(l.hashCode(), r.hashCode()));
+        return new In(source(), value, canonicalValues);
     }
 
     @Override
@@ -92,13 +109,13 @@ public class In extends org.elasticsearch.xpack.esql.core.expression.predicate.o
         EvalOperator.ExpressionEvaluator.Factory lhs;
         EvalOperator.ExpressionEvaluator.Factory[] factories;
         if (commonType.isNumeric()) {
-            lhs = Cast.cast(source(), value().dataType(), commonType, toEvaluator.apply(value()));
-            factories = list().stream()
+            lhs = Cast.cast(source(), value.dataType(), commonType, toEvaluator.apply(value));
+            factories = list.stream()
                 .map(e -> Cast.cast(source(), e.dataType(), commonType, toEvaluator.apply(e)))
                 .toArray(EvalOperator.ExpressionEvaluator.Factory[]::new);
         } else {
-            lhs = toEvaluator.apply(value());
-            factories = list().stream().map(e -> toEvaluator.apply(e)).toArray(EvalOperator.ExpressionEvaluator.Factory[]::new);
+            lhs = toEvaluator.apply(value);
+            factories = list.stream().map(e -> toEvaluator.apply(e)).toArray(EvalOperator.ExpressionEvaluator.Factory[]::new);
         }
 
         if (commonType == BOOLEAN) {
@@ -119,7 +136,7 @@ public class In extends org.elasticsearch.xpack.esql.core.expression.predicate.o
             || commonType == VERSION
             || commonType == UNSUPPORTED
             || EsqlDataTypes.isSpatial(commonType)) {
-            return new InBytesRefEvaluator.Factory(source(), toEvaluator.apply(value()), factories);
+            return new InBytesRefEvaluator.Factory(source(), toEvaluator.apply(value), factories);
         }
         if (commonType == NULL) {
             return EvalOperator.CONSTANT_NULL_FACTORY;
@@ -128,9 +145,9 @@ public class In extends org.elasticsearch.xpack.esql.core.expression.predicate.o
     }
 
     private DataType commonType() {
-        DataType commonType = value().dataType();
-        for (Expression e : list()) {
-            if (e.dataType() == NULL && value().dataType() != NULL) {
+        DataType commonType = value.dataType();
+        for (Expression e : list) {
+            if (e.dataType() == NULL && value.dataType() != NULL) {
                 continue;
             }
             if (EsqlDataTypes.isSpatial(commonType)) {
@@ -146,7 +163,6 @@ public class In extends org.elasticsearch.xpack.esql.core.expression.predicate.o
         return commonType;
     }
 
-    @Override
     protected boolean areCompatible(DataType left, DataType right) {
         if (left == UNSIGNED_LONG || right == UNSIGNED_LONG) {
             // automatic numerical conversions not applicable for UNSIGNED_LONG, see Verifier#validateUnsignedLongOperator().
@@ -160,14 +176,14 @@ public class In extends org.elasticsearch.xpack.esql.core.expression.predicate.o
 
     @Override
     protected TypeResolution resolveType() { // TODO: move the foldability check from QL's In to SQL's and remove this method
-        TypeResolution resolution = EsqlTypeResolutions.isExact(value(), functionName(), DEFAULT);
+        TypeResolution resolution = EsqlTypeResolutions.isExact(value, functionName(), DEFAULT);
         if (resolution.unresolved()) {
             return resolution;
         }
 
-        DataType dt = value().dataType();
-        for (int i = 0; i < list().size(); i++) {
-            Expression listValue = list().get(i);
+        DataType dt = value.dataType();
+        for (int i = 0; i < list.size(); i++) {
+            Expression listValue = list.get(i);
             if (areCompatible(dt, listValue.dataType()) == false) {
                 return new TypeResolution(
                     format(
@@ -183,6 +199,19 @@ public class In extends org.elasticsearch.xpack.esql.core.expression.predicate.o
             }
         }
         return TypeResolution.TYPE_RESOLVED;
+    }
+
+    public Expression value() {
+        return value;
+    }
+
+    public List<Expression> list() {
+        return list;
+    }
+
+    @Override
+    public DataType dataType() {
+        return BOOLEAN;
     }
 
     private static <T> void processCommon(BooleanBlock.Builder builder, BitSet nulls, T lhs, T[] rhs) {

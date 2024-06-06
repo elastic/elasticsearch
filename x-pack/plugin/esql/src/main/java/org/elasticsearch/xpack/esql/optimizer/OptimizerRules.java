@@ -231,9 +231,6 @@ class OptimizerRules {
                     }
                 } else if (exp instanceof In in) {
                     found.computeIfAbsent(in.value(), k -> new LinkedHashSet<>()).addAll(in.list());
-                    if (zoneId == null) {
-                        zoneId = in.zoneId();
-                    }
                 } else {
                     ors.add(exp);
                 }

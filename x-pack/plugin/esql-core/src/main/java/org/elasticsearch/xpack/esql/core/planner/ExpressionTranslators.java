@@ -29,7 +29,6 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.operator.compariso
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.GreaterThanOrEqual;
-import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.NotEquals;
@@ -48,7 +47,6 @@ import org.elasticsearch.xpack.esql.core.querydsl.query.QueryStringQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.RangeQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.RegexQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.TermQuery;
-import org.elasticsearch.xpack.esql.core.querydsl.query.TermsQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.WildcardQuery;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -60,11 +58,8 @@ import java.time.OffsetTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.temporal.TemporalAccessor;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
@@ -366,54 +361,7 @@ public final class ExpressionTranslators {
         }
     }
 
-    public static class InComparisons extends ExpressionTranslator<In> {
-
-        @Override
-        protected Query asQuery(In in, TranslatorHandler handler) {
-            return doTranslate(in, handler);
-        }
-
-        public static Query doTranslate(In in, TranslatorHandler handler) {
-            return handler.wrapFunctionQuery(in, in.value(), () -> translate(in, handler));
-        }
-
-        private static boolean needsTypeSpecificValueHandling(DataType fieldType) {
-            return DataType.isDateTime(fieldType) || fieldType == IP || fieldType == VERSION || fieldType == UNSIGNED_LONG;
-        }
-
-        private static Query translate(In in, TranslatorHandler handler) {
-            TypedAttribute attribute = checkIsPushableAttribute(in.value());
-
-            Set<Object> terms = new LinkedHashSet<>();
-            List<Query> queries = new ArrayList<>();
-
-            for (Expression rhs : in.list()) {
-                if (DataType.isNull(rhs.dataType()) == false) {
-                    if (needsTypeSpecificValueHandling(attribute.dataType())) {
-                        // delegates to BinaryComparisons translator to ensure consistent handling of date and time values
-                        Query query = BinaryComparisons.translate(new Equals(in.source(), in.value(), rhs, in.zoneId()), handler);
-
-                        if (query instanceof TermQuery) {
-                            terms.add(((TermQuery) query).value());
-                        } else {
-                            queries.add(query);
-                        }
-                    } else {
-                        terms.add(valueOf(rhs));
-                    }
-                }
-            }
-
-            if (terms.isEmpty() == false) {
-                String fieldName = pushableAttributeName(attribute);
-                queries.add(new TermsQuery(in.source(), fieldName, terms));
-            }
-
-            return queries.stream().reduce((q1, q2) -> or(in.source(), q1, q2)).get();
-        }
-    }
-
-    private static Query or(Source source, Query left, Query right) {
+    public static Query or(Source source, Query left, Query right) {
         return boolQuery(source, left, right, false);
     }
 

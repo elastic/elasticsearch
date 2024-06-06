@@ -51,7 +51,7 @@
       },
       "force": {
         "type": "boolean",
-        "description": "True if the endpoint should be forcefully stopped (regardless of whether or not it is referenced by any ingest processors or semantic text fields).",
+        "description": "If true the endpoint will be forcefully stopped (regardless of whether or not it is referenced by any ingest processors or semantic text fields).",
         "required": false
       }
     }

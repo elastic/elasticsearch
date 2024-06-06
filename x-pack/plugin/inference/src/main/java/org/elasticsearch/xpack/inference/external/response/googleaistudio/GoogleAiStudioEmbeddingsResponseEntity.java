@@ -80,7 +80,7 @@ public class GoogleAiStudioEmbeddingsResponseEntity {
 
             positionParserAtTokenAfterField(jsonParser, "embeddings", FAILED_TO_FIND_FIELD_TEMPLATE);
 
-            List<TextEmbeddingFloatResults.FloatEmbedding> embeddingList = XContentParserUtils.parseList(
+            List<TextEmbeddingFloatResults.FloatEmbedding> embeddingList = parseList(
                 jsonParser,
                 GoogleAiStudioEmbeddingsResponseEntity::parseEmbeddingObject
             );

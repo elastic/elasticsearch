@@ -216,9 +216,10 @@ public class CohereEmbeddingsResponseEntity {
 
         return new TextEmbeddingFloatResults(embeddingList);
     }
+
     private static TextEmbeddingFloatResults.FloatEmbedding parseFloatArrayEntry(XContentParser parser) throws IOException {
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.currentToken(), parser);
-        List<Float> embeddingValuesList = XContentParserUtils.parseList(parser, CohereEmbeddingsResponseEntity::parseEmbeddingFloatEntry);
+        ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.currentToken(), parser);
+        List<Float> embeddingValuesList = parseList(parser, CohereEmbeddingsResponseEntity::parseEmbeddingFloatEntry);
         return TextEmbeddingFloatResults.FloatEmbedding.of(embeddingValuesList);
     }
 

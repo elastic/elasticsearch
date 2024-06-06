@@ -271,24 +271,29 @@ public abstract class AbstractRerankerIT extends ESIntegTestCase {
             prepareIndex(indexName).setId("5").setSource(rankFeatureField, 0.5, searchField, "E")
         );
 
-        expectThrows(
-            SearchPhaseExecutionException.class,
-            () -> prepareSearch().setQuery(
-                boolQuery().should(constantScoreQuery(matchQuery(searchField, "A")).boost(randomFloat()))
-                    .should(constantScoreQuery(matchQuery(searchField, "B")).boost(randomFloat()))
-                    .should(constantScoreQuery(matchQuery(searchField, "C")).boost(randomFloat()))
-                    .should(constantScoreQuery(matchQuery(searchField, "D")).boost(randomFloat()))
-                    .should(constantScoreQuery(matchQuery(searchField, "E")).boost(randomFloat()))
-            )
-                .setRankBuilder(
-                    getThrowingRankBuilder(rankWindowSize, rankFeatureField, ThrowingRankBuilderType.THROWING_QUERY_PHASE_SHARD_CONTEXT)
+        try {
+            assertResponse(
+                prepareSearch().setQuery(
+                    boolQuery().should(constantScoreQuery(matchQuery(searchField, "A")).boost(randomFloat()))
+                        .should(constantScoreQuery(matchQuery(searchField, "B")).boost(randomFloat()))
+                        .should(constantScoreQuery(matchQuery(searchField, "C")).boost(randomFloat()))
+                        .should(constantScoreQuery(matchQuery(searchField, "D")).boost(randomFloat()))
+                        .should(constantScoreQuery(matchQuery(searchField, "E")).boost(randomFloat()))
                 )
-                .addFetchField(searchField)
-                .setTrackTotalHits(true)
-                .setAllowPartialSearchResults(true)
-                .setSize(10)
-                .get()
-        );
+                    .setRankBuilder(
+                        getThrowingRankBuilder(rankWindowSize, rankFeatureField, ThrowingRankBuilderType.THROWING_QUERY_PHASE_SHARD_CONTEXT)
+                    )
+                    .addFetchField(searchField)
+                    .setTrackTotalHits(true)
+                    .setAllowPartialSearchResults(true)
+                    .setSize(10),
+                (response) -> {
+                    throw new AssertionError("Should have thrown an exception");
+                }
+            );
+        } catch (SearchPhaseExecutionException ignored) {
+            // this is expected
+        }
         assertNoOpenContext(indexName);
     }
 
@@ -310,28 +315,33 @@ public abstract class AbstractRerankerIT extends ESIntegTestCase {
 
         // when we throw on the coordinator, the onPhaseFailure handler will be invoked, which in turn will mark the whole
         // search request as a failure (i.e. no partial results)
-        expectThrows(
-            SearchPhaseExecutionException.class,
-            () -> prepareSearch().setQuery(
-                boolQuery().should(constantScoreQuery(matchQuery(searchField, "A")).boost(randomFloat()))
-                    .should(constantScoreQuery(matchQuery(searchField, "B")).boost(randomFloat()))
-                    .should(constantScoreQuery(matchQuery(searchField, "C")).boost(randomFloat()))
-                    .should(constantScoreQuery(matchQuery(searchField, "D")).boost(randomFloat()))
-                    .should(constantScoreQuery(matchQuery(searchField, "E")).boost(randomFloat()))
-            )
-                .setRankBuilder(
-                    getThrowingRankBuilder(
-                        rankWindowSize,
-                        rankFeatureField,
-                        ThrowingRankBuilderType.THROWING_QUERY_PHASE_COORDINATOR_CONTEXT
-                    )
+        try {
+            assertResponse(
+                prepareSearch().setQuery(
+                    boolQuery().should(constantScoreQuery(matchQuery(searchField, "A")).boost(randomFloat()))
+                        .should(constantScoreQuery(matchQuery(searchField, "B")).boost(randomFloat()))
+                        .should(constantScoreQuery(matchQuery(searchField, "C")).boost(randomFloat()))
+                        .should(constantScoreQuery(matchQuery(searchField, "D")).boost(randomFloat()))
+                        .should(constantScoreQuery(matchQuery(searchField, "E")).boost(randomFloat()))
                 )
-                .addFetchField(searchField)
-                .setTrackTotalHits(true)
-                .setAllowPartialSearchResults(true)
-                .setSize(10)
-                .get()
-        );
+                    .setRankBuilder(
+                        getThrowingRankBuilder(
+                            rankWindowSize,
+                            rankFeatureField,
+                            ThrowingRankBuilderType.THROWING_QUERY_PHASE_COORDINATOR_CONTEXT
+                        )
+                    )
+                    .addFetchField(searchField)
+                    .setTrackTotalHits(true)
+                    .setAllowPartialSearchResults(true)
+                    .setSize(10),
+                (response) -> {
+                    throw new AssertionError("Should have thrown an exception");
+                }
+            );
+        } catch (SearchPhaseExecutionException ignored) {
+            // this is expected
+        }
         assertNoOpenContext(indexName);
     }
 
@@ -401,28 +411,33 @@ public abstract class AbstractRerankerIT extends ESIntegTestCase {
             prepareIndex(indexName).setId("5").setSource(rankFeatureField, 0.5, searchField, "E")
         );
 
-        expectThrows(
-            SearchPhaseExecutionException.class,
-            () -> prepareSearch().setQuery(
-                boolQuery().should(constantScoreQuery(matchQuery(searchField, "A")).boost(randomFloat()))
-                    .should(constantScoreQuery(matchQuery(searchField, "B")).boost(randomFloat()))
-                    .should(constantScoreQuery(matchQuery(searchField, "C")).boost(randomFloat()))
-                    .should(constantScoreQuery(matchQuery(searchField, "D")).boost(randomFloat()))
-                    .should(constantScoreQuery(matchQuery(searchField, "E")).boost(randomFloat()))
-            )
-                .setRankBuilder(
-                    getThrowingRankBuilder(
-                        rankWindowSize,
-                        rankFeatureField,
-                        ThrowingRankBuilderType.THROWING_RANK_FEATURE_PHASE_SHARD_CONTEXT
-                    )
+        try {
+            assertResponse(
+                prepareSearch().setQuery(
+                    boolQuery().should(constantScoreQuery(matchQuery(searchField, "A")).boost(randomFloat()))
+                        .should(constantScoreQuery(matchQuery(searchField, "B")).boost(randomFloat()))
+                        .should(constantScoreQuery(matchQuery(searchField, "C")).boost(randomFloat()))
+                        .should(constantScoreQuery(matchQuery(searchField, "D")).boost(randomFloat()))
+                        .should(constantScoreQuery(matchQuery(searchField, "E")).boost(randomFloat()))
                 )
-                .addFetchField(searchField)
-                .setTrackTotalHits(true)
-                .setAllowPartialSearchResults(true)
-                .setSize(10)
-                .get()
-        );
+                    .setRankBuilder(
+                        getThrowingRankBuilder(
+                            rankWindowSize,
+                            rankFeatureField,
+                            ThrowingRankBuilderType.THROWING_RANK_FEATURE_PHASE_SHARD_CONTEXT
+                        )
+                    )
+                    .addFetchField(searchField)
+                    .setTrackTotalHits(true)
+                    .setAllowPartialSearchResults(true)
+                    .setSize(10),
+                (response) -> {
+                    throw new AssertionError("Should have thrown an exception");
+                }
+            );
+        } catch (SearchPhaseExecutionException ignored) {
+            // this is expected
+        }
         assertNoOpenContext(indexName);
     }
 
@@ -442,28 +457,33 @@ public abstract class AbstractRerankerIT extends ESIntegTestCase {
             prepareIndex(indexName).setId("5").setSource(rankFeatureField, 0.5, searchField, "E")
         );
 
-        expectThrows(
-            SearchPhaseExecutionException.class,
-            () -> prepareSearch().setQuery(
-                boolQuery().should(constantScoreQuery(matchQuery(searchField, "A")).boost(randomFloat()))
-                    .should(constantScoreQuery(matchQuery(searchField, "B")).boost(randomFloat()))
-                    .should(constantScoreQuery(matchQuery(searchField, "C")).boost(randomFloat()))
-                    .should(constantScoreQuery(matchQuery(searchField, "D")).boost(randomFloat()))
-                    .should(constantScoreQuery(matchQuery(searchField, "E")).boost(randomFloat()))
-            )
-                .setRankBuilder(
-                    getThrowingRankBuilder(
-                        rankWindowSize,
-                        rankFeatureField,
-                        ThrowingRankBuilderType.THROWING_RANK_FEATURE_PHASE_COORDINATOR_CONTEXT
-                    )
+        try {
+            assertResponse(
+                prepareSearch().setQuery(
+                    boolQuery().should(constantScoreQuery(matchQuery(searchField, "A")).boost(randomFloat()))
+                        .should(constantScoreQuery(matchQuery(searchField, "B")).boost(randomFloat()))
+                        .should(constantScoreQuery(matchQuery(searchField, "C")).boost(randomFloat()))
+                        .should(constantScoreQuery(matchQuery(searchField, "D")).boost(randomFloat()))
+                        .should(constantScoreQuery(matchQuery(searchField, "E")).boost(randomFloat()))
                 )
-                .addFetchField(searchField)
-                .setTrackTotalHits(true)
-                .setAllowPartialSearchResults(true)
-                .setSize(10)
-                .get()
-        );
+                    .setRankBuilder(
+                        getThrowingRankBuilder(
+                            rankWindowSize,
+                            rankFeatureField,
+                            ThrowingRankBuilderType.THROWING_RANK_FEATURE_PHASE_COORDINATOR_CONTEXT
+                        )
+                    )
+                    .addFetchField(searchField)
+                    .setTrackTotalHits(true)
+                    .setAllowPartialSearchResults(true)
+                    .setSize(10),
+                (response) -> {
+                    throw new AssertionError("Should have thrown an exception");
+                }
+            );
+        } catch (SearchPhaseExecutionException ignored) {
+            // this is expected
+        }
         assertNoOpenContext(indexName);
     }
 

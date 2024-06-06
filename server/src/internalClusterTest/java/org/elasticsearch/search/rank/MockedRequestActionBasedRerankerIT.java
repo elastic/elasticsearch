@@ -72,8 +72,7 @@ public class MockedRequestActionBasedRerankerIT extends AbstractRerankerIT {
 
     @Override
     protected RankBuilder getThrowingRankBuilder(int rankWindowSize, String rankFeatureField, ThrowingRankBuilderType type) {
-        return null; // new ThrowingMockRequestActionBasedRankBuilder(rankWindowSize, rankFeatureField, inferenceId, inferenceText,
-                     // type.name());
+        return new ThrowingMockRequestActionBasedRankBuilder(rankWindowSize, rankFeatureField, inferenceId, inferenceText, type.name());
     }
 
     @Override

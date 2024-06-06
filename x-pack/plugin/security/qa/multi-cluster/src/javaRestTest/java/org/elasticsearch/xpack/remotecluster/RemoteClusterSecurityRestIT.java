@@ -167,7 +167,6 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
             var putRoleRequest = new Request("PUT", "/_security/role/" + roleName);
             putRoleRequest.setJsonEntity(Strings.format("""
                 {
-                  "description": "Role with privileges for remote index for the test of task cancellation.",
                   "remote_indices": [
                     {
                       "names": ["%s"],

@@ -35,7 +35,6 @@ import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec.Stat;
 import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec.StatsType;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
 import java.io.IOException;
 import java.lang.reflect.Modifier;
@@ -158,7 +157,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         );
     }
 
-    static List<DataType> DATA_TYPES = EsqlDataTypes.types().stream().toList();
+    static List<DataType> DATA_TYPES = DataType.types().stream().toList();
 
     static EsQueryExec.FieldSort randomFieldSort() {
         return new EsQueryExec.FieldSort(

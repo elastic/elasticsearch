@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
 import java.time.Duration;
@@ -22,15 +21,15 @@ import java.time.temporal.TemporalAmount;
 import java.util.Collection;
 import java.util.function.Function;
 
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.DATETIME;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.isDateTime;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.isNull;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.DATE_PERIOD;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.TIME_DURATION;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
+import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isDateTime;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isNull;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isDateTimeOrTemporal;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isTemporalAmount;
 
-abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperation {
+public abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperation {
     /** Arithmetic (quad) function. */
     interface DatetimeArithmeticEvaluator {
         ExpressionEvaluator.Factory apply(Source source, ExpressionEvaluator.Factory expressionEvaluator, TemporalAmount temporalAmount);
@@ -57,7 +56,7 @@ abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperation {
     protected TypeResolution resolveInputType(Expression e, TypeResolutions.ParamOrdinal paramOrdinal) {
         return TypeResolutions.isType(
             e,
-            t -> t.isNumeric() || EsqlDataTypes.isDateTimeOrTemporal(t) || DataTypes.isNull(t),
+            t -> t.isNumeric() || EsqlDataTypes.isDateTimeOrTemporal(t) || DataType.isNull(t),
             sourceText(),
             paramOrdinal,
             "datetime",
@@ -91,7 +90,7 @@ abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperation {
     }
 
     /**
-     * Override this to allow processing literals of type {@link EsqlDataTypes#DATE_PERIOD} when folding constants.
+     * Override this to allow processing literals of type {@link DataType#DATE_PERIOD} when folding constants.
      * Used in {@link DateTimeArithmeticOperation#fold()}.
      * @param left the left period
      * @param right the right period
@@ -100,7 +99,7 @@ abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperation {
     abstract Period fold(Period left, Period right);
 
     /**
-     * Override this to allow processing literals of type {@link EsqlDataTypes#TIME_DURATION} when folding constants.
+     * Override this to allow processing literals of type {@link DataType#TIME_DURATION} when folding constants.
      * Used in {@link DateTimeArithmeticOperation#fold()}.
      * @param left the left duration
      * @param right the right duration

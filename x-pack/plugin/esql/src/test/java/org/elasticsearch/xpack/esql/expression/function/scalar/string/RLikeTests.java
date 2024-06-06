@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePattern;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
@@ -51,15 +50,15 @@ public class RLikeTests extends AbstractFunctionTestCase {
         cases.add(
             new TestCaseSupplier(
                 "null",
-                List.of(DataTypes.NULL, DataTypes.KEYWORD, DataTypes.BOOLEAN),
+                List.of(DataType.NULL, DataType.KEYWORD, DataType.BOOLEAN),
                 () -> new TestCaseSupplier.TestCase(
                     List.of(
-                        new TestCaseSupplier.TypedData(null, DataTypes.NULL, "e"),
-                        new TestCaseSupplier.TypedData(new BytesRef(randomAlphaOfLength(10)), DataTypes.KEYWORD, "pattern").forceLiteral(),
-                        new TestCaseSupplier.TypedData(false, DataTypes.BOOLEAN, "caseInsensitive").forceLiteral()
+                        new TestCaseSupplier.TypedData(null, DataType.NULL, "e"),
+                        new TestCaseSupplier.TypedData(new BytesRef(randomAlphaOfLength(10)), DataType.KEYWORD, "pattern").forceLiteral(),
+                        new TestCaseSupplier.TypedData(false, DataType.BOOLEAN, "caseInsensitive").forceLiteral()
                     ),
                     "LiteralsEvaluator[lit=null]",
-                    DataTypes.BOOLEAN,
+                    DataType.BOOLEAN,
                     nullValue()
                 )
             )
@@ -70,8 +69,8 @@ public class RLikeTests extends AbstractFunctionTestCase {
         casesForString(cases, "3 bytes, 1 code point", () -> "☕", false, escapeString, optionalPattern);
         casesForString(cases, "6 bytes, 2 code points", () -> "❗️", false, escapeString, optionalPattern);
         casesForString(cases, "100 random code points", () -> randomUnicodeOfCodepointLength(100), true, escapeString, optionalPattern);
-        for (DataType type : EsqlDataTypes.types()) {
-            if (type == DataTypes.KEYWORD || type == DataTypes.TEXT || type == DataTypes.NULL) {
+        for (DataType type : DataType.types()) {
+            if (type == DataType.KEYWORD || type == DataType.TEXT || type == DataType.NULL) {
                 continue;
             }
             if (EsqlDataTypes.isRepresentable(type) == false) {
@@ -79,13 +78,13 @@ public class RLikeTests extends AbstractFunctionTestCase {
             }
             cases.add(
                 new TestCaseSupplier(
-                    List.of(type, DataTypes.KEYWORD, DataTypes.BOOLEAN),
+                    List.of(type, DataType.KEYWORD, DataType.BOOLEAN),
                     () -> TestCaseSupplier.TestCase.typeError(
                         List.of(
                             new TestCaseSupplier.TypedData(randomLiteral(type).value(), type, "e"),
-                            new TestCaseSupplier.TypedData(new BytesRef(randomAlphaOfLength(10)), DataTypes.KEYWORD, "pattern")
+                            new TestCaseSupplier.TypedData(new BytesRef(randomAlphaOfLength(10)), DataType.KEYWORD, "pattern")
                                 .forceLiteral(),
-                            new TestCaseSupplier.TypedData(false, DataTypes.BOOLEAN, "caseInsensitive").forceLiteral()
+                            new TestCaseSupplier.TypedData(false, DataType.BOOLEAN, "caseInsensitive").forceLiteral()
                         ),
                         "argument of [] must be [string], found value [e] type [" + type.typeName() + "]"
                     )
@@ -127,17 +126,17 @@ public class RLikeTests extends AbstractFunctionTestCase {
     }
 
     private static void cases(List<TestCaseSupplier> cases, String title, Supplier<TextAndPattern> textAndPattern, boolean expected) {
-        for (DataType type : new DataType[] { DataTypes.KEYWORD, DataTypes.TEXT }) {
-            cases.add(new TestCaseSupplier(title + " with " + type.esType(), List.of(type, type, DataTypes.BOOLEAN), () -> {
+        for (DataType type : new DataType[] { DataType.KEYWORD, DataType.TEXT }) {
+            cases.add(new TestCaseSupplier(title + " with " + type.esType(), List.of(type, type, DataType.BOOLEAN), () -> {
                 TextAndPattern v = textAndPattern.get();
                 return new TestCaseSupplier.TestCase(
                     List.of(
                         new TestCaseSupplier.TypedData(new BytesRef(v.text), type, "e"),
                         new TestCaseSupplier.TypedData(new BytesRef(v.pattern), type, "pattern").forceLiteral(),
-                        new TestCaseSupplier.TypedData(false, DataTypes.BOOLEAN, "caseInsensitive").forceLiteral()
+                        new TestCaseSupplier.TypedData(false, DataType.BOOLEAN, "caseInsensitive").forceLiteral()
                     ),
                     startsWith("AutomataMatchEvaluator[input=Attribute[channel=0], pattern=digraph Automaton {\n"),
-                    DataTypes.BOOLEAN,
+                    DataType.BOOLEAN,
                     equalTo(expected)
                 );
             }));

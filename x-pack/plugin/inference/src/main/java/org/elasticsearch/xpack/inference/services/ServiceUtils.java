@@ -625,7 +625,5 @@ public final class ServiceUtils {
         return secrets == null ? new SecureString(new char[0]) : secrets.apiKey();
     }
 
-    private ServiceUtils() {
-        throw new UnsupportedOperationException("ServiceUtils is a utility class and cannot be instantiated");
-    }
+    private ServiceUtils() {}
 }

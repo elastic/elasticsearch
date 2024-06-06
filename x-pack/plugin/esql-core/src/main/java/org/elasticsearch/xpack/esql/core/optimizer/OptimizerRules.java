@@ -358,32 +358,6 @@ public final class OptimizerRules {
         }
     }
 
-    public static final class PruneLiteralsInOrderBy extends OptimizerRule<OrderBy> {
-
-        @Override
-        protected LogicalPlan rule(OrderBy ob) {
-            List<Order> prunedOrders = new ArrayList<>();
-
-            for (Order o : ob.order()) {
-                if (o.child().foldable()) {
-                    prunedOrders.add(o);
-                }
-            }
-
-            // everything was eliminated, the order isn't needed anymore
-            if (prunedOrders.size() == ob.order().size()) {
-                return ob.child();
-            }
-            if (prunedOrders.size() > 0) {
-                List<Order> newOrders = new ArrayList<>(ob.order());
-                newOrders.removeAll(prunedOrders);
-                return new OrderBy(ob.source(), ob.child(), newOrders);
-            }
-
-            return ob;
-        }
-    }
-
     // NB: it is important to start replacing casts from the bottom to properly replace aliases
     public abstract static class PruneCast<C extends Expression> extends Rule<LogicalPlan, LogicalPlan> {
 

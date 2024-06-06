@@ -23,7 +23,6 @@ record ExecutableInferenceRequest(
     RequestSender requestSender,
     Logger logger,
     Request request,
-    HttpClientContext context,
     ResponseHandler responseHandler,
     Supplier<Boolean> hasFinished,
     ActionListener<InferenceServiceResults> listener
@@ -34,7 +33,7 @@ record ExecutableInferenceRequest(
         var inferenceEntityId = request.createHttpRequest().inferenceEntityId();
 
         try {
-            requestSender.send(logger, request, context, hasFinished, responseHandler, listener);
+            requestSender.send(logger, request, HttpClientContext.create(), hasFinished, responseHandler, listener);
         } catch (Exception e) {
             var errorMessage = Strings.format("Failed to send request from inference entity id [%s]", inferenceEntityId);
             logger.warn(errorMessage, e);

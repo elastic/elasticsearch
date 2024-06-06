@@ -226,6 +226,7 @@ import org.elasticsearch.search.fetch.subphase.highlight.HighlightPhase;
 import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
 import org.elasticsearch.search.fetch.subphase.highlight.PlainHighlighter;
 import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.search.rank.feature.RankFeatureShardPhase;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
 import org.elasticsearch.search.rescore.RescorerBuilder;
 import org.elasticsearch.search.retriever.KnnRetrieverBuilder;
@@ -1250,6 +1251,10 @@ public class SearchModule {
                 spec.getName().getForRestApiVersion()
             )
         );
+    }
+
+    public RankFeatureShardPhase getRankFeatureShardPhase() {
+        return new RankFeatureShardPhase();
     }
 
     public FetchPhase getFetchPhase() {

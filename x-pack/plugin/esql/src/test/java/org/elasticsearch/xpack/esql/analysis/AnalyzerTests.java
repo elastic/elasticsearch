@@ -7,18 +7,37 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesIndexResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
+import org.elasticsearch.xpack.esql.core.index.EsIndex;
+import org.elasticsearch.xpack.esql.core.index.IndexResolution;
+import org.elasticsearch.xpack.esql.core.plan.TableIdentifier;
+import org.elasticsearch.xpack.esql.core.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.core.plan.logical.Limit;
+import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.core.plan.logical.OrderBy;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.TypesTests;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
@@ -35,25 +54,6 @@ import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.session.EsqlIndexResolver;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.expression.Alias;
-import org.elasticsearch.xpack.ql.expression.Attribute;
-import org.elasticsearch.xpack.ql.expression.Expressions;
-import org.elasticsearch.xpack.ql.expression.FieldAttribute;
-import org.elasticsearch.xpack.ql.expression.Literal;
-import org.elasticsearch.xpack.ql.expression.NamedExpression;
-import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
-import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
-import org.elasticsearch.xpack.ql.index.EsIndex;
-import org.elasticsearch.xpack.ql.index.IndexResolution;
-import org.elasticsearch.xpack.ql.plan.TableIdentifier;
-import org.elasticsearch.xpack.ql.plan.logical.Filter;
-import org.elasticsearch.xpack.ql.plan.logical.Limit;
-import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.elasticsearch.xpack.ql.type.TypesTests;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -61,6 +61,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -73,7 +74,7 @@ import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyze;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.tsdbIndexResolution;
-import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
+import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -86,7 +87,8 @@ public class AnalyzerTests extends ESTestCase {
     private static final EsqlUnresolvedRelation UNRESOLVED_RELATION = new EsqlUnresolvedRelation(
         EMPTY,
         new TableIdentifier(EMPTY, null, "idx"),
-        List.of()
+        List.of(),
+        IndexMode.STANDARD
     );
 
     private static final int MAX_LIMIT = EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE.getDefault(Settings.EMPTY);
@@ -98,7 +100,7 @@ public class AnalyzerTests extends ESTestCase {
         var plan = analyzer.analyze(UNRESOLVED_RELATION);
         var limit = as(plan, Limit.class);
 
-        assertEquals(new EsRelation(EMPTY, idx, NO_FIELDS), limit.child());
+        assertEquals(new EsRelation(EMPTY, idx, NO_FIELDS, IndexMode.STANDARD), limit.child());
     }
 
     public void testFailOnUnresolvedIndex() {
@@ -116,7 +118,7 @@ public class AnalyzerTests extends ESTestCase {
         var plan = analyzer.analyze(UNRESOLVED_RELATION);
         var limit = as(plan, Limit.class);
 
-        assertEquals(new EsRelation(EMPTY, idx, NO_FIELDS), limit.child());
+        assertEquals(new EsRelation(EMPTY, idx, NO_FIELDS, IndexMode.STANDARD), limit.child());
     }
 
     public void testAttributeResolution() {
@@ -179,7 +181,7 @@ public class AnalyzerTests extends ESTestCase {
         var plan = analyzer.analyze(
             new Eval(
                 EMPTY,
-                new Row(EMPTY, List.of(new Alias(EMPTY, "emp_no", new Literal(EMPTY, 1, DataTypes.INTEGER)))),
+                new Row(EMPTY, List.of(new Alias(EMPTY, "emp_no", new Literal(EMPTY, 1, DataType.INTEGER)))),
                 List.of(new Alias(EMPTY, "e", new UnresolvedAttribute(EMPTY, "emp_no")))
             )
         );
@@ -187,7 +189,7 @@ public class AnalyzerTests extends ESTestCase {
         var limit = as(plan, Limit.class);
         var eval = as(limit.child(), Eval.class);
         assertEquals(1, eval.fields().size());
-        assertEquals(new Alias(EMPTY, "e", new ReferenceAttribute(EMPTY, "emp_no", DataTypes.INTEGER)), eval.fields().get(0));
+        assertEquals(new Alias(EMPTY, "e", new ReferenceAttribute(EMPTY, "emp_no", DataType.INTEGER)), eval.fields().get(0));
 
         assertEquals(2, eval.output().size());
         Attribute empNo = eval.output().get(0);
@@ -230,7 +232,7 @@ public class AnalyzerTests extends ESTestCase {
         assertProjectionTypes("""
             from test
             | keep first*name
-            """, DataTypes.KEYWORD);
+            """, DataType.KEYWORD);
     }
 
     public void testProjectIncludePattern() {
@@ -291,16 +293,16 @@ public class AnalyzerTests extends ESTestCase {
             """
                 from test
                 """,
-            DataTypes.KEYWORD,
-            DataTypes.INTEGER,
-            DataTypes.KEYWORD,
-            DataTypes.TEXT,
-            DataTypes.TEXT,
-            DataTypes.KEYWORD,
-            DataTypes.INTEGER,
-            DataTypes.KEYWORD,
-            DataTypes.LONG,
-            DataTypes.INTEGER
+            DataType.KEYWORD,
+            DataType.INTEGER,
+            DataType.KEYWORD,
+            DataType.TEXT,
+            DataType.TEXT,
+            DataType.KEYWORD,
+            DataType.INTEGER,
+            DataType.KEYWORD,
+            DataType.LONG,
+            DataType.INTEGER
         );
     }
 
@@ -520,7 +522,9 @@ public class AnalyzerTests extends ESTestCase {
             "float",
             "foo_type",
             "int",
+            "ip",
             "keyword",
+            "long",
             "point",
             "shape",
             "some.ambiguous",
@@ -564,7 +568,9 @@ public class AnalyzerTests extends ESTestCase {
             "float",
             "foo_type",
             "int",
+            "ip",
             "keyword",
+            "long",
             "point",
             "shape",
             "some.ambiguous",
@@ -777,7 +783,9 @@ public class AnalyzerTests extends ESTestCase {
             "float",
             "foo_type",
             "int",
+            "ip",
             "keyword",
+            "long",
             "point",
             "shape",
             "some.ambiguous",
@@ -1652,10 +1660,10 @@ public class AnalyzerTests extends ESTestCase {
             attributes.keySet(),
             equalTo(Set.of("network.connections", "network.bytes_in", "network.bytes_out", "network.message_in"))
         );
-        assertThat(attributes.get("network.connections").dataType(), equalTo(DataTypes.LONG));
-        assertThat(attributes.get("network.bytes_in").dataType(), equalTo(EsqlDataTypes.COUNTER_LONG));
-        assertThat(attributes.get("network.bytes_out").dataType(), equalTo(EsqlDataTypes.COUNTER_LONG));
-        assertThat(attributes.get("network.message_in").dataType(), equalTo(EsqlDataTypes.COUNTER_DOUBLE));
+        assertThat(attributes.get("network.connections").dataType(), equalTo(DataType.LONG));
+        assertThat(attributes.get("network.bytes_in").dataType(), equalTo(DataType.COUNTER_LONG));
+        assertThat(attributes.get("network.bytes_out").dataType(), equalTo(DataType.COUNTER_LONG));
+        assertThat(attributes.get("network.message_in").dataType(), equalTo(DataType.COUNTER_DOUBLE));
     }
 
     public void testMissingAttributeException_InChainedEval() {
@@ -1874,6 +1882,103 @@ public class AnalyzerTests extends ESTestCase {
             | eval text not in (\"a\", \"b\", \"c\", text)
             | keep text
             """, "mapping-multi-field-variation.json", "text");
+    }
+
+    public void testMvAppendValidation() {
+        String[][] fields = {
+            { "bool", "boolean" },
+            { "int", "integer" },
+            { "unsigned_long", "unsigned_long" },
+            { "float", "double" },
+            { "text", "text" },
+            { "keyword", "keyword" },
+            { "date", "datetime" },
+            { "point", "geo_point" },
+            { "shape", "geo_shape" },
+            { "long", "long" },
+            { "ip", "ip" },
+            { "version", "version" } };
+
+        Supplier<Integer> supplier = () -> randomInt(fields.length - 1);
+        int first = supplier.get();
+        int second = randomValueOtherThan(first, supplier);
+
+        String signature = "mv_append(" + fields[first][0] + ", " + fields[second][0] + ")";
+        verifyUnsupported(
+            " from test | eval " + signature,
+            "second argument of ["
+                + signature
+                + "] must be ["
+                + fields[first][1]
+                + "], found value ["
+                + fields[second][0]
+                + "] type ["
+                + fields[second][1]
+                + "]"
+        );
+    }
+
+    public void testLookup() {
+        var e = expectThrows(ParsingException.class, () -> analyze("""
+              FROM test
+            | RENAME languages AS int
+            | LOOKUP int_number_names ON int
+            """));
+        if (Build.current().isProductionRelease()) {
+            assertThat(e.getMessage(), containsString("line 3:4: LOOKUP is in preview and only available in SNAPSHOT build"));
+            return;
+        }
+        assertThat(e.getMessage(), containsString("LOOKUP not yet supported"));
+    }
+
+    public void testImplicitCasting() {
+        var e = expectThrows(VerificationException.class, () -> analyze("""
+             from test | eval x = concat("2024", "-04", "-01") + 1 day
+            """));
+
+        assertThat(
+            e.getMessage(),
+            containsString("first argument of [concat(\"2024\", \"-04\", \"-01\") + 1 day] must be [datetime or numeric]")
+        );
+
+        e = expectThrows(VerificationException.class, () -> analyze("""
+             from test | eval x = to_string(null) - 1 day
+            """));
+
+        assertThat(e.getMessage(), containsString("first argument of [to_string(null) - 1 day] must be [datetime or numeric]"));
+
+        e = expectThrows(VerificationException.class, () -> analyze("""
+             from test | eval x = concat("2024", "-04", "-01") + "1 day"
+            """));
+
+        assertThat(
+            e.getMessage(),
+            containsString("first argument of [concat(\"2024\", \"-04\", \"-01\") + \"1 day\"] must be [datetime or numeric]")
+        );
+
+        e = expectThrows(VerificationException.class, () -> analyze("""
+             from test | eval x = 1 year - "2024-01-01" + 1 day
+            """));
+
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "arguments are in unsupported order: cannot subtract a [DATETIME] value [\"2024-01-01\"] "
+                    + "from a [DATE_PERIOD] amount [1 year]"
+            )
+        );
+
+        e = expectThrows(VerificationException.class, () -> analyze("""
+             from test | eval x = "2024-01-01" - 1 day - "2023-12-31"
+            """));
+
+        assertThat(e.getMessage(), containsString("[-] has arguments with incompatible types [datetime] and [datetime]"));
+
+        e = expectThrows(VerificationException.class, () -> analyze("""
+             from test | eval x = "2024-01-01" - 1 day + "2023-12-31"
+            """));
+
+        assertThat(e.getMessage(), containsString("[+] has arguments with incompatible types [datetime] and [datetime]"));
     }
 
     private void verifyUnsupported(String query, String errorMessage) {

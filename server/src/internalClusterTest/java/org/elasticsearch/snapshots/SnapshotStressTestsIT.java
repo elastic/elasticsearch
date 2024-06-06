@@ -1189,6 +1189,12 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
 
                     final var clusterService = cluster.getCurrentMasterNodeInstance(ClusterService.class);
 
+                    if (node.nodeName.equals(clusterService.localNode().getName())) {
+                        return;
+                    }
+
+                    logger.info("--> marking [{}] for removal", node);
+
                     SubscribableListener
 
                         .<Void>newForked(
@@ -1252,12 +1258,15 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
                                     @Override
                                     public void clusterStateProcessed(ClusterState initialState, ClusterState newState) {
                                         l.onResponse(null);
+                                        logger.info("--> unmarked [{}] for removal", node);
                                     }
                                 }
                             )
                         )
 
-                        .addListener(mustSucceed(ignored -> startNodeShutdownMarker()));
+                        .addListener(
+                            ActionListener.releaseAfter(mustSucceed(ignored -> startNodeShutdownMarker()), localReleasables.transfer())
+                        );
 
                     rerun = false;
                 } finally {

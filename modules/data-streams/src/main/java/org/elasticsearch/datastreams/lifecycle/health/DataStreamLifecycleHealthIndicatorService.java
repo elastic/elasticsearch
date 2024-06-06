@@ -63,7 +63,7 @@ public class DataStreamLifecycleHealthIndicatorService implements HealthIndicato
         DataStreamLifecycleHealthInfo dataStreamLifecycleHealthInfo = healthInfo.dslHealthInfo();
         if (dataStreamLifecycleHealthInfo == null) {
             // DSL reports health information on every run, so data will eventually arrive to the health node. In the meantime, let's
-            // report UNKNOWN health
+            // report GREEN health, as there are no errors to report before the first run anyway.
             return createIndicator(
                 HealthStatus.GREEN,
                 "No data stream lifecycle health data available yet. Health information will be reported after the first run.",
@@ -93,12 +93,14 @@ public class DataStreamLifecycleHealthIndicatorService implements HealthIndicato
                     + " repeatedly encountered errors whilst trying to advance in its lifecycle",
                 createDetails(verbose, dataStreamLifecycleHealthInfo),
                 STAGNATING_INDEX_IMPACT,
-                List.of(
-                    new Diagnosis(
-                        STAGNATING_BACKING_INDICES_DIAGNOSIS_DEF,
-                        List.of(new Diagnosis.Resource(Diagnosis.Resource.Type.INDEX, affectedIndices))
+                verbose
+                    ? List.of(
+                        new Diagnosis(
+                            STAGNATING_BACKING_INDICES_DIAGNOSIS_DEF,
+                            List.of(new Diagnosis.Resource(Diagnosis.Resource.Type.INDEX, affectedIndices))
+                        )
                     )
-                )
+                    : List.of()
             );
         }
     }

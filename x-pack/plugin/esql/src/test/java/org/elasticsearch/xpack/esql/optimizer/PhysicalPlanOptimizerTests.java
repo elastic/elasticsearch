@@ -16,6 +16,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.ShapeType;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
@@ -30,6 +31,24 @@ import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.Order;
+import org.elasticsearch.xpack.esql.core.expression.function.FunctionRegistry;
+import org.elasticsearch.xpack.esql.core.expression.predicate.logical.And;
+import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Not;
+import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
+import org.elasticsearch.xpack.esql.core.index.EsIndex;
+import org.elasticsearch.xpack.esql.core.index.IndexResolution;
+import org.elasticsearch.xpack.esql.core.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.core.plan.logical.Limit;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
@@ -83,25 +102,6 @@ import org.elasticsearch.xpack.esql.querydsl.query.SpatialRelatesQuery;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.expression.Alias;
-import org.elasticsearch.xpack.ql.expression.Attribute;
-import org.elasticsearch.xpack.ql.expression.Expressions;
-import org.elasticsearch.xpack.ql.expression.FieldAttribute;
-import org.elasticsearch.xpack.ql.expression.Literal;
-import org.elasticsearch.xpack.ql.expression.MetadataAttribute;
-import org.elasticsearch.xpack.ql.expression.NamedExpression;
-import org.elasticsearch.xpack.ql.expression.Order;
-import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
-import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
-import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
-import org.elasticsearch.xpack.ql.index.EsIndex;
-import org.elasticsearch.xpack.ql.index.IndexResolution;
-import org.elasticsearch.xpack.ql.plan.logical.Filter;
-import org.elasticsearch.xpack.ql.plan.logical.Limit;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.elasticsearch.xpack.ql.type.EsField;
 import org.junit.Before;
 
 import java.util.Arrays;
@@ -122,16 +122,16 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.statsForMissingField;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.SerializationTestUtils.assertSerialization;
+import static org.elasticsearch.xpack.esql.core.expression.Expressions.name;
+import static org.elasticsearch.xpack.esql.core.expression.Expressions.names;
+import static org.elasticsearch.xpack.esql.core.expression.Order.OrderDirection.ASC;
+import static org.elasticsearch.xpack.esql.core.expression.function.scalar.FunctionTestUtils.l;
+import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.parser.ExpressionBuilder.MAX_EXPRESSION_DEPTH;
 import static org.elasticsearch.xpack.esql.parser.LogicalPlanBuilder.MAX_QUERY_DEPTH;
 import static org.elasticsearch.xpack.esql.plan.physical.AggregateExec.Mode.FINAL;
 import static org.elasticsearch.xpack.esql.plan.physical.AggregateExec.Mode.PARTIAL;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.CARTESIAN_POINT;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_POINT;
-import static org.elasticsearch.xpack.ql.expression.Expressions.name;
-import static org.elasticsearch.xpack.ql.expression.Expressions.names;
-import static org.elasticsearch.xpack.ql.expression.Order.OrderDirection.ASC;
-import static org.elasticsearch.xpack.ql.expression.function.scalar.FunctionTestUtils.l;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -148,7 +148,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     /**
      * Estimated size of a keyword field in bytes.
      */
-    private static final int KEYWORD_EST = EstimatesRowSize.estimateSize(DataTypes.KEYWORD);
+    private static final int KEYWORD_EST = EstimatesRowSize.estimateSize(DataType.KEYWORD);
 
     private EsqlParser parser;
     private LogicalPlanOptimizer logicalOptimizer;
@@ -239,8 +239,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 List.of("a", "b"),
                 Map.of("", "idx"),
                 Map.ofEntries(
-                    Map.entry("a", new EsField("a", DataTypes.INTEGER, Map.of(), true)),
-                    Map.entry("b", new EsField("b", DataTypes.LONG, Map.of(), true))
+                    Map.entry("a", new EsField("a", DataType.INTEGER, Map.of(), true)),
+                    Map.entry("b", new EsField("b", DataType.LONG, Map.of(), true))
                 )
             )
         );
@@ -253,10 +253,10 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 List.of("city", "airport", "region", "city_boundary"),
                 Map.of("", "airport_city_boundaries"),
                 Map.ofEntries(
-                    Map.entry("city", new EsField("city", DataTypes.KEYWORD, Map.of(), true)),
-                    Map.entry("airport", new EsField("airport", DataTypes.TEXT, Map.of(), false)),
-                    Map.entry("region", new EsField("region", DataTypes.TEXT, Map.of(), false)),
-                    Map.entry("city_boundary", new EsField("city_boundary", EsqlDataTypes.GEO_SHAPE, Map.of(), false))
+                    Map.entry("city", new EsField("city", DataType.KEYWORD, Map.of(), true)),
+                    Map.entry("airport", new EsField("airport", DataType.TEXT, Map.of(), false)),
+                    Map.entry("region", new EsField("region", DataType.TEXT, Map.of(), false)),
+                    Map.entry("city_boundary", new EsField("city_boundary", DataType.GEO_SHAPE, Map.of(), false))
                 )
             )
         );
@@ -268,7 +268,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 EnrichPolicy.MATCH_TYPE,
                 List.of("department"),
                 Map.of("", ".enrich-departments-1", "cluster_1", ".enrich-departments-2"),
-                Map.of("department", new EsField("department", DataTypes.KEYWORD, Map.of(), true))
+                Map.of("department", new EsField("department", DataType.KEYWORD, Map.of(), true))
             )
         );
         enrichResolution.addResolvedPolicy(
@@ -279,7 +279,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 EnrichPolicy.MATCH_TYPE,
                 List.of("department"),
                 Map.of("", ".enrich-departments-3"),
-                Map.of("department", new EsField("department", DataTypes.KEYWORD, Map.of(), true))
+                Map.of("department", new EsField("department", DataType.KEYWORD, Map.of(), true))
             )
         );
         enrichResolution.addResolvedPolicy(
@@ -290,7 +290,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 EnrichPolicy.MATCH_TYPE,
                 List.of("department"),
                 Map.of("cluster_1", ".enrich-departments-2"),
-                Map.of("department", new EsField("department", DataTypes.KEYWORD, Map.of(), true))
+                Map.of("department", new EsField("department", DataType.KEYWORD, Map.of(), true))
             )
         );
         enrichResolution.addResolvedPolicy(
@@ -301,7 +301,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 EnrichPolicy.MATCH_TYPE,
                 List.of("supervisor"),
                 Map.of("", ".enrich-supervisors-a", "cluster_1", ".enrich-supervisors-b"),
-                Map.of("supervisor", new EsField("supervisor", DataTypes.KEYWORD, Map.of(), true))
+                Map.of("supervisor", new EsField("supervisor", DataType.KEYWORD, Map.of(), true))
             )
         );
         enrichResolution.addResolvedPolicy(
@@ -312,7 +312,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 EnrichPolicy.MATCH_TYPE,
                 List.of("supervisor"),
                 Map.of("", ".enrich-supervisors-c"),
-                Map.of("supervisor", new EsField("supervisor", DataTypes.KEYWORD, Map.of(), true))
+                Map.of("supervisor", new EsField("supervisor", DataType.KEYWORD, Map.of(), true))
             )
         );
         enrichResolution.addResolvedPolicy(
@@ -323,7 +323,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 EnrichPolicy.MATCH_TYPE,
                 List.of("supervisor"),
                 Map.of("cluster_1", ".enrich-supervisors-b"),
-                Map.of("supervisor", new EsField("supervisor", DataTypes.KEYWORD, Map.of(), true))
+                Map.of("supervisor", new EsField("supervisor", DataType.KEYWORD, Map.of(), true))
             )
         );
         return enrichResolution;
@@ -2042,7 +2042,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         List<Attribute> emptyAttrList = List.of();
         var badPlan = verifiedPlan.transformDown(
             EsQueryExec.class,
-            node -> new EsSourceExec(node.source(), node.index(), emptyAttrList, node.query())
+            node -> new EsSourceExec(node.source(), node.index(), emptyAttrList, node.query(), IndexMode.STANDARD)
         );
 
         var e = expectThrows(VerificationException.class, () -> physicalPlanOptimizer.verify(badPlan));

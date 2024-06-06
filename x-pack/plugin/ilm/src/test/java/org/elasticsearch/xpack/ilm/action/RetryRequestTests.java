@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.ilm.action;
 
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
@@ -17,10 +18,11 @@ public class RetryRequestTests extends AbstractWireSerializingTestCase<Transport
 
     @Override
     protected TransportRetryAction.Request createTestInstance() {
-        TransportRetryAction.Request request = new TransportRetryAction.Request();
-        if (randomBoolean()) {
-            request.indices(generateRandomStringArray(20, 20, false));
-        }
+        final var request = new TransportRetryAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            randomBoolean() ? Strings.EMPTY_ARRAY : generateRandomStringArray(20, 20, false)
+        );
         if (randomBoolean()) {
             IndicesOptions indicesOptions = IndicesOptions.fromOptions(
                 randomBoolean(),
@@ -66,8 +68,7 @@ public class RetryRequestTests extends AbstractWireSerializingTestCase<Transport
             );
             default -> throw new AssertionError("Illegal randomisation branch");
         }
-        TransportRetryAction.Request newRequest = new TransportRetryAction.Request();
-        newRequest.indices(indices);
+        final var newRequest = new TransportRetryAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, indices);
         newRequest.indicesOptions(indicesOptions);
         return newRequest;
     }

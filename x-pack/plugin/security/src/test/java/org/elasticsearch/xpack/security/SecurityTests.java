@@ -52,6 +52,7 @@ import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.internal.XPackLicenseStatus;
+import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.FieldPredicate;
 import org.elasticsearch.plugins.MapperPlugin;
@@ -63,7 +64,7 @@ import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.test.rest.FakeRestRequest;
@@ -127,7 +128,7 @@ import java.util.stream.Collectors;
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.test.LambdaMatchers.falseWith;
 import static org.elasticsearch.test.LambdaMatchers.trueWith;
-import static org.elasticsearch.test.MockLogAppender.assertThatLogger;
+import static org.elasticsearch.test.MockLog.assertThatLogger;
 import static org.elasticsearch.xpack.core.security.authc.RealmSettings.getFullSettingKey;
 import static org.elasticsearch.xpack.security.operator.OperatorPrivileges.NOOP_OPERATOR_PRIVILEGES_SERVICE;
 import static org.elasticsearch.xpack.security.operator.OperatorPrivileges.OPERATOR_PRIVILEGES_ENABLED;
@@ -230,7 +231,8 @@ public class SecurityTests extends ESTestCase {
             env,
             nodeMetadata,
             TestIndexNameExpressionResolver.newInstance(threadContext),
-            TelemetryProvider.NOOP
+            TelemetryProvider.NOOP,
+            mock(PersistentTasksService.class)
         );
     }
 
@@ -791,14 +793,14 @@ public class SecurityTests extends ESTestCase {
         SettingsModule settingsModule = new SettingsModule(Settings.EMPTY);
         ThreadPool threadPool = new TestThreadPool(getTestName());
 
-        try (var appender = MockLogAppender.capture(ActionModule.class)) {
+        try (var mockLog = MockLog.capture(ActionModule.class)) {
             UsageService usageService = new UsageService();
             Security security = new Security(settings);
 
             // Verify Security rest interceptor is about to be installed
             // We will throw later if another interceptor is already installed
-            appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "Security rest interceptor",
                     ActionModule.class.getName(),
                     Level.DEBUG,
@@ -827,7 +829,7 @@ public class SecurityTests extends ESTestCase {
             );
             actionModule.initRestHandlers(null, null);
 
-            appender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         } finally {
             threadPool.shutdown();
         }
@@ -845,9 +847,9 @@ public class SecurityTests extends ESTestCase {
             settings.put("xpack.security.enabled", securityEnabled);
         }
 
-        try (var appender = MockLogAppender.capture(Security.class)) {
-            appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+        try (var mockLog = MockLog.capture(Security.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "message",
                     Security.class.getName(),
                     Level.INFO,
@@ -855,7 +857,7 @@ public class SecurityTests extends ESTestCase {
                 )
             );
             createComponents(settings.build());
-            appender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 
@@ -1130,8 +1132,8 @@ public class SecurityTests extends ESTestCase {
         );
     }
 
-    private MockLogAppender.SeenEventExpectation logEventForNonCompliantCacheHash(String settingKey) {
-        return new MockLogAppender.SeenEventExpectation(
+    private MockLog.SeenEventExpectation logEventForNonCompliantCacheHash(String settingKey) {
+        return new MockLog.SeenEventExpectation(
             "cache hash not fips compliant",
             Security.class.getName(),
             Level.WARN,
@@ -1142,8 +1144,8 @@ public class SecurityTests extends ESTestCase {
         );
     }
 
-    private MockLogAppender.SeenEventExpectation logEventForNonCompliantStoredHash(String settingKey) {
-        return new MockLogAppender.SeenEventExpectation(
+    private MockLog.SeenEventExpectation logEventForNonCompliantStoredHash(String settingKey) {
+        return new MockLog.SeenEventExpectation(
             "stored hash not fips compliant",
             Security.class.getName(),
             Level.WARN,

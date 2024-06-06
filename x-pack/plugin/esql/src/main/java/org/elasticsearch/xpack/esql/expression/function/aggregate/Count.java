@@ -9,6 +9,13 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.CountAggregatorFunction;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.Nullability;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -17,19 +24,11 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Literal;
-import org.elasticsearch.xpack.ql.expression.Nullability;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.elasticsearch.xpack.ql.util.StringUtils;
 
 import java.util.List;
 
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.DEFAULT;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
 public class Count extends AggregateFunction implements EnclosedAgg, ToAggregator, SurrogateExpression {
 
@@ -75,7 +74,7 @@ public class Count extends AggregateFunction implements EnclosedAgg, ToAggregato
 
     @Override
     public DataType dataType() {
-        return DataTypes.LONG;
+        return DataType.LONG;
     }
 
     @Override
@@ -103,7 +102,7 @@ public class Count extends AggregateFunction implements EnclosedAgg, ToAggregato
                 if (l.value() != null && (l.value() instanceof List<?>) == false) {
                     // TODO: Normalize COUNT(*), COUNT(), COUNT("foobar"), COUNT(1) as COUNT(*).
                     // Does not apply to COUNT([1,2,3])
-                    // return new Count(s, new Literal(s, StringUtils.WILDCARD, DataTypes.KEYWORD));
+                    // return new Count(s, new Literal(s, StringUtils.WILDCARD, DataType.KEYWORD));
                     return null;
                 }
             }
@@ -111,8 +110,8 @@ public class Count extends AggregateFunction implements EnclosedAgg, ToAggregato
             // COUNT(const) is equivalent to MV_COUNT(const)*COUNT(*) if const is not null; otherwise COUNT(const) == 0.
             return new Mul(
                 s,
-                new Coalesce(s, new MvCount(s, field), List.of(new Literal(s, 0, DataTypes.INTEGER))),
-                new Count(s, new Literal(s, StringUtils.WILDCARD, DataTypes.KEYWORD))
+                new Coalesce(s, new MvCount(s, field), List.of(new Literal(s, 0, DataType.INTEGER))),
+                new Count(s, new Literal(s, StringUtils.WILDCARD, DataType.KEYWORD))
             );
         }
 

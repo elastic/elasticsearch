@@ -43,6 +43,7 @@ import static org.elasticsearch.xpack.inference.external.request.openai.OpenAiUt
 import static org.elasticsearch.xpack.inference.results.TextEmbeddingResultsTests.buildExpectationFloat;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsModelTests.createModel;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -78,7 +79,7 @@ public class OpenAiEmbeddingsActionTests extends ESTestCase {
             mockClusterServiceEmpty()
         );
 
-        try (var sender = senderFactory.createSender("test_service")) {
+        try (var sender = senderFactory.createSender()) {
             sender.start();
 
             String responseJson = """
@@ -131,7 +132,7 @@ public class OpenAiEmbeddingsActionTests extends ESTestCase {
                 IllegalArgumentException.class,
                 () -> createAction("^^", "org", "secret", "model", "user", sender)
             );
-            assertThat(thrownException.getMessage(), is("unable to parse url [^^]"));
+            assertThat(thrownException.getMessage(), containsString("unable to parse url [^^]"));
         }
     }
 

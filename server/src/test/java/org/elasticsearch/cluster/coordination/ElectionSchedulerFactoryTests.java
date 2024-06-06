@@ -14,7 +14,7 @@ import org.elasticsearch.common.settings.Settings.Builder;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -51,15 +51,15 @@ public class ElectionSchedulerFactoryTests extends ESTestCase {
         final AtomicBoolean electionStarted = new AtomicBoolean();
 
         try (
-            var appender = MockLogAppender.capture(ElectionSchedulerFactory.class);
+            var mockLog = MockLog.capture(ElectionSchedulerFactory.class);
             var ignored1 = electionSchedulerFactory.startElectionScheduler(
                 initialGracePeriod,
                 () -> assertTrue(electionStarted.compareAndSet(false, true))
             )
         ) {
 
-            appender.addExpectation(
-                new MockLogAppender.UnseenEventExpectation(
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
                     "no zero retries message",
                     ElectionSchedulerFactory.class.getName(),
                     Level.INFO,
@@ -68,8 +68,8 @@ public class ElectionSchedulerFactoryTests extends ESTestCase {
             );
             for (int i : new int[] { 10, 20, 990 }) {
                 // the test may stop after 1000 attempts, so might not report the 1000th failure; it definitely reports the 990th tho.
-                appender.addExpectation(
-                    new MockLogAppender.SeenEventExpectation(
+                mockLog.addExpectation(
+                    new MockLog.SeenEventExpectation(
                         i + " retries message",
                         ElectionSchedulerFactory.class.getName(),
                         Level.INFO,
@@ -123,7 +123,7 @@ public class ElectionSchedulerFactoryTests extends ESTestCase {
                 lastElectionFinishTime = thisElectionStartTime + duration;
             }
 
-            appender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
         deterministicTaskQueue.runAllTasks();
         assertFalse(electionStarted.get());

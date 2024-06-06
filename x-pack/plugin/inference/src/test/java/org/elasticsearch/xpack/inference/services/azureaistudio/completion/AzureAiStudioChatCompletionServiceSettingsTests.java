@@ -112,7 +112,8 @@ public class AzureAiStudioChatCompletionServiceSettingsTests extends ESTestCase 
         String xContentResult = Strings.toString(builder);
 
         assertThat(xContentResult, CoreMatchers.is("""
-            {"target":"target_value","provider":"openai","endpoint_type":"token"}"""));
+            {"target":"target_value","provider":"openai","endpoint_type":"token",""" + """
+            "rate_limit":{"requests_per_minute":3}}"""));
     }
 
     public static HashMap<String, Object> createRequestSettingsMap(String target, String provider, String endpointType) {

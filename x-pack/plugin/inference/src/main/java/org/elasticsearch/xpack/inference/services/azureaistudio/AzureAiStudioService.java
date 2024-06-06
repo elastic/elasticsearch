@@ -56,7 +56,7 @@ import static org.elasticsearch.xpack.inference.services.azureaistudio.completio
 
 public class AzureAiStudioService extends SenderService {
 
-    private static final String NAME = "azureaistudio";
+    static final String NAME = "azureaistudio";
 
     public AzureAiStudioService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents) {
         super(factory, serviceComponents);

@@ -18,6 +18,7 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.googleaistudio.GoogleAiStudioActionVisitor;
 import org.elasticsearch.xpack.inference.external.request.googleaistudio.GoogleAiStudioUtils;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.googleaistudio.GoogleAiStudioModel;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
@@ -37,13 +38,14 @@ public class GoogleAiStudioEmbeddingsModel extends GoogleAiStudioModel {
         String service,
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
-        Map<String, Object> secrets
+        Map<String, Object> secrets,
+        ConfigurationParseContext context
     ) {
         this(
             inferenceEntityId,
             taskType,
             service,
-            GoogleAiStudioEmbeddingsServiceSettings.fromMap(serviceSettings),
+            GoogleAiStudioEmbeddingsServiceSettings.fromMap(serviceSettings, context),
             EmptyTaskSettings.INSTANCE,
             DefaultSecretSettings.fromMap(secrets)
         );

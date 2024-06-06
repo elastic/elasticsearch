@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.Preference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
@@ -67,7 +68,7 @@ public class SynonymsManagementAPIService {
 
     private static final Logger logger = LogManager.getLogger(SynonymsManagementAPIService.class);
     private static final String SYNONYMS_INDEX_NAME_PATTERN = ".synonyms-*";
-    private static final int SYNONYMS_INDEX_FORMAT = 2;
+    private static final int SYNONYMS_INDEX_FORMAT = 3;
     private static final String SYNONYMS_INDEX_CONCRETE_NAME = ".synonyms-" + SYNONYMS_INDEX_FORMAT;
     private static final String SYNONYMS_ALIAS_NAME = ".synonyms";
     public static final String SYNONYMS_FEATURE_NAME = "synonyms";
@@ -325,7 +326,7 @@ public class SynonymsManagementAPIService {
                 .setSize(0)
                 .setPreference(Preference.LOCAL.type())
                 .setTrackTotalHits(true)
-                .execute(listener.delegateFailureAndWrap((searchListener, searchResponse) -> {
+                .execute(l1.delegateFailureAndWrap((searchListener, searchResponse) -> {
                     long synonymsSetSize = searchResponse.getHits().getTotalHits().value;
                     if (synonymsSetSize >= MAX_SYNONYMS_SETS) {
                         // We could potentially update a synonym rule when we're at max capacity, but we're keeping this simple
@@ -333,7 +334,7 @@ public class SynonymsManagementAPIService {
                             new IllegalArgumentException("The number of synonym rules in a synonyms set cannot exceed " + MAX_SYNONYMS_SETS)
                         );
                     } else {
-                        indexSynonymRule(synonymsSetId, synonymRule, l1);
+                        indexSynonymRule(synonymsSetId, synonymRule, searchListener);
                     }
                 }));
         }));
@@ -513,6 +514,7 @@ public class SynonymsManagementAPIService {
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-all")
             .put(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), SYNONYMS_INDEX_FORMAT)
+            .put(IndexSettings.MAX_RESULT_WINDOW_SETTING.getKey(), MAX_SYNONYMS_SETS)
             .build();
     }
 

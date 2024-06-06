@@ -233,27 +233,27 @@ public class In extends EsqlScalarFunction {
         }
     }
 
-    @Evaluator(extraName = "Boolean")
+    @Evaluator(extraName = "Boolean", skipNull = "false")
     static void process(BooleanBlock.Builder builder, BitSet nulls, boolean lhs, boolean[] rhs) {
         processCommon(builder, nulls, Boolean.valueOf(lhs), IntStream.range(0, rhs.length).mapToObj(idx -> rhs[idx]).toArray());
     }
 
-    @Evaluator(extraName = "Int")
+    @Evaluator(extraName = "Int", skipNull = "false")
     static void process(BooleanBlock.Builder builder, BitSet nulls, int lhs, int[] rhs) {
         processCommon(builder, nulls, lhs, Arrays.stream(rhs).boxed().toArray(Integer[]::new));
     }
 
-    @Evaluator(extraName = "Long")
+    @Evaluator(extraName = "Long", skipNull = "false")
     static void process(BooleanBlock.Builder builder, BitSet nulls, long lhs, long[] rhs) {
         processCommon(builder, nulls, lhs, Arrays.stream(rhs).boxed().toArray(Long[]::new));
     }
 
-    @Evaluator(extraName = "Double")
+    @Evaluator(extraName = "Double", skipNull = "false")
     static void process(BooleanBlock.Builder builder, BitSet nulls, double lhs, double[] rhs) {
         processCommon(builder, nulls, lhs, Arrays.stream(rhs).boxed().toArray(Double[]::new));
     }
 
-    @Evaluator(extraName = "BytesRef")
+    @Evaluator(extraName = "BytesRef", skipNull = "false")
     static void process(BooleanBlock.Builder builder, BitSet nulls, BytesRef lhs, BytesRef[] rhs) {
         processCommon(builder, nulls, lhs, rhs);
     }

@@ -42,4 +42,9 @@ public @interface Evaluator {
      * into a warning and turn into a null value.
      */
     Class<? extends Exception>[] warnExceptions() default {};
+
+    /**
+     * Return null if there is null value in the inputs.
+     */
+    String skipNull() default "true";
 }

@@ -80,7 +80,8 @@ public class EvaluatorProcessor implements Processor {
                                 env.getTypeUtils(),
                                 (ExecutableElement) evaluatorMethod,
                                 evaluatorAnn.extraName(),
-                                warnExceptions(evaluatorMethod)
+                                warnExceptions(evaluatorMethod),
+                                evaluatorAnn.skipNull()
                             ).sourceFile(),
                             env
                         );

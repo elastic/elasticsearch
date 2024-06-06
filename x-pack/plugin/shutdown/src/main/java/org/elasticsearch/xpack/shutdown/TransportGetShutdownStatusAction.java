@@ -219,7 +219,7 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
             .unassigned()
             .stream()
             .peek(s -> cancellableTask.ensureNotCancelled())
-            .filter(s -> Objects.equals(s.unassignedInfo().getLastAllocatedNodeId(), nodeId))
+            .filter(s -> Objects.equals(s.unassignedInfo().lastAllocatedNodeId(), nodeId))
             .filter(s -> s.primary() || hasShardCopyOnAnotherNode(currentState, s, shuttingDownNodes) == false)
             .toList();
 

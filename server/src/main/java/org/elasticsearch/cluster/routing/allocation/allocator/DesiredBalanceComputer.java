@@ -120,7 +120,7 @@ public class DesiredBalanceComputer {
             for (final var iterator = unassigned.iterator(); iterator.hasNext();) {
                 final var shardRouting = iterator.next();
                 if (shardRouting.primary() == primary) {
-                    var lastAllocatedNodeId = shardRouting.unassignedInfo().getLastAllocatedNodeId();
+                    var lastAllocatedNodeId = shardRouting.unassignedInfo().lastAllocatedNodeId();
                     if (knownNodeIds.contains(lastAllocatedNodeId)
                         || ignoredShards.contains(discardAllocationStatus(shardRouting)) == false) {
                         shardRoutings.computeIfAbsent(shardRouting.shardId(), ShardRoutings::new).unassigned().add(shardRouting);
@@ -154,7 +154,7 @@ public class DesiredBalanceComputer {
 
             // preserving last known shard location as a starting point to avoid unnecessary relocations
             for (ShardRouting shardRouting : routings.unassigned()) {
-                var lastAllocatedNodeId = shardRouting.unassignedInfo().getLastAllocatedNodeId();
+                var lastAllocatedNodeId = shardRouting.unassignedInfo().lastAllocatedNodeId();
                 if (knownNodeIds.contains(lastAllocatedNodeId)) {
                     targetNodes.add(lastAllocatedNodeId);
                 }
@@ -346,19 +346,18 @@ public class DesiredBalanceComputer {
         for (var shard : routingNodes.unassigned().ignored()) {
             var info = shard.unassignedInfo();
             assert info != null
-                && (info.getLastAllocationStatus() == UnassignedInfo.AllocationStatus.DECIDERS_NO
-                    || info.getLastAllocationStatus() == UnassignedInfo.AllocationStatus.NO_ATTEMPT
-                    || info.getLastAllocationStatus() == UnassignedInfo.AllocationStatus.DECIDERS_THROTTLED)
-                : "Unexpected stats in: " + info;
+                && (info.lastAllocationStatus() == UnassignedInfo.AllocationStatus.DECIDERS_NO
+                    || info.lastAllocationStatus() == UnassignedInfo.AllocationStatus.NO_ATTEMPT
+                    || info.lastAllocationStatus() == UnassignedInfo.AllocationStatus.DECIDERS_THROTTLED) : "Unexpected stats in: " + info;
 
-            if (hasChanges == false && info.getLastAllocationStatus() == UnassignedInfo.AllocationStatus.DECIDERS_THROTTLED) {
+            if (hasChanges == false && info.lastAllocationStatus() == UnassignedInfo.AllocationStatus.DECIDERS_THROTTLED) {
                 // Simulation could not progress due to missing information in any of the deciders.
                 // Currently, this could happen if `HasFrozenCacheAllocationDecider` is still fetching the data.
                 // Progress would be made after the followup reroute call.
                 hasChanges = true;
             }
 
-            var ignored = shard.unassignedInfo().getLastAllocationStatus() == UnassignedInfo.AllocationStatus.DECIDERS_NO ? 0 : 1;
+            var ignored = shard.unassignedInfo().lastAllocationStatus() == UnassignedInfo.AllocationStatus.DECIDERS_NO ? 0 : 1;
             assignments.compute(
                 shard.shardId(),
                 (key, oldValue) -> oldValue == null
@@ -400,20 +399,20 @@ public class DesiredBalanceComputer {
     }
 
     private static UnassignedInfo discardAllocationStatus(UnassignedInfo info) {
-        if (info.getLastAllocationStatus() == UnassignedInfo.AllocationStatus.NO_ATTEMPT) {
+        if (info.lastAllocationStatus() == UnassignedInfo.AllocationStatus.NO_ATTEMPT) {
             return info;
         }
         return new UnassignedInfo(
-            info.getReason(),
-            info.getMessage(),
-            info.getFailure(),
-            info.getNumFailedAllocations(),
-            info.getUnassignedTimeInNanos(),
-            info.getUnassignedTimeInMillis(),
-            info.isDelayed(),
+            info.reason(),
+            info.message(),
+            info.failure(),
+            info.failedAllocations(),
+            info.unassignedTimeNanos(),
+            info.unassignedTimeMillis(),
+            info.delayed(),
             UnassignedInfo.AllocationStatus.NO_ATTEMPT,
-            info.getFailedNodeIds(),
-            info.getLastAllocatedNodeId()
+            info.failedNodeIds(),
+            info.lastAllocatedNodeId()
         );
     }
 

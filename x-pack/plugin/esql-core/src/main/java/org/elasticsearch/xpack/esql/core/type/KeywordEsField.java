@@ -6,16 +6,26 @@
  */
 package org.elasticsearch.xpack.esql.core.type;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+
+import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 
 /**
- * SQL-related information about an index field with keyword type
+ * Information about a field in an ES index with the {@code keyword} type.
  */
 public class KeywordEsField extends EsField {
+    static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        EsField.class,
+        "KeywordEsField",
+        KeywordEsField::new
+    );
 
     private final int precision;
     private final boolean normalized;
@@ -51,6 +61,33 @@ public class KeywordEsField extends EsField {
         super(name, esDataType, properties, hasDocValues, isAlias);
         this.precision = precision;
         this.normalized = normalized;
+    }
+
+    private KeywordEsField(StreamInput in) throws IOException {
+        this(
+            in.readString(),
+            KEYWORD,
+            in.readMap(i -> i.readNamedWriteable(EsField.class)),
+            in.readBoolean(),
+            in.readInt(),
+            in.readBoolean(),
+            in.readBoolean()
+        );
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(getName());
+        out.writeMap(getProperties(), StreamOutput::writeNamedWriteable);
+        out.writeBoolean(isAggregatable());
+        out.writeInt(precision);
+        out.writeBoolean(normalized);
+        out.writeBoolean(isAlias());
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
     }
 
     public int getPrecision() {

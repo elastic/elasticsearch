@@ -70,6 +70,7 @@ import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rank.context.QueryPhaseRankShardContext;
+import org.elasticsearch.search.rank.feature.RankFeatureResult;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.search.sort.SortAndFormats;
@@ -102,6 +103,7 @@ final class DefaultSearchContext extends SearchContext {
     private final ContextIndexSearcher searcher;
     private DfsSearchResult dfsResult;
     private QuerySearchResult queryResult;
+    private RankFeatureResult rankFeatureResult;
     private FetchSearchResult fetchResult;
     private final float queryBoost;
     private final boolean lowLevelCancellation;
@@ -306,6 +308,17 @@ final class DefaultSearchContext extends SearchContext {
             return source == null || source.supportsParallelCollection(fieldCardinality);
         }
         return false;
+    }
+
+    @Override
+    public void addRankFeatureResult() {
+        this.rankFeatureResult = new RankFeatureResult(this.readerContext.id(), this.shardTarget, this.request);
+        addReleasable(rankFeatureResult::decRef);
+    }
+
+    @Override
+    public RankFeatureResult rankFeatureResult() {
+        return rankFeatureResult;
     }
 
     @Override

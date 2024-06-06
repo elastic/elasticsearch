@@ -17,7 +17,7 @@ import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractConfigurationFunctionTestCase;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
@@ -45,39 +45,39 @@ public class DateExtractTests extends AbstractConfigurationFunctionTestCase {
                     true,
                     List.of(
                         new TestCaseSupplier(
-                            List.of(DataTypes.KEYWORD, DataTypes.DATETIME),
+                            List.of(DataType.KEYWORD, DataType.DATETIME),
                             () -> new TestCaseSupplier.TestCase(
                                 List.of(
-                                    new TestCaseSupplier.TypedData(new BytesRef("YeAr"), DataTypes.KEYWORD, "chrono"),
-                                    new TestCaseSupplier.TypedData(1687944333000L, DataTypes.DATETIME, "date")
+                                    new TestCaseSupplier.TypedData(new BytesRef("YeAr"), DataType.KEYWORD, "chrono"),
+                                    new TestCaseSupplier.TypedData(1687944333000L, DataType.DATETIME, "date")
                                 ),
                                 "DateExtractEvaluator[value=Attribute[channel=1], chronoField=Attribute[channel=0], zone=Z]",
-                                DataTypes.LONG,
+                                DataType.LONG,
                                 equalTo(2023L)
                             )
                         ),
                         new TestCaseSupplier(
-                            List.of(DataTypes.TEXT, DataTypes.DATETIME),
+                            List.of(DataType.TEXT, DataType.DATETIME),
                             () -> new TestCaseSupplier.TestCase(
                                 List.of(
-                                    new TestCaseSupplier.TypedData(new BytesRef("YeAr"), DataTypes.TEXT, "chrono"),
-                                    new TestCaseSupplier.TypedData(1687944333000L, DataTypes.DATETIME, "date")
+                                    new TestCaseSupplier.TypedData(new BytesRef("YeAr"), DataType.TEXT, "chrono"),
+                                    new TestCaseSupplier.TypedData(1687944333000L, DataType.DATETIME, "date")
                                 ),
                                 "DateExtractEvaluator[value=Attribute[channel=1], chronoField=Attribute[channel=0], zone=Z]",
-                                DataTypes.LONG,
+                                DataType.LONG,
                                 equalTo(2023L)
                             )
                         ),
                         new TestCaseSupplier(
-                            List.of(DataTypes.KEYWORD, DataTypes.DATETIME),
+                            List.of(DataType.KEYWORD, DataType.DATETIME),
                             () -> new TestCaseSupplier.TestCase(
                                 List.of(
-                                    new TestCaseSupplier.TypedData(new BytesRef("not a unit"), DataTypes.KEYWORD, "chrono"),
-                                    new TestCaseSupplier.TypedData(0L, DataTypes.DATETIME, "date")
+                                    new TestCaseSupplier.TypedData(new BytesRef("not a unit"), DataType.KEYWORD, "chrono"),
+                                    new TestCaseSupplier.TypedData(0L, DataType.DATETIME, "date")
 
                                 ),
                                 "DateExtractEvaluator[value=Attribute[channel=1], chronoField=Attribute[channel=0], zone=Z]",
-                                DataTypes.LONG,
+                                DataType.LONG,
                                 is(nullValue())
                             ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
                                 .withWarning(
@@ -98,8 +98,8 @@ public class DateExtractTests extends AbstractConfigurationFunctionTestCase {
         for (ChronoField value : ChronoField.values()) {
             DateExtract instance = new DateExtract(
                 Source.EMPTY,
-                new Literal(Source.EMPTY, new BytesRef(value.name()), DataTypes.KEYWORD),
-                new Literal(Source.EMPTY, epochMilli, DataTypes.DATETIME),
+                new Literal(Source.EMPTY, new BytesRef(value.name()), DataType.KEYWORD),
+                new Literal(Source.EMPTY, epochMilli, DataType.DATETIME),
                 EsqlTestUtils.TEST_CFG
             );
 
@@ -119,8 +119,8 @@ public class DateExtractTests extends AbstractConfigurationFunctionTestCase {
             () -> evaluator(
                 new DateExtract(
                     Source.EMPTY,
-                    new Literal(Source.EMPTY, new BytesRef(chrono), DataTypes.KEYWORD),
-                    field("str", DataTypes.DATETIME),
+                    new Literal(Source.EMPTY, new BytesRef(chrono), DataType.KEYWORD),
+                    field("str", DataType.DATETIME),
                     null
                 )
             ).get(driverContext)

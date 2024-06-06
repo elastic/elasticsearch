@@ -7,7 +7,12 @@
 
 package org.elasticsearch.xpack.esql.core.util;
 
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+
+import java.io.IOException;
 
 /**
  * Interface for streams that can serialize plan components. This exists so
@@ -23,4 +28,17 @@ public interface PlanStreamInput {
      */
     String sourceText();
 
+    /**
+     * Translate a {@code long} into a {@link NameId}, mapping the same {@code long}
+     * into the same {@link NameId} each time. Each new {@code long} gets assigned
+     * a unique id to the node, but when the same id is sent in the stream we get
+     * the same result.
+     */
+    NameId mapNameId(long id) throws IOException;
+
+    /**
+     * Read an {@link Expression} from the stream. This will soon be replaced with
+     * {@link StreamInput#readNamedWriteable}.
+     */
+    Expression readExpression() throws IOException;
 }

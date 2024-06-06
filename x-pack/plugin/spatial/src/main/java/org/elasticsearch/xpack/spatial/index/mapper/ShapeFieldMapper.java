@@ -249,6 +249,11 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
         return (ShapeFieldType) super.fieldType();
     }
 
+    @Override
+    protected SyntheticSourceMode syntheticSourceMode() {
+        return SyntheticSourceMode.FALLBACK;
+    }
+
     public static class CartesianShapeDocValuesField extends AbstractScriptFieldFactory<CartesianShapeValues.CartesianShapeValue>
         implements
             Field<CartesianShapeValues.CartesianShapeValue>,

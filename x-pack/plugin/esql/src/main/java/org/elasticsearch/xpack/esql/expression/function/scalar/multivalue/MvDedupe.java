@@ -26,9 +26,22 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
  * Removes duplicate values from a multivalued field.
  */
 public class MvDedupe extends AbstractMultivalueFunction {
-    // @TODO: add cartesian_point, geo_point, unsigned_long
+    // @TODO: add unsigned_long
     @FunctionInfo(
-        returnType = { "boolean", "date", "double", "integer", "ip", "keyword", "long", "text", "version" },
+        returnType = {
+            "boolean",
+            "cartesian_point",
+            "cartesian_shape",
+            "date",
+            "double",
+            "geo_point",
+            "geo_shape",
+            "integer",
+            "ip",
+            "keyword",
+            "long",
+            "text",
+            "version" },
         description = "Remove duplicate values from a multivalued field.",
         note = "`MV_DEDUPE` may, but won't always, sort the values in the column.",
         examples = @Example(file = "string", tag = "mv_dedupe")
@@ -37,7 +50,20 @@ public class MvDedupe extends AbstractMultivalueFunction {
         Source source,
         @Param(
             name = "field",
-            type = { "boolean", "date", "double", "integer", "ip", "keyword", "long", "text", "version" },
+            type = {
+                "boolean",
+                "cartesian_point",
+                "cartesian_shape",
+                "date",
+                "double",
+                "geo_point",
+                "geo_shape",
+                "integer",
+                "ip",
+                "keyword",
+                "long",
+                "text",
+                "version" },
             description = "Multivalue expression."
         ) Expression field
     ) {

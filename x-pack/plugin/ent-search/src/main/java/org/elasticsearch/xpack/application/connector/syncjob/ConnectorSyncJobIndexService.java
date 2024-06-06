@@ -47,10 +47,10 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.application.connector.Connector;
 import org.elasticsearch.xpack.application.connector.ConnectorFiltering;
-import org.elasticsearch.xpack.application.connector.ConnectorIndexService;
 import org.elasticsearch.xpack.application.connector.ConnectorSyncStatus;
 import org.elasticsearch.xpack.application.connector.ConnectorTemplateRegistry;
 import org.elasticsearch.xpack.application.connector.filtering.FilteringRules;
+import org.elasticsearch.xpack.application.connector.syncjob.action.ClaimConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.PostConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.UpdateConnectorSyncJobIngestionStatsAction;
 
@@ -68,6 +68,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xpack.application.connector.ConnectorIndexService.CONNECTOR_INDEX_NAME;
 
 /**
  * A service that manages persistent {@link ConnectorSyncJob} configurations.
@@ -497,7 +498,7 @@ public class ConnectorSyncJobIndexService {
     private void getSyncJobConnectorInfo(String connectorId, ConnectorSyncJobType jobType, ActionListener<Connector> listener) {
         try {
 
-            final GetRequest request = new GetRequest(ConnectorIndexService.CONNECTOR_INDEX_NAME, connectorId);
+            final GetRequest request = new GetRequest(CONNECTOR_INDEX_NAME, connectorId);
 
             client.get(request, new ActionListener<>() {
                 @Override
@@ -641,6 +642,60 @@ public class ConnectorSyncJobIndexService {
             }
             l.onResponse(r);
         }));
+    }
+
+    /**
+     * Claims a {@link ConnectorSyncJob} for a worker.
+     * This method sets the worker hostname and the sync cursor for the sync job.
+     *
+     * @param request                Request containing the worker hostname and the sync cursor.
+     * @param listener               The action listener to invoke on response/failure.
+     */
+    public void claimConnectorSyncJob(ClaimConnectorSyncJobAction.Request request, ActionListener<UpdateResponse> listener) {
+        String connectorSyncJobId = request.getConnectorSyncJobId();
+        String workerHostname = request.getWorkerHostname();
+        Object syncCursor = request.getSyncCursor();
+
+        try {
+            getConnectorSyncJob(connectorSyncJobId, listener.delegateFailure((getSyncJobListener, syncJobSearchResult) -> {
+
+                Map<String, Object> document = new HashMap<>();
+                document.put(ConnectorSyncJob.WORKER_HOSTNAME_FIELD.getPreferredName(), workerHostname);
+                document.put(ConnectorSyncJob.STATUS_FIELD.getPreferredName(), ConnectorSyncStatus.IN_PROGRESS.toString());
+                document.put(ConnectorSyncJob.LAST_SEEN_FIELD.getPreferredName(), Instant.now());
+                document.put(ConnectorSyncJob.STARTED_AT_FIELD.getPreferredName(), Instant.now());
+
+                if (syncCursor != null) {
+                    document.put(
+                        ConnectorSyncJob.CONNECTOR_FIELD.getPreferredName(),
+                        Map.of(Connector.SYNC_CURSOR_FIELD.getPreferredName(), syncCursor)
+                    );
+                }
+
+                final UpdateRequest updateRequest = new UpdateRequest(CONNECTOR_SYNC_JOB_INDEX_NAME, connectorSyncJobId).setRefreshPolicy(
+                    WriteRequest.RefreshPolicy.IMMEDIATE
+                ).doc(document);
+
+                client.update(
+                    updateRequest,
+                    new DelegatingIndexNotFoundOrDocumentMissingActionListener<>(
+                        connectorSyncJobId,
+                        listener,
+                        (indexNotFoundListener, updateResponse) -> {
+                            if (updateResponse.getResult() == DocWriteResponse.Result.NOT_FOUND) {
+                                indexNotFoundListener.onFailure(new ResourceNotFoundException(connectorSyncJobId));
+                                return;
+                            }
+                            indexNotFoundListener.onResponse(updateResponse);
+                        }
+
+                    )
+                );
+            }));
+
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
     }
 
     /**

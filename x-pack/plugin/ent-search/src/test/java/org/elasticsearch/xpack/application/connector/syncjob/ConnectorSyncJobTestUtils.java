@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.application.EnterpriseSearchModuleTestUtils;
 import org.elasticsearch.xpack.application.connector.ConnectorTestUtils;
 import org.elasticsearch.xpack.application.connector.syncjob.action.CancelConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.CheckInConnectorSyncJobAction;
+import org.elasticsearch.xpack.application.connector.syncjob.action.ClaimConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.DeleteConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.GetConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.ListConnectorSyncJobsAction;
@@ -193,5 +194,9 @@ public class ConnectorSyncJobTestUtils {
             ConnectorTestUtils.getRandomSyncStatus(),
             Collections.singletonList(ConnectorTestUtils.getRandomSyncJobType())
         );
+    }
+
+    public static ClaimConnectorSyncJobAction.Request getRandomClaimConnectorSyncJobActionRequest() {
+        return new ClaimConnectorSyncJobAction.Request(randomAlphaOfLength(10), randomAlphaOfLengthBetween(10, 100), Map.of("test", "123"));
     }
 }

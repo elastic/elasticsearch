@@ -13,8 +13,8 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
@@ -23,7 +23,7 @@ import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class CeilTests extends AbstractScalarFunctionTestCase {
+public class CeilTests extends AbstractFunctionTestCase {
     public CeilTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
@@ -31,7 +31,7 @@ public class CeilTests extends AbstractScalarFunctionTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
-        suppliers.addAll(List.of(new TestCaseSupplier("large double value", () -> {
+        suppliers.addAll(List.of(new TestCaseSupplier("large double value", List.of(DataType.DOUBLE), () -> {
             double arg = 1 / randomDouble();
             return new TestCaseSupplier.TestCase(
                 List.of(new TestCaseSupplier.TypedData(arg, DataType.DOUBLE, "arg")),
@@ -39,7 +39,7 @@ public class CeilTests extends AbstractScalarFunctionTestCase {
                 DataType.DOUBLE,
                 equalTo(Math.ceil(arg))
             );
-        }), new TestCaseSupplier("integer value", () -> {
+        }), new TestCaseSupplier("integer value", List.of(DataType.INTEGER), () -> {
             int arg = randomInt();
             return new TestCaseSupplier.TestCase(
                 List.of(new TestCaseSupplier.TypedData(arg, DataType.INTEGER, "arg")),
@@ -47,7 +47,7 @@ public class CeilTests extends AbstractScalarFunctionTestCase {
                 DataType.INTEGER,
                 equalTo(arg)
             );
-        }), new TestCaseSupplier("long value", () -> {
+        }), new TestCaseSupplier("long value", List.of(DataType.LONG), () -> {
             long arg = randomLong();
             return new TestCaseSupplier.TestCase(
                 List.of(new TestCaseSupplier.TypedData(arg, DataType.LONG, "arg")),
@@ -66,17 +66,7 @@ public class CeilTests extends AbstractScalarFunctionTestCase {
             UNSIGNED_LONG_MAX,
             List.of()
         );
-        return parameterSuppliersFromTypedData(suppliers);
-    }
-
-    @Override
-    protected DataType expectedType(List<DataType> argTypes) {
-        return argTypes.get(0);
-    }
-
-    @Override
-    protected List<ArgumentSpec> argSpec() {
-        return List.of(required(numerics()));
+        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(false, suppliers)));
     }
 
     @Override

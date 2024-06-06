@@ -75,8 +75,8 @@ public final class IpPrefixEvaluator implements EvalOperator.ExpressionEvaluator
 
   public BytesRefBlock eval(int positionCount, BytesRefBlock ipBlock, IntBlock prefixLengthV4Block,
       IntBlock prefixLengthV6Block) {
-    BytesRef ipScratch = new BytesRef();
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
+      BytesRef ipScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         if (ipBlock.isNull(p)) {
           result.appendNull();
@@ -124,8 +124,8 @@ public final class IpPrefixEvaluator implements EvalOperator.ExpressionEvaluator
 
   public BytesRefBlock eval(int positionCount, BytesRefVector ipVector,
       IntVector prefixLengthV4Vector, IntVector prefixLengthV6Vector) {
-    BytesRef ipScratch = new BytesRef();
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
+      BytesRef ipScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         try {
           result.appendBytesRef(IpPrefix.process(ipVector.getBytesRef(p, ipScratch), prefixLengthV4Vector.getInt(p), prefixLengthV6Vector.getInt(p), scratch));

@@ -54,8 +54,8 @@ public final class ToBase64Evaluator implements EvalOperator.ExpressionEvaluator
   }
 
   public BytesRefBlock eval(int positionCount, BytesRefBlock fieldBlock) {
-    BytesRef fieldScratch = new BytesRef();
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
+      BytesRef fieldScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         if (fieldBlock.isNull(p)) {
           result.appendNull();
@@ -80,8 +80,8 @@ public final class ToBase64Evaluator implements EvalOperator.ExpressionEvaluator
   }
 
   public BytesRefBlock eval(int positionCount, BytesRefVector fieldVector) {
-    BytesRef fieldScratch = new BytesRef();
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
+      BytesRef fieldScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         try {
           result.appendBytesRef(ToBase64.process(fieldVector.getBytesRef(p, fieldScratch), oScratch));

@@ -57,8 +57,8 @@ public final class AutomataMatchEvaluator implements EvalOperator.ExpressionEval
   }
 
   public BooleanBlock eval(int positionCount, BytesRefBlock inputBlock) {
-    BytesRef inputScratch = new BytesRef();
     try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
+      BytesRef inputScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         if (inputBlock.isNull(p)) {
           result.appendNull();
@@ -78,8 +78,8 @@ public final class AutomataMatchEvaluator implements EvalOperator.ExpressionEval
   }
 
   public BooleanVector eval(int positionCount, BytesRefVector inputVector) {
-    BytesRef inputScratch = new BytesRef();
     try(BooleanVector.FixedBuilder result = driverContext.blockFactory().newBooleanVectorFixedBuilder(positionCount)) {
+      BytesRef inputScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         result.appendBoolean(AutomataMatch.process(inputVector.getBytesRef(p, inputScratch), automaton, pattern), p);
       }

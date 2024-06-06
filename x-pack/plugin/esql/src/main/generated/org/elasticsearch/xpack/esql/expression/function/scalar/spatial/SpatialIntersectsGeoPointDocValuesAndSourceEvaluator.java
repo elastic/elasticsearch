@@ -62,8 +62,8 @@ public final class SpatialIntersectsGeoPointDocValuesAndSourceEvaluator implemen
 
   public BooleanBlock eval(int positionCount, LongBlock leftValueBlock,
       BytesRefBlock rightValueBlock) {
-    BytesRef rightValueScratch = new BytesRef();
     try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
+      BytesRef rightValueScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         if (leftValueBlock.isNull(p)) {
           result.appendNull();
@@ -100,8 +100,8 @@ public final class SpatialIntersectsGeoPointDocValuesAndSourceEvaluator implemen
 
   public BooleanBlock eval(int positionCount, LongVector leftValueVector,
       BytesRefVector rightValueVector) {
-    BytesRef rightValueScratch = new BytesRef();
     try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
+      BytesRef rightValueScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         try {
           result.appendBoolean(SpatialIntersects.processGeoPointDocValuesAndSource(leftValueVector.getLong(p), rightValueVector.getBytesRef(p, rightValueScratch)));

@@ -70,9 +70,9 @@ public final class LocateEvaluator implements EvalOperator.ExpressionEvaluator {
 
   public IntBlock eval(int positionCount, BytesRefBlock strBlock, BytesRefBlock substrBlock,
       IntBlock startBlock) {
-    BytesRef strScratch = new BytesRef();
-    BytesRef substrScratch = new BytesRef();
     try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
+      BytesRef strScratch = new BytesRef();
+      BytesRef substrScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         if (strBlock.isNull(p)) {
           result.appendNull();
@@ -115,9 +115,9 @@ public final class LocateEvaluator implements EvalOperator.ExpressionEvaluator {
 
   public IntVector eval(int positionCount, BytesRefVector strVector, BytesRefVector substrVector,
       IntVector startVector) {
-    BytesRef strScratch = new BytesRef();
-    BytesRef substrScratch = new BytesRef();
     try(IntVector.FixedBuilder result = driverContext.blockFactory().newIntVectorFixedBuilder(positionCount)) {
+      BytesRef strScratch = new BytesRef();
+      BytesRef substrScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         result.appendInt(Locate.process(strVector.getBytesRef(p, strScratch), substrVector.getBytesRef(p, substrScratch), startVector.getInt(p)), p);
       }

@@ -59,9 +59,9 @@ public final class EndsWithEvaluator implements EvalOperator.ExpressionEvaluator
   }
 
   public BooleanBlock eval(int positionCount, BytesRefBlock strBlock, BytesRefBlock suffixBlock) {
-    BytesRef strScratch = new BytesRef();
-    BytesRef suffixScratch = new BytesRef();
     try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
+      BytesRef strScratch = new BytesRef();
+      BytesRef suffixScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         if (strBlock.isNull(p)) {
           result.appendNull();
@@ -93,9 +93,9 @@ public final class EndsWithEvaluator implements EvalOperator.ExpressionEvaluator
 
   public BooleanVector eval(int positionCount, BytesRefVector strVector,
       BytesRefVector suffixVector) {
-    BytesRef strScratch = new BytesRef();
-    BytesRef suffixScratch = new BytesRef();
     try(BooleanVector.FixedBuilder result = driverContext.blockFactory().newBooleanVectorFixedBuilder(positionCount)) {
+      BytesRef strScratch = new BytesRef();
+      BytesRef suffixScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         result.appendBoolean(EndsWith.process(strVector.getBytesRef(p, strScratch), suffixVector.getBytesRef(p, suffixScratch)), p);
       }

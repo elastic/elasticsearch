@@ -55,8 +55,8 @@ public final class SplitSingleByteEvaluator implements EvalOperator.ExpressionEv
   }
 
   public BytesRefBlock eval(int positionCount, BytesRefBlock strBlock) {
-    BytesRef strScratch = new BytesRef();
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
+      BytesRef strScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         if (strBlock.isNull(p)) {
           result.appendNull();
@@ -76,8 +76,8 @@ public final class SplitSingleByteEvaluator implements EvalOperator.ExpressionEv
   }
 
   public BytesRefBlock eval(int positionCount, BytesRefVector strVector) {
-    BytesRef strScratch = new BytesRef();
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
+      BytesRef strScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         Split.process(result, strVector.getBytesRef(p, strScratch), delim, scratch);
       }

@@ -62,12 +62,12 @@ public final class ConcatEvaluator implements EvalOperator.ExpressionEvaluator {
   }
 
   public BytesRefBlock eval(int positionCount, BytesRefBlock[] valuesBlocks) {
-    BytesRef[] valuesValues = new BytesRef[values.length];
-    BytesRef[] valuesScratch = new BytesRef[values.length];
-    for (int i = 0; i < values.length; i++) {
-      valuesScratch[i] = new BytesRef();
-    }
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
+      BytesRef[] valuesValues = new BytesRef[values.length];
+      BytesRef[] valuesScratch = new BytesRef[values.length];
+      for (int i = 0; i < values.length; i++) {
+        valuesScratch[i] = new BytesRef();
+      }
       position: for (int p = 0; p < positionCount; p++) {
         for (int i = 0; i < valuesBlocks.length; i++) {
           if (valuesBlocks[i].isNull(p)) {
@@ -94,12 +94,12 @@ public final class ConcatEvaluator implements EvalOperator.ExpressionEvaluator {
   }
 
   public BytesRefVector eval(int positionCount, BytesRefVector[] valuesVectors) {
-    BytesRef[] valuesValues = new BytesRef[values.length];
-    BytesRef[] valuesScratch = new BytesRef[values.length];
-    for (int i = 0; i < values.length; i++) {
-      valuesScratch[i] = new BytesRef();
-    }
     try(BytesRefVector.Builder result = driverContext.blockFactory().newBytesRefVectorBuilder(positionCount)) {
+      BytesRef[] valuesValues = new BytesRef[values.length];
+      BytesRef[] valuesScratch = new BytesRef[values.length];
+      for (int i = 0; i < values.length; i++) {
+        valuesScratch[i] = new BytesRef();
+      }
       position: for (int p = 0; p < positionCount; p++) {
         // unpack valuesVectors into valuesValues
         for (int i = 0; i < valuesVectors.length; i++) {

@@ -68,13 +68,13 @@ public final class CIDRMatchEvaluator implements EvalOperator.ExpressionEvaluato
   }
 
   public BooleanBlock eval(int positionCount, BytesRefBlock ipBlock, BytesRefBlock[] cidrsBlocks) {
-    BytesRef ipScratch = new BytesRef();
-    BytesRef[] cidrsValues = new BytesRef[cidrs.length];
-    BytesRef[] cidrsScratch = new BytesRef[cidrs.length];
-    for (int i = 0; i < cidrs.length; i++) {
-      cidrsScratch[i] = new BytesRef();
-    }
     try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
+      BytesRef ipScratch = new BytesRef();
+      BytesRef[] cidrsValues = new BytesRef[cidrs.length];
+      BytesRef[] cidrsScratch = new BytesRef[cidrs.length];
+      for (int i = 0; i < cidrs.length; i++) {
+        cidrsScratch[i] = new BytesRef();
+      }
       position: for (int p = 0; p < positionCount; p++) {
         if (ipBlock.isNull(p)) {
           result.appendNull();
@@ -113,13 +113,13 @@ public final class CIDRMatchEvaluator implements EvalOperator.ExpressionEvaluato
 
   public BooleanVector eval(int positionCount, BytesRefVector ipVector,
       BytesRefVector[] cidrsVectors) {
-    BytesRef ipScratch = new BytesRef();
-    BytesRef[] cidrsValues = new BytesRef[cidrs.length];
-    BytesRef[] cidrsScratch = new BytesRef[cidrs.length];
-    for (int i = 0; i < cidrs.length; i++) {
-      cidrsScratch[i] = new BytesRef();
-    }
     try(BooleanVector.FixedBuilder result = driverContext.blockFactory().newBooleanVectorFixedBuilder(positionCount)) {
+      BytesRef ipScratch = new BytesRef();
+      BytesRef[] cidrsValues = new BytesRef[cidrs.length];
+      BytesRef[] cidrsScratch = new BytesRef[cidrs.length];
+      for (int i = 0; i < cidrs.length; i++) {
+        cidrsScratch[i] = new BytesRef();
+      }
       position: for (int p = 0; p < positionCount; p++) {
         // unpack cidrsVectors into cidrsValues
         for (int i = 0; i < cidrsVectors.length; i++) {

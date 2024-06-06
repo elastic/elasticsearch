@@ -56,8 +56,8 @@ public final class LeastIntEvaluator implements EvalOperator.ExpressionEvaluator
   }
 
   public IntBlock eval(int positionCount, IntBlock[] valuesBlocks) {
-    int[] valuesValues = new int[values.length];
     try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
+      int[] valuesValues = new int[values.length];
       position: for (int p = 0; p < positionCount; p++) {
         for (int i = 0; i < valuesBlocks.length; i++) {
           if (valuesBlocks[i].isNull(p)) {
@@ -84,8 +84,8 @@ public final class LeastIntEvaluator implements EvalOperator.ExpressionEvaluator
   }
 
   public IntVector eval(int positionCount, IntVector[] valuesVectors) {
-    int[] valuesValues = new int[values.length];
     try(IntVector.FixedBuilder result = driverContext.blockFactory().newIntVectorFixedBuilder(positionCount)) {
+      int[] valuesValues = new int[values.length];
       position: for (int p = 0; p < positionCount; p++) {
         // unpack valuesVectors into valuesValues
         for (int i = 0; i < valuesVectors.length; i++) {

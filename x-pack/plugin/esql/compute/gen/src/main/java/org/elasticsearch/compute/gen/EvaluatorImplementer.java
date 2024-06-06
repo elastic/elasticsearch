@@ -169,14 +169,6 @@ public class EvaluatorImplementer {
         builder.addModifiers(Modifier.PUBLIC).returns(resultDataType);
         builder.addParameter(TypeName.INT, "positionCount");
 
-        processFunction.args.stream().forEach(a -> {
-            if (a.paramName(blockStyle) != null) {
-                builder.addParameter(a.dataType(blockStyle), a.paramName(blockStyle));
-            }
-        });
-
-        processFunction.args.stream().forEach(a -> a.createScratch(builder));
-
         boolean vectorize = false;
         if (blockStyle == false && processFunction.warnExceptions.isEmpty() && processOutputsMultivalued == false) {
             ClassName type = processFunction.resultDataType(false);
@@ -190,6 +182,14 @@ public class EvaluatorImplementer {
             buildFromFactory(builderType)
         );
         {
+            processFunction.args.stream().forEach(a -> {
+                if (a.paramName(blockStyle) != null) {
+                    builder.addParameter(a.dataType(blockStyle), a.paramName(blockStyle));
+                }
+            });
+
+            processFunction.args.stream().forEach(a -> a.createScratch(builder));
+
             builder.beginControlFlow("position: for (int p = 0; p < positionCount; p++)");
             {
                 if (blockStyle) {

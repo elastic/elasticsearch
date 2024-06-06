@@ -59,9 +59,9 @@ public final class InsensitiveEqualsEvaluator implements EvalOperator.Expression
   }
 
   public BooleanBlock eval(int positionCount, BytesRefBlock lhsBlock, BytesRefBlock rhsBlock) {
-    BytesRef lhsScratch = new BytesRef();
-    BytesRef rhsScratch = new BytesRef();
     try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
+      BytesRef lhsScratch = new BytesRef();
+      BytesRef rhsScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         if (lhsBlock.isNull(p)) {
           result.appendNull();
@@ -92,9 +92,9 @@ public final class InsensitiveEqualsEvaluator implements EvalOperator.Expression
   }
 
   public BooleanVector eval(int positionCount, BytesRefVector lhsVector, BytesRefVector rhsVector) {
-    BytesRef lhsScratch = new BytesRef();
-    BytesRef rhsScratch = new BytesRef();
     try(BooleanVector.FixedBuilder result = driverContext.blockFactory().newBooleanVectorFixedBuilder(positionCount)) {
+      BytesRef lhsScratch = new BytesRef();
+      BytesRef rhsScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         result.appendBoolean(InsensitiveEquals.process(lhsVector.getBytesRef(p, lhsScratch), rhsVector.getBytesRef(p, rhsScratch)), p);
       }

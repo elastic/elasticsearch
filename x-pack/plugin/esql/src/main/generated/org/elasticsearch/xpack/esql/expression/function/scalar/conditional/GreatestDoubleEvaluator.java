@@ -56,8 +56,8 @@ public final class GreatestDoubleEvaluator implements EvalOperator.ExpressionEva
   }
 
   public DoubleBlock eval(int positionCount, DoubleBlock[] valuesBlocks) {
-    double[] valuesValues = new double[values.length];
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
+      double[] valuesValues = new double[values.length];
       position: for (int p = 0; p < positionCount; p++) {
         for (int i = 0; i < valuesBlocks.length; i++) {
           if (valuesBlocks[i].isNull(p)) {
@@ -84,8 +84,8 @@ public final class GreatestDoubleEvaluator implements EvalOperator.ExpressionEva
   }
 
   public DoubleVector eval(int positionCount, DoubleVector[] valuesVectors) {
-    double[] valuesValues = new double[values.length];
     try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
+      double[] valuesValues = new double[values.length];
       position: for (int p = 0; p < positionCount; p++) {
         // unpack valuesVectors into valuesValues
         for (int i = 0; i < valuesVectors.length; i++) {

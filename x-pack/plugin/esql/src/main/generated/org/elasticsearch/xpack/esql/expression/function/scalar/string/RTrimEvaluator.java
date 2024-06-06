@@ -48,8 +48,8 @@ public final class RTrimEvaluator implements EvalOperator.ExpressionEvaluator {
   }
 
   public BytesRefBlock eval(int positionCount, BytesRefBlock valBlock) {
-    BytesRef valScratch = new BytesRef();
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
+      BytesRef valScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         if (valBlock.isNull(p)) {
           result.appendNull();
@@ -69,8 +69,8 @@ public final class RTrimEvaluator implements EvalOperator.ExpressionEvaluator {
   }
 
   public BytesRefVector eval(int positionCount, BytesRefVector valVector) {
-    BytesRef valScratch = new BytesRef();
     try(BytesRefVector.Builder result = driverContext.blockFactory().newBytesRefVectorBuilder(positionCount)) {
+      BytesRef valScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         result.appendBytesRef(RTrim.process(valVector.getBytesRef(p, valScratch)));
       }

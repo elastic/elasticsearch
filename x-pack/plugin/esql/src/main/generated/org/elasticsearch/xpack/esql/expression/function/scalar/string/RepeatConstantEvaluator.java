@@ -56,8 +56,8 @@ public final class RepeatConstantEvaluator implements EvalOperator.ExpressionEva
   }
 
   public BytesRefBlock eval(int positionCount, BytesRefBlock strBlock) {
-    BytesRef strScratch = new BytesRef();
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
+      BytesRef strScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         if (strBlock.isNull(p)) {
           result.appendNull();
@@ -82,8 +82,8 @@ public final class RepeatConstantEvaluator implements EvalOperator.ExpressionEva
   }
 
   public BytesRefBlock eval(int positionCount, BytesRefVector strVector) {
-    BytesRef strScratch = new BytesRef();
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
+      BytesRef strScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         try {
           result.appendBytesRef(Repeat.processConstantNumber(scratch, strVector.getBytesRef(p, strScratch), number));

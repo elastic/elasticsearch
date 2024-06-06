@@ -55,8 +55,8 @@ public final class MvZipEvaluator implements EvalOperator.ExpressionEvaluator {
 
   public BytesRefBlock eval(int positionCount, BytesRefBlock leftFieldBlock,
       BytesRefBlock rightFieldBlock, BytesRefBlock delimBlock) {
-    BytesRef delimScratch = new BytesRef();
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
+      BytesRef delimScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         boolean allBlocksAreNulls = true;
         if (!leftFieldBlock.isNull(p)) {

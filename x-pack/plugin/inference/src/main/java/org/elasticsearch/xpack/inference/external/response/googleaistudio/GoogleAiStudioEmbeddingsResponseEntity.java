@@ -15,6 +15,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.response.XContentUtils;
 
 import java.io.IOException;
 import java.util.List;
@@ -94,17 +95,11 @@ public class GoogleAiStudioEmbeddingsResponseEntity {
 
         positionParserAtTokenAfterField(parser, "values", FAILED_TO_FIND_FIELD_TEMPLATE);
 
-        List<Float> embeddingValuesList = parseList(parser, GoogleAiStudioEmbeddingsResponseEntity::parseEmbeddingList);
+        List<Float> embeddingValuesList = parseList(parser, XContentUtils::parseFloat);
         // parse and discard the rest of the object
         consumeUntilObjectEnd(parser);
 
         return TextEmbeddingFloatResults.FloatEmbedding.of(embeddingValuesList);
-    }
-
-    private static float parseEmbeddingList(XContentParser parser) throws IOException {
-        XContentParser.Token token = parser.currentToken();
-        ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser);
-        return parser.floatValue();
     }
 
     private GoogleAiStudioEmbeddingsResponseEntity() {}

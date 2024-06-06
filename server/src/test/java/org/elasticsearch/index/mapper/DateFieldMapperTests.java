@@ -15,7 +15,6 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Strings;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
@@ -35,6 +34,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.function.Function;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.index.mapper.DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
 import static org.hamcrest.Matchers.containsString;
@@ -582,36 +582,62 @@ public class DateFieldMapperTests extends MapperTestCase {
             @Override
             public SyntheticSourceExample example(int maxValues) {
                 if (randomBoolean()) {
-                    Tuple<Object, String> v = generateValue();
+                    Value v = generateValue();
+                    if (v.malformedOutput != null) {
+                        return new SyntheticSourceExample(v.input, v.malformedOutput, null, this::mapping);
+                    }
+
                     return new SyntheticSourceExample(
-                        v.v1(),
-                        v.v2(),
-                        resolution.convert(Instant.from(formatter.parse(v.v2()))),
+                        v.input,
+                        v.output,
+                        resolution.convert(Instant.from(formatter.parse(v.output))),
                         this::mapping
                     );
                 }
-                List<Tuple<Object, String>> values = randomList(1, maxValues, this::generateValue);
-                List<Object> in = values.stream().map(Tuple::v1).toList();
-                List<String> outList = values.stream()
+
+                List<Value> values = randomList(1, maxValues, this::generateValue);
+                List<Object> in = values.stream().map(Value::input).toList();
+
+                List<String> outputFromDocValues = values.stream()
+                    .filter(v -> v.malformedOutput == null)
                     .sorted(
-                        Comparator.comparing(v -> Instant.from(formatter.parse(v.v1() == null ? nullValue.toString() : v.v1().toString())))
+                        Comparator.comparing(
+                            v -> Instant.from(formatter.parse(v.input == null ? nullValue.toString() : v.input.toString()))
+                        )
                     )
-                    .map(Tuple::v2)
+                    .map(Value::output)
                     .toList();
+
+                Stream<Object> malformedOutput = values.stream().filter(v -> v.malformedOutput != null).map(Value::malformedOutput);
+
+                // Malformed values are always last in the implementation.
+                List<Object> outList = Stream.concat(outputFromDocValues.stream(), malformedOutput).toList();
                 Object out = outList.size() == 1 ? outList.get(0) : outList;
 
-                List<Long> outBlockList = outList.stream().map(v -> resolution.convert(Instant.from(formatter.parse(v)))).toList();
+                List<Long> outBlockList = outputFromDocValues.stream()
+                    .map(v -> resolution.convert(Instant.from(formatter.parse(v))))
+                    .toList();
                 Object outBlock = outBlockList.size() == 1 ? outBlockList.get(0) : outBlockList;
                 return new SyntheticSourceExample(in, out, outBlock, this::mapping);
             }
 
-            private Tuple<Object, String> generateValue() {
+            private record Value(Object input, String output, Object malformedOutput) {}
+
+            private Value generateValue() {
                 if (nullValue != null && randomBoolean()) {
-                    return Tuple.tuple(null, outValue(nullValue));
+                    return new Value(null, outValue(nullValue), null);
                 }
+                // Different malformed values are tested in #exampleMalformedValues().
+                // Here we only verify behavior of arrays that contain malformed
+                // values since there are modifications specific to synthetic source.
+                if (ignoreMalformed && randomBoolean()) {
+                    var malformedInput = randomAlphaOfLengthBetween(1, 10);
+                    return new Value(malformedInput, null, malformedInput);
+                }
+
                 Object in = randomValue();
                 String out = outValue(in);
-                return Tuple.tuple(in, out);
+                return new Value(in, out, null);
             }
 
             private Object randomValue() {
@@ -641,6 +667,9 @@ public class DateFieldMapperTests extends MapperTestCase {
                 b.field("type", resolution.type());
                 if (nullValue != null) {
                     b.field("null_value", nullValue);
+                }
+                if (ignoreMalformed) {
+                    b.field("ignore_malformed", true);
                 }
             }
 

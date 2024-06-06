@@ -34,6 +34,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper.Names.IGNORE_MALFORMED;
 import static org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper.Names.METRICS;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -507,7 +508,6 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
     }
 
     protected final class AggregateDoubleMetricSyntheticSourceSupport implements SyntheticSourceSupport {
-
         private final boolean malformedExample;
         private final EnumSet<Metric> storedMetrics;
 
@@ -542,6 +542,9 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
         private void mapping(XContentBuilder b) throws IOException {
             String[] metrics = storedMetrics.stream().map(Metric::toString).toArray(String[]::new);
             b.field("type", CONTENT_TYPE).array(METRICS_FIELD, metrics).field(DEFAULT_METRIC, metrics[0]);
+            if (malformedExample) {
+                b.field(IGNORE_MALFORMED, true);
+            }
         }
 
         @Override

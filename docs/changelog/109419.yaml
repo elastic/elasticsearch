@@ -1,5 +1,0 @@
-pr: 109419
-summary: Backport systemd unreadable library path fix
-area: Infra/Core
-type: bug
-issues: []

@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.routing.DelayedAllocationService;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingRoleStrategy;
+import org.elasticsearch.cluster.routing.allocation.AllocationFailuresResetService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService.RerouteStrategy;
 import org.elasticsearch.cluster.routing.allocation.AllocationStatsService;
@@ -122,6 +123,7 @@ public class ClusterModule extends AbstractModule {
     private final ShardRoutingRoleStrategy shardRoutingRoleStrategy;
     private final AllocationStatsService allocationStatsService;
     private final TelemetryProvider telemetryProvider;
+    private final AllocationFailuresResetService allocationFailuresResetService;
 
     public ClusterModule(
         Settings settings,
@@ -160,6 +162,7 @@ public class ClusterModule extends AbstractModule {
         this.metadataDeleteIndexService = new MetadataDeleteIndexService(settings, clusterService, allocationService);
         this.allocationStatsService = new AllocationStatsService(clusterService, clusterInfoService, shardsAllocator, writeLoadForecaster);
         this.telemetryProvider = telemetryProvider;
+        this.allocationFailuresResetService = new AllocationFailuresResetService(clusterService, allocationService);
     }
 
     static ShardRoutingRoleStrategy getShardRoutingRoleStrategy(List<ClusterPlugin> clusterPlugins) {
@@ -449,6 +452,7 @@ public class ClusterModule extends AbstractModule {
         bind(AllocationStatsService.class).toInstance(allocationStatsService);
         bind(TelemetryProvider.class).toInstance(telemetryProvider);
         bind(MetadataRolloverService.class).asEagerSingleton();
+        bind(AllocationFailuresResetService.class).toInstance(allocationFailuresResetService);
     }
 
     public void setExistingShardsAllocators(GatewayAllocator gatewayAllocator) {

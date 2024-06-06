@@ -76,8 +76,8 @@ public abstract class RankBuilder implements VersionedNamedWriteable, ToXContent
      * two or more queries to be executed in order to generate the final result.
      */
     public abstract boolean isCompoundBuilder();
-  
-    /** 
+
+    /**
      * Generates an {@code Explanation} on how the final score for the provided {@code RankDoc} is computed for the given `RankBuilder`.
      * In addition to the base explanation to enrich, we also have access to the query names that were provided in the request,
      * so that we can have direct association with the user provided query.

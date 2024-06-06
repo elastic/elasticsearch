@@ -81,10 +81,10 @@ public class TestRankBuilder extends RankBuilder {
     public boolean isCompoundBuilder() {
         return true;
     }
-  
+
     @Override
     public Explanation explainHit(Explanation baseExplanation, RankDoc rankDoc, List<String> queryNames) {
-      return baseExplanation;
+        return baseExplanation;
     }
 
     @Override

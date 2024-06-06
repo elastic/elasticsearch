@@ -100,7 +100,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
                 var shardRouting = routingTable.shardRoutingTable("test-index", 0).primaryShard();
                 assertFalse(shardRouting.assignedToNode());
                 assertThat(
-                    shardRouting.unassignedInfo().getLastAllocationStatus(),
+                    shardRouting.unassignedInfo().lastAllocationStatus(),
                     equalTo(UnassignedInfo.AllocationStatus.FETCHING_SHARD_DATA)
                 );
             }
@@ -111,7 +111,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
         testAllocate((allocation, unassignedAllocationHandler) -> {}, routingTable -> {
             var shardRouting = routingTable.shardRoutingTable("test-index", 0).primaryShard();
             assertTrue(shardRouting.assignedToNode());// assigned by a followup reconciliation
-            assertThat(shardRouting.unassignedInfo().getLastAllocationStatus(), equalTo(UnassignedInfo.AllocationStatus.NO_ATTEMPT));
+            assertThat(shardRouting.unassignedInfo().lastAllocationStatus(), equalTo(UnassignedInfo.AllocationStatus.NO_ATTEMPT));
         });
     }
 
@@ -328,7 +328,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             var unassigned = reconciledState.getRoutingNodes().unassigned();
             assertThat(unassigned.size(), equalTo(1));
             var unassignedShard = unassigned.iterator().next();
-            assertThat(unassignedShard.unassignedInfo().isDelayed(), equalTo(true));
+            assertThat(unassignedShard.unassignedInfo().delayed(), equalTo(true));
 
         } finally {
             clusterService.close();

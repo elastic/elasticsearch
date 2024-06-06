@@ -44,38 +44,32 @@ faster indexing and similar retrieval latencies.
 
 {es-pull}103374[#103374]
 
-[discrete]
-[[query_phase_knn_supports_query_vector_builder]]
-=== Query phase KNN now supports query_vector_builder
-It is now possible to pass `model_text` and `model_id` within a `knn` query
-in the [query DSL](https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-knn-query.html) to convert a text query into a dense vector and run the
-nearest neighbor query on it, instead of requiring the dense vector to be
-directly passed (within the `query_vector` parameter). Similar to the
-[top-level knn query](https://www.elastic.co/guide/en/elasticsearch/reference/current/knn-search.html) (executed in the DFS phase), it is possible to supply
-a `query_vector_builder` object containing a `text_embedding` object with
-`model_text` (the text query to be converted into a dense vector) and
-`model_id` (the identifier of a deployed model responsible for transforming
-the text query into a dense vector). Note that an embedding model with the
-referenced `model_id` needs to be [deployed on a ML node](https://www.elastic.co/guide/en/machine-learning/current/ml-nlp-deploy-models.html).
-in the cluster.
-
-{es-pull}106068[#106068]
-
-[discrete]
-[[simd_neon_optimised_vector_distance_function_for_merging_int8_scalar_quantized_vectors_has_been_added]]
-=== A SIMD (Neon) optimised vector distance function for merging int8 Scalar Quantized vectors has been added
-An optimised int8 vector distance implementation for aarch64 has been added.
-This implementation is currently only used during merging.
-The vector distance implementation outperforms Lucene's Pamana Vector
-implementation for binary comparisons by approx 5x (depending on the number
-of dimensions). It does so by means of SIMD (Neon) intrinsics compiled into a
-separate native library and link by Panama's FFI. Comparisons are performed on
-off-heap mmap'ed vector data.
-Macro benchmarks, SO_Dense_Vector with scalar quantization enabled, shows
-significant improvements in merge times, approximately 3 times faster.
-
-{es-pull}106133[#106133]
-
 // end::notable-highlights[]
 
+
+[discrete]
+[[new_custom_parser_for_iso_8601_datetimes]]
+=== New custom parser for ISO-8601 datetimes
+This introduces a new custom parser for ISO-8601 datetimes, for the `iso8601`, `strict_date_optional_time`, and
+`strict_date_optional_time_nanos` built-in date formats. This provides a performance improvement over the
+default Java date-time parsing. Whilst it maintains much of the same behaviour,
+the new parser does not accept nonsensical date-time strings that have multiple fractional seconds fields
+or multiple timezone specifiers. If the new parser fails to parse a string, it will then use the previous parser
+to parse it. If a large proportion of the input data consists of these invalid strings, this may cause
+a small performance degradation. If you wish to force the use of the old parsers regardless,
+set the JVM property `es.datetime.java_time_parsers=true` on all ES nodes.
+
+{es-pull}106486[#106486]
+
+[discrete]
+[[preview_support_for_connection_type_domain_isp_databases_in_geoip_processor]]
+=== Preview: Support for the 'Connection Type, 'Domain', and 'ISP' databases in the geoip processor
+As a Technical Preview, the {ref}/geoip-processor.html[`geoip`] processor can now use the commercial
+https://dev.maxmind.com/geoip/docs/databases/connection-type[GeoIP2 'Connection Type'],
+https://dev.maxmind.com/geoip/docs/databases/domain[GeoIP2 'Domain'],
+and
+https://dev.maxmind.com/geoip/docs/databases/isp[GeoIP2 'ISP']
+databases from MaxMind.
+
+{es-pull}108683[#108683]
 

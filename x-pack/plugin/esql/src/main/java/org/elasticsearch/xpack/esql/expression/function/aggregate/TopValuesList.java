@@ -9,11 +9,6 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.TopValuesListLongAggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.ValuesBooleanAggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.ValuesBytesRefAggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.ValuesDoubleAggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.ValuesIntAggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.ValuesLongAggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;

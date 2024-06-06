@@ -8,19 +8,14 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.apache.lucene.util.PriorityQueue;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.LongHash;
-import org.elasticsearch.common.util.LongLongHash;
 import org.elasticsearch.compute.ann.Aggregator;
 import org.elasticsearch.compute.ann.GroupingAggregator;
 import org.elasticsearch.compute.ann.IntermediateState;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.core.Releasable;
 
 import java.util.Comparator;
 import java.util.HashMap;
@@ -106,9 +101,7 @@ class TopValuesListLongAggregator {
             try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(queue.size())) {
                 builder.beginPositionEntry();
 
-                StreamSupport.stream(queue.spliterator(), false)
-                    .sorted(finalSortComparator)
-                    .forEach(builder::appendLong);
+                StreamSupport.stream(queue.spliterator(), false).sorted(finalSortComparator).forEach(builder::appendLong);
 
                 builder.endPositionEntry();
 
@@ -179,9 +172,7 @@ class TopValuesListLongAggregator {
 
                     builder.beginPositionEntry();
 
-                    StreamSupport.stream(queue.spliterator(), false)
-                        .sorted(finalSortComparator)
-                        .forEach(builder::appendLong);
+                    StreamSupport.stream(queue.spliterator(), false).sorted(finalSortComparator).forEach(builder::appendLong);
 
                     builder.endPositionEntry();
                 }

@@ -164,9 +164,13 @@ public class NestedObjectMapper extends ObjectMapper {
 
     private final Explicit<Boolean> includeInRoot;
     private final Explicit<Boolean> includeInParent;
+    // The query to identify parent documents
     private final Query parentTypeFilter;
+    // The path of the nested field
     private final String nestedTypePath;
+    // The query to identify nested documents at this level
     private final Query nestedTypeFilter;
+    // Function to create a bitset for identifying parent documents
     private final Function<Query, BitSetProducer> bitsetProducer;
 
     NestedObjectMapper(

@@ -1,6 +1,0 @@
-pr: 108834
-summary: "[ESQL] Mark `date_diff` as requiring all three arguments"
-area: ES|QL
-type: bug
-issues:
- - 108383

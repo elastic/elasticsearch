@@ -295,7 +295,7 @@ public class AzureAiStudioEmbeddingsServiceSettingsTests extends ESTestCase {
 
         assertThat(xContentResult, CoreMatchers.is("""
             {"target":"target_value","provider":"openai","endpoint_type":"token",""" + """
-            "dimensions":1024,"max_input_tokens":512}"""));
+            "rate_limit":{"requests_per_minute":3},"dimensions":1024,"max_input_tokens":512}"""));
     }
 
     public static HashMap<String, Object> createRequestSettingsMap(

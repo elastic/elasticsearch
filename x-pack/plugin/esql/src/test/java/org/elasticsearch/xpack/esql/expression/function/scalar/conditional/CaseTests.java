@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.esql.core.expression.Expression.TypeResolution;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
@@ -47,158 +46,158 @@ public class CaseTests extends AbstractFunctionTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         return parameterSuppliersFromTypedData(
-            List.of(new TestCaseSupplier("keyword", List.of(DataTypes.BOOLEAN, DataTypes.KEYWORD, DataTypes.KEYWORD), () -> {
+            List.of(new TestCaseSupplier("keyword", List.of(DataType.BOOLEAN, DataType.KEYWORD, DataType.KEYWORD), () -> {
                 List<TestCaseSupplier.TypedData> typedData = List.of(
-                    new TestCaseSupplier.TypedData(true, DataTypes.BOOLEAN, "cond"),
-                    new TestCaseSupplier.TypedData(new BytesRef("a"), DataTypes.KEYWORD, "a"),
-                    new TestCaseSupplier.TypedData(new BytesRef("b"), DataTypes.KEYWORD, "b")
+                    new TestCaseSupplier.TypedData(true, DataType.BOOLEAN, "cond"),
+                    new TestCaseSupplier.TypedData(new BytesRef("a"), DataType.KEYWORD, "a"),
+                    new TestCaseSupplier.TypedData(new BytesRef("b"), DataType.KEYWORD, "b")
                 );
                 return new TestCaseSupplier.TestCase(
                     typedData,
                     "CaseEvaluator[resultType=BYTES_REF, conditions=[ConditionEvaluator[condition=Attribute[channel=0], "
                         + "value=Attribute[channel=1]]], elseVal=Attribute[channel=2]]",
-                    DataTypes.KEYWORD,
+                    DataType.KEYWORD,
                     equalTo(new BytesRef("a"))
                 );
-            }), new TestCaseSupplier("text", List.of(DataTypes.BOOLEAN, DataTypes.TEXT), () -> {
+            }), new TestCaseSupplier("text", List.of(DataType.BOOLEAN, DataType.TEXT), () -> {
                 List<TestCaseSupplier.TypedData> typedData = List.of(
-                    new TestCaseSupplier.TypedData(false, DataTypes.BOOLEAN, "cond"),
-                    new TestCaseSupplier.TypedData(new BytesRef("a"), DataTypes.TEXT, "trueValue")
+                    new TestCaseSupplier.TypedData(false, DataType.BOOLEAN, "cond"),
+                    new TestCaseSupplier.TypedData(new BytesRef("a"), DataType.TEXT, "trueValue")
                 );
                 return new TestCaseSupplier.TestCase(
                     typedData,
                     "CaseEvaluator[resultType=BYTES_REF, conditions=[ConditionEvaluator[condition=Attribute[channel=0], "
                         + "value=Attribute[channel=1]]], elseVal=LiteralsEvaluator[lit=null]]",
-                    DataTypes.TEXT,
+                    DataType.TEXT,
                     nullValue()
                 );
-            }), new TestCaseSupplier("boolean", List.of(DataTypes.BOOLEAN, DataTypes.BOOLEAN), () -> {
+            }), new TestCaseSupplier("boolean", List.of(DataType.BOOLEAN, DataType.BOOLEAN), () -> {
                 List<TestCaseSupplier.TypedData> typedData = List.of(
-                    new TestCaseSupplier.TypedData(false, DataTypes.BOOLEAN, "cond"),
-                    new TestCaseSupplier.TypedData(false, DataTypes.BOOLEAN, "trueValue")
+                    new TestCaseSupplier.TypedData(false, DataType.BOOLEAN, "cond"),
+                    new TestCaseSupplier.TypedData(false, DataType.BOOLEAN, "trueValue")
                 );
                 return new TestCaseSupplier.TestCase(
                     typedData,
                     "CaseEvaluator[resultType=BOOLEAN, conditions=[ConditionEvaluator[condition=Attribute[channel=0], "
                         + "value=Attribute[channel=1]]], elseVal=LiteralsEvaluator[lit=null]]",
-                    DataTypes.BOOLEAN,
+                    DataType.BOOLEAN,
                     nullValue()
                 );
-            }), new TestCaseSupplier("date", List.of(DataTypes.BOOLEAN, DataTypes.DATETIME), () -> {
+            }), new TestCaseSupplier("date", List.of(DataType.BOOLEAN, DataType.DATETIME), () -> {
                 long value = randomNonNegativeLong();
                 List<TestCaseSupplier.TypedData> typedData = List.of(
-                    new TestCaseSupplier.TypedData(true, DataTypes.BOOLEAN, "cond"),
-                    new TestCaseSupplier.TypedData(value, DataTypes.DATETIME, "trueValue")
+                    new TestCaseSupplier.TypedData(true, DataType.BOOLEAN, "cond"),
+                    new TestCaseSupplier.TypedData(value, DataType.DATETIME, "trueValue")
                 );
                 return new TestCaseSupplier.TestCase(
                     typedData,
                     "CaseEvaluator[resultType=LONG, conditions=[ConditionEvaluator[condition=Attribute[channel=0], "
                         + "value=Attribute[channel=1]]], elseVal=LiteralsEvaluator[lit=null]]",
-                    DataTypes.DATETIME,
+                    DataType.DATETIME,
                     equalTo(value)
                 );
-            }), new TestCaseSupplier("double", List.of(DataTypes.BOOLEAN, DataTypes.DOUBLE), () -> {
+            }), new TestCaseSupplier("double", List.of(DataType.BOOLEAN, DataType.DOUBLE), () -> {
                 double value = randomDouble();
                 List<TestCaseSupplier.TypedData> typedData = List.of(
-                    new TestCaseSupplier.TypedData(true, DataTypes.BOOLEAN, "cond"),
-                    new TestCaseSupplier.TypedData(value, DataTypes.DOUBLE, "trueValue")
+                    new TestCaseSupplier.TypedData(true, DataType.BOOLEAN, "cond"),
+                    new TestCaseSupplier.TypedData(value, DataType.DOUBLE, "trueValue")
                 );
                 return new TestCaseSupplier.TestCase(
                     typedData,
                     "CaseEvaluator[resultType=DOUBLE, conditions=[ConditionEvaluator[condition=Attribute[channel=0], "
                         + "value=Attribute[channel=1]]], elseVal=LiteralsEvaluator[lit=null]]",
-                    DataTypes.DOUBLE,
+                    DataType.DOUBLE,
                     equalTo(value)
                 );
-            }), new TestCaseSupplier("integer", List.of(DataTypes.BOOLEAN, DataTypes.INTEGER), () -> {
+            }), new TestCaseSupplier("integer", List.of(DataType.BOOLEAN, DataType.INTEGER), () -> {
                 int value = randomInt();
                 List<TestCaseSupplier.TypedData> typedData = List.of(
-                    new TestCaseSupplier.TypedData(false, DataTypes.BOOLEAN, "cond"),
-                    new TestCaseSupplier.TypedData(value, DataTypes.INTEGER, "trueValue")
+                    new TestCaseSupplier.TypedData(false, DataType.BOOLEAN, "cond"),
+                    new TestCaseSupplier.TypedData(value, DataType.INTEGER, "trueValue")
                 );
                 return new TestCaseSupplier.TestCase(
                     typedData,
                     "CaseEvaluator[resultType=INT, conditions=[ConditionEvaluator[condition=Attribute[channel=0], "
                         + "value=Attribute[channel=1]]], elseVal=LiteralsEvaluator[lit=null]]",
-                    DataTypes.INTEGER,
+                    DataType.INTEGER,
                     nullValue()
                 );
-            }), new TestCaseSupplier("long", List.of(DataTypes.BOOLEAN, DataTypes.LONG), () -> {
+            }), new TestCaseSupplier("long", List.of(DataType.BOOLEAN, DataType.LONG), () -> {
                 long value = randomLong();
                 List<TestCaseSupplier.TypedData> typedData = List.of(
-                    new TestCaseSupplier.TypedData(false, DataTypes.BOOLEAN, "cond"),
-                    new TestCaseSupplier.TypedData(value, DataTypes.LONG, "trueValue")
+                    new TestCaseSupplier.TypedData(false, DataType.BOOLEAN, "cond"),
+                    new TestCaseSupplier.TypedData(value, DataType.LONG, "trueValue")
                 );
                 return new TestCaseSupplier.TestCase(
                     typedData,
                     "CaseEvaluator[resultType=LONG, conditions=[ConditionEvaluator[condition=Attribute[channel=0], "
                         + "value=Attribute[channel=1]]], elseVal=LiteralsEvaluator[lit=null]]",
-                    DataTypes.LONG,
+                    DataType.LONG,
                     nullValue()
                 );
-            }), new TestCaseSupplier("unsigned_long", List.of(DataTypes.BOOLEAN, DataTypes.UNSIGNED_LONG), () -> {
+            }), new TestCaseSupplier("unsigned_long", List.of(DataType.BOOLEAN, DataType.UNSIGNED_LONG), () -> {
                 BigInteger value = randomUnsignedLongBetween(BigInteger.ZERO, UNSIGNED_LONG_MAX);
                 List<TestCaseSupplier.TypedData> typedData = List.of(
-                    new TestCaseSupplier.TypedData(true, DataTypes.BOOLEAN, "cond"),
-                    new TestCaseSupplier.TypedData(value, DataTypes.UNSIGNED_LONG, "trueValue")
+                    new TestCaseSupplier.TypedData(true, DataType.BOOLEAN, "cond"),
+                    new TestCaseSupplier.TypedData(value, DataType.UNSIGNED_LONG, "trueValue")
                 );
                 return new TestCaseSupplier.TestCase(
                     typedData,
                     "CaseEvaluator[resultType=LONG, conditions=[ConditionEvaluator[condition=Attribute[channel=0], "
                         + "value=Attribute[channel=1]]], elseVal=LiteralsEvaluator[lit=null]]",
-                    DataTypes.UNSIGNED_LONG,
+                    DataType.UNSIGNED_LONG,
                     equalTo(value)
                 );
-            }), new TestCaseSupplier("ip", List.of(DataTypes.BOOLEAN, DataTypes.IP), () -> {
-                BytesRef value = (BytesRef) randomLiteral(DataTypes.IP).value();
+            }), new TestCaseSupplier("ip", List.of(DataType.BOOLEAN, DataType.IP), () -> {
+                BytesRef value = (BytesRef) randomLiteral(DataType.IP).value();
                 List<TestCaseSupplier.TypedData> typedData = List.of(
-                    new TestCaseSupplier.TypedData(true, DataTypes.BOOLEAN, "cond"),
-                    new TestCaseSupplier.TypedData(value, DataTypes.IP, "trueValue")
+                    new TestCaseSupplier.TypedData(true, DataType.BOOLEAN, "cond"),
+                    new TestCaseSupplier.TypedData(value, DataType.IP, "trueValue")
                 );
                 return new TestCaseSupplier.TestCase(
                     typedData,
                     "CaseEvaluator[resultType=BYTES_REF, conditions=[ConditionEvaluator[condition=Attribute[channel=0], "
                         + "value=Attribute[channel=1]]], elseVal=LiteralsEvaluator[lit=null]]",
-                    DataTypes.IP,
+                    DataType.IP,
                     equalTo(value)
                 );
-            }), new TestCaseSupplier("version", List.of(DataTypes.BOOLEAN, DataTypes.VERSION), () -> {
-                BytesRef value = (BytesRef) randomLiteral(DataTypes.VERSION).value();
+            }), new TestCaseSupplier("version", List.of(DataType.BOOLEAN, DataType.VERSION), () -> {
+                BytesRef value = (BytesRef) randomLiteral(DataType.VERSION).value();
                 List<TestCaseSupplier.TypedData> typedData = List.of(
-                    new TestCaseSupplier.TypedData(false, DataTypes.BOOLEAN, "cond"),
-                    new TestCaseSupplier.TypedData(value, DataTypes.VERSION, "trueValue")
+                    new TestCaseSupplier.TypedData(false, DataType.BOOLEAN, "cond"),
+                    new TestCaseSupplier.TypedData(value, DataType.VERSION, "trueValue")
                 );
                 return new TestCaseSupplier.TestCase(
                     typedData,
                     "CaseEvaluator[resultType=BYTES_REF, conditions=[ConditionEvaluator[condition=Attribute[channel=0], "
                         + "value=Attribute[channel=1]]], elseVal=LiteralsEvaluator[lit=null]]",
-                    DataTypes.VERSION,
+                    DataType.VERSION,
                     nullValue()
                 );
-            }), new TestCaseSupplier("cartesian_point", List.of(DataTypes.BOOLEAN, EsqlDataTypes.CARTESIAN_POINT), () -> {
-                BytesRef value = (BytesRef) randomLiteral(EsqlDataTypes.CARTESIAN_POINT).value();
+            }), new TestCaseSupplier("cartesian_point", List.of(DataType.BOOLEAN, DataType.CARTESIAN_POINT), () -> {
+                BytesRef value = (BytesRef) randomLiteral(DataType.CARTESIAN_POINT).value();
                 List<TestCaseSupplier.TypedData> typedData = List.of(
-                    new TestCaseSupplier.TypedData(false, DataTypes.BOOLEAN, "cond"),
-                    new TestCaseSupplier.TypedData(value, EsqlDataTypes.CARTESIAN_POINT, "trueValue")
+                    new TestCaseSupplier.TypedData(false, DataType.BOOLEAN, "cond"),
+                    new TestCaseSupplier.TypedData(value, DataType.CARTESIAN_POINT, "trueValue")
                 );
                 return new TestCaseSupplier.TestCase(
                     typedData,
                     "CaseEvaluator[resultType=BYTES_REF, conditions=[ConditionEvaluator[condition=Attribute[channel=0], "
                         + "value=Attribute[channel=1]]], elseVal=LiteralsEvaluator[lit=null]]",
-                    EsqlDataTypes.CARTESIAN_POINT,
+                    DataType.CARTESIAN_POINT,
                     nullValue()
                 );
-            }), new TestCaseSupplier("geo_point", List.of(DataTypes.BOOLEAN, EsqlDataTypes.GEO_POINT), () -> {
-                BytesRef value = (BytesRef) randomLiteral(EsqlDataTypes.GEO_POINT).value();
+            }), new TestCaseSupplier("geo_point", List.of(DataType.BOOLEAN, DataType.GEO_POINT), () -> {
+                BytesRef value = (BytesRef) randomLiteral(DataType.GEO_POINT).value();
                 List<TestCaseSupplier.TypedData> typedData = List.of(
-                    new TestCaseSupplier.TypedData(true, DataTypes.BOOLEAN, "cond"),
-                    new TestCaseSupplier.TypedData(value, EsqlDataTypes.GEO_POINT, "trueValue")
+                    new TestCaseSupplier.TypedData(true, DataType.BOOLEAN, "cond"),
+                    new TestCaseSupplier.TypedData(value, DataType.GEO_POINT, "trueValue")
                 );
                 return new TestCaseSupplier.TestCase(
                     typedData,
                     "CaseEvaluator[resultType=BYTES_REF, conditions=[ConditionEvaluator[condition=Attribute[channel=0], "
                         + "value=Attribute[channel=1]]], elseVal=LiteralsEvaluator[lit=null]]",
-                    EsqlDataTypes.GEO_POINT,
+                    DataType.GEO_POINT,
                     equalTo(value)
                 );
             }))
@@ -271,15 +270,15 @@ public class CaseTests extends AbstractFunctionTestCase {
         assertEquals(3, toValue.apply(caseExpr(false, 1, false, 2, 3)));
         assertNull(toValue.apply(caseExpr(true, null, 1)));
         assertEquals(1, toValue.apply(caseExpr(false, null, 1)));
-        assertEquals(1, toValue.apply(caseExpr(false, field("ignored", DataTypes.INTEGER), 1)));
-        assertEquals(1, toValue.apply(caseExpr(true, 1, field("ignored", DataTypes.INTEGER))));
+        assertEquals(1, toValue.apply(caseExpr(false, field("ignored", DataType.INTEGER), 1)));
+        assertEquals(1, toValue.apply(caseExpr(true, 1, field("ignored", DataType.INTEGER))));
     }
 
     public void testIgnoreLeadingNulls() {
-        assertEquals(DataTypes.INTEGER, resolveType(false, null, 1));
-        assertEquals(DataTypes.INTEGER, resolveType(false, null, false, null, false, 2, null));
-        assertEquals(DataTypes.NULL, resolveType(false, null, null));
-        assertEquals(DataTypes.BOOLEAN, resolveType(false, null, field("bool", DataTypes.BOOLEAN)));
+        assertEquals(DataType.INTEGER, resolveType(false, null, 1));
+        assertEquals(DataType.INTEGER, resolveType(false, null, false, null, false, 2, null));
+        assertEquals(DataType.NULL, resolveType(false, null, null));
+        assertEquals(DataType.BOOLEAN, resolveType(false, null, field("bool", DataType.BOOLEAN)));
     }
 
     public void testCaseWithInvalidCondition() {

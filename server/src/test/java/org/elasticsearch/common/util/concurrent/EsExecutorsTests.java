@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Processors;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.hamcrest.Matcher;
@@ -22,6 +23,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -35,6 +37,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  * Tests for EsExecutors and its components like EsAbortPolicy.
@@ -628,10 +631,25 @@ public class EsExecutorsTests extends ESTestCase {
 
     public void testParseExecutorName() throws InterruptedException {
         final var executorName = randomAlphaOfLength(10);
-        final var threadFactory = EsExecutors.daemonThreadFactory(rarely() ? null : randomAlphaOfLength(10), executorName);
+        final String nodeName = rarely() ? null : randomIdentifier();
+        final ThreadFactory threadFactory;
+        if (nodeName == null) {
+            threadFactory = EsExecutors.daemonThreadFactory(Settings.EMPTY, executorName);
+        } else if (randomBoolean()) {
+            threadFactory = EsExecutors.daemonThreadFactory(
+                Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), nodeName).build(),
+                executorName
+            );
+        } else {
+            threadFactory = EsExecutors.daemonThreadFactory(nodeName, executorName);
+        }
+
         final var thread = threadFactory.newThread(() -> {});
         try {
             assertThat(EsExecutors.executorName(thread.getName()), equalTo(executorName));
+            assertThat(EsExecutors.executorName(thread), equalTo(executorName));
+            assertThat(EsExecutors.executorName("TEST-" + thread.getName()), is(nullValue()));
+            assertThat(EsExecutors.executorName("LuceneTestCase" + thread.getName()), is(nullValue()));
         } finally {
             thread.join();
         }

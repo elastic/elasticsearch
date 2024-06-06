@@ -33,8 +33,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.IntFunction;
 
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.DATETIME;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.IP;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 
 /**
  * Generates a list of Lucene queries based on the input block.
@@ -156,6 +156,7 @@ abstract class QueryList {
                 }
                 case NULL -> offset -> null;
                 case DOC -> throw new EsqlIllegalArgumentException("can't read values from [doc] block");
+                case COMPOSITE -> throw new EsqlIllegalArgumentException("can't read values from [composite] block");
                 case UNKNOWN -> throw new EsqlIllegalArgumentException("can't read values from [" + block + "]");
             };
         }

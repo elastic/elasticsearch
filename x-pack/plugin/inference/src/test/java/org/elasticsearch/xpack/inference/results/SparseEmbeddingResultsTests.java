@@ -86,7 +86,7 @@ public class SparseEmbeddingResultsTests extends AbstractWireSerializingTestCase
 
     public void testToXContent_CreatesTheRightFormatForASingleEmbedding() throws IOException {
         var entity = createSparseResult(List.of(createEmbedding(List.of(new WeightedToken("token", 0.1F)), false)));
-        assertThat(entity.asMap(), is(buildExpectation(List.of(new EmbeddingExpectation(Map.of("token", 0.1F), false)))));
+        assertThat(entity.asMap(), is(buildExpectationSparseEmbeddings(List.of(new EmbeddingExpectation(Map.of("token", 0.1F), false)))));
         String xContentResult = Strings.toString(entity, true, true);
         assertThat(xContentResult, is("""
             {
@@ -111,7 +111,7 @@ public class SparseEmbeddingResultsTests extends AbstractWireSerializingTestCase
         assertThat(
             entity.asMap(),
             is(
-                buildExpectation(
+                buildExpectationSparseEmbeddings(
                     List.of(
                         new EmbeddingExpectation(Map.of("token", 0.1F, "token2", 0.2F), false),
                         new EmbeddingExpectation(Map.of("token3", 0.3F, "token4", 0.4F), false)
@@ -163,7 +163,7 @@ public class SparseEmbeddingResultsTests extends AbstractWireSerializingTestCase
 
     public record EmbeddingExpectation(Map<String, Float> tokens, boolean isTruncated) {}
 
-    public static Map<String, Object> buildExpectation(List<EmbeddingExpectation> embeddings) {
+    public static Map<String, Object> buildExpectationSparseEmbeddings(List<EmbeddingExpectation> embeddings) {
         return Map.of(
             SparseEmbeddingResults.SPARSE_EMBEDDING,
             embeddings.stream()

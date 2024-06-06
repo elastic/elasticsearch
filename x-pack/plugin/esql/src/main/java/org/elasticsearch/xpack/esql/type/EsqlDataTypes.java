@@ -8,107 +8,53 @@ package org.elasticsearch.xpack.esql.type;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
 
-import java.util.Collection;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
-import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toMap;
 import static java.util.stream.Collectors.toUnmodifiableMap;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.BOOLEAN;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.BYTE;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.DATETIME;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.DOUBLE;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.FLOAT;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.HALF_FLOAT;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.INTEGER;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.IP;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.KEYWORD;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.LONG;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.NESTED;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.NULL;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.OBJECT;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.SCALED_FLOAT;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.SHORT;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.SOURCE;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.TEXT;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.UNSIGNED_LONG;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.UNSUPPORTED;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.VERSION;
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.isNull;
+import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
+import static org.elasticsearch.xpack.esql.core.type.DataType.BYTE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.HALF_FLOAT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataType.NESTED;
+import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
+import static org.elasticsearch.xpack.esql.core.type.DataType.OBJECT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.SCALED_FLOAT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.SHORT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.SOURCE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
+import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isNull;
 
 public final class EsqlDataTypes {
 
-    public static final DataType DATE_PERIOD = new DataType("DATE_PERIOD", null, 3 * Integer.BYTES, false, false, false);
-    public static final DataType TIME_DURATION = new DataType("TIME_DURATION", null, Integer.BYTES + Long.BYTES, false, false, false);
-    public static final DataType GEO_POINT = new DataType("geo_point", Double.BYTES * 2, false, false, true);
-    public static final DataType CARTESIAN_POINT = new DataType("cartesian_point", Double.BYTES * 2, false, false, true);
-    public static final DataType GEO_SHAPE = new DataType("geo_shape", Integer.MAX_VALUE, false, false, true);
-    public static final DataType CARTESIAN_SHAPE = new DataType("cartesian_shape", Integer.MAX_VALUE, false, false, true);
-
-    /**
-     * These are numeric fields labeled as metric counters in time-series indices. Although stored
-     * internally as numeric fields, they represent cumulative metrics and must not be treated as regular
-     * numeric fields. Therefore, we define them differently and separately from their parent numeric field.
-     * These fields are strictly for use in retrieval from indices, rate aggregation, and casting to their
-     * parent numeric type.
-     */
-    public static final DataType COUNTER_LONG = new DataType("counter_long", LONG.size(), false, false, LONG.hasDocValues());
-    public static final DataType COUNTER_INTEGER = new DataType("counter_integer", INTEGER.size(), false, false, INTEGER.hasDocValues());
-    public static final DataType COUNTER_DOUBLE = new DataType("counter_double", DOUBLE.size(), false, false, DOUBLE.hasDocValues());
-
-    private static final Collection<DataType> TYPES = Stream.of(
-        BOOLEAN,
-        UNSUPPORTED,
-        NULL,
-        BYTE,
-        SHORT,
-        INTEGER,
-        LONG,
-        DOUBLE,
-        FLOAT,
-        HALF_FLOAT,
-        KEYWORD,
-        TEXT,
-        DATETIME,
-        DATE_PERIOD,
-        TIME_DURATION,
-        IP,
-        OBJECT,
-        NESTED,
-        SCALED_FLOAT,
-        SOURCE,
-        VERSION,
-        UNSIGNED_LONG,
-        GEO_POINT,
-        CARTESIAN_POINT,
-        CARTESIAN_SHAPE,
-        GEO_SHAPE,
-        COUNTER_LONG,
-        COUNTER_INTEGER,
-        COUNTER_DOUBLE
-    ).sorted(Comparator.comparing(DataType::typeName)).toList();
-
-    private static final Map<String, DataType> NAME_TO_TYPE = TYPES.stream().collect(toUnmodifiableMap(DataType::typeName, t -> t));
+    private static final Map<String, DataType> NAME_TO_TYPE = DataType.types()
+        .stream()
+        .collect(toUnmodifiableMap(DataType::typeName, t -> t));
 
     private static final Map<String, DataType> ES_TO_TYPE;
 
     static {
-        Map<String, DataType> map = TYPES.stream().filter(e -> e.esType() != null).collect(toMap(DataType::esType, t -> t));
+        Map<String, DataType> map = DataType.types().stream().filter(e -> e.esType() != null).collect(toMap(DataType::esType, t -> t));
         // ES calls this 'point', but ESQL calls it 'cartesian_point'
-        map.put("point", CARTESIAN_POINT);
-        map.put("shape", CARTESIAN_SHAPE);
+        map.put("point", DataType.CARTESIAN_POINT);
+        map.put("shape", DataType.CARTESIAN_SHAPE);
         ES_TO_TYPE = Collections.unmodifiableMap(map);
     }
 
     private static final Map<String, DataType> NAME_OR_ALIAS_TO_TYPE;
     static {
-        Map<String, DataType> map = TYPES.stream().collect(toMap(DataType::typeName, Function.identity()));
+        Map<String, DataType> map = DataType.types().stream().collect(toMap(DataType::typeName, Function.identity()));
         map.put("bool", BOOLEAN);
         map.put("int", INTEGER);
         map.put("string", KEYWORD);
@@ -116,10 +62,6 @@ public final class EsqlDataTypes {
     }
 
     private EsqlDataTypes() {}
-
-    public static Collection<DataType> types() {
-        return TYPES;
-    }
 
     public static DataType fromTypeName(String name) {
         return NAME_TO_TYPE.get(name.toLowerCase(Locale.ROOT));
@@ -162,7 +104,7 @@ public final class EsqlDataTypes {
     }
 
     public static boolean isUnsupported(DataType type) {
-        return DataTypes.isUnsupported(type);
+        return DataType.isUnsupported(type);
     }
 
     public static String outputType(DataType type) {
@@ -181,11 +123,11 @@ public final class EsqlDataTypes {
     }
 
     public static boolean isDateTimeOrTemporal(DataType t) {
-        return DataTypes.isDateTime(t) || isTemporalAmount(t);
+        return DataType.isDateTime(t) || isTemporalAmount(t);
     }
 
     public static boolean isTemporalAmount(DataType t) {
-        return t == DATE_PERIOD || t == TIME_DURATION;
+        return t == DataType.DATE_PERIOD || t == DataType.TIME_DURATION;
     }
 
     public static boolean isNullOrTemporalAmount(DataType t) {
@@ -193,23 +135,23 @@ public final class EsqlDataTypes {
     }
 
     public static boolean isNullOrDatePeriod(DataType t) {
-        return t == DATE_PERIOD || isNull(t);
+        return t == DataType.DATE_PERIOD || isNull(t);
     }
 
     public static boolean isNullOrTimeDuration(DataType t) {
-        return t == TIME_DURATION || isNull(t);
+        return t == DataType.TIME_DURATION || isNull(t);
     }
 
     public static boolean isSpatial(DataType t) {
-        return t == GEO_POINT || t == CARTESIAN_POINT || t == GEO_SHAPE || t == CARTESIAN_SHAPE;
+        return t == DataType.GEO_POINT || t == DataType.CARTESIAN_POINT || t == DataType.GEO_SHAPE || t == DataType.CARTESIAN_SHAPE;
     }
 
     public static boolean isSpatialGeo(DataType t) {
-        return t == GEO_POINT || t == GEO_SHAPE;
+        return t == DataType.GEO_POINT || t == DataType.GEO_SHAPE;
     }
 
     public static boolean isSpatialPoint(DataType t) {
-        return t == GEO_POINT || t == CARTESIAN_POINT;
+        return t == DataType.GEO_POINT || t == DataType.CARTESIAN_POINT;
     }
 
     /**
@@ -258,6 +200,6 @@ public final class EsqlDataTypes {
     }
 
     public static boolean isCounterType(DataType dt) {
-        return dt == COUNTER_LONG || dt == COUNTER_INTEGER || dt == COUNTER_DOUBLE;
+        return dt == DataType.COUNTER_LONG || dt == DataType.COUNTER_INTEGER || dt == DataType.COUNTER_DOUBLE;
     }
 }

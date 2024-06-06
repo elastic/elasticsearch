@@ -218,7 +218,7 @@ teardown:
 
   - do:
       allowed_warnings:
-        - "index template [generic_logs_template] has index patterns [logs-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [generic_logs_template] will take precedence during new index creation"
+        - "index template [my-template] has index patterns [data-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template] will take precedence during new index creation"
       indices.put_index_template:
         name: my-template
         body:

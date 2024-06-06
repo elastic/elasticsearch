@@ -96,8 +96,9 @@ public class ConnectorSyncJobIndexService {
         ActionListener<PostConnectorSyncJobAction.Response> listener
     ) {
         String connectorId = request.getId();
+        ConnectorSyncJobType jobType = Objects.requireNonNullElse(request.getJobType(), ConnectorSyncJob.DEFAULT_JOB_TYPE);
         try {
-            getSyncJobConnectorInfo(connectorId, listener.delegateFailure((l, connector) -> {
+            getSyncJobConnectorInfo(connectorId, jobType, listener.delegateFailure((l, connector) -> {
                 if (Strings.isNullOrEmpty(connector.getIndexName())) {
                     l.onFailure(
                         new ElasticsearchStatusException(
@@ -125,7 +126,6 @@ public class ConnectorSyncJobIndexService {
                 }
 
                 Instant now = Instant.now();
-                ConnectorSyncJobType jobType = Objects.requireNonNullElse(request.getJobType(), ConnectorSyncJob.DEFAULT_JOB_TYPE);
                 ConnectorSyncJobTriggerMethod triggerMethod = Objects.requireNonNullElse(
                     request.getTriggerMethod(),
                     ConnectorSyncJob.DEFAULT_TRIGGER_METHOD
@@ -494,7 +494,7 @@ public class ConnectorSyncJobIndexService {
         );
     }
 
-    private void getSyncJobConnectorInfo(String connectorId, ActionListener<Connector> listener) {
+    private void getSyncJobConnectorInfo(String connectorId, ConnectorSyncJobType jobType, ActionListener<Connector> listener) {
         try {
 
             final GetRequest request = new GetRequest(ConnectorIndexService.CONNECTOR_INDEX_NAME, connectorId);
@@ -514,11 +514,15 @@ public class ConnectorSyncJobIndexService {
                             connectorId,
                             XContentType.JSON
                         );
+                        // Access control syncs write data to a separate index
+                        String targetIndexName = jobType == ConnectorSyncJobType.ACCESS_CONTROL
+                            ? connector.getAccessControlIndexName()
+                            : connector.getIndexName();
 
                         // Build the connector representation for sync job
                         final Connector syncJobConnector = new Connector.Builder().setConnectorId(connector.getConnectorId())
                             .setSyncJobFiltering(transformConnectorFilteringToSyncJobRepresentation(connector.getFiltering()))
-                            .setIndexName(connector.getIndexName())
+                            .setIndexName(targetIndexName)
                             .setLanguage(connector.getLanguage())
                             .setPipeline(connector.getPipeline())
                             .setServiceType(connector.getServiceType())

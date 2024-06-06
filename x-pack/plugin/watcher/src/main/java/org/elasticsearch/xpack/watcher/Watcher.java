@@ -834,7 +834,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
             .orElse(false);
 
         if (manuallyStopped == false) {
-            WatcherServiceRequest serviceRequest = new WatcherServiceRequest();
+            WatcherServiceRequest serviceRequest = new WatcherServiceRequest(TimeValue.THIRTY_SECONDS /* TODO should this be longer? */);
             serviceRequest.stop();
             originClient.execute(WatcherServiceAction.INSTANCE, serviceRequest, ActionListener.wrap((response) -> {
                 listener.onResponse(Collections.singletonMap("manually_stopped", manuallyStopped));
@@ -855,7 +855,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
         Client originClient = new OriginSettingClient(client, WATCHER_ORIGIN);
         boolean manuallyStopped = (boolean) preUpgradeMetadata.getOrDefault("manually_stopped", false);
         if (manuallyStopped == false) {
-            WatcherServiceRequest serviceRequest = new WatcherServiceRequest();
+            WatcherServiceRequest serviceRequest = new WatcherServiceRequest(TimeValue.THIRTY_SECONDS /* TODO should this be longer? */);
             serviceRequest.start();
             originClient.execute(WatcherServiceAction.INSTANCE, serviceRequest, ActionListener.wrap((response) -> {
                 listener.onResponse(response.isAcknowledged());

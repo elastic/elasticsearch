@@ -142,6 +142,7 @@ public class MountSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
         overrideTierPreference(this.getKey().phase()).ifPresent(override -> settingsBuilder.put(DataTier.TIER_PREFERENCE, override));
 
         final MountSearchableSnapshotRequest mountSearchableSnapshotRequest = new MountSearchableSnapshotRequest(
+            TimeValue.MAX_VALUE,
             mountedIndexName,
             snapshotRepository,
             snapshotName,
@@ -153,7 +154,6 @@ public class MountSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
             false,
             storageType
         );
-        mountSearchableSnapshotRequest.masterNodeTimeout(TimeValue.MAX_VALUE);
         getClient().execute(
             MountSearchableSnapshotAction.INSTANCE,
             mountSearchableSnapshotRequest,

@@ -24,7 +24,8 @@ import java.util.List;
  * This coordinator context, that's executed at the end of the {@link org.elasticsearch.action.search.RankFeaturePhase},
  * needs an {@code inferenceId} and {@code inferenceText} to generate the request to the inference service
  * and then iterates over the results to update the scores in-place.
- * The call to the inference service is done in a non-blocking async manner, through the use of a {@code Client}.
+ * The {@code Client} should ensure that this is done in an efficient non-blocking manner,
+ * and then pass the results back through the provided {@code ActionListener}.
  * Each implementation of this class needs to define the request generation logic, the action type, and how to actually read the scores
  * from the service's response.
  */
@@ -63,8 +64,8 @@ public abstract class ActionRequestRankFeaturePhaseRankCoordinatorContext<Reques
 
     /**
      * This method is responsible for extracting the scores from the response of the inference service.
-     * This should return a {@code float[]} whose length should be equal to the number of documents in the {@code featureDocs},
-     * and {@code scores[i]} should be the score computed for document at position {@code i} in {@code featureDocs}.
+     * This should return a {@code float[]} whose length should be equal to the number of documents provided in the request, where
+     * {@code scores[i]} should be the score computed for document at position {@code i} in {@code featureDocs}.
      */
     protected abstract float[] extractScoresFromResponse(Response response);
 

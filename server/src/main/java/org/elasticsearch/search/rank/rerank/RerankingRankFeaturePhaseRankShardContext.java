@@ -20,6 +20,11 @@ import org.elasticsearch.search.rank.feature.RankFeatureShardResult;
 
 import java.util.Arrays;
 
+/**
+ * The {@code ReRankingRankFeaturePhaseRankShardContext} is handles the {@code SearchHits} generated from the {@code RankFeatureShardPhase}
+ * and builds the {@code RankFeatureShardResult} for the reranking phase, by reading the field info for the specified {@code field} during
+ * construction.
+ */
 public class RerankingRankFeaturePhaseRankShardContext extends RankFeaturePhaseRankShardContext {
 
     private static final Logger logger = LogManager.getLogger(RerankingRankFeaturePhaseRankShardContext.class);

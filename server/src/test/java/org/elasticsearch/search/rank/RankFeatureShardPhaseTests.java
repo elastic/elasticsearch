@@ -266,7 +266,7 @@ public class RankFeatureShardPhaseTests extends ESTestCase {
 
     public void testProcessFetch() {
         final String fieldName = "some_field";
-        int numDocs = randomIntBetween(10, 30);
+        int numDocs = randomIntBetween(15, 30);
         Map<Integer, String> expectedFieldData = Map.of(4, "doc_4_aardvark", 9, "doc_9_aardvark", numDocs - 1, "last_doc_aardvark");
 
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();

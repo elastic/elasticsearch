@@ -74,7 +74,7 @@ public class InferenceChunkedTextEmbeddingByteResultsTests extends AbstractWireS
     }
 
     public void testToXContent_CreatesTheRightJsonForASingleChunk_ForTextEmbeddingByteResults() {
-        var entity = InferenceChunkedTextEmbeddingByteResults.of(
+        var entity = InferenceChunkedTextEmbeddingByteResults.listOf(
             List.of("text"),
             new InferenceTextEmbeddingByteResults(
                 List.of(new InferenceTextEmbeddingByteResults.InferenceByteEmbedding(new byte[] { (byte) 1 }))
@@ -111,7 +111,7 @@ public class InferenceChunkedTextEmbeddingByteResultsTests extends AbstractWireS
     public void testToXContent_ThrowsWhenInputSizeIsDifferentThanEmbeddings() {
         var exception = expectThrows(
             IllegalArgumentException.class,
-            () -> InferenceChunkedTextEmbeddingByteResults.of(
+            () -> InferenceChunkedTextEmbeddingByteResults.listOf(
                 List.of("text", "text2"),
                 new InferenceTextEmbeddingByteResults(
                     List.of(new InferenceTextEmbeddingByteResults.InferenceByteEmbedding(new byte[] { (byte) 1 }))

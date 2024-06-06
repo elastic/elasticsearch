@@ -19,8 +19,8 @@ import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.xpack.core.inference.results.InferenceChunkedSparseEmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.ErrorChunkedInferenceResults;
+import org.elasticsearch.xpack.core.inference.results.InferenceChunkedSparseEmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.InferenceChunkedTextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
@@ -179,7 +179,7 @@ public abstract class HuggingFaceBaseService extends SenderService {
         if (inferenceResults instanceof InferenceTextEmbeddingFloatResults textEmbeddingResults) {
             return InferenceChunkedTextEmbeddingFloatResults.listOf(inputs, textEmbeddingResults);
         } else if (inferenceResults instanceof SparseEmbeddingResults sparseEmbeddingResults) {
-            return InferenceChunkedSparseEmbeddingResults.of(inputs, sparseEmbeddingResults);
+            return InferenceChunkedSparseEmbeddingResults.listOf(inputs, sparseEmbeddingResults);
         } else if (inferenceResults instanceof ErrorInferenceResults error) {
             return List.of(new ErrorChunkedInferenceResults(error.getException()));
         } else {

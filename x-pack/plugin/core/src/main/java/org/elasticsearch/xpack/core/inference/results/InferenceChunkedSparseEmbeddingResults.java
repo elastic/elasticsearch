@@ -42,18 +42,18 @@ public class InferenceChunkedSparseEmbeddingResults implements ChunkedInferenceS
      * Each {@link InferenceChunkedSparseEmbeddingResults} will have a single chunk containing the entire results from the
      * {@link SparseEmbeddingResults}.
      */
-    public static List<ChunkedInferenceServiceResults> of(List<String> inputs, SparseEmbeddingResults sparseEmbeddingResults) {
+    public static List<ChunkedInferenceServiceResults> listOf(List<String> inputs, SparseEmbeddingResults sparseEmbeddingResults) {
         validateInputSizeAgainstEmbeddings(inputs, sparseEmbeddingResults.embeddings().size());
 
         var results = new ArrayList<ChunkedInferenceServiceResults>(inputs.size());
         for (int i = 0; i < inputs.size(); i++) {
-            results.add(of(inputs.get(i), sparseEmbeddingResults.embeddings().get(i)));
+            results.add(ofSingle(inputs.get(i), sparseEmbeddingResults.embeddings().get(i)));
         }
 
         return results;
     }
 
-    public static InferenceChunkedSparseEmbeddingResults of(String input, SparseEmbeddingResults.Embedding embedding) {
+    private static InferenceChunkedSparseEmbeddingResults ofSingle(String input, SparseEmbeddingResults.Embedding embedding) {
         var weightedTokens = embedding.tokens()
             .stream()
             .map(weightedToken -> new WeightedToken(weightedToken.token(), weightedToken.weight()))

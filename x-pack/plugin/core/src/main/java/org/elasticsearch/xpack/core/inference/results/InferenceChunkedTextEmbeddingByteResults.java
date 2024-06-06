@@ -41,18 +41,18 @@ public record InferenceChunkedTextEmbeddingByteResults(List<InferenceByteEmbeddi
      * Each {@link InferenceChunkedTextEmbeddingByteResults} will have a single chunk containing the entire results from the
      * {@link InferenceTextEmbeddingByteResults}.
      */
-    public static List<ChunkedInferenceServiceResults> of(List<String> inputs, InferenceTextEmbeddingByteResults textEmbeddings) {
+    public static List<ChunkedInferenceServiceResults> listOf(List<String> inputs, InferenceTextEmbeddingByteResults textEmbeddings) {
         validateInputSizeAgainstEmbeddings(inputs, textEmbeddings.embeddings().size());
 
         var results = new ArrayList<ChunkedInferenceServiceResults>(inputs.size());
         for (int i = 0; i < inputs.size(); i++) {
-            results.add(of(inputs.get(i), textEmbeddings.embeddings().get(i).values()));
+            results.add(ofSingle(inputs.get(i), textEmbeddings.embeddings().get(i).values()));
         }
 
         return results;
     }
 
-    public static InferenceChunkedTextEmbeddingByteResults of(String input, byte[] byteEmbeddings) {
+    private static InferenceChunkedTextEmbeddingByteResults ofSingle(String input, byte[] byteEmbeddings) {
         return new InferenceChunkedTextEmbeddingByteResults(List.of(new InferenceByteEmbeddingChunk(input, byteEmbeddings)), false);
     }
 

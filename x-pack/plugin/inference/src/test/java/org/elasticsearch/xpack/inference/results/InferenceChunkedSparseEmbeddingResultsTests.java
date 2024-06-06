@@ -71,7 +71,7 @@ public class InferenceChunkedSparseEmbeddingResultsTests extends AbstractWireSer
     }
 
     public void testToXContent_CreatesTheRightJsonForASingleChunk_FromSparseEmbeddingResults() {
-        var entity = InferenceChunkedSparseEmbeddingResults.of(
+        var entity = InferenceChunkedSparseEmbeddingResults.listOf(
             List.of("text"),
             new SparseEmbeddingResults(List.of(new SparseEmbeddingResults.Embedding(List.of(new WeightedToken("token", 0.1f)), false)))
         );
@@ -107,7 +107,7 @@ public class InferenceChunkedSparseEmbeddingResultsTests extends AbstractWireSer
     public void testToXContent_ThrowsWhenInputSizeIsDifferentThanEmbeddings() {
         var exception = expectThrows(
             IllegalArgumentException.class,
-            () -> InferenceChunkedSparseEmbeddingResults.of(
+            () -> InferenceChunkedSparseEmbeddingResults.listOf(
                 List.of("text", "text2"),
                 new SparseEmbeddingResults(List.of(new SparseEmbeddingResults.Embedding(List.of(new WeightedToken("token", 0.1f)), false)))
             )

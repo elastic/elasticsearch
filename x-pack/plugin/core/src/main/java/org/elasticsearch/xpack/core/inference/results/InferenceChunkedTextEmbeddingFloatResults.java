@@ -43,10 +43,6 @@ public record InferenceChunkedTextEmbeddingFloatResults(List<InferenceFloatEmbed
         this(in.readCollectionAsList(InferenceFloatEmbeddingChunk::new));
     }
 
-    public InferenceChunkedTextEmbeddingFloatResults(List<InferenceFloatEmbeddingChunk> chunks) {
-        this.chunks = chunks;
-    }
-
     /**
      * Returns a list of {@link InferenceChunkedTextEmbeddingFloatResults}.
      * Each {@link InferenceChunkedTextEmbeddingFloatResults} contain a single chunk with the text and the

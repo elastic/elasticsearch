@@ -266,8 +266,9 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
                 TEMPLATE_VERSION_VARIABLE,
                 ADDITIONAL_TEMPLATE_VARIABLES
             );
+            final Map<String, ComponentTemplate> updatedComponentTemplates = new HashMap<>(COMPONENT_TEMPLATE_CONFIGS);
             try {
-                COMPONENT_TEMPLATE_CONFIGS.replace(
+                updatedComponentTemplates.replace(
                     override.getTemplateName(),
                     ComponentTemplate.parse(JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, override.loadBytes()))
                 );
@@ -283,6 +284,7 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
                         + "]"
                 );
             }
+            return Map.copyOf(updatedComponentTemplates);
         }
         return COMPONENT_TEMPLATE_CONFIGS;
     }

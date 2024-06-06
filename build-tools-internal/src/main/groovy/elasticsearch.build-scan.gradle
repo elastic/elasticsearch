@@ -24,9 +24,10 @@ develocity {
 
     // Automatically publish scans from Elasticsearch CI
     if (jenkinsUrl?.host?.endsWith('elastic.co') || jenkinsUrl?.host?.endsWith('elastic.dev') || System.getenv('BUILDKITE') == 'true') {
-      publishAlways()
+      publishing.onlyIf { true }
       buildScan.server = 'https://gradle-enterprise.elastic.co'
     }
+
 
     background {
       tag OS.current().name()

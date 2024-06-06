@@ -16,6 +16,8 @@ import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.rank.context.QueryPhaseRankCoordinatorContext;
 import org.elasticsearch.search.rank.context.QueryPhaseRankShardContext;
+import org.elasticsearch.search.rank.context.RankFeaturePhaseRankCoordinatorContext;
+import org.elasticsearch.search.rank.context.RankFeaturePhaseRankShardContext;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -32,7 +34,7 @@ public abstract class RankBuilder implements VersionedNamedWriteable, ToXContent
 
     public static final ParseField RANK_WINDOW_SIZE_FIELD = new ParseField("rank_window_size");
 
-    public static final int DEFAULT_WINDOW_SIZE = SearchService.DEFAULT_SIZE;
+    public static final int DEFAULT_RANK_WINDOW_SIZE = SearchService.DEFAULT_SIZE;
 
     private final int rankWindowSize;
 
@@ -69,6 +71,12 @@ public abstract class RankBuilder implements VersionedNamedWriteable, ToXContent
     }
 
     /**
+     * Specify whether this rank builder is a compound builder or not. A compound builder is a rank builder that requires
+     * two or more queries to be executed in order to generate the final result.
+     */
+    public abstract boolean isCompoundBuilder();
+
+    /**
      * Generates a context used to execute required searches during the query phase on the shard.
      */
     public abstract QueryPhaseRankShardContext buildQueryPhaseShardContext(List<Query> queries, int from);
@@ -77,6 +85,19 @@ public abstract class RankBuilder implements VersionedNamedWriteable, ToXContent
      * Generates a context used to be executed on the coordinating node, that would combine all individual shard results.
      */
     public abstract QueryPhaseRankCoordinatorContext buildQueryPhaseCoordinatorContext(int size, int from);
+
+    /**
+     * Generates a context used to execute the rank feature phase on the shard. This is responsible for retrieving any needed
+     * feature data, and passing them back to the coordinator through the appropriate {@link  RankShardResult}.
+     */
+    public abstract RankFeaturePhaseRankShardContext buildRankFeaturePhaseShardContext();
+
+    /**
+     * Generates a context used to perform global ranking during the RankFeature phase,
+     * on the coordinator based on all the individual shard results. The output of this will be a `size` ranked list of ordered results,
+     * which will then be passed to fetch phase.
+     */
+    public abstract RankFeaturePhaseRankCoordinatorContext buildRankFeaturePhaseCoordinatorContext(int size, int from);
 
     @Override
     public final boolean equals(Object obj) {

@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.esql.core.expression.Order;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.SurrogateFunction;
-import org.elasticsearch.xpack.esql.core.expression.predicate.BinaryOperator;
 import org.elasticsearch.xpack.esql.core.expression.predicate.BinaryPredicate;
 import org.elasticsearch.xpack.esql.core.expression.predicate.Negatable;
 import org.elasticsearch.xpack.esql.core.expression.predicate.Predicates;
@@ -220,18 +219,6 @@ public final class OptimizerRules {
                 return ((Negatable<?>) e).negate();
             }
             return null;
-        }
-    }
-
-    public static final class LiteralsOnTheRight extends OptimizerExpressionRule<BinaryOperator<?, ?, ?, ?>> {
-
-        public LiteralsOnTheRight() {
-            super(TransformDirection.UP);
-        }
-
-        @Override
-        public BinaryOperator<?, ?, ?, ?> rule(BinaryOperator<?, ?, ?, ?> be) {
-            return be.left() instanceof Literal && (be.right() instanceof Literal) == false ? be.swapLeftAndRight() : be;
         }
     }
 

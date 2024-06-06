@@ -51,6 +51,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Les
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer.ReplaceRegexMatch;
+import org.elasticsearch.xpack.esql.optimizer.rules.LiteralsOnTheRight;
 
 import java.util.List;
 
@@ -834,7 +835,7 @@ public class OptimizerRulesTests extends ESTestCase {
 
     public void testLiteralsOnTheRight() {
         Alias a = new Alias(EMPTY, "a", new Literal(EMPTY, 10, INTEGER));
-        Expression result = new org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.LiteralsOnTheRight().rule(equalsOf(FIVE, a));
+        Expression result = new LiteralsOnTheRight().rule(equalsOf(FIVE, a));
         assertTrue(result instanceof Equals);
         Equals eq = (Equals) result;
         assertEquals(a, eq.left());

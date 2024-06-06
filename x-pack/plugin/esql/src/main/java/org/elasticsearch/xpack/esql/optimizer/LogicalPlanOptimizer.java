@@ -37,7 +37,7 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RegexMatch;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.StringPattern;
 import org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules;
 import org.elasticsearch.xpack.esql.optimizer.rules.ConstantFolding;
-import org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.LiteralsOnTheRight;
+import org.elasticsearch.xpack.esql.optimizer.rules.LiteralsOnTheRight;
 import org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.PruneLiteralsInOrderBy;
 import org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.SetAsOptimized;
 import org.elasticsearch.xpack.esql.core.plan.logical.Filter;

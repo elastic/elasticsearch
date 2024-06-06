@@ -10,12 +10,13 @@ package org.elasticsearch.index;
 
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.mapper.MapperServiceTestCase;
-import org.hamcrest.Matchers;
+import org.elasticsearch.test.ESTestCase;
 
-public class LogsIndexModeTests extends MapperServiceTestCase {
+import static org.hamcrest.Matchers.equalTo;
+
+public class LogsIndexModeTests extends ESTestCase {
     public void testLogsIndexModeSetting() {
-        assertThat(IndexSettings.MODE.get(buildSettings()), Matchers.equalTo(IndexMode.LOGS));
+        assertThat(IndexSettings.MODE.get(buildSettings()), equalTo(IndexMode.LOGS));
     }
 
     public void testSortField() {
@@ -24,8 +25,10 @@ public class LogsIndexModeTests extends MapperServiceTestCase {
             .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "agent_id")
             .build();
         final IndexMetadata metadata = IndexSettingsTests.newIndexMeta("test", sortSettings);
+        assertThat(metadata.getIndexMode(), equalTo(IndexMode.LOGS));
         final IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
-        assertThat("agent_id", Matchers.equalTo(getIndexSetting(settings, IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey())));
+        assertThat(settings.getMode(), equalTo(IndexMode.LOGS));
+        assertThat("agent_id", equalTo(getIndexSetting(settings, IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey())));
     }
 
     public void testSortMode() {
@@ -35,9 +38,11 @@ public class LogsIndexModeTests extends MapperServiceTestCase {
             .put(IndexSortConfig.INDEX_SORT_MODE_SETTING.getKey(), "max")
             .build();
         final IndexMetadata metadata = IndexSettingsTests.newIndexMeta("test", sortSettings);
+        assertThat(metadata.getIndexMode(), equalTo(IndexMode.LOGS));
         final IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
-        assertThat("agent_id", Matchers.equalTo(getIndexSetting(settings, IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey())));
-        assertThat("max", Matchers.equalTo(getIndexSetting(settings, IndexSortConfig.INDEX_SORT_MODE_SETTING.getKey())));
+        assertThat(settings.getMode(), equalTo(IndexMode.LOGS));
+        assertThat("agent_id", equalTo(getIndexSetting(settings, IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey())));
+        assertThat("max", equalTo(getIndexSetting(settings, IndexSortConfig.INDEX_SORT_MODE_SETTING.getKey())));
     }
 
     public void testSortOrder() {
@@ -47,9 +52,11 @@ public class LogsIndexModeTests extends MapperServiceTestCase {
             .put(IndexSortConfig.INDEX_SORT_ORDER_SETTING.getKey(), "desc")
             .build();
         final IndexMetadata metadata = IndexSettingsTests.newIndexMeta("test", sortSettings);
+        assertThat(metadata.getIndexMode(), equalTo(IndexMode.LOGS));
         final IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
-        assertThat("agent_id", Matchers.equalTo(getIndexSetting(settings, IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey())));
-        assertThat("desc", Matchers.equalTo(getIndexSetting(settings, IndexSortConfig.INDEX_SORT_ORDER_SETTING.getKey())));
+        assertThat(settings.getMode(), equalTo(IndexMode.LOGS));
+        assertThat("agent_id", equalTo(getIndexSetting(settings, IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey())));
+        assertThat("desc", equalTo(getIndexSetting(settings, IndexSortConfig.INDEX_SORT_ORDER_SETTING.getKey())));
     }
 
     public void testSortMissing() {
@@ -59,9 +66,11 @@ public class LogsIndexModeTests extends MapperServiceTestCase {
             .put(IndexSortConfig.INDEX_SORT_MISSING_SETTING.getKey(), "_last")
             .build();
         final IndexMetadata metadata = IndexSettingsTests.newIndexMeta("test", sortSettings);
+        assertThat(metadata.getIndexMode(), equalTo(IndexMode.LOGS));
         final IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
-        assertThat("agent_id", Matchers.equalTo(getIndexSetting(settings, IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey())));
-        assertThat("_last", Matchers.equalTo(getIndexSetting(settings, IndexSortConfig.INDEX_SORT_MISSING_SETTING.getKey())));
+        assertThat(settings.getMode(), equalTo(IndexMode.LOGS));
+        assertThat("agent_id", equalTo(getIndexSetting(settings, IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey())));
+        assertThat("_last", equalTo(getIndexSetting(settings, IndexSortConfig.INDEX_SORT_MISSING_SETTING.getKey())));
     }
 
     private Settings buildSettings() {

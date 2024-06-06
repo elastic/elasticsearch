@@ -11,7 +11,6 @@ package org.elasticsearch.xpack.inference.external.response.cohere;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -29,6 +28,8 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.parseList;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.throwUnknownToken;
 import static org.elasticsearch.xpack.inference.external.response.XContentUtils.moveToFirstToken;
 import static org.elasticsearch.xpack.inference.external.response.XContentUtils.positionParserAtTokenAfterField;
@@ -140,7 +141,7 @@ public class CohereEmbeddingsResponseEntity {
             moveToFirstToken(jsonParser);
 
             XContentParser.Token token = jsonParser.currentToken();
-            XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, token, jsonParser);
+            ensureExpectedToken(XContentParser.Token.START_OBJECT, token, jsonParser);
 
             positionParserAtTokenAfterField(jsonParser, "embeddings", FAILED_TO_FIND_FIELD_TEMPLATE);
 
@@ -183,21 +184,21 @@ public class CohereEmbeddingsResponseEntity {
     }
 
     private static InferenceServiceResults parseByteEmbeddingsArray(XContentParser parser) throws IOException {
-        var embeddingList = XContentParserUtils.parseList(parser, CohereEmbeddingsResponseEntity::parseByteArrayEntry);
+        var embeddingList = parseList(parser, CohereEmbeddingsResponseEntity::parseByteArrayEntry);
 
         return new TextEmbeddingByteResults(embeddingList);
     }
 
     private static TextEmbeddingByteResults.Embedding parseByteArrayEntry(XContentParser parser) throws IOException {
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.currentToken(), parser);
-        List<Byte> embeddingValuesList = XContentParserUtils.parseList(parser, CohereEmbeddingsResponseEntity::parseEmbeddingInt8Entry);
+        ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.currentToken(), parser);
+        List<Byte> embeddingValuesList = parseList(parser, CohereEmbeddingsResponseEntity::parseEmbeddingInt8Entry);
 
         return TextEmbeddingByteResults.Embedding.of(embeddingValuesList);
     }
 
     private static Byte parseEmbeddingInt8Entry(XContentParser parser) throws IOException {
         XContentParser.Token token = parser.currentToken();
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser);
+        ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser);
         var parsedByte = parser.shortValue();
         checkByteBounds(parsedByte);
 
@@ -211,11 +212,10 @@ public class CohereEmbeddingsResponseEntity {
     }
 
     private static InferenceServiceResults parseFloatEmbeddingsArray(XContentParser parser) throws IOException {
-        var embeddingList = XContentParserUtils.parseList(parser, CohereEmbeddingsResponseEntity::parseFloatArrayEntry);
+        var embeddingList = parseList(parser, CohereEmbeddingsResponseEntity::parseFloatArrayEntry);
 
         return new TextEmbeddingFloatResults(embeddingList);
     }
-
     private static TextEmbeddingFloatResults.FloatEmbedding parseFloatArrayEntry(XContentParser parser) throws IOException {
         XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.currentToken(), parser);
         List<Float> embeddingValuesList = XContentParserUtils.parseList(parser, CohereEmbeddingsResponseEntity::parseEmbeddingFloatEntry);
@@ -224,7 +224,7 @@ public class CohereEmbeddingsResponseEntity {
 
     private static Float parseEmbeddingFloatEntry(XContentParser parser) throws IOException {
         XContentParser.Token token = parser.currentToken();
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser);
+        ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser);
         return parser.floatValue();
     }
 

@@ -465,7 +465,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
                 final var replicaShards = indexRoutingTable.shard(shardId).replicaShards();
                 if (replicaShards.isEmpty()
                     || replicaShards.stream()
-                        .anyMatch(sr -> sr.unassigned() == false || sr.unassignedInfo().getNumFailedAllocations() < maxRetries)) {
+                        .anyMatch(sr -> sr.unassigned() == false || sr.unassignedInfo().failedAllocations() < maxRetries)) {
                     return false;
                 }
             }

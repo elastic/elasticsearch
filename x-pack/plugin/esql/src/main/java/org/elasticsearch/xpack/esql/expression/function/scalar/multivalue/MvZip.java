@@ -14,6 +14,7 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -91,6 +92,12 @@ public class MvZip extends EsqlScalarFunction implements OptionalArgument, Evalu
     @Override
     public boolean foldable() {
         return mvLeft.foldable() && mvRight.foldable() && (delim == null || delim.foldable());
+    }
+
+    @Override
+    public Nullability nullable() {
+        // Nullability.TRUE means if *any* parameter is null we return null. We're only null if the first two are null.
+        return Nullability.FALSE;
     }
 
     @Override

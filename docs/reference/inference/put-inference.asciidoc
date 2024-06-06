@@ -7,7 +7,7 @@ experimental[]
 Creates an {infer} endpoint to perform an {infer} task.
 
 IMPORTANT: The {infer} APIs enable you to use certain services, such as built-in
-{ml} models (ELSER, E5), models uploaded through Eland, Cohere, OpenAI, Azure OpenAI, Google AI Studio or Hugging Face.
+{ml} models (ELSER, E5), models uploaded through Eland, Cohere, OpenAI, Mistral, Azure OpenAI, Google AI Studio or Hugging Face.
 For built-in models and models uploaded though Eland, the {infer} APIs offer an alternative way to use and manage trained models.
 However, if you do not plan to use the {infer} APIs to use these models or if you want to use non-NLP models, use the
 <<ml-df-trained-models-apis>>.
@@ -41,6 +41,7 @@ The following services are available through the {infer} API:
 * ELSER
 * Google AI Studio
 * Hugging Face
+* Mistral
 * OpenAI
 
 [discrete]
@@ -76,6 +77,7 @@ Available services:
 * `elser`: specify the `sparse_embedding` task type to use the ELSER service.
 * `googleaistudio`: specify the `completion` or `text_embeddig` task to use the Google AI Studio service.
 * `hugging_face`: specify the `text_embedding` task type to use the Hugging Face service.
+* `mistral`: specify the `text_embedding` task type to use the Mistral service.
 * `openai`: specify the `completion` or `text_embedding` task type to use the OpenAI service.
 
 
@@ -332,6 +334,41 @@ The URL endpoint to use for the requests.
 (Optional, object)
 By default, the `huggingface` service sets the number of requests allowed per minute to `3000`.
 This helps to minimize the number of rate limit errors returned from Hugging Face.
+To modify this, set the `requests_per_minute` setting of this object in your service settings:
++
+[source,text]
+----
+"rate_limit": {
+    "requests_per_minute": <<number_of_requests>>
+}
+----
+
+=====
++
+.`service_settings` for the `mistral` service
+[%collapsible%closed]
+=====
+
+`api_key`:::
+(Required, string)
+A valid API key for your Mistral account.
+You can find your Mistral API keys or you can create a new one
+https://console.mistral.ai/api-keys/[on the API Keys page].
+
+`model`:::
+(Required, string)
+The name of the model to use for the {infer} task.
+Refer to the https://docs.mistral.ai/getting-started/models/[Mistral models documentation]
+for the list of available text embedding models.
+
+`max_input_tokens`:::
+(Optional, integer)
+Allows you to specify the maximum number of tokens per input before chunking occurs.
+
+`rate_limit`:::
+(Optional, object)
+By default, the `mistral` service sets the number of requests allowed per minute to `240`.
+This helps to minimize the number of rate limit errors returned from the Mistral API.
 To modify this, set the `requests_per_minute` setting of this object in your service settings:
 +
 [source,text]
@@ -776,6 +813,28 @@ PUT _inference/text_embedding/my-msmarco-minilm-model
 // TEST[skip:TBD]
 <1> The `model_id` must be the ID of a text embedding model which has already been
 {ml-docs}/ml-nlp-import-model.html#ml-nlp-import-script[uploaded through Eland].
+
+[discrete]
+[[inference-example-mistral]]
+===== Mistral Service
+
+The following example shows how to create an {infer} endpoint called
+`mistral-embeddings-test` to perform a `text_embedding` task type.
+
+[source,console]
+------------------------------------------------------------
+PUT _inference/text_embedding/mistral-embeddings-test
+{
+  "service": "mistral",
+  "service_settings": {
+    "api_key": "<api_key>",
+    "model": "mistral-embed" <1>
+  }
+}
+------------------------------------------------------------
+// TEST[skip:TBD]
+<1> The `model` must be the ID of a text embedding model which can be found in the
+https://docs.mistral.ai/getting-started/models/[Mistral models documentation]
 
 [discrete]
 [[inference-example-openai]]

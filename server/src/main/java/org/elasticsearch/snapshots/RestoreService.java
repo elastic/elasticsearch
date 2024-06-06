@@ -795,13 +795,13 @@ public final class RestoreService implements ClusterStateApplier {
                     // mark restore entry for this shard as failed when it's due to a file corruption. There is no need wait on retries
                     // to restore this shard on another node if the snapshot files are corrupt. In case where a node just left or crashed,
                     // however, we only want to acknowledge the restore operation once it has been successfully restored on another node.
-                    if (unassignedInfo.getFailure() != null && Lucene.isCorruptionException(unassignedInfo.getFailure().getCause())) {
+                    if (unassignedInfo.failure() != null && Lucene.isCorruptionException(unassignedInfo.failure().getCause())) {
                         changes(recoverySource).put(
                             failedShard.shardId(),
                             new ShardRestoreStatus(
                                 failedShard.currentNodeId(),
                                 RestoreInProgress.State.FAILURE,
-                                unassignedInfo.getFailure().getCause().getMessage()
+                                unassignedInfo.failure().getCause().getMessage()
                             )
                         );
                     }
@@ -829,7 +829,7 @@ public final class RestoreService implements ClusterStateApplier {
         public void unassignedInfoUpdated(ShardRouting unassignedShard, UnassignedInfo newUnassignedInfo) {
             RecoverySource recoverySource = unassignedShard.recoverySource();
             if (recoverySource.getType() == RecoverySource.Type.SNAPSHOT) {
-                if (newUnassignedInfo.getLastAllocationStatus() == UnassignedInfo.AllocationStatus.DECIDERS_NO) {
+                if (newUnassignedInfo.lastAllocationStatus() == UnassignedInfo.AllocationStatus.DECIDERS_NO) {
                     String reason = "shard could not be allocated to any of the nodes";
                     changes(recoverySource).put(
                         unassignedShard.shardId(),

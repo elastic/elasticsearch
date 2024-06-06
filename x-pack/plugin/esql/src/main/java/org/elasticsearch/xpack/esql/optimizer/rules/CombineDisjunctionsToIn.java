@@ -49,7 +49,7 @@ public class CombineDisjunctionsToIn extends org.elasticsearch.xpack.esql.core.o
     }
 
     @Override
-    protected Expression rule(Or or) {
+    public Expression rule(Or or) {
         Expression e = or;
         // look only at equals and In
         List<Expression> exps = splitOr(e);

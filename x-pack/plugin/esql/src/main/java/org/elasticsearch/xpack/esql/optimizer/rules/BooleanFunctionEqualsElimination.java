@@ -29,7 +29,7 @@ public final class BooleanFunctionEqualsElimination extends
     }
 
     @Override
-    protected Expression rule(BinaryComparison bc) {
+    public Expression rule(BinaryComparison bc) {
         if ((bc instanceof Equals || bc instanceof NotEquals) && bc.left() instanceof Function) {
             // for expression "==" or "!=" TRUE/FALSE, return the expression itself or its negated variant
 

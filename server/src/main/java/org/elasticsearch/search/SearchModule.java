@@ -291,6 +291,20 @@ public class SearchModule {
         Setting.Property.NodeScope
     );
 
+    public static final Setting<List<String>> SCRIPTED_METRICS_AGG_ALLOWED_SCRIPTS_SETTING = Setting.stringListSetting(
+        // TODO: maybe this should rather be "script.allowed_metric_scripts"
+        "search.aggs.allowed_metric_scripts",
+        Setting.Property.NodeScope,
+        // TODO: remove, only for testing
+        Setting.Property.Dynamic
+        // TODO: Needed?
+        //Setting.Property.Final
+        // TODO: Potentially we could also the following, but that prevented
+        // ./gradlew run
+        // from working (node dies while waiting on ports).
+        //Setting.Property.Consistent
+    );
+
     /**
      * Metric name for aggregation usage statistics
      */

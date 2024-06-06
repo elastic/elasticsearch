@@ -170,18 +170,6 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
         "script.allowed_contexts",
         Setting.Property.NodeScope
     );
-    public static final Setting<List<String>> METRIC_SCRIPTS_ALLOWED_SETTING = Setting.stringListSetting(
-        "script.allowed_metric_scripts",
-        Setting.Property.NodeScope,
-        // TODO: remove, only for testing
-        Setting.Property.Dynamic
-        // TODO: Needed?
-        //Setting.Property.Final
-        // TODO: Potentially we could also the following, but that prevented
-        // ./gradlew run
-        // from working (node dies while waiting on ports).
-        //Setting.Property.Consistent
-    );
 
     private final Set<String> typesAllowed;
     private final Set<String> contextsAllowed;

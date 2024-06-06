@@ -63,8 +63,8 @@ public final class SpatialIntersectsCartesianPointDocValuesAndSourceEvaluator im
 
   public BooleanBlock eval(int positionCount, LongBlock leftValueBlock,
       BytesRefBlock rightValueBlock) {
+    BytesRef rightValueScratch = new BytesRef();
     try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
-      BytesRef rightValueScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         if (leftValueBlock.isNull(p)) {
           result.appendNull();
@@ -96,13 +96,11 @@ public final class SpatialIntersectsCartesianPointDocValuesAndSourceEvaluator im
 
   public BooleanVector eval(int positionCount, LongVector leftValueVector,
       BytesRefVector rightValueVector) {
-    try(BooleanVector.Builder result = driverContext.blockFactory().newBooleanVectorBuilder(positionCount)) {
-      BytesRef rightValueScratch = new BytesRef();
-      boolean[] buffer = result.values();
+    BytesRef rightValueScratch = new BytesRef();
+    try(BooleanVector.FixedBuilder result = driverContext.blockFactory().newBooleanVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        buffer[p] = SpatialIntersects.processCartesianPointDocValuesAndSource(leftValueVector.getLong(p), rightValueVector.getBytesRef(p, rightValueScratch));
+        result.appendBoolean(SpatialIntersects.processCartesianPointDocValuesAndSource(leftValueVector.getLong(p), rightValueVector.getBytesRef(p, rightValueScratch)), p);
       }
-      result.valueCount(positionCount);
       return result.build();
     }
   }

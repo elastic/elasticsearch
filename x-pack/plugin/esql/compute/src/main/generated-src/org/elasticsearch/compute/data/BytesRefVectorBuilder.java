@@ -16,7 +16,7 @@ import org.elasticsearch.core.Releasables;
  * Builder for {@link BytesRefVector}s that grows as needed.
  * This class is generated. Do not edit it.
  */
-public final class BytesRefVectorBuilder extends AbstractVectorBuilder implements BytesRefVector.Builder {
+final class BytesRefVectorBuilder extends AbstractVectorBuilder implements BytesRefVector.Builder {
 
     private BytesRefArray values;
 

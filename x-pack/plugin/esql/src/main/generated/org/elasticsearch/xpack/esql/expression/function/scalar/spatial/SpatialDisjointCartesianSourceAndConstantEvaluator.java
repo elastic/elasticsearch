@@ -55,8 +55,8 @@ public final class SpatialDisjointCartesianSourceAndConstantEvaluator implements
   }
 
   public BooleanBlock eval(int positionCount, BytesRefBlock leftValueBlock) {
+    BytesRef leftValueScratch = new BytesRef();
     try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
-      BytesRef leftValueScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         if (leftValueBlock.isNull(p)) {
           result.appendNull();
@@ -81,8 +81,8 @@ public final class SpatialDisjointCartesianSourceAndConstantEvaluator implements
   }
 
   public BooleanBlock eval(int positionCount, BytesRefVector leftValueVector) {
+    BytesRef leftValueScratch = new BytesRef();
     try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
-      BytesRef leftValueScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         try {
           result.appendBoolean(SpatialDisjoint.processCartesianSourceAndConstant(leftValueVector.getBytesRef(p, leftValueScratch), rightValue));

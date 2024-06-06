@@ -67,12 +67,10 @@ public final class AbsLongEvaluator implements EvalOperator.ExpressionEvaluator 
   }
 
   public LongVector eval(int positionCount, LongVector fieldValVector) {
-    try(LongVector.Builder result = driverContext.blockFactory().newLongVectorBuilder(positionCount)) {
-      long[] buffer = result.values();
+    try(LongVector.FixedBuilder result = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        buffer[p] = Abs.process(fieldValVector.getLong(p));
+        result.appendLong(Abs.process(fieldValVector.getLong(p)), p);
       }
-      result.valueCount(positionCount);
       return result.build();
     }
   }

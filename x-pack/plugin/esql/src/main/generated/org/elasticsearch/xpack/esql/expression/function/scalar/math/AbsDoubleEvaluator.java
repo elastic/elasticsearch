@@ -67,12 +67,10 @@ public final class AbsDoubleEvaluator implements EvalOperator.ExpressionEvaluato
   }
 
   public DoubleVector eval(int positionCount, DoubleVector fieldValVector) {
-    try(DoubleVector.Builder result = driverContext.blockFactory().newDoubleVectorBuilder(positionCount)) {
-      double[] buffer = result.values();
+    try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        buffer[p] = Abs.process(fieldValVector.getDouble(p));
+        result.appendDouble(Abs.process(fieldValVector.getDouble(p)), p);
       }
-      result.valueCount(positionCount);
       return result.build();
     }
   }

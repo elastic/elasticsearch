@@ -63,8 +63,8 @@ public final class DateFormatEvaluator implements EvalOperator.ExpressionEvaluat
   }
 
   public BytesRefBlock eval(int positionCount, LongBlock valBlock, BytesRefBlock formatterBlock) {
+    BytesRef formatterScratch = new BytesRef();
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
-      BytesRef formatterScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         if (valBlock.isNull(p)) {
           result.appendNull();
@@ -96,8 +96,8 @@ public final class DateFormatEvaluator implements EvalOperator.ExpressionEvaluat
 
   public BytesRefVector eval(int positionCount, LongVector valVector,
       BytesRefVector formatterVector) {
+    BytesRef formatterScratch = new BytesRef();
     try(BytesRefVector.Builder result = driverContext.blockFactory().newBytesRefVectorBuilder(positionCount)) {
-      BytesRef formatterScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         result.appendBytesRef(DateFormat.process(valVector.getLong(p), formatterVector.getBytesRef(p, formatterScratch), locale));
       }

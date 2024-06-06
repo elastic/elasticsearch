@@ -72,8 +72,8 @@ public final class DateDiffEvaluator implements EvalOperator.ExpressionEvaluator
 
   public IntBlock eval(int positionCount, BytesRefBlock unitBlock, LongBlock startTimestampBlock,
       LongBlock endTimestampBlock) {
+    BytesRef unitScratch = new BytesRef();
     try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
-      BytesRef unitScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         if (unitBlock.isNull(p)) {
           result.appendNull();
@@ -121,8 +121,8 @@ public final class DateDiffEvaluator implements EvalOperator.ExpressionEvaluator
 
   public IntBlock eval(int positionCount, BytesRefVector unitVector,
       LongVector startTimestampVector, LongVector endTimestampVector) {
+    BytesRef unitScratch = new BytesRef();
     try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
-      BytesRef unitScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         try {
           result.appendInt(DateDiff.process(unitVector.getBytesRef(p, unitScratch), startTimestampVector.getLong(p), endTimestampVector.getLong(p)));

@@ -56,8 +56,8 @@ public final class GreatestBooleanEvaluator implements EvalOperator.ExpressionEv
   }
 
   public BooleanBlock eval(int positionCount, BooleanBlock[] valuesBlocks) {
+    boolean[] valuesValues = new boolean[values.length];
     try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
-      boolean[] valuesValues = new boolean[values.length];
       position: for (int p = 0; p < positionCount; p++) {
         for (int i = 0; i < valuesBlocks.length; i++) {
           if (valuesBlocks[i].isNull(p)) {
@@ -84,17 +84,15 @@ public final class GreatestBooleanEvaluator implements EvalOperator.ExpressionEv
   }
 
   public BooleanVector eval(int positionCount, BooleanVector[] valuesVectors) {
-    try(BooleanVector.Builder result = driverContext.blockFactory().newBooleanVectorBuilder(positionCount)) {
-      boolean[] valuesValues = new boolean[values.length];
-      boolean[] buffer = result.values();
+    boolean[] valuesValues = new boolean[values.length];
+    try(BooleanVector.FixedBuilder result = driverContext.blockFactory().newBooleanVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         // unpack valuesVectors into valuesValues
         for (int i = 0; i < valuesVectors.length; i++) {
           valuesValues[i] = valuesVectors[i].getBoolean(p);
         }
-        buffer[p] = Greatest.process(valuesValues);
+        result.appendBoolean(Greatest.process(valuesValues), p);
       }
-      result.valueCount(positionCount);
       return result.build();
     }
   }

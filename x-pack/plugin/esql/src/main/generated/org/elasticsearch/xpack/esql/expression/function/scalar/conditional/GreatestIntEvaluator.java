@@ -56,8 +56,8 @@ public final class GreatestIntEvaluator implements EvalOperator.ExpressionEvalua
   }
 
   public IntBlock eval(int positionCount, IntBlock[] valuesBlocks) {
+    int[] valuesValues = new int[values.length];
     try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
-      int[] valuesValues = new int[values.length];
       position: for (int p = 0; p < positionCount; p++) {
         for (int i = 0; i < valuesBlocks.length; i++) {
           if (valuesBlocks[i].isNull(p)) {
@@ -84,17 +84,15 @@ public final class GreatestIntEvaluator implements EvalOperator.ExpressionEvalua
   }
 
   public IntVector eval(int positionCount, IntVector[] valuesVectors) {
-    try(IntVector.Builder result = driverContext.blockFactory().newIntVectorBuilder(positionCount)) {
-      int[] valuesValues = new int[values.length];
-      int[] buffer = result.values();
+    int[] valuesValues = new int[values.length];
+    try(IntVector.FixedBuilder result = driverContext.blockFactory().newIntVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         // unpack valuesVectors into valuesValues
         for (int i = 0; i < valuesVectors.length; i++) {
           valuesValues[i] = valuesVectors[i].getInt(p);
         }
-        buffer[p] = Greatest.process(valuesValues);
+        result.appendInt(Greatest.process(valuesValues), p);
       }
-      result.valueCount(positionCount);
       return result.build();
     }
   }

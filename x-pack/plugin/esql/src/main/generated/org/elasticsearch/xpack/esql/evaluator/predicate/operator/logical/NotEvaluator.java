@@ -67,12 +67,10 @@ public final class NotEvaluator implements EvalOperator.ExpressionEvaluator {
   }
 
   public BooleanVector eval(int positionCount, BooleanVector vVector) {
-    try(BooleanVector.Builder result = driverContext.blockFactory().newBooleanVectorBuilder(positionCount)) {
-      boolean[] buffer = result.values();
+    try(BooleanVector.FixedBuilder result = driverContext.blockFactory().newBooleanVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        buffer[p] = Not.process(vVector.getBoolean(p));
+        result.appendBoolean(Not.process(vVector.getBoolean(p)), p);
       }
-      result.valueCount(positionCount);
       return result.build();
     }
   }

@@ -89,12 +89,10 @@ public final class EqualsLongsEvaluator implements EvalOperator.ExpressionEvalua
   }
 
   public BooleanVector eval(int positionCount, LongVector lhsVector, LongVector rhsVector) {
-    try(BooleanVector.Builder result = driverContext.blockFactory().newBooleanVectorBuilder(positionCount)) {
-      boolean[] buffer = result.values();
+    try(BooleanVector.FixedBuilder result = driverContext.blockFactory().newBooleanVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        buffer[p] = Equals.processLongs(lhsVector.getLong(p), rhsVector.getLong(p));
+        result.appendBoolean(Equals.processLongs(lhsVector.getLong(p), rhsVector.getLong(p)), p);
       }
-      result.valueCount(positionCount);
       return result.build();
     }
   }

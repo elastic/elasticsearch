@@ -71,12 +71,10 @@ public final class DateTruncEvaluator implements EvalOperator.ExpressionEvaluato
   }
 
   public LongVector eval(int positionCount, LongVector fieldValVector) {
-    try(LongVector.Builder result = driverContext.blockFactory().newLongVectorBuilder(positionCount)) {
-      long[] buffer = result.values();
+    try(LongVector.FixedBuilder result = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        buffer[p] = DateTrunc.process(fieldValVector.getLong(p), rounding);
+        result.appendLong(DateTrunc.process(fieldValVector.getLong(p), rounding), p);
       }
-      result.valueCount(positionCount);
       return result.build();
     }
   }

@@ -140,14 +140,6 @@ public sealed interface LongVector extends Vector permits ConstantLongVector, Lo
 
         @Override
         LongVector build();
-
-        default long[] values() {
-            throw new UnsupportedOperationException();
-        }
-
-        default public void valueCount(int val) {
-            throw new UnsupportedOperationException();
-        }
     }
 
     /**
@@ -159,5 +151,8 @@ public sealed interface LongVector extends Vector permits ConstantLongVector, Lo
          */
         @Override
         FixedBuilder appendLong(long value);
+
+        FixedBuilder appendLong(long value, int index);
+
     }
 }

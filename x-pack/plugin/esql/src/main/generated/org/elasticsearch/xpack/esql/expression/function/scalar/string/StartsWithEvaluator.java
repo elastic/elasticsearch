@@ -59,9 +59,9 @@ public final class StartsWithEvaluator implements EvalOperator.ExpressionEvaluat
   }
 
   public BooleanBlock eval(int positionCount, BytesRefBlock strBlock, BytesRefBlock prefixBlock) {
+    BytesRef strScratch = new BytesRef();
+    BytesRef prefixScratch = new BytesRef();
     try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
-      BytesRef strScratch = new BytesRef();
-      BytesRef prefixScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         if (strBlock.isNull(p)) {
           result.appendNull();
@@ -93,14 +93,12 @@ public final class StartsWithEvaluator implements EvalOperator.ExpressionEvaluat
 
   public BooleanVector eval(int positionCount, BytesRefVector strVector,
       BytesRefVector prefixVector) {
-    try(BooleanVector.Builder result = driverContext.blockFactory().newBooleanVectorBuilder(positionCount)) {
-      BytesRef strScratch = new BytesRef();
-      BytesRef prefixScratch = new BytesRef();
-      boolean[] buffer = result.values();
+    BytesRef strScratch = new BytesRef();
+    BytesRef prefixScratch = new BytesRef();
+    try(BooleanVector.FixedBuilder result = driverContext.blockFactory().newBooleanVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        buffer[p] = StartsWith.process(strVector.getBytesRef(p, strScratch), prefixVector.getBytesRef(p, prefixScratch));
+        result.appendBoolean(StartsWith.process(strVector.getBytesRef(p, strScratch), prefixVector.getBytesRef(p, prefixScratch)), p);
       }
-      result.valueCount(positionCount);
       return result.build();
     }
   }

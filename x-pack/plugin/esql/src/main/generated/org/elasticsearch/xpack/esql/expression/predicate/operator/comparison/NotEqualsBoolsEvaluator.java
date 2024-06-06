@@ -87,12 +87,10 @@ public final class NotEqualsBoolsEvaluator implements EvalOperator.ExpressionEva
   }
 
   public BooleanVector eval(int positionCount, BooleanVector lhsVector, BooleanVector rhsVector) {
-    try(BooleanVector.Builder result = driverContext.blockFactory().newBooleanVectorBuilder(positionCount)) {
-      boolean[] buffer = result.values();
+    try(BooleanVector.FixedBuilder result = driverContext.blockFactory().newBooleanVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        buffer[p] = NotEquals.processBools(lhsVector.getBoolean(p), rhsVector.getBoolean(p));
+        result.appendBoolean(NotEquals.processBools(lhsVector.getBoolean(p), rhsVector.getBoolean(p)), p);
       }
-      result.valueCount(positionCount);
       return result.build();
     }
   }

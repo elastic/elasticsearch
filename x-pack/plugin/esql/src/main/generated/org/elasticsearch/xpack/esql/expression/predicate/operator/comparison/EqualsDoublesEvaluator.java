@@ -89,12 +89,10 @@ public final class EqualsDoublesEvaluator implements EvalOperator.ExpressionEval
   }
 
   public BooleanVector eval(int positionCount, DoubleVector lhsVector, DoubleVector rhsVector) {
-    try(BooleanVector.Builder result = driverContext.blockFactory().newBooleanVectorBuilder(positionCount)) {
-      boolean[] buffer = result.values();
+    try(BooleanVector.FixedBuilder result = driverContext.blockFactory().newBooleanVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        buffer[p] = Equals.processDoubles(lhsVector.getDouble(p), rhsVector.getDouble(p));
+        result.appendBoolean(Equals.processDoubles(lhsVector.getDouble(p), rhsVector.getDouble(p)), p);
       }
-      result.valueCount(positionCount);
       return result.build();
     }
   }

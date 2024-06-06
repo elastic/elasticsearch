@@ -61,9 +61,9 @@ public final class SpatialWithinGeoSourceAndSourceEvaluator implements EvalOpera
 
   public BooleanBlock eval(int positionCount, BytesRefBlock leftValueBlock,
       BytesRefBlock rightValueBlock) {
+    BytesRef leftValueScratch = new BytesRef();
+    BytesRef rightValueScratch = new BytesRef();
     try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
-      BytesRef leftValueScratch = new BytesRef();
-      BytesRef rightValueScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         if (leftValueBlock.isNull(p)) {
           result.appendNull();
@@ -100,9 +100,9 @@ public final class SpatialWithinGeoSourceAndSourceEvaluator implements EvalOpera
 
   public BooleanBlock eval(int positionCount, BytesRefVector leftValueVector,
       BytesRefVector rightValueVector) {
+    BytesRef leftValueScratch = new BytesRef();
+    BytesRef rightValueScratch = new BytesRef();
     try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
-      BytesRef leftValueScratch = new BytesRef();
-      BytesRef rightValueScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         try {
           result.appendBoolean(SpatialWithin.processGeoSourceAndSource(leftValueVector.getBytesRef(p, leftValueScratch), rightValueVector.getBytesRef(p, rightValueScratch)));

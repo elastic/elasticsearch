@@ -20,7 +20,6 @@ import org.elasticsearch.compute.ann.Fixed;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Locale;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -53,6 +52,8 @@ import static org.elasticsearch.compute.gen.Types.SOURCE;
 import static org.elasticsearch.compute.gen.Types.WARNINGS;
 import static org.elasticsearch.compute.gen.Types.blockType;
 import static org.elasticsearch.compute.gen.Types.builderType;
+import static org.elasticsearch.compute.gen.Types.elementType;
+import static org.elasticsearch.compute.gen.Types.vectorFixedBuilderType;
 import static org.elasticsearch.compute.gen.Types.vectorType;
 
 public class EvaluatorImplementer {
@@ -174,47 +175,23 @@ public class EvaluatorImplementer {
             }
         });
 
-        TypeName builderType = builderType(resultDataType);
+        processFunction.args.stream().forEach(a -> a.createScratch(builder));
+
+        boolean vectorize = false;
+        if (blockStyle == false && processFunction.warnExceptions.isEmpty() && processOutputsMultivalued == false) {
+            ClassName type = processFunction.resultDataType(false);
+            vectorize = type.simpleName().startsWith("BytesRef") == false;
+        }
+
+        TypeName builderType = vectorize ? vectorFixedBuilderType(elementType(resultDataType)) : builderType(resultDataType);
         builder.beginControlFlow(
             "try($T result = driverContext.blockFactory().$L(positionCount))",
             builderType,
             buildFromFactory(builderType)
         );
         {
-            processFunction.args.stream().forEach(a -> a.createScratch(builder));
-
-            boolean vectorize = false;
-            String vectorBuilderName = null;
-            if (blockStyle == false && processFunction.warnExceptions.isEmpty() && processOutputsMultivalued == false) {
-                ClassName type = processFunction.resultDataType(false);
-                vectorize = type.simpleName().startsWith("BytesRef") == false;
-                if (vectorize) {
-                    String arrayType = type.simpleName()
-                        .substring(0, type.simpleName().length() - "Vector".length())
-                        .toLowerCase(Locale.ROOT);
-                    builder.addStatement(arrayType + "[] buffer = result.values()");
-                }
-            }
             builder.beginControlFlow("position: for (int p = 0; p < positionCount; p++)");
-            if (vectorize) {
-                processFunction.args.stream().forEach(a -> a.unpackValues(builder, blockStyle));
-
-                StringBuilder pattern = new StringBuilder();
-                List<Object> args = new ArrayList<>();
-                pattern.append("$T.$N(");
-                args.add(declarationType);
-                args.add(processFunction.function.getSimpleName());
-                processFunction.args.stream().forEach(a -> {
-                    if (args.size() > 2) {
-                        pattern.append(", ");
-                    }
-                    a.buildInvocation(pattern, args, blockStyle);
-                });
-                pattern.append(")");
-                String builtPattern = pattern.toString();
-
-                builder.addStatement("buffer[p] = " + builtPattern, args.toArray());
-            } else {
+            {
                 if (blockStyle) {
                     if (processOutputsMultivalued == false) {
                         processFunction.args.stream().forEach(a -> a.skipNull(builder));
@@ -257,7 +234,7 @@ public class EvaluatorImplementer {
                 pattern.append(")");
                 String builtPattern;
                 if (processFunction.builderArg == null) {
-                    builtPattern = "result.$L(" + pattern + ")";
+                    builtPattern = vectorize ? "result.$L(" + pattern + ", p)" : "result.$L(" + pattern + ")";
                     args.add(0, appendMethod(resultDataType));
                 } else {
                     builtPattern = pattern.toString();
@@ -277,15 +254,12 @@ public class EvaluatorImplementer {
                     builder.addStatement("result.appendNull()");
                     builder.endControlFlow();
                 }
-
             }
             builder.endControlFlow();
-            if (vectorize) {
-                builder.addStatement("result.valueCount(positionCount)");
-            }
             builder.addStatement("return result.build()");
-            builder.endControlFlow();
         }
+        builder.endControlFlow();
+
         return builder.build();
     }
 

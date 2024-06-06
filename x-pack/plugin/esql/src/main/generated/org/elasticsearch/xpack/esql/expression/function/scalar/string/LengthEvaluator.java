@@ -50,8 +50,8 @@ public final class LengthEvaluator implements EvalOperator.ExpressionEvaluator {
   }
 
   public IntBlock eval(int positionCount, BytesRefBlock valBlock) {
+    BytesRef valScratch = new BytesRef();
     try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
-      BytesRef valScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         if (valBlock.isNull(p)) {
           result.appendNull();
@@ -71,13 +71,11 @@ public final class LengthEvaluator implements EvalOperator.ExpressionEvaluator {
   }
 
   public IntVector eval(int positionCount, BytesRefVector valVector) {
-    try(IntVector.Builder result = driverContext.blockFactory().newIntVectorBuilder(positionCount)) {
-      BytesRef valScratch = new BytesRef();
-      int[] buffer = result.values();
+    BytesRef valScratch = new BytesRef();
+    try(IntVector.FixedBuilder result = driverContext.blockFactory().newIntVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        buffer[p] = Length.process(valVector.getBytesRef(p, valScratch));
+        result.appendInt(Length.process(valVector.getBytesRef(p, valScratch)), p);
       }
-      result.valueCount(positionCount);
       return result.build();
     }
   }

@@ -13,18 +13,9 @@ import java.util.Arrays;
  * Builder for {@link LongVector}s that grows as needed.
  * This class is generated. Do not edit it.
  */
-public final class LongVectorBuilder extends AbstractVectorBuilder implements LongVector.Builder {
+final class LongVectorBuilder extends AbstractVectorBuilder implements LongVector.Builder {
 
     private long[] values;
-
-    public long[] values() {
-        return values;
-    }
-
-    public void valueCount(int val) {
-        assert values.length >= val;
-        this.valueCount = val;
-    }
 
     LongVectorBuilder(int estimatedSize, BlockFactory blockFactory) {
         super(blockFactory);

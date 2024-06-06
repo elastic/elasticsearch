@@ -68,13 +68,13 @@ public final class CIDRMatchEvaluator implements EvalOperator.ExpressionEvaluato
   }
 
   public BooleanBlock eval(int positionCount, BytesRefBlock ipBlock, BytesRefBlock[] cidrsBlocks) {
+    BytesRef ipScratch = new BytesRef();
+    BytesRef[] cidrsValues = new BytesRef[cidrs.length];
+    BytesRef[] cidrsScratch = new BytesRef[cidrs.length];
+    for (int i = 0; i < cidrs.length; i++) {
+      cidrsScratch[i] = new BytesRef();
+    }
     try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
-      BytesRef ipScratch = new BytesRef();
-      BytesRef[] cidrsValues = new BytesRef[cidrs.length];
-      BytesRef[] cidrsScratch = new BytesRef[cidrs.length];
-      for (int i = 0; i < cidrs.length; i++) {
-        cidrsScratch[i] = new BytesRef();
-      }
       position: for (int p = 0; p < positionCount; p++) {
         if (ipBlock.isNull(p)) {
           result.appendNull();
@@ -113,22 +113,20 @@ public final class CIDRMatchEvaluator implements EvalOperator.ExpressionEvaluato
 
   public BooleanVector eval(int positionCount, BytesRefVector ipVector,
       BytesRefVector[] cidrsVectors) {
-    try(BooleanVector.Builder result = driverContext.blockFactory().newBooleanVectorBuilder(positionCount)) {
-      BytesRef ipScratch = new BytesRef();
-      BytesRef[] cidrsValues = new BytesRef[cidrs.length];
-      BytesRef[] cidrsScratch = new BytesRef[cidrs.length];
-      for (int i = 0; i < cidrs.length; i++) {
-        cidrsScratch[i] = new BytesRef();
-      }
-      boolean[] buffer = result.values();
+    BytesRef ipScratch = new BytesRef();
+    BytesRef[] cidrsValues = new BytesRef[cidrs.length];
+    BytesRef[] cidrsScratch = new BytesRef[cidrs.length];
+    for (int i = 0; i < cidrs.length; i++) {
+      cidrsScratch[i] = new BytesRef();
+    }
+    try(BooleanVector.FixedBuilder result = driverContext.blockFactory().newBooleanVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         // unpack cidrsVectors into cidrsValues
         for (int i = 0; i < cidrsVectors.length; i++) {
           cidrsValues[i] = cidrsVectors[i].getBytesRef(p, cidrsScratch[i]);
         }
-        buffer[p] = CIDRMatch.process(ipVector.getBytesRef(p, ipScratch), cidrsValues);
+        result.appendBoolean(CIDRMatch.process(ipVector.getBytesRef(p, ipScratch), cidrsValues), p);
       }
-      result.valueCount(positionCount);
       return result.build();
     }
   }

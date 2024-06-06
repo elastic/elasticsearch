@@ -87,12 +87,10 @@ public final class RoundLongEvaluator implements EvalOperator.ExpressionEvaluato
   }
 
   public LongVector eval(int positionCount, LongVector valVector, LongVector decimalsVector) {
-    try(LongVector.Builder result = driverContext.blockFactory().newLongVectorBuilder(positionCount)) {
-      long[] buffer = result.values();
+    try(LongVector.FixedBuilder result = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        buffer[p] = Round.process(valVector.getLong(p), decimalsVector.getLong(p));
+        result.appendLong(Round.process(valVector.getLong(p), decimalsVector.getLong(p)), p);
       }
-      result.valueCount(positionCount);
       return result.build();
     }
   }

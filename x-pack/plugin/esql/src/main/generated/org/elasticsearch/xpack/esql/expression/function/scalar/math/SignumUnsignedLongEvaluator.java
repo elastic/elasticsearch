@@ -69,12 +69,10 @@ public final class SignumUnsignedLongEvaluator implements EvalOperator.Expressio
   }
 
   public DoubleVector eval(int positionCount, LongVector valVector) {
-    try(DoubleVector.Builder result = driverContext.blockFactory().newDoubleVectorBuilder(positionCount)) {
-      double[] buffer = result.values();
+    try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        buffer[p] = Signum.processUnsignedLong(valVector.getLong(p));
+        result.appendDouble(Signum.processUnsignedLong(valVector.getLong(p)), p);
       }
-      result.valueCount(positionCount);
       return result.build();
     }
   }

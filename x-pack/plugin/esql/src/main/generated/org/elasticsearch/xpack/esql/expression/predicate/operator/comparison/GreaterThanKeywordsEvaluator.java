@@ -59,9 +59,9 @@ public final class GreaterThanKeywordsEvaluator implements EvalOperator.Expressi
   }
 
   public BooleanBlock eval(int positionCount, BytesRefBlock lhsBlock, BytesRefBlock rhsBlock) {
+    BytesRef lhsScratch = new BytesRef();
+    BytesRef rhsScratch = new BytesRef();
     try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
-      BytesRef lhsScratch = new BytesRef();
-      BytesRef rhsScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         if (lhsBlock.isNull(p)) {
           result.appendNull();
@@ -92,14 +92,12 @@ public final class GreaterThanKeywordsEvaluator implements EvalOperator.Expressi
   }
 
   public BooleanVector eval(int positionCount, BytesRefVector lhsVector, BytesRefVector rhsVector) {
-    try(BooleanVector.Builder result = driverContext.blockFactory().newBooleanVectorBuilder(positionCount)) {
-      BytesRef lhsScratch = new BytesRef();
-      BytesRef rhsScratch = new BytesRef();
-      boolean[] buffer = result.values();
+    BytesRef lhsScratch = new BytesRef();
+    BytesRef rhsScratch = new BytesRef();
+    try(BooleanVector.FixedBuilder result = driverContext.blockFactory().newBooleanVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        buffer[p] = GreaterThan.processKeywords(lhsVector.getBytesRef(p, lhsScratch), rhsVector.getBytesRef(p, rhsScratch));
+        result.appendBoolean(GreaterThan.processKeywords(lhsVector.getBytesRef(p, lhsScratch), rhsVector.getBytesRef(p, rhsScratch)), p);
       }
-      result.valueCount(positionCount);
       return result.build();
     }
   }

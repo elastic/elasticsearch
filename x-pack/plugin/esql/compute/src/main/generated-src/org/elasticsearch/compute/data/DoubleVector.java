@@ -140,14 +140,6 @@ public sealed interface DoubleVector extends Vector permits ConstantDoubleVector
 
         @Override
         DoubleVector build();
-
-        default double[] values() {
-            throw new UnsupportedOperationException();
-        }
-
-        default public void valueCount(int val) {
-            throw new UnsupportedOperationException();
-        }
     }
 
     /**
@@ -159,5 +151,8 @@ public sealed interface DoubleVector extends Vector permits ConstantDoubleVector
          */
         @Override
         FixedBuilder appendDouble(double value);
+
+        FixedBuilder appendDouble(double value, int index);
+
     }
 }

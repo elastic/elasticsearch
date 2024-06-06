@@ -230,14 +230,6 @@ $endif$
 
         @Override
         $Type$Vector build();
-
-        default $type$[] values() {
-            throw new UnsupportedOperationException();
-        }
-
-        default public void valueCount(int val) {
-            throw new UnsupportedOperationException();
-        }
     }
 
 $if(BytesRef)$
@@ -251,6 +243,9 @@ $else$
          */
         @Override
         FixedBuilder append$Type$($type$ value);
+
+        FixedBuilder append$Type$($type$ value, int index);
+
     }
 $endif$
 }

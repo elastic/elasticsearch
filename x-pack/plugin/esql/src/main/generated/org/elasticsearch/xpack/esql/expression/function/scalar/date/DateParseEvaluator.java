@@ -62,9 +62,9 @@ public final class DateParseEvaluator implements EvalOperator.ExpressionEvaluato
   }
 
   public LongBlock eval(int positionCount, BytesRefBlock valBlock, BytesRefBlock formatterBlock) {
+    BytesRef valScratch = new BytesRef();
+    BytesRef formatterScratch = new BytesRef();
     try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
-      BytesRef valScratch = new BytesRef();
-      BytesRef formatterScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         if (valBlock.isNull(p)) {
           result.appendNull();
@@ -101,9 +101,9 @@ public final class DateParseEvaluator implements EvalOperator.ExpressionEvaluato
 
   public LongBlock eval(int positionCount, BytesRefVector valVector,
       BytesRefVector formatterVector) {
+    BytesRef valScratch = new BytesRef();
+    BytesRef formatterScratch = new BytesRef();
     try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
-      BytesRef valScratch = new BytesRef();
-      BytesRef formatterScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         try {
           result.appendLong(DateParse.process(valVector.getBytesRef(p, valScratch), formatterVector.getBytesRef(p, formatterScratch), zoneId));

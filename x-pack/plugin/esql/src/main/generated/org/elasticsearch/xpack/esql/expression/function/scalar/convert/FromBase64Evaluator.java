@@ -53,8 +53,8 @@ public final class FromBase64Evaluator implements EvalOperator.ExpressionEvaluat
   }
 
   public BytesRefBlock eval(int positionCount, BytesRefBlock fieldBlock) {
+    BytesRef fieldScratch = new BytesRef();
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
-      BytesRef fieldScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         if (fieldBlock.isNull(p)) {
           result.appendNull();
@@ -74,8 +74,8 @@ public final class FromBase64Evaluator implements EvalOperator.ExpressionEvaluat
   }
 
   public BytesRefVector eval(int positionCount, BytesRefVector fieldVector) {
+    BytesRef fieldScratch = new BytesRef();
     try(BytesRefVector.Builder result = driverContext.blockFactory().newBytesRefVectorBuilder(positionCount)) {
-      BytesRef fieldScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         result.appendBytesRef(FromBase64.process(fieldVector.getBytesRef(p, fieldScratch), oScratch));
       }

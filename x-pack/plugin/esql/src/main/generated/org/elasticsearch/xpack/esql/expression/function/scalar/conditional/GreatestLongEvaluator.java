@@ -56,8 +56,8 @@ public final class GreatestLongEvaluator implements EvalOperator.ExpressionEvalu
   }
 
   public LongBlock eval(int positionCount, LongBlock[] valuesBlocks) {
+    long[] valuesValues = new long[values.length];
     try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
-      long[] valuesValues = new long[values.length];
       position: for (int p = 0; p < positionCount; p++) {
         for (int i = 0; i < valuesBlocks.length; i++) {
           if (valuesBlocks[i].isNull(p)) {
@@ -84,17 +84,15 @@ public final class GreatestLongEvaluator implements EvalOperator.ExpressionEvalu
   }
 
   public LongVector eval(int positionCount, LongVector[] valuesVectors) {
-    try(LongVector.Builder result = driverContext.blockFactory().newLongVectorBuilder(positionCount)) {
-      long[] valuesValues = new long[values.length];
-      long[] buffer = result.values();
+    long[] valuesValues = new long[values.length];
+    try(LongVector.FixedBuilder result = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         // unpack valuesVectors into valuesValues
         for (int i = 0; i < valuesVectors.length; i++) {
           valuesValues[i] = valuesVectors[i].getLong(p);
         }
-        buffer[p] = Greatest.process(valuesValues);
+        result.appendLong(Greatest.process(valuesValues), p);
       }
-      result.valueCount(positionCount);
       return result.build();
     }
   }

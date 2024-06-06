@@ -62,9 +62,9 @@ public final class ReplaceConstantEvaluator implements EvalOperator.ExpressionEv
   }
 
   public BytesRefBlock eval(int positionCount, BytesRefBlock strBlock, BytesRefBlock newStrBlock) {
+    BytesRef strScratch = new BytesRef();
+    BytesRef newStrScratch = new BytesRef();
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
-      BytesRef strScratch = new BytesRef();
-      BytesRef newStrScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         if (strBlock.isNull(p)) {
           result.appendNull();
@@ -101,9 +101,9 @@ public final class ReplaceConstantEvaluator implements EvalOperator.ExpressionEv
 
   public BytesRefBlock eval(int positionCount, BytesRefVector strVector,
       BytesRefVector newStrVector) {
+    BytesRef strScratch = new BytesRef();
+    BytesRef newStrScratch = new BytesRef();
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
-      BytesRef strScratch = new BytesRef();
-      BytesRef newStrScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         try {
           result.appendBytesRef(Replace.process(strVector.getBytesRef(p, strScratch), regex, newStrVector.getBytesRef(p, newStrScratch)));

@@ -13,18 +13,9 @@ import java.util.Arrays;
  * Builder for {@link IntVector}s that grows as needed.
  * This class is generated. Do not edit it.
  */
-public final class IntVectorBuilder extends AbstractVectorBuilder implements IntVector.Builder {
+final class IntVectorBuilder extends AbstractVectorBuilder implements IntVector.Builder {
 
     private int[] values;
-
-    public int[] values() {
-        return values;
-    }
-
-    public void valueCount(int val) {
-        assert values.length >= val;
-        this.valueCount = val;
-    }
 
     IntVectorBuilder(int estimatedSize, BlockFactory blockFactory) {
         super(blockFactory);

@@ -13,18 +13,9 @@ import java.util.Arrays;
  * Builder for {@link DoubleVector}s that grows as needed.
  * This class is generated. Do not edit it.
  */
-public final class DoubleVectorBuilder extends AbstractVectorBuilder implements DoubleVector.Builder {
+final class DoubleVectorBuilder extends AbstractVectorBuilder implements DoubleVector.Builder {
 
     private double[] values;
-
-    public double[] values() {
-        return values;
-    }
-
-    public void valueCount(int val) {
-        assert values.length >= val;
-        this.valueCount = val;
-    }
 
     DoubleVectorBuilder(int estimatedSize, BlockFactory blockFactory) {
         super(blockFactory);

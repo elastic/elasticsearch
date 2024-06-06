@@ -22,6 +22,9 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskCancellationService;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
@@ -31,11 +34,18 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 
 public class RemoteClusterAwareClientTests extends ESTestCase {
 
@@ -62,57 +72,69 @@ public class RemoteClusterAwareClientTests extends ESTestCase {
         );
     }
 
-    public void testX() throws Exception {
-        List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
-        try (
-                MockTransportService seedTransport = startTransport("seed_node", knownNodes);
-                MockTransportService discoverableTransport = startTransport("discoverable_node", knownNodes)
-        ) {
-            knownNodes.add(seedTransport.getLocalDiscoNode());
-            knownNodes.add(discoverableTransport.getLocalDiscoNode());
-            Collections.shuffle(knownNodes, random());
+    public void testRemoteTaskCancellationOnFailedResponse() throws Exception {
+        try (MockTransportService remoteTransport = startTransport("seed_node", new CopyOnWriteArrayList<>())) {
+            remoteTransport.getTaskManager().setTaskCancellationService(new TaskCancellationService(remoteTransport));
             Settings.Builder builder = Settings.builder();
-            builder.putList("cluster.remote.cluster1.seeds", seedTransport.getLocalDiscoNode().getAddress().toString());
+            builder.putList("cluster.remote.cluster1.seeds", remoteTransport.getLocalDiscoNode().getAddress().toString());
             try (
-                    MockTransportService service = MockTransportService.createNewService(
-                            builder.build(),
-                            VersionInformation.CURRENT,
-                            TransportVersion.current(),
-                            threadPool,
-                            null
-                    )
+                MockTransportService service = MockTransportService.createNewService(
+                    builder.build(),
+                    VersionInformation.CURRENT,
+                    TransportVersion.current(),
+                    threadPool,
+                    null
+                )
             ) {
+                // the TaskCancellationService references the same TransportService instance
+                // this is identically to how it works in the Node constructor
+                service.getTaskManager().setTaskCancellationService(new TaskCancellationService(service));
                 service.start();
                 service.acceptIncomingRequests();
 
-                final var client = new RemoteClusterAwareClient(
-                        service,
-                        "cluster1",
-                        threadPool.executor(TEST_THREAD_POOL_NAME),
-                        randomBoolean()
-                );
                 SearchShardsRequest searchShardsRequest = new SearchShardsRequest(
-                        new String[] { "test-index" },
-                        IndicesOptions.strictExpandOpen(),
-                        new MatchAllQueryBuilder(),
-                        null,
-                        null,
-                        randomBoolean(),
-                        null
+                    new String[] { "test-index" },
+                    IndicesOptions.strictExpandOpen(),
+                    new MatchAllQueryBuilder(),
+                    null,
+                    "index_not_found", // this request must fail
+                    randomBoolean(),
+                    null
                 );
-                final SearchShardsResponse searchShardsResponse = PlainActionFuture.get(
-                        future -> client.execute(
-                                TransportSearchShardsAction.REMOTE_TYPE,
-                                searchShardsRequest,
-                                ActionListener.runBefore(
-                                        future,
-                                        () -> assertTrue(Thread.currentThread().getName().contains('[' + TEST_THREAD_POOL_NAME + ']'))
-                                )
-                        ),
-                        10,
-                        TimeUnit.SECONDS
+                Task parentTask = service.getTaskManager().register("test_type", "test_action", searchShardsRequest);
+                TaskId parentTaskId = new TaskId("test-mock-node-id", parentTask.getId());
+                searchShardsRequest.setParentTask(parentTaskId);
+                var client = new RemoteClusterAwareClient(service, "cluster1", threadPool.executor(TEST_THREAD_POOL_NAME), randomBoolean());
+
+                AtomicBoolean cancelChildReceived = new AtomicBoolean(false);
+                remoteTransport.addRequestHandlingBehavior(
+                    TaskCancellationService.CANCEL_CHILD_ACTION_NAME,
+                    (handler, request, channel, task) -> {
+                        cancelChildReceived.set(true);
+                        handler.messageReceived(request, channel, task);
+                    }
                 );
-                assertThat(searchShardsResponse.getNodes(), equalTo(knownNodes));
+                AtomicLong searchShardsRequestId = new AtomicLong(-1);
+                AtomicBoolean cancelChildSent = new AtomicBoolean(false);
+                service.addSendBehavior(remoteTransport, (connection, requestId, action, request, options) -> {
+                    if (action.equals("indices:admin/search/search_shards")) {
+                        searchShardsRequestId.set(requestId);
+                    } else if (action.equals(TaskCancellationService.CANCEL_CHILD_ACTION_NAME)) {
+                        cancelChildSent.set(true);
+                    }
+                    connection.sendRequest(requestId, action, request, options);
+                });
+
+                // assert original request failed
+                var future = new PlainActionFuture<SearchShardsResponse>();
+                client.execute(TransportSearchShardsAction.REMOTE_TYPE, searchShardsRequest, future);
+                ExecutionException e = expectThrows(ExecutionException.class, future::get);
+                assertThat(e.getCause(), instanceOf(RemoteTransportException.class));
+
+                // assert remote task is cancelled
+                assertBusy(cancelChildSent::get);
+                assertBusy(cancelChildReceived::get);
+                verify(remoteTransport.getTaskManager()).cancelChildLocal(eq(parentTaskId), eq(searchShardsRequestId.get()), anyString());
             }
         }
     }

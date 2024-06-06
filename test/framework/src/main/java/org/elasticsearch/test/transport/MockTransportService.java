@@ -80,6 +80,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static org.junit.Assert.assertNotNull;
+import static org.mockito.Mockito.spy;
 
 /**
  * A mock delegate service that allows to simulate different network topology failures.
@@ -312,9 +313,9 @@ public class MockTransportService extends TransportService {
 
     private static TaskManager createTaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders, Tracer tracer) {
         if (MockTaskManager.USE_MOCK_TASK_MANAGER_SETTING.get(settings)) {
-            return new MockTaskManager(settings, threadPool, taskHeaders);
+            return spy(new MockTaskManager(settings, threadPool, taskHeaders));
         } else {
-            return new TaskManager(settings, threadPool, taskHeaders, tracer);
+            return spy(new TaskManager(settings, threadPool, taskHeaders, tracer));
         }
     }
 

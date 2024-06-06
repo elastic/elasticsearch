@@ -29,7 +29,7 @@ import java.util.Objects;
  * - nestedParent - if nested, what's the parent (which might not be the immediate one)
  */
 public class FieldAttribute extends TypedAttribute {
-    static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Attribute.class,
         "FieldAttribute",
         FieldAttribute::new

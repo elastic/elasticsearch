@@ -20,7 +20,7 @@ import java.io.IOException;
  * Attribute based on a reference to an expression.
  */
 public class ReferenceAttribute extends TypedAttribute {
-    static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Attribute.class,
         "ReferenceAttribute",
         ReferenceAttribute::new

@@ -26,7 +26,7 @@ import java.util.Objects;
 import static org.elasticsearch.core.Tuple.tuple;
 
 public class MetadataAttribute extends TypedAttribute {
-    static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Attribute.class,
         "MetadataAttribute",
         MetadataAttribute::new

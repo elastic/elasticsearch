@@ -91,7 +91,7 @@ public final class GreatestBooleanEvaluator implements EvalOperator.ExpressionEv
         for (int i = 0; i < valuesVectors.length; i++) {
           valuesValues[i] = valuesVectors[i].getBoolean(p);
         }
-        result.appendBoolean(Greatest.process(valuesValues), p);
+        result.appendBoolean(p, Greatest.process(valuesValues));
       }
       return result.build();
     }

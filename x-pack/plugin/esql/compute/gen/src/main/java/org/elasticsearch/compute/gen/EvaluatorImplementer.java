@@ -234,7 +234,7 @@ public class EvaluatorImplementer {
                 pattern.append(")");
                 String builtPattern;
                 if (processFunction.builderArg == null) {
-                    builtPattern = vectorize ? "result.$L(" + pattern + ", p)" : "result.$L(" + pattern + ")";
+                    builtPattern = vectorize ? "result.$L(p, " + pattern + ")" : "result.$L(" + pattern + ")";
                     args.add(0, appendMethod(resultDataType));
                 } else {
                     builtPattern = pattern.toString();

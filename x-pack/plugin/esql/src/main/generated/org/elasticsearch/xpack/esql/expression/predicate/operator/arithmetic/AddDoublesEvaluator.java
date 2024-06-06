@@ -89,7 +89,7 @@ public final class AddDoublesEvaluator implements EvalOperator.ExpressionEvaluat
   public DoubleVector eval(int positionCount, DoubleVector lhsVector, DoubleVector rhsVector) {
     try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendDouble(Add.processDoubles(lhsVector.getDouble(p), rhsVector.getDouble(p)), p);
+        result.appendDouble(p, Add.processDoubles(lhsVector.getDouble(p), rhsVector.getDouble(p)));
       }
       return result.build();
     }

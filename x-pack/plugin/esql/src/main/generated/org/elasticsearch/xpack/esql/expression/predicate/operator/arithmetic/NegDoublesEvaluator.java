@@ -69,7 +69,7 @@ public final class NegDoublesEvaluator implements EvalOperator.ExpressionEvaluat
   public DoubleVector eval(int positionCount, DoubleVector vVector) {
     try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendDouble(Neg.processDoubles(vVector.getDouble(p)), p);
+        result.appendDouble(p, Neg.processDoubles(vVector.getDouble(p)));
       }
       return result.build();
     }

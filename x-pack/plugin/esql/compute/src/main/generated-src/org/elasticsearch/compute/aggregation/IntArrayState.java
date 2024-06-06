@@ -60,7 +60,7 @@ final class IntArrayState extends AbstractArrayState implements GroupingAggregat
         if (false == trackingGroupIds()) {
             try (var builder = driverContext.blockFactory().newIntVectorFixedBuilder(selected.getPositionCount())) {
                 for (int i = 0; i < selected.getPositionCount(); i++) {
-                    builder.appendInt(values.get(selected.getInt(i)), i);
+                    builder.appendInt(i, values.get(selected.getInt(i)));
                 }
                 return builder.build().asBlock();
             }
@@ -106,7 +106,7 @@ final class IntArrayState extends AbstractArrayState implements GroupingAggregat
                 } else {
                     valuesBuilder.appendInt(0); // TODO can we just use null?
                 }
-                hasValueBuilder.appendBoolean(hasValue(group), i);
+                hasValueBuilder.appendBoolean(i, hasValue(group));
             }
             blocks[offset + 0] = valuesBuilder.build();
             blocks[offset + 1] = hasValueBuilder.build().asBlock();

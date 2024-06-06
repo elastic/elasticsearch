@@ -614,9 +614,9 @@ public class OrdinalsGroupingOperator implements Operator {
             try (IntVector.FixedBuilder builder = blockFactory.newIntVectorFixedBuilder(positionCount)) {
                 for (int p = 0; p < positionCount; p++) {
                     if (sortedDocValues.advanceExact(docs.getInt(p))) {
-                        builder.appendInt(sortedDocValues.ordValue() + 1, p);
+                        builder.appendInt(p, sortedDocValues.ordValue() + 1);
                     } else {
-                        builder.appendInt(0, p);
+                        builder.appendInt(p, 0);
                     }
                 }
                 return builder.build().asBlock();

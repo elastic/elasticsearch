@@ -89,7 +89,7 @@ final class BytesRef3BlockHash extends BlockHash {
             try (IntVector k1 = hash1.add(v1); IntVector k2 = hash2.add(v2); IntVector k3 = hash3.add(v3)) {
                 for (int p = 0; p < positionCount; p++) {
                     long ord = hashOrdToGroup(finalHash.add(k1.getInt(p), k2.getInt(p), k3.getInt(p)));
-                    ordsBuilder.appendInt(Math.toIntExact(ord), p);
+                    ordsBuilder.appendInt(p, Math.toIntExact(ord));
                 }
             }
             try (IntVector ords = ordsBuilder.build()) {

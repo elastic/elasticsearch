@@ -91,7 +91,7 @@ public final class LeastLongEvaluator implements EvalOperator.ExpressionEvaluato
         for (int i = 0; i < valuesVectors.length; i++) {
           valuesValues[i] = valuesVectors[i].getLong(p);
         }
-        result.appendLong(Least.process(valuesValues), p);
+        result.appendLong(p, Least.process(valuesValues));
       }
       return result.build();
     }

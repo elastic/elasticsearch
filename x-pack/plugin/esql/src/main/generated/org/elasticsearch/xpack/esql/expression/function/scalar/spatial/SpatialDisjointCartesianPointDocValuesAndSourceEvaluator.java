@@ -99,7 +99,7 @@ public final class SpatialDisjointCartesianPointDocValuesAndSourceEvaluator impl
     try(BooleanVector.FixedBuilder result = driverContext.blockFactory().newBooleanVectorFixedBuilder(positionCount)) {
       BytesRef rightValueScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendBoolean(SpatialDisjoint.processCartesianPointDocValuesAndSource(leftValueVector.getLong(p), rightValueVector.getBytesRef(p, rightValueScratch)), p);
+        result.appendBoolean(p, SpatialDisjoint.processCartesianPointDocValuesAndSource(leftValueVector.getLong(p), rightValueVector.getBytesRef(p, rightValueScratch)));
       }
       return result.build();
     }

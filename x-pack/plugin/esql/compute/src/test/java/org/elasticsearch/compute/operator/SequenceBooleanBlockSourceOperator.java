@@ -39,7 +39,7 @@ public class SequenceBooleanBlockSourceOperator extends AbstractBlockSourceOpera
     protected Page createPage(int positionOffset, int length) {
         try (BooleanVector.FixedBuilder builder = blockFactory.newBooleanVectorFixedBuilder(length)) {
             for (int i = 0; i < length; i++) {
-                builder.appendBoolean(values[positionOffset + i], i);
+                builder.appendBoolean(i, values[positionOffset + i]);
             }
             currentPosition += length;
             return new Page(builder.build().asBlock());

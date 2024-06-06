@@ -76,7 +76,7 @@ $endif$
         if (false == trackingGroupIds()) {
             try (var builder = driverContext.blockFactory().new$Type$VectorFixedBuilder(selected.getPositionCount())) {
                 for (int i = 0; i < selected.getPositionCount(); i++) {
-                    builder.append$Type$(values.get(selected.getInt(i)), i);
+                    builder.append$Type$(i, values.get(selected.getInt(i)));
                 }
                 return builder.build().asBlock();
             }
@@ -122,7 +122,7 @@ $endif$
                 } else {
                     valuesBuilder.append$Type$(0); // TODO can we just use null?
                 }
-                hasValueBuilder.appendBoolean(hasValue(group), i);
+                hasValueBuilder.appendBoolean(i, hasValue(group));
             }
             blocks[offset + 0] = valuesBuilder.build();
             blocks[offset + 1] = hasValueBuilder.build().asBlock();

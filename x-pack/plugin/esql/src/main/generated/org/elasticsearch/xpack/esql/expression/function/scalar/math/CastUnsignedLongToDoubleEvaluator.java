@@ -71,7 +71,7 @@ public final class CastUnsignedLongToDoubleEvaluator implements EvalOperator.Exp
   public DoubleVector eval(int positionCount, LongVector vVector) {
     try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendDouble(Cast.castUnsignedLongToDouble(vVector.getLong(p)), p);
+        result.appendDouble(p, Cast.castUnsignedLongToDouble(vVector.getLong(p)));
       }
       return result.build();
     }

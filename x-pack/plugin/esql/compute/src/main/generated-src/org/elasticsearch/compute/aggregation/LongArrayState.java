@@ -66,7 +66,7 @@ final class LongArrayState extends AbstractArrayState implements GroupingAggrega
         if (false == trackingGroupIds()) {
             try (var builder = driverContext.blockFactory().newLongVectorFixedBuilder(selected.getPositionCount())) {
                 for (int i = 0; i < selected.getPositionCount(); i++) {
-                    builder.appendLong(values.get(selected.getInt(i)), i);
+                    builder.appendLong(i, values.get(selected.getInt(i)));
                 }
                 return builder.build().asBlock();
             }
@@ -112,7 +112,7 @@ final class LongArrayState extends AbstractArrayState implements GroupingAggrega
                 } else {
                     valuesBuilder.appendLong(0); // TODO can we just use null?
                 }
-                hasValueBuilder.appendBoolean(hasValue(group), i);
+                hasValueBuilder.appendBoolean(i, hasValue(group));
             }
             blocks[offset + 0] = valuesBuilder.build();
             blocks[offset + 1] = hasValueBuilder.build().asBlock();

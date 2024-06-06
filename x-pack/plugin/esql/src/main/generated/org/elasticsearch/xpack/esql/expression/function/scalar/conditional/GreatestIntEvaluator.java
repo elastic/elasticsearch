@@ -91,7 +91,7 @@ public final class GreatestIntEvaluator implements EvalOperator.ExpressionEvalua
         for (int i = 0; i < valuesVectors.length; i++) {
           valuesValues[i] = valuesVectors[i].getInt(p);
         }
-        result.appendInt(Greatest.process(valuesValues), p);
+        result.appendInt(p, Greatest.process(valuesValues));
       }
       return result.build();
     }

@@ -71,7 +71,7 @@ public final class SqrtUnsignedLongEvaluator implements EvalOperator.ExpressionE
   public DoubleVector eval(int positionCount, LongVector valVector) {
     try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendDouble(Sqrt.processUnsignedLong(valVector.getLong(p)), p);
+        result.appendDouble(p, Sqrt.processUnsignedLong(valVector.getLong(p)));
       }
       return result.build();
     }

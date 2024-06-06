@@ -41,7 +41,7 @@ final class LongVectorFixedBuilder implements LongVector.FixedBuilder {
     }
 
     @Override
-    public LongVectorFixedBuilder appendLong(long value, int idx) {
+    public LongVectorFixedBuilder appendLong(int idx, long value) {
         values[idx] = value;
         return this;
     }

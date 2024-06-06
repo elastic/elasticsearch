@@ -290,11 +290,11 @@ public class RateLongAggregator {
                         }
                         values.endPositionEntry();
 
-                        resets.appendDouble(state.reset, i);
+                        resets.appendDouble(i, state.reset);
                     } else {
                         timestamps.appendNull();
                         values.appendNull();
-                        resets.appendDouble(0, i);
+                        resets.appendDouble(i, 0);
                     }
                 }
                 blocks[offset] = timestamps.build();

@@ -97,7 +97,7 @@ public final class StartsWithEvaluator implements EvalOperator.ExpressionEvaluat
       BytesRef strScratch = new BytesRef();
       BytesRef prefixScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendBoolean(StartsWith.process(strVector.getBytesRef(p, strScratch), prefixVector.getBytesRef(p, prefixScratch)), p);
+        result.appendBoolean(p, StartsWith.process(strVector.getBytesRef(p, strScratch), prefixVector.getBytesRef(p, prefixScratch)));
       }
       return result.build();
     }

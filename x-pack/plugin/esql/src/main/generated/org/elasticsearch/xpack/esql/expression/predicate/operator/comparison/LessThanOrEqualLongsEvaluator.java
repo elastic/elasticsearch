@@ -91,7 +91,7 @@ public final class LessThanOrEqualLongsEvaluator implements EvalOperator.Express
   public BooleanVector eval(int positionCount, LongVector lhsVector, LongVector rhsVector) {
     try(BooleanVector.FixedBuilder result = driverContext.blockFactory().newBooleanVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendBoolean(LessThanOrEqual.processLongs(lhsVector.getLong(p), rhsVector.getLong(p)), p);
+        result.appendBoolean(p, LessThanOrEqual.processLongs(lhsVector.getLong(p), rhsVector.getLong(p)));
       }
       return result.build();
     }

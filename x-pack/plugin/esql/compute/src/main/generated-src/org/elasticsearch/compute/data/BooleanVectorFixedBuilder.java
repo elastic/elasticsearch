@@ -41,7 +41,7 @@ final class BooleanVectorFixedBuilder implements BooleanVector.FixedBuilder {
     }
 
     @Override
-    public BooleanVectorFixedBuilder appendBoolean(boolean value, int idx) {
+    public BooleanVectorFixedBuilder appendBoolean(int idx, boolean value) {
         values[idx] = value;
         return this;
     }

@@ -91,7 +91,7 @@ public final class LessThanOrEqualDoublesEvaluator implements EvalOperator.Expre
   public BooleanVector eval(int positionCount, DoubleVector lhsVector, DoubleVector rhsVector) {
     try(BooleanVector.FixedBuilder result = driverContext.blockFactory().newBooleanVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendBoolean(LessThanOrEqual.processDoubles(lhsVector.getDouble(p), rhsVector.getDouble(p)), p);
+        result.appendBoolean(p, LessThanOrEqual.processDoubles(lhsVector.getDouble(p), rhsVector.getDouble(p)));
       }
       return result.build();
     }

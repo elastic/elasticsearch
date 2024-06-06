@@ -102,7 +102,7 @@ public final class TimeSeriesBlockHash extends BlockHash {
             for (long i = 0; i < positions; i++) {
                 BytesRef key1 = this.tsidHashes.get(intervalHash.getKey1(i), scratch);
                 tsidHashesBuilder.appendBytesRef(key1);
-                timestampIntervalsBuilder.appendLong(intervalHash.getKey2(i), (int) i);
+                timestampIntervalsBuilder.appendLong((int) i, intervalHash.getKey2(i));
             }
             tsidHashes = tsidHashesBuilder.build();
             timestampIntervals = timestampIntervalsBuilder.build();

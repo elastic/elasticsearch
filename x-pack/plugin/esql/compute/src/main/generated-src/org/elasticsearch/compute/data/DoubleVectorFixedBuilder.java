@@ -41,7 +41,7 @@ final class DoubleVectorFixedBuilder implements DoubleVector.FixedBuilder {
     }
 
     @Override
-    public DoubleVectorFixedBuilder appendDouble(double value, int idx) {
+    public DoubleVectorFixedBuilder appendDouble(int idx, double value) {
         values[idx] = value;
         return this;
     }

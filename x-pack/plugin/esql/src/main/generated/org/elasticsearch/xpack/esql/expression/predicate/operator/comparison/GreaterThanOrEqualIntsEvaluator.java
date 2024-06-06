@@ -91,7 +91,7 @@ public final class GreaterThanOrEqualIntsEvaluator implements EvalOperator.Expre
   public BooleanVector eval(int positionCount, IntVector lhsVector, IntVector rhsVector) {
     try(BooleanVector.FixedBuilder result = driverContext.blockFactory().newBooleanVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendBoolean(GreaterThanOrEqual.processInts(lhsVector.getInt(p), rhsVector.getInt(p)), p);
+        result.appendBoolean(p, GreaterThanOrEqual.processInts(lhsVector.getInt(p), rhsVector.getInt(p)));
       }
       return result.build();
     }

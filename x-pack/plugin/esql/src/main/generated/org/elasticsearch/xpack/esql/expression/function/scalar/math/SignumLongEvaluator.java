@@ -71,7 +71,7 @@ public final class SignumLongEvaluator implements EvalOperator.ExpressionEvaluat
   public DoubleVector eval(int positionCount, LongVector valVector) {
     try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendDouble(Signum.process(valVector.getLong(p)), p);
+        result.appendDouble(p, Signum.process(valVector.getLong(p)));
       }
       return result.build();
     }

@@ -89,7 +89,7 @@ public final class EqualsBoolsEvaluator implements EvalOperator.ExpressionEvalua
   public BooleanVector eval(int positionCount, BooleanVector lhsVector, BooleanVector rhsVector) {
     try(BooleanVector.FixedBuilder result = driverContext.blockFactory().newBooleanVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendBoolean(Equals.processBools(lhsVector.getBoolean(p), rhsVector.getBoolean(p)), p);
+        result.appendBoolean(p, Equals.processBools(lhsVector.getBoolean(p), rhsVector.getBoolean(p)));
       }
       return result.build();
     }

@@ -60,7 +60,7 @@ final class DoubleArrayState extends AbstractArrayState implements GroupingAggre
         if (false == trackingGroupIds()) {
             try (var builder = driverContext.blockFactory().newDoubleVectorFixedBuilder(selected.getPositionCount())) {
                 for (int i = 0; i < selected.getPositionCount(); i++) {
-                    builder.appendDouble(values.get(selected.getInt(i)), i);
+                    builder.appendDouble(i, values.get(selected.getInt(i)));
                 }
                 return builder.build().asBlock();
             }
@@ -106,7 +106,7 @@ final class DoubleArrayState extends AbstractArrayState implements GroupingAggre
                 } else {
                     valuesBuilder.appendDouble(0); // TODO can we just use null?
                 }
-                hasValueBuilder.appendBoolean(hasValue(group), i);
+                hasValueBuilder.appendBoolean(i, hasValue(group));
             }
             blocks[offset + 0] = valuesBuilder.build();
             blocks[offset + 1] = hasValueBuilder.build().asBlock();

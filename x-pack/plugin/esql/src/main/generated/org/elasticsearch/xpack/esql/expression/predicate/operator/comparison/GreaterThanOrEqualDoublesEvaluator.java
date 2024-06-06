@@ -91,7 +91,7 @@ public final class GreaterThanOrEqualDoublesEvaluator implements EvalOperator.Ex
   public BooleanVector eval(int positionCount, DoubleVector lhsVector, DoubleVector rhsVector) {
     try(BooleanVector.FixedBuilder result = driverContext.blockFactory().newBooleanVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendBoolean(GreaterThanOrEqual.processDoubles(lhsVector.getDouble(p), rhsVector.getDouble(p)), p);
+        result.appendBoolean(p, GreaterThanOrEqual.processDoubles(lhsVector.getDouble(p), rhsVector.getDouble(p)));
       }
       return result.build();
     }

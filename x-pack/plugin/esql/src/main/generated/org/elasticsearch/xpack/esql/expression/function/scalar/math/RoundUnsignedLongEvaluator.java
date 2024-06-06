@@ -89,7 +89,7 @@ public final class RoundUnsignedLongEvaluator implements EvalOperator.Expression
   public LongVector eval(int positionCount, LongVector valVector, LongVector decimalsVector) {
     try(LongVector.FixedBuilder result = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendLong(Round.processUnsignedLong(valVector.getLong(p), decimalsVector.getLong(p)), p);
+        result.appendLong(p, Round.processUnsignedLong(valVector.getLong(p), decimalsVector.getLong(p)));
       }
       return result.build();
     }

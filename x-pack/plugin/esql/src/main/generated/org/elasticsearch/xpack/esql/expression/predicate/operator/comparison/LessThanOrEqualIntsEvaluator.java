@@ -91,7 +91,7 @@ public final class LessThanOrEqualIntsEvaluator implements EvalOperator.Expressi
   public BooleanVector eval(int positionCount, IntVector lhsVector, IntVector rhsVector) {
     try(BooleanVector.FixedBuilder result = driverContext.blockFactory().newBooleanVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendBoolean(LessThanOrEqual.processInts(lhsVector.getInt(p), rhsVector.getInt(p)), p);
+        result.appendBoolean(p, LessThanOrEqual.processInts(lhsVector.getInt(p), rhsVector.getInt(p)));
       }
       return result.build();
     }

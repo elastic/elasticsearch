@@ -41,7 +41,7 @@ final class $Type$VectorFixedBuilder implements $Type$Vector.FixedBuilder {
     }
 
     @Override
-    public $Type$VectorFixedBuilder append$Type$($type$ value, int idx) {
+    public $Type$VectorFixedBuilder append$Type$(int idx, $type$ value) {
         values[idx] = value;
         return this;
     }

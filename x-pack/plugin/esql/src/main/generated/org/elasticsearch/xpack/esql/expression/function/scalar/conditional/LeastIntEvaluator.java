@@ -91,7 +91,7 @@ public final class LeastIntEvaluator implements EvalOperator.ExpressionEvaluator
         for (int i = 0; i < valuesVectors.length; i++) {
           valuesValues[i] = valuesVectors[i].getInt(p);
         }
-        result.appendInt(Least.process(valuesValues), p);
+        result.appendInt(p, Least.process(valuesValues));
       }
       return result.build();
     }

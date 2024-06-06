@@ -91,7 +91,7 @@ public final class LeastDoubleEvaluator implements EvalOperator.ExpressionEvalua
         for (int i = 0; i < valuesVectors.length; i++) {
           valuesValues[i] = valuesVectors[i].getDouble(p);
         }
-        result.appendDouble(Least.process(valuesValues), p);
+        result.appendDouble(p, Least.process(valuesValues));
       }
       return result.build();
     }

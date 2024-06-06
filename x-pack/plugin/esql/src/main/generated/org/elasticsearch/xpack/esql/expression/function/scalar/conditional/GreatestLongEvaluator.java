@@ -91,7 +91,7 @@ public final class GreatestLongEvaluator implements EvalOperator.ExpressionEvalu
         for (int i = 0; i < valuesVectors.length; i++) {
           valuesValues[i] = valuesVectors[i].getLong(p);
         }
-        result.appendLong(Greatest.process(valuesValues), p);
+        result.appendLong(p, Greatest.process(valuesValues));
       }
       return result.build();
     }

@@ -69,7 +69,7 @@ public final class FloorDoubleEvaluator implements EvalOperator.ExpressionEvalua
   public DoubleVector eval(int positionCount, DoubleVector valVector) {
     try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendDouble(Floor.process(valVector.getDouble(p)), p);
+        result.appendDouble(p, Floor.process(valVector.getDouble(p)));
       }
       return result.build();
     }

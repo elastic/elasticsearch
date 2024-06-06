@@ -41,7 +41,7 @@ final class IntVectorFixedBuilder implements IntVector.FixedBuilder {
     }
 
     @Override
-    public IntVectorFixedBuilder appendInt(int value, int idx) {
+    public IntVectorFixedBuilder appendInt(int idx, int value) {
         values[idx] = value;
         return this;
     }

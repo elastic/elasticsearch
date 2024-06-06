@@ -91,7 +91,7 @@ public final class GreatestDoubleEvaluator implements EvalOperator.ExpressionEva
         for (int i = 0; i < valuesVectors.length; i++) {
           valuesValues[i] = valuesVectors[i].getDouble(p);
         }
-        result.appendDouble(Greatest.process(valuesValues), p);
+        result.appendDouble(p, Greatest.process(valuesValues));
       }
       return result.build();
     }

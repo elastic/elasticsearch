@@ -59,6 +59,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvAppendTests
   method: testEvaluateBlockWithoutNulls {TestCase=<cartesian_shape>, <cartesian_shape>}
   issue: https://github.com/elastic/elasticsearch/issues/109409
+- class: org.elasticsearch.search.rank.RankFeatureShardPhaseTests
+  method: testProcessFetch
+  issue: https://github.com/elastic/elasticsearch/issues/109428
 
 # Examples:
 #

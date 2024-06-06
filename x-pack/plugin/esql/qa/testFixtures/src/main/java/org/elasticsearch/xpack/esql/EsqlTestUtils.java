@@ -17,6 +17,7 @@ import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
@@ -26,6 +27,8 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.predicate.Range;
+import org.elasticsearch.xpack.esql.core.index.EsIndex;
 import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -40,6 +43,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Les
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
@@ -63,11 +67,13 @@ import java.util.Set;
 import java.util.regex.Pattern;
 
 import static java.util.Collections.emptyList;
+import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
+import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
+import static org.elasticsearch.test.ESTestCase.randomZone;
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
-import static org.elasticsearch.xpack.esql.core.TestUtils.of;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.Assert.assertTrue;
@@ -106,6 +112,28 @@ public final class EsqlTestUtils {
 
     public static FieldAttribute getFieldAttribute() {
         return TestUtils.getFieldAttribute("a");
+    }
+
+    public static Literal of(Object value) {
+        return of(Source.EMPTY, value);
+    }
+
+    /**
+     * Utility method for creating 'in-line' Literals (out of values instead of expressions).
+     */
+    public static Literal of(Source source, Object value) {
+        if (value instanceof Literal) {
+            return (Literal) value;
+        }
+        return new Literal(source, value, DataType.fromJava(value));
+    }
+
+    public static Range rangeOf(Expression value, Expression lower, boolean includeLower, Expression upper, boolean includeUpper) {
+        return new Range(EMPTY, value, lower, includeLower, upper, includeUpper, randomZone());
+    }
+
+    public static EsRelation relation() {
+        return new EsRelation(EMPTY, new EsIndex(randomAlphaOfLength(8), emptyMap()), IndexMode.STANDARD, randomBoolean());
     }
 
     public static class TestSearchStats extends SearchStats {

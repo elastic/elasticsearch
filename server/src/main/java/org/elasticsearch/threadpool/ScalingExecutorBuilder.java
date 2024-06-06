@@ -35,6 +35,7 @@ public final class ScalingExecutorBuilder extends ExecutorBuilder<ScalingExecuto
     private final Setting<Integer> maxSetting;
     private final Setting<TimeValue> keepAliveSetting;
     private final boolean rejectAfterShutdown;
+    private final EsExecutors.TaskTrackingConfig trackingConfig;
 
     /**
      * Construct a scaling executor builder; the settings will have the
@@ -77,11 +78,24 @@ public final class ScalingExecutorBuilder extends ExecutorBuilder<ScalingExecuto
         final boolean rejectAfterShutdown,
         final String prefix
     ) {
+        this(name, core, max, keepAlive, rejectAfterShutdown, prefix, EsExecutors.TaskTrackingConfig.DO_NOT_TRACK);
+    }
+
+    public ScalingExecutorBuilder(
+        final String name,
+        final int core,
+        final int max,
+        final TimeValue keepAlive,
+        final boolean rejectAfterShutdown,
+        final String prefix,
+        final EsExecutors.TaskTrackingConfig trackingConfig
+    ) {
         super(name);
         this.coreSetting = Setting.intSetting(settingsKey(prefix, "core"), core, Setting.Property.NodeScope);
         this.maxSetting = Setting.intSetting(settingsKey(prefix, "max"), max, Setting.Property.NodeScope);
         this.keepAliveSetting = Setting.timeSetting(settingsKey(prefix, "keep_alive"), keepAlive, Setting.Property.NodeScope);
         this.rejectAfterShutdown = rejectAfterShutdown;
+        this.trackingConfig = trackingConfig;
     }
 
     @Override
@@ -104,7 +118,8 @@ public final class ScalingExecutorBuilder extends ExecutorBuilder<ScalingExecuto
         int max = settings.max;
         final ThreadPool.Info info = new ThreadPool.Info(name(), ThreadPool.ThreadPoolType.SCALING, core, max, keepAlive, null);
         final ThreadFactory threadFactory = EsExecutors.daemonThreadFactory(EsExecutors.threadName(settings.nodeName, name()));
-        final ExecutorService executor = EsExecutors.newScaling(
+        ExecutorService executor;
+        executor = EsExecutors.newScaling(
             settings.nodeName + "/" + name(),
             core,
             max,
@@ -112,7 +127,8 @@ public final class ScalingExecutorBuilder extends ExecutorBuilder<ScalingExecuto
             TimeUnit.MILLISECONDS,
             rejectAfterShutdown,
             threadFactory,
-            threadContext
+            threadContext,
+            trackingConfig
         );
         return new ThreadPool.ExecutorHolder(executor, info);
     }

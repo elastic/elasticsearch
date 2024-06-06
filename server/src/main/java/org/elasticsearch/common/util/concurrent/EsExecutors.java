@@ -103,22 +103,64 @@ public class EsExecutors {
         TimeUnit unit,
         boolean rejectAfterShutdown,
         ThreadFactory threadFactory,
+        ThreadContext contextHolder,
+        TaskTrackingConfig config
+    ) {
+        if (config.trackOngoingTasks()) {
+
+            ExecutorScalingQueue<Runnable> queue = new ExecutorScalingQueue<>();
+            return new TaskExecutionTimeTrackingEsThreadPoolExecutor(
+                name,
+                min,
+                max,
+                keepAliveTime,
+                unit,
+                queue,
+                TimedRunnable::new,
+                threadFactory,
+                new ForceQueuePolicy(rejectAfterShutdown),
+                contextHolder,
+                config
+            );
+        } else {
+            ExecutorScalingQueue<Runnable> queue = new ExecutorScalingQueue<>();
+            EsThreadPoolExecutor executor = new EsThreadPoolExecutor(
+                name,
+                min,
+                max,
+                keepAliveTime,
+                unit,
+                queue,
+                threadFactory,
+                new ForceQueuePolicy(rejectAfterShutdown),
+                contextHolder
+            );
+            queue.executor = executor;
+            return executor;
+        }
+    }
+
+    public static EsThreadPoolExecutor newScaling(
+        String name,
+        int min,
+        int max,
+        long keepAliveTime,
+        TimeUnit unit,
+        boolean rejectAfterShutdown,
+        ThreadFactory threadFactory,
         ThreadContext contextHolder
     ) {
-        ExecutorScalingQueue<Runnable> queue = new ExecutorScalingQueue<>();
-        EsThreadPoolExecutor executor = new EsThreadPoolExecutor(
+        return newScaling(
             name,
             min,
             max,
             keepAliveTime,
             unit,
-            queue,
+            rejectAfterShutdown,
             threadFactory,
-            new ForceQueuePolicy(rejectAfterShutdown),
-            contextHolder
+            contextHolder,
+            TaskTrackingConfig.DO_NOT_TRACK
         );
-        queue.executor = executor;
-        return executor;
     }
 
     public static EsThreadPoolExecutor newFixed(
@@ -324,11 +366,11 @@ public class EsExecutors {
      */
     private EsExecutors() {}
 
-    static class ExecutorScalingQueue<E> extends LinkedTransferQueue<E> {
+    public static class ExecutorScalingQueue<E> extends LinkedTransferQueue<E> {
 
         ThreadPoolExecutor executor;
 
-        ExecutorScalingQueue() {}
+        public ExecutorScalingQueue() {}
 
         @Override
         public boolean offer(E e) {

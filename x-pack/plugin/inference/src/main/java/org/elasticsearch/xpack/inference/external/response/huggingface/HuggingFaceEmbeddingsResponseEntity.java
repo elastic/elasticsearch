@@ -17,6 +17,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.response.XContentUtils;
 
 import java.io.IOException;
 import java.util.List;
@@ -145,14 +146,8 @@ public class HuggingFaceEmbeddingsResponseEntity {
     private static TextEmbeddingResults.Embedding parseEmbeddingEntry(XContentParser parser) throws IOException {
         ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.currentToken(), parser);
 
-        List<Float> embeddingValuesList = parseList(parser, HuggingFaceEmbeddingsResponseEntity::parseEmbeddingList);
+        List<Float> embeddingValuesList = parseList(parser, XContentUtils::parseFloat);
         return TextEmbeddingResults.Embedding.of(embeddingValuesList);
-    }
-
-    private static float parseEmbeddingList(XContentParser parser) throws IOException {
-        XContentParser.Token token = parser.currentToken();
-        ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser);
-        return parser.floatValue();
     }
 
     private HuggingFaceEmbeddingsResponseEntity() {}

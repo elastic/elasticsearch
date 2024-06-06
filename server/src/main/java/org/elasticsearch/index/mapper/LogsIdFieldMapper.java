@@ -58,7 +58,12 @@ public class LogsIdFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    public static final TypeParser PARSER = new FixedTypeParser(c -> c.getIndexSettings().getMode().indexModeIdFieldMapper());
+    public static final TypeParser PARSER = new FixedTypeParser(c -> {
+        if (c.getIndexSettings().usesRoutingPath()) {
+            return c.getIndexSettings().getMode().indexModeIdFieldMapper();
+        }
+        return null;
+    });
 
     public static final class LogsIdFieldType extends MappedFieldType {
         private LogsIdFieldType() {
@@ -110,11 +115,12 @@ public class LogsIdFieldMapper extends MetadataFieldMapper {
     @Override
     public void postParse(DocumentParserContext context) throws IOException {
         assert fieldType().isIndexed() == false;
-
-        final RoutingDimensions routingDimensions = (RoutingDimensions) context.getDimensions();
-        final BytesRef id = DimensionHasher.build(routingDimensions).toBytesRef();
-        context.doc().add(new SortedDocValuesField(fieldType().name(), id));
-        LogsIdExtractingIdFieldMapper.createField(context, id);
+        if (context.indexSettings().usesRoutingPath()) {
+            final RoutingDimensions routingDimensions = (RoutingDimensions) context.getDimensions();
+            final BytesRef id = DimensionHasher.build(routingDimensions).toBytesRef();
+            context.doc().add(new SortedDocValuesField(fieldType().name(), id));
+            LogsIdExtractingIdFieldMapper.createField(context, id);
+        }
     }
 
     @Override

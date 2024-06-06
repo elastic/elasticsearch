@@ -56,6 +56,7 @@ public enum IndexMode {
     STANDARD("standard") {
         @Override
         void validateWithOtherSettings(Map<Setting<?>, Object> settings) {
+            IndexMode.validateRoutingPathSetting(settings);
             IndexMode.validateTimeSeriesSettings(settings);
         }
 
@@ -102,11 +103,6 @@ public enum IndexMode {
         @Override
         public IdFieldMapper buildIdFieldMapper(BooleanSupplier fieldDataEnabled) {
             return new ProvidedIdFieldMapper(fieldDataEnabled);
-        }
-
-        @Override
-        public DocumentDimensions buildDocumentDimensions(IndexSettings settings) {
-            return new DocumentDimensions.OnlySingleValueAllowed();
         }
 
         @Override
@@ -203,12 +199,6 @@ public enum IndexMode {
         }
 
         @Override
-        public DocumentDimensions buildDocumentDimensions(IndexSettings settings) {
-            IndexRouting.ExtractFromSource routing = (IndexRouting.ExtractFromSource) settings.getIndexRouting();
-            return new RoutingDimensions(routing.builder());
-        }
-
-        @Override
         public boolean shouldValidateTimestamp() {
             return true;
         }
@@ -228,7 +218,7 @@ public enum IndexMode {
     LOGS("logs") {
         @Override
         void validateWithOtherSettings(Map<Setting<?>, Object> settings) {
-            // IndexMode.validateTimeSeriesSettings(settings);
+            IndexMode.validateTimeSeriesSettings(settings);
         }
 
         @Override
@@ -278,12 +268,6 @@ public enum IndexMode {
         }
 
         @Override
-        public DocumentDimensions buildDocumentDimensions(IndexSettings settings) {
-            IndexRouting.ExtractFromSource routing = (IndexRouting.ExtractFromSource) settings.getIndexRouting();
-            return new RoutingDimensions(routing.builder());
-        }
-
-        @Override
         public boolean shouldValidateTimestamp() {
             return false;
         }
@@ -297,8 +281,11 @@ public enum IndexMode {
         }
     };
 
-    private static void validateTimeSeriesSettings(Map<Setting<?>, Object> settings) {
+    private static void validateRoutingPathSetting(Map<Setting<?>, Object> settings) {
         settingRequiresTimeSeries(settings, IndexMetadata.INDEX_ROUTING_PATH);
+    }
+
+    private static void validateTimeSeriesSettings(Map<Setting<?>, Object> settings) {
         settingRequiresTimeSeries(settings, IndexSettings.TIME_SERIES_START_TIME);
         settingRequiresTimeSeries(settings, IndexSettings.TIME_SERIES_END_TIME);
     }
@@ -443,7 +430,13 @@ public enum IndexMode {
     /**
      * How {@code time_series_dimension} fields are handled by indices in this mode.
      */
-    public abstract DocumentDimensions buildDocumentDimensions(IndexSettings settings);
+    public DocumentDimensions buildDocumentDimensions(IndexSettings settings) {
+        if (settings.usesRoutingPath()) {
+            IndexRouting.ExtractFromSource routing = (IndexRouting.ExtractFromSource) settings.getIndexRouting();
+            return new RoutingDimensions(routing.builder());
+        }
+        return new DocumentDimensions.OnlySingleValueAllowed();
+    }
 
     /**
      * @return Whether timestamps should be validated for being withing the time range of an index.

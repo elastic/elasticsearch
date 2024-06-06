@@ -42,7 +42,12 @@ public class DimensionRoutingHashFieldMapper extends MetadataFieldMapper {
 
     public static final DimensionRoutingHashFieldMapper INSTANCE = new DimensionRoutingHashFieldMapper();
 
-    public static final TypeParser PARSER = new FixedTypeParser(c -> c.getIndexSettings().getMode().routingHashFieldMapper());
+    public static final TypeParser PARSER = new FixedTypeParser(c -> {
+        if (c.getIndexSettings().usesRoutingPath()) {
+            return c.getIndexSettings().getMode().routingHashFieldMapper();
+        }
+        return null;
+    });
 
     static final class DimensionRoutingHashFieldType extends MappedFieldType {
 

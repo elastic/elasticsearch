@@ -298,7 +298,7 @@ setup:
       reason: "Error message changed in 8.15.0"
 
   - do:
-      catch: '/Indices with with index mode \[time_series\] only support synthetic source/'
+      catch: '/Time series indices only support synthetic source/'
       indices.create:
         index: tsdb_error
         body:

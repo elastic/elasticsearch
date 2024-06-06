@@ -543,9 +543,6 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
         private void mapping(XContentBuilder b) throws IOException {
             String[] metrics = storedMetrics.stream().map(Metric::toString).toArray(String[]::new);
             b.field("type", CONTENT_TYPE).array(METRICS_FIELD, metrics).field(DEFAULT_METRIC, metrics[0]);
-            if (malformedExample) {
-                b.field(IGNORE_MALFORMED, true);
-            }
         }
 
         @Override

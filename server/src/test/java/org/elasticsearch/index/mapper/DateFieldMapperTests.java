@@ -642,9 +642,6 @@ public class DateFieldMapperTests extends MapperTestCase {
                 if (nullValue != null) {
                     b.field("null_value", nullValue);
                 }
-                if (ignoreMalformed) {
-                    b.field("ignore_malformed", true);
-                }
             }
 
             @Override

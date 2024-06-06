@@ -17,10 +17,14 @@ import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
+import org.elasticsearch.xpack.esql.core.TestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -29,6 +33,12 @@ import org.elasticsearch.xpack.esql.core.type.DateUtils;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.TypesTests;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
@@ -58,10 +68,46 @@ import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.xpack.esql.core.TestUtils.of;
+import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.Assert.assertTrue;
 
 public final class EsqlTestUtils {
+    public static final Literal ONE = new Literal(Source.EMPTY, 1, DataType.INTEGER);
+    public static final Literal TWO = new Literal(Source.EMPTY, 2, DataType.INTEGER);
+    public static final Literal THREE = new Literal(Source.EMPTY, 3, DataType.INTEGER);
+    public static final Literal FOUR = new Literal(Source.EMPTY, 4, DataType.INTEGER);
+    public static final Literal FIVE = new Literal(Source.EMPTY, 5, DataType.INTEGER);
+    private static final Literal SIX = new Literal(Source.EMPTY, 6, DataType.INTEGER);
+
+    public static Equals equalsOf(Expression left, Expression right) {
+        return new Equals(EMPTY, left, right, null);
+    }
+
+    public static LessThan lessThanOf(Expression left, Expression right) {
+        return new LessThan(EMPTY, left, right, null);
+    }
+
+    public static GreaterThan greaterThanOf(Expression left, Expression right) {
+        return new GreaterThan(EMPTY, left, right, ESTestCase.randomZone());
+    }
+
+    public static NotEquals notEqualsOf(Expression left, Expression right) {
+        return new NotEquals(EMPTY, left, right, ESTestCase.randomZone());
+    }
+
+    public static LessThanOrEqual lessThanOrEqualOf(Expression left, Expression right) {
+        return new LessThanOrEqual(EMPTY, left, right, ESTestCase.randomZone());
+    }
+
+    public static GreaterThanOrEqual greaterThanOrEqualOf(Expression left, Expression right) {
+        return new GreaterThanOrEqual(EMPTY, left, right, ESTestCase.randomZone());
+    }
+
+    public static FieldAttribute getFieldAttribute() {
+        return TestUtils.getFieldAttribute("a");
+    }
+
     public static class TestSearchStats extends SearchStats {
         public TestSearchStats() {
             super(emptyList());

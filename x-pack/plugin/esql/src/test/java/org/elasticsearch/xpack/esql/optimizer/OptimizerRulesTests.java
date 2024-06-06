@@ -55,6 +55,18 @@ import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer.ReplaceRegexM
 import java.util.List;
 
 import static java.util.Arrays.asList;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.FIVE;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.FOUR;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.ONE;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.THREE;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TWO;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.equalsOf;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.getFieldAttribute;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.greaterThanOf;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.greaterThanOrEqualOf;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.lessThanOf;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.lessThanOrEqualOf;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.notEqualsOf;
 import static org.elasticsearch.xpack.esql.core.TestUtils.nullEqualsOf;
 import static org.elasticsearch.xpack.esql.core.TestUtils.of;
 import static org.elasticsearch.xpack.esql.core.TestUtils.rangeOf;
@@ -68,42 +80,8 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.hamcrest.Matchers.contains;
 
 public class OptimizerRulesTests extends ESTestCase {
-    private static final Literal ONE = new Literal(Source.EMPTY, 1, DataType.INTEGER);
-    private static final Literal TWO = new Literal(Source.EMPTY, 2, DataType.INTEGER);
-    private static final Literal THREE = new Literal(Source.EMPTY, 3, DataType.INTEGER);
-    private static final Literal FOUR = new Literal(Source.EMPTY, 4, DataType.INTEGER);
-    private static final Literal FIVE = new Literal(Source.EMPTY, 5, DataType.INTEGER);
-    private static final Literal SIX = new Literal(Source.EMPTY, 6, DataType.INTEGER);
     private static final Expression DUMMY_EXPRESSION =
         new org.elasticsearch.xpack.esql.core.optimizer.OptimizerRulesTests.DummyBooleanExpression(EMPTY, 0);
-
-    private static Equals equalsOf(Expression left, Expression right) {
-        return new Equals(EMPTY, left, right, null);
-    }
-
-    private static LessThan lessThanOf(Expression left, Expression right) {
-        return new LessThan(EMPTY, left, right, null);
-    }
-
-    public static GreaterThan greaterThanOf(Expression left, Expression right) {
-        return new GreaterThan(EMPTY, left, right, randomZone());
-    }
-
-    public static NotEquals notEqualsOf(Expression left, Expression right) {
-        return new NotEquals(EMPTY, left, right, randomZone());
-    }
-
-    public static LessThanOrEqual lessThanOrEqualOf(Expression left, Expression right) {
-        return new LessThanOrEqual(EMPTY, left, right, randomZone());
-    }
-
-    public static GreaterThanOrEqual greaterThanOrEqualOf(Expression left, Expression right) {
-        return new GreaterThanOrEqual(EMPTY, left, right, randomZone());
-    }
-
-    private static FieldAttribute getFieldAttribute() {
-        return TestUtils.getFieldAttribute("a");
-    }
 
     //
     // Constant folding

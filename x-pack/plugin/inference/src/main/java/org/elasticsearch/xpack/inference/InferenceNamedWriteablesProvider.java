@@ -15,8 +15,8 @@ import org.elasticsearch.inference.SecretSettings;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
-import org.elasticsearch.xpack.core.inference.results.ChunkedSparseEmbeddingResults;
-import org.elasticsearch.xpack.core.inference.results.ChunkedTextEmbeddingByteResults;
+import org.elasticsearch.xpack.core.inference.results.InferenceChunkedSparseEmbeddingResults;
+import org.elasticsearch.xpack.core.inference.results.InferenceChunkedTextEmbeddingByteResults;
 import org.elasticsearch.xpack.core.inference.results.ErrorChunkedInferenceResults;
 import org.elasticsearch.xpack.core.inference.results.InferenceChunkedTextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingByteResults;
@@ -303,8 +303,8 @@ public class InferenceNamedWriteablesProvider {
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(
                 InferenceServiceResults.class,
-                ChunkedSparseEmbeddingResults.NAME,
-                ChunkedSparseEmbeddingResults::new
+                InferenceChunkedSparseEmbeddingResults.NAME,
+                InferenceChunkedSparseEmbeddingResults::new
             )
         );
         namedWriteables.add(
@@ -317,8 +317,8 @@ public class InferenceNamedWriteablesProvider {
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(
                 InferenceServiceResults.class,
-                ChunkedTextEmbeddingByteResults.NAME,
-                ChunkedTextEmbeddingByteResults::new
+                InferenceChunkedTextEmbeddingByteResults.NAME,
+                InferenceChunkedTextEmbeddingByteResults::new
             )
         );
     }

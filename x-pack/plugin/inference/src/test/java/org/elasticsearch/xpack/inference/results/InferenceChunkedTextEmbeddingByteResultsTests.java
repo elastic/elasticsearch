@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.inference.results;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xpack.core.inference.results.ChunkedTextEmbeddingByteResults;
+import org.elasticsearch.xpack.core.inference.results.InferenceChunkedTextEmbeddingByteResults;
 import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingByteResults;
 
 import java.io.IOException;
@@ -20,32 +20,33 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.is;
 
-public class ChunkedTextEmbeddingByteResultsTests extends AbstractWireSerializingTestCase<ChunkedTextEmbeddingByteResults> {
+public class InferenceChunkedTextEmbeddingByteResultsTests extends AbstractWireSerializingTestCase<
+    InferenceChunkedTextEmbeddingByteResults> {
 
-    public static ChunkedTextEmbeddingByteResults createRandomResults() {
+    public static InferenceChunkedTextEmbeddingByteResults createRandomResults() {
         int numChunks = randomIntBetween(1, 5);
-        var chunks = new ArrayList<ChunkedTextEmbeddingByteResults.EmbeddingChunk>(numChunks);
+        var chunks = new ArrayList<InferenceChunkedTextEmbeddingByteResults.InferenceByteEmbeddingChunk>(numChunks);
 
         for (int i = 0; i < numChunks; i++) {
             chunks.add(createRandomChunk());
         }
 
-        return new ChunkedTextEmbeddingByteResults(chunks, randomBoolean());
+        return new InferenceChunkedTextEmbeddingByteResults(chunks, randomBoolean());
     }
 
-    private static ChunkedTextEmbeddingByteResults.EmbeddingChunk createRandomChunk() {
+    private static InferenceChunkedTextEmbeddingByteResults.InferenceByteEmbeddingChunk createRandomChunk() {
         int columns = randomIntBetween(1, 10);
         byte[] bytes = new byte[columns];
         for (int i = 0; i < columns; i++) {
             bytes[i] = randomByte();
         }
 
-        return new ChunkedTextEmbeddingByteResults.EmbeddingChunk(randomAlphaOfLength(6), bytes);
+        return new InferenceChunkedTextEmbeddingByteResults.InferenceByteEmbeddingChunk(randomAlphaOfLength(6), bytes);
     }
 
     public void testToXContent_CreatesTheRightJsonForASingleChunk() {
-        var entity = new ChunkedTextEmbeddingByteResults(
-            List.of(new ChunkedTextEmbeddingByteResults.EmbeddingChunk("text", new byte[] { (byte) 1 })),
+        var entity = new InferenceChunkedTextEmbeddingByteResults(
+            List.of(new InferenceChunkedTextEmbeddingByteResults.InferenceByteEmbeddingChunk("text", new byte[] { (byte) 1 })),
             false
         );
 
@@ -53,8 +54,8 @@ public class ChunkedTextEmbeddingByteResultsTests extends AbstractWireSerializin
             entity.asMap(),
             is(
                 Map.of(
-                    ChunkedTextEmbeddingByteResults.FIELD_NAME,
-                    List.of(new ChunkedTextEmbeddingByteResults.EmbeddingChunk("text", new byte[] { (byte) 1 }))
+                    InferenceChunkedTextEmbeddingByteResults.FIELD_NAME,
+                    List.of(new InferenceChunkedTextEmbeddingByteResults.InferenceByteEmbeddingChunk("text", new byte[] { (byte) 1 }))
                 )
             )
         );
@@ -73,7 +74,7 @@ public class ChunkedTextEmbeddingByteResultsTests extends AbstractWireSerializin
     }
 
     public void testToXContent_CreatesTheRightJsonForASingleChunk_ForTextEmbeddingByteResults() {
-        var entity = ChunkedTextEmbeddingByteResults.of(
+        var entity = InferenceChunkedTextEmbeddingByteResults.of(
             List.of("text"),
             new InferenceTextEmbeddingByteResults(
                 List.of(new InferenceTextEmbeddingByteResults.InferenceByteEmbedding(new byte[] { (byte) 1 }))
@@ -88,8 +89,8 @@ public class ChunkedTextEmbeddingByteResultsTests extends AbstractWireSerializin
             firstEntry.asMap(),
             is(
                 Map.of(
-                    ChunkedTextEmbeddingByteResults.FIELD_NAME,
-                    List.of(new ChunkedTextEmbeddingByteResults.EmbeddingChunk("text", new byte[] { (byte) 1 }))
+                    InferenceChunkedTextEmbeddingByteResults.FIELD_NAME,
+                    List.of(new InferenceChunkedTextEmbeddingByteResults.InferenceByteEmbeddingChunk("text", new byte[] { (byte) 1 }))
                 )
             )
         );
@@ -110,7 +111,7 @@ public class ChunkedTextEmbeddingByteResultsTests extends AbstractWireSerializin
     public void testToXContent_ThrowsWhenInputSizeIsDifferentThanEmbeddings() {
         var exception = expectThrows(
             IllegalArgumentException.class,
-            () -> ChunkedTextEmbeddingByteResults.of(
+            () -> InferenceChunkedTextEmbeddingByteResults.of(
                 List.of("text", "text2"),
                 new InferenceTextEmbeddingByteResults(
                     List.of(new InferenceTextEmbeddingByteResults.InferenceByteEmbedding(new byte[] { (byte) 1 }))
@@ -122,17 +123,18 @@ public class ChunkedTextEmbeddingByteResultsTests extends AbstractWireSerializin
     }
 
     @Override
-    protected Writeable.Reader<ChunkedTextEmbeddingByteResults> instanceReader() {
-        return ChunkedTextEmbeddingByteResults::new;
+    protected Writeable.Reader<InferenceChunkedTextEmbeddingByteResults> instanceReader() {
+        return InferenceChunkedTextEmbeddingByteResults::new;
     }
 
     @Override
-    protected ChunkedTextEmbeddingByteResults createTestInstance() {
+    protected InferenceChunkedTextEmbeddingByteResults createTestInstance() {
         return createRandomResults();
     }
 
     @Override
-    protected ChunkedTextEmbeddingByteResults mutateInstance(ChunkedTextEmbeddingByteResults instance) throws IOException {
-        return randomValueOtherThan(instance, ChunkedTextEmbeddingByteResultsTests::createRandomResults);
+    protected InferenceChunkedTextEmbeddingByteResults mutateInstance(InferenceChunkedTextEmbeddingByteResults instance)
+        throws IOException {
+        return randomValueOtherThan(instance, InferenceChunkedTextEmbeddingByteResultsTests::createRandomResults);
     }
 }

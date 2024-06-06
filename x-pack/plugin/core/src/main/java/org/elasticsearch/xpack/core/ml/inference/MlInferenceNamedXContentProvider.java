@@ -20,7 +20,7 @@ import org.elasticsearch.xpack.core.ml.inference.preprocessing.OneHotEncoding;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.PreProcessor;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.StrictlyParsedPreProcessor;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.TargetMeanEncoding;
-import org.elasticsearch.xpack.core.ml.inference.results.ChunkedTextExpansionResults;
+import org.elasticsearch.xpack.core.ml.inference.results.InferenceChunkedTextExpansionResults;
 import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.FillMaskResults;
@@ -684,7 +684,11 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
             )
         );
         namedWriteables.add(
-            new NamedWriteableRegistry.Entry(InferenceResults.class, ChunkedTextExpansionResults.NAME, ChunkedTextExpansionResults::new)
+            new NamedWriteableRegistry.Entry(
+                InferenceResults.class,
+                InferenceChunkedTextExpansionResults.NAME,
+                InferenceChunkedTextExpansionResults::new
+            )
         );
 
         // Inference Configs

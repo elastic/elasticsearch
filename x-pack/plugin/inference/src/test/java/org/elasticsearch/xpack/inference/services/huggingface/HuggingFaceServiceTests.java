@@ -31,7 +31,7 @@ import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
-import org.elasticsearch.xpack.core.inference.results.ChunkedSparseEmbeddingResults;
+import org.elasticsearch.xpack.core.inference.results.InferenceChunkedSparseEmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.InferenceChunkedTextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.ml.inference.results.ChunkedNlpInferenceResults;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
@@ -681,7 +681,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
                 result.asMap(),
                 Matchers.is(
                     Map.of(
-                        ChunkedSparseEmbeddingResults.FIELD_NAME,
+                        InferenceChunkedSparseEmbeddingResults.FIELD_NAME,
                         List.of(
                             Map.of(ChunkedNlpInferenceResults.TEXT, "abc", ChunkedNlpInferenceResults.INFERENCE, Map.of(".", 0.13315596f))
                         )

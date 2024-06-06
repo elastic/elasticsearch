@@ -18,9 +18,9 @@ import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.inference.results.ChunkedSparseEmbeddingResults;
+import org.elasticsearch.xpack.core.inference.results.InferenceChunkedSparseEmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.InferenceChunkedTextEmbeddingFloatResults;
-import org.elasticsearch.xpack.core.ml.inference.results.ChunkedTextExpansionResults;
+import org.elasticsearch.xpack.core.ml.inference.results.InferenceChunkedTextExpansionResults;
 import org.elasticsearch.xpack.core.ml.search.WeightedToken;
 import org.elasticsearch.xpack.core.utils.StaticUtils;
 import org.elasticsearch.xpack.inference.model.TestModel;
@@ -153,16 +153,16 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
         return new InferenceChunkedTextEmbeddingFloatResults(chunks);
     }
 
-    public static ChunkedSparseEmbeddingResults randomSparseEmbeddings(List<String> inputs) {
-        List<ChunkedTextExpansionResults.ChunkedResult> chunks = new ArrayList<>();
+    public static InferenceChunkedSparseEmbeddingResults randomSparseEmbeddings(List<String> inputs) {
+        List<InferenceChunkedTextExpansionResults.ChunkedResult> chunks = new ArrayList<>();
         for (String input : inputs) {
             var tokens = new ArrayList<WeightedToken>();
             for (var token : input.split("\\s+")) {
                 tokens.add(new WeightedToken(token, randomFloat()));
             }
-            chunks.add(new ChunkedTextExpansionResults.ChunkedResult(input, tokens));
+            chunks.add(new InferenceChunkedTextExpansionResults.ChunkedResult(input, tokens));
         }
-        return new ChunkedSparseEmbeddingResults(chunks);
+        return new InferenceChunkedSparseEmbeddingResults(chunks);
     }
 
     public static SemanticTextField randomSemanticText(String fieldName, Model model, List<String> inputs, XContentType contentType)
@@ -187,12 +187,12 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
     public static ChunkedInferenceServiceResults toChunkedResult(SemanticTextField field) throws IOException {
         switch (field.inference().modelSettings().taskType()) {
             case SPARSE_EMBEDDING -> {
-                List<ChunkedTextExpansionResults.ChunkedResult> chunks = new ArrayList<>();
+                List<InferenceChunkedTextExpansionResults.ChunkedResult> chunks = new ArrayList<>();
                 for (var chunk : field.inference().chunks()) {
                     var tokens = parseWeightedTokens(chunk.rawEmbeddings(), field.contentType());
-                    chunks.add(new ChunkedTextExpansionResults.ChunkedResult(chunk.text(), tokens));
+                    chunks.add(new InferenceChunkedTextExpansionResults.ChunkedResult(chunk.text(), tokens));
                 }
-                return new ChunkedSparseEmbeddingResults(chunks);
+                return new InferenceChunkedSparseEmbeddingResults(chunks);
             }
             case TEXT_EMBEDDING -> {
                 List<InferenceChunkedTextEmbeddingFloatResults.InferenceFloatEmbeddingChunk> chunks = new ArrayList<>();

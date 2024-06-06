@@ -29,14 +29,16 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.core.inference.results.TextEmbeddingUtils.validateInputSizeAgainstEmbeddings;
 
-public record ChunkedTextEmbeddingByteResults(List<EmbeddingChunk> chunks, boolean isTruncated) implements ChunkedInferenceServiceResults {
+public record InferenceChunkedTextEmbeddingByteResults(List<InferenceByteEmbeddingChunk> chunks, boolean isTruncated)
+    implements
+        ChunkedInferenceServiceResults {
 
     public static final String NAME = "chunked_text_embedding_service_byte_results";
     public static final String FIELD_NAME = "text_embedding_byte_chunk";
 
     /**
-     * Returns a list of {@link ChunkedTextEmbeddingByteResults}. The number of entries in the list will match the input list size.
-     * Each {@link ChunkedTextEmbeddingByteResults} will have a single chunk containing the entire results from the
+     * Returns a list of {@link InferenceChunkedTextEmbeddingByteResults}. The number of entries in the list will match the input list size.
+     * Each {@link InferenceChunkedTextEmbeddingByteResults} will have a single chunk containing the entire results from the
      * {@link InferenceTextEmbeddingByteResults}.
      */
     public static List<ChunkedInferenceServiceResults> of(List<String> inputs, InferenceTextEmbeddingByteResults textEmbeddings) {
@@ -50,12 +52,12 @@ public record ChunkedTextEmbeddingByteResults(List<EmbeddingChunk> chunks, boole
         return results;
     }
 
-    public static ChunkedTextEmbeddingByteResults of(String input, byte[] byteEmbeddings) {
-        return new ChunkedTextEmbeddingByteResults(List.of(new EmbeddingChunk(input, byteEmbeddings)), false);
+    public static InferenceChunkedTextEmbeddingByteResults of(String input, byte[] byteEmbeddings) {
+        return new InferenceChunkedTextEmbeddingByteResults(List.of(new InferenceByteEmbeddingChunk(input, byteEmbeddings)), false);
     }
 
-    public ChunkedTextEmbeddingByteResults(StreamInput in) throws IOException {
-        this(in.readCollectionAsList(EmbeddingChunk::new), in.readBoolean());
+    public InferenceChunkedTextEmbeddingByteResults(StreamInput in) throws IOException {
+        this(in.readCollectionAsList(InferenceByteEmbeddingChunk::new), in.readBoolean());
     }
 
     @Override
@@ -95,7 +97,7 @@ public record ChunkedTextEmbeddingByteResults(List<EmbeddingChunk> chunks, boole
         return NAME;
     }
 
-    public List<EmbeddingChunk> getChunks() {
+    public List<InferenceByteEmbeddingChunk> getChunks() {
         return chunks;
     }
 
@@ -103,7 +105,7 @@ public record ChunkedTextEmbeddingByteResults(List<EmbeddingChunk> chunks, boole
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        ChunkedTextEmbeddingByteResults that = (ChunkedTextEmbeddingByteResults) o;
+        InferenceChunkedTextEmbeddingByteResults that = (InferenceChunkedTextEmbeddingByteResults) o;
         return isTruncated == that.isTruncated && Objects.equals(chunks, that.chunks);
     }
 
@@ -112,9 +114,9 @@ public record ChunkedTextEmbeddingByteResults(List<EmbeddingChunk> chunks, boole
         return Objects.hash(chunks, isTruncated);
     }
 
-    public record EmbeddingChunk(String matchedText, byte[] embedding) implements Writeable, ToXContentObject {
+    public record InferenceByteEmbeddingChunk(String matchedText, byte[] embedding) implements Writeable, ToXContentObject {
 
-        public EmbeddingChunk(StreamInput in) throws IOException {
+        public InferenceByteEmbeddingChunk(StreamInput in) throws IOException {
             this(in.readString(), in.readByteArray());
         }
 
@@ -148,7 +150,7 @@ public record ChunkedTextEmbeddingByteResults(List<EmbeddingChunk> chunks, boole
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
-            EmbeddingChunk that = (EmbeddingChunk) o;
+            InferenceByteEmbeddingChunk that = (InferenceByteEmbeddingChunk) o;
             return Objects.equals(matchedText, that.matchedText) && Arrays.equals(embedding, that.embedding);
         }
 

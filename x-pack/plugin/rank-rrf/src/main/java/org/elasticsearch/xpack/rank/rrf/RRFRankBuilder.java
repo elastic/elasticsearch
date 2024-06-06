@@ -18,6 +18,8 @@ import org.elasticsearch.search.rank.RankBuilder;
 import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.rank.context.QueryPhaseRankCoordinatorContext;
 import org.elasticsearch.search.rank.context.QueryPhaseRankShardContext;
+import org.elasticsearch.search.rank.context.RankFeaturePhaseRankCoordinatorContext;
+import org.elasticsearch.search.rank.context.RankFeaturePhaseRankShardContext;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -41,7 +43,7 @@ public class RRFRankBuilder extends RankBuilder {
     public static final ParseField RANK_CONSTANT_FIELD = new ParseField("rank_constant");
 
     static final ConstructingObjectParser<RRFRankBuilder, Void> PARSER = new ConstructingObjectParser<>(RRFRankPlugin.NAME, args -> {
-        int windowSize = args[0] == null ? DEFAULT_WINDOW_SIZE : (int) args[0];
+        int windowSize = args[0] == null ? DEFAULT_RANK_WINDOW_SIZE : (int) args[0];
         int rankConstant = args[1] == null ? DEFAULT_RANK_CONSTANT : (int) args[1];
         if (rankConstant < 1) {
             throw new IllegalArgumentException("[rank_constant] must be greater than [0] for [rrf]");
@@ -97,15 +99,11 @@ public class RRFRankBuilder extends RankBuilder {
         return rankConstant;
     }
 
-    public QueryPhaseRankShardContext buildQueryPhaseShardContext(List<Query> queries, int from) {
-        return new RRFQueryPhaseRankShardContext(queries, rankWindowSize(), rankConstant);
-    }
-
     @Override
-    public QueryPhaseRankCoordinatorContext buildQueryPhaseCoordinatorContext(int size, int from) {
-        return new RRFQueryPhaseRankCoordinatorContext(size, from, rankWindowSize(), rankConstant);
+    public boolean isCompoundBuilder() {
+        return true;
     }
-
+  
     @Override
     public Explanation explainHit(Explanation baseExplanation, RankDoc rankDoc, List<String> queryNames) {
         if (rankDoc == null) {
@@ -160,6 +158,25 @@ public class RRFRankBuilder extends RankBuilder {
                 + "] as sum of [1 / (rank + rankConstant)] for each query",
             details
         );
+    }
+
+    public QueryPhaseRankShardContext buildQueryPhaseShardContext(List<Query> queries, int from) {
+        return new RRFQueryPhaseRankShardContext(queries, rankWindowSize(), rankConstant);
+    }
+
+    @Override
+    public QueryPhaseRankCoordinatorContext buildQueryPhaseCoordinatorContext(int size, int from) {
+        return new RRFQueryPhaseRankCoordinatorContext(size, from, rankWindowSize(), rankConstant);
+    }
+
+    @Override
+    public RankFeaturePhaseRankShardContext buildRankFeaturePhaseShardContext() {
+        return null;
+    }
+
+    @Override
+    public RankFeaturePhaseRankCoordinatorContext buildRankFeaturePhaseCoordinatorContext(int size, int from) {
+        return null;
     }
 
     @Override

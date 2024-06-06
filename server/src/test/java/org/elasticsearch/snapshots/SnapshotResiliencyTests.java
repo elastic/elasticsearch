@@ -178,6 +178,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.FetchPhase;
+import org.elasticsearch.search.rank.feature.RankFeatureShardPhase;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -1035,7 +1036,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                             .routingTable()
                             .shardRoutingTable(shardToRelocate.shardId())
                             .primaryShard();
-                        if (shardRouting.unassigned() && shardRouting.unassignedInfo().getReason() == UnassignedInfo.Reason.NODE_LEFT) {
+                        if (shardRouting.unassigned() && shardRouting.unassignedInfo().reason() == UnassignedInfo.Reason.NODE_LEFT) {
                             if (masterNodeCount > 1) {
                                 scheduleNow(() -> testClusterNodes.stopNode(masterNode));
                             }
@@ -2249,6 +2250,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     threadPool,
                     scriptService,
                     bigArrays,
+                    new RankFeatureShardPhase(),
                     new FetchPhase(Collections.emptyList()),
                     responseCollectorService,
                     new NoneCircuitBreakerService(),

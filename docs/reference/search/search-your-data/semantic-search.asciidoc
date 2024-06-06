@@ -21,7 +21,7 @@ image::images/search/vector-search-oversimplification.png[A simplified represent
 
 At query time, {es} can use the same NLP model to convert a query into embeddings, enabling you to find documents with similar text embeddings.
 
-This guide shows you how to implement semantic search with {es}, from selecting an NLP model, to writing queries.
+This guide shows you how to implement semantic search with {es}: From selecting an NLP model, to writing queries.
 
 IMPORTANT: For the easiest way to perform semantic search in the {stack}, refer to the <<semantic-search-semantic-text, `semantic_text`>> end-to-end tutorial.
 

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search.rank;
 
+import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.TransportVersion;
@@ -127,6 +128,12 @@ public class RankFeatureShardPhaseTests extends ESTestCase {
             @Override
             public boolean isCompoundBuilder() {
                 return false;
+            }
+
+            @Override
+            public Explanation explainHit(Explanation baseExplanation, RankDoc scoreDoc, List<String> queryNames) {
+                // no-op
+                return baseExplanation;
             }
 
             // no work to be done on the query phase

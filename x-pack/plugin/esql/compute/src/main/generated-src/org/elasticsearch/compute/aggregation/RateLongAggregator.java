@@ -272,7 +272,7 @@ public class RateLongAggregator {
             try (
                 LongBlock.Builder timestamps = blockFactory.newLongBlockBuilder(positionCount * 2);
                 LongBlock.Builder values = blockFactory.newLongBlockBuilder(positionCount * 2);
-                DoubleVector.Builder resets = blockFactory.newDoubleVectorFixedBuilder(positionCount)
+                DoubleVector.FixedBuilder resets = blockFactory.newDoubleVectorFixedBuilder(positionCount)
             ) {
                 for (int i = 0; i < positionCount; i++) {
                     final var groupId = selected.getInt(i);
@@ -290,11 +290,11 @@ public class RateLongAggregator {
                         }
                         values.endPositionEntry();
 
-                        resets.appendDouble(state.reset);
+                        resets.appendDouble(state.reset, i);
                     } else {
                         timestamps.appendNull();
                         values.appendNull();
-                        resets.appendDouble(0);
+                        resets.appendDouble(0, i);
                     }
                 }
                 blocks[offset] = timestamps.build();

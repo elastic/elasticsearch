@@ -117,7 +117,7 @@ public sealed interface LongVector extends Vector permits ConstantLongVector, Lo
     private static LongVector readValues(int positions, StreamInput in, BlockFactory blockFactory) throws IOException {
         try (var builder = blockFactory.newLongVectorFixedBuilder(positions)) {
             for (int i = 0; i < positions; i++) {
-                builder.appendLong(in.readLong());
+                builder.appendLong(in.readLong(), i);
             }
             return builder.build();
         }

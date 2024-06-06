@@ -611,12 +611,12 @@ public class OrdinalsGroupingOperator implements Operator {
         @Override
         IntBlock readOrdinalsAdded1(IntVector docs) throws IOException {
             final int positionCount = docs.getPositionCount();
-            try (IntVector.Builder builder = blockFactory.newIntVectorFixedBuilder(positionCount)) {
+            try (IntVector.FixedBuilder builder = blockFactory.newIntVectorFixedBuilder(positionCount)) {
                 for (int p = 0; p < positionCount; p++) {
                     if (sortedDocValues.advanceExact(docs.getInt(p))) {
-                        builder.appendInt(sortedDocValues.ordValue() + 1);
+                        builder.appendInt(sortedDocValues.ordValue() + 1, p);
                     } else {
-                        builder.appendInt(0);
+                        builder.appendInt(0, p);
                     }
                 }
                 return builder.build().asBlock();

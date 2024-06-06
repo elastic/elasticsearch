@@ -116,7 +116,7 @@ public sealed interface BooleanVector extends Vector permits ConstantBooleanVect
     private static BooleanVector readValues(int positions, StreamInput in, BlockFactory blockFactory) throws IOException {
         try (var builder = blockFactory.newBooleanVectorFixedBuilder(positions)) {
             for (int i = 0; i < positions; i++) {
-                builder.appendBoolean(in.readBoolean());
+                builder.appendBoolean(in.readBoolean(), i);
             }
             return builder.build();
         }

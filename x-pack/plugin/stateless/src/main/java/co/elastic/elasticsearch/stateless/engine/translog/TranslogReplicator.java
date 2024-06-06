@@ -328,23 +328,27 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
         return shardSyncState.syncNeeded();
     }
 
-    public void sync(final ShardId shardId, Translog.Location location, ActionListener<Void> listener) {
-        ShardSyncState shardSyncState = getShardSyncStateSafe(shardId);
-        boolean completed = shardSyncState.ensureSynced(
-            new Translog.Location(location.generation, location.translogLocation + location.size, 0),
-            listener
-        );
-        if (completed == false) {
-            requestSyncFlush();
-        }
+    public void sync(final ShardId shardId, Translog.Location location, ActionListener<Void> l) {
+        ActionListener.run(l, listener -> {
+            ShardSyncState shardSyncState = getShardSyncStateSafe(shardId);
+            boolean completed = shardSyncState.ensureSynced(
+                new Translog.Location(location.generation, location.translogLocation + location.size, 0),
+                listener
+            );
+            if (completed == false) {
+                requestSyncFlush();
+            }
+        });
     }
 
-    public void syncAll(final ShardId shardId, ActionListener<Void> listener) {
-        ShardSyncState shardSyncState = getShardSyncStateSafe(shardId);
-        boolean completed = shardSyncState.waitForAllSynced(listener);
-        if (completed == false) {
-            requestSyncFlush();
-        }
+    public void syncAll(final ShardId shardId, ActionListener<Void> l) {
+        ActionListener.run(l, listener -> {
+            ShardSyncState shardSyncState = getShardSyncStateSafe(shardId);
+            boolean completed = shardSyncState.waitForAllSynced(listener);
+            if (completed == false) {
+                requestSyncFlush();
+            }
+        });
     }
 
     private void requestSyncFlush() {

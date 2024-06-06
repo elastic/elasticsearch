@@ -30,8 +30,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.inference.results.InferenceChunkedTextEmbeddingFloatResults;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
-import org.elasticsearch.xpack.core.ml.inference.results.MlChunkedTextEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingFloatResults;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -137,47 +136,38 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
             }
         }
 
-        private TextEmbeddingFloatResults makeResults(List<String> input, int dimensions) {
-            List<TextEmbeddingFloatResults.FloatEmbedding> embeddings = new ArrayList<>();
+        private InferenceTextEmbeddingFloatResults makeResults(List<String> input, int dimensions) {
+            List<InferenceTextEmbeddingFloatResults.InferenceFloatEmbedding> embeddings = new ArrayList<>();
             for (int i = 0; i < input.size(); i++) {
-                double[] doubleEmbeddings = generateEmbedding(input.get(i), dimensions);
+                float[] doubleEmbeddings = generateEmbedding(input.get(i), dimensions);
                 List<Float> floatEmbeddings = new ArrayList<>(dimensions);
                 for (int j = 0; j < dimensions; j++) {
-                    floatEmbeddings.add((float) doubleEmbeddings[j]);
+                    floatEmbeddings.add(doubleEmbeddings[j]);
                 }
-                embeddings.add(TextEmbeddingFloatResults.FloatEmbedding.of(floatEmbeddings));
+                embeddings.add(InferenceTextEmbeddingFloatResults.InferenceFloatEmbedding.of(floatEmbeddings));
             }
-            return new TextEmbeddingFloatResults(embeddings);
+            return new InferenceTextEmbeddingFloatResults(embeddings);
         }
 
-        // TODO double check this
         private List<ChunkedInferenceServiceResults> makeChunkedResults(List<String> input, int dimensions) {
-            var results = new ArrayList<ChunkedInferenceServiceResults>();
+            var chunks = new ArrayList<InferenceTextEmbeddingFloatResults.InferenceFloatEmbedding>();
             for (int i = 0; i < input.size(); i++) {
-                double[] embeddings = generateEmbedding(input.get(i), dimensions);
-                results.add(
-                    InferenceChunkedTextEmbeddingFloatResults.ofMlResults(
-                        new MlChunkedTextEmbeddingFloatResults(
-                            "",
-                            List.of(new MlChunkedTextEmbeddingFloatResults.EmbeddingChunk(input.get(i), embeddings)),
-                            false
-                        )
-                    )
-                );
+                float[] embedding = generateEmbedding(input.get(i), dimensions);
+                chunks.add(new InferenceTextEmbeddingFloatResults.InferenceFloatEmbedding(embedding));
             }
-            return results;
+
+            return InferenceChunkedTextEmbeddingFloatResults.listOf(input, new InferenceTextEmbeddingFloatResults(chunks));
         }
 
         protected ServiceSettings getServiceSettingsFromMap(Map<String, Object> serviceSettingsMap) {
             return TestServiceSettings.fromMap(serviceSettingsMap);
         }
 
-        private static double[] generateEmbedding(String input, int dimensions) {
-            double[] embedding = new double[dimensions];
+        private static float[] generateEmbedding(String input, int dimensions) {
+            float[] embedding = new float[dimensions];
             for (int j = 0; j < dimensions; j++) {
                 embedding[j] = input.hashCode() + 1 + j;
             }
-
             return embedding;
         }
     }

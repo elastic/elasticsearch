@@ -20,7 +20,6 @@ import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.inference.results.ChunkedNlpInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.MlChunkedTextEmbeddingFloatResults;
-import org.elasticsearch.xpack.core.ml.inference.results.TextEmbeddingResults;
 import org.elasticsearch.xpack.core.utils.StaticUtils;
 
 import java.io.IOException;
@@ -49,16 +48,21 @@ public record InferenceChunkedTextEmbeddingFloatResults(List<InferenceFloatEmbed
     }
 
     /**
-     * Returns a list of {@link InferenceChunkedTextEmbeddingFloatResults}. The number of entries in the list will match the input list size
-     * Each {@link InferenceChunkedTextEmbeddingFloatResults} will have a single chunk containing the entire results from the
-     * {@link TextEmbeddingResults}.
+     * Returns a list of {@link InferenceChunkedTextEmbeddingFloatResults}.
+     * Each {@link InferenceChunkedTextEmbeddingFloatResults} contain a single chunk with the text and the
+     * {@link InferenceTextEmbeddingFloatResults}.
      */
-    public static List<ChunkedInferenceServiceResults> of(List<String> inputs, TextEmbeddingFloatResults textEmbeddings) {
+    public static List<ChunkedInferenceServiceResults> listOf(List<String> inputs, InferenceTextEmbeddingFloatResults textEmbeddings) {
         validateInputSizeAgainstEmbeddings(inputs, textEmbeddings.embeddings().size());
 
         var results = new ArrayList<ChunkedInferenceServiceResults>(inputs.size());
+
         for (int i = 0; i < inputs.size(); i++) {
-            results.add(InferenceChunkedTextEmbeddingFloatResults.of(inputs.get(i), textEmbeddings.embeddings().get(i).values()));
+            results.add(
+                new InferenceChunkedTextEmbeddingFloatResults(
+                    List.of(new InferenceFloatEmbeddingChunk(inputs.get(i), textEmbeddings.embeddings().get(i).values()))
+                )
+            );
         }
 
         return results;
@@ -71,10 +75,6 @@ public record InferenceChunkedTextEmbeddingFloatResults(List<InferenceFloatEmbed
                 .map(chunk -> new InferenceFloatEmbeddingChunk(chunk.matchedText(), StaticUtils.floatArrayOf(chunk.embedding())))
                 .toList()
         );
-    }
-
-    public static InferenceChunkedTextEmbeddingFloatResults of(String input, float[] floatEmbeddings) {
-        return new InferenceChunkedTextEmbeddingFloatResults(List.of(new InferenceFloatEmbeddingChunk(input, floatEmbeddings)));
     }
 
     @Override

@@ -21,8 +21,8 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.results.ChunkedSparseEmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.InferenceChunkedTextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.ml.inference.results.ChunkedTextExpansionResults;
-import org.elasticsearch.xpack.core.ml.inference.results.MlChunkedTextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.ml.search.WeightedToken;
+import org.elasticsearch.xpack.core.utils.StaticUtils;
 import org.elasticsearch.xpack.inference.model.TestModel;
 
 import java.io.IOException;
@@ -86,7 +86,12 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
     @Override
     protected SemanticTextField createTestInstance() {
         List<String> rawValues = randomList(1, 5, () -> randomAlphaOfLengthBetween(10, 20));
-        return randomSemanticText(NAME, TestModel.createRandomInstance(), rawValues, randomFrom(XContentType.values()));
+        try { // try catch required for override
+            return randomSemanticText(NAME, TestModel.createRandomInstance(), rawValues, randomFrom(XContentType.values()));
+        } catch (IOException e) {
+            fail("Failed to create random SemanticTextField instance");
+        }
+        return null;
     }
 
     @Override
@@ -133,16 +138,19 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
         assertThat(ex.getMessage(), containsString("required [similarity] field is missing"));
     }
 
-    public static MlChunkedTextEmbeddingFloatResults randomTextEmbeddings(Model model, List<String> inputs) {
-        List<MlChunkedTextEmbeddingFloatResults.EmbeddingChunk> chunks = new ArrayList<>();
+    public static InferenceChunkedTextEmbeddingFloatResults randomInferenceChunkedTextEmbeddingFloatResults(
+        Model model,
+        List<String> inputs
+    ) throws IOException {
+        List<InferenceChunkedTextEmbeddingFloatResults.InferenceFloatEmbeddingChunk> chunks = new ArrayList<>();
         for (String input : inputs) {
-            double[] values = new double[model.getServiceSettings().dimensions()];
+            float[] values = new float[model.getServiceSettings().dimensions()];
             for (int j = 0; j < values.length; j++) {
-                values[j] = randomDouble();
+                values[j] = (float) randomDouble();
             }
-            chunks.add(new MlChunkedTextEmbeddingFloatResults.EmbeddingChunk(input, values));
+            chunks.add(new InferenceChunkedTextEmbeddingFloatResults.InferenceFloatEmbeddingChunk(input, values));
         }
-        return new MlChunkedTextEmbeddingFloatResults("", chunks, false);
+        return new InferenceChunkedTextEmbeddingFloatResults(chunks);
     }
 
     public static ChunkedSparseEmbeddingResults randomSparseEmbeddings(List<String> inputs) {
@@ -157,9 +165,10 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
         return new ChunkedSparseEmbeddingResults(chunks);
     }
 
-    public static SemanticTextField randomSemanticText(String fieldName, Model model, List<String> inputs, XContentType contentType) {
+    public static SemanticTextField randomSemanticText(String fieldName, Model model, List<String> inputs, XContentType contentType)
+        throws IOException {
         ChunkedInferenceServiceResults results = switch (model.getTaskType()) {
-            case TEXT_EMBEDDING -> InferenceChunkedTextEmbeddingFloatResults.ofMlResults(randomTextEmbeddings(model, inputs));
+            case TEXT_EMBEDDING -> randomInferenceChunkedTextEmbeddingFloatResults(model, inputs);
             case SPARSE_EMBEDDING -> randomSparseEmbeddings(inputs);
             default -> throw new AssertionError("invalid task type: " + model.getTaskType().name());
         };
@@ -175,7 +184,6 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
         );
     }
 
-    // TODO double check this
     public static ChunkedInferenceServiceResults toChunkedResult(SemanticTextField field) throws IOException {
         switch (field.inference().modelSettings().taskType()) {
             case SPARSE_EMBEDDING -> {
@@ -187,16 +195,21 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
                 return new ChunkedSparseEmbeddingResults(chunks);
             }
             case TEXT_EMBEDDING -> {
-                List<MlChunkedTextEmbeddingFloatResults.EmbeddingChunk> chunks = new ArrayList<>();
+                List<InferenceChunkedTextEmbeddingFloatResults.InferenceFloatEmbeddingChunk> chunks = new ArrayList<>();
                 for (var chunk : field.inference().chunks()) {
                     double[] values = parseDenseVector(
                         chunk.rawEmbeddings(),
                         field.inference().modelSettings().dimensions(),
                         field.contentType()
                     );
-                    chunks.add(new MlChunkedTextEmbeddingFloatResults.EmbeddingChunk(chunk.text(), values));
+                    chunks.add(
+                        new InferenceChunkedTextEmbeddingFloatResults.InferenceFloatEmbeddingChunk(
+                            chunk.text(),
+                            StaticUtils.floatArrayOf(values)
+                        )
+                    );
                 }
-                return InferenceChunkedTextEmbeddingFloatResults.ofMlResults(new MlChunkedTextEmbeddingFloatResults("", chunks, false));
+                return new InferenceChunkedTextEmbeddingFloatResults(chunks);
             }
             default -> throw new AssertionError("Invalid task_type: " + field.inference().modelSettings().taskType().name());
         }

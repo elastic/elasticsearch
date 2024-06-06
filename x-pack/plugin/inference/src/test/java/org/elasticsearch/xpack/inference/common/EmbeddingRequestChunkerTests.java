@@ -12,7 +12,7 @@ import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.inference.results.ErrorChunkedInferenceResults;
 import org.elasticsearch.xpack.core.inference.results.InferenceChunkedTextEmbeddingFloatResults;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingFloatResults;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -177,18 +177,18 @@ public class EmbeddingRequestChunkerTests extends ESTestCase {
 
         // 4 inputs in 2 batches
         {
-            var embeddings = new ArrayList<TextEmbeddingFloatResults.FloatEmbedding>();
+            var embeddings = new ArrayList<InferenceTextEmbeddingFloatResults.InferenceFloatEmbedding>();
             for (int i = 0; i < batchSize; i++) {
-                embeddings.add(new TextEmbeddingFloatResults.FloatEmbedding(new float[] { randomFloat() }));
+                embeddings.add(new InferenceTextEmbeddingFloatResults.InferenceFloatEmbedding(new float[] { randomFloat() }));
             }
-            batches.get(0).listener().onResponse(new TextEmbeddingFloatResults(embeddings));
+            batches.get(0).listener().onResponse(new InferenceTextEmbeddingFloatResults(embeddings));
         }
         {
-            var embeddings = new ArrayList<TextEmbeddingFloatResults.FloatEmbedding>();
+            var embeddings = new ArrayList<InferenceTextEmbeddingFloatResults.InferenceFloatEmbedding>();
             for (int i = 0; i < 4; i++) { // 4 requests in the 2nd batch
-                embeddings.add(new TextEmbeddingFloatResults.FloatEmbedding(new float[] { randomFloat() }));
+                embeddings.add(new InferenceTextEmbeddingFloatResults.InferenceFloatEmbedding(new float[] { randomFloat() }));
             }
-            batches.get(1).listener().onResponse(new TextEmbeddingFloatResults(embeddings));
+            batches.get(1).listener().onResponse(new InferenceTextEmbeddingFloatResults(embeddings));
         }
 
         assertNotNull(finalListener.results);
@@ -251,10 +251,10 @@ public class EmbeddingRequestChunkerTests extends ESTestCase {
         var batches = new EmbeddingRequestChunker(inputs, 10, 100, 0).batchRequestsWithListeners(listener);
         assertThat(batches, hasSize(1));
 
-        var embeddings = new ArrayList<TextEmbeddingFloatResults.FloatEmbedding>();
-        embeddings.add(new TextEmbeddingFloatResults.FloatEmbedding(new float[] { randomFloat() }));
-        embeddings.add(new TextEmbeddingFloatResults.FloatEmbedding(new float[] { randomFloat() }));
-        batches.get(0).listener().onResponse(new TextEmbeddingFloatResults(embeddings));
+        var embeddings = new ArrayList<InferenceTextEmbeddingFloatResults.InferenceFloatEmbedding>();
+        embeddings.add(new InferenceTextEmbeddingFloatResults.InferenceFloatEmbedding(new float[] { randomFloat() }));
+        embeddings.add(new InferenceTextEmbeddingFloatResults.InferenceFloatEmbedding(new float[] { randomFloat() }));
+        batches.get(0).listener().onResponse(new InferenceTextEmbeddingFloatResults(embeddings));
         assertEquals("Error the number of embedding responses [2] does not equal the number of requests [3]", failureMessage.get());
     }
 

@@ -26,7 +26,7 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.inference.results.ErrorChunkedInferenceResults;
 import org.elasticsearch.xpack.core.inference.results.InferenceChunkedTextEmbeddingFloatResults;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
 import org.elasticsearch.xpack.inference.external.action.azureaistudio.AzureAiStudioActionCreator;
 import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
@@ -116,12 +116,12 @@ public class AzureAiStudioService extends SenderService {
         List<String> inputs,
         InferenceServiceResults inferenceResults
     ) {
-        if (inferenceResults instanceof TextEmbeddingFloatResults textEmbeddingResults) {
-            return InferenceChunkedTextEmbeddingFloatResults.of(inputs, textEmbeddingResults);
+        if (inferenceResults instanceof InferenceTextEmbeddingFloatResults textEmbeddingResults) {
+            return InferenceChunkedTextEmbeddingFloatResults.listOf(inputs, textEmbeddingResults);
         } else if (inferenceResults instanceof ErrorInferenceResults error) {
             return List.of(new ErrorChunkedInferenceResults(error.getException()));
         } else {
-            throw createInvalidChunkedResultException(TextEmbeddingFloatResults.NAME, inferenceResults.getWriteableName());
+            throw createInvalidChunkedResultException(InferenceTextEmbeddingFloatResults.NAME, inferenceResults.getWriteableName());
         }
     }
 

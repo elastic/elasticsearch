@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.ml.inference.nlp;
 
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.MlChunkedTextEmbeddingFloatResults;
-import org.elasticsearch.xpack.core.ml.inference.results.TextEmbeddingResults;
+import org.elasticsearch.xpack.core.ml.inference.results.MlTextEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.NlpTokenizer;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.TokenizationResult;
@@ -77,7 +77,7 @@ public class TextEmbeddingProcessor extends NlpTask.Processor {
                 tokenization.anyTruncated()
             );
         } else {
-            return new TextEmbeddingResults(
+            return new MlTextEmbeddingResults(
                 Optional.ofNullable(resultsField).orElse(DEFAULT_RESULTS_FIELD),
                 pyTorchResult.getInferenceResult()[0][0],
                 tokenization.anyTruncated()

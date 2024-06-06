@@ -15,7 +15,7 @@ import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.inference.results.ErrorChunkedInferenceResults;
 import org.elasticsearch.xpack.core.inference.results.InferenceChunkedTextEmbeddingFloatResults;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingFloatResults;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -45,7 +45,7 @@ public class EmbeddingRequestChunker {
     private final int chunkOverlap;
 
     private List<List<String>> chunkedInputs;
-    private List<AtomicArray<List<TextEmbeddingFloatResults.FloatEmbedding>>> results;
+    private List<AtomicArray<List<InferenceTextEmbeddingFloatResults.InferenceFloatEmbedding>>> results;
     private AtomicArray<ErrorChunkedInferenceResults> errors;
     private ActionListener<List<ChunkedInferenceServiceResults>> finalListener;
 
@@ -160,7 +160,7 @@ public class EmbeddingRequestChunker {
 
         @Override
         public void onResponse(InferenceServiceResults inferenceServiceResults) {
-            if (inferenceServiceResults instanceof TextEmbeddingFloatResults textEmbeddingResults) { // TODO byte embeddings
+            if (inferenceServiceResults instanceof InferenceTextEmbeddingFloatResults textEmbeddingResults) { // TODO byte embeddings
                 int numRequests = positions.stream().mapToInt(SubBatchPositionsAndCount::embeddingCount).sum();
                 if (numRequests != textEmbeddingResults.embeddings().size()) {
                     onFailure(
@@ -214,9 +214,9 @@ public class EmbeddingRequestChunker {
 
         private InferenceChunkedTextEmbeddingFloatResults merge(
             List<String> chunks,
-            AtomicArray<List<TextEmbeddingFloatResults.FloatEmbedding>> debatchedResults
+            AtomicArray<List<InferenceTextEmbeddingFloatResults.InferenceFloatEmbedding>> debatchedResults
         ) {
-            var all = new ArrayList<TextEmbeddingFloatResults.FloatEmbedding>();
+            var all = new ArrayList<InferenceTextEmbeddingFloatResults.InferenceFloatEmbedding>();
             for (int i = 0; i < debatchedResults.length(); i++) {
                 var subBatch = debatchedResults.get(i);
                 all.addAll(subBatch);

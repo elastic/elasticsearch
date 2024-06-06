@@ -22,8 +22,8 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.core.inference.results.ChunkedSparseEmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.ErrorChunkedInferenceResults;
 import org.elasticsearch.xpack.core.inference.results.InferenceChunkedTextEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
 import org.elasticsearch.xpack.inference.external.action.huggingface.HuggingFaceActionCreator;
 import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
@@ -176,8 +176,8 @@ public abstract class HuggingFaceBaseService extends SenderService {
         List<String> inputs,
         InferenceServiceResults inferenceResults
     ) {
-        if (inferenceResults instanceof TextEmbeddingFloatResults textEmbeddingResults) {
-            return InferenceChunkedTextEmbeddingFloatResults.of(inputs, textEmbeddingResults);
+        if (inferenceResults instanceof InferenceTextEmbeddingFloatResults textEmbeddingResults) {
+            return InferenceChunkedTextEmbeddingFloatResults.listOf(inputs, textEmbeddingResults);
         } else if (inferenceResults instanceof SparseEmbeddingResults sparseEmbeddingResults) {
             return ChunkedSparseEmbeddingResults.of(inputs, sparseEmbeddingResults);
         } else if (inferenceResults instanceof ErrorInferenceResults error) {
@@ -185,7 +185,7 @@ public abstract class HuggingFaceBaseService extends SenderService {
         } else {
             String expectedClasses = Strings.format(
                 "One of [%s,%s]",
-                TextEmbeddingFloatResults.class.getSimpleName(),
+                InferenceTextEmbeddingFloatResults.class.getSimpleName(),
                 SparseEmbeddingResults.class.getSimpleName()
             );
             throw createInvalidChunkedResultException(expectedClasses, inferenceResults.getWriteableName());

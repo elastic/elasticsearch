@@ -24,7 +24,7 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.inference.results.ErrorChunkedInferenceResults;
 import org.elasticsearch.xpack.core.inference.results.InferenceChunkedTextEmbeddingFloatResults;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
 import org.elasticsearch.xpack.inference.common.EmbeddingRequestChunker;
 import org.elasticsearch.xpack.inference.external.action.mistral.MistralActionCreator;
@@ -117,8 +117,8 @@ public class MistralService extends SenderService {
         List<String> inputs,
         InferenceServiceResults inferenceResults
     ) {
-        if (inferenceResults instanceof TextEmbeddingFloatResults textEmbeddingResults) {
-            return InferenceChunkedTextEmbeddingFloatResults.of(inputs, textEmbeddingResults);
+        if (inferenceResults instanceof InferenceTextEmbeddingFloatResults textEmbeddingResults) {
+            return InferenceChunkedTextEmbeddingFloatResults.listOf(inputs, textEmbeddingResults);
         } else if (inferenceResults instanceof ErrorInferenceResults error) {
             return List.of(new ErrorChunkedInferenceResults(error.getException()));
         } else {

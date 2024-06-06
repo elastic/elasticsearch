@@ -37,9 +37,9 @@ public record ChunkedTextEmbeddingByteResults(List<EmbeddingChunk> chunks, boole
     /**
      * Returns a list of {@link ChunkedTextEmbeddingByteResults}. The number of entries in the list will match the input list size.
      * Each {@link ChunkedTextEmbeddingByteResults} will have a single chunk containing the entire results from the
-     * {@link TextEmbeddingByteResults}.
+     * {@link InferenceTextEmbeddingByteResults}.
      */
-    public static List<ChunkedInferenceServiceResults> of(List<String> inputs, TextEmbeddingByteResults textEmbeddings) {
+    public static List<ChunkedInferenceServiceResults> of(List<String> inputs, InferenceTextEmbeddingByteResults textEmbeddings) {
         validateInputSizeAgainstEmbeddings(inputs, textEmbeddings.embeddings().size());
 
         var results = new ArrayList<ChunkedInferenceServiceResults>(inputs.size());

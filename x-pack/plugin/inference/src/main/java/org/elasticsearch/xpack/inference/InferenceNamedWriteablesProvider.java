@@ -19,11 +19,11 @@ import org.elasticsearch.xpack.core.inference.results.ChunkedSparseEmbeddingResu
 import org.elasticsearch.xpack.core.inference.results.ChunkedTextEmbeddingByteResults;
 import org.elasticsearch.xpack.core.inference.results.ErrorChunkedInferenceResults;
 import org.elasticsearch.xpack.core.inference.results.InferenceChunkedTextEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingByteResults;
+import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.LegacyTextEmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingByteResults;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.services.azureaistudio.completion.AzureAiStudioChatCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.azureaistudio.completion.AzureAiStudioChatCompletionTaskSettings;
 import org.elasticsearch.xpack.inference.services.azureaistudio.embeddings.AzureAiStudioEmbeddingsServiceSettings;
@@ -328,10 +328,18 @@ public class InferenceNamedWriteablesProvider {
             new NamedWriteableRegistry.Entry(InferenceServiceResults.class, SparseEmbeddingResults.NAME, SparseEmbeddingResults::new)
         );
         namedWriteables.add(
-            new NamedWriteableRegistry.Entry(InferenceServiceResults.class, TextEmbeddingFloatResults.NAME, TextEmbeddingFloatResults::new)
+            new NamedWriteableRegistry.Entry(
+                InferenceServiceResults.class,
+                InferenceTextEmbeddingFloatResults.NAME,
+                InferenceTextEmbeddingFloatResults::new
+            )
         );
         namedWriteables.add(
-            new NamedWriteableRegistry.Entry(InferenceServiceResults.class, TextEmbeddingByteResults.NAME, TextEmbeddingByteResults::new)
+            new NamedWriteableRegistry.Entry(
+                InferenceServiceResults.class,
+                InferenceTextEmbeddingByteResults.NAME,
+                InferenceTextEmbeddingByteResults::new
+            )
         );
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(InferenceServiceResults.class, ChatCompletionResults.NAME, ChatCompletionResults::new)

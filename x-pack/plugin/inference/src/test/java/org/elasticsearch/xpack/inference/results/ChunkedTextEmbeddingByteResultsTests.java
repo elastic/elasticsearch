@@ -11,7 +11,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.inference.results.ChunkedTextEmbeddingByteResults;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingByteResults;
+import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingByteResults;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -75,7 +75,9 @@ public class ChunkedTextEmbeddingByteResultsTests extends AbstractWireSerializin
     public void testToXContent_CreatesTheRightJsonForASingleChunk_ForTextEmbeddingByteResults() {
         var entity = ChunkedTextEmbeddingByteResults.of(
             List.of("text"),
-            new TextEmbeddingByteResults(List.of(new TextEmbeddingByteResults.Embedding(new byte[] { (byte) 1 })))
+            new InferenceTextEmbeddingByteResults(
+                List.of(new InferenceTextEmbeddingByteResults.InferenceByteEmbedding(new byte[] { (byte) 1 }))
+            )
         );
 
         assertThat(entity.size(), is(1));
@@ -110,7 +112,9 @@ public class ChunkedTextEmbeddingByteResultsTests extends AbstractWireSerializin
             IllegalArgumentException.class,
             () -> ChunkedTextEmbeddingByteResults.of(
                 List.of("text", "text2"),
-                new TextEmbeddingByteResults(List.of(new TextEmbeddingByteResults.Embedding(new byte[] { (byte) 1 })))
+                new InferenceTextEmbeddingByteResults(
+                    List.of(new InferenceTextEmbeddingByteResults.InferenceByteEmbedding(new byte[] { (byte) 1 }))
+                )
             )
         );
 

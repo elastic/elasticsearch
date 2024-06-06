@@ -83,11 +83,6 @@ public class MlChunkedTextEmbeddingFloatResults extends ChunkedNlpInferenceResul
         this.chunks = embeddings;
     }
 
-    // for testing
-    public MlChunkedTextEmbeddingFloatResults(List<EmbeddingChunk> embeddings) {
-        this("text_embedding_chunk", embeddings, false);
-    }
-
     public MlChunkedTextEmbeddingFloatResults(StreamInput in) throws IOException {
         super(in);
         this.resultsField = in.readString();

@@ -1122,6 +1122,32 @@ public class TranslogReplicatorTests extends ESTestCase {
         assertTranslogContains(new TranslogReplicatorReader(objectStoreService.getTranslogBlobContainer(), shardId), operations[0]);
     }
 
+    public void testClosedShardSyncTriggersListener() throws IOException {
+        ShardId shardId = new ShardId(new Index("name", "uuid"), 0);
+        long primaryTerm = randomLongBetween(0, 10);
+
+        ObjectStoreService objectStoreService = mockObjectStoreService(new ArrayList<>());
+        StatelessClusterConsistencyService consistencyService = mockConsistencyService();
+
+        TranslogReplicator translogReplicator = new TranslogReplicator(
+            threadPool,
+            getSettings(),
+            objectStoreService,
+            consistencyService,
+            (sId) -> primaryTerm
+        );
+        translogReplicator.doStart();
+
+        PlainActionFuture<Void> future = new PlainActionFuture<>();
+        if (randomBoolean()) {
+            translogReplicator.syncAll(shardId, future);
+        } else {
+            translogReplicator.sync(shardId, new Translog.Location(0, 0, 0), future);
+        }
+
+        expectThrows(AlreadyClosedException.class, future::actionGet);
+    }
+
     private static Translog.Operation[] generateRandomOperations(int numOps) {
         final Translog.Operation[] operations = new Translog.Operation[numOps];
         for (int i = 0; i < numOps; i++) {

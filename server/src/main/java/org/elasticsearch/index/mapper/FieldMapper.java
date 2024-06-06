@@ -443,9 +443,9 @@ public abstract class FieldMapper extends Mapper {
      * Specifies the mode of synthetic source support by the mapper.
      *
      * <pre>
-     * {@link NATIVE} - mapper natively supports synthetic source, f.e. by constructing it from doc values.
+     * {@link SyntheticSourceMode#NATIVE} - mapper natively supports synthetic source, f.e. by constructing it from doc values.
      *
-     * {@link FALLBACK} - mapper does not have native support and uses generic fallback implementation
+     * {@link SyntheticSourceMode#FALLBACK} - mapper does not have native support and uses generic fallback implementation
      * that stores raw input source data as is.
      * </pre>
      */
@@ -455,10 +455,20 @@ public abstract class FieldMapper extends Mapper {
     }
 
     /**
+     * <p>
      * Specifies the mode of synthetic source support by the mapper.
+     * <br>
+     * This is used to determine if a field mapper has support for
+     * constructing synthetic source.
+     * In case it doesn't (meaning {@link SyntheticSourceMode#FALLBACK}),
+     * we will store raw source data for this field as is
+     * and then use it for synthetic source.
+     * </p>
+     * <p>
      * Field mappers must override this method if they provide
      * a custom implementation of {@link #syntheticFieldLoader()}
-     *
+     * in order to use a more efficient field-specific implementation.
+     * </p>
      * @return {@link SyntheticSourceMode}
      */
     protected SyntheticSourceMode syntheticSourceMode() {

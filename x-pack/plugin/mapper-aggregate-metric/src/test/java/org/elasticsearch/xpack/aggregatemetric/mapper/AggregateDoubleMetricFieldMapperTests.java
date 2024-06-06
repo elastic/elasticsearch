@@ -18,7 +18,6 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.aggregatemetric.AggregateMetricMapperPlugin;
@@ -34,7 +33,6 @@ import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper.Names.IGNORE_MALFORMED;
 import static org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper.Names.METRICS;
@@ -150,6 +148,11 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
     @Override
     protected List<ExampleMalformedValue> exampleMalformedValues() {
         return List.of(
+            // wrong input structure
+            exampleMalformedValue(b -> b.value("hello")).errorMatches("Failed to parse object"),
+            exampleMalformedValue(b -> b.value(120)).errorMatches("Failed to parse object"),
+            exampleMalformedValue(b -> b.value(120.5)).errorMatches("Failed to parse object"),
+            exampleMalformedValue(b -> b.value(false)).errorMatches("Failed to parse object"),
             // no metrics
             exampleMalformedValue(b -> b.startObject().endObject()).errorMatches(
                 "Aggregate metric field [field] must contain all metrics [min, max, value_count]"
@@ -165,6 +168,33 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
             // invalid metric value
             exampleMalformedValue(b -> b.startObject().field("min", "10.0").field("max", 50.0).field("value_count", 14).endObject())
                 .errorMatches("Failed to parse object: expecting token of type [VALUE_NUMBER] but found [VALUE_STRING]"),
+            // invalid metric value with additional data
+            exampleMalformedValue(
+                b -> b.startObject()
+                    .field("min", "10.0")
+                    .field("max", 50.0)
+                    .field("value_count", 14)
+                    .field("hello", "world")
+                    .startObject("object")
+                    .field("hello", "world")
+                    .endObject()
+                    .array("list", "hello", "world")
+                    .endObject()
+            ).errorMatches("Failed to parse object: expecting token of type [VALUE_NUMBER] but found [VALUE_STRING]"),
+            // metric is an object
+            exampleMalformedValue(
+                b -> b.startObject()
+                    .startObject("min")
+                    .field("hello", "world")
+                    .endObject()
+                    .field("max", 50.0)
+                    .field("value_count", 14)
+                    .endObject()
+            ).errorMatches("Failed to parse object: expecting token of type [VALUE_NUMBER] but found [START_OBJECT]"),
+            // metric is an array
+            exampleMalformedValue(
+                b -> b.startObject().array("min", "hello", "world").field("max", 50.0).field("value_count", 14).endObject()
+            ).errorMatches("Failed to parse object: expecting token of type [VALUE_NUMBER] but found [START_ARRAY]"),
             // negative value count
             exampleMalformedValue(b -> b.startObject().field("min", 10.0).field("max", 50.0).field("value_count", -14).endObject())
                 .errorMatches("Aggregate metric [value_count] of field [field] cannot be a negative number"),
@@ -494,79 +524,7 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
             return new SyntheticSourceExample(value, value, this::mapping);
         }
 
-        private Object randomAggregateMetric() {
-            if (malformedExample && randomBoolean()) {
-                return malformedValue();
-            }
-
-            return validMetrics();
-        }
-
-        private Object malformedValue() {
-            List<Supplier<Object>> choices = List.of(
-                () -> randomAlphaOfLength(3),
-                ESTestCase::randomInt,
-                ESTestCase::randomLong,
-                ESTestCase::randomFloat,
-                ESTestCase::randomDouble,
-                ESTestCase::randomBoolean,
-                // no metrics
-                Map::of,
-                // unmapped metric
-                () -> {
-                    var metrics = validMetrics();
-                    metrics.put("hello", "world");
-                    return metrics;
-                },
-                // missing metric
-                () -> {
-                    var metrics = validMetrics();
-                    metrics.remove(storedMetrics.stream().findFirst().get().name());
-                    return metrics;
-                },
-                // invalid metric value
-                () -> {
-                    var metrics = validMetrics();
-                    metrics.put(storedMetrics.stream().findFirst().get().name(), "boom");
-                    return metrics;
-                },
-                // metric is an object
-                () -> {
-                    var metrics = validMetrics();
-                    metrics.put(storedMetrics.stream().findFirst().get().name(), Map.of("hello", "world"));
-                    return metrics;
-                },
-                // invalid metric value with additional data
-                () -> {
-                    var metrics = validMetrics();
-                    metrics.put(storedMetrics.stream().findFirst().get().name(), "boom");
-                    metrics.put("hello", "world");
-                    metrics.put("object", Map.of("hello", "world"));
-                    metrics.put("list", List.of("hello", "world"));
-                    return metrics;
-                },
-                // negative value count
-                () -> {
-                    var metrics = validMetrics();
-                    if (storedMetrics.contains(Metric.value_count.name())) {
-                        metrics.put(Metric.value_count.name(), -100);
-                    }
-                    return metrics;
-                },
-                // value count with decimal digits (whole numbers formatted as doubles are permitted, but non-whole numbers are not)
-                () -> {
-                    var metrics = validMetrics();
-                    if (storedMetrics.contains(Metric.value_count.name())) {
-                        metrics.put(Metric.value_count.name(), 10.5);
-                    }
-                    return metrics;
-                }
-            );
-
-            return randomFrom(choices).get();
-        }
-
-        private Map<String, Object> validMetrics() {
+        private Map<String, Object> randomAggregateMetric() {
             Map<String, Object> value = new LinkedHashMap<>(storedMetrics.size());
             for (Metric m : storedMetrics) {
                 if (Metric.value_count == m) {

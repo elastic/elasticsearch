@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.core.inference.results.TextEmbeddingByteResults;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.response.XContentUtils;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingType;
 
 import java.io.IOException;
@@ -219,14 +220,8 @@ public class CohereEmbeddingsResponseEntity {
 
     private static TextEmbeddingResults.Embedding parseFloatArrayEntry(XContentParser parser) throws IOException {
         ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.currentToken(), parser);
-        List<Float> embeddingValuesList = parseList(parser, CohereEmbeddingsResponseEntity::parseEmbeddingFloatEntry);
+        List<Float> embeddingValuesList = parseList(parser, XContentUtils::parseFloat);
         return TextEmbeddingResults.Embedding.of(embeddingValuesList);
-    }
-
-    private static Float parseEmbeddingFloatEntry(XContentParser parser) throws IOException {
-        XContentParser.Token token = parser.currentToken();
-        ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser);
-        return parser.floatValue();
     }
 
     private CohereEmbeddingsResponseEntity() {}

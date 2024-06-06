@@ -520,21 +520,6 @@ public final class OptimizerRules {
         }
     }
 
-    public static final class SetAsOptimized extends Rule<LogicalPlan, LogicalPlan> {
-
-        @Override
-        public LogicalPlan apply(LogicalPlan plan) {
-            plan.forEachUp(SetAsOptimized::rule);
-            return plan;
-        }
-
-        private static void rule(LogicalPlan plan) {
-            if (plan.optimized() == false) {
-                plan.setOptimized();
-            }
-        }
-    }
-
     public abstract static class OptimizerRule<SubPlan extends LogicalPlan> extends Rule<SubPlan, LogicalPlan> {
 
         private final TransformDirection direction;

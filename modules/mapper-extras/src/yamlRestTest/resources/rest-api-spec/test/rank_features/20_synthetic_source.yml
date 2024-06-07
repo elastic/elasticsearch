@@ -1,4 +1,4 @@
-supported:
+setup:
   - requires:
       cluster_features: ["mapper.source.synthetic_source_fallback"]
       reason: introduced in 8.15.0
@@ -11,23 +11,26 @@ supported:
             _source:
               mode: synthetic
             properties:
-              join_field:
-                type: join
-                relations:
-                  parent: child
+              tags:
+                type: rank_features
+
+---
+"synthetic source sanity test":
+  - do:
+      index:
+        index: test
+        id: "1"
+        body:
+          tags:
+            foo: 3
+            bar: 5
 
   - do:
       index:
         index: test
-        id:    "1"
-        body:  {"foo": "bar", "join_field": {"name" : "parent"} }
-
-  - do:
-      index:
-        index: test
-        id:    "2"
-        routing: "1"
-        body:  {"zab": "baz", "join_field": { "name" : "child", "parent": "1"} }
+        id: "2"
+        body:
+          tags: []
 
   - do:
       indices.refresh: {}
@@ -39,18 +42,15 @@ supported:
 
   - match:
       _source:
-        foo: "bar"
-        join_field:
-          name: "parent"
+        tags:
+          foo: 3
+          bar: 5
 
   - do:
       get:
         index: test
         id: "2"
 
-  - match:
-      _source:
-        join_field:
-          name: "child"
-          parent: "1"
-        zab: "baz"
+  - match: { _source.tags: [] }
+
+

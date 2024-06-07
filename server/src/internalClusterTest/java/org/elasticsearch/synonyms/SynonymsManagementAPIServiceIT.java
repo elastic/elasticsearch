@@ -9,17 +9,10 @@
 package org.elasticsearch.synonyms;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexAbstraction;
-import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.gateway.GatewayService;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
-import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Before;
 
 import java.util.Collection;
@@ -29,19 +22,18 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.action.synonyms.SynonymsTestUtils.randomSynonymsSet;
 
-public class SynonymsManagementAPIServiceIT extends ESSingleNodeTestCase {
+public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
 
     private SynonymsManagementAPIService synonymsManagementAPIService;
 
     @Override
-    protected Collection<Class<? extends Plugin>> getPlugins() {
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
         return List.of(ReindexPlugin.class, MapperExtrasPlugin.class);
     }
 
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        assertSynonymsIndexActive(client());
         synonymsManagementAPIService = new SynonymsManagementAPIService(client());
     }
 
@@ -233,27 +225,4 @@ public class SynonymsManagementAPIServiceIT extends ESSingleNodeTestCase {
 
         latch.await(5, TimeUnit.SECONDS);
     }
-
-    private void assertSynonymsIndexActive(Client client) throws Exception {
-        assertBusy(() -> {
-            ClusterState clusterState = client.admin().cluster().prepareState().setLocal(true).get().getState();
-            assertFalse(clusterState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK));
-            Index synonymsIndex = resolveSynonymsIndex(clusterState.metadata());
-            if (synonymsIndex != null) {
-                IndexRoutingTable indexRoutingTable = clusterState.routingTable().index(synonymsIndex);
-                if (indexRoutingTable != null) {
-                    assertTrue(indexRoutingTable.allPrimaryShardsActive());
-                }
-            }
-        }, 30L, TimeUnit.SECONDS);
-    }
-
-    private static Index resolveSynonymsIndex(Metadata metadata) {
-        final IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(SynonymsManagementAPIService.SYNONYMS_ALIAS_NAME);
-        if (indexAbstraction != null) {
-            return indexAbstraction.getIndices().get(0);
-        }
-        return null;
-    }
-
 }

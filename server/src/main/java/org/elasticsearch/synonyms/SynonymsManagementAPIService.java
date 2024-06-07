@@ -70,7 +70,7 @@ public class SynonymsManagementAPIService {
     private static final String SYNONYMS_INDEX_NAME_PATTERN = ".synonyms-*";
     private static final int SYNONYMS_INDEX_FORMAT = 2;
     private static final String SYNONYMS_INDEX_CONCRETE_NAME = ".synonyms-" + SYNONYMS_INDEX_FORMAT;
-    static final String SYNONYMS_ALIAS_NAME = ".synonyms";
+    private static final String SYNONYMS_ALIAS_NAME = ".synonyms";
     public static final String SYNONYMS_FEATURE_NAME = "synonyms";
     // Stores the synonym set the rule belongs to
     public static final String SYNONYMS_SET_FIELD = "synonyms_set";

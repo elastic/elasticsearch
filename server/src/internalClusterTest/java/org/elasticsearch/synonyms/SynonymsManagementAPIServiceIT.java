@@ -47,7 +47,7 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
         synonymsManagementAPIService.putSynonymsSet(
             synonymSetId,
             randomSynonymsSet(rulesNumber, rulesNumber),
-            new ActionListener<SynonymsManagementAPIService.SynonymsReloadResult>() {
+            new ActionListener<>() {
                 @Override
                 public void onResponse(SynonymsManagementAPIService.SynonymsReloadResult synonymsReloadResult) {
                     putLatch.countDown();
@@ -68,7 +68,7 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
             synonymSetId,
             0,
             SynonymsManagementAPIService.MAX_SYNONYMS_SETS,
-            new ActionListener<PagedResult<SynonymRule>>() {
+            new ActionListener<>() {
                 @Override
                 public void onResponse(PagedResult<SynonymRule> synonymRulePagedResult) {
                     assertEquals(rulesNumber, synonymRulePagedResult.totalResults());
@@ -91,7 +91,7 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
         synonymsManagementAPIService.putSynonymsSet(
             randomIdentifier(),
             randomSynonymsSet(SynonymsManagementAPIService.MAX_SYNONYMS_SETS + 1, SynonymsManagementAPIService.MAX_SYNONYMS_SETS * 2),
-            new ActionListener<SynonymsManagementAPIService.SynonymsReloadResult>() {
+            new ActionListener<>() {
                 @Override
                 public void onResponse(SynonymsManagementAPIService.SynonymsReloadResult synonymsReloadResult) {
                     fail("Shouldn't create synonyms that are too large");
@@ -119,7 +119,7 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
         synonymsManagementAPIService.putSynonymsSet(
             synonymSetId,
             randomSynonymsSet(synonymsToCreate),
-            new ActionListener<SynonymsManagementAPIService.SynonymsReloadResult>() {
+            new ActionListener<>() {
                 @Override
                 public void onResponse(SynonymsManagementAPIService.SynonymsReloadResult synonymsReloadResult) {
                     // Create as many rules as should fail
@@ -195,14 +195,14 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
         synonymsManagementAPIService.putSynonymsSet(
             synonymSetId,
             synonymsSet,
-            new ActionListener<SynonymsManagementAPIService.SynonymsReloadResult>() {
+            new ActionListener<>() {
                 @Override
                 public void onResponse(SynonymsManagementAPIService.SynonymsReloadResult synonymsReloadResult) {
                     // Updating a rule fails
                     synonymsManagementAPIService.putSynonymRule(
                         synonymSetId,
                         synonymsSet[0],
-                        new ActionListener<SynonymsManagementAPIService.SynonymsReloadResult>() {
+                        new ActionListener<>() {
                             @Override
                             public void onResponse(SynonymsManagementAPIService.SynonymsReloadResult synonymsReloadResult) {
                                 fail("Shouldn't have been able to update a rule with max synonyms");

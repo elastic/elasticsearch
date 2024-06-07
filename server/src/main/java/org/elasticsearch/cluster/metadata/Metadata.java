@@ -1595,11 +1595,14 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
                     ? ChunkedToXContentHelper.wrapWithObject(entry.getKey(), entry.getValue().toXContentChunked(p))
                     : Collections.emptyIterator()
             ),
-            Iterators.flatMap(
-                projectCustoms.entrySet().iterator(),
-                entry -> entry.getValue().context().contains(context)
-                    ? ChunkedToXContentHelper.wrapWithObject(entry.getKey(), entry.getValue().toXContentChunked(p))
-                    : Collections.emptyIterator()
+            ChunkedToXContentHelper.wrapWithObject(
+                "project",
+                Iterators.flatMap(
+                    projectCustoms.entrySet().iterator(),
+                    entry -> entry.getValue().context().contains(context)
+                        ? ChunkedToXContentHelper.wrapWithObject(entry.getKey(), entry.getValue().toXContentChunked(p))
+                        : Collections.emptyIterator()
+                )
             ),
             ChunkedToXContentHelper.wrapWithObject("reserved_state", reservedStateMetadata().values().iterator()),
             ChunkedToXContentHelper.endObject()
@@ -2901,19 +2904,28 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
                         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                             builder.put(ReservedStateMetadata.fromXContent(parser));
                         }
+                    } else if ("project".equals(currentFieldName)) {
+                        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                            if (token == XContentParser.Token.FIELD_NAME) {
+                                currentFieldName = parser.currentName();
+                                if (parser.nextToken() == XContentParser.Token.START_OBJECT) {
+                                    try {
+                                        ProjectCustom custom = parser.namedObject(ProjectCustom.class, currentFieldName, null);
+                                        builder.putProjectCustom(custom.getWriteableName(), custom);
+                                    } catch (NamedObjectNotFoundException ex) {
+                                        logger.warn("Skipping unknown custom object with type {}", currentFieldName);
+                                        parser.skipChildren();
+                                    }
+                                }
+                            }
+                        }
                     } else {
                         try {
                             ClusterCustom custom = parser.namedObject(ClusterCustom.class, currentFieldName, null);
                             builder.putClusterCustom(custom.getWriteableName(), custom);
-                        } catch (NamedObjectNotFoundException ex) {
-                            // TODO: This is horrible but it should go away when project data gets moved to it own XContent object
-                            try {
-                                ProjectCustom custom = parser.namedObject(ProjectCustom.class, currentFieldName, null);
-                                builder.putProjectCustom(custom.getWriteableName(), custom);
-                            } catch (NamedObjectNotFoundException _ex) {
-                                logger.warn("Skipping unknown custom object with type {}", currentFieldName);
-                                parser.skipChildren();
-                            }
+                        } catch (NamedObjectNotFoundException _ex) {
+                            logger.warn("Skipping unknown custom object with type {}", currentFieldName);
+                            parser.skipChildren();
                         }
                     }
                 } else if (token.isValue()) {

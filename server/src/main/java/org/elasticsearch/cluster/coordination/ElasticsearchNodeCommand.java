@@ -248,13 +248,13 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
         }
     }
 
-    public static class UnknownMetadataCustom extends AbstractUnknownCustom<Metadata.ClusterCustom> {
+    public static class UnknownMetadataCustom extends AbstractUnknownCustom<Metadata.ClusterCustom> implements Metadata.ClusterCustom {
         public UnknownMetadataCustom(String name, Map<String, Object> contents) {
             super(name, contents);
         }
     }
 
-    public static class UnknownProjectCustom extends AbstractUnknownCustom<Metadata.ProjectCustom> {
+    public static class UnknownProjectCustom extends AbstractUnknownCustom<Metadata.ProjectCustom> implements Metadata.ProjectCustom {
         public UnknownProjectCustom(String name, Map<String, Object> contents) {
             super(name, contents);
         }

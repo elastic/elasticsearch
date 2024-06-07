@@ -2307,6 +2307,7 @@ public class MetadataTests extends ESTestCase {
                 );
             }
         }
+        chunkCount += 2; // start/end "project":{}
         for (Metadata.ProjectCustom custom : metadata.projectCustoms().values()) {
             chunkCount += 2;
             if (custom instanceof ComponentTemplateMetadata componentTemplateMetadata) {
@@ -2357,7 +2358,8 @@ public class MetadataTests extends ESTestCase {
             "templates",
             "clusterUUID",
             "clusterUUIDCommitted",
-            "customs",
+            "clusterCustoms",
+            "projectCustoms",
             "reservedStateMetadata"
         );
         Set<String> excludedFromGlobalStateCheck = Set.of(
@@ -2537,7 +2539,7 @@ public class MetadataTests extends ESTestCase {
         implements
             Metadata.ClusterCustom {}
 
-    private static class TestProjectCustomMetadata extends AbstractCustomMetadata<Metadata.ClusterCustom>
+    private static class TestProjectCustomMetadata extends AbstractCustomMetadata<Metadata.ProjectCustom>
         implements
-            Metadata.ClusterCustom {}
+            Metadata.ProjectCustom {}
 }

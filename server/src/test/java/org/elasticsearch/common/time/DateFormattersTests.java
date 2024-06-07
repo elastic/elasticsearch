@@ -18,6 +18,7 @@ import java.time.Clock;
 import java.time.DateTimeException;
 import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
@@ -1395,5 +1396,12 @@ public class DateFormattersTests extends ESTestCase {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> DateFormatter.forPattern(input));
         assertThat(e.getCause(), instanceOf(ClassCastException.class));
         assertThat(e.getMessage(), containsString(input));
+    }
+
+    public void testLocalePrinting() {
+        assertThat(
+            DateFormatter.forPattern("eeee").withLocale(Locale.GERMAN).format(OffsetDateTime.parse("2024-01-01T12:00:00Z")),
+            equalTo("Montag")
+        );
     }
 }

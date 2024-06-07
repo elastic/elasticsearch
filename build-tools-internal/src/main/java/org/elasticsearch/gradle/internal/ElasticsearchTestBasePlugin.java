@@ -86,7 +86,7 @@ public class ElasticsearchTestBasePlugin implements Plugin<Project> {
                     mkdirs(test.getWorkingDir().toPath().resolve("temp").toFile());
 
                     // TODO remove once jvm.options are added to test system properties
-                    test.systemProperty("java.locale.providers", "SPI,COMPAT");
+                    test.systemProperty("java.locale.providers", "SPI,CLDR");
                 }
             });
             test.getJvmArgumentProviders().add(nonInputProperties);

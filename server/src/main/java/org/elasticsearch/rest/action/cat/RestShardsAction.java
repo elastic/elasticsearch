@@ -324,13 +324,13 @@ public class RestShardsAction extends AbstractCatAction {
             table.addCell(commitStats == null ? null : commitStats.getUserData().get(Engine.SYNC_COMMIT_ID));
 
             if (shard.unassignedInfo() != null) {
-                table.addCell(shard.unassignedInfo().getReason());
-                Instant unassignedTime = Instant.ofEpochMilli(shard.unassignedInfo().getUnassignedTimeInMillis());
+                table.addCell(shard.unassignedInfo().reason());
+                Instant unassignedTime = Instant.ofEpochMilli(shard.unassignedInfo().unassignedTimeMillis());
                 table.addCell(UnassignedInfo.DATE_TIME_FORMATTER.format(unassignedTime));
                 table.addCell(
-                    TimeValue.timeValueMillis(Math.max(0, System.currentTimeMillis() - shard.unassignedInfo().getUnassignedTimeInMillis()))
+                    TimeValue.timeValueMillis(Math.max(0, System.currentTimeMillis() - shard.unassignedInfo().unassignedTimeMillis()))
                 );
-                table.addCell(shard.unassignedInfo().getDetails());
+                table.addCell(shard.unassignedInfo().details());
             } else {
                 table.addCell(null);
                 table.addCell(null);

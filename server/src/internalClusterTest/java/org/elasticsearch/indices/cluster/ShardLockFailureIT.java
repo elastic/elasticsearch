@@ -61,7 +61,7 @@ public class ShardLockFailureIT extends ESIntegTestCase {
                         .routingTable()
                         .shardRoutingTable(shardId)
                         .allShards()
-                        .noneMatch(sr -> sr.unassigned() && sr.unassignedInfo().getNumFailedAllocations() > 0)
+                        .noneMatch(sr -> sr.unassigned() && sr.unassignedInfo().failedAllocations() > 0)
                 );
             } catch (IndexNotFoundException e) {
                 // ok

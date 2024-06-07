@@ -563,8 +563,8 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                             "primary failed while replica initializing",
                             null,
                             0,
-                            unassignedInfo.getUnassignedTimeInNanos(),
-                            unassignedInfo.getUnassignedTimeInMillis(),
+                            unassignedInfo.unassignedTimeNanos(),
+                            unassignedInfo.unassignedTimeMillis(),
                             false,
                             AllocationStatus.NO_ATTEMPT,
                             Collections.emptySet(),
@@ -644,11 +644,11 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                     unpromotableReplica,
                     new UnassignedInfo(
                         UnassignedInfo.Reason.UNPROMOTABLE_REPLICA,
-                        unassignedInfo.getMessage(),
-                        unassignedInfo.getFailure(),
+                        unassignedInfo.message(),
+                        unassignedInfo.failure(),
                         0,
-                        unassignedInfo.getUnassignedTimeInNanos(),
-                        unassignedInfo.getUnassignedTimeInMillis(),
+                        unassignedInfo.unassignedTimeNanos(),
+                        unassignedInfo.unassignedTimeMillis(),
                         false, // TODO debatable, but do we want to delay reassignment of unpromotable replicas tho?
                         AllocationStatus.NO_ATTEMPT,
                         Set.of(),
@@ -970,18 +970,18 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                 ignoredPrimaries++;
                 UnassignedInfo currInfo = shard.unassignedInfo();
                 assert currInfo != null;
-                if (allocationStatus.equals(currInfo.getLastAllocationStatus()) == false) {
+                if (allocationStatus.equals(currInfo.lastAllocationStatus()) == false) {
                     UnassignedInfo newInfo = new UnassignedInfo(
-                        currInfo.getReason(),
-                        currInfo.getMessage(),
-                        currInfo.getFailure(),
-                        currInfo.getNumFailedAllocations(),
-                        currInfo.getUnassignedTimeInNanos(),
-                        currInfo.getUnassignedTimeInMillis(),
-                        currInfo.isDelayed(),
+                        currInfo.reason(),
+                        currInfo.message(),
+                        currInfo.failure(),
+                        currInfo.failedAllocations(),
+                        currInfo.unassignedTimeNanos(),
+                        currInfo.unassignedTimeMillis(),
+                        currInfo.delayed(),
                         allocationStatus,
-                        currInfo.getFailedNodeIds(),
-                        currInfo.getLastAllocatedNodeId()
+                        currInfo.failedNodeIds(),
+                        currInfo.lastAllocatedNodeId()
                     );
                     ShardRouting updatedShard = shard.updateUnassigned(newInfo, shard.recoverySource());
                     changes.unassignedInfoUpdated(shard, newInfo);
@@ -1283,16 +1283,16 @@ public class RoutingNodes implements Iterable<RoutingNode> {
             UnassignedInfo unassignedInfo = shardRouting.unassignedInfo();
             unassignedIterator.updateUnassigned(
                 new UnassignedInfo(
-                    unassignedInfo.getNumFailedAllocations() > 0 ? UnassignedInfo.Reason.MANUAL_ALLOCATION : unassignedInfo.getReason(),
-                    unassignedInfo.getMessage(),
-                    unassignedInfo.getFailure(),
+                    unassignedInfo.failedAllocations() > 0 ? UnassignedInfo.Reason.MANUAL_ALLOCATION : unassignedInfo.reason(),
+                    unassignedInfo.message(),
+                    unassignedInfo.failure(),
                     0,
-                    unassignedInfo.getUnassignedTimeInNanos(),
-                    unassignedInfo.getUnassignedTimeInMillis(),
-                    unassignedInfo.isDelayed(),
-                    unassignedInfo.getLastAllocationStatus(),
+                    unassignedInfo.unassignedTimeNanos(),
+                    unassignedInfo.unassignedTimeMillis(),
+                    unassignedInfo.delayed(),
+                    unassignedInfo.lastAllocationStatus(),
                     Collections.emptySet(),
-                    unassignedInfo.getLastAllocatedNodeId()
+                    unassignedInfo.lastAllocatedNodeId()
                 ),
                 shardRouting.recoverySource(),
                 routingChangesObserver

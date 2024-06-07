@@ -48,7 +48,6 @@ import java.util.regex.Pattern;
 
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toMap;
-import static org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder.MAGIC_VALUE_MIN_DOC_COUNT_0_EXCLUDE_DELETED_DOCS;
 
 /**
  * An immutable collection of {@link AggregatorFactories}.
@@ -323,8 +322,7 @@ public class AggregatorFactories {
                 if (builder instanceof GlobalAggregationBuilder) {
                     return true;
                 } else if (builder instanceof TermsAggregationBuilder) {
-                    if (((TermsAggregationBuilder) builder).minDocCount() == 0
-                        || ((TermsAggregationBuilder) builder).minDocCount() == MAGIC_VALUE_MIN_DOC_COUNT_0_EXCLUDE_DELETED_DOCS) {
+                    if (((TermsAggregationBuilder) builder).minDocCount() == 0) {
                         return true;
                     }
                 }
@@ -345,7 +343,7 @@ public class AggregatorFactories {
                 }
                 if (current instanceof TermsAggregationBuilder) {
                     TermsAggregationBuilder termsBuilder = (TermsAggregationBuilder) current;
-                    if (termsBuilder.minDocCount() == 0 || termsBuilder.minDocCount() == MAGIC_VALUE_MIN_DOC_COUNT_0_EXCLUDE_DELETED_DOCS) {
+                    if (termsBuilder.minDocCount() == 0) {
                         return true;
                     }
                 }
@@ -369,9 +367,6 @@ public class AggregatorFactories {
                     TermsAggregationBuilder termsBuilder = (TermsAggregationBuilder) current;
                     if (termsBuilder.minDocCount() == 0) {
                         termsBuilder.excludeDeletedDocs(true);
-                        // hack used to avoid serialization of excludeDeletedDocs
-                        // will be set back to 0 after serialization
-                        termsBuilder.minDocCount(MAGIC_VALUE_MIN_DOC_COUNT_0_EXCLUDE_DELETED_DOCS);
                     }
                 }
                 queue.addAll(current.getSubAggregations());

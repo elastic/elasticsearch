@@ -7,7 +7,7 @@
 
 package org.elasticsearch.compute.aggregation;
 
-import org.apache.lucene.util.PriorityQueue;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.ann.Aggregator;
 import org.elasticsearch.compute.ann.GroupingAggregator;
 import org.elasticsearch.compute.ann.IntermediateState;
@@ -16,10 +16,10 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.DriverContext;
-
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.stream.StreamSupport;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.search.sort.RawBucketedSort;
+import org.elasticsearch.search.sort.SortOrder;
 
 /**
  * Aggregates the top N field values for long.
@@ -27,8 +27,8 @@ import java.util.stream.StreamSupport;
 @Aggregator({ @IntermediateState(name = "topValuesList", type = "LONG_BLOCK") })
 @GroupingAggregator
 class TopValuesListLongAggregator {
-    public static SingleState initSingle(int limit, boolean ascending) {
-        return new SingleState(limit, ascending);
+    public static SingleState initSingle(BigArrays bigArrays, int limit, boolean ascending) {
+        return new SingleState(bigArrays, limit, ascending);
     }
 
     public static void combine(SingleState state, long v) {
@@ -47,8 +47,8 @@ class TopValuesListLongAggregator {
         return state.toBlock(driverContext.blockFactory());
     }
 
-    public static GroupingState initGrouping(int limit, boolean ascending) {
-        return new GroupingState(limit, ascending);
+    public static GroupingState initGrouping(BigArrays bigArrays, int limit, boolean ascending) {
+        return new GroupingState(bigArrays, limit, ascending);
     }
 
     public static void combine(GroupingState state, int groupId, long v) {
@@ -71,79 +71,20 @@ class TopValuesListLongAggregator {
         return state.toBlock(driverContext.blockFactory(), selected);
     }
 
-    public static class SingleState {
-        private final Queue queue;
-        private final Comparator<Long> finalSortComparator;
-        private final int limit;
+    public static class GroupingState implements Releasable {
+        private final RawBucketedSort.ForLongs sort;
 
-        private SingleState(int limit, boolean ascending) {
-            // We use the inverted comparator to pop the least significant values from the queue
-            this.queue = new Queue(ascending ? Comparator.reverseOrder() : Comparator.naturalOrder(), limit);
-            this.finalSortComparator = ascending ? Comparator.naturalOrder() : Comparator.reverseOrder();
-            this.limit = limit;
-        }
-
-        public void add(long value) {
-            queue.safeAdd(value, limit);
-        }
-
-        void toIntermediate(Block[] blocks, int offset, DriverContext driverContext) {
-            blocks[offset] = toBlock(driverContext.blockFactory());
-        }
-
-        Block toBlock(BlockFactory blockFactory) {
-            if (queue.size() == 0) {
-                return blockFactory.newConstantNullBlock(1);
-            }
-            if (queue.size() == 1) {
-                return blockFactory.newConstantLongBlockWith(queue.top(), 1);
-            }
-            try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(queue.size())) {
-                builder.beginPositionEntry();
-
-                StreamSupport.stream(queue.spliterator(), false).sorted(finalSortComparator).forEach(builder::appendLong);
-
-                builder.endPositionEntry();
-
-                return builder.build();
-            }
-        }
-
-        void close() {
-            // Nothing to do
-        }
-    }
-
-    public static class GroupingState {
-        private final HashMap<Integer, Queue> queuesByGroup;
-        private final Comparator<Long> queueComparator;
-        private final Comparator<Long> finalSortComparator;
-        private final int limit;
-
-        private GroupingState(int limit, boolean ascending) {
-            this.queuesByGroup = new HashMap<>();
-            this.queueComparator = ascending ? Comparator.reverseOrder() : Comparator.naturalOrder();
-            this.finalSortComparator = ascending ? Comparator.naturalOrder() : Comparator.reverseOrder();
-            this.limit = limit;
+        private GroupingState(BigArrays bigArrays, int limit, boolean ascending) {
+            this.sort = new RawBucketedSort.ForLongs(bigArrays, ascending ? SortOrder.ASC : SortOrder.DESC, limit);
         }
 
         public void add(int groupId, long value) {
-            var queue = queuesByGroup.computeIfAbsent(groupId, k -> new Queue(queueComparator, limit));
-
-            queue.safeAdd(value, limit);
+            sort.collect(groupId, value);
         }
 
         public void merge(int groupId, GroupingState other, int otherGroupId) {
-            var queue = queuesByGroup.computeIfAbsent(groupId, k -> new Queue(queueComparator, limit));
-            var otherQueue = other.queuesByGroup.get(otherGroupId);
-
-            if (otherQueue == null) {
-                return;
-            }
-
-            for (var value : otherQueue) {
-                queue.safeAdd(value, limit);
-            }
+            // TODO: Make a merge method in RawBucketedSort?
+            other.sort.getValues(otherGroupId).forEach(value -> sort.collect(groupId, value));
         }
 
         void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
@@ -151,28 +92,25 @@ class TopValuesListLongAggregator {
         }
 
         Block toBlock(BlockFactory blockFactory, IntVector selected) {
-            if (queuesByGroup.isEmpty()) {
-                return blockFactory.newConstantNullBlock(selected.getPositionCount());
-            }
             try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(selected.getPositionCount())) {
                 for (int s = 0; s < selected.getPositionCount(); s++) {
                     int selectedGroup = selected.getInt(s);
 
-                    var queue = queuesByGroup.get(selectedGroup);
+                    var values = sort.getValues(selectedGroup);
 
-                    if (queue == null) {
+                    if (values.isEmpty()) {
                         builder.appendNull();
                         continue;
                     }
 
-                    if (queue.size() == 1) {
-                        builder.appendLong(queue.top());
+                    if (values.size() == 1) {
+                        builder.appendLong(values.get(0));
                         continue;
                     }
 
                     builder.beginPositionEntry();
 
-                    StreamSupport.stream(queue.spliterator(), false).sorted(finalSortComparator).forEach(builder::appendLong);
+                    values.forEach(builder::appendLong);
 
                     builder.endPositionEntry();
                 }
@@ -184,30 +122,38 @@ class TopValuesListLongAggregator {
             // we figure out seen values from nulls on the values block
         }
 
-        void close() {
-            // Nothing to do
+        @Override
+        public void close() {
+            Releasables.closeExpectNoException(sort);
         }
     }
 
-    private static class Queue extends PriorityQueue<Long> {
-        private final Comparator<Long> comparator;
+    public static class SingleState implements Releasable {
+        private GroupingState internalState;
 
-        public Queue(Comparator<Long> comparator, int limit) {
-            super(limit + 1);
-            this.comparator = comparator;
+        private SingleState(BigArrays bigArrays, int limit, boolean ascending) {
+            this.internalState = new GroupingState(bigArrays, limit, ascending);
         }
 
-        public void safeAdd(long value, int limit) {
-            add(value);
+        public void add(long value) {
+            internalState.add(0, value);
+        }
 
-            if (size() > limit) {
-                pop();
-            }
+        public void merge(GroupingState other) {
+            internalState.merge(0, other, 0);
+        }
+
+        void toIntermediate(Block[] blocks, int offset, DriverContext driverContext) {
+            blocks[offset] = toBlock(driverContext.blockFactory());
+        }
+
+        Block toBlock(BlockFactory blockFactory) {
+            return internalState.toBlock(blockFactory, blockFactory.newConstantIntVector(0, 1));
         }
 
         @Override
-        protected boolean lessThan(Long a, Long b) {
-            return comparator.compare(a, b) < 0;
+        public void close() {
+            Releasables.closeExpectNoException(internalState);
         }
     }
 }

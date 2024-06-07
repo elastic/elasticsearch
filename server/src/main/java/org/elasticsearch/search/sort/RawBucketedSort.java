@@ -264,16 +264,6 @@ public abstract class RawBucketedSort<T> implements Releasable {
         Releasables.close(values(), heapMode);
     }
 
-    /*
-    * TODO: Make arrays of size X+1, and use the first element to store temporal values,
-    *  so that inserts work through specific methods from child classes, and the main
-    *  class works only with indexes.
-    * */
-
-    /*
-        TODO: Maybe save the BigArray in the base class? To avoid calling values()
-     */
-
     /**
      * Collects a value stored in the array[0] position.
      * <p>

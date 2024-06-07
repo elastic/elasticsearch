@@ -45,7 +45,7 @@ public final class TopValuesListLongAggregatorFunction implements AggregatorFunc
 
   public static TopValuesListLongAggregatorFunction create(DriverContext driverContext,
       List<Integer> channels, int limit, boolean ascending) {
-    return new TopValuesListLongAggregatorFunction(driverContext, channels, TopValuesListLongAggregator.initSingle(limit, ascending), limit, ascending);
+    return new TopValuesListLongAggregatorFunction(driverContext, channels, TopValuesListLongAggregator.initSingle(driverContext.bigArrays(), limit, ascending), limit, ascending);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

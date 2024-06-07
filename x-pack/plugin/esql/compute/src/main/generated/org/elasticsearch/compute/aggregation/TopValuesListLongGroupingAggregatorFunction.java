@@ -48,7 +48,7 @@ public final class TopValuesListLongGroupingAggregatorFunction implements Groupi
 
   public static TopValuesListLongGroupingAggregatorFunction create(List<Integer> channels,
       DriverContext driverContext, int limit, boolean ascending) {
-    return new TopValuesListLongGroupingAggregatorFunction(channels, TopValuesListLongAggregator.initGrouping(limit, ascending), driverContext, limit, ascending);
+    return new TopValuesListLongGroupingAggregatorFunction(channels, TopValuesListLongAggregator.initGrouping(driverContext.bigArrays(), limit, ascending), driverContext, limit, ascending);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

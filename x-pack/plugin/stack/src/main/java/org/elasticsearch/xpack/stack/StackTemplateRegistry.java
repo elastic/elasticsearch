@@ -268,11 +268,19 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
             );
             final Map<String, ComponentTemplate> updatedComponentTemplates = new HashMap<>(COMPONENT_TEMPLATE_CONFIGS);
             try {
-                updatedComponentTemplates.replace(
+                final ComponentTemplate originalComponentTemplate = updatedComponentTemplates.replace(
                     override.getTemplateName(),
                     ComponentTemplate.parse(JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, override.loadBytes()))
                 );
-                logger.info("Overriding component template [" + override.getTemplateName() + "] with [" + override.getFileName() + "]");
+                if (originalComponentTemplate == null) {
+                    logger.error(
+                        "Failure while overriding the original ["
+                            + override.getTemplateName()
+                            + "] with ["
+                            + override.getFileName()
+                            + "]. Using default component template."
+                    );
+                }
             } catch (IOException e) {
                 logger.error(
                     "Error while overriding template ["

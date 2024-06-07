@@ -70,6 +70,11 @@ public class MappingIT extends AbstractRollingTestCase {
                 assertOK(client().performRequest(request));
                 break;
             case MIXED:
+                ensureHealth(r -> {
+                    r.addParameter("wait_for_status", "yellow");
+                    r.addParameter("wait_for_no_relocating_shards", "true");
+                });
+                break;
             case UPGRADED:
                 // During the upgrade my-index shards may be allocated to not upgraded nodes, these then fail to allocate.
                 // If allocation fails more than 5 times, allocation is not retried immediately, this reroute triggers allocation

@@ -226,7 +226,9 @@ import org.elasticsearch.search.fetch.subphase.highlight.HighlightPhase;
 import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
 import org.elasticsearch.search.fetch.subphase.highlight.PlainHighlighter;
 import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.rank.RankShardResult;
+import org.elasticsearch.search.rank.feature.RankFeatureDoc;
 import org.elasticsearch.search.rank.feature.RankFeatureShardPhase;
 import org.elasticsearch.search.rank.feature.RankFeatureShardResult;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
@@ -826,15 +828,16 @@ public class SearchModule {
         registerFromPlugin(plugins, SearchPlugin::getRescorers, this::registerRescorer);
     }
 
-    private void registerRankers() {
-        namedWriteables.add(
-            new NamedWriteableRegistry.Entry(RankShardResult.class, RankFeatureShardResult.NAME, RankFeatureShardResult::new)
-        );
-    }
-
     private void registerRescorer(RescorerSpec<?> spec) {
         namedXContents.add(new NamedXContentRegistry.Entry(RescorerBuilder.class, spec.getName(), (p, c) -> spec.getParser().apply(p)));
         namedWriteables.add(new NamedWriteableRegistry.Entry(RescorerBuilder.class, spec.getName().getPreferredName(), spec.getReader()));
+    }
+
+    private void registerRankers() {
+        namedWriteables.add(new NamedWriteableRegistry.Entry(RankDoc.class, RankFeatureDoc.NAME, RankFeatureDoc::new));
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(RankShardResult.class, RankFeatureShardResult.NAME, RankFeatureShardResult::new)
+        );
     }
 
     private void registerSorts() {

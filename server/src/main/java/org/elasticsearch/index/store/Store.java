@@ -67,7 +67,6 @@ import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.transport.Transports;
 
 import java.io.Closeable;
 import java.io.EOFException;
@@ -432,7 +431,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     }
 
     private void closeInternal() {
-        assert Transports.assertNotTransportThread("store closing must not happen on the transport thread");
         // Leverage try-with-resources to close the shard lock for us
         try (Closeable c = shardLock) {
             try {

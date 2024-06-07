@@ -453,7 +453,14 @@ public class TransformContinuousIT extends TransformRestTestCase {
         // Make sure the pipeline really got created and is seen in the cluster state.
         Map<String, Object> clusterState = entityAsMap(client().performRequest(new Request("GET", "/_cluster/state/metadata")));
         @SuppressWarnings("unchecked")
-        List<String> pipelineIds = (List<String>) XContentMapValues.extractValue(clusterState, "metadata", "ingest", "pipeline", "id");
+        List<String> pipelineIds = (List<String>) XContentMapValues.extractValue(
+            clusterState,
+            "metadata",
+            "project",
+            "ingest",
+            "pipeline",
+            "id"
+        );
         assertThat(pipelineIds, containsInRelativeOrder(ContinuousTestCase.INGEST_PIPELINE));
     }
 

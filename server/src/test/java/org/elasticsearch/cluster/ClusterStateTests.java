@@ -326,8 +326,10 @@ public class ClusterStateTests extends ESTestCase {
                                 "write_load_forecast" : 8.0
                               }
                             },
-                            "index-graveyard": {
-                              "tombstones": []
+                            "project" : {
+                              "index-graveyard" : {
+                               "tombstones" : [ ]
+                              }
                             },
                             "reserved_state" : { }
                           },
@@ -593,8 +595,10 @@ public class ClusterStateTests extends ESTestCase {
                             "write_load_forecast" : 8.0
                           }
                         },
-                        "index-graveyard" : {
-                          "tombstones" : [ ]
+                        "project" : {
+                          "index-graveyard" : {
+                            "tombstones" : [ ]
+                          }
                         },
                         "reserved_state" : { }
                       },
@@ -866,8 +870,10 @@ public class ClusterStateTests extends ESTestCase {
                             "write_load_forecast" : 8.0
                           }
                         },
-                        "index-graveyard" : {
-                          "tombstones" : [ ]
+                        "project" : {
+                          "index-graveyard" : {
+                            "tombstones" : [ ]
+                          }
                         },
                         "reserved_state" : { }
                       },
@@ -1020,8 +1026,10 @@ public class ClusterStateTests extends ESTestCase {
                     }
                   }
                 },
-                "index-graveyard" : {
-                  "tombstones" : [ ]
+                "project" : {
+                  "index-graveyard" : {
+                    "tombstones" : [ ]
+                  }
                 },
                 "reserved_state" : { }
               },

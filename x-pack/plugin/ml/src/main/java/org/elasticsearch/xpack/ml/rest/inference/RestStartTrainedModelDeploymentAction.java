@@ -71,6 +71,7 @@ public class RestStartTrainedModelDeploymentAction extends BaseRestHandler {
         String modelId = restRequest.param(StartTrainedModelDeploymentAction.Request.MODEL_ID.getPreferredName());
         String deploymentId = restRequest.param(StartTrainedModelDeploymentAction.Request.DEPLOYMENT_ID.getPreferredName(), modelId);
         StartTrainedModelDeploymentAction.Request request;
+
         if (restRequest.hasContentOrSourceParam()) {
             request = StartTrainedModelDeploymentAction.Request.parseRequest(
                 modelId,
@@ -79,48 +80,46 @@ public class RestStartTrainedModelDeploymentAction extends BaseRestHandler {
             );
         } else {
             request = new StartTrainedModelDeploymentAction.Request(modelId, deploymentId);
-            if (restRequest.hasParam(TIMEOUT.getPreferredName())) {
-                TimeValue openTimeout = restRequest.paramAsTime(
-                    TIMEOUT.getPreferredName(),
-                    StartTrainedModelDeploymentAction.DEFAULT_TIMEOUT
-                );
-                request.setTimeout(openTimeout);
-            }
-            request.setWaitForState(
-                AllocationStatus.State.fromString(restRequest.param(WAIT_FOR.getPreferredName(), AllocationStatus.State.STARTED.toString()))
-            );
-            RestCompatibilityChecker.checkAndSetDeprecatedParam(
-                NUMBER_OF_ALLOCATIONS.getDeprecatedNames()[0],
-                NUMBER_OF_ALLOCATIONS.getPreferredName(),
-                RestApiVersion.V_8,
-                restRequest,
-                (r, s) -> r.paramAsInt(s, request.getNumberOfAllocations()),
-                request::setNumberOfAllocations
-            );
-            RestCompatibilityChecker.checkAndSetDeprecatedParam(
-                THREADS_PER_ALLOCATION.getDeprecatedNames()[0],
-                THREADS_PER_ALLOCATION.getPreferredName(),
-                RestApiVersion.V_8,
-                restRequest,
-                (r, s) -> r.paramAsInt(s, request.getThreadsPerAllocation()),
-                request::setThreadsPerAllocation
-            );
-            request.setQueueCapacity(restRequest.paramAsInt(QUEUE_CAPACITY.getPreferredName(), request.getQueueCapacity()));
-            if (restRequest.hasParam(CACHE_SIZE.getPreferredName())) {
-                request.setCacheSize(
-                    ByteSizeValue.parseBytesSizeValue(restRequest.param(CACHE_SIZE.getPreferredName()), CACHE_SIZE.getPreferredName())
-                );
-            } else if (defaultCacheSize != null) {
-                request.setCacheSize(defaultCacheSize);
-            }
-            request.setQueueCapacity(restRequest.paramAsInt(QUEUE_CAPACITY.getPreferredName(), request.getQueueCapacity()));
-            request.setPriority(
-                restRequest.param(
-                    StartTrainedModelDeploymentAction.TaskParams.PRIORITY.getPreferredName(),
-                    request.getPriority().toString()
-                )
-            );
         }
+
+        if (restRequest.hasParam(TIMEOUT.getPreferredName())) {
+            TimeValue openTimeout = restRequest.paramAsTime(TIMEOUT.getPreferredName(), StartTrainedModelDeploymentAction.DEFAULT_TIMEOUT);
+            request.setTimeout(openTimeout);
+        }
+
+        request.setWaitForState(
+            AllocationStatus.State.fromString(restRequest.param(WAIT_FOR.getPreferredName(), AllocationStatus.State.STARTED.toString()))
+        );
+        RestCompatibilityChecker.checkAndSetDeprecatedParam(
+            NUMBER_OF_ALLOCATIONS.getDeprecatedNames()[0],
+            NUMBER_OF_ALLOCATIONS.getPreferredName(),
+            RestApiVersion.V_8,
+            restRequest,
+            (r, s) -> r.paramAsInt(s, request.getNumberOfAllocations()),
+            request::setNumberOfAllocations
+        );
+        RestCompatibilityChecker.checkAndSetDeprecatedParam(
+            THREADS_PER_ALLOCATION.getDeprecatedNames()[0],
+            THREADS_PER_ALLOCATION.getPreferredName(),
+            RestApiVersion.V_8,
+            restRequest,
+            (r, s) -> r.paramAsInt(s, request.getThreadsPerAllocation()),
+            request::setThreadsPerAllocation
+        );
+        request.setQueueCapacity(restRequest.paramAsInt(QUEUE_CAPACITY.getPreferredName(), request.getQueueCapacity()));
+
+        if (restRequest.hasParam(CACHE_SIZE.getPreferredName())) {
+            request.setCacheSize(
+                ByteSizeValue.parseBytesSizeValue(restRequest.param(CACHE_SIZE.getPreferredName()), CACHE_SIZE.getPreferredName())
+            );
+        } else if (defaultCacheSize != null) {
+            request.setCacheSize(defaultCacheSize);
+        }
+
+        request.setQueueCapacity(restRequest.paramAsInt(QUEUE_CAPACITY.getPreferredName(), request.getQueueCapacity()));
+        request.setPriority(
+            restRequest.param(StartTrainedModelDeploymentAction.TaskParams.PRIORITY.getPreferredName(), request.getPriority().toString())
+        );
 
         return channel -> client.execute(StartTrainedModelDeploymentAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }

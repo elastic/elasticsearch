@@ -1997,9 +1997,26 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
      * Deletes snapshots from the repository. In-progress snapshots matched by the delete will be aborted before deleting them.
      *
      * @param request         delete snapshot request
-     * @param listener        listener
+     * @param listener        listener a listener which will be resolved once all scheduled deletions are completed
      */
-    public void deleteSnapshots(final DeleteSnapshotRequest request, final ActionListener<Void> listener) {
+    public void deleteSnapshotsAndWait(final DeleteSnapshotRequest request, ActionListener<Void> listener) {
+        deleteSnapshots(request, listener.delegateFailure((l, scheduledDelete) -> {
+            if (scheduledDelete == null) {
+                l.onResponse(null);
+            } else {
+                addDeleteListener(scheduledDelete.uuid(), l);
+            }
+        }));
+    }
+
+    /**
+     * Deletes snapshots from the repository. In-progress snapshots matched by the delete will be aborted before deleting them.
+     *
+     * @param request         delete snapshot request
+     * @param listener        listener a listener which will be resolved with the {@link SnapshotDeletionsInProgress.Entry} if any
+     *                        deletions are scheduled, or null if no deletions were necessary
+     */
+    public void deleteSnapshots(final DeleteSnapshotRequest request, final ActionListener<SnapshotDeletionsInProgress.Entry> listener) {
         final String repositoryName = request.repository();
         final String[] snapshotNames = request.snapshots();
 
@@ -2176,6 +2193,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
 
             @Override
             public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
+                listener.onResponse(newDelete);
+
                 logger.info(
                     () -> format("deleting snapshots [%s] from repository [%s]", arrayToCommaDelimitedString(snapshotNames), repositoryName)
                 );
@@ -2190,10 +2209,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                         Runnable::run
                     );
                 }
-                if (newDelete == null) {
-                    listener.onResponse(null);
-                } else {
-                    addDeleteListener(newDelete.uuid(), listener);
+
+                if (newDelete != null) {
                     if (reusedExistingDelete) {
                         return;
                     }

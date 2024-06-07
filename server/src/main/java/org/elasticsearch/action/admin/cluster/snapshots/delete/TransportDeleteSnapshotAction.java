@@ -67,6 +67,10 @@ public class TransportDeleteSnapshotAction extends AcknowledgedTransportMasterNo
         ClusterState state,
         final ActionListener<AcknowledgedResponse> listener
     ) {
-        snapshotsService.deleteSnapshots(request, listener.map(v -> AcknowledgedResponse.TRUE));
+        if (request.waitForCompletion()) {
+            snapshotsService.deleteSnapshotsAndWait(request, listener.map(v -> AcknowledgedResponse.TRUE));
+        } else {
+            snapshotsService.deleteSnapshots(request, listener.map(v -> AcknowledgedResponse.TRUE));
+        }
     }
 }

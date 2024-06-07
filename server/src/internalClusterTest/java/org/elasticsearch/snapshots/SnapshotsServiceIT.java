@@ -10,6 +10,7 @@ package org.elasticsearch.snapshots;
 
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -109,6 +110,42 @@ public class SnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
         } finally {
             deleteRepository("test-repo");
         }
+    }
+
+    public void testDeleteSnapshotWhenNotWaitingForCompletion() throws Exception {
+        createIndexWithRandomDocs("test-index", randomIntBetween(1, 5));
+        createRepository("test-repo", "mock");
+        createSnapshot("test-repo", "test-snapshot", List.of("test-index"));
+        MockRepository repository = getRepositoryOnMaster("test-repo");
+        PlainActionFuture<AcknowledgedResponse> listener = new PlainActionFuture<>();
+        repository.blockOnDataFiles();
+        try {
+            clusterAdmin().prepareDeleteSnapshot("test-repo", "test-snapshot").setWaitForCompletion(false).execute(listener);
+            listener.get(5, TimeUnit.SECONDS);
+            assertNotNull(getSnapshot("test-repo", "test-snapshot"));
+        } finally {
+            repository.unblock();
+        }
+        assertBusy(() -> assertThrows(SnapshotMissingException.class, () -> getSnapshot("test-repo", "test-snapshot")));
+    }
+
+    public void testDeleteSnapshotWhenWaitingForCompletion() throws Exception {
+        createIndexWithRandomDocs("test-index", randomIntBetween(1, 5));
+        createRepository("test-repo", "mock");
+        createSnapshot("test-repo", "test-snapshot", List.of("test-index"));
+        MockRepository repository = getRepositoryOnMaster("test-repo");
+        PlainActionFuture<AcknowledgedResponse> listener = new PlainActionFuture<>();
+        repository.blockOnDataFiles();
+        try {
+            clusterAdmin().prepareDeleteSnapshot("test-repo", "test-snapshot").setWaitForCompletion(true).execute(listener);
+            // The listener won't be resolved, and snapshot won't be deleted until we remove the block
+            assertFalse(listener.isDone());
+            assertNotNull(getSnapshot("test-repo", "test-snapshot"));
+        } finally {
+            repository.unblock();
+        }
+        listener.get(5, TimeUnit.SECONDS);
+        assertThrows(SnapshotMissingException.class, () -> getSnapshot("test-repo", "test-snapshot"));
     }
 
     public void testRerouteWhenShardSnapshotsCompleted() throws Exception {

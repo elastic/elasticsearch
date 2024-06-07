@@ -31,6 +31,14 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasRank;
 import static org.hamcrest.Matchers.equalTo;
 
+/**
+ * this base class acts as a wrapper for testing different rerankers, and their behavior when exceptions are thrown
+ * the main idea is that we:
+ * 1. index some documents, with a rank feature field and a search field
+ * 2. have a random initial scoring
+ * 3. rerank the results based on the rank feature field (converting String -> Float)
+ * 4. assert that the results are correctly reranked & that we properly close all resources
+ */
 @ESIntegTestCase.ClusterScope(minNumDataNodes = 3)
 public abstract class AbstractRerankerIT extends ESIntegTestCase {
 

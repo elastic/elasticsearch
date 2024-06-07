@@ -23,45 +23,7 @@ import java.util.List;
 import static java.util.Collections.emptyList;
 
 /**
- * Type specialized sort implementations designed for use in aggregations.
- * Aggregations have a couple of super interesting characteristics:
- * <ul>
- * <li>They can have many, many buckets so this implementation backs to
- * {@link BigArrays} so it doesn't need to allocate any objects per bucket
- * and the circuit breaker in {@linkplain BigArrays} will automatically
- * track memory usage and abort execution if it grows too large.</li>
- * <li>Its fairly common for a bucket to be collected but not returned so
- * these implementations delay as much work as possible until collection</li>
- * </ul>
- * <p>
- * Every bucket is in one of two states: "gathering" or min/max "heap". While
- * "gathering" the next empty slot is stored in the "root" offset of the
- * bucket and collecting a value is just adding it in the next slot bumping
- * the tracking value at the root. So collecting values is {@code O(1)}.
- * Extracting the results in sorted order is {@code O(n * log n)} because,
- * well, sorting is {@code O(n * log n)}. When a bucket has collected
- * {@link #bucketSize} entries it is converted into a min "heap" in
- * {@code O(n)} time. Or into max heap, if {@link #order} is ascending.
- * </p>
- * <p>
- * Once a "heap", collecting a document is the heap-standard {@code O(log n)}
- * worst case. Critically, it is a very fast {@code O(1)} to check if a value
- * is competitive at all which, so long as buckets aren't hit in reverse
- * order, they mostly won't be. Extracting results in sorted order is still
- * {@code O(n * log n)}.
- * </p>
- * <p>
- * When we first collect a bucket we make sure that we've allocated enough
- * slots to hold all sort values for the entire bucket. In other words: the
- * storage is "dense" and we don't try to save space when storing partially
- * filled buckets.
- * </p>
- * <p>
- * We actually *oversize* the allocations
- * (like {@link BigArrays#overSize(long)}) to get amortized linear number
- * of allocations and to play well with our paged arrays.
- * </p>
- * @param <T> The type of the values to sort.
+ * TODO: Describe class, or redirect to {@link org.elasticsearch.search.sort.RawBucketedSort}.
  */
 public abstract class RawBucketedSort<T> implements Releasable {
 

@@ -11,7 +11,7 @@ Also see <<breaking-changes-8.14,Breaking changes in 8.14>>.
   `Cannot invoke "org.elasticsearch.nativeaccess.Systemd.notify_ready()" because "this.systemd" is null.` +
   This only affects on-prem installations of Elasticsearch, environments running Elasticsearch in a container are not affected, nor is Elastic Cloud. +
   The workaround is to grant Elasticsearch read access to the directory mentioned in the `java.nio.file.AccessDeniedException` as observed in the logs
-  and repeat this until the process starts up properly, see https://support.elastic.dev/knowledge/view/5979309d[here] for further details.
+  and repeat this until the process starts up properly, see https://support.elastic.co/knowledge/5979309d[here] for further details.
   With 8.14.1 the workaround won't be necessary anymore and original permissions can be restored.
 
 [[breaking-8.14.0]]

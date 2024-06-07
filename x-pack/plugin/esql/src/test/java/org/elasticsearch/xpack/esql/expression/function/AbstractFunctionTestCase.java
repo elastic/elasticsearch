@@ -49,7 +49,6 @@ import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
@@ -291,7 +290,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     private Object toJavaObjectUnsignedLongAware(Block block, int position) {
         Object result;
         result = toJavaObject(block, position);
-        if (result != null && testCase.expectedType() == DataTypes.UNSIGNED_LONG) {
+        if (result != null && testCase.expectedType() == DataType.UNSIGNED_LONG) {
             assertThat(result, instanceOf(Long.class));
             result = NumericUtils.unsignedLongAsBigInteger((Long) result);
         }
@@ -547,7 +546,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         if (testCase.foldingExceptionClass() == null) {
             Object result = nullOptimized.fold();
             // Decode unsigned longs into BigIntegers
-            if (testCase.expectedType() == DataTypes.UNSIGNED_LONG && result != null) {
+            if (testCase.expectedType() == DataType.UNSIGNED_LONG && result != null) {
                 result = NumericUtils.unsignedLongAsBigInteger((Long) result);
             }
             assertThat(result, testCase.getMatcher());
@@ -628,8 +627,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         return anyNullIsNull(
             testCaseSuppliers,
             (nullPosition, nullValueDataType, original) -> entirelyNullPreservesType == false
-                && nullValueDataType == DataTypes.NULL
-                && original.getData().size() == 1 ? DataTypes.NULL : original.expectedType(),
+                && nullValueDataType == DataType.NULL
+                && original.getData().size() == 1 ? DataType.NULL : original.expectedType(),
             (nullPosition, nullData, original) -> original
         );
     }
@@ -686,7 +685,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
 
                 if (firstTimeSeenSignature) {
                     List<DataType> typesWithNull = IntStream.range(0, original.types().size())
-                        .mapToObj(i -> i == finalNullPosition ? DataTypes.NULL : original.types().get(i))
+                        .mapToObj(i -> i == finalNullPosition ? DataType.NULL : original.types().get(i))
                         .toList();
                     boolean newSignature = uniqueSignatures.add(typesWithNull);
                     if (newSignature) {
@@ -698,7 +697,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                             return new TestCaseSupplier.TestCase(
                                 data,
                                 equalTo("LiteralsEvaluator[lit=null]"),
-                                expectedType.expectedType(finalNullPosition, DataTypes.NULL, oc),
+                                expectedType.expectedType(finalNullPosition, DataType.NULL, oc),
                                 nullValue(),
                                 null,
                                 oc.getExpectedTypeError(),
@@ -745,7 +744,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
              * the full combinatorial explosions of all nulls - just a single null.
              * Hopefully <null>, <null> cases will function the same as <null>, <valid>
              * cases.
-             */.filter(types -> types.stream().filter(t -> t == DataTypes.NULL).count() <= 1)
+             */.filter(types -> types.stream().filter(t -> t == DataType.NULL).count() <= 1)
             .map(types -> typeErrorSupplier(validPerPosition.size() != 1, validPerPosition, types, typeErrorMessageSupplier))
             .forEach(suppliers::add);
         return suppliers;
@@ -760,13 +759,13 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             return typeErrorMessage(includeOrdinal, validPerPosition, types);
         } catch (IllegalStateException e) {
             // This means all the positional args were okay, so the expected error is from the combination
-            if (types.get(0).equals(DataTypes.UNSIGNED_LONG)) {
+            if (types.get(0).equals(DataType.UNSIGNED_LONG)) {
                 return "first argument of [] is [unsigned_long] and second is ["
                     + types.get(1).typeName()
                     + "]. [unsigned_long] can only be operated on together with another [unsigned_long]";
 
             }
-            if (types.get(1).equals(DataTypes.UNSIGNED_LONG)) {
+            if (types.get(1).equals(DataType.UNSIGNED_LONG)) {
                 return "first argument of [] is ["
                     + types.get(0).typeName()
                     + "] and second is [unsigned_long]. [unsigned_long] can only be operated on together with another [unsigned_long]";
@@ -908,193 +907,186 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
 
     private static final Map<Set<DataType>, String> NAMED_EXPECTED_TYPES = Map.ofEntries(
         Map.entry(
-            Set.of(
-                EsqlDataTypes.DATE_PERIOD,
-                DataTypes.DOUBLE,
-                DataTypes.INTEGER,
-                DataTypes.LONG,
-                EsqlDataTypes.TIME_DURATION,
-                DataTypes.NULL
-            ),
+            Set.of(DataType.DATE_PERIOD, DataType.DOUBLE, DataType.INTEGER, DataType.LONG, DataType.TIME_DURATION, DataType.NULL),
             "numeric, date_period or time_duration"
         ),
-        Map.entry(Set.of(DataTypes.DATETIME, DataTypes.NULL), "datetime"),
-        Map.entry(Set.of(DataTypes.DOUBLE, DataTypes.NULL), "double"),
-        Map.entry(Set.of(DataTypes.INTEGER, DataTypes.NULL), "integer"),
-        Map.entry(Set.of(DataTypes.IP, DataTypes.NULL), "ip"),
-        Map.entry(Set.of(DataTypes.LONG, DataTypes.INTEGER, DataTypes.UNSIGNED_LONG, DataTypes.DOUBLE, DataTypes.NULL), "numeric"),
-        Map.entry(Set.of(DataTypes.LONG, DataTypes.INTEGER, DataTypes.UNSIGNED_LONG, DataTypes.DOUBLE), "numeric"),
-        Map.entry(Set.of(DataTypes.KEYWORD, DataTypes.TEXT, DataTypes.VERSION, DataTypes.NULL), "string or version"),
-        Map.entry(Set.of(DataTypes.KEYWORD, DataTypes.TEXT, DataTypes.NULL), "string"),
-        Map.entry(Set.of(DataTypes.IP, DataTypes.KEYWORD, DataTypes.TEXT, DataTypes.NULL), "ip or string"),
+        Map.entry(Set.of(DataType.DATETIME, DataType.NULL), "datetime"),
+        Map.entry(Set.of(DataType.DOUBLE, DataType.NULL), "double"),
+        Map.entry(Set.of(DataType.INTEGER, DataType.NULL), "integer"),
+        Map.entry(Set.of(DataType.IP, DataType.NULL), "ip"),
+        Map.entry(Set.of(DataType.LONG, DataType.INTEGER, DataType.UNSIGNED_LONG, DataType.DOUBLE, DataType.NULL), "numeric"),
+        Map.entry(Set.of(DataType.LONG, DataType.INTEGER, DataType.UNSIGNED_LONG, DataType.DOUBLE), "numeric"),
+        Map.entry(Set.of(DataType.KEYWORD, DataType.TEXT, DataType.VERSION, DataType.NULL), "string or version"),
+        Map.entry(Set.of(DataType.KEYWORD, DataType.TEXT, DataType.NULL), "string"),
+        Map.entry(Set.of(DataType.IP, DataType.KEYWORD, DataType.TEXT, DataType.NULL), "ip or string"),
         Map.entry(Set.copyOf(Arrays.asList(representableTypes())), "representable"),
         Map.entry(Set.copyOf(Arrays.asList(representableNonSpatialTypes())), "representableNonSpatial"),
         Map.entry(
             Set.of(
-                DataTypes.BOOLEAN,
-                DataTypes.DOUBLE,
-                DataTypes.INTEGER,
-                DataTypes.KEYWORD,
-                DataTypes.LONG,
-                DataTypes.TEXT,
-                DataTypes.UNSIGNED_LONG,
-                DataTypes.NULL
+                DataType.BOOLEAN,
+                DataType.DOUBLE,
+                DataType.INTEGER,
+                DataType.KEYWORD,
+                DataType.LONG,
+                DataType.TEXT,
+                DataType.UNSIGNED_LONG,
+                DataType.NULL
             ),
             "boolean or numeric or string"
         ),
         Map.entry(
             Set.of(
-                DataTypes.DATETIME,
-                DataTypes.DOUBLE,
-                DataTypes.INTEGER,
-                DataTypes.KEYWORD,
-                DataTypes.LONG,
-                DataTypes.TEXT,
-                DataTypes.UNSIGNED_LONG,
-                DataTypes.NULL
+                DataType.DATETIME,
+                DataType.DOUBLE,
+                DataType.INTEGER,
+                DataType.KEYWORD,
+                DataType.LONG,
+                DataType.TEXT,
+                DataType.UNSIGNED_LONG,
+                DataType.NULL
             ),
             "datetime or numeric or string"
         ),
         // What Add accepts
         Map.entry(
             Set.of(
-                EsqlDataTypes.DATE_PERIOD,
-                DataTypes.DATETIME,
-                DataTypes.DOUBLE,
-                DataTypes.INTEGER,
-                DataTypes.LONG,
-                DataTypes.NULL,
-                EsqlDataTypes.TIME_DURATION,
-                DataTypes.UNSIGNED_LONG
+                DataType.DATE_PERIOD,
+                DataType.DATETIME,
+                DataType.DOUBLE,
+                DataType.INTEGER,
+                DataType.LONG,
+                DataType.NULL,
+                DataType.TIME_DURATION,
+                DataType.UNSIGNED_LONG
             ),
             "datetime or numeric"
         ),
         Map.entry(
             Set.of(
-                DataTypes.BOOLEAN,
-                DataTypes.DATETIME,
-                DataTypes.DOUBLE,
-                DataTypes.INTEGER,
-                DataTypes.KEYWORD,
-                DataTypes.LONG,
-                DataTypes.TEXT,
-                DataTypes.UNSIGNED_LONG,
-                DataTypes.NULL
+                DataType.BOOLEAN,
+                DataType.DATETIME,
+                DataType.DOUBLE,
+                DataType.INTEGER,
+                DataType.KEYWORD,
+                DataType.LONG,
+                DataType.TEXT,
+                DataType.UNSIGNED_LONG,
+                DataType.NULL
             ),
             "boolean or datetime or numeric or string"
         ),
         // to_int
         Map.entry(
             Set.of(
-                DataTypes.BOOLEAN,
-                EsqlDataTypes.COUNTER_INTEGER,
-                DataTypes.DATETIME,
-                DataTypes.DOUBLE,
-                DataTypes.INTEGER,
-                DataTypes.KEYWORD,
-                DataTypes.LONG,
-                DataTypes.TEXT,
-                DataTypes.UNSIGNED_LONG,
-                DataTypes.NULL
+                DataType.BOOLEAN,
+                DataType.COUNTER_INTEGER,
+                DataType.DATETIME,
+                DataType.DOUBLE,
+                DataType.INTEGER,
+                DataType.KEYWORD,
+                DataType.LONG,
+                DataType.TEXT,
+                DataType.UNSIGNED_LONG,
+                DataType.NULL
             ),
             "boolean or counter_integer or datetime or numeric or string"
         ),
         // to_long
         Map.entry(
             Set.of(
-                DataTypes.BOOLEAN,
-                EsqlDataTypes.COUNTER_INTEGER,
-                EsqlDataTypes.COUNTER_LONG,
-                DataTypes.DATETIME,
-                DataTypes.DOUBLE,
-                DataTypes.INTEGER,
-                DataTypes.KEYWORD,
-                DataTypes.LONG,
-                DataTypes.TEXT,
-                DataTypes.UNSIGNED_LONG,
-                DataTypes.NULL
+                DataType.BOOLEAN,
+                DataType.COUNTER_INTEGER,
+                DataType.COUNTER_LONG,
+                DataType.DATETIME,
+                DataType.DOUBLE,
+                DataType.INTEGER,
+                DataType.KEYWORD,
+                DataType.LONG,
+                DataType.TEXT,
+                DataType.UNSIGNED_LONG,
+                DataType.NULL
             ),
             "boolean or counter_integer or counter_long or datetime or numeric or string"
         ),
         // to_double
         Map.entry(
             Set.of(
-                DataTypes.BOOLEAN,
-                EsqlDataTypes.COUNTER_DOUBLE,
-                EsqlDataTypes.COUNTER_INTEGER,
-                EsqlDataTypes.COUNTER_LONG,
-                DataTypes.DATETIME,
-                DataTypes.DOUBLE,
-                DataTypes.INTEGER,
-                DataTypes.KEYWORD,
-                DataTypes.LONG,
-                DataTypes.TEXT,
-                DataTypes.UNSIGNED_LONG,
-                DataTypes.NULL
+                DataType.BOOLEAN,
+                DataType.COUNTER_DOUBLE,
+                DataType.COUNTER_INTEGER,
+                DataType.COUNTER_LONG,
+                DataType.DATETIME,
+                DataType.DOUBLE,
+                DataType.INTEGER,
+                DataType.KEYWORD,
+                DataType.LONG,
+                DataType.TEXT,
+                DataType.UNSIGNED_LONG,
+                DataType.NULL
             ),
             "boolean or counter_double or counter_integer or counter_long or datetime or numeric or string"
         ),
         Map.entry(
             Set.of(
-                DataTypes.BOOLEAN,
-                EsqlDataTypes.CARTESIAN_POINT,
-                DataTypes.DATETIME,
-                DataTypes.DOUBLE,
-                EsqlDataTypes.GEO_POINT,
-                DataTypes.INTEGER,
-                DataTypes.KEYWORD,
-                DataTypes.LONG,
-                DataTypes.TEXT,
-                DataTypes.UNSIGNED_LONG,
-                DataTypes.NULL
+                DataType.BOOLEAN,
+                DataType.CARTESIAN_POINT,
+                DataType.DATETIME,
+                DataType.DOUBLE,
+                DataType.GEO_POINT,
+                DataType.INTEGER,
+                DataType.KEYWORD,
+                DataType.LONG,
+                DataType.TEXT,
+                DataType.UNSIGNED_LONG,
+                DataType.NULL
             ),
             "boolean or cartesian_point or datetime or geo_point or numeric or string"
         ),
         Map.entry(
             Set.of(
-                DataTypes.DATETIME,
-                DataTypes.DOUBLE,
-                DataTypes.INTEGER,
-                DataTypes.IP,
-                DataTypes.KEYWORD,
-                DataTypes.LONG,
-                DataTypes.TEXT,
-                DataTypes.UNSIGNED_LONG,
-                DataTypes.VERSION,
-                DataTypes.NULL
+                DataType.DATETIME,
+                DataType.DOUBLE,
+                DataType.INTEGER,
+                DataType.IP,
+                DataType.KEYWORD,
+                DataType.LONG,
+                DataType.TEXT,
+                DataType.UNSIGNED_LONG,
+                DataType.VERSION,
+                DataType.NULL
             ),
             "datetime, double, integer, ip, keyword, long, text, unsigned_long or version"
         ),
         Map.entry(
             Set.of(
-                DataTypes.BOOLEAN,
-                DataTypes.DATETIME,
-                DataTypes.DOUBLE,
-                EsqlDataTypes.GEO_POINT,
-                EsqlDataTypes.GEO_SHAPE,
-                DataTypes.INTEGER,
-                DataTypes.IP,
-                DataTypes.KEYWORD,
-                DataTypes.LONG,
-                DataTypes.TEXT,
-                DataTypes.UNSIGNED_LONG,
-                DataTypes.VERSION,
-                DataTypes.NULL
+                DataType.BOOLEAN,
+                DataType.DATETIME,
+                DataType.DOUBLE,
+                DataType.GEO_POINT,
+                DataType.GEO_SHAPE,
+                DataType.INTEGER,
+                DataType.IP,
+                DataType.KEYWORD,
+                DataType.LONG,
+                DataType.TEXT,
+                DataType.UNSIGNED_LONG,
+                DataType.VERSION,
+                DataType.NULL
             ),
             "cartesian_point or datetime or geo_point or numeric or string"
         ),
-        Map.entry(Set.of(EsqlDataTypes.GEO_POINT, DataTypes.KEYWORD, DataTypes.TEXT, DataTypes.NULL), "geo_point or string"),
-        Map.entry(Set.of(EsqlDataTypes.CARTESIAN_POINT, DataTypes.KEYWORD, DataTypes.TEXT, DataTypes.NULL), "cartesian_point or string"),
+        Map.entry(Set.of(DataType.GEO_POINT, DataType.KEYWORD, DataType.TEXT, DataType.NULL), "geo_point or string"),
+        Map.entry(Set.of(DataType.CARTESIAN_POINT, DataType.KEYWORD, DataType.TEXT, DataType.NULL), "cartesian_point or string"),
         Map.entry(
-            Set.of(EsqlDataTypes.GEO_POINT, EsqlDataTypes.GEO_SHAPE, DataTypes.KEYWORD, DataTypes.TEXT, DataTypes.NULL),
+            Set.of(DataType.GEO_POINT, DataType.GEO_SHAPE, DataType.KEYWORD, DataType.TEXT, DataType.NULL),
             "geo_point or geo_shape or string"
         ),
         Map.entry(
-            Set.of(EsqlDataTypes.CARTESIAN_POINT, EsqlDataTypes.CARTESIAN_SHAPE, DataTypes.KEYWORD, DataTypes.TEXT, DataTypes.NULL),
+            Set.of(DataType.CARTESIAN_POINT, DataType.CARTESIAN_SHAPE, DataType.KEYWORD, DataType.TEXT, DataType.NULL),
             "cartesian_point or cartesian_shape or string"
         ),
-        Map.entry(Set.of(EsqlDataTypes.GEO_POINT, EsqlDataTypes.CARTESIAN_POINT, DataTypes.NULL), "geo_point or cartesian_point"),
-        Map.entry(Set.of(EsqlDataTypes.DATE_PERIOD, EsqlDataTypes.TIME_DURATION, DataTypes.NULL), "dateperiod or timeduration")
+        Map.entry(Set.of(DataType.GEO_POINT, DataType.CARTESIAN_POINT, DataType.NULL), "geo_point or cartesian_point"),
+        Map.entry(Set.of(DataType.DATE_PERIOD, DataType.TIME_DURATION, DataType.NULL), "dateperiod or timeduration")
     );
 
     // TODO: generate this message dynamically, a la AbstractConvertFunction#supportedTypesNames()?
@@ -1114,7 +1106,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     protected static Stream<DataType> representable() {
-        return EsqlDataTypes.types().stream().filter(EsqlDataTypes::isRepresentable);
+        return DataType.types().stream().filter(EsqlDataTypes::isRepresentable);
     }
 
     protected static DataType[] representableTypes() {
@@ -1192,7 +1184,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             if (tc.getExpectedTypeError() != null) {
                 continue;
             }
-            if (tc.getData().stream().anyMatch(t -> t.type() == DataTypes.NULL)) {
+            if (tc.getData().stream().anyMatch(t -> t.type() == DataType.NULL)) {
                 continue;
             }
             signatures.putIfAbsent(tc.getData().stream().map(TestCaseSupplier.TypedData::type).toList(), tc.expectedType());
@@ -1609,6 +1601,6 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
      * All string types (keyword, text, match_only_text, etc).
      */
     protected static DataType[] strings() {
-        return EsqlDataTypes.types().stream().filter(DataTypes::isString).toArray(DataType[]::new);
+        return DataType.types().stream().filter(DataType::isString).toArray(DataType[]::new);
     }
 }

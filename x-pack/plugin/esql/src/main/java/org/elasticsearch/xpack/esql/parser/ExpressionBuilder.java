@@ -38,7 +38,6 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RegexMatch;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.core.type.DateUtils;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.Order;
@@ -71,19 +70,21 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 
+import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.esql.core.parser.ParserUtils.source;
 import static org.elasticsearch.xpack.esql.core.parser.ParserUtils.typedParsing;
 import static org.elasticsearch.xpack.esql.core.parser.ParserUtils.visitList;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
+import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.asLongUnsigned;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAsNumber;
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.WILDCARD;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.bigIntegerToUnsignedLong;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.parseTemporalAmout;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToIntegral;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.DATE_PERIOD;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.TIME_DURATION;
 
 public abstract class ExpressionBuilder extends IdentifierBuilder {
 
@@ -123,7 +124,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     @Override
     public Literal visitBooleanValue(EsqlBaseParser.BooleanValueContext ctx) {
         Source source = source(ctx);
-        return new Literal(source, ctx.TRUE() != null, DataTypes.BOOLEAN);
+        return new Literal(source, ctx.TRUE() != null, DataType.BOOLEAN);
     }
 
     @Override
@@ -132,7 +133,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         String text = ctx.getText();
 
         try {
-            return new Literal(source, StringUtils.parseDouble(text), DataTypes.DOUBLE);
+            return new Literal(source, StringUtils.parseDouble(text), DataType.DOUBLE);
         } catch (InvalidArgumentException iae) {
             throw new ParsingException(source, iae.getMessage());
         }
@@ -149,7 +150,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         } catch (InvalidArgumentException siae) {
             // if it's too large, then quietly try to parse as a float instead
             try {
-                return new Literal(source, EsqlDataTypeConverter.stringToDouble(text), DataTypes.DOUBLE);
+                return new Literal(source, EsqlDataTypeConverter.stringToDouble(text), DataType.DOUBLE);
             } catch (InvalidArgumentException ignored) {}
 
             throw new ParsingException(source, siae.getMessage());
@@ -159,13 +160,13 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         DataType type;
         if (number instanceof BigInteger bi) {
             val = asLongUnsigned(bi);
-            type = DataTypes.UNSIGNED_LONG;
+            type = DataType.UNSIGNED_LONG;
         } else if (number.intValue() == number.longValue()) { // try to downsize to int if possible (since that's the most common type)
             val = number.intValue();
-            type = DataTypes.INTEGER;
+            type = DataType.INTEGER;
         } else {
             val = number.longValue();
-            type = DataTypes.LONG;
+            type = DataType.LONG;
         }
         return new Literal(source, val, type);
     }
@@ -174,25 +175,23 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     public Object visitNumericArrayLiteral(EsqlBaseParser.NumericArrayLiteralContext ctx) {
         Source source = source(ctx);
         List<Literal> numbers = visitList(this, ctx.numericValue(), Literal.class);
-        if (numbers.stream().anyMatch(l -> l.dataType() == DataTypes.DOUBLE)) {
-            return new Literal(source, mapNumbers(numbers, (no, dt) -> no.doubleValue()), DataTypes.DOUBLE);
+        if (numbers.stream().anyMatch(l -> l.dataType() == DataType.DOUBLE)) {
+            return new Literal(source, mapNumbers(numbers, (no, dt) -> no.doubleValue()), DataType.DOUBLE);
         }
-        if (numbers.stream().anyMatch(l -> l.dataType() == DataTypes.UNSIGNED_LONG)) {
+        if (numbers.stream().anyMatch(l -> l.dataType() == DataType.UNSIGNED_LONG)) {
             return new Literal(
                 source,
                 mapNumbers(
                     numbers,
-                    (no, dt) -> dt == DataTypes.UNSIGNED_LONG
-                        ? no.longValue()
-                        : bigIntegerToUnsignedLong(BigInteger.valueOf(no.longValue()))
+                    (no, dt) -> dt == DataType.UNSIGNED_LONG ? no.longValue() : bigIntegerToUnsignedLong(BigInteger.valueOf(no.longValue()))
                 ),
-                DataTypes.UNSIGNED_LONG
+                DataType.UNSIGNED_LONG
             );
         }
-        if (numbers.stream().anyMatch(l -> l.dataType() == DataTypes.LONG)) {
-            return new Literal(source, mapNumbers(numbers, (no, dt) -> no.longValue()), DataTypes.LONG);
+        if (numbers.stream().anyMatch(l -> l.dataType() == DataType.LONG)) {
+            return new Literal(source, mapNumbers(numbers, (no, dt) -> no.longValue()), DataType.LONG);
         }
-        return new Literal(source, mapNumbers(numbers, (no, dt) -> no.intValue()), DataTypes.INTEGER);
+        return new Literal(source, mapNumbers(numbers, (no, dt) -> no.intValue()), DataType.INTEGER);
     }
 
     private List<Object> mapNumbers(List<Literal> numbers, BiFunction<Number, DataType, Object> map) {
@@ -201,12 +200,12 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public Object visitBooleanArrayLiteral(EsqlBaseParser.BooleanArrayLiteralContext ctx) {
-        return visitArrayLiteral(ctx, ctx.booleanValue(), DataTypes.BOOLEAN);
+        return visitArrayLiteral(ctx, ctx.booleanValue(), DataType.BOOLEAN);
     }
 
     @Override
     public Object visitStringArrayLiteral(EsqlBaseParser.StringArrayLiteralContext ctx) {
-        return visitArrayLiteral(ctx, ctx.string(), DataTypes.KEYWORD);
+        return visitArrayLiteral(ctx, ctx.string(), DataType.KEYWORD);
     }
 
     private Object visitArrayLiteral(ParserRuleContext ctx, List<? extends ParserRuleContext> contexts, DataType dataType) {
@@ -218,7 +217,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     @Override
     public Literal visitNullLiteral(EsqlBaseParser.NullLiteralContext ctx) {
         Source source = source(ctx);
-        return new Literal(source, null, DataTypes.NULL);
+        return new Literal(source, null, DataType.NULL);
     }
 
     @Override
@@ -229,7 +228,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     @Override
     public Literal visitString(EsqlBaseParser.StringContext ctx) {
         Source source = source(ctx);
-        return new Literal(source, unquoteString(source), DataTypes.KEYWORD);
+        return new Literal(source, unquoteString(source), DataType.KEYWORD);
     }
 
     @Override
@@ -240,6 +239,37 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
 
         List<String> strings = visitList(this, ctx.identifier(), String.class);
         return new UnresolvedAttribute(source(ctx), Strings.collectionToDelimitedString(strings, "."));
+    }
+
+    @Override
+    public List<NamedExpression> visitQualifiedNamePatterns(EsqlBaseParser.QualifiedNamePatternsContext ctx) {
+        return visitQualifiedNamePatterns(ctx, ne -> {});
+    }
+
+    protected List<NamedExpression> visitQualifiedNamePatterns(
+        EsqlBaseParser.QualifiedNamePatternsContext ctx,
+        Consumer<NamedExpression> checker
+    ) {
+        if (ctx == null) {
+            return emptyList();
+        }
+        List<EsqlBaseParser.QualifiedNamePatternContext> identifiers = ctx.qualifiedNamePattern();
+        List<NamedExpression> names = new ArrayList<>(identifiers.size());
+
+        for (EsqlBaseParser.QualifiedNamePatternContext patternContext : identifiers) {
+            names.add(visitQualifiedNamePattern(patternContext, checker));
+        }
+
+        return names;
+    }
+
+    protected NamedExpression visitQualifiedNamePattern(
+        EsqlBaseParser.QualifiedNamePatternContext patternContext,
+        Consumer<NamedExpression> checker
+    ) {
+        NamedExpression ne = visitQualifiedNamePattern(patternContext);
+        checker.accept(ne);
+        return ne;
     }
 
     @Override
@@ -409,7 +439,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         Source source = source(ctx);
         Literal intLit = typedParsing(this, ctx.integerValue(), Literal.class);
         Number value = (Number) intLit.value();
-        if (intLit.dataType() == DataTypes.UNSIGNED_LONG) {
+        if (intLit.dataType() == DataType.UNSIGNED_LONG) {
             value = unsignedLongAsNumber(value.longValue());
         }
         String qualifier = ctx.UNQUOTED_IDENTIFIER().getText().toLowerCase(Locale.ROOT);
@@ -499,7 +529,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         if ("count".equals(EsqlFunctionRegistry.normalizeName(name))) {
             // to simplify the registration, handle in the parser the special count cases
             if (args.isEmpty() || ctx.ASTERISK() != null) {
-                args = singletonList(new Literal(source(ctx), "*", DataTypes.KEYWORD));
+                args = singletonList(new Literal(source(ctx), "*", DataType.KEYWORD));
             }
         }
         return new UnresolvedFunction(source(ctx), name, FunctionResolutionStrategy.DEFAULT, args);
@@ -521,7 +551,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     public DataType visitToDataType(EsqlBaseParser.ToDataTypeContext ctx) {
         String typeName = visitIdentifier(ctx.identifier());
         DataType dataType = EsqlDataTypes.fromNameOrAlias(typeName);
-        if (dataType == DataTypes.UNSUPPORTED) {
+        if (dataType == DataType.UNSUPPORTED) {
             throw new ParsingException(source(ctx), "Unknown data type named [{}]", typeName);
         }
         return dataType;
@@ -586,7 +616,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         NamedExpression newName = visitQualifiedNamePattern(ctx.newName);
         NamedExpression oldName = visitQualifiedNamePattern(ctx.oldName);
         if (newName instanceof UnresolvedNamePattern || oldName instanceof UnresolvedNamePattern) {
-            throw new ParsingException(src, "Using wildcards (*) in RENAME is not allowed [{}]", src.text());
+            throw new ParsingException(src, "Using wildcards [*] in RENAME is not allowed [{}]", src.text());
         }
 
         return new Alias(src, newName.name(), oldName);
@@ -601,11 +631,12 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     }
 
     private NamedExpression enrichFieldName(EsqlBaseParser.QualifiedNamePatternContext ctx) {
-        var name = visitQualifiedNamePattern(ctx);
-        if (name instanceof UnresolvedNamePattern up) {
-            throw new ParsingException(source(ctx), "Using wildcards (*) in ENRICH WITH projections is not allowed [{}]", up.pattern());
-        }
-        return name;
+        return visitQualifiedNamePattern(ctx, ne -> {
+            if (ne instanceof UnresolvedNamePattern up) {
+                var src = ne.source();
+                throw new ParsingException(src, "Using wildcards [*] in ENRICH WITH projections is not allowed [{}]", up.pattern());
+            }
+        });
     }
 
     @Override
@@ -672,7 +703,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         }
         final DataType sourceType;
         try {
-            sourceType = DataTypes.fromJava(param.value);
+            sourceType = DataType.fromJava(param.value);
         } catch (QlIllegalArgumentException ex) {
             throw new ParsingException(
                 ex,

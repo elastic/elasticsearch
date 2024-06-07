@@ -16,7 +16,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
@@ -50,7 +49,7 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractFunctio
         String evaluatorName,
         BiFunction<Integer, Stream<Boolean>, Matcher<Object>> matcher
     ) {
-        booleans(cases, name, evaluatorName, DataTypes.BOOLEAN, matcher);
+        booleans(cases, name, evaluatorName, DataType.BOOLEAN, matcher);
     }
 
     /**
@@ -66,9 +65,9 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractFunctio
         cases.add(
             new TestCaseSupplier(
                 name + "(false)",
-                List.of(DataTypes.BOOLEAN),
+                List.of(DataType.BOOLEAN),
                 () -> new TestCaseSupplier.TestCase(
-                    List.of(new TestCaseSupplier.TypedData(List.of(false), DataTypes.BOOLEAN, "field")),
+                    List.of(new TestCaseSupplier.TypedData(List.of(false), DataType.BOOLEAN, "field")),
                     evaluatorName + "[field=Attribute[channel=0]]",
                     expectedDataType,
                     matcher.apply(1, Stream.of(false))
@@ -78,9 +77,9 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractFunctio
         cases.add(
             new TestCaseSupplier(
                 name + "(true)",
-                List.of(DataTypes.BOOLEAN),
+                List.of(DataType.BOOLEAN),
                 () -> new TestCaseSupplier.TestCase(
-                    List.of(new TestCaseSupplier.TypedData(List.of(true), DataTypes.BOOLEAN, "field")),
+                    List.of(new TestCaseSupplier.TypedData(List.of(true), DataType.BOOLEAN, "field")),
                     evaluatorName + "[field=Attribute[channel=0]]",
                     expectedDataType,
                     matcher.apply(1, Stream.of(true))
@@ -88,11 +87,11 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractFunctio
             )
         );
         for (Block.MvOrdering ordering : Block.MvOrdering.values()) {
-            cases.add(new TestCaseSupplier(name + "(<booleans>) " + ordering, List.of(DataTypes.BOOLEAN), () -> {
+            cases.add(new TestCaseSupplier(name + "(<booleans>) " + ordering, List.of(DataType.BOOLEAN), () -> {
                 List<Boolean> mvData = randomList(2, 100, ESTestCase::randomBoolean);
                 putInOrder(mvData, ordering);
                 return new TestCaseSupplier.TestCase(
-                    List.of(new TestCaseSupplier.TypedData(mvData, DataTypes.BOOLEAN, "field")),
+                    List.of(new TestCaseSupplier.TypedData(mvData, DataType.BOOLEAN, "field")),
                     evaluatorName + "[field=Attribute[channel=0]]",
                     expectedDataType,
                     matcher.apply(mvData.size(), mvData.stream())
@@ -123,8 +122,8 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractFunctio
         Function<DataType, DataType> expectedDataType,
         BiFunction<Integer, Stream<BytesRef>, Matcher<Object>> matcher
     ) {
-        for (DataType type : new DataType[] { DataTypes.KEYWORD, DataTypes.TEXT, DataTypes.IP, DataTypes.VERSION }) {
-            if (type != DataTypes.IP) {
+        for (DataType type : new DataType[] { DataType.KEYWORD, DataType.TEXT, DataType.IP, DataType.VERSION }) {
+            if (type != DataType.IP) {
                 cases.add(
                     new TestCaseSupplier(
                         name + "(empty " + type.typeName() + ")",
@@ -171,7 +170,7 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractFunctio
         String evaluatorName,
         BiFunction<Integer, DoubleStream, Matcher<Object>> matcher
     ) {
-        doubles(cases, name, evaluatorName, DataTypes.DOUBLE, matcher);
+        doubles(cases, name, evaluatorName, DataType.DOUBLE, matcher);
     }
 
     /**
@@ -187,30 +186,30 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractFunctio
         cases.add(
             new TestCaseSupplier(
                 name + "(0.0)",
-                List.of(DataTypes.DOUBLE),
+                List.of(DataType.DOUBLE),
                 () -> new TestCaseSupplier.TestCase(
-                    List.of(new TestCaseSupplier.TypedData(List.of(0.0), DataTypes.DOUBLE, "field")),
+                    List.of(new TestCaseSupplier.TypedData(List.of(0.0), DataType.DOUBLE, "field")),
                     evaluatorName + "[field=Attribute[channel=0]]",
                     expectedDataType,
                     matcher.apply(1, DoubleStream.of(0.0))
                 )
             )
         );
-        cases.add(new TestCaseSupplier(name + "(double)", List.of(DataTypes.DOUBLE), () -> {
+        cases.add(new TestCaseSupplier(name + "(double)", List.of(DataType.DOUBLE), () -> {
             double mvData = randomDouble();
             return new TestCaseSupplier.TestCase(
-                List.of(new TestCaseSupplier.TypedData(List.of(mvData), DataTypes.DOUBLE, "field")),
+                List.of(new TestCaseSupplier.TypedData(List.of(mvData), DataType.DOUBLE, "field")),
                 evaluatorName + "[field=Attribute[channel=0]]",
                 expectedDataType,
                 matcher.apply(1, DoubleStream.of(mvData))
             );
         }));
         for (Block.MvOrdering ordering : Block.MvOrdering.values()) {
-            cases.add(new TestCaseSupplier(name + "(<double>) " + ordering, List.of(DataTypes.DOUBLE), () -> {
+            cases.add(new TestCaseSupplier(name + "(<double>) " + ordering, List.of(DataType.DOUBLE), () -> {
                 List<Double> mvData = randomList(1, 100, ESTestCase::randomDouble);
                 putInOrder(mvData, ordering);
                 return new TestCaseSupplier.TestCase(
-                    List.of(new TestCaseSupplier.TypedData(mvData, DataTypes.DOUBLE, "field")),
+                    List.of(new TestCaseSupplier.TypedData(mvData, DataType.DOUBLE, "field")),
                     evaluatorName + "[field=Attribute[channel=0]]",
                     expectedDataType,
                     matcher.apply(mvData.size(), mvData.stream().mapToDouble(Double::doubleValue))
@@ -228,7 +227,7 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractFunctio
         String evaluatorName,
         BiFunction<Integer, IntStream, Matcher<Object>> matcher
     ) {
-        ints(cases, name, evaluatorName, DataTypes.INTEGER, matcher);
+        ints(cases, name, evaluatorName, DataType.INTEGER, matcher);
     }
 
     /**
@@ -244,30 +243,30 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractFunctio
         cases.add(
             new TestCaseSupplier(
                 name + "(0)",
-                List.of(DataTypes.INTEGER),
+                List.of(DataType.INTEGER),
                 () -> new TestCaseSupplier.TestCase(
-                    List.of(new TestCaseSupplier.TypedData(List.of(0), DataTypes.INTEGER, "field")),
+                    List.of(new TestCaseSupplier.TypedData(List.of(0), DataType.INTEGER, "field")),
                     evaluatorName + "[field=Attribute[channel=0]]",
                     expectedDataType,
                     matcher.apply(1, IntStream.of(0))
                 )
             )
         );
-        cases.add(new TestCaseSupplier(name + "(int)", List.of(DataTypes.INTEGER), () -> {
+        cases.add(new TestCaseSupplier(name + "(int)", List.of(DataType.INTEGER), () -> {
             int data = randomInt();
             return new TestCaseSupplier.TestCase(
-                List.of(new TestCaseSupplier.TypedData(List.of(data), DataTypes.INTEGER, "field")),
+                List.of(new TestCaseSupplier.TypedData(List.of(data), DataType.INTEGER, "field")),
                 evaluatorName + "[field=Attribute[channel=0]]",
                 expectedDataType,
                 matcher.apply(1, IntStream.of(data))
             );
         }));
         for (Block.MvOrdering ordering : Block.MvOrdering.values()) {
-            cases.add(new TestCaseSupplier(name + "(<ints>) " + ordering, List.of(DataTypes.INTEGER), () -> {
+            cases.add(new TestCaseSupplier(name + "(<ints>) " + ordering, List.of(DataType.INTEGER), () -> {
                 List<Integer> mvData = randomList(1, 100, ESTestCase::randomInt);
                 putInOrder(mvData, ordering);
                 return new TestCaseSupplier.TestCase(
-                    List.of(new TestCaseSupplier.TypedData(mvData, DataTypes.INTEGER, "field")),
+                    List.of(new TestCaseSupplier.TypedData(mvData, DataType.INTEGER, "field")),
                     evaluatorName + "[field=Attribute[channel=0]]",
                     expectedDataType,
                     matcher.apply(mvData.size(), mvData.stream().mapToInt(Integer::intValue))
@@ -285,7 +284,7 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractFunctio
         String evaluatorName,
         BiFunction<Integer, LongStream, Matcher<Object>> matcher
     ) {
-        longs(cases, name, evaluatorName, DataTypes.LONG, matcher);
+        longs(cases, name, evaluatorName, DataType.LONG, matcher);
     }
 
     /**
@@ -301,30 +300,30 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractFunctio
         cases.add(
             new TestCaseSupplier(
                 name + "(0L)",
-                List.of(DataTypes.LONG),
+                List.of(DataType.LONG),
                 () -> new TestCaseSupplier.TestCase(
-                    List.of(new TestCaseSupplier.TypedData(List.of(0L), DataTypes.LONG, "field")),
+                    List.of(new TestCaseSupplier.TypedData(List.of(0L), DataType.LONG, "field")),
                     evaluatorName + "[field=Attribute[channel=0]]",
                     expectedDataType,
                     matcher.apply(1, LongStream.of(0L))
                 )
             )
         );
-        cases.add(new TestCaseSupplier(name + "(long)", List.of(DataTypes.LONG), () -> {
+        cases.add(new TestCaseSupplier(name + "(long)", List.of(DataType.LONG), () -> {
             long data = randomLong();
             return new TestCaseSupplier.TestCase(
-                List.of(new TestCaseSupplier.TypedData(List.of(data), DataTypes.LONG, "field")),
+                List.of(new TestCaseSupplier.TypedData(List.of(data), DataType.LONG, "field")),
                 evaluatorName + "[field=Attribute[channel=0]]",
                 expectedDataType,
                 matcher.apply(1, LongStream.of(data))
             );
         }));
         for (Block.MvOrdering ordering : Block.MvOrdering.values()) {
-            cases.add(new TestCaseSupplier(name + "(<longs>) " + ordering, List.of(DataTypes.LONG), () -> {
+            cases.add(new TestCaseSupplier(name + "(<longs>) " + ordering, List.of(DataType.LONG), () -> {
                 List<Long> mvData = randomList(1, 100, ESTestCase::randomLong);
                 putInOrder(mvData, ordering);
                 return new TestCaseSupplier.TestCase(
-                    List.of(new TestCaseSupplier.TypedData(mvData, DataTypes.LONG, "field")),
+                    List.of(new TestCaseSupplier.TypedData(mvData, DataType.LONG, "field")),
                     evaluatorName + "[field=Attribute[channel=0]]",
                     expectedDataType,
                     matcher.apply(mvData.size(), mvData.stream().mapToLong(Long::longValue))
@@ -342,7 +341,7 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractFunctio
         String evaluatorName,
         BiFunction<Integer, LongStream, Matcher<Object>> matcher
     ) {
-        dateTimes(cases, name, evaluatorName, DataTypes.DATETIME, matcher);
+        dateTimes(cases, name, evaluatorName, DataType.DATETIME, matcher);
     }
 
     /**
@@ -358,30 +357,30 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractFunctio
         cases.add(
             new TestCaseSupplier(
                 name + "(epoch)",
-                List.of(DataTypes.DATETIME),
+                List.of(DataType.DATETIME),
                 () -> new TestCaseSupplier.TestCase(
-                    List.of(new TestCaseSupplier.TypedData(List.of(0L), DataTypes.DATETIME, "field")),
+                    List.of(new TestCaseSupplier.TypedData(List.of(0L), DataType.DATETIME, "field")),
                     evaluatorName + "[field=Attribute[channel=0]]",
                     expectedDataType,
                     matcher.apply(1, LongStream.of(0L))
                 )
             )
         );
-        cases.add(new TestCaseSupplier(name + "(date)", List.of(DataTypes.DATETIME), () -> {
+        cases.add(new TestCaseSupplier(name + "(date)", List.of(DataType.DATETIME), () -> {
             long data = randomLong();
             return new TestCaseSupplier.TestCase(
-                List.of(new TestCaseSupplier.TypedData(List.of(data), DataTypes.DATETIME, "field")),
+                List.of(new TestCaseSupplier.TypedData(List.of(data), DataType.DATETIME, "field")),
                 evaluatorName + "[field=Attribute[channel=0]]",
                 expectedDataType,
                 matcher.apply(1, LongStream.of(data))
             );
         }));
         for (Block.MvOrdering ordering : Block.MvOrdering.values()) {
-            cases.add(new TestCaseSupplier(name + "(<dates>) " + ordering, List.of(DataTypes.DATETIME), () -> {
+            cases.add(new TestCaseSupplier(name + "(<dates>) " + ordering, List.of(DataType.DATETIME), () -> {
                 List<Long> mvData = randomList(1, 100, ESTestCase::randomLong);
                 putInOrder(mvData, ordering);
                 return new TestCaseSupplier.TestCase(
-                    List.of(new TestCaseSupplier.TypedData(mvData, DataTypes.DATETIME, "field")),
+                    List.of(new TestCaseSupplier.TypedData(mvData, DataType.DATETIME, "field")),
                     evaluatorName + "[field=Attribute[channel=0]]",
                     expectedDataType,
                     matcher.apply(mvData.size(), mvData.stream().mapToLong(Long::longValue))
@@ -400,7 +399,7 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractFunctio
         String evaluatorName,
         BiFunction<Integer, Stream<BytesRef>, Matcher<Object>> matcher
     ) {
-        geoPoints(cases, name, evaluatorName, EsqlDataTypes.GEO_POINT, matcher);
+        geoPoints(cases, name, evaluatorName, DataType.GEO_POINT, matcher);
     }
 
     /**
@@ -415,7 +414,7 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractFunctio
         DataType expectedDataType,
         BiFunction<Integer, Stream<BytesRef>, Matcher<Object>> matcher
     ) {
-        spatial(cases, name, evaluatorName, EsqlDataTypes.GEO_POINT, expectedDataType, GEO, GeometryTestUtils::randomPoint, matcher);
+        spatial(cases, name, evaluatorName, DataType.GEO_POINT, expectedDataType, GEO, GeometryTestUtils::randomPoint, matcher);
     }
 
     /**
@@ -428,7 +427,7 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractFunctio
         String evaluatorName,
         BiFunction<Integer, Stream<BytesRef>, Matcher<Object>> matcher
     ) {
-        cartesianPoints(cases, name, evaluatorName, EsqlDataTypes.CARTESIAN_POINT, matcher);
+        cartesianPoints(cases, name, evaluatorName, DataType.CARTESIAN_POINT, matcher);
     }
 
     /**
@@ -443,16 +442,7 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractFunctio
         DataType expectedDataType,
         BiFunction<Integer, Stream<BytesRef>, Matcher<Object>> matcher
     ) {
-        spatial(
-            cases,
-            name,
-            evaluatorName,
-            EsqlDataTypes.CARTESIAN_POINT,
-            expectedDataType,
-            CARTESIAN,
-            ShapeTestUtils::randomPoint,
-            matcher
-        );
+        spatial(cases, name, evaluatorName, DataType.CARTESIAN_POINT, expectedDataType, CARTESIAN, ShapeTestUtils::randomPoint, matcher);
     }
 
     /**
@@ -471,7 +461,7 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractFunctio
             cases,
             name,
             evaluatorName,
-            EsqlDataTypes.GEO_SHAPE,
+            DataType.GEO_SHAPE,
             expectedDataType,
             GEO,
             () -> rarely() ? GeometryTestUtils.randomGeometry(randomBoolean()) : GeometryTestUtils.randomPoint(),
@@ -495,7 +485,7 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractFunctio
             cases,
             name,
             evaluatorName,
-            EsqlDataTypes.CARTESIAN_SHAPE,
+            DataType.CARTESIAN_SHAPE,
             expectedDataType,
             CARTESIAN,
             () -> rarely() ? ShapeTestUtils.randomGeometry(randomBoolean()) : ShapeTestUtils.randomPoint(),
@@ -548,7 +538,7 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractFunctio
         String evaluatorName,
         BiFunction<Integer, Stream<BigInteger>, Matcher<Object>> matcher
     ) {
-        unsignedLongs(cases, name, evaluatorName, DataTypes.UNSIGNED_LONG, matcher);
+        unsignedLongs(cases, name, evaluatorName, DataType.UNSIGNED_LONG, matcher);
     }
 
     /**
@@ -564,12 +554,12 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractFunctio
         cases.add(
             new TestCaseSupplier(
                 name + "(0UL)",
-                List.of(DataTypes.UNSIGNED_LONG),
+                List.of(DataType.UNSIGNED_LONG),
                 () -> new TestCaseSupplier.TestCase(
                     List.of(
                         new TestCaseSupplier.TypedData(
                             List.of(NumericUtils.asLongUnsigned(BigInteger.ZERO)),
-                            DataTypes.UNSIGNED_LONG,
+                            DataType.UNSIGNED_LONG,
                             "field"
                         )
                     ),
@@ -579,21 +569,21 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractFunctio
                 )
             )
         );
-        cases.add(new TestCaseSupplier(name + "(unsigned long)", List.of(DataTypes.UNSIGNED_LONG), () -> {
+        cases.add(new TestCaseSupplier(name + "(unsigned long)", List.of(DataType.UNSIGNED_LONG), () -> {
             long data = randomLong();
             return new TestCaseSupplier.TestCase(
-                List.of(new TestCaseSupplier.TypedData(List.of(data), DataTypes.UNSIGNED_LONG, "field")),
+                List.of(new TestCaseSupplier.TypedData(List.of(data), DataType.UNSIGNED_LONG, "field")),
                 evaluatorName + "[field=Attribute[channel=0]]",
                 expectedDataType,
                 matcher.apply(1, Stream.of(NumericUtils.unsignedLongAsBigInteger(data)))
             );
         }));
         for (Block.MvOrdering ordering : Block.MvOrdering.values()) {
-            cases.add(new TestCaseSupplier(name + "(<unsigned longs>) " + ordering, List.of(DataTypes.UNSIGNED_LONG), () -> {
+            cases.add(new TestCaseSupplier(name + "(<unsigned longs>) " + ordering, List.of(DataType.UNSIGNED_LONG), () -> {
                 List<Long> mvData = randomList(1, 100, ESTestCase::randomLong);
                 putInOrder(mvData, ordering);
                 return new TestCaseSupplier.TestCase(
-                    List.of(new TestCaseSupplier.TypedData(mvData, DataTypes.UNSIGNED_LONG, "field")),
+                    List.of(new TestCaseSupplier.TypedData(mvData, DataType.UNSIGNED_LONG, "field")),
                     evaluatorName + "[field=Attribute[channel=0]]",
                     expectedDataType,
                     matcher.apply(mvData.size(), mvData.stream().map(NumericUtils::unsignedLongAsBigInteger))
@@ -630,7 +620,7 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractFunctio
 
     protected final DataType[] representableNumerics() {
         // TODO numeric should only include representable numbers but that is a change for a followup
-        return EsqlDataTypes.types().stream().filter(DataType::isNumeric).filter(EsqlDataTypes::isRepresentable).toArray(DataType[]::new);
+        return DataType.types().stream().filter(DataType::isNumeric).filter(EsqlDataTypes::isRepresentable).toArray(DataType[]::new);
     }
 
     protected DataType expectedType(List<DataType> argTypes) {

@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
@@ -36,11 +35,11 @@ public class IsNotNullTests extends AbstractFunctionTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
-        for (DataType type : EsqlDataTypes.types()) {
+        for (DataType type : DataType.types()) {
             if (false == EsqlDataTypes.isRepresentable(type)) {
                 continue;
             }
-            if (type != DataTypes.NULL) {
+            if (type != DataType.NULL) {
                 suppliers.add(
                     new TestCaseSupplier(
                         "non-null " + type.typeName(),
@@ -48,7 +47,7 @@ public class IsNotNullTests extends AbstractFunctionTestCase {
                         () -> new TestCaseSupplier.TestCase(
                             List.of(new TestCaseSupplier.TypedData(randomLiteral(type).value(), type, "v")),
                             "IsNotNullEvaluator[field=Attribute[channel=0]]",
-                            DataTypes.BOOLEAN,
+                            DataType.BOOLEAN,
                             equalTo(true)
                         )
                     )
@@ -61,7 +60,7 @@ public class IsNotNullTests extends AbstractFunctionTestCase {
                     () -> new TestCaseSupplier.TestCase(
                         List.of(new TestCaseSupplier.TypedData(null, type, "v")),
                         "IsNotNullEvaluator[field=Attribute[channel=0]]",
-                        DataTypes.BOOLEAN,
+                        DataType.BOOLEAN,
                         equalTo(false)
                     )
                 )

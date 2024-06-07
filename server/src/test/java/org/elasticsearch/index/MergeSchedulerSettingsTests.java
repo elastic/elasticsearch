@@ -39,11 +39,11 @@ public class MergeSchedulerSettingsTests extends ESTestCase {
             String message = event.getMessage().getFormattedMessage();
             if (event.getLevel() == Level.TRACE && event.getLoggerName().endsWith("lucene.iw")) {
             }
-            if (event.getLevel() == Level.INFO
+            if (event.getLevel() == Level.DEBUG
                 && message.contains("updating [index.merge.scheduler.max_thread_count] from [10000] to [1]")) {
                 sawUpdateMaxThreadCount = true;
             }
-            if (event.getLevel() == Level.INFO
+            if (event.getLevel() == Level.DEBUG
                 && message.contains("updating [index.merge.scheduler.auto_throttle] from [true] to [false]")) {
                 sawUpdateAutoThrottle = true;
             }

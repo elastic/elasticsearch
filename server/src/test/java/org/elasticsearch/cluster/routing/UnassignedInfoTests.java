@@ -137,14 +137,14 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
         meta.writeTo(out);
         out.close();
 
-        UnassignedInfo read = new UnassignedInfo(out.bytes().streamInput());
-        assertThat(read.getReason(), equalTo(meta.getReason()));
-        assertThat(read.getUnassignedTimeInMillis(), equalTo(meta.getUnassignedTimeInMillis()));
-        assertThat(read.getMessage(), equalTo(meta.getMessage()));
-        assertThat(read.getDetails(), equalTo(meta.getDetails()));
-        assertThat(read.getNumFailedAllocations(), equalTo(meta.getNumFailedAllocations()));
-        assertThat(read.getFailedNodeIds(), equalTo(meta.getFailedNodeIds()));
-        assertThat(read.getLastAllocatedNodeId(), equalTo(meta.getLastAllocatedNodeId()));
+        UnassignedInfo read = UnassignedInfo.fromStreamInput(out.bytes().streamInput());
+        assertThat(read.reason(), equalTo(meta.reason()));
+        assertThat(read.unassignedTimeMillis(), equalTo(meta.unassignedTimeMillis()));
+        assertThat(read.message(), equalTo(meta.message()));
+        assertThat(read.details(), equalTo(meta.details()));
+        assertThat(read.failedAllocations(), equalTo(meta.failedAllocations()));
+        assertThat(read.failedNodeIds(), equalTo(meta.failedNodeIds()));
+        assertThat(read.lastAllocatedNodeId(), equalTo(meta.lastAllocatedNodeId()));
     }
 
     public void testIndexCreated() {
@@ -161,7 +161,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
             .routingTable(RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(metadata.index("test")).build())
             .build();
         for (ShardRouting shard : shardsWithState(clusterState.getRoutingNodes(), UNASSIGNED)) {
-            assertThat(shard.unassignedInfo().getReason(), equalTo(UnassignedInfo.Reason.INDEX_CREATED));
+            assertThat(shard.unassignedInfo().reason(), equalTo(UnassignedInfo.Reason.INDEX_CREATED));
         }
     }
 
@@ -181,7 +181,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
             )
             .build();
         for (ShardRouting shard : shardsWithState(clusterState.getRoutingNodes(), UNASSIGNED)) {
-            assertThat(shard.unassignedInfo().getReason(), equalTo(UnassignedInfo.Reason.CLUSTER_RECOVERED));
+            assertThat(shard.unassignedInfo().reason(), equalTo(UnassignedInfo.Reason.CLUSTER_RECOVERED));
         }
     }
 
@@ -296,8 +296,8 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
             for (int shardCopy = 0; shardCopy < shardRoutingTable.size(); shardCopy++) {
                 final var shard = shardRoutingTable.shard(shardCopy);
                 assertTrue(shard.unassigned());
-                assertThat(shard.unassignedInfo().getReason(), equalTo(expectedUnassignedReason));
-                final var lastAllocatedNodeId = shard.unassignedInfo().getLastAllocatedNodeId();
+                assertThat(shard.unassignedInfo().reason(), equalTo(expectedUnassignedReason));
+                final var lastAllocatedNodeId = shard.unassignedInfo().lastAllocatedNodeId();
                 if (lastAllocatedNodeId == null) {
                     // restoring an index may change the number of shards/replicas so no guarantee that lastAllocatedNodeId is populated
                     assertTrue(shardCountChanged);
@@ -309,7 +309,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
             if (shardCountChanged == false) {
                 assertNotNull(previousShardRoutingTable);
                 assertThat(
-                    shardRoutingTable.primaryShard().unassignedInfo().getLastAllocatedNodeId(),
+                    shardRoutingTable.primaryShard().unassignedInfo().lastAllocatedNodeId(),
                     equalTo(previousShardRoutingTable.primaryShard().currentNodeId())
                 );
             }
@@ -335,7 +335,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
             )
             .build();
         for (ShardRouting shard : shardsWithState(clusterState.getRoutingNodes(), UNASSIGNED)) {
-            assertThat(shard.unassignedInfo().getReason(), equalTo(UnassignedInfo.Reason.INDEX_REOPENED));
+            assertThat(shard.unassignedInfo().reason(), equalTo(UnassignedInfo.Reason.INDEX_REOPENED));
         }
     }
 
@@ -366,7 +366,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
             )
             .build();
         for (ShardRouting shard : shardsWithState(clusterState.getRoutingNodes(), UNASSIGNED)) {
-            assertThat(shard.unassignedInfo().getReason(), equalTo(UnassignedInfo.Reason.NEW_INDEX_RESTORED));
+            assertThat(shard.unassignedInfo().reason(), equalTo(UnassignedInfo.Reason.NEW_INDEX_RESTORED));
         }
     }
 
@@ -471,7 +471,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
             )
             .build();
         for (ShardRouting shard : shardsWithState(clusterState.getRoutingNodes(), UNASSIGNED)) {
-            assertThat(shard.unassignedInfo().getReason(), equalTo(UnassignedInfo.Reason.DANGLING_INDEX_IMPORTED));
+            assertThat(shard.unassignedInfo().reason(), equalTo(UnassignedInfo.Reason.DANGLING_INDEX_IMPORTED));
         }
     }
 
@@ -501,7 +501,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
         assertThat(shardsWithState(clusterState.getRoutingNodes(), UNASSIGNED).size(), equalTo(1));
         assertThat(shardsWithState(clusterState.getRoutingNodes(), UNASSIGNED).get(0).unassignedInfo(), notNullValue());
         assertThat(
-            shardsWithState(clusterState.getRoutingNodes(), UNASSIGNED).get(0).unassignedInfo().getReason(),
+            shardsWithState(clusterState.getRoutingNodes(), UNASSIGNED).get(0).unassignedInfo().reason(),
             equalTo(UnassignedInfo.Reason.REPLICA_ADDED)
         );
     }
@@ -551,11 +551,11 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
         assertThat(shardsWithState(clusterState.getRoutingNodes(), UNASSIGNED).size(), equalTo(1));
         assertThat(shardsWithState(clusterState.getRoutingNodes(), UNASSIGNED).get(0).unassignedInfo(), notNullValue());
         assertThat(
-            shardsWithState(clusterState.getRoutingNodes(), UNASSIGNED).get(0).unassignedInfo().getReason(),
+            shardsWithState(clusterState.getRoutingNodes(), UNASSIGNED).get(0).unassignedInfo().reason(),
             equalTo(UnassignedInfo.Reason.NODE_LEFT)
         );
         assertThat(
-            shardsWithState(clusterState.getRoutingNodes(), UNASSIGNED).get(0).unassignedInfo().getUnassignedTimeInMillis(),
+            shardsWithState(clusterState.getRoutingNodes(), UNASSIGNED).get(0).unassignedInfo().unassignedTimeMillis(),
             greaterThan(0L)
         );
     }
@@ -593,19 +593,19 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
         assertThat(shardsWithState(clusterState.getRoutingNodes(), UNASSIGNED).size(), equalTo(1));
         assertThat(shardsWithState(clusterState.getRoutingNodes(), UNASSIGNED).get(0).unassignedInfo(), notNullValue());
         assertThat(
-            shardsWithState(clusterState.getRoutingNodes(), UNASSIGNED).get(0).unassignedInfo().getReason(),
+            shardsWithState(clusterState.getRoutingNodes(), UNASSIGNED).get(0).unassignedInfo().reason(),
             equalTo(UnassignedInfo.Reason.ALLOCATION_FAILED)
         );
         assertThat(
-            shardsWithState(clusterState.getRoutingNodes(), UNASSIGNED).get(0).unassignedInfo().getMessage(),
+            shardsWithState(clusterState.getRoutingNodes(), UNASSIGNED).get(0).unassignedInfo().message(),
             equalTo("failed shard on node [" + shardToFail.currentNodeId() + "]: test fail")
         );
         assertThat(
-            shardsWithState(clusterState.getRoutingNodes(), UNASSIGNED).get(0).unassignedInfo().getDetails(),
+            shardsWithState(clusterState.getRoutingNodes(), UNASSIGNED).get(0).unassignedInfo().details(),
             equalTo("failed shard on node [" + shardToFail.currentNodeId() + "]: test fail")
         );
         assertThat(
-            shardsWithState(clusterState.getRoutingNodes(), UNASSIGNED).get(0).unassignedInfo().getUnassignedTimeInMillis(),
+            shardsWithState(clusterState.getRoutingNodes(), UNASSIGNED).get(0).unassignedInfo().unassignedTimeMillis(),
             greaterThan(0L)
         );
     }
@@ -768,14 +768,14 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
         final Settings indexSettings = Settings.builder()
             .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), indexLevelTimeoutSetting)
             .build();
-        long delay = unassignedInfo.getRemainingDelay(baseTime, indexSettings, nodeShutdowns);
+        long delay = unassignedInfo.remainingDelay(baseTime, indexSettings, nodeShutdowns);
         assertThat(delay, equalTo(totalDelayNanos));
         long delta1 = randomLongBetween(1, (totalDelayNanos - 1));
-        delay = unassignedInfo.getRemainingDelay(baseTime + delta1, indexSettings, nodeShutdowns);
+        delay = unassignedInfo.remainingDelay(baseTime + delta1, indexSettings, nodeShutdowns);
         assertThat(delay, equalTo(totalDelayNanos - delta1));
-        delay = unassignedInfo.getRemainingDelay(baseTime + totalDelayNanos, indexSettings, nodeShutdowns);
+        delay = unassignedInfo.remainingDelay(baseTime + totalDelayNanos, indexSettings, nodeShutdowns);
         assertThat(delay, equalTo(0L));
-        delay = unassignedInfo.getRemainingDelay(baseTime + totalDelayNanos + randomIntBetween(1, 20), indexSettings, nodeShutdowns);
+        delay = unassignedInfo.remainingDelay(baseTime + totalDelayNanos + randomIntBetween(1, 20), indexSettings, nodeShutdowns);
         assertThat(delay, equalTo(0L));
     }
 
@@ -918,25 +918,25 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
         var info = randomUnassignedInfo(randomBoolean() ? randomIdentifier() : null);
         var summary = info.shortSummary();
 
-        assertThat("reason", summary, containsString("[reason=" + info.getReason() + ']'));
+        assertThat("reason", summary, containsString("[reason=" + info.reason() + ']'));
         assertThat(
             "delay",
             summary,
-            containsString("at[" + UnassignedInfo.DATE_TIME_FORMATTER.format(Instant.ofEpochMilli(info.getUnassignedTimeInMillis())) + ']')
+            containsString("at[" + UnassignedInfo.DATE_TIME_FORMATTER.format(Instant.ofEpochMilli(info.unassignedTimeMillis())) + ']')
         );
-        if (info.getNumFailedAllocations() > 0) {
-            assertThat("failed_allocations", summary, containsString("failed_attempts[" + info.getNumFailedAllocations() + ']'));
+        if (info.failedAllocations() > 0) {
+            assertThat("failed_allocations", summary, containsString("failed_attempts[" + info.failedAllocations() + ']'));
         }
-        if (info.getFailedNodeIds().isEmpty() == false) {
-            assertThat("failed_nodes", summary, containsString("failed_nodes[" + info.getFailedNodeIds() + ']'));
+        if (info.failedNodeIds().isEmpty() == false) {
+            assertThat("failed_nodes", summary, containsString("failed_nodes[" + info.failedNodeIds() + ']'));
         }
-        assertThat("delayed", summary, containsString("delayed=" + info.isDelayed()));
-        if (info.getLastAllocatedNodeId() != null) {
-            assertThat("last_node", summary, containsString("last_node[" + info.getLastAllocatedNodeId() + ']'));
+        assertThat("delayed", summary, containsString("delayed=" + info.delayed()));
+        if (info.lastAllocatedNodeId() != null) {
+            assertThat("last_node", summary, containsString("last_node[" + info.lastAllocatedNodeId() + ']'));
         }
-        if (info.getMessage() != null) {
-            assertThat("details", summary, containsString("details[" + info.getMessage() + ']'));
+        if (info.message() != null) {
+            assertThat("details", summary, containsString("details[" + info.message() + ']'));
         }
-        assertThat("allocation_status", summary, containsString("allocation_status[" + info.getLastAllocationStatus().value() + ']'));
+        assertThat("allocation_status", summary, containsString("allocation_status[" + info.lastAllocationStatus().value() + ']'));
     }
 }

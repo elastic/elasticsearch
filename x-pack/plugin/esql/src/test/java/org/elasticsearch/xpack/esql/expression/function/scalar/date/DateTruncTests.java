@@ -13,10 +13,9 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -140,14 +139,14 @@ public class DateTruncTests extends AbstractFunctionTestCase {
 
     private static TestCaseSupplier ofDatePeriod(Period period, long value, String expectedDate) {
         return new TestCaseSupplier(
-            List.of(EsqlDataTypes.DATE_PERIOD, DataTypes.DATETIME),
+            List.of(DataType.DATE_PERIOD, DataType.DATETIME),
             () -> new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(period, EsqlDataTypes.DATE_PERIOD, "interval"),
-                    new TestCaseSupplier.TypedData(value, DataTypes.DATETIME, "date")
+                    new TestCaseSupplier.TypedData(period, DataType.DATE_PERIOD, "interval"),
+                    new TestCaseSupplier.TypedData(value, DataType.DATETIME, "date")
                 ),
                 "DateTruncEvaluator[date=Attribute[channel=1], interval=Attribute[channel=0]]",
-                DataTypes.DATETIME,
+                DataType.DATETIME,
                 equalTo(toMillis(expectedDate))
             )
         );
@@ -155,21 +154,21 @@ public class DateTruncTests extends AbstractFunctionTestCase {
 
     private static TestCaseSupplier ofDuration(Duration duration, long value, String expectedDate) {
         return new TestCaseSupplier(
-            List.of(EsqlDataTypes.TIME_DURATION, DataTypes.DATETIME),
+            List.of(DataType.TIME_DURATION, DataType.DATETIME),
             () -> new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(duration, EsqlDataTypes.TIME_DURATION, "interval"),
-                    new TestCaseSupplier.TypedData(value, DataTypes.DATETIME, "date")
+                    new TestCaseSupplier.TypedData(duration, DataType.TIME_DURATION, "interval"),
+                    new TestCaseSupplier.TypedData(value, DataType.DATETIME, "date")
                 ),
                 "DateTruncEvaluator[date=Attribute[channel=1], interval=Attribute[channel=0]]",
-                DataTypes.DATETIME,
+                DataType.DATETIME,
                 equalTo(toMillis(expectedDate))
             )
         );
     }
 
     private static TestCaseSupplier randomSecond() {
-        return new TestCaseSupplier("random second", List.of(EsqlDataTypes.TIME_DURATION, DataTypes.DATETIME), () -> {
+        return new TestCaseSupplier("random second", List.of(DataType.TIME_DURATION, DataType.DATETIME), () -> {
             String dateFragment = randomIntBetween(2000, 2050)
                 + "-"
                 + pad(randomIntBetween(1, 12))
@@ -183,11 +182,11 @@ public class DateTruncTests extends AbstractFunctionTestCase {
                 + pad(randomIntBetween(0, 59));
             return new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(Duration.ofSeconds(1), EsqlDataTypes.TIME_DURATION, "interval"),
-                    new TestCaseSupplier.TypedData(toMillis(dateFragment + ".38Z"), DataTypes.DATETIME, "date")
+                    new TestCaseSupplier.TypedData(Duration.ofSeconds(1), DataType.TIME_DURATION, "interval"),
+                    new TestCaseSupplier.TypedData(toMillis(dateFragment + ".38Z"), DataType.DATETIME, "date")
                 ),
                 "DateTruncEvaluator[date=Attribute[channel=1], interval=Attribute[channel=0]]",
-                DataTypes.DATETIME,
+                DataType.DATETIME,
                 equalTo(toMillis(dateFragment + ".00Z"))
             );
         });

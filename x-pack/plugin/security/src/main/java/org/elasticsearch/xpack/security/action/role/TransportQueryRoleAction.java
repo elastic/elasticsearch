@@ -18,11 +18,6 @@ import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.role.QueryRoleAction;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
-import org.elasticsearch.xpack.security.support.ApiKeyBoolQueryBuilder;
-
-import java.util.concurrent.atomic.AtomicBoolean;
-
-import static org.elasticsearch.xpack.security.support.ApiKeyFieldNameTranslators.translateFieldSortBuilders;
 
 public class TransportQueryRoleAction extends TransportAction<QueryApiKeyRequest, QueryApiKeyResponse> {
 
@@ -37,27 +32,27 @@ public class TransportQueryRoleAction extends TransportAction<QueryApiKeyRequest
     @Override
     protected void doExecute(Task task, QueryApiKeyRequest request, ActionListener<QueryApiKeyResponse> listener) {
         final SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.searchSource()
-                .version(false)
-                .fetchSource(true)
-                .trackTotalHits(true);
+            .version(false)
+            .fetchSource(true)
+            .trackTotalHits(true);
         if (request.getFrom() != null) {
             searchSourceBuilder.from(request.getFrom());
         }
         if (request.getSize() != null) {
             searchSourceBuilder.size(request.getSize());
         }
-        searchSourceBuilder.query(ApiKeyBoolQueryBuilder.build(request.getQueryBuilder(), fieldName -> {
-            if (API_KEY_TYPE_RUNTIME_MAPPING_FIELD.equals(fieldName)) {
-                accessesApiKeyTypeField.set(true);
-            }
-        }, filteringAuthentication));
-
-        if (request.getFieldSortBuilders() != null) {
-            translateFieldSortBuilders(request.getFieldSortBuilders(), searchSourceBuilder, fieldName -> {
-                if (API_KEY_TYPE_RUNTIME_MAPPING_FIELD.equals(fieldName)) {
-                    accessesApiKeyTypeField.set(true);
-                }
-            });
-        }
+        // searchSourceBuilder.query(ApiKeyBoolQueryBuilder.build(request.getQueryBuilder(), fieldName -> {
+        // if (API_KEY_TYPE_RUNTIME_MAPPING_FIELD.equals(fieldName)) {
+        // accessesApiKeyTypeField.set(true);
+        // }
+        // }, filteringAuthentication));
+        //
+        // if (request.getFieldSortBuilders() != null) {
+        // translateFieldSortBuilders(request.getFieldSortBuilders(), searchSourceBuilder, fieldName -> {
+        // if (API_KEY_TYPE_RUNTIME_MAPPING_FIELD.equals(fieldName)) {
+        // accessesApiKeyTypeField.set(true);
+        // }
+        // });
+        // }
     }
 }

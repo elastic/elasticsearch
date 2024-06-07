@@ -9,5 +9,4 @@ package org.elasticsearch.xpack.security.support;
 
 import org.elasticsearch.index.query.BoolQueryBuilder;
 
-public class RoleBoolQueryBuilder extends BoolQueryBuilder {
-}
+public class RoleBoolQueryBuilder extends BoolQueryBuilder {}

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.security.support;
 
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -27,15 +26,15 @@ import org.elasticsearch.index.query.WildcardQueryBuilder;
 import org.elasticsearch.index.search.QueryParserHelper;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
+import org.elasticsearch.xpack.security.support.FieldNameTranslators.ExactFieldNameTranslator;
+import org.elasticsearch.xpack.security.support.FieldNameTranslators.PrefixFieldNameTranslator;
 
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Consumer;
-import java.util.function.Function;
 
 import static org.elasticsearch.xpack.security.action.apikey.TransportQueryApiKeyAction.API_KEY_TYPE_RUNTIME_MAPPING_FIELD;
 
@@ -43,10 +42,8 @@ import static org.elasticsearch.xpack.security.action.apikey.TransportQueryApiKe
  * A class to translate query level field names to index level field names.
  */
 public class ApiKeyFieldNameTranslators {
-    static final List<FieldNameTranslator> FIELD_NAME_TRANSLATORS;
-
-    static {
-        FIELD_NAME_TRANSLATORS = List.of(
+    static final FieldNameTranslators FIELD_NAME_TRANSLATORS = new FieldNameTranslators(
+        List.of(
             new ExactFieldNameTranslator(s -> "creator.principal", "username"),
             new ExactFieldNameTranslator(s -> "creator.realm", "realm_name"),
             new ExactFieldNameTranslator(s -> "name", "name"),
@@ -58,12 +55,12 @@ public class ApiKeyFieldNameTranslators {
             // allows querying on all metadata values as keywords because "metadata_flattened" is a flattened field type
             new ExactFieldNameTranslator(s -> "metadata_flattened", "metadata"),
             new PrefixFieldNameTranslator(s -> "metadata_flattened." + s.substring("metadata.".length()), "metadata.")
-        );
-    }
+        )
+    );
 
     /**
      * Adds the {@param fieldSortBuilders} to the {@param searchSourceBuilder}, translating the field names,
-     * form query level to index level, see {@link #translate}.
+     * form query level to index level, see {@link FieldNameTranslators#translate}.
      * The optional {@param visitor} can be used to collect all the translated field names.
      */
     public static void translateFieldSortBuilders(
@@ -108,7 +105,7 @@ public class ApiKeyFieldNameTranslators {
 
     /**
      * Deep copies the passed-in {@param queryBuilder} translating all the field names, from query level to index level,
-     * see {@link  #translate}. In general, the returned builder should create the same query as if the query were
+     * see {@link  FieldNameTranslators#translate}. In general, the returned builder should create the same query as if the query were
      * created by the passed in {@param queryBuilder}, only with the field names translated.
      * Field name patterns (including "*"), are also replaced with the explicit index level field names whose
      * associated query level field names match the pattern.
@@ -268,93 +265,11 @@ public class ApiKeyFieldNameTranslators {
         }
     }
 
-    /**
-     * Translate the query level field name to index level field names.
-     * It throws an exception if the field name is not explicitly allowed.
-     */
-    protected static String translate(String fieldName) {
-        // protected for testing
-        if (Regex.isSimpleMatchPattern(fieldName)) {
-            throw new IllegalArgumentException("Field name pattern [" + fieldName + "] is not allowed for API Key query or aggregation");
-        }
-        for (FieldNameTranslator translator : FIELD_NAME_TRANSLATORS) {
-            if (translator.supports(fieldName)) {
-                return translator.translate(fieldName);
-            }
-        }
-        throw new IllegalArgumentException("Field [" + fieldName + "] is not allowed for API Key query or aggregation");
+    static String translate(String fieldName) {
+        return FIELD_NAME_TRANSLATORS.translate(fieldName);
     }
 
-    /**
-     * Translates a query level field name pattern to the matching index level field names.
-     * The result can be the empty set, if the pattern doesn't match any of the allowed index level field names.
-     */
-    private static Set<String> translatePattern(String fieldNameOrPattern) {
-        Set<String> indexFieldNames = new HashSet<>();
-        for (FieldNameTranslator translator : FIELD_NAME_TRANSLATORS) {
-            if (translator.supports(fieldNameOrPattern)) {
-                indexFieldNames.add(translator.translate(fieldNameOrPattern));
-            }
-        }
-        // It's OK to "translate" to the empty set the concrete disallowed or unknown field names.
-        // For eg, the SimpleQueryString query type is lenient in the sense that it ignores unknown fields and field name patterns,
-        // so this preprocessing can ignore them too.
-        return indexFieldNames;
-    }
-
-    abstract static class FieldNameTranslator {
-
-        private final Function<String, String> translationFunc;
-
-        protected FieldNameTranslator(Function<String, String> translationFunc) {
-            this.translationFunc = translationFunc;
-        }
-
-        String translate(String fieldName) {
-            return translationFunc.apply(fieldName);
-        }
-
-        abstract boolean supports(String fieldName);
-    }
-
-    static class ExactFieldNameTranslator extends FieldNameTranslator {
-        private final String name;
-
-        ExactFieldNameTranslator(Function<String, String> translationFunc, String name) {
-            super(translationFunc);
-            this.name = name;
-        }
-
-        @Override
-        public boolean supports(String fieldNameOrPattern) {
-            if (Regex.isSimpleMatchPattern(fieldNameOrPattern)) {
-                return Regex.simpleMatch(fieldNameOrPattern, name);
-            } else {
-                return name.equals(fieldNameOrPattern);
-            }
-        }
-    }
-
-    static class PrefixFieldNameTranslator extends FieldNameTranslator {
-        private final String prefix;
-
-        PrefixFieldNameTranslator(Function<String, String> translationFunc, String prefix) {
-            super(translationFunc);
-            this.prefix = prefix;
-        }
-
-        @Override
-        boolean supports(String fieldNameOrPattern) {
-            if (Regex.isSimpleMatchPattern(fieldNameOrPattern)) {
-                // It is not possible to translate a pattern into concrete field names,
-                // because we do not store the list of concrete field names sharing the prefix.
-                // This means that e.g. `metadata.*` and `metadata.x*` are expanded to the empty list,
-                // rather than be replaced with `metadata_flattened.*` and `metadata_flattened.x*`
-                // (but, in any case, `metadata_flattened.*` and `metadata.x*` are eventually ignored,
-                // because of the way that the flattened field type works in ES)
-                return false;
-            }
-            return fieldNameOrPattern.startsWith(prefix);
-        }
+    static Set<String> translatePattern(String fieldName) {
+        return FIELD_NAME_TRANSLATORS.translatePattern(fieldName);
     }
 }

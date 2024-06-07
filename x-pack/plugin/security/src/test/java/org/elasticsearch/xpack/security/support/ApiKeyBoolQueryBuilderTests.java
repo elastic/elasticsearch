@@ -612,7 +612,7 @@ public class ApiKeyBoolQueryBuilderTests extends ESTestCase {
         final Authentication authentication = randomBoolean() ? AuthenticationTests.randomAuthentication(null, null) : null;
 
         final String randomFieldName = randomValueOtherThanMany(
-            s -> FIELD_NAME_TRANSLATORS.stream().anyMatch(t -> t.supports(s)),
+            s -> FIELD_NAME_TRANSLATORS.fieldNameTranslators.stream().anyMatch(t -> t.supports(s)),
             () -> randomAlphaOfLengthBetween(3, 20)
         );
         final String fieldName = randomFrom(
@@ -638,7 +638,7 @@ public class ApiKeyBoolQueryBuilderTests extends ESTestCase {
                 IllegalArgumentException.class,
                 () -> ApiKeyBoolQueryBuilder.build(q1, ignored -> {}, authentication)
             );
-            assertThat(e1.getMessage(), containsString("Field [" + fieldName + "] is not allowed for API Key query"));
+            assertThat(e1.getMessage(), containsString("Field [" + fieldName + "] is not allowed for querying"));
         }
 
         // also wrapped in a boolean query
@@ -667,7 +667,7 @@ public class ApiKeyBoolQueryBuilderTests extends ESTestCase {
                 IllegalArgumentException.class,
                 () -> ApiKeyBoolQueryBuilder.build(q2, ignored -> {}, authentication)
             );
-            assertThat(e2.getMessage(), containsString("Field [" + fieldName + "] is not allowed for API Key query"));
+            assertThat(e2.getMessage(), containsString("Field [" + fieldName + "] is not allowed for querying"));
         }
     }
 

@@ -441,7 +441,6 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
      */
     public XContentBuilder innerToXContent(XContentBuilder builder, Params params, boolean docCreation, boolean includeMetadataFlattened)
         throws IOException {
-        builder.startObject();
         builder.array(Fields.CLUSTER.getPreferredName(), clusterPrivileges);
         if (configurableClusterPrivileges.length != 0) {
             builder.field(Fields.GLOBAL.getPreferredName());
@@ -473,7 +472,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         if (hasDescription()) {
             builder.field(Fields.DESCRIPTION.getPreferredName(), description);
         }
-        return builder.endObject();
+        return builder;
     }
 
     @Override

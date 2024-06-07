@@ -38,7 +38,7 @@ basic:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [lookup]
+          capabilities: [lookup_command]
       reason: "uses LOOKUP"
 
   - do:
@@ -66,7 +66,7 @@ read multivalue keyword:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [lookup]
+          capabilities: [lookup_command]
       reason: "uses LOOKUP"
 
   - do:
@@ -97,7 +97,7 @@ keyword matches text:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [lookup]
+          capabilities: [lookup_command]
       reason: "uses LOOKUP"
 
   - do:
@@ -143,7 +143,7 @@ duplicate column names in table:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [lookup]
+          capabilities: [lookup_command]
       reason: "uses LOOKUP"
 
   - do:
@@ -165,7 +165,7 @@ duplicate keys:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [lookup]
+          capabilities: [lookup_command]
       reason: "uses LOOKUP"
 
   - do:
@@ -188,7 +188,7 @@ multivalued keys:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [lookup]
+          capabilities: [lookup_command]
       reason: "uses LOOKUP"
 
   - do:
@@ -230,7 +230,7 @@ on function:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [lookup]
+          capabilities: [lookup_command]
       reason: "uses LOOKUP"
 
   - do:

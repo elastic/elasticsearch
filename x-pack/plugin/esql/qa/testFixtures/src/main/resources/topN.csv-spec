@@ -134,37 +134,3 @@ Otmar             |Herbst           |[-8.19, -1.9, -0.32]        |[-0.32, -1.90,
 null              |Swan             |-8.46                       |-8.46                        |-8                   |10034          
 Sanjiv            |Zschoche         |[-7.67, -3.25]              |[-3.25, -7.67]               |[-3, -8]             |10053
 ;
-
-lookupBeforeSort
-FROM employees
-| WHERE emp_no < 10005
-| RENAME languages AS int
-| LOOKUP int_number_names ON int
-| RENAME name AS languages
-| KEEP languages, emp_no
-| SORT languages ASC, emp_no ASC
-;
-
-languages:keyword | emp_no:integer
-             five | 10002
-             five | 10004
-             four | 10003
-              two | 10001
-;
-
-lookupAfterSort
-FROM employees
-| WHERE emp_no < 10005
-| SORT languages ASC, emp_no ASC
-| RENAME languages AS int
-| LOOKUP int_number_names ON int
-| RENAME name AS languages
-| KEEP languages, emp_no
-;
-
-languages:keyword | emp_no:integer
-              two | 10001
-             four | 10003
-             five | 10002
-             five | 10004
-;

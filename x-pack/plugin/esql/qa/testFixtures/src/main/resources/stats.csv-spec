@@ -1697,30 +1697,3 @@ FROM employees | STATS min = min(salary) by languages | SORT min + CASE(language
 29175          |2              
 28336          |null           
 ;
-
-lookupBeforeStats
-  FROM employees
-| RENAME languages AS int
-| LOOKUP int_number_names ON int
-| RENAME name AS languages
-| STATS height=ROUND(AVG(height), 3) BY languages
-| SORT height ASC;
-
-height:double | languages:keyword
-        1.694 | four
-        1.732 | one
-        1.762 | two
-        1.764 | three
-        1.809 | null        
-        1.847 | five
-;
-
-lookupAfterStats
-  FROM employees
-| STATS int=TO_INT(AVG(height))
-| LOOKUP int_number_names ON int
-| KEEP name;
-
-name:keyword
-two
-;

@@ -45,7 +45,7 @@ public class RestDeleteSnapshotAction extends BaseRestHandler {
         String[] snapshots = Strings.splitStringByCommaToArray(request.param("snapshot"));
         DeleteSnapshotRequest deleteSnapshotRequest = new DeleteSnapshotRequest(repository, snapshots);
         deleteSnapshotRequest.masterNodeTimeout(getMasterNodeTimeout(request));
-        deleteSnapshotRequest.waitForCompletion(request.paramAsBoolean("wait_for_completion", false));
+        deleteSnapshotRequest.waitForCompletion(request.paramAsBoolean("wait_for_completion", true));
         return channel -> client.admin().cluster().deleteSnapshot(deleteSnapshotRequest, new RestToXContentListener<>(channel));
     }
 }

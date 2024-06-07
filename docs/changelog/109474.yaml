@@ -1,0 +1,5 @@
+pr: 109474
+summary: Always fork to the generic threadpool for `_msearch` requests
+area: Search
+type: bug
+issues: []

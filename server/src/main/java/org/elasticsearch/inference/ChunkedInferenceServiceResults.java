@@ -15,6 +15,13 @@ import java.util.Iterator;
 
 public interface ChunkedInferenceServiceResults extends InferenceServiceResults {
 
+    /**
+     * Implementations of this function serialize their embeddings to {@link BytesReference} for storage in semantic text fields.
+     * The iterator iterates over all the chunks stored in the {@link ChunkedInferenceServiceResults}.
+     *
+     * @param xcontent provided by the SemanticTextField
+     * @return an iterator of the serialized {@link Chunk} which includes the matched text (input) and bytes reference (output/embedding).
+     */
     Iterator<Chunk> chunksAsMatchedTextAndByteReference(XContent xcontent);
 
     /**

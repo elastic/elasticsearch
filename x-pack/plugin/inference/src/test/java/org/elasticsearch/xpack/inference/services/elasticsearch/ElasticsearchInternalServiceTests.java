@@ -39,7 +39,7 @@ import org.elasticsearch.xpack.core.ml.inference.results.MlChunkedTextEmbeddingF
 import org.elasticsearch.xpack.core.ml.inference.results.MlChunkedTextEmbeddingFloatResultsTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TokenizationConfigUpdate;
-import org.elasticsearch.xpack.core.utils.StaticUtils;
+import org.elasticsearch.xpack.core.utils.FloatConversionUtils;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.settings.InternalServiceSettings;
 import org.junit.After;
@@ -506,7 +506,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
                 result1.getChunks().get(0).matchedText()
             );
             assertArrayEquals(
-                (StaticUtils.floatArrayOf(
+                (FloatConversionUtils.floatArrayOf(
                     ((MlChunkedTextEmbeddingFloatResults) mlTrainedModelResults.get(0)).getChunks().get(0).embedding()
                 )),
                 result1.getChunks().get(0).embedding(),
@@ -525,7 +525,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
                 result2.getChunks().get(0).matchedText()
             );
             assertArrayEquals(
-                (StaticUtils.floatArrayOf(
+                (FloatConversionUtils.floatArrayOf(
                     ((MlChunkedTextEmbeddingFloatResults) mlTrainedModelResults.get(1)).getChunks().get(0).embedding()
                 )),
                 result2.getChunks().get(0).embedding(),

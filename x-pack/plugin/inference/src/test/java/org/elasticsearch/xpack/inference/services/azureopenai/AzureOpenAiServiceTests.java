@@ -1066,7 +1066,6 @@ public class AzureOpenAiServiceTests extends ESTestCase {
         }
     }
 
-    // TODO
     public void testChunkedInfer_CallsInfer_ConvertsFloatResponse() throws IOException, URISyntaxException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 

@@ -20,7 +20,7 @@ import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.inference.results.ChunkedNlpInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.MlChunkedTextEmbeddingFloatResults;
-import org.elasticsearch.xpack.core.utils.StaticUtils;
+import org.elasticsearch.xpack.core.utils.FloatConversionUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -68,7 +68,7 @@ public record InferenceChunkedTextEmbeddingFloatResults(List<InferenceFloatEmbed
         return new InferenceChunkedTextEmbeddingFloatResults(
             mlInferenceResult.getChunks()
                 .stream()
-                .map(chunk -> new InferenceFloatEmbeddingChunk(chunk.matchedText(), StaticUtils.floatArrayOf(chunk.embedding())))
+                .map(chunk -> new InferenceFloatEmbeddingChunk(chunk.matchedText(), FloatConversionUtils.floatArrayOf(chunk.embedding())))
                 .toList()
         );
     }
@@ -133,7 +133,7 @@ public record InferenceChunkedTextEmbeddingFloatResults(List<InferenceFloatEmbed
         }
 
         public static InferenceFloatEmbeddingChunk of(String matchedText, double[] doubleEmbedding) {
-            return new InferenceFloatEmbeddingChunk(matchedText, StaticUtils.floatArrayOf(doubleEmbedding));
+            return new InferenceFloatEmbeddingChunk(matchedText, FloatConversionUtils.floatArrayOf(doubleEmbedding));
         }
 
         @Override

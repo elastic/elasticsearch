@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.utils;
 
-public class StaticUtils {
+public class FloatConversionUtils {
 
     public static float[] floatArrayOf(double[] doublesArray) {
         var floatArray = new float[doublesArray.length];

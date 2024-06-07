@@ -9,11 +9,11 @@ package org.elasticsearch.xpack.core.utils;
 
 import org.elasticsearch.test.ESTestCase;
 
-public class StaticUtilsTests extends ESTestCase {
+public class FloatConversionUtilsTests extends ESTestCase {
 
     public void testFloatArrayOf() {
         double[] doublesArray = { 1.0, 2.0, 3.0 };
-        float[] floatArray = StaticUtils.floatArrayOf(doublesArray);
+        float[] floatArray = FloatConversionUtils.floatArrayOf(doublesArray);
         assertEquals(1.0, floatArray[0], 0.0);
         assertEquals(2.0, floatArray[1], 0.0);
         assertEquals(3.0, floatArray[2], 0.0);

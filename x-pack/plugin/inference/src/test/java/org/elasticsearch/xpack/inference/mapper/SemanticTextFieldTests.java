@@ -22,7 +22,7 @@ import org.elasticsearch.xpack.core.inference.results.InferenceChunkedSparseEmbe
 import org.elasticsearch.xpack.core.inference.results.InferenceChunkedTextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceChunkedTextExpansionResults;
 import org.elasticsearch.xpack.core.ml.search.WeightedToken;
-import org.elasticsearch.xpack.core.utils.StaticUtils;
+import org.elasticsearch.xpack.core.utils.FloatConversionUtils;
 import org.elasticsearch.xpack.inference.model.TestModel;
 
 import java.io.IOException;
@@ -205,7 +205,7 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
                     chunks.add(
                         new InferenceChunkedTextEmbeddingFloatResults.InferenceFloatEmbeddingChunk(
                             chunk.text(),
-                            StaticUtils.floatArrayOf(values)
+                            FloatConversionUtils.floatArrayOf(values)
                         )
                     );
                 }

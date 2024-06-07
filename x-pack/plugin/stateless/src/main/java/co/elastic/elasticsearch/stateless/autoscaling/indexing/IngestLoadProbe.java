@@ -23,6 +23,8 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 
 /**
@@ -58,6 +60,7 @@ public class IngestLoadProbe {
     );
 
     private final Function<String, ExecutorStats> executorStatsProvider;
+    private final Map<String, ExecutorIngestionLoad> ingestionLoadPerExecutor;
     private volatile TimeValue maxTimeToClearQueue;
     private volatile float maxQueueContributionFactor;
 
@@ -65,6 +68,8 @@ public class IngestLoadProbe {
         this.executorStatsProvider = executorStatsProvider;
         clusterSettings.initializeAndWatch(MAX_TIME_TO_CLEAR_QUEUE, this::setMaxTimeToClearQueue);
         clusterSettings.initializeAndWatch(MAX_QUEUE_CONTRIBUTION_FACTOR, this::setMaxQueueContributionFactor);
+        ingestionLoadPerExecutor = new ConcurrentHashMap<>(AverageWriteLoadSampler.WRITE_EXECUTORS.size());
+        AverageWriteLoadSampler.WRITE_EXECUTORS.forEach(name -> ingestionLoadPerExecutor.put(name, new ExecutorIngestionLoad(0.0, 0.0)));
     }
 
     private void setMaxQueueContributionFactor(float maxQueueContributionFactor) {
@@ -82,7 +87,7 @@ public class IngestLoadProbe {
         double totalIngestionLoad = 0.0;
         for (String executorName : AverageWriteLoadSampler.WRITE_EXECUTORS) {
             var executorStats = executorStatsProvider.apply(executorName);
-            totalIngestionLoad += calculateIngestionLoadForExecutor(
+            var ingestionLoadForExecutor = calculateIngestionLoadForExecutor(
                 executorName,
                 executorStats.averageLoad(),
                 executorStats.averageTaskExecutionEWMA(),
@@ -90,11 +95,24 @@ public class IngestLoadProbe {
                 maxTimeToClearQueue,
                 maxQueueContributionFactor * executorStats.maxThreads()
             );
+            ingestionLoadPerExecutor.put(executorName, ingestionLoadForExecutor);
+            totalIngestionLoad += ingestionLoadForExecutor.total();
         }
         return totalIngestionLoad;
     }
 
-    static double calculateIngestionLoadForExecutor(
+    public record ExecutorIngestionLoad(double averageWriteLoad, double queueThreadsNeeded) {
+        public double total() {
+            return averageWriteLoad + queueThreadsNeeded;
+        }
+    }
+
+    public ExecutorIngestionLoad getExecutorIngestionLoad(String executor) {
+        assert AverageWriteLoadSampler.WRITE_EXECUTORS.contains(executor);
+        return ingestionLoadPerExecutor.get(executor);
+    }
+
+    static ExecutorIngestionLoad calculateIngestionLoadForExecutor(
         String executor,
         double averageWriteLoad,
         double averageTaskExecutionTime,
@@ -116,12 +134,12 @@ public class IngestLoadProbe {
         }
         assert maxThreadsToHandleQueue > 0.0;
         if (averageTaskExecutionTime == 0.0) {
-            return averageWriteLoad;
+            return new ExecutorIngestionLoad(averageWriteLoad, 0.0);
         }
         double tasksManageablePerThreadWithinMaxTime = maxTimeToClearQueue.nanos() / averageTaskExecutionTime;
         double queueThreadsNeeded = Math.min(currentQueueSize / tasksManageablePerThreadWithinMaxTime, maxThreadsToHandleQueue);
         assert queueThreadsNeeded >= 0.0;
-        return averageWriteLoad + queueThreadsNeeded;
+        return new ExecutorIngestionLoad(averageWriteLoad, queueThreadsNeeded);
     }
 
     public void setMaxTimeToClearQueue(TimeValue maxTimeToClearQueue) {

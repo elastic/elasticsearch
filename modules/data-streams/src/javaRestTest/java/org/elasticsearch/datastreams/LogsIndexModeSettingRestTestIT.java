@@ -75,7 +75,7 @@ public class LogsIndexModeSettingRestTestIT extends ESRestTestCase {
     private static void waitForLogs(RestClient client) throws Exception {
         assertBusy(() -> {
             try {
-                Request request = new Request("GET", "_index_template/logs");
+                final Request request = new Request("GET", "_index_template/logs");
                 assertOK(client.performRequest(request));
             } catch (ResponseException e) {
                 fail(e.getMessage());
@@ -84,9 +84,7 @@ public class LogsIndexModeSettingRestTestIT extends ESRestTestCase {
     }
 
     public void testLogsSettingsIndexMode() throws IOException {
-        assertOK(getTemplate(client, "logs"));
         assertOK(putTemplate(client, "custom-mappings", MAPPINGS));
-        assertOK(getTemplate(client, "custom-mappings"));
         assertOK(createDataStream(client, "logs-apache-dev"));
         final String indexMode = (String) getSetting(client, getWriteBackingIndex(client, "logs-apache-dev", 0), "index.mode");
         if (Build.current().isProductionRelease()) {

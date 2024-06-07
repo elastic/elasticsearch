@@ -510,6 +510,9 @@ public final class NodeEnvironment implements Closeable {
 
         // We are upgrading the cluster, but we didn't find any previous metadata. Corrupted state or incompatible version.
         if (metadata == null) {
+            Stream<Path> files = Files.walk(paths[0]);
+            logger.warn("Data path listing: \n" + String.join("\n", files.map(Path::toString).toList()));
+            files.close();
             throw new CorruptStateException(
                 "Format version is not supported. Upgrading to ["
                     + Build.current().version()

@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptedMetricAggContexts;
+import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
@@ -25,6 +26,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -181,6 +183,13 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
     protected ScriptedMetricAggregatorFactory doBuild(AggregationContext context, AggregatorFactory parent, Builder subfactoriesBuilder)
         throws IOException {
 
+        List<String> allowedScripts = context.getClusterSettings().get(SearchModule.SCRIPTED_METRICS_AGG_ALLOWED_SCRIPTS_SETTING);
+
+        validateScript(INIT_SCRIPT_FIELD.getPreferredName(), name, initScript, allowedScripts);
+        validateScript(MAP_SCRIPT_FIELD.getPreferredName(), name, mapScript, allowedScripts);
+        validateScript(COMBINE_SCRIPT_FIELD.getPreferredName(), name, combineScript, allowedScripts);
+        validateScript(REDUCE_SCRIPT_FIELD.getPreferredName(), name, reduceScript, allowedScripts);
+
         if (combineScript == null) {
             throw new IllegalArgumentException("[combineScript] must not be null: [" + name + "]");
         }
@@ -229,6 +238,14 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
             subfactoriesBuilder,
             metadata
         );
+    }
+
+    private static void validateScript(String scriptName, String aggName, Script script, List<String> allowedScripts) {
+        if (script != null && allowedScripts.isEmpty() == false) {
+            if (allowedScripts.contains(script.getIdOrCode()) == false) {
+                throw new IllegalArgumentException("[" + scriptName + "] contains not allowed script: [" + aggName + "]");
+            }
+        }
     }
 
     @Override

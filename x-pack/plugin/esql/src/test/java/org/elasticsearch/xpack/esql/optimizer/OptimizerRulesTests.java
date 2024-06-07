@@ -30,7 +30,6 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLike;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePattern;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
-import org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.ConstantFolding;
 import org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.FoldNull;
 import org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.PropagateNullable;
 import org.elasticsearch.xpack.esql.core.plan.logical.Filter;
@@ -51,6 +50,8 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Les
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer.ReplaceRegexMatch;
+import org.elasticsearch.xpack.esql.optimizer.rules.ConstantFolding;
+import org.elasticsearch.xpack.esql.optimizer.rules.LiteralsOnTheRight;
 
 import java.util.List;
 
@@ -834,7 +835,7 @@ public class OptimizerRulesTests extends ESTestCase {
 
     public void testLiteralsOnTheRight() {
         Alias a = new Alias(EMPTY, "a", new Literal(EMPTY, 10, INTEGER));
-        Expression result = new org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.LiteralsOnTheRight().rule(equalsOf(FIVE, a));
+        Expression result = new LiteralsOnTheRight().rule(equalsOf(FIVE, a));
         assertTrue(result instanceof Equals);
         Equals eq = (Equals) result;
         assertEquals(a, eq.left());

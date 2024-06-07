@@ -71,6 +71,21 @@ public class CoalesceTests extends AbstractFunctionTestCase {
                 equalTo(first == null ? second : first)
             );
         }));
+        suppliers.add(new TestCaseSupplier(List.of(DataType.VERSION, DataType.VERSION), () -> {
+            var first = randomBoolean()
+                ? null
+                : EsqlDataTypeConverter.stringToVersion(randomInt(10) + "." + randomInt(10) + "." + randomInt(10));
+            var second = EsqlDataTypeConverter.stringToVersion(randomInt(10) + "." + randomInt(10) + "." + randomInt(10));
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(first, DataType.VERSION, "first"),
+                    new TestCaseSupplier.TypedData(second, DataType.VERSION, "second")
+                ),
+                "CoalesceEvaluator[values=[Attribute[channel=0], Attribute[channel=1]]]",
+                DataType.VERSION,
+                equalTo(first == null ? second : first)
+            );
+        }));
         suppliers.add(new TestCaseSupplier(List.of(DataType.DATETIME, DataType.DATETIME), () -> {
             Long firstDate = randomBoolean() ? null : ZonedDateTime.parse("2023-12-04T10:15:30Z").toInstant().toEpochMilli();
             Long secondDate = ZonedDateTime.parse("2023-12-05T10:45:00Z").toInstant().toEpochMilli();

@@ -46,7 +46,6 @@ import org.elasticsearch.index.codec.zstd.Zstd814StoredFieldsFormat;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
-import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -68,7 +67,6 @@ import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.internal.SubSearchContext;
 import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.BucketedSort.ExtraData;
@@ -77,11 +75,13 @@ import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.FieldMaskingReader;
 import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
@@ -808,23 +808,33 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
     }
 
     private static String syntheticSource(DocumentMapper mapper, IndexReader reader, int docId) throws IOException {
-        SourceProvider provider = SourceProvider.fromSyntheticSource(mapper.mapping(), SourceFieldMetrics.NOOP);
-        Source synthetic = provider.getSource(getOnlyLeafReader(reader).getContext(), docId);
-        return synthetic.internalSourceRef().utf8ToString();
-    }
+        LeafReader leafReader = getOnlyLeafReader(reader);
 
-    protected static LeafStoredFieldLoader syntheticSourceStoredFieldLoader(
-        DocumentMapper mapper,
-        LeafReader leafReader,
-        SourceLoader loader
-    ) throws IOException {
-        if (loader.requiredStoredFields().isEmpty()) {
-            return StoredFieldLoader.empty().getLoader(leafReader.getContext(), null);
+        final String synthetic1;
+        final XContent xContent;
+        {
+            SourceProvider provider = SourceProvider.fromSyntheticSource(mapper.mapping(), SourceFieldMetrics.NOOP);
+            var source = provider.getSource(leafReader.getContext(), docId);
+            synthetic1 = source.internalSourceRef().utf8ToString();
+            xContent = source.sourceContentType().xContent();
         }
-        LeafStoredFieldLoader storedFields = StoredFieldLoader.create(false, loader.requiredStoredFields())
-            .getLoader(leafReader.getContext(), null);
-        storedFields.advanceTo(0);
-        return storedFields;
+
+        final String synthetic2;
+        {
+            int[] docIds = new int[] { docId };
+            SourceLoader sourceLoader = new SourceLoader.Synthetic(mapper.mapping()::syntheticFieldLoader, SourceFieldMetrics.NOOP);
+            var sourceLeafLoader = sourceLoader.leaf(getOnlyLeafReader(reader), docIds);
+            var storedFieldLoader = StoredFieldLoader.create(false, sourceLoader.requiredStoredFields())
+                .getLoader(leafReader.getContext(), docIds);
+            storedFieldLoader.advanceTo(docId);
+            try (XContentBuilder b = new XContentBuilder(xContent, new ByteArrayOutputStream())) {
+                sourceLeafLoader.write(storedFieldLoader, docId, b);
+                synthetic2 = BytesReference.bytes(b).utf8ToString();
+            }
+        }
+
+        assertThat(synthetic2, equalTo(synthetic1));
+        return synthetic1;
     }
 
     protected void validateRoundTripReader(String syntheticSource, DirectoryReader reader, DirectoryReader roundTripReader)

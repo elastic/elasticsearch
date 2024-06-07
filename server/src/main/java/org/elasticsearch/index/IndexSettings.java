@@ -838,17 +838,6 @@ public final class IndexSettings {
     }
 
     /**
-     * Determines the index mode depending on settings. The 'logs' mode is only allowed if explicitly enabled by means of
-     * 'index.mode.logs.enabled'. If not explicitly enabled, 'standard' index mode is used in place of 'logs'.
-     */
-    private static IndexMode indexMode(final Settings nodeSettings, final IndexScopedSettings indexScopedSettings) {
-        if (IndexMode.LOGS == indexScopedSettings.get(MODE) && LOGS_INDEX_MODE_ENABLED.get(nodeSettings) == false) {
-            return IndexMode.STANDARD;
-        }
-        return indexScopedSettings.get(MODE);
-    }
-
-    /**
      * Creates a new {@link IndexSettings} instance. The given node settings will be merged with the settings in the metadata
      * while index level settings will overwrite node settings.
      *
@@ -865,7 +854,7 @@ public final class IndexSettings {
         nodeName = Node.NODE_NAME_SETTING.get(settings);
         this.indexMetadata = indexMetadata;
         numberOfShards = settings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_SHARDS, null);
-        mode = indexMode(nodeSettings, scopedSettings);
+        mode = scopedSettings.get(MODE);
         this.timestampBounds = mode.getTimestampBound(indexMetadata);
         if (timestampBounds != null) {
             scopedSettings.addSettingsUpdateConsumer(IndexSettings.TIME_SERIES_END_TIME, endTime -> {

@@ -28,18 +28,18 @@ PUT idx
 
 While this on the fly reconstruction is *generally* slower than saving the source
 documents verbatim and loading them at query time, it saves a lot of storage
-space.
+space. Additional latency can be avoided by not loading `_source` field in queries when it is not needed.
 
-[[synthetic-source-restrictions]]
-===== Synthetic `_source` restrictions
+[[synthetic-source-fields]]
+===== Supported fields
+Synthetic `_source` is supported by all field types. Depending on implementation details, field types have different properties when used with synthetic `_source`.
 
-There are a couple of restrictions to be aware of:
+<<synthetic-source-fields-native-list, Majority of field types>> natively support synthetic `_source`. Source for the field is constructed using existing data, most commonly <<doc-values,`doc_values`>>, meaning no additional space is used.
 
-* When you retrieve synthetic `_source` content it undergoes minor
-<<synthetic-source-modifications,modifications>> compared to the original JSON.
-* Synthetic `_source` can be used with indices that contain only these field
-types:
+If a field type does not have native synthetic `_source` support, original data of this field is stored as is in the same way as the `_source` field in non-synthetic mode. Similarly, malformed values of fields that use <<ignore-malformed,`ignore_malformed`>> need to be stored as is, requiring additional storage space.
 
+[[synthetic-source-fields-native-list]]
+====== Field types with native synthetic source support
 ** <<aggregate-metric-double-synthetic-source, `aggregate_metric_double`>>
 ** {plugins}/mapper-annotated-text-usage.html#annotated-text-synthetic-source[`annotated-text`]
 ** <<binary-synthetic-source,`binary`>>
@@ -52,7 +52,6 @@ types:
 ** <<flattened-synthetic-source, `flattened`>>
 ** <<numeric-synthetic-source,`float`>>
 ** <<geo-point-synthetic-source,`geo_point`>>
-** <<geo-shape-synthetic-source,`geo_shape`>>
 ** <<numeric-synthetic-source,`half_float`>>
 ** <<histogram-synthetic-source,`histogram`>>
 ** <<numeric-synthetic-source,`integer`>>
@@ -61,10 +60,8 @@ types:
 ** <<numeric-synthetic-source,`long`>>
 ** <<range-synthetic-source,`range` types>>
 ** <<numeric-synthetic-source,`scaled_float`>>
-** <<search-as-you-type-synthetic-source,`search_as_you_type`>>
 ** <<numeric-synthetic-source,`short`>>
 ** <<text-synthetic-source,`text`>>
-** <<token-count-synthetic-source,`token_count`>>
 ** <<version-synthetic-source,`version`>>
 ** <<wildcard-synthetic-source,`wildcard`>>
 

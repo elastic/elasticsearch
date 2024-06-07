@@ -54,7 +54,7 @@ documents, the document `_id` is a hash of the document's dimensions and
 `@timestamp`. A TSDS doesn't support custom document `_id` values.
 
 * A TSDS uses <<synthetic-source,synthetic `_source`>>, and as a result is
-subject to a number of <<synthetic-source-restrictions,restrictions>>.
+subject to <<synthetic-source-modifications,modifications>> applied to `_source` field.
 
 NOTE: A time series index can contain fields other than dimensions or metrics.
 

@@ -38,6 +38,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class FollowIndexSecurityIT extends ESCCRRestTestCase {
 
@@ -339,7 +340,9 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
 
     private static void assertNoPendingPersistentTasks() throws IOException {
         Map<String, Object> clusterState = toMap(adminClient().performRequest(new Request("GET", "/_cluster/state")));
-        List<?> tasks = ((List<?>) XContentMapValues.extractValue("metadata.persistent_tasks.tasks", clusterState)).stream()
+        List<?> tasks = (List<?>) XContentMapValues.extractValue("metadata.project.persistent_tasks.tasks", clusterState);
+        assertThat("Could not retrieve tasks from cluster state", tasks, notNullValue());
+        tasks = tasks.stream()
             .filter(
                 task -> (((task instanceof Map<?, ?> taskMap)
                     && taskMap.containsKey("id")

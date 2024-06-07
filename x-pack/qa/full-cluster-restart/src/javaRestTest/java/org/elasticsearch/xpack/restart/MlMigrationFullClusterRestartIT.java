@@ -182,10 +182,10 @@ public class MlMigrationFullClusterRestartIT extends AbstractXpackFullClusterRes
         Map<String, Object> responseMap = entityAsMap(response);
 
         List<Map<String, Object>> tasks = (List<Map<String, Object>>) XContentMapValues.extractValue(
-            "metadata.persistent_tasks.tasks",
+            "metadata.project.persistent_tasks.tasks",
             responseMap
         );
-        assertNotNull(tasks);
+        assertNotNull("No tasks found in cluster state metadata", tasks);
         for (Map<String, Object> task : tasks) {
             String id = (String) task.get("id");
             assertNotNull(id);

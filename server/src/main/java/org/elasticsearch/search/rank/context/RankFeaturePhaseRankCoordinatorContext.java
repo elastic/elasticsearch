@@ -44,6 +44,10 @@ public abstract class RankFeaturePhaseRankCoordinatorContext {
      */
     protected abstract void computeScores(RankFeatureDoc[] featureDocs, ActionListener<float[]> scoreListener);
 
+    protected boolean keepRankFeatureDoc(RankFeatureDoc doc) {
+        return true;
+    }
+
     /**
      * This method is responsible for ranking the global results based on the provided rank feature results from each shard.
      * <p>
@@ -72,13 +76,18 @@ public abstract class RankFeaturePhaseRankCoordinatorContext {
     }
 
     /**
-     * Ranks the provided {@link RankFeatureDoc} array and paginates the results based on the `from` and `size` parameters.
+     * Ranks the provided {@link RankFeatureDoc} array and paginates the results based on the `from` and `size` parameters. Filters out
+     * documents that have a relevance score less than min_score.
+     * @param rankFeatureDocs documents to process
      */
     public RankFeatureDoc[] rankAndPaginate(RankFeatureDoc[] rankFeatureDocs) {
-        Arrays.sort(rankFeatureDocs, Comparator.comparing((RankFeatureDoc doc) -> doc.score).reversed());
-        RankFeatureDoc[] topResults = new RankFeatureDoc[Math.max(0, Math.min(size, rankFeatureDocs.length - from))];
+        RankFeatureDoc[] rankFeatureDocsAboveMinScore = Arrays.stream(rankFeatureDocs)
+            .filter(this::keepRankFeatureDoc)
+            .sorted(Comparator.comparing((RankFeatureDoc doc) -> doc.score).reversed())
+            .toArray(RankFeatureDoc[]::new);
+        RankFeatureDoc[] topResults = new RankFeatureDoc[Math.max(0, Math.min(size, rankFeatureDocsAboveMinScore.length - from))];
         for (int rank = 0; rank < topResults.length; ++rank) {
-            topResults[rank] = rankFeatureDocs[from + rank];
+            topResults[rank] = rankFeatureDocsAboveMinScore[from + rank];
             topResults[rank].rank = from + rank + 1;
         }
         return topResults;

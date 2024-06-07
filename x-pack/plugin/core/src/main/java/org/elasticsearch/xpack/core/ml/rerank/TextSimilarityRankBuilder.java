@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.ml.rerank;
 
+import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
@@ -14,6 +15,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.rank.RankBuilder;
+import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.rank.context.QueryPhaseRankCoordinatorContext;
 import org.elasticsearch.search.rank.context.QueryPhaseRankShardContext;
 import org.elasticsearch.search.rank.context.RankFeaturePhaseRankCoordinatorContext;
@@ -75,6 +77,11 @@ public class TextSimilarityRankBuilder extends RankBuilder {
     @Override
     public boolean isCompoundBuilder() {
         return false;
+    }
+
+    @Override
+    public Explanation explainHit(Explanation baseExplanation, RankDoc scoreDoc, List<String> queryNames) {
+        return null;
     }
 
     @Override

@@ -23,13 +23,6 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends Action
     InferenceAction.Request,
     InferenceAction.Response> {
 
-    /**
-     * Negative relevance score for marking docs that should be dropped because their score does not reach minScore.
-     */
-    private static final float DROP_SCORE = -1.0f;
-
-    private final float minScore;
-
     public TextSimilarityRankFeaturePhaseRankCoordinatorContext(
         int size,
         int from,
@@ -39,9 +32,7 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends Action
         String inferenceText,
         float minScore
     ) {
-        super(size, from, windowSize, client, inferenceId, inferenceText);
-
-        this.minScore = minScore;
+        super(size, from, windowSize, client, inferenceId, inferenceText, minScore);
     }
 
     @Override

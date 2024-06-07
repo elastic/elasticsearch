@@ -35,7 +35,7 @@ public class GeoIpDownloaderTaskExecutorTests extends ESTestCase {
     public void testHasAtLeastOneGeoipProcessorWhenDownloadDatabaseOnPipelineCreationIsFalse() throws IOException {
         ClusterState clusterState = mock(ClusterState.class);
         Metadata metadata = mock(Metadata.class);
-        when(clusterState.getMetadata()).thenReturn(metadata);
+        when(clusterState.metadata()).thenReturn(metadata);
 
         final IngestMetadata[] ingestMetadata = new IngestMetadata[1];
         when(metadata.projectCustom(IngestMetadata.TYPE)).thenAnswer(invocationOnmock -> ingestMetadata[0]);
@@ -69,7 +69,7 @@ public class GeoIpDownloaderTaskExecutorTests extends ESTestCase {
         ClusterState clusterState = mock(ClusterState.class);
         Metadata metadata = mock(Metadata.class);
         when(metadata.projectCustom(IngestMetadata.TYPE)).thenAnswer(invocationOnmock -> ingestMetadata[0]);
-        when(clusterState.getMetadata()).thenReturn(metadata);
+        when(clusterState.metadata()).thenReturn(metadata);
         List<String> expectHitsInputs = getPipelinesWithGeoIpProcessors(true);
         List<String> expectMissesInputs = getPipelinesWithoutGeoIpProcessors();
         {

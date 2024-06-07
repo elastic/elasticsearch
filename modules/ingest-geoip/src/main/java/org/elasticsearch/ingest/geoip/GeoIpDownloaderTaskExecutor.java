@@ -247,7 +247,7 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
             return false;
         }
 
-        return clusterState.getMetadata().indices().values().stream().anyMatch(indexMetadata -> {
+        return clusterState.metadata().indices().values().stream().anyMatch(indexMetadata -> {
             String defaultPipeline = IndexSettings.DEFAULT_PIPELINE.get(indexMetadata.getSettings());
             String finalPipeline = IndexSettings.FINAL_PIPELINE.get(indexMetadata.getSettings());
             return checkReferencedPipelines.contains(defaultPipeline) || checkReferencedPipelines.contains(finalPipeline);

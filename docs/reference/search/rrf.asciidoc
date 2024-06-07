@@ -115,7 +115,6 @@ The `rrf` retriever does not currently support:
 * <<search-suggesters, suggesters>>
 * <<highlighting, highlighting>>
 * <<collapse-search-results, collapse>>
-* <<request-body-search-explain, explain>>
 * <<profiling-queries, profiling>>
 
 Using unsupported features as part of a search with an `rrf` retriever results
@@ -519,6 +518,161 @@ We end with `_id: 3` as `_rank: 1`, `_id: 2` as `_rank: 2`, and
 `_id: 4` as `_rank: 3`. This ranking matches the result set from the
 original RRF search as expected.
 
+==== Explain in RRF
+
+In addition to individual query scoring details, we can make use of the `explain=true` parameter to get information on how
+the RRF scores for each document were computed. Working with the example above, and by adding
+`explain=true` to the search request, we'd now have a response that looks like the following:
+
+[source,js]
+----
+{
+    "hits":
+    [
+        {
+            "_index": "example-index",
+            "_id": "3",
+            "_score": 0.8333334,
+            "_rank": 1,
+            "_explanation":
+            {
+                "value": 0.8333334,                                                                                                                                               <1>
+                "description": "rrf score: [0.8333334] computed for initial ranks [2, 1] with rankConstant: [1] as sum of [1 / (rank + rankConstant)] for each query",            <2>
+                "details":                                                                                                                                                        <3>
+                [
+                    {
+                        "value": 2,                                                                                                                                               <4>
+                        "description": "rrf score: [0.33333334], for rank [2] in query at index [0] computed as [1 / (2 + 1]), for matching query with score: ",
+                        "details":                                                                                                                                                <5>
+                        [
+                            {
+                                "value": 0.15876243,
+                                "description": "weight(text:rrf in 0) [PerFieldSimilarity], result of:",
+                                "details":
+                                [
+                                    ...
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        "value": 1,                                                                                                                                              <6>
+                        "description": "rrf score: [0.5], for rank [1] in query at index [1] computed as [1 / (1 + 1]), for matching query with score: ",
+                        "details":
+                        [
+                            {
+                                "value": 1,
+                                "description": "within top k documents",
+                                "details":
+                                []
+                            }
+                        ]
+                    }
+                ]
+            }
+        }
+        ...
+    ]
+}
+----
+// NOTCONSOLE
+
+<1> the final RRF score for document with `_id=3`
+<2> a description on how this score was computed based on the ranks of this document in each individual query
+<3> details on how the RRF score was computed for each of the queries
+<4> the `value` heres specifies the `rank` of this document in the specific query
+<5> standard `explain` output of the underlying query, describing matching terms and weights
+<6> the `value` heres specifies the `rank` of this document for the second (`knn`) query
+
+In addition to the above, explain in RRF also supports <<named-queries,named queries>> using the `_name` parameter.
+Using named queries allows for easier and more intuitive understanding of the RRF score computation,
+especially when dealing with multiple queries. So, we would now have:
+
+[source,js]
+----
+GET example-index/_search
+{
+    "retriever": {
+        "rrf": {
+            "retrievers": [
+                {
+                    "standard": {
+                        "query": {
+                            "term": {
+                                "text": "rrf"
+                            }
+                        }
+                    }
+                },
+                {
+                    "knn": {
+                        "field": "vector",
+                        "query_vector": [3],
+                        "k": 5,
+                        "num_candidates": 5,
+                        "_name": "my_knn_query"                           <1>
+                    }
+                }
+            ],
+            "rank_window_size": 5,
+            "rank_constant": 1
+        }
+    },
+    "size": 3,
+    "aggs": {
+        "int_count": {
+            "terms": {
+                "field": "integer"
+            }
+        }
+    }
+}
+----
+// NOTCONSOLE
+<1> Here we specify a `_name` for the `knn` retriever
+
+The response would now include the named query in the explanation:
+[source,js]
+----
+{
+    "hits":
+    [
+        {
+            "_index": "example-index",
+            "_id": "3",
+            "_score": 0.8333334,
+            "_rank": 1,
+            "_explanation":
+            {
+                "value": 0.8333334,
+                "description": "rrf score: [0.8333334] computed for initial ranks [2, 1] with rankConstant: [1] as sum of [1 / (rank + rankConstant)] for each query",
+                "details":
+                [
+                    {
+                        "value": 2,
+                        "description": "rrf score: [0.33333334], for rank [2] in query at index [0] computed as [1 / (2 + 1]), for matching query with score: ",
+                        "details":
+                        [
+                            ...
+                        ]
+                    },
+                    {
+                        "value": 1,
+                        "description": "rrf score: [0.5], for rank [1] in query [my_knn_query] computed as [1 / (1 + 1]), for matching query with score: ",                      <1>
+                        "details":
+                        [
+                           ...
+                        ]
+                    }
+                ]
+            }
+        }
+        ...
+    ]
+}
+----
+// NOTCONSOLE
+<1> Instead of the anonymous `at index n` , we now have a reference to the named query `my_knn_query`.
 
 ==== Pagination in RRF
 

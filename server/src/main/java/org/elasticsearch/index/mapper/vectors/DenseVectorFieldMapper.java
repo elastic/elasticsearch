@@ -467,6 +467,28 @@ public class DenseVectorFieldMapper extends FieldMapper {
             ByteBuffer createByteBuffer(IndexVersion indexVersion, int numBytes) {
                 return ByteBuffer.wrap(new byte[numBytes]);
             }
+
+            @Override
+            int parseDimensionCount(DocumentParserContext context) throws IOException {
+                XContentParser.Token currentToken = context.parser().currentToken();
+                return switch (currentToken) {
+                    case START_ARRAY -> {
+                        int index = 0;
+                        for (Token token = context.parser().nextToken(); token != Token.END_ARRAY; token = context.parser().nextToken()) {
+                            index++;
+                        }
+                        yield index;
+                    }
+                    case VALUE_STRING -> {
+                        byte[] decodedVector = HexFormat.of().parseHex(context.parser().text());
+                        yield decodedVector.length;
+                    }
+                    default -> throw new ParsingException(
+                        context.parser().getTokenLocation(),
+                        format("Unsupported type [%s] for provided value [%s]", currentToken, context.parser().text())
+                    );
+                };
+            }
         },
 
         FLOAT(4) {

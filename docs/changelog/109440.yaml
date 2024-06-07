@@ -1,0 +1,5 @@
+pr: 109440
+summary: Fix task cancellation on remote cluster when original request fails
+area: Network
+type: bug
+issues: []

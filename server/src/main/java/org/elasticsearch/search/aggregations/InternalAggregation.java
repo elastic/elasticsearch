@@ -22,6 +22,7 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -359,11 +360,18 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
             builder.startObject(getName());
         }
         if (this.metadata != null) {
-            this.metadata.remove("exclude_deleted_docs");
-            if (this.metadata.isEmpty() == false) {
+            if (this.metadata.containsKey("exclude_deleted_docs")) {
+                Map<String, Object> mutableMetaData = new HashMap<>(this.metadata);
+                mutableMetaData.remove("exclude_deleted_docs");
+                if (mutableMetaData.isEmpty() == false) {
+                    builder.field(CommonFields.META.getPreferredName());
+                    builder.map(mutableMetaData);
+                }
+            } else {
                 builder.field(CommonFields.META.getPreferredName());
                 builder.map(this.metadata);
             }
+
         }
         doXContentBody(builder, params);
         builder.endObject();

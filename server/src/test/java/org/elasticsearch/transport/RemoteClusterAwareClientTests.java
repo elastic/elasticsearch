@@ -104,7 +104,12 @@ public class RemoteClusterAwareClientTests extends ESTestCase {
                 Task parentTask = localService.getTaskManager().register("test_type", "test_action", searchShardsRequest);
                 TaskId parentTaskId = new TaskId("test-mock-node-id", parentTask.getId());
                 searchShardsRequest.setParentTask(parentTaskId);
-                var client = new RemoteClusterAwareClient(localService, "cluster1", threadPool.executor(TEST_THREAD_POOL_NAME), randomBoolean());
+                var client = new RemoteClusterAwareClient(
+                    localService,
+                    "cluster1",
+                    threadPool.executor(TEST_THREAD_POOL_NAME),
+                    randomBoolean()
+                );
 
                 AtomicBoolean cancelChildReceived = new AtomicBoolean(false);
                 remoteTransport.addRequestHandlingBehavior(

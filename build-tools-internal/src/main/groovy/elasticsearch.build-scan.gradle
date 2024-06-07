@@ -167,15 +167,15 @@ develocity {
 
             // Add a build annotation
             // See: https://buildkite.com/docs/agent/v3/cli-annotate
-            def body = """<div class="mb3"><span class="p1 border rounded">${System.getenv('BUILDKITE_LABEL')}</span> :gradle: ${result.failures.isEmpty() ? 'failed' : 'successful'} build: <a href="${scan.buildScanUri}"><code>gradle ${gradle.startParameter.taskNames.join(' ')}</code></a></div>"""
+            def body = """<div class="mb3"><span class="p1 border rounded">${System.getenv('BUILDKITE_LABEL')}</span> :gradle: ${result.failures ? 'failed' : 'successful'} build: <a href="${scan.buildScanUri}"><code>gradle ${gradle.startParameter.taskNames.join(' ')}</code></a></div>"""
             def process = [
               'buildkite-agent',
               'annotate',
               '--context',
-              result.failures.isEmpty() ? 'gradle-build-scans-failed' : 'gradle-build-scans',
+              result.failures ? 'gradle-build-scans-failed' : 'gradle-build-scans',
               '--append',
               '--style',
-              result.failures.isEmpty() ? 'error' : 'info'
+              result.failures ? 'error' : 'info'
             ].execute()
             process.withWriter { it.write(body) }
             // passing the body in as an argument has issues on Windows, so let's use stdin of the process instead

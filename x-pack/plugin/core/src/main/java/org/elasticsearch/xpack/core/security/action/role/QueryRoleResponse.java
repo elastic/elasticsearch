@@ -95,7 +95,7 @@ public final class QueryRoleResponse extends ActionResponse implements ToXConten
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            roleDescriptor.innerToXContent(builder, params, false);
+            roleDescriptor.innerToXContent(builder, params, false, false);
             if (sortValues != null && sortValues.length > 0) {
                 builder.array("_sort", sortValues);
             }

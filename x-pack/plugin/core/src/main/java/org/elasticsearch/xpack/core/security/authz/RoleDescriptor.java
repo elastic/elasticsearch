@@ -420,6 +420,13 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         return toXContent(builder, params, docCreation, false);
     }
 
+    public XContentBuilder toXContent(XContentBuilder builder, Params params, boolean docCreation, boolean includeMetadataFlattened)
+        throws IOException {
+        builder.startObject();
+        innerToXContent(builder, params, docCreation, includeMetadataFlattened);
+        return builder.endObject();
+    }
+
     /**
      * Generates x-content for this {@link RoleDescriptor} instance.
      *
@@ -432,7 +439,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
      * @return x-content builder
      * @throws IOException if there was an error writing the x-content to the builder
      */
-    public XContentBuilder toXContent(XContentBuilder builder, Params params, boolean docCreation, boolean includeMetadataFlattened)
+    public XContentBuilder innerToXContent(XContentBuilder builder, Params params, boolean docCreation, boolean includeMetadataFlattened)
         throws IOException {
         builder.startObject();
         builder.array(Fields.CLUSTER.getPreferredName(), clusterPrivileges);

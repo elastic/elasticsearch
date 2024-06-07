@@ -37,7 +37,7 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
         synonymsManagementAPIService = new SynonymsManagementAPIService(client());
     }
 
-    public void testCreateManySynonyms() throws InterruptedException {
+    public void testCreateManySynonyms() throws Exception {
         CountDownLatch putLatch = new CountDownLatch(1);
         String synonymSetId = randomIdentifier();
         int rulesNumber = randomIntBetween(
@@ -64,27 +64,29 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
 
         CountDownLatch getLatch = new CountDownLatch(1);
         // Also retrieve them
-        synonymsManagementAPIService.getSynonymSetRules(
-            synonymSetId,
-            0,
-            SynonymsManagementAPIService.MAX_SYNONYMS_SETS,
-            new ActionListener<>() {
-                @Override
-                public void onResponse(PagedResult<SynonymRule> synonymRulePagedResult) {
-                    // TODO This fails in CI but passes locally. Why?
-                    // assertEquals(rulesNumber, synonymRulePagedResult.totalResults());
-                    // assertEquals(rulesNumber, synonymRulePagedResult.pageResults().length);
-                    getLatch.countDown();
-                }
+        assertBusy(() -> {
+            synonymsManagementAPIService.getSynonymSetRules(
+                synonymSetId,
+                0,
+                SynonymsManagementAPIService.MAX_SYNONYMS_SETS,
+                new ActionListener<>() {
+                    @Override
+                    public void onResponse(PagedResult<SynonymRule> synonymRulePagedResult) {
+                        // TODO This fails in CI but passes locally. Why?
+                        assertEquals(rulesNumber, synonymRulePagedResult.totalResults());
+                        assertEquals(rulesNumber, synonymRulePagedResult.pageResults().length);
+                        getLatch.countDown();
+                    }
 
-                @Override
-                public void onFailure(Exception e) {
-                    fail(e);
+                    @Override
+                    public void onFailure(Exception e) {
+                        fail(e);
+                    }
                 }
-            }
-        );
+            );
+        }, 5, TimeUnit.SECONDS);
 
-        getLatch.await(5, TimeUnit.SECONDS);
+        getLatch.await(10, TimeUnit.SECONDS);
     }
 
     public void testCreateTooManySynonymsAtOnce() throws InterruptedException {
@@ -132,7 +134,7 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
 
                         @Override
                         public void onFailure(Exception e) {
-                            fail("Shouldn't have failed to update a rule");
+                            fail(e);
                         }
                     });
                 }

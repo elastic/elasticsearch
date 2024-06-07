@@ -1,6 +1,0 @@
-pr: 109465
-summary: Change COMPAT locale references to CLDR
-area: Infra/Core
-type: upgrade
-issues:
- - 109003

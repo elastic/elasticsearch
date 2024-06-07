@@ -875,9 +875,11 @@ public class StatementParserTests extends ESTestCase {
 
         expectError("from test | where x < ?#1", List.of(new QueryParam("#1", 5, INTEGER)), "token recognition error at: '#'");
 
-        expectError("from test | where x < ??", List.of(new QueryParam("?", 5, INTEGER)), "Not enough actual parameters 1");
-
-        expectError("from test | where x < ???", List.of(new QueryParam("?", 5, INTEGER)), "Not enough actual parameters 1");
+        expectError(
+            "from test | where x < ??",
+            List.of(new QueryParam("n_1", 5, INTEGER), new QueryParam("n_2", 5, INTEGER)),
+            "extraneous input '?' expecting <EOF>"
+        );
     }
 
     public void testPositionalParams() {

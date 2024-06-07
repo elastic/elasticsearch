@@ -126,22 +126,59 @@ public class EsqlQueryRequestTests extends ESTestCase {
         Locale locale = randomLocale(random());
         QueryBuilder filter = randomQueryBuilder();
 
-        String paramsString = """
-            ,"params":[ {"1" : "v1" }, {"1x" : "v1" }, {"_a" : "v1" }, {"@-#" : "v1" }, 1] }""";
-        String json = String.format(Locale.ROOT, """
+        String paramsString1 = """
+            "params":[ {"1" : "v1" }, {"1x" : "v1" }, {"_a" : "v1" }, {"@-#" : "v1" }, 1, 2]""";
+        String json1 = String.format(Locale.ROOT, """
             {
+                %s
                 "query": "%s",
                 "columnar": %s,
                 "locale": "%s",
                 "filter": %s
-                %s""", query, columnar, locale.toLanguageTag(), filter, paramsString);
+            }""", paramsString1, query, columnar, locale.toLanguageTag(), filter);
 
-        Exception e = expectThrows(XContentParseException.class, () -> parseEsqlQueryRequestSync(json));
-        assertThat(e.getCause().getMessage(), containsString("[1] is not a valid parameter name"));
-        assertThat(e.getCause().getMessage(), containsString("[1x] is not a valid parameter name"));
-        assertThat(e.getCause().getMessage(), containsString("[_a] is not a valid parameter name"));
-        assertThat(e.getCause().getMessage(), containsString("[@-#] is not a valid parameter name"));
-        assertThat(e.getCause().getMessage(), containsString("Params cannot contain both named and unnamed parameters"));
+        Exception e1 = expectThrows(XContentParseException.class, () -> parseEsqlQueryRequestSync(json1));
+        assertThat(
+            e1.getCause().getMessage(),
+            containsString(
+                "Failed to parse params: [2:16] [1] is not a valid parameter name, "
+                    + "a valid parameter name starts with a letter and contains letters, digits and underscores only"
+            )
+        );
+        assertThat(e1.getCause().getMessage(), containsString("[2:31] [1x] is not a valid parameter name"));
+        assertThat(e1.getCause().getMessage(), containsString("[2:47] [_a] is not a valid parameter name"));
+        assertThat(e1.getCause().getMessage(), containsString("[2:63] [@-#] is not a valid parameter name"));
+        assertThat(
+            e1.getCause().getMessage(),
+            containsString(
+                "Params cannot contain both named and unnamed parameters; got [{1:v1}, {1x:v1}, {_a:v1}, {@-#:v1}] and [{1}, {2}]"
+            )
+        );
+
+        String paramsString2 = """
+            "params":[ 1, 2, {"1" : "v1" }, {"1x" : "v1" }]""";
+        String json2 = String.format(Locale.ROOT, """
+            {
+                %s
+                "query": "%s",
+                "columnar": %s,
+                "locale": "%s",
+                "filter": %s
+            }""", paramsString2, query, columnar, locale.toLanguageTag(), filter);
+
+        Exception e2 = expectThrows(XContentParseException.class, () -> parseEsqlQueryRequestSync(json2));
+        assertThat(
+            e2.getCause().getMessage(),
+            containsString(
+                "Failed to parse params: [2:22] [1] is not a valid parameter name, "
+                    + "a valid parameter name starts with a letter and contains letters, digits and underscores only"
+            )
+        );
+        assertThat(e2.getCause().getMessage(), containsString("[2:37] [1x] is not a valid parameter name"));
+        assertThat(
+            e2.getCause().getMessage(),
+            containsString("Params cannot contain both named and unnamed parameters; got [{1:v1}, {1x:v1}] and [{1}, {2}]")
+        );
     }
 
     public void testParseFieldsForAsync() throws IOException {

@@ -16,7 +16,6 @@ import org.elasticsearch.xcontent.XContentLocation;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.parser.ContentLocation;
 import org.elasticsearch.xpack.esql.parser.QueryParam;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
@@ -131,11 +130,12 @@ final class RequestXContent {
     }
 
     private static QueryParams parseParams(XContentParser p) throws IOException {
-        List<QueryParam> result = new ArrayList<>();
-        List<String> errors = new ArrayList<>();
+        List<QueryParam> namedParams = new ArrayList<>();
+        List<QueryParam> unNamedParams = new ArrayList<>();
+        List<XContentParseException> errors = new ArrayList<>();
         XContentParser.Token token = p.currentToken();
-        boolean namedParameter = false;
-        boolean unnamedParameter = false;
+        // BitSet parameterTypes = new BitSet(2);
+        // BitSet newType = new BitSet(2);
 
         if (token == XContentParser.Token.START_ARRAY) {
             Object value = null;
@@ -144,41 +144,38 @@ final class RequestXContent {
             TempObjects param;
 
             while ((token = p.nextToken()) != XContentParser.Token.END_ARRAY) {
-                ContentLocation loc = toProto(p.getTokenLocation());
-
+                XContentLocation loc = p.getTokenLocation();
+                // newType.clear();
                 if (token == XContentParser.Token.START_OBJECT) {
                     param = PARAM_PARSER.apply(p, null);
                     if (param.fields.size() > 1) {
-                        errors.add(loc + " Cannot parse more than one key:value pair as parameter, found [" + param.fields() + "]");
+                        errors.add(
+                            new XContentParseException(
+                                loc,
+                                "Cannot parse more than one key:value pair as parameter, found [" + param.fields() + "]"
+                            )
+                        );
                     }
                     for (Map.Entry<String, Object> entry : param.fields.entrySet()) {
                         if (isValidParamName(entry.getKey()) == false) {
                             errors.add(
-                                loc
-                                    + " ["
-                                    + entry.getKey()
-                                    + "] is not a valid parameter name, "
-                                    + "a valid parameter name starts with a letter and contains letters, digits and underscores only"
+                                new XContentParseException(
+                                    loc,
+                                    "["
+                                        + entry.getKey()
+                                        + "] is not a valid parameter name, "
+                                        + "a valid parameter name starts with a letter and contains letters, digits and underscores only"
+                                )
                             );
                         }
                         type = EsqlDataTypes.fromJava(entry.getValue());
                         if (type == null) {
-                            errors.add(loc + " " + entry + " is not supported as a parameter");
+                            errors.add(new XContentParseException(loc, entry + " is not supported as a parameter"));
                         }
                         currentParam = new QueryParam(entry.getKey(), entry.getValue(), type);
-                        currentParam.tokenLocation(loc);
-                        namedParameter = true;
-                        if (unnamedParameter && namedParameter) {
-                            errors.add(
-                                loc
-                                    + " Params cannot contain both named and unnamed parameters; got [{"
-                                    + entry.getKey()
-                                    + " : "
-                                    + entry.getValue()
-                                    + "}] and "
-                                    + Arrays.toString(result.stream().map(QueryParam::value).toArray())
-                            );
-                        }
+                        namedParams.add(currentParam);
+                        // newType.set(0);
+                        // checkParameterTypes(parameterTypes, newType, loc, currentParam, result, errors);
                     }
                 } else {
                     if (token == XContentParser.Token.VALUE_STRING) {
@@ -203,41 +200,57 @@ final class RequestXContent {
                         value = null;
                         type = DataType.NULL;
                     } else {
-                        errors.add(loc + " " + token + " is not supported as a parameter.");
+                        errors.add(new XContentParseException(loc, token + " is not supported as a parameter"));
                     }
                     currentParam = new QueryParam(null, value, type);
-                    currentParam.tokenLocation(loc);
-                    unnamedParameter = true;
-                    if (unnamedParameter && namedParameter) {
-                        errors.add(
-                            loc
-                                + " Params cannot contain both named and unnamed parameters; got ["
-                                + value
-                                + "] and "
-                                + Arrays.toString(result.stream().map(QueryParam::nameValue).toArray())
-                        );
-                    }
+                    unNamedParams.add(currentParam);
+                    // newType.set(1);
+                    // checkParameterTypes(parameterTypes, newType, loc, currentParam, result, errors);
                 }
-                result.add(currentParam);
+                // result.add(currentParam);
             }
         }
+        if (namedParams.isEmpty() == false && unNamedParams.isEmpty() == false) {
+            errors.add(
+                new XContentParseException(
+                    "Params cannot contain both named and unnamed parameters; got "
+                        + Arrays.toString(namedParams.stream().map(QueryParam::nameValue).toArray())
+                        + " and "
+                        + Arrays.toString(unNamedParams.stream().map(QueryParam::nameValue).toArray())
+                )
+            );
+        }
         if (errors.size() > 0) {
-            throw new XContentParseException("Failed to parse params: " + String.join("; ", errors.stream().toArray(String[]::new)));
+            throw new XContentParseException(
+                "Failed to parse params: " + String.join("; ", errors.stream().map(ex -> ex.getMessage()).toArray(String[]::new))
+            );
         }
-        return new QueryParams(result);
+        return new QueryParams(namedParams.isEmpty() ? unNamedParams : namedParams);
     }
 
-    static ContentLocation toProto(XContentLocation toProto) {
-        if (toProto == null) {
-            return null;
+    /*
+    private static void checkParameterTypes(
+        BitSet oldTypes,
+        BitSet newTypes,
+        XContentLocation loc,
+        QueryParam param,
+        List<QueryParam> params,
+        List<XContentParseException> errors
+    ) {
+        if (oldTypes.cardinality() < 2) {
+            oldTypes.or(newTypes);
+            if (oldTypes.cardinality() == 2) {
+                errors.add(
+                    new XContentParseException(
+                        loc,
+                        "Params cannot contain both named and unnamed parameters; got ["
+                            + param.nameValue()
+                            + "] and "
+                            + Arrays.toString(params.stream().map(QueryParam::nameValue).toArray())
+                    )
+                );
+            }
         }
-        return new ContentLocation(toProto.lineNumber(), toProto.columnNumber());
     }
-
-    static XContentLocation fromProto(ContentLocation fromProto) {
-        if (fromProto == null) {
-            return null;
-        }
-        return new XContentLocation(fromProto.lineNumber, fromProto.columnNumber);
-    }
+     */
 }

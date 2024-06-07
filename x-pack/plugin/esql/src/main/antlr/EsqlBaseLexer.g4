@@ -195,7 +195,6 @@ EXPR_MULTILINE_COMMENT
 EXPR_WS
     : WS -> channel(HIDDEN)
     ;
-
 //
 // FROM command
 //
